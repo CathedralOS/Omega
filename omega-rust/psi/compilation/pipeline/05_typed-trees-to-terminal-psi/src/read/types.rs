@@ -38,9 +38,12 @@ pub(super) fn atom_type(atom: BuiltinTypeAtom, machine: MachineId) -> Checked<Sc
         BuiltinTypeAtom::Address => Ok(ScalarType::Integer(
             IntegerType::supported_address_representation(),
         )),
-        BuiltinTypeAtom::F32 | BuiltinTypeAtom::F64 => {
-            Err(refuse(machine, Construct::Machine, Unserved::Type("float")))
-        }
+        BuiltinTypeAtom::F32 => Ok(ScalarType::IeeeFloat(
+            semantic_vocabulary::IeeeFloatFormat::Binary32,
+        )),
+        BuiltinTypeAtom::F64 => Ok(ScalarType::IeeeFloat(
+            semantic_vocabulary::IeeeFloatFormat::Binary64,
+        )),
         BuiltinTypeAtom::Slice => Err(refuse(machine, Construct::Machine, Unserved::Type("slice"))),
         BuiltinTypeAtom::SyscallResult => Err(refuse(
             machine,

@@ -869,3 +869,73 @@ fn an_original_returned_reference_keeps_its_backing_and_excludes_its_parent() {
         "storage is changed while a conflicting reference remains live"
     );
 }
+
+/// loans.md, "Reborrow lineage and access": a Mutable parent may form a
+/// Shared child ("Freeze mutation until the complete shared cohort ends;
+/// restore once"). An exclusive loan the program writes for a parameter that
+/// only observes is that: the place must admit the exclusive loan, and the
+/// callee receives observation. Each refused or rejected twin differs from
+/// an accepted program in the one thing named beside it.
+#[test]
+fn an_exclusive_loan_is_lent_on_to_a_parameter_that_only_observes() {
+    use super::build_purpose::judge_build;
+    let verdict = |build: &str| match judge_build(build) {
+        Err(crate::CompilationRefusal::Elaboration(refusal))
+        | Ok(RouteVerdict::FallBack(refusal)) => refusal.detail,
+        Ok(RouteVerdict::Accepted(accepted)) => {
+            accepted.publish_invocation().unwrap();
+            "accepted".to_owned()
+        }
+        Ok(RouteVerdict::Rejected { violations, .. }) => violations
+            .first()
+            .map_or("rejected".to_owned(), |first| first.statement.clone()),
+        other => panic!("{other:?}"),
+    };
+    let program = |binding: &str, call: &str| {
+        format!(
+            "data Pair {{ left: u32; right: u32; }}
+machine see(pair: &Pair) -> u32 {{ pair.left }}
+machine both(first: &Pair, second: &Pair) -> u32 {{ first.left }}
+machine relay(pair: &mut Pair) -> u32 {{ see(&mut pair) }}
+machine watch(pair: &Pair) -> u32 {{ see(&pair) }}
+machine build_entry() {{
+    let {binding}: Pair = Pair {{ left: 1, right: 2 }};
+    let mut other: Pair = Pair {{ left: 3, right: 4 }};
+    use({call});
+    pair_left(pair.left);
+}}
+machine use(seen: u32) {{ }}
+machine pair_left(left: u32) {{ }}"
+        )
+    };
+    // The loan as written, through a reference the machine holds, and beside
+    // a loan of other storage.
+    for call in [
+        "see(&mut pair)",
+        "relay(&mut pair)",
+        "watch(&pair)",
+        "both(&mut pair, &other)",
+        "both(&mut pair, &mut other)",
+    ] {
+        assert_eq!(verdict(&program("mut pair", call)), "accepted", "{call}");
+    }
+    // The place does not admit an exclusive loan.
+    assert_eq!(
+        verdict(&program("pair", "see(&mut pair)")),
+        "call exclusive loan of an immutable binding"
+    );
+    // The exclusive loan overlaps another loan of its storage.
+    for call in ["both(&mut pair, &pair)", "both(&pair, &mut pair)"] {
+        assert_eq!(
+            verdict(&program("mut pair", call)),
+            "call exclusive loan for a shared formal beside another loan of its storage",
+            "{call}"
+        );
+    }
+    // The other direction has no row: observation does not become mutation.
+    assert!(
+        verdict(&program("mut pair", "relay(&pair)")).contains("lends only immutable access"),
+        "{}",
+        verdict(&program("mut pair", "relay(&pair)"))
+    );
+}

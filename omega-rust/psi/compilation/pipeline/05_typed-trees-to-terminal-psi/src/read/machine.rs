@@ -1981,22 +1981,18 @@ impl<'t> Program<'t> {
                         if self.fact_restates_formal_domain(formals, fact) {
                             continue;
                         }
-                        let expression = self.fact(id, fact)?;
-                        if self.states_nothing(id, expression)? {
-                            continue;
+                        if let Some((clause, text)) = self.contract_clause(id, &required, fact)? {
+                            requires.push(clause);
+                            requires_text.push(text);
                         }
-                        requires.push(self.clause(id, &required, expression)?);
-                        requires_text.push(self.clause_text(&slots, expression));
                     }
                 }
                 SignatureContractKind::Ensures => {
                     for fact in facts {
-                        let expression = self.fact(id, fact)?;
-                        if self.states_nothing(id, expression)? {
-                            continue;
+                        if let Some((clause, text)) = self.contract_clause(id, &exit, fact)? {
+                            ensures.push(clause);
+                            ensures_text.push(text);
                         }
-                        ensures.push(self.clause(id, &exit, expression)?);
-                        ensures_text.push(self.clause_text(&slots, expression));
                     }
                 }
                 SignatureContractKind::EnsuresForResultCase { .. } => {

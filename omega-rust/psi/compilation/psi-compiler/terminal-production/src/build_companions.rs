@@ -38,8 +38,9 @@ pub(crate) struct BuildCompanions {
     pub requests: Vec<TerminalBuildRequestCall>,
     pub filesystem: Vec<TerminalBuildFilesystemCall>,
     pub native_formations: Vec<NativeBindingFormation>,
-    /// Boundary calls that are no operation of a toolchain Build protocol,
-    /// so have no row: the Build host serves none of them.
+    /// Boundary calls that are no operation of a toolchain Build protocol
+    /// and call no requirement the Build awaits a provider for, so have no
+    /// row and no slot: the Build host serves none of them.
     pub unowned: usize,
 }
 
@@ -71,6 +72,9 @@ pub(crate) fn produce(
 ) -> Result<BuildCompanions, Diagnostic> {
     let mut companions = BuildCompanions::default();
     let mut designated = 0;
+    // Calls of no Build protocol, by boundary, until every readiness
+    // request has been read.
+    let mut outside = Vec::new();
     for machine in &elaboration.module.machines {
         for operation in machine.operations() {
             let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = &operation.kind else {
@@ -162,10 +166,28 @@ pub(crate) fn produce(
                     occurrence,
                 });
             } else {
-                companions.unowned += 1;
+                outside.push(*boundary);
             }
         }
     }
+    // scoped_execution.md, "Two checked contexts": a Build entry and its
+    // helpers reach "exact static provider slots installed through
+    // `Build::await_provider<R, Backing>`". Such a call is served by the
+    // provider the host installs for the awaited requirement, so it is
+    // inside the Build's authority. Whether a provider is installed before
+    // the call runs is the host's to enforce where the call parks.
+    companions.unowned += outside
+        .iter()
+        .filter(|boundary| {
+            !companions.bindings.iter().any(|row| {
+                matches!(
+                    &row.request,
+                    BuildSelectionRequest::ProviderReadiness(request)
+                        if request.requirement.boundaries.contains(boundary)
+                )
+            })
+        })
+        .count();
     // Every reference the reader carried must have reached a selection call.
     let carried: usize = correspondence
         .designated

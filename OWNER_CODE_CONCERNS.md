@@ -255,12 +255,12 @@ framework or a list of features that remain unimplemented.
 - Cost: the host row's operation is decided twice from text, and the native binding cannot be closed at its locator type by the pass that closes every other application until typing records that application on the call
 - Reported: 2026-11-13, Claude Code, while closing boundary requirements at the types their calls apply
 
-### A value name in a type is read by its spelling before resolution, past the parameters that hide it
+### An array extent in a generic argument is still closed by its spelling before resolution
 - Category: one idea, several implementations
-- Where: `02_.../preparation_integer_widths.rs` (`width_of`) and `02_.../preparation_const_evaluation.rs` (`closed_fixed_array_length`) both close a name through `ConstantSelection::select` before resolution; after it, `symbols_type_references.rs` `resolve_type_symbol` and `assign_fixed_array_length_symbol` look at type parameters and then top-level declarations only
-- Saw: in `const count: u64 = 13; machine f(count: u64, v: u<count>)` (or `[u8; count]`) the runtime parameter `count` is read as the constant. modules.md "Resolution" puts local bindings and parameters before imported names. Not reachable as an accepted program today only because the checker refuses every top-level `const` declaration
-- Cost: an integer width and an array extent each decide what a value name in a type means, by spelling, in two places; the day `const` declarations are read, a runtime width or extent is silently fixed to a constant. One type-position value-name resolver that sees the enclosing value bindings would serve both
-- Reported: 2026-11-14, Claude Code, while landing symbolic integer widths
+- Where: `02_.../preparation_const_evaluation.rs` (`closed_fixed_array_length`, reached from generic-data closing, type equations and constant evaluation) selects a constant for `[T; NAME]` through `ConstantSelection::select`, which sees only top-level declarations
+- Saw: integer widths and plain extents are now read by role in their lexical scope (`resolve_value_in_type_symbol` and the value pass in `symbols_type_references.rs`), so `machine f(count: u64, items: [u8; count])` is refused as a runtime extent. But generic-argument closing (`closed_argument_identity`) still reads an extent such as `Buffer<[u8; count]>` written in that machine through the top-level selection; not yet observed in a program. Deleting the selection breaks `First<[u8; LIMIT]>` in a data declaration, where the top-level constant is the right answer
+- Cost: preparation cannot tell a data or constant declaration (top-level scope) from a machine (parameters and locals in scope), so one extent spelling can mean two things; closing generic arguments after resolution, or handing preparation the enclosing value bindings, would remove the second reader
+- Reported: 2026-11-14, Claude Code, while reading builtin type names by role
 
 ### The scalar contract fixture's inferred call proof is refused by the kernel
 - Category: a proof producer and checker disagree

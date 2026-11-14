@@ -111,8 +111,13 @@ its own slots.
 
 Requested work beside the program (deferred layout applications, opaque
 representation selections, wire compatibility demands) has no pass and is
-refused by name. [Product operand preparation](src/product/mod.rs) keeps its
-request shapes and refuses every operand.
+refused by name. [Product operand preparation](src/product/mod.rs) forms the application
+of a provider choice whose slot or provider is applied to static arguments
+([applications](src/product/applications.rs)): the operand graph the request
+carries, closed with the static arguments of the generic helper that made the
+choice, becomes one argument tuple checked against the declaration's
+parameters. It refuses a requirement applied to static arguments (a native
+binding's operand).
 
 This stage sees the program together with the whole bundled library and has no
 notion of what an entry demands. A pass that refuses therefore refuses every
