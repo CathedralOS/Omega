@@ -1097,7 +1097,7 @@ pub(crate) mod canonical_order {
     }
 
     fn canonical_proposition_bytes(proposition: &Proposition) -> Result<Vec<u8>, CodecError> {
-        let mut writer = Writer::default();
+        let mut writer = Writer::checking_identity();
         encode_proposition(&mut writer, proposition)?;
         Ok(writer.finish())
     }
@@ -1113,7 +1113,7 @@ pub(crate) mod canonical_order {
     }
 
     fn canonical_scalar_term_bytes(term: &ScalarTerm) -> Result<Vec<u8>, CodecError> {
-        let mut writer = Writer::default();
+        let mut writer = Writer::checking_identity();
         encode_scalar_term(&mut writer, term)?;
         Ok(writer.finish())
     }
