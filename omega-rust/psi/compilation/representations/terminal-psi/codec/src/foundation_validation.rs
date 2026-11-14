@@ -2456,10 +2456,127 @@ pub(crate) mod machine_foundations {
             )?;
         }
         validate_operation_result_places(machine)?;
+        validate_normal_return_shapes(machine, inhabitation)?;
         for block in &machine.blocks {
             super::call_foundations::validate_external_completion(module, machine, block)?;
             super::call_foundations::validate_no_normal_invocation(module, block, inhabitation)?;
             validate_partial_affine_discards(module, machine, block)?;
+        }
+        Ok(())
+    }
+
+    fn validate_normal_return_shapes(
+        machine: &TerminalMachine,
+        inhabitation: &terminal_semantics::inhabitation::Inhabitation,
+    ) -> Result<(), CodecError> {
+        use std::collections::BTreeMap;
+        use terminal_psi::TerminalMachineResult;
+
+        // Only executable inputs and producers supply return values. In
+        // particular the signature's result placeholder is not an SSA source.
+        // Prepare these borrowed declaration facts once, rather than searching
+        // every machine declaration again at each exit.
+        let mut scalars = BTreeMap::new();
+        for value in super::values(machine) {
+            if scalars.insert(value.id, value.scalar_type).is_some() {
+                return malformed("normal return sources repeat a scalar identity");
+            }
+        }
+        let mut contracts = BTreeMap::new();
+        for parameter in machine
+            .structural_parameters
+            .iter()
+            .chain(machine.block_structural_parameters())
+        {
+            if contracts
+                .insert(
+                    parameter.place,
+                    (parameter.structural_type, parameter.access),
+                )
+                .is_some()
+            {
+                return malformed("normal return sources repeat a structural identity");
+            }
+        }
+        for result in machine
+            .operations()
+            .filter_map(|operation| operation.result.structural())
+        {
+            if contracts
+                .insert(
+                    result.place,
+                    (result.structural_type, StructuralAccess::Owned),
+                )
+                .is_some()
+            {
+                return malformed("normal return sources repeat a structural identity");
+            }
+        }
+        let mut places = BTreeMap::new();
+        for declaration in &machine.structural_places {
+            let contract = match declaration.kind {
+                StructuralPlaceKind::Parameter { .. }
+                | StructuralPlaceKind::BlockParameter { .. }
+                | StructuralPlaceKind::OperationResult { .. } => {
+                    contracts.get(&declaration.id).copied()
+                }
+                StructuralPlaceKind::TrivialAffineLocal {
+                    structural_type, ..
+                }
+                | StructuralPlaceKind::ByteSequenceLiteral {
+                    structural_type, ..
+                } => Some((structural_type, StructuralAccess::Owned)),
+                StructuralPlaceKind::Result | StructuralPlaceKind::ProviderAttachment { .. } => {
+                    None
+                }
+            };
+            if let Some(contract) = contract
+                && places.insert(declaration.id, contract).is_some()
+            {
+                return malformed("normal return sources repeat a structural place");
+            }
+        }
+        for block in &machine.blocks {
+            match &block.terminator {
+                Terminator::ReturnUnit { .. } => {
+                    if !matches!(machine.result, TerminalMachineResult::Unit) {
+                        return malformed("unit return differs from the declared result");
+                    }
+                }
+                Terminator::Return { value, .. } => {
+                    if !machine
+                        .result
+                        .scalar_ref()
+                        .is_some_and(|expected| scalars.get(value) == Some(&expected.scalar_type))
+                    {
+                        return malformed("scalar return differs from the declared result");
+                    }
+                }
+                Terminator::ReturnStructural { source, .. } => {
+                    let Some((actual, access)) = places.get(source) else {
+                        return malformed("structural return has no actual source declaration");
+                    };
+                    if machine
+                        .result
+                        .structural()
+                        .is_some_and(|expected| expected.structural_type == *actual)
+                    {
+                        continue;
+                    }
+                    // An impossible owned value can occupy any expected type,
+                    // but an unrelated empty declaration or a borrowed
+                    // referent cannot justify this exact returned storage.
+                    // Availability, claims and qualifications retain their
+                    // existing independent validation.
+                    if *access != StructuralAccess::Owned
+                        || inhabitation.status(*actual)
+                            != terminal_semantics::inhabitation::Status::ProvedEmpty
+                    {
+                        return malformed("structural return differs from the declared result");
+                    }
+                }
+                _ => {}
+            }
         }
         Ok(())
     }
@@ -2757,6 +2874,165 @@ pub(crate) mod machine_foundations {
             }
         }
         Ok(())
+    }
+
+    #[cfg(test)]
+    mod normal_return_shape_tests {
+        use super::*;
+        use semantic_vocabulary::{
+            EdgeId, IntegerSign, IntegerType, MachineId, PlaceId, Proposition, ScalarType,
+            StructuralTypeId, ValueId,
+        };
+        use terminal_psi::{
+            StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralRecordStorage,
+            StructuralResultDeclaration, StructuralTypeDeclaration, TerminalIdentityIndex,
+            TerminalMachineResult, ValueDeclaration,
+        };
+        use terminal_semantics::inhabitation::{Inhabitation, TerminalContracts};
+
+        fn scalar(raw: u64, scalar_type: ScalarType) -> ValueDeclaration {
+            ValueDeclaration {
+                id: ValueId::new(raw).unwrap(),
+                scalar_type,
+                qualifications: Default::default(),
+            }
+        }
+
+        fn record(raw: u64, empty: bool) -> StructuralTypeDeclaration {
+            StructuralTypeDeclaration {
+                id: StructuralTypeId::new(raw).unwrap(),
+                identity: TerminalIdentityIndex::ABSENT,
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                copyable: true,
+                no_code_affine_cleanup: false,
+                descriptor_cleanup: false,
+                shape: StructuralTypeShape::Record {
+                    fields: Vec::new(),
+                    storage: StructuralRecordStorage::Packed,
+                },
+                scalar_restriction: None,
+                requires: if empty {
+                    vec![Proposition::Falsehood]
+                } else {
+                    Vec::new()
+                },
+            }
+        }
+
+        fn machine() -> TerminalMachine {
+            crate::semantic_module::target_family_tests::unit_machine(MachineId::new(1).unwrap())
+        }
+
+        fn return_record(machine: &mut TerminalMachine, structural_type: StructuralTypeId) {
+            let place = PlaceId::new(1).unwrap();
+            machine
+                .structural_parameters
+                .push(StructuralParameterDeclaration {
+                    place,
+                    position: 0,
+                    structural_type,
+                    access: StructuralAccess::Owned,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    additional_input_qualifications: Vec::new(),
+                });
+            machine.structural_places.push(StructuralPlaceDeclaration {
+                id: place,
+                kind: StructuralPlaceKind::Parameter { position: 0 },
+            });
+            machine.blocks[0].terminator = Terminator::ReturnStructural {
+                edge: EdgeId::new(1).unwrap(),
+                source: place,
+                returned_claims: Vec::new(),
+                cleanup_actions: Vec::new(),
+            };
+        }
+
+        fn structural_result(structural_type: StructuralTypeId) -> TerminalMachineResult {
+            TerminalMachineResult::Structural(StructuralResultDeclaration {
+                place: PlaceId::new(2).unwrap(),
+                structural_type,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                reference_sources: Vec::new(),
+            })
+        }
+
+        #[test]
+        fn normal_returns_match_actual_unit_and_scalar_sources() {
+            let query = Inhabitation::prepare(&TerminalContracts::new([])).unwrap();
+            let mut machine = machine();
+            validate_normal_return_shapes(&machine, &query).unwrap();
+            machine.result = TerminalMachineResult::Scalar(scalar(2, ScalarType::Boolean));
+            assert!(validate_normal_return_shapes(&machine, &query).is_err());
+            machine.parameters.push(scalar(1, ScalarType::Boolean));
+            machine.blocks[0].terminator = Terminator::Return {
+                edge: EdgeId::new(1).unwrap(),
+                value: ValueId::new(1).unwrap(),
+                cleanup_actions: Vec::new(),
+            };
+            validate_normal_return_shapes(&machine, &query).unwrap();
+            machine.result = TerminalMachineResult::Unit;
+            assert!(validate_normal_return_shapes(&machine, &query).is_err());
+            machine.result = TerminalMachineResult::Scalar(scalar(
+                2,
+                ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap()),
+            ));
+            assert!(validate_normal_return_shapes(&machine, &query).is_err());
+            machine.parameters.clear();
+            machine.result = TerminalMachineResult::Scalar(scalar(1, ScalarType::Boolean));
+            // Neither the result placeholder nor an erased proof input is an
+            // executable scalar, even when its identity and type agree.
+            assert!(validate_normal_return_shapes(&machine, &query).is_err());
+            machine
+                .erased_scalar_formals
+                .push(scalar(1, ScalarType::Boolean));
+            assert!(validate_normal_return_shapes(&machine, &query).is_err());
+        }
+
+        #[test]
+        fn only_the_actual_owned_empty_source_can_cross_return_kinds() {
+            let types = [record(1, true), record(2, false)];
+            let query = Inhabitation::prepare(&TerminalContracts::new(&types)).unwrap();
+            let mut machine = machine();
+            return_record(&mut machine, types[0].id);
+            for result in [
+                TerminalMachineResult::Unit,
+                TerminalMachineResult::Scalar(scalar(1, ScalarType::Boolean)),
+                structural_result(types[1].id),
+            ] {
+                machine.result = result;
+                validate_normal_return_shapes(&machine, &query).unwrap();
+            }
+            machine.structural_parameters[0].access = StructuralAccess::SharedBorrow;
+            assert!(validate_normal_return_shapes(&machine, &query).is_err());
+            machine.structural_parameters[0].access = StructuralAccess::Owned;
+            machine.result = TerminalMachineResult::Scalar(scalar(1, ScalarType::Boolean));
+            machine.structural_parameters[0].structural_type = types[1].id;
+            // An unrelated empty declaration grants no authority to return
+            // this inhabited record under a scalar result header.
+            assert!(validate_normal_return_shapes(&machine, &query).is_err());
+            machine.structural_parameters[0].structural_type = types[0].id;
+            machine.structural_places.clear();
+            assert!(validate_normal_return_shapes(&machine, &query).is_err());
+        }
+
+        #[test]
+        fn ordinary_structural_returns_require_the_declared_carrier() {
+            let types = [record(1, false), record(2, false)];
+            let query = Inhabitation::prepare(&TerminalContracts::new(&types)).unwrap();
+            let mut machine = machine();
+            return_record(&mut machine, types[0].id);
+            machine.result = structural_result(types[0].id);
+            validate_normal_return_shapes(&machine, &query).unwrap();
+            machine.result = structural_result(types[1].id);
+            assert!(validate_normal_return_shapes(&machine, &query).is_err());
+            machine.structural_places[0].kind = StructuralPlaceKind::Result;
+            assert!(validate_normal_return_shapes(&machine, &query).is_err());
+        }
     }
 }
 pub(crate) mod native_layouts {
