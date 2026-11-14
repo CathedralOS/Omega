@@ -117,6 +117,7 @@ pub(crate) mod construction {
 
         #[allow(clippy::too_many_arguments)]
         pub(crate) fn snapshot(
+            native_input: &crate::native_geometry::NativeFunction<'_>,
             function: usize,
             successor: &mut SelectedSuccessor,
             registers: &mut Vec<VirtualRegister>,
@@ -323,7 +324,10 @@ pub(crate) mod construction {
                     byte_count,
                     role: SelectedMemoryAccessRole::ReadPlace,
                 });
-                let loaded = if matches!(destination.scalar_type, ScalarType::Integer(integer)
+                let closed_scalar = native_input
+                    .closed_scalar(destination.scalar_type)
+                    .ok_or_else(invalid)?;
+                let loaded = if matches!(closed_scalar, semantic_vocabulary::ClosedScalarType::Integer(integer)
                     if integer.sign() == IntegerSign::Signed && matches!(integer.bits(), 8 | 16 | 32))
                 {
                     let normalization = SelectedInstructionId(
@@ -346,7 +350,7 @@ pub(crate) mod construction {
                     });
                     instructions.push(crate::selection::constraints::instruction(
                         normalization,
-                        integer_carrier_normalization(destination.scalar_type),
+                        integer_carrier_normalization(closed_scalar),
                         constraints.keys.copy_i64,
                         &[loaded, normalized],
                         provenance(),
@@ -366,6 +370,7 @@ pub(crate) mod construction {
     }
 
     pub(crate) fn prepare(
+        native_input: &crate::native_geometry::NativeFunction<'_>,
         function_index: usize,
         function: &mut SelectedFunction,
         constraints: &SelectedSelectionConstraints,
@@ -509,6 +514,7 @@ pub(crate) mod construction {
                 let mut instructions = preparation;
                 if continuation.structural_case.is_some() {
                     structural_case::snapshot(
+                        native_input,
                         function_index,
                         &mut continuation,
                         &mut function.virtual_registers,

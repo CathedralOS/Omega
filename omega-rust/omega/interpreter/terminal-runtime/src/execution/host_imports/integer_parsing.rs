@@ -106,7 +106,7 @@ impl IntegerParsingImport {
             || reference_output.dependencies.is_empty()
             || !matches!(program.structural_type(referent).map(|row| &row.shape),
                 Some(StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(word)))
-                    if word.bits() == 8 && !word.is_address())
+                    if word.bits() == Some(8) && !word.is_address())
         {
             return Err(invalid(
                 "strtol must publish a byte reference under its declared lifetime anchors",

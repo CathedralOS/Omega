@@ -3848,8 +3848,8 @@ mod cleanup {
                     StructuralFieldType::Scalar(semantic_vocabulary::ScalarType::Integer(
                         integer,
                     )) => {
-                        matches!(integer.bits(), 8 | 16 | 32 | 64)
-                            && (!integer.is_address() || integer.bits() == 64)
+                        matches!(integer.bits(), Some(8 | 16 | 32 | 64))
+                            && (!integer.is_address() || integer.bits() == Some(64))
                     }
                     StructuralFieldType::Scalar(semantic_vocabulary::ScalarType::IeeeFloat(_))
                     | StructuralFieldType::Atomic(_)

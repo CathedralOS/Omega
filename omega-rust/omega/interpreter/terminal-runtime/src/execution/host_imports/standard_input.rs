@@ -67,7 +67,7 @@ impl<'input> ReadByteImport<'input> {
             || !empty.fields.is_empty()
             || field.relevance.is_erased()
             || carrier.sign() != IntegerSign::Signed
-            || carrier.bits() != 32
+            || carrier.bits() != Some(32)
             || !match field.field_type {
                 terminal_psi::StructuralFieldType::Scalar(_) => true,
                 terminal_psi::StructuralFieldType::BoundedInteger(bounds) => {

@@ -197,7 +197,7 @@ impl AtomicForm {
         if integer.is_address() || !event.ordering_is_legal() {
             return None;
         }
-        let width = match integer.bits() {
+        let width = match integer.bits()? {
             8 => AtomicWidth::Bits8,
             16 => AtomicWidth::Bits16,
             32 => AtomicWidth::Bits32,
@@ -253,6 +253,40 @@ mod tests {
     use super::*;
     use semantic_vocabulary::{IntegerSign, ValueId};
     use terminal_psi::MemoryOrdering;
+
+    #[test]
+    fn atomic_forms_require_a_supported_concrete_fixed_width() {
+        use semantic_vocabulary::{MachineId, WidthParameter};
+        let event = AtomicAccessEvent::Load {
+            ordering: MemoryOrdering::NoOrdering,
+        };
+        for bits in [8, 16, 32, 64] {
+            let integer = IntegerType::new(IntegerSign::Unsigned, bits).unwrap();
+            assert_eq!(
+                u16::from(
+                    AtomicForm::from_access(integer, event)
+                        .unwrap()
+                        .width
+                        .bytes()
+                ) * 8,
+                bits
+            );
+        }
+        let symbolic = IntegerType::parameterized(
+            IntegerSign::Unsigned,
+            WidthParameter {
+                owner: MachineId::new(1).unwrap(),
+                value: ValueId::new(1).unwrap(),
+            },
+        );
+        for integer in [
+            symbolic,
+            IntegerType::new(IntegerSign::Unsigned, 13).unwrap(),
+            IntegerType::address(64).unwrap(),
+        ] {
+            assert_eq!(AtomicForm::from_access(integer, event), None);
+        }
+    }
 
     #[test]
     fn atomic_forms_have_unique_dense_identities_and_exact_operand_roles() {

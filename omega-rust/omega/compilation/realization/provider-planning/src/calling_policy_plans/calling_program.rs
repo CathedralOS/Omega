@@ -151,7 +151,7 @@ impl CallingProgram {
         )?;
         self.with_storage_extents(&demand, target, scope, providers, |extents| {
             CanonicalCallingSignature::materialize(
-                self.artifact.semantic_module(),
+                self.artifact.closed_module(),
                 demand.declaration().id(),
                 target,
                 extents,

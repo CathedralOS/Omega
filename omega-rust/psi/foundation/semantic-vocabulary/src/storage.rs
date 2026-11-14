@@ -48,7 +48,7 @@ pub(crate) mod atomic_cell {
             match self.scalar_type() {
                 ScalarType::Boolean => true,
                 ScalarType::Integer(integer) => {
-                    !integer.is_address() && matches!(integer.bits(), 8 | 16 | 32 | 64)
+                    !integer.is_address() && matches!(integer.bits(), Some(8 | 16 | 32 | 64))
                 }
                 _ => false,
             }

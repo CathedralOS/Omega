@@ -28,7 +28,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use runtime_abi::NativeBorrowedStorageLayout;
-use semantic_vocabulary::{IntegerValue, ScalarType};
+use semantic_vocabulary::{ClosedIntegerType, IntegerValue, ScalarType};
 use target_operations::NormalizedForeignCallBinding;
 use terminal_interpreter::{
     TerminalBoundaryByteBuffer, TerminalBoundaryStorageBuffer, TerminalEffect,
@@ -241,9 +241,10 @@ fn selector(
     let [TerminalScalarValue::Integer { scalar_type, value }] = arguments else {
         return Err(invalid());
     };
+    let closed = ClosedIntegerType::try_from(*scalar_type).map_err(|_| invalid())?;
     if signature.scalar_parameters.as_slice() != [ScalarType::Integer(*scalar_type)]
-        || scalar_type.bits() != 32
-        || scalar_type.is_address()
+        || closed.bits() != 32
+        || closed.is_address()
         || !scalar_type.admits(*value)
     {
         return Err(invalid());
@@ -432,6 +433,67 @@ impl TerminalEffectHandler for ClockImport {
                     })?;
                 wait(&self.clock, &self.signature, nanoseconds)
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ValueId, WidthParameter};
+    use terminal_psi::{BoundaryCompletion, BoundaryMachineResult};
+
+    fn signature(integer: IntegerType) -> TerminalImportSignature {
+        TerminalImportSignature {
+            completion: BoundaryCompletion::NormalReturn,
+            scalar_parameters: vec![ScalarType::Integer(integer)],
+            structural_parameters: vec![],
+            result: BoundaryMachineResult::Unit,
+            result_reference_regions: vec![],
+            normal_qualifications: vec![],
+        }
+    }
+
+    #[test]
+    fn clock_selector_requires_a_closed_exact_32_bit_carrier() {
+        let signed = IntegerType::new(IntegerSign::Signed, 32).unwrap();
+        let unsigned = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+        for (scalar_type, value, expected) in [
+            (signed, IntegerValue::Signed(-1), u128::from(u32::MAX)),
+            (unsigned, IntegerValue::Unsigned(7), 7),
+        ] {
+            assert_eq!(
+                selector(
+                    &[TerminalScalarValue::Integer { scalar_type, value }],
+                    &signature(scalar_type)
+                ),
+                Ok(expected)
+            );
+        }
+        for scalar_type in [
+            IntegerType::parameterized(
+                IntegerSign::Signed,
+                WidthParameter {
+                    owner: MachineId::new(7).unwrap(),
+                    value: ValueId::new(11).unwrap(),
+                },
+            ),
+            IntegerType::new(IntegerSign::Signed, 16).unwrap(),
+            IntegerType::address(64).unwrap(),
+        ] {
+            assert!(
+                selector(
+                    &[TerminalScalarValue::Integer {
+                        scalar_type,
+                        value: match scalar_type.sign() {
+                            semantic_vocabulary::IntegerSign::Signed => IntegerValue::Signed(0),
+                            semantic_vocabulary::IntegerSign::Unsigned => IntegerValue::Unsigned(0),
+                        },
+                    }],
+                    &signature(scalar_type)
+                )
+                .is_err()
+            );
         }
     }
 }

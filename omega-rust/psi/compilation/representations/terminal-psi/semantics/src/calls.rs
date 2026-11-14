@@ -195,7 +195,7 @@ pub(crate) mod call_composition {
                     matches!(element.shape,
                         StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
                             if integer.sign() == IntegerSign::Unsigned
-                                && integer.bits() == 8 && !integer.is_address())
+                                && integer.bits() == Some(8) && !integer.is_address())
                     .then_some(length)
                 }
                 _ => None,

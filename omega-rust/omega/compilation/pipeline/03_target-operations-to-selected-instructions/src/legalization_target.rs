@@ -3113,7 +3113,7 @@ pub(crate) mod normalized_foreign {
         else {
             return Err(LegalizationError::custody());
         };
-        let required = target_operations::descriptor_input_guard_for_call(
+        let required = target_operations::descriptor_input_guard_for_call_with_closed_scalars(
             binding,
             plan.geometry(),
             scalar_arguments,
@@ -3125,6 +3125,7 @@ pub(crate) mod normalized_foreign {
                     .iter()
                     .find(|layout| layout.structural_type == buffer)
             },
+            |scalar| plan.closed_scalar(scalar),
         )
         .map_err(|_| LegalizationError::custody())?;
         if required != *descriptor_input {
@@ -3340,6 +3341,7 @@ pub(crate) mod scalar_definitions {
         abstracted: &AbstractOperation,
         scalar_parameters: &[ScalarAbiValue],
         sources: &crate::legalization_target::control_flow::sources::AvailableSources<'_>,
+        unit: &crate::native_geometry::NativeUnit<'_>,
     ) -> Result<(), LegalizationError> {
         let (
             TargetUnitOperation::ScalarDefinition {
@@ -3366,16 +3368,22 @@ pub(crate) mod scalar_definitions {
         else {
             return Err(LegalizationError::custody());
         };
+        let target_integer = unit
+            .closed_integer(*target_type)
+            .ok_or(LegalizationError::custody())?;
+        unit.closed_integer(*source_type)
+            .ok_or(LegalizationError::custody())?;
         if psi_operation != expected_operation
             || source_type != expected_source_type
             || scalar_type != target_type
             || !source_type.can_widen_to(*target_type)
-            || !matches!(target_type.bits(), 16 | 32 | 64)
+            || !matches!(target_integer.bits(), 16 | 32 | 64)
             || result_home.defining_operation != *expected_operation
             || result_home.source_value != *result
             || result_home.scalar_type != ScalarType::Integer(*target_type)
             || result_home.shape
-                != ValueShape::integer(u32::from(target_type.bits() / 8), target_type.bits() / 8)
+                != ValueShape::for_closed_integer(target_integer)
+                    .ok_or(LegalizationError::custody())?
         {
             return Err(LegalizationError::custody());
         }
@@ -4123,11 +4131,13 @@ pub(crate) mod unit {
                                 optimized,
                                 element.index,
                             )
+                            .and_then(|scalar| plan.closed_scalar(scalar))
                             .filter(|scalar| {
-                                matches!(scalar, semantic_vocabulary::ScalarType::Integer(integer)
+                                matches!(scalar, semantic_vocabulary::ClosedScalarType::Integer(integer)
                                     if integer.bits() <= 64)
                             })
-                            .ok_or(LegalizationError::custody())?;
+                            .ok_or(LegalizationError::custody())?
+                            .as_checking();
                             Ok::<_, LegalizationError>((element.index, scalar_type, element.stride))
                         })
                         .collect::<Result<Vec<_>, _>>()?;
@@ -5841,9 +5851,7 @@ pub(crate) mod unit {
                 },
             ) => {
                 let expected = crate::legalization::scalar_graph_input::atomic_access::access(
-                    source,
-                    optimized,
-                    unit.geometry(),
+                    source, optimized, unit,
                 )
                 .ok_or(LegalizationError::custody())?;
                 if psi_operation != expected_operation
@@ -6611,6 +6619,7 @@ pub(crate) mod unit {
                     abstracted,
                     scalar_parameters,
                     sources,
+                    unit,
                 )?;
                 sources.push((result_home.source_value, Source::Home(*result_home)));
             }

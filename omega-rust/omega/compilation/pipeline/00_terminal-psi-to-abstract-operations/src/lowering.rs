@@ -146,7 +146,7 @@ mod machine {
                     OperationKind::SelectImplementation { table } => {
                         let result = operation.result.scalar()
                 .filter(|result| matches!(result.scalar_type, semantic_vocabulary::ScalarType::Integer(integer)
-                    if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 64))
+                    if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == Some(64)))
                 .ok_or(LoweringError::UnsupportedDynamicDispatch(operation.id))?;
                         AbstractOperation::SelectImplementation {
                             psi_operation: operation.id,

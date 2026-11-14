@@ -5989,7 +5989,7 @@ pub(crate) mod zeroed_structural {
                             && matches!(declaration.shape,
                                     StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
                                         if integer.sign() == IntegerSign::Unsigned
-                                            && integer.bits() == 8
+                                            && integer.bits() == Some(8)
                                             && !integer.is_address())
                     }) =>
                 {
@@ -6077,7 +6077,7 @@ pub(crate) mod zeroed_structural {
             let StructuralTypeShape::FixedArray { element, length: terminal_psi::ArrayExtent::Literal(length) } = carrier.shape else { return false; };
             if !types.clone().any(|ty| ty.id == element && matches!(ty.shape,
                 StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
-                    if integer.sign() == IntegerSign::Unsigned && integer.bits() == 8 && !integer.is_address())) {
+                    if integer.sign() == IntegerSign::Unsigned && integer.bits() == Some(8) && !integer.is_address())) {
                 return false;
             }
             let Some(domain) = domains.clone().find(|domain| domain.id == row.domain) else { return false; };

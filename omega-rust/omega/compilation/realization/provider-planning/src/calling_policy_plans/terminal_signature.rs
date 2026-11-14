@@ -86,13 +86,14 @@ impl CanonicalCallingSignature {
     }
 
     pub fn materialize(
-        module: &terminal_psi::TerminalModule,
+        closed: &terminal_codec::ClosedTerminalModule,
         declaration: semantic_vocabulary::CallingSignatureId,
         target: target::TargetProfile,
         extents: &dyn Fn(
             semantic_vocabulary::ScalarApplicationId,
         ) -> Result<u64, terminal_semantics::StorageGeometryError>,
     ) -> Result<Self, String> {
+        let module = closed.module();
         let signature = module
             .calling_abi_signature(declaration)
             .ok_or("calling signature lost its exact declaration application")?;
@@ -103,8 +104,13 @@ impl CanonicalCallingSignature {
                 "calling telescope differs from its exact boundary parameter roster".into(),
             );
         }
-        let mut recipes =
-            layout::TerminalBoundaryRecipes::new(module, target.target_name(), extents);
+        let scalar_projection = |scalar| closed.closed_types().scalar(scalar).ok();
+        let mut recipes = layout::TerminalBoundaryRecipes::with_closed_scalars(
+            module,
+            target.target_name(),
+            extents,
+            &scalar_projection,
+        );
         let layout_target = layout::LayoutTarget::for_profile(target)?;
         let mut values = BoundaryValueLayout::new(layout_target);
         let mut parameters = Vec::with_capacity(telescope.parameters.len());

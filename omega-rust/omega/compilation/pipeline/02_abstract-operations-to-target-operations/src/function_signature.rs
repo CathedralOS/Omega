@@ -78,15 +78,20 @@ pub(crate) fn prepare_function_signature(
     let scalar_parameter_shapes = function
         .parameters
         .iter()
-        .map(|parameter| match parameter.scalar_type {
-            ScalarType::Boolean => Ok(ValueShape::integer(1, 1)),
-            ScalarType::Integer(scalar_type) => fixed_native_integer_shape(scalar_type).ok_or(
-                LoweringError::UnitFunctionHasScalarParameters(function.machine),
-            ),
-            ScalarType::IeeeFloat(format) => Ok(ValueShape::float(match format {
-                IeeeFloatFormat::Binary32 => 4,
-                IeeeFloatFormat::Binary64 => 8,
-            })),
+        .map(|parameter| {
+            structural_types
+                .closed_scalar(parameter.scalar_type)
+                .ok_or(LoweringError::ValueTypeMismatch(parameter.value))?;
+            match parameter.scalar_type {
+                ScalarType::Boolean => Ok(ValueShape::integer(1, 1)),
+                ScalarType::Integer(scalar_type) => fixed_native_integer_shape(scalar_type).ok_or(
+                    LoweringError::UnitFunctionHasScalarParameters(function.machine),
+                ),
+                ScalarType::IeeeFloat(format) => Ok(ValueShape::float(match format {
+                    IeeeFloatFormat::Binary32 => 4,
+                    IeeeFloatFormat::Binary64 => 8,
+                })),
+            }
         })
         .collect::<Result<Vec<_>, _>>()?;
     let signature = StructuralCallSignature::derive(
@@ -102,7 +107,14 @@ pub(crate) fn prepare_function_signature(
             _ => function
                 .result
                 .scalar()
-                .map(|result| super::scalar::scalar_shape(result.value, result.scalar_type, false))
+                .map(|result| {
+                    super::scalar::scalar_shape(
+                        result.value,
+                        result.scalar_type,
+                        false,
+                        structural_types,
+                    )
+                })
                 .transpose()?,
         },
         structural_types,
@@ -772,12 +784,16 @@ pub(crate) mod structural_type_lookup {
 
     use abstract_operations::StructuralTypeCatalog;
     use calling_conventions::terminal_layout::StructuralLayouts;
-    use semantic_vocabulary::{NonDenseIdentities, StructuralTypeId};
+    use semantic_vocabulary::{
+        ClosedIntegerType, ClosedScalarType, IntegerType, NonDenseIdentities, ScalarType,
+        StructuralTypeId,
+    };
     use terminal_psi::StructuralPathSegment;
 
     pub(crate) struct StructuralTypeLookup<'a> {
         layouts: StructuralLayouts<'a>,
         catalog: &'a StructuralTypeCatalog,
+        verified: Option<&'a verified_optimization_input::AdmittedLoweringFacts>,
     }
 
     impl<'a> StructuralTypeLookup<'a> {
@@ -785,7 +801,36 @@ pub(crate) mod structural_type_lookup {
             Ok(Self {
                 layouts: StructuralLayouts::new(source.iter())?,
                 catalog: source,
+                verified: None,
             })
+        }
+
+        /// Artifact-backed lowering always retains its original publication owner.
+        pub(crate) fn for_verified(
+            source: &'a StructuralTypeCatalog,
+            input: &'a verified_optimization_input::AdmittedLoweringFacts,
+        ) -> Result<Self, NonDenseIdentities> {
+            let mut lookup = Self::new(source)?;
+            lookup.verified = Some(input);
+            Ok(lookup)
+        }
+
+        pub(crate) fn closed_scalar(&self, scalar: ScalarType) -> Option<ClosedScalarType> {
+            match self.verified {
+                Some(input) => input.closed_module().closed_types().scalar(scalar).ok(),
+                // Public independent raw-plan metadata has no artifact owner.
+                // This central adapter only classifies concrete descriptors.
+                None => ClosedScalarType::try_from(scalar).ok(),
+            }
+        }
+
+        pub(crate) fn closed_integer(&self, integer: IntegerType) -> Option<ClosedIntegerType> {
+            let ClosedScalarType::Integer(integer) =
+                self.closed_scalar(ScalarType::Integer(integer))?
+            else {
+                return None;
+            };
+            Some(integer)
         }
 
         pub(crate) fn catalog(&self) -> &StructuralTypeCatalog {

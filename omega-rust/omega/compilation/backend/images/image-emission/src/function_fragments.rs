@@ -3936,12 +3936,13 @@ pub(crate) mod replay {
             .source()
             .optimized_target();
         let optimized = current.optimized();
-        target_operations_to_selected_instructions::verify_target_operation_plan(
+        target_operations_to_selected_instructions::verify_target_operation_plan_with_closed_module(
             current.target_operations(),
             optimized.plan(),
             optimized.unit(),
             current.boundary_origins(),
             current.lowering_facts().installed_interrupts(),
+            current.lowering_facts().closed_module(),
         )
         .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))
     }
@@ -10161,7 +10162,7 @@ mod source {
                             && result_home.operation_result() == Some((*psi_operation, result))
                             && retained_bound == bound && retained_committed.source_value() == *committed
                             && matches!(retained_committed.scalar_type(), semantic_vocabulary::ScalarType::Integer(integer)
-                                if integer.bits() == 64 && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
+                                if integer.bits() == Some(64) && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
                                     && integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed)
                             && retained_backing == backing_type && retained_established == established_case
                             && retained_rejected == rejected_case
@@ -21000,7 +21001,7 @@ mod structural {
                     != attribution::ordinal(abstracted, SemanticCodeSite::Operation(operation))?
                 || source_value != value
                 || instruction != row.id
-                || !matches!(scalar_type, ScalarType::Integer(integer) if integer.sign() == IntegerSign::Signed && integer.bits() == 32)
+                || !matches!(scalar_type, ScalarType::Integer(integer) if integer.sign() == IntegerSign::Signed && integer.bits() == Some(32))
                 || frame.red_zone_resident_bytes != 0
                 || scratch_byte_offset != scratch.frame_offset_bytes
                 || scratch.size_bytes != 1
@@ -21502,9 +21503,10 @@ mod structural {
 
             pub(super) fn primitive_size(scalar: ScalarType) -> Option<u8> {
                 match scalar {
-                    ScalarType::Integer(integer) if matches!(integer.bits(), 8 | 16 | 32 | 64) => {
-                        Some((integer.bits() / 8) as u8)
-                    }
+                    ScalarType::Integer(integer) => match integer.bits() {
+                        Some(bits @ (8 | 16 | 32 | 64)) => Some((bits / 8) as u8),
+                        _ => None,
+                    },
                     ScalarType::Boolean => Some(1),
                     ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => {
                         Some(4)
@@ -21512,7 +21514,6 @@ mod structural {
                     ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => {
                         Some(8)
                     }
-                    _ => None,
                 }
             }
 
@@ -21800,6 +21801,34 @@ mod structural {
                 ScalarType, StructuralTypeId, ValueId,
             };
             use terminal_psi::{StructuralMultiplicity, StructuralTypeShape};
+
+            #[test]
+            fn primitive_size_requires_a_known_supported_width() {
+                let size = super::establishment::primitive_size;
+                for (bits, bytes) in [(8, 1), (16, 2), (32, 4), (64, 8)] {
+                    let integer = IntegerType::new(IntegerSign::Unsigned, bits).unwrap();
+                    assert_eq!(size(ScalarType::Integer(integer)), Some(bytes));
+                }
+                let symbolic = IntegerType::parameterized(
+                    IntegerSign::Unsigned,
+                    semantic_vocabulary::WidthParameter {
+                        owner: MachineId::new(1).unwrap(),
+                        value: ValueId::new(1).unwrap(),
+                    },
+                );
+                assert_eq!(size(ScalarType::Integer(symbolic)), None);
+                assert_eq!(
+                    size(ScalarType::Integer(
+                        IntegerType::new(IntegerSign::Unsigned, 13).unwrap()
+                    )),
+                    None
+                );
+                assert_eq!(
+                    size(ScalarType::Integer(IntegerType::address(64).unwrap())),
+                    Some(8)
+                );
+                assert_eq!(size(ScalarType::Boolean), Some(1));
+            }
 
             fn fixture() -> (AbstractFunction, SelectedFunction) {
                 let operation = OperationId::new(1).unwrap();

@@ -347,7 +347,7 @@ impl Program<'_> {
             }
             let expected = match kind {
                 ExpressionKind::Integer(_) => {
-                    matches!(field.value_type, ValueType::Scalar(ScalarType::Integer(integer), qualification) if integer.bits() == 64 && !integer.is_address() && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && qualification.is_none())
+                    matches!(field.value_type, ValueType::Scalar(ScalarType::Integer(integer), qualification) if integer.bits() == Some(64) && !integer.is_address() && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && qualification.is_none())
                 }
                 ExpressionKind::Boolean(_) => {
                     field.value_type

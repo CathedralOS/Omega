@@ -79,6 +79,68 @@ fn landed_type(
 }
 
 impl Program<'_> {
+    /// Whether the existing value-type reader will declare a value identity.
+    /// This preflight does not allocate records, regions or qualifications.
+    /// The caller supplies its declaration's type scope in source-symbol order.
+    pub(super) fn declared_value_shape(
+        &self,
+        id: MachineId,
+        mut handle: TypeReferenceHandle,
+        scope: &[(symbols::SymbolHandle, ValueType)],
+    ) -> Checked<bool> {
+        let unserved = || {
+            refuse(
+                id,
+                Construct::Machine,
+                Unserved::Type("unresolved formal shape"),
+            )
+        };
+        for _ in 0..=self.typed.type_reference_table.type_reference_count() {
+            if !handle.is_valid() {
+                return Err(unserved());
+            }
+            match self.typed.type_reference_table.type_reference(handle) {
+                TypeReferenceNode::Named { symbol, .. } => {
+                    if !symbol.is_valid() {
+                        return Err(unserved());
+                    }
+                    let key = (symbol.arena_index(), symbol.generation());
+                    if let Ok(position) = scope.binary_search_by_key(&key, |(symbol, _)| {
+                        (symbol.arena_index(), symbol.generation())
+                    }) {
+                        return Ok(scope[position].1.declared().is_some());
+                    }
+                    if self.typed.symbols.builtin_type_atom(*symbol).is_some() {
+                        return Ok(true);
+                    }
+                    return self
+                        .data_declaration(*symbol)
+                        .map(|_| false)
+                        .ok_or_else(unserved);
+                }
+                TypeReferenceNode::Constrained { base_type, .. } => handle = *base_type,
+                TypeReferenceNode::Generic { base_symbol, .. } => {
+                    if self.typed.symbols.integer_family(*base_symbol).is_some() {
+                        return Ok(true);
+                    }
+                    if self.typed.closed_data_definition(handle).is_some()
+                        || self.data_declaration(*base_symbol).is_some()
+                    {
+                        return Ok(false);
+                    }
+                    return Err(unserved());
+                }
+                TypeReferenceNode::Reference { .. }
+                | TypeReferenceNode::FixedArray { .. }
+                | TypeReferenceNode::Slice { .. } => return Ok(false),
+                TypeReferenceNode::ConstExpression(_)
+                | TypeReferenceNode::DynamicTrait { .. }
+                | TypeReferenceNode::Unit => return Err(unserved()),
+            }
+        }
+        Err(unserved())
+    }
+
     pub(super) fn scalar_type(
         &self,
         id: MachineId,
@@ -114,7 +176,43 @@ impl Program<'_> {
             TypeReferenceNode::Constrained { .. } => unserved("constrained"),
             TypeReferenceNode::FixedArray { .. } => unserved("fixed array"),
             TypeReferenceNode::Slice { .. } => unserved("slice"),
-            TypeReferenceNode::Generic { .. } => unserved("generic application"),
+            TypeReferenceNode::Generic {
+                base_symbol,
+                lifetime_arguments,
+                arguments,
+                ..
+            } => {
+                let Some(sign) = typed.symbols.integer_family(*base_symbol) else {
+                    return unserved("generic application");
+                };
+                if !lifetime_arguments.is_empty() {
+                    return unserved("integer width with lifetime arguments");
+                }
+                let [argument] = typed
+                    .type_reference_table
+                    .type_reference_handles(*arguments)
+                else {
+                    return unserved("integer width argument count");
+                };
+                let TypeReferenceNode::Named { symbol, .. } =
+                    typed.type_reference_table.type_reference(*argument)
+                else {
+                    return unserved("integer width without an owned const binder");
+                };
+                let key = (symbol.arena_index(), symbol.generation());
+                let Ok(position) = self.width_scope.binary_search_by_key(&key, |binding| {
+                    (binding.symbol.arena_index(), binding.symbol.generation())
+                }) else {
+                    return unserved("integer width without an owned const u64 binder");
+                };
+                Ok(ScalarType::Integer(IntegerType::parameterized(
+                    match sign {
+                        numerics::integer_carrier::IntegerSign::Signed => IntegerSign::Signed,
+                        numerics::integer_carrier::IntegerSign::Unsigned => IntegerSign::Unsigned,
+                    },
+                    self.width_scope[position].parameter,
+                )))
+            }
             TypeReferenceNode::ConstExpression(_) => unserved("const expression"),
             TypeReferenceNode::DynamicTrait { .. } => unserved("dynamic trait"),
             TypeReferenceNode::Unit => unserved("unit as a value"),

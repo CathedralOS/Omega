@@ -2170,7 +2170,7 @@ pub(crate) mod resource_profile {
                 let valid = if boolean {
                     scalar == ScalarType::Boolean && self.width == 1
                 } else {
-                    matches!(scalar, ScalarType::Integer(integer) if integer.sign() == IntegerSign::Unsigned && integer.bits() == 64)
+                    matches!(scalar, ScalarType::Integer(integer) if integer.sign() == IntegerSign::Unsigned && integer.bits() == Some(64))
                         && self.width == 8
                 };
                 if !valid {
@@ -4648,12 +4648,15 @@ pub(crate) mod tests {
         let backings = crate::selection::foreign_scalar_backings::ForeignScalarBackings::new(
             &program,
             &geometries,
+            None,
         );
         let installed_interrupts =
             provider_admission::AdmittedInstalledInterruptCohort::empty(program.psi);
         let interrupt_helpers =
             crate::installed_interrupts::PreparedHelperCohort::new(&installed_interrupts);
         let mut builder = Builder {
+            // This standalone emitter fixture has no published source owner.
+            closed_types: None,
             installed_interrupts: &installed_interrupts,
             installed_stack_requirements: &[],
             installed_entry_execution: None,

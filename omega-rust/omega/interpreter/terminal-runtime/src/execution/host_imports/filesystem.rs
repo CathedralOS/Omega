@@ -574,10 +574,10 @@ fn matches_signature(
 fn scalar_matches(scalar: ScalarType, expected: Formal) -> bool {
     match (scalar, expected) {
         (ScalarType::Integer(integer), Formal::Signed(bits)) => {
-            integer.sign() == IntegerSign::Signed && integer.bits() == bits
+            integer.sign() == IntegerSign::Signed && integer.bits() == Some(bits)
         }
         (ScalarType::Integer(integer), Formal::Unsigned(bits)) => {
-            integer.sign() == IntegerSign::Unsigned && integer.bits() == bits
+            integer.sign() == IntegerSign::Unsigned && integer.bits() == Some(bits)
         }
         _ => false,
     }
@@ -864,6 +864,23 @@ impl LibcFilesystemCall {
 mod tests {
     use super::*;
     use semantic_vocabulary::IntegerType;
+
+    #[test]
+    fn scalar_formals_require_known_width_and_preserve_signedness() {
+        let signed = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+        assert!(scalar_matches(signed, Formal::Signed(32)));
+        assert!(!scalar_matches(signed, Formal::Unsigned(32)));
+        assert!(!scalar_matches(signed, Formal::Signed(64)));
+        let parameter = ScalarType::Integer(IntegerType::parameterized(
+            IntegerSign::Signed,
+            semantic_vocabulary::WidthParameter {
+                owner: semantic_vocabulary::MachineId::new(1).unwrap(),
+                value: semantic_vocabulary::ValueId::new(1).unwrap(),
+            },
+        ));
+        assert!(!scalar_matches(parameter, Formal::Signed(32)));
+        assert!(!scalar_matches(parameter, Formal::Unsigned(32)));
+    }
 
     fn descriptor(value: i32) -> TerminalScalarValue {
         TerminalScalarValue::Integer {

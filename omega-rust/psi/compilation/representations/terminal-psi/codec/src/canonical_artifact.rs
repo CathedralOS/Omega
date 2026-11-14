@@ -8,10 +8,11 @@ use crate::cursor::Cursor;
 use terminal_psi::TerminalModule;
 
 use crate::{
-    ArtifactManifestError, CodecError, DebugMapError, PsiOptimizationExecutionRecord,
-    PsiOptimizationExecutionRecordDecodeError, TerminalArtifactManifest, TerminalDebugMap,
-    decode_debug_map, decode_module, decode_psi_optimization_execution_record, encode_debug_map,
-    encode_module, encode_psi_optimization_execution_record,
+    ArtifactManifestError, ClosedTerminalModule, CodecError, DebugMapError,
+    PsiOptimizationExecutionRecord, PsiOptimizationExecutionRecordDecodeError,
+    TerminalArtifactManifest, TerminalDebugMap, decode_debug_map,
+    decode_psi_optimization_execution_record, encode_debug_map,
+    encode_psi_optimization_execution_record,
 };
 
 const ARTIFACT_MAGIC: &[u8; 8] = b"PSIART\0\0";
@@ -19,13 +20,17 @@ const ARTIFACT_FORMAT_MARKER: u16 = 3;
 
 #[derive(Debug, Clone, Copy)]
 pub struct TerminalArtifactView<'artifact> {
-    module: &'artifact TerminalModule,
+    closed: &'artifact ClosedTerminalModule,
     identity: terminal_psi::TerminalPsiIdentity,
 }
 
 impl<'artifact> TerminalArtifactView<'artifact> {
-    pub const fn module(self) -> &'artifact TerminalModule {
-        self.module
+    pub fn module(self) -> &'artifact TerminalModule {
+        self.closed.module()
+    }
+
+    pub const fn closed_module(self) -> &'artifact ClosedTerminalModule {
+        self.closed
     }
 
     pub const fn identity(self) -> terminal_psi::TerminalPsiIdentity {
@@ -36,18 +41,17 @@ impl<'artifact> TerminalArtifactView<'artifact> {
 #[derive(Clone)]
 #[must_use = "a canonical Terminal artifact owns the Psi-to-Omega handoff bytes"]
 pub struct CanonicalTerminalArtifact {
-    semantic_bytes: Vec<u8>,
     optimization_bytes: Vec<u8>,
     optimization: PsiOptimizationExecutionRecord,
     debug_bytes: Option<Vec<u8>>,
     manifest: TerminalArtifactManifest,
-    semantic_module: std::sync::Arc<TerminalModule>,
+    semantic_module: std::sync::Arc<ClosedTerminalModule>,
 }
 
 impl PartialEq for CanonicalTerminalArtifact {
     fn eq(&self, other: &Self) -> bool {
         self.manifest == other.manifest
-            && self.semantic_bytes == other.semantic_bytes
+            && self.semantic_bytes() == other.semantic_bytes()
             && self.optimization_bytes == other.optimization_bytes
             && self.debug_bytes == other.debug_bytes
     }
@@ -60,7 +64,7 @@ impl std::fmt::Debug for CanonicalTerminalArtifact {
         formatter
             .debug_struct("CanonicalTerminalArtifact")
             .field("manifest", &self.manifest)
-            .field("semantic_byte_count", &self.semantic_bytes.len())
+            .field("semantic_byte_count", &self.semantic_bytes().len())
             .field("optimization", &self.optimization)
             .field("debug_byte_count", &self.debug_bytes.as_ref().map(Vec::len))
             .finish_non_exhaustive()
@@ -73,22 +77,32 @@ impl CanonicalTerminalArtifact {
         optimization: PsiOptimizationExecutionRecord,
         debug_map: Option<&TerminalDebugMap>,
     ) -> Result<Self, CanonicalTerminalArtifactError> {
-        let semantic_bytes =
-            encode_module(&semantic_module).map_err(CanonicalTerminalArtifactError::Semantic)?;
+        let closed = ClosedTerminalModule::new(semantic_module)
+            .map_err(CanonicalTerminalArtifactError::Semantic)?;
+        Self::from_closed_parts(closed, optimization, debug_map)
+    }
+
+    pub fn from_closed_parts(
+        closed: ClosedTerminalModule,
+        optimization: PsiOptimizationExecutionRecord,
+        debug_map: Option<&TerminalDebugMap>,
+    ) -> Result<Self, CanonicalTerminalArtifactError> {
+        let semantic_module = closed.module();
+        if semantic_module.identities.invocation_scope().is_some() {
+            return Err(CanonicalTerminalArtifactError::Semantic(
+                CodecError::MalformedStructuralFoundation(
+                    "invocation code cannot enter a portable Terminal artifact",
+                ),
+            ));
+        }
         let optimization_bytes = encode_psi_optimization_execution_record(&optimization);
         let debug_bytes = debug_map
             .map(|debug_map| {
-                encode_debug_map(&semantic_module, debug_map)
+                encode_debug_map(semantic_module, debug_map)
                     .map_err(CanonicalTerminalArtifactError::Debug)
             })
             .transpose()?;
-        let semantic = terminal_psi::TerminalPsiIdentity {
-            vocabulary_marker: semantic_module.vocabulary_marker,
-            program_fingerprint: crate::sections::semantic_module::encoded_fingerprint(
-                &semantic_module,
-                &semantic_bytes,
-            ),
-        };
+        let semantic = closed.identity();
         let manifest = crate::sections::artifact_manifest::manifest_for_semantic(
             semantic,
             &optimization,
@@ -97,12 +111,11 @@ impl CanonicalTerminalArtifact {
         )
         .map_err(CanonicalTerminalArtifactError::Manifest)?;
         Ok(Self {
-            semantic_bytes,
             optimization_bytes,
             optimization,
             debug_bytes,
             manifest,
-            semantic_module: std::sync::Arc::new(semantic_module),
+            semantic_module: std::sync::Arc::new(closed),
         })
     }
 
@@ -113,13 +126,13 @@ impl CanonicalTerminalArtifact {
             .saturating_add(2)
             .saturating_add(16)
             .saturating_add(debug_header_bytes)
-            .saturating_add(self.semantic_bytes.len())
+            .saturating_add(self.semantic_bytes().len())
             .saturating_add(self.optimization_bytes.len())
             .saturating_add(self.debug_bytes.as_ref().map_or(0, Vec::len));
         let mut bytes = Vec::with_capacity(capacity);
         bytes.extend_from_slice(ARTIFACT_MAGIC);
         crate::codec_bytes::push_encoded(&mut bytes, ARTIFACT_FORMAT_MARKER.to_le_bytes());
-        encode_section_len(&mut bytes, self.semantic_bytes.len());
+        encode_section_len(&mut bytes, self.semantic_bytes().len());
         encode_section_len(&mut bytes, self.optimization_bytes.len());
         match &self.debug_bytes {
             None => bytes.push(0),
@@ -128,7 +141,7 @@ impl CanonicalTerminalArtifact {
                 encode_section_len(&mut bytes, debug.len());
             }
         }
-        bytes.extend_from_slice(&self.semantic_bytes);
+        bytes.extend_from_slice(self.semantic_bytes());
         bytes.extend_from_slice(&self.optimization_bytes);
         if let Some(debug) = &self.debug_bytes {
             bytes.extend_from_slice(debug);
@@ -163,17 +176,18 @@ impl CanonicalTerminalArtifact {
             );
         }
 
-        let semantic_module =
-            decode_module(semantic_bytes).map_err(CanonicalTerminalArtifactError::Semantic)?;
+        let closed = ClosedTerminalModule::from_semantic_bytes(semantic_bytes)
+            .map_err(CanonicalTerminalArtifactError::Semantic)?;
+        let semantic_module = closed.module();
         let optimization = decode_psi_optimization_execution_record(optimization_bytes)
             .map_err(CanonicalTerminalArtifactError::Optimization)?;
         let debug_map = debug_bytes
             .map(|debug| {
-                decode_debug_map(&semantic_module, debug)
+                decode_debug_map(semantic_module, debug)
                     .map_err(CanonicalTerminalArtifactError::Debug)
             })
             .transpose()?;
-        let artifact = Self::from_parts(semantic_module, optimization, debug_map.as_ref())?;
+        let artifact = Self::from_closed_parts(closed, optimization, debug_map.as_ref())?;
         if artifact.semantic_bytes() != semantic_bytes
             || artifact.optimization_bytes() != optimization_bytes
             || artifact.debug_bytes() != debug_bytes
@@ -184,17 +198,17 @@ impl CanonicalTerminalArtifact {
     }
 
     pub fn semantic_bytes(&self) -> &[u8] {
-        &self.semantic_bytes
+        self.semantic_module.semantic_bytes()
     }
 
     pub fn view(&self) -> TerminalArtifactView<'_> {
         TerminalArtifactView {
-            module: &self.semantic_module,
+            closed: &self.semantic_module,
             identity: self.manifest.semantic(),
         }
     }
 
-    pub fn into_semantics(self) -> (TerminalModule, terminal_psi::TerminalPsiIdentity) {
+    pub fn into_semantics(self) -> (ClosedTerminalModule, terminal_psi::TerminalPsiIdentity) {
         (
             std::sync::Arc::unwrap_or_clone(self.semantic_module),
             self.manifest.semantic(),
@@ -209,6 +223,10 @@ impl CanonicalTerminalArtifact {
     }
 
     pub fn semantic_module(&self) -> &TerminalModule {
+        self.semantic_module.module()
+    }
+
+    pub fn closed_module(&self) -> &ClosedTerminalModule {
         &self.semantic_module
     }
 
@@ -285,7 +303,10 @@ fn section_len(
 
 pub(crate) mod execution_code {
 
-    use crate::{CanonicalTerminalArtifact, CanonicalTerminalArtifactError, TerminalArtifactView};
+    use crate::{
+        CanonicalTerminalArtifact, CanonicalTerminalArtifactError, ClosedTerminalModule,
+        TerminalArtifactView,
+    };
     use std::sync::Arc;
     use terminal_psi::{TerminalModule, TerminalPsiIdentity};
 
@@ -298,7 +319,7 @@ pub(crate) mod execution_code {
 
     #[derive(Debug, Clone, Copy)]
     pub struct TerminalExecutionView<'code> {
-        module: &'code TerminalModule,
+        closed: &'code ClosedTerminalModule,
         identity: TerminalPsiIdentity,
     }
 
@@ -306,11 +327,14 @@ pub(crate) mod execution_code {
         pub fn custody_identity(self) -> TerminalExecutionIdentity {
             TerminalExecutionIdentity {
                 semantic: self.identity,
-                invocation: self.module.identities.invocation_scope().cloned(),
+                invocation: self.closed.module().identities.invocation_scope().cloned(),
             }
         }
-        pub const fn module(self) -> &'code TerminalModule {
-            self.module
+        pub fn module(self) -> &'code TerminalModule {
+            self.closed.module()
+        }
+        pub const fn closed_module(self) -> &'code ClosedTerminalModule {
+            self.closed
         }
         pub const fn identity(self) -> TerminalPsiIdentity {
             self.identity
@@ -339,7 +363,7 @@ pub(crate) mod execution_code {
     impl<'code> From<TerminalArtifactView<'code>> for TerminalExecutionView<'code> {
         fn from(artifact: TerminalArtifactView<'code>) -> Self {
             Self {
-                module: artifact.module(),
+                closed: artifact.closed_module(),
                 identity: artifact.identity(),
             }
         }
@@ -347,18 +371,21 @@ pub(crate) mod execution_code {
 
     #[derive(Clone)]
     pub struct RetainedTerminalCode {
-        module: Arc<TerminalModule>,
+        module: Arc<ClosedTerminalModule>,
         identity: TerminalPsiIdentity,
     }
 
     impl RetainedTerminalCode {
-        pub(crate) fn new(module: Arc<TerminalModule>, identity: TerminalPsiIdentity) -> Self {
+        pub(crate) fn new(
+            module: Arc<ClosedTerminalModule>,
+            identity: TerminalPsiIdentity,
+        ) -> Self {
             Self { module, identity }
         }
 
         pub fn view(&self) -> TerminalExecutionView<'_> {
             TerminalExecutionView {
-                module: &self.module,
+                closed: &self.module,
                 identity: self.identity,
             }
         }
@@ -366,7 +393,7 @@ pub(crate) mod execution_code {
 
     #[derive(Debug, PartialEq, Eq)]
     pub struct InvocationTerminalCode {
-        module: Arc<TerminalModule>,
+        module: Arc<ClosedTerminalModule>,
         identity: TerminalPsiIdentity,
     }
 
@@ -377,7 +404,16 @@ pub(crate) mod execution_code {
                     "invocation code requires a retained local-code owner",
                 ));
             }
-            let identity = crate::terminal_psi_identity(&module)?;
+            Self::from_closed_module(ClosedTerminalModule::new(module)?)
+        }
+
+        pub fn from_closed_module(module: ClosedTerminalModule) -> Result<Self, crate::CodecError> {
+            if module.module().identities.invocation_scope().is_none() {
+                return Err(crate::CodecError::MalformedStructuralFoundation(
+                    "invocation code requires a retained local-code owner",
+                ));
+            }
+            let identity = module.identity();
             Ok(Self {
                 module: Arc::new(module),
                 identity,
@@ -386,7 +422,7 @@ pub(crate) mod execution_code {
 
         pub fn view(&self) -> TerminalExecutionView<'_> {
             TerminalExecutionView {
-                module: &self.module,
+                closed: &self.module,
                 identity: self.identity,
             }
         }

@@ -1011,6 +1011,61 @@ fn lower_generic_for<'source>(
     for (_, record) in records.iter() {
         domains.push(record.requires.clone());
     }
+    // Formation questions come from the completed module, including unread
+    // structural headers. This emits questions only; the actual static-binder
+    // roster arrives with source preparation and the checker admits it before
+    // deciding these ordinary entry goals.
+    let widths = terminal_check_tables::obligations::integer_width_parameters(&module)
+        .map_err(|(machine, detail)| refuse(machine, Construct::Machine, Unserved::Type(detail)))?;
+    for (machine, (owner, parameters)) in module.machines.iter().zip(widths) {
+        if parameters.is_empty() {
+            continue;
+        }
+        if owner != machine.id || !machine.blocks.iter().any(|block| block.id == machine.entry) {
+            return Err(refuse(
+                owner,
+                Construct::Machine,
+                Unserved::Type("integer width formation without an owning entry"),
+            ));
+        }
+        let minted = tables.machines.get_mut(owner).ok_or_else(|| {
+            refuse(
+                owner,
+                Construct::Machine,
+                Unserved::Type("integer width formation without machine tables"),
+            )
+        })?;
+        let source = sources.get_mut(owner).ok_or_else(|| {
+            refuse(
+                owner,
+                Construct::Machine,
+                Unserved::Type("integer width formation without source coordinates"),
+            )
+        })?;
+        for parameter in parameters {
+            let obligation =
+                minted
+                    .obligations
+                    .push(terminal_check_tables::obligations::ObligationRow {
+                    kind:
+                        terminal_check_tables::obligations::ObligationKind::IntegerWidthPositive {
+                            parameter,
+                        },
+                    created_at: terminal_check_tables::ProgramPoint::BlockEntry(machine.entry),
+                });
+            if source
+                .obligations
+                .push(SourceOrigin::Unpositioned(Unpositioned::MachineEntry))
+                != obligation
+            {
+                return Err(refuse(
+                    owner,
+                    Construct::Machine,
+                    Unserved::Type("integer width question/source identity mismatch"),
+                ));
+            }
+        }
+    }
     Ok(PreparedProgram {
         source,
         selected_calls: Vec::new(),

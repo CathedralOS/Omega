@@ -81,10 +81,13 @@ pub use boundary::{
     MetadataOnlyPortRealization, NearestIeeeFloatArithmeticRealization,
     NormalizedForeignCallBinding, NormalizedForeignCallMechanism, NormalizedForeignScalarArgument,
     NormalizedForeignStructuralArgument, NormalizedSystemCallBinding, ProviderExecutionBinding,
-    ProviderPlanReportIdentity, conventional_atomic_once_layout, conventional_float_class_layout,
+    ProviderPlanReportIdentity, conventional_atomic_once_layout,
+    conventional_atomic_once_layout_closed, conventional_float_class_layout,
 };
 pub use descriptor_input::{
     DescriptorInputGuard, descriptor_input_guard, descriptor_input_guard_for_call,
+    descriptor_input_guard_for_call_with_closed_scalars,
+    descriptor_input_guard_with_closed_scalars,
 };
 pub mod operations;
 pub use operations::{

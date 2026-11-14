@@ -1425,6 +1425,7 @@ mod id_table {
         }
     }
 }
+mod closed_integers;
 mod identity;
 pub mod proof_applications;
 mod proposition;
@@ -1432,6 +1433,7 @@ pub use boundary::program_entry::{
     ProgramEntrySchema, ProgramEntrySourceCatalog, ProgramEntrySourceContract,
     ProgramEntryVisibleParameters,
 };
+pub use closed_integers::{ClosedIntegerType, ClosedScalarType, IntegerWidthClosureError};
 pub use storage::atomic_cell::AtomicCellType;
 pub use storage::target_carrier_layout::TargetCarrierLayout;
 
@@ -1457,9 +1459,10 @@ pub use identity::{
 pub use proposition::{
     ByteSequenceStructuralField, CanonicalStructuralPathSegment, IeeeFloatComparisonKind,
     IeeeFloatFormat, IeeeFloatStructuralField, IeeeFloatValue, IntegerCarrier, IntegerMathLiteral,
-    IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, MathematicalArgument,
+    IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, IntegerWidth, MathematicalArgument,
     ProofFormalScope, ProofTerm, ProofTermField, Proposition, PropositionContext, PropositionError,
     ScalarReadProjection, ScalarTerm, ScalarType, StructuralCaseSubject, StructuralIdentitySubject,
+    WidthParameter,
 };
 pub use scalars::bounded_integer_type::BoundedIntegerType;
 pub use storage::authored_storage::{
@@ -1488,7 +1491,7 @@ pub enum Termination {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScalarAddressModel {
     pub target: String,
-    pub carrier: IntegerType,
+    pub carrier: ClosedIntegerType,
     pub semantics_version: u32,
     pub commitment: [u8; 32],
 }

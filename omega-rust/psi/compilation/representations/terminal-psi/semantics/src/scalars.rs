@@ -26,8 +26,8 @@ pub(crate) mod proof_bearing_scalar {
     pub(crate) mod canonical_goal {
 
         use semantic_vocabulary::{
-            IntegerCarrier, IntegerMathLiteral, IntegerMathTerm, IntegerSign, IntegerType,
-            IntegerValue, Proposition, ScalarTerm, ScalarType,
+            ClosedIntegerType, IntegerCarrier, IntegerMathLiteral, IntegerMathTerm, IntegerSign,
+            IntegerType, IntegerValue, Proposition, ScalarTerm, ScalarType,
         };
 
         use crate::{OperationSemanticError, ScalarLeafGoalShape};
@@ -150,10 +150,21 @@ pub(crate) mod proof_bearing_scalar {
             }
         }
 
+        // Concrete endpoints and shifts require a known carrier; a rigid width
+        // contributes no guessed range even when its binder is positive.
+        fn concrete_integer(
+            integer: IntegerType,
+        ) -> Result<ClosedIntegerType, OperationSemanticError> {
+            integer
+                .try_into()
+                .map_err(|_| OperationSemanticError::UnresolvedIntegerWidth(integer))
+        }
+
         fn exact_multiply_representability_proposition(
             integer_type: IntegerType,
             expression: &ScalarTerm,
         ) -> Result<Proposition, OperationSemanticError> {
+            let known_integer_type = concrete_integer(integer_type)?;
             if integer_type.carrier() != IntegerCarrier::Fixed {
                 return Err(OperationSemanticError::ExactArithmeticRequiresFixedInteger(
                     integer_type,
@@ -203,13 +214,13 @@ pub(crate) mod proof_bearing_scalar {
             let mut bounds = Vec::with_capacity(2);
             if integer_type.sign() == IntegerSign::Signed && !embedded_negative_one {
                 bounds.push(Proposition::IntegerMathLessOrEqual(
-                    IntegerMathTerm::literal(integer_type.minimum_value()),
+                    IntegerMathTerm::literal(known_integer_type.minimum_value()),
                     product.clone(),
                 ));
             }
             bounds.push(Proposition::IntegerMathLessOrEqual(
                 product,
-                IntegerMathTerm::literal(integer_type.maximum_value()),
+                IntegerMathTerm::literal(known_integer_type.maximum_value()),
             ));
             Ok(canonical_conjunction(bounds))
         }
@@ -218,6 +229,7 @@ pub(crate) mod proof_bearing_scalar {
             integer_type: IntegerType,
             expression: &ScalarTerm,
         ) -> Result<Proposition, OperationSemanticError> {
+            let known_integer_type = concrete_integer(integer_type)?;
             let ScalarTerm::ExactIntegerSubtract {
                 scalar_type,
                 left,
@@ -256,13 +268,13 @@ pub(crate) mod proof_bearing_scalar {
             );
             let mut bounds = Vec::with_capacity(2);
             bounds.push(Proposition::IntegerMathLessOrEqual(
-                IntegerMathTerm::literal(integer_type.minimum_value()),
+                IntegerMathTerm::literal(known_integer_type.minimum_value()),
                 difference.clone(),
             ));
             if integer_type.sign() == IntegerSign::Signed || left_type != integer_type {
                 bounds.push(Proposition::IntegerMathLessOrEqual(
                     difference,
-                    IntegerMathTerm::literal(integer_type.maximum_value()),
+                    IntegerMathTerm::literal(known_integer_type.maximum_value()),
                 ));
             }
             Ok(canonical_conjunction(bounds))
@@ -272,6 +284,7 @@ pub(crate) mod proof_bearing_scalar {
             integer_type: IntegerType,
             expression: &ScalarTerm,
         ) -> Result<Proposition, OperationSemanticError> {
+            let known_integer_type = concrete_integer(integer_type)?;
             let ScalarTerm::ExactIntegerAdd {
                 scalar_type,
                 left,
@@ -310,13 +323,13 @@ pub(crate) mod proof_bearing_scalar {
             let mut bounds = Vec::with_capacity(2);
             if integer_type.sign() == IntegerSign::Signed {
                 bounds.push(Proposition::IntegerMathLessOrEqual(
-                    IntegerMathTerm::literal(integer_type.minimum_value()),
+                    IntegerMathTerm::literal(known_integer_type.minimum_value()),
                     sum.clone(),
                 ));
             }
             bounds.push(Proposition::IntegerMathLessOrEqual(
                 sum,
-                IntegerMathTerm::literal(integer_type.maximum_value()),
+                IntegerMathTerm::literal(known_integer_type.maximum_value()),
             ));
             Ok(canonical_conjunction(bounds))
         }
@@ -443,6 +456,7 @@ pub(crate) mod proof_bearing_scalar {
             value: &ScalarTerm,
             count: &ScalarTerm,
         ) -> Result<Proposition, OperationSemanticError> {
+            let known_value_type = concrete_integer(value_type)?;
             let count_proposition = exact_shift_count_proposition(value_type, count_type, count)?;
             let mathematical_value = integer_leaf_math_term(
                 value_type,
@@ -489,13 +503,13 @@ pub(crate) mod proof_bearing_scalar {
             };
             if value_type.sign() == IntegerSign::Signed {
                 conjuncts.push(Proposition::IntegerMathLessOrEqual(
-                    IntegerMathTerm::literal(value_type.minimum_value()),
+                    IntegerMathTerm::literal(known_value_type.minimum_value()),
                     shifted.clone(),
                 ));
             }
             conjuncts.push(Proposition::IntegerMathLessOrEqual(
                 shifted,
-                IntegerMathTerm::literal(value_type.maximum_value()),
+                IntegerMathTerm::literal(known_value_type.maximum_value()),
             ));
             Ok(canonical_conjunction(conjuncts))
         }
@@ -505,6 +519,8 @@ pub(crate) mod proof_bearing_scalar {
             target_type: IntegerType,
             operand: &ScalarTerm,
         ) -> Result<Proposition, OperationSemanticError> {
+            let known_target_type = concrete_integer(target_type)?;
+            let known_source_type = concrete_integer(source_type)?;
             if !source_type.can_exact_cast_to(target_type) {
                 return Err(OperationSemanticError::ExactCastUnsupportedCarriers {
                     source: source_type,
@@ -530,13 +546,13 @@ pub(crate) mod proof_bearing_scalar {
                 value: *id,
             };
             let source_minimum =
-                IntegerMathLiteral::from_integer_value(source_type.minimum_value());
+                IntegerMathLiteral::from_integer_value(known_source_type.minimum_value());
             let source_maximum =
-                IntegerMathLiteral::from_integer_value(source_type.maximum_value());
+                IntegerMathLiteral::from_integer_value(known_source_type.maximum_value());
             let target_minimum =
-                IntegerMathLiteral::from_integer_value(target_type.minimum_value());
+                IntegerMathLiteral::from_integer_value(known_target_type.minimum_value());
             let target_maximum =
-                IntegerMathLiteral::from_integer_value(target_type.maximum_value());
+                IntegerMathLiteral::from_integer_value(known_target_type.maximum_value());
             let mut bounds = Vec::with_capacity(2);
             if compare_math_literals(target_minimum, source_minimum).is_gt() {
                 bounds.push(Proposition::IntegerMathLessOrEqual(
@@ -571,6 +587,8 @@ pub(crate) mod proof_bearing_scalar {
             count_type: IntegerType,
             count: &ScalarTerm,
         ) -> Result<Proposition, OperationSemanticError> {
+            let known_count_type = concrete_integer(count_type)?;
+            let known_value_type = concrete_integer(value_type)?;
             if value_type.carrier() != IntegerCarrier::Fixed {
                 return Err(
                     OperationSemanticError::ExactShiftCountRequiresFixedValueInteger(value_type),
@@ -593,7 +611,7 @@ pub(crate) mod proof_bearing_scalar {
                     IntegerValue::Unsigned(count) => Some(*count),
                 };
                 return Ok(
-                    if count.is_some_and(|count| count < u128::from(value_type.bits())) {
+                    if count.is_some_and(|count| count < u128::from(known_value_type.bits())) {
                         Proposition::Truth
                     } else {
                         Proposition::Falsehood
@@ -611,14 +629,14 @@ pub(crate) mod proof_bearing_scalar {
                 None
             };
             let mut bounds = Vec::with_capacity(2);
-            let maximum = u128::from(value_type.bits() - 1);
+            let maximum = u128::from(known_value_type.bits() - 1);
             let maximum = match count_type.sign() {
                 IntegerSign::Signed => i128::try_from(maximum).ok().map(IntegerValue::Signed),
                 IntegerSign::Unsigned => Some(IntegerValue::Unsigned(maximum)),
             };
             if let Some(maximum) = maximum
                 && count_type.admits(maximum)
-                && count_type.maximum_value() != maximum
+                && known_count_type.maximum_value() != maximum
             {
                 bounds.push(Proposition::LessOrEqual(
                     count.clone(),
@@ -640,6 +658,7 @@ pub(crate) mod proof_bearing_scalar {
             integer_type: IntegerType,
             divisor: &ScalarTerm,
         ) -> Result<Proposition, OperationSemanticError> {
+            let known_integer_type = concrete_integer(integer_type)?;
             if integer_type.carrier() != IntegerCarrier::Fixed {
                 return Err(OperationSemanticError::NonzeroDivisorRequiresFixedInteger(
                     integer_type,
@@ -663,7 +682,7 @@ pub(crate) mod proof_bearing_scalar {
                         ScalarTerm::integer(integer_type, IntegerValue::Signed(-1))
                             .map_err(OperationSemanticError::InvalidProposition)?,
                     );
-                    if integer_type.bits() == 1 {
+                    if known_integer_type.bits() == 1 {
                         negative
                     } else {
                         Proposition::Disjunction(vec![
@@ -684,6 +703,7 @@ pub(crate) mod proof_bearing_scalar {
             left: &ScalarTerm,
             right: &ScalarTerm,
         ) -> Result<Proposition, OperationSemanticError> {
+            let known_integer_type = concrete_integer(integer_type)?;
             if integer_type.carrier() != IntegerCarrier::Fixed {
                 return Err(OperationSemanticError::ExactDivisionRequiresFixedInteger(
                     integer_type,
@@ -705,7 +725,7 @@ pub(crate) mod proof_bearing_scalar {
                 ));
             }
 
-            let minimum_plus_one = match integer_type.minimum_value() {
+            let minimum_plus_one = match known_integer_type.minimum_value() {
                 IntegerValue::Signed(minimum) => IntegerValue::Signed(
                     minimum
                         .checked_add(1)
@@ -725,7 +745,7 @@ pub(crate) mod proof_bearing_scalar {
                     left.clone(),
                 ),
             ]);
-            if integer_type.bits() == 1 {
+            if known_integer_type.bits() == 1 {
                 return Ok(minus_one_case);
             }
 
@@ -3278,8 +3298,9 @@ pub(crate) mod scalar_representation_view {
 
     impl ScalarRepresentationViewPair {
         pub fn classify(source: ScalarType, target: ScalarType) -> Option<Self> {
-            let fixed =
-                |integer: IntegerType, bits: u16| !integer.is_address() && integer.bits() == bits;
+            let fixed = |integer: IntegerType, bits: u16| {
+                !integer.is_address() && integer.bits() == Some(bits)
+            };
             match (source, target) {
                 (ScalarType::IeeeFloat(format), ScalarType::Integer(integer))
                     if fixed(integer, format_bits(format)) =>
@@ -3314,7 +3335,7 @@ pub(crate) mod scalar_representation_view {
                         IeeeFloatValue::Binary32(bits) => u64::from(bits),
                         IeeeFloatValue::Binary64(bits) => bits,
                     };
-                    Some(ScalarViewValue::Integer(integer_from_bits(integer, bits)))
+                    Some(ScalarViewValue::Integer(integer_from_bits(integer, bits)?))
                 }
                 (Self::BitsFloat { integer, format }, ScalarViewValue::Integer(value)) => {
                     let bits = integer_bits(integer, value)?;
@@ -3326,7 +3347,7 @@ pub(crate) mod scalar_representation_view {
                     }))
                 }
                 (Self::BooleanByte { integer }, ScalarViewValue::Boolean(value)) => Some(
-                    ScalarViewValue::Integer(integer_from_bits(integer, u64::from(value))),
+                    ScalarViewValue::Integer(integer_from_bits(integer, u64::from(value))?),
                 ),
                 (Self::ByteBoolean { integer }, ScalarViewValue::Integer(value)) => {
                     match integer_bits(integer, value)? {
@@ -3355,13 +3376,14 @@ pub(crate) mod scalar_representation_view {
     }
 
     pub(crate) fn integer_bits(integer: IntegerType, value: IntegerValue) -> Option<u64> {
-        if !integer.admits(value) || integer.bits() > 64 {
+        let width = integer.bits()?;
+        if !integer.admits(value) || width > 64 {
             return None;
         }
-        let mask = if integer.bits() == 64 {
+        let mask = if integer.bits() == Some(64) {
             u64::MAX
         } else {
-            (1u64 << integer.bits()) - 1
+            (1u64 << width) - 1
         };
         Some(match value {
             IntegerValue::Signed(value) => (value as u64) & mask,
@@ -3369,9 +3391,12 @@ pub(crate) mod scalar_representation_view {
         })
     }
 
-    pub(crate) fn integer_from_bits(integer: IntegerType, bits: u64) -> IntegerValue {
-        let width = u32::from(integer.bits());
-        match integer.sign() {
+    pub(crate) fn integer_from_bits(integer: IntegerType, bits: u64) -> Option<IntegerValue> {
+        let width = u32::from(integer.bits()?);
+        if width > 64 {
+            return None;
+        }
+        Some(match integer.sign() {
             IntegerSign::Unsigned => {
                 let mask = if width == 64 {
                     u64::MAX
@@ -3384,7 +3409,7 @@ pub(crate) mod scalar_representation_view {
                 let shift = 64 - width;
                 IntegerValue::Signed(i128::from(((bits << shift) as i64) >> shift))
             }
-        }
+        })
     }
 }
 pub(crate) mod unchanged_scalar {

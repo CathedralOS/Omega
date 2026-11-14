@@ -184,7 +184,10 @@ pub(super) fn decode_argument_source(
     }
 }
 
-pub(super) fn encode_call(bytes: &mut Vec<u8>, row: &SelectedCallContract) {
+pub(super) fn encode_call(
+    bytes: &mut Vec<u8>,
+    row: &SelectedCallContract,
+) -> Result<(), terminal_codec::CodecError> {
     crate::codec_bytes::push_encoded(bytes, row.instruction.0.to_le_bytes());
     match row.owner {
         target_operations::CallSiteOwner::Operation(operation) => {
@@ -236,8 +239,8 @@ pub(super) fn encode_call(bytes: &mut Vec<u8>, row: &SelectedCallContract) {
             } => {
                 bytes.push(1);
                 encode_semantic_argument(bytes, semantic);
-                encode_target_argument(bytes, target);
-                encode_runtime_indices(bytes, indices);
+                encode_target_argument(bytes, target)?;
+                encode_runtime_indices(bytes, indices)?;
             }
         }
     }
@@ -293,6 +296,7 @@ pub(super) fn encode_call(bytes: &mut Vec<u8>, row: &SelectedCallContract) {
     bytes.extend_from_slice(&crash);
     encode_effect(bytes, row.effect);
     encode_ownership(bytes, &row.ownership);
+    Ok(())
 }
 
 pub(super) fn decode_call(
@@ -428,16 +432,17 @@ pub(super) fn decode_call(
 pub(super) fn encode_runtime_indices(
     bytes: &mut Vec<u8>,
     indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
-) {
+) -> Result<(), terminal_codec::CodecError> {
     length(bytes, indices.len());
     for index in indices {
         crate::codec_bytes::push_encoded(bytes, index.operand.value.get().to_le_bytes());
-        encode_scalar(bytes, index.operand.scalar_type);
+        encode_scalar(bytes, index.operand.scalar_type)?;
         crate::codec_bytes::push_encoded(bytes, index.stride.to_le_bytes());
         encode_option_u64(bytes, index.extent);
         crate::codec_bytes::push_encoded(bytes, index.obligation.get().to_le_bytes());
         bytes.extend_from_slice(&index.accepted_fact.bytes());
     }
+    Ok(())
 }
 
 pub(super) fn decode_runtime_indices(
@@ -659,7 +664,7 @@ fn decode_nominal<T>(
 pub(super) fn encode_normalized_foreign_call(
     bytes: &mut Vec<u8>,
     row: &SelectedNormalizedForeignCall,
-) {
+) -> Result<(), terminal_codec::CodecError> {
     crate::codec_bytes::push_encoded(bytes, row.instruction.0.to_le_bytes());
     row.invocation_site.encode_identity(bytes);
     let call = &row.call;
@@ -669,22 +674,22 @@ pub(super) fn encode_normalized_foreign_call(
     length(bytes, call.scalar_arguments.len());
     for argument in &call.scalar_arguments {
         crate::codec_bytes::push_encoded(bytes, argument.parameter_index.to_le_bytes());
-        encode_scalar_source(bytes, argument.source);
+        encode_scalar_source(bytes, argument.source)?;
         encode_placement(bytes, &argument.placement);
     }
     length(bytes, call.structural_arguments.len());
     for argument in &call.structural_arguments {
-        encode_target_argument(bytes, argument);
+        encode_target_argument(bytes, argument)?;
     }
     length(bytes, call.structural_indices.len());
     for indices in &call.structural_indices {
-        encode_runtime_indices(bytes, indices);
+        encode_runtime_indices(bytes, indices)?;
     }
     match &call.result {
         target_operations::TargetBoundaryResult::Unit => bytes.push(0),
         target_operations::TargetBoundaryResult::Scalar(home) => {
             bytes.push(1);
-            encode_scalar_home(bytes, home);
+            encode_scalar_home(bytes, home)?;
         }
         target_operations::TargetBoundaryResult::Structural(home) => {
             bytes.push(2);
@@ -729,11 +734,12 @@ pub(super) fn encode_normalized_foreign_call(
                 (guard.structural_argument as u64).to_le_bytes(),
             );
             crate::codec_bytes::push_encoded(bytes, guard.max_bytes.to_le_bytes());
-            encode_scalar(bytes, ScalarType::Integer(guard.count_type));
+            encode_scalar(bytes, ScalarType::Integer(guard.count_type))?;
         }
     }
     encode_effect(bytes, row.effect);
     encode_ownership(bytes, &row.ownership);
+    Ok(())
 }
 
 pub(super) fn decode_normalized_foreign_call(
@@ -1151,11 +1157,15 @@ fn decode_state_set(cursor: &mut Cursor<'_>) -> Result<MachineStateSet, FixedVie
     ))
 }
 
-fn encode_scalar_home(bytes: &mut Vec<u8>, home: &TargetUnitScalarHomeRequirement) {
+fn encode_scalar_home(
+    bytes: &mut Vec<u8>,
+    home: &TargetUnitScalarHomeRequirement,
+) -> Result<(), terminal_codec::CodecError> {
     crate::codec_bytes::push_encoded(bytes, home.defining_operation.get().to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, home.source_value.get().to_le_bytes());
-    encode_scalar(bytes, home.scalar_type);
+    encode_scalar(bytes, home.scalar_type)?;
     encode_shape(bytes, home.shape);
+    Ok(())
 }
 
 fn decode_scalar_home(
@@ -1169,7 +1179,10 @@ fn decode_scalar_home(
     })
 }
 
-pub(super) fn encode_scalar_source(bytes: &mut Vec<u8>, source: TargetUnitScalarArgumentSource) {
+pub(super) fn encode_scalar_source(
+    bytes: &mut Vec<u8>,
+    source: TargetUnitScalarArgumentSource,
+) -> Result<(), terminal_codec::CodecError> {
     match source {
         TargetUnitScalarArgumentSource::IeeeFloatImmediate {
             defining_operation,
@@ -1194,7 +1207,7 @@ pub(super) fn encode_scalar_source(bytes: &mut Vec<u8>, source: TargetUnitScalar
             bytes.push(2);
             crate::codec_bytes::push_encoded(bytes, parameter.block.get().to_le_bytes());
             crate::codec_bytes::push_encoded(bytes, parameter.value.get().to_le_bytes());
-            encode_scalar(bytes, parameter.scalar_type);
+            encode_scalar(bytes, parameter.scalar_type)?;
         }
         TargetUnitScalarArgumentSource::Parameter {
             parameter_index,
@@ -1204,7 +1217,7 @@ pub(super) fn encode_scalar_source(bytes: &mut Vec<u8>, source: TargetUnitScalar
             bytes.push(3);
             crate::codec_bytes::push_encoded(bytes, parameter_index.to_le_bytes());
             crate::codec_bytes::push_encoded(bytes, source_value.get().to_le_bytes());
-            encode_scalar(bytes, scalar_type);
+            encode_scalar(bytes, scalar_type)?;
         }
         TargetUnitScalarArgumentSource::IntegerImmediate {
             defining_operation,
@@ -1215,7 +1228,7 @@ pub(super) fn encode_scalar_source(bytes: &mut Vec<u8>, source: TargetUnitScalar
             bytes.push(4);
             crate::codec_bytes::push_encoded(bytes, defining_operation.get().to_le_bytes());
             crate::codec_bytes::push_encoded(bytes, source_value.get().to_le_bytes());
-            encode_scalar(bytes, ScalarType::Integer(scalar_type));
+            encode_scalar(bytes, ScalarType::Integer(scalar_type))?;
             encode_integer(bytes, value);
         }
         TargetUnitScalarArgumentSource::BooleanImmediate {
@@ -1230,9 +1243,10 @@ pub(super) fn encode_scalar_source(bytes: &mut Vec<u8>, source: TargetUnitScalar
         }
         TargetUnitScalarArgumentSource::Home(home) => {
             bytes.push(6);
-            encode_scalar_home(bytes, &home);
+            encode_scalar_home(bytes, &home)?;
         }
     }
+    Ok(())
 }
 
 pub(super) fn decode_scalar_source(
@@ -1968,7 +1982,7 @@ mod tests {
         }];
         source.call.structural_indices = vec![indices];
         let mut bytes = Vec::new();
-        encode_normalized_foreign_call(&mut bytes, &source);
+        encode_normalized_foreign_call(&mut bytes, &source).unwrap();
         let mut cursor = Cursor::new(&bytes);
         let decoded = decode_normalized_foreign_call(&mut cursor).unwrap();
         assert_eq!(cursor.remaining(), 0);
@@ -1982,7 +1996,7 @@ mod tests {
         let mut changed = source.clone();
         changed.call.structural_indices[0].swap(0, 1);
         let mut changed_bytes = Vec::new();
-        encode_normalized_foreign_call(&mut changed_bytes, &changed);
+        encode_normalized_foreign_call(&mut changed_bytes, &changed).unwrap();
         assert_ne!(bytes, changed_bytes);
         assert_eq!(
             decode_normalized_foreign_call(&mut Cursor::new(&changed_bytes)).unwrap(),
@@ -1991,7 +2005,7 @@ mod tests {
         let mut changed = source.clone();
         changed.call.boundary = BoundaryMachineId::new(2).unwrap();
         let mut changed_bytes = Vec::new();
-        encode_normalized_foreign_call(&mut changed_bytes, &changed);
+        encode_normalized_foreign_call(&mut changed_bytes, &changed).unwrap();
         assert_ne!(bytes, changed_bytes);
         let mut changed = source.clone();
         changed.call.binding.boundary_entry_plan.call.parameters[0].locations =
@@ -2002,17 +2016,17 @@ mod tests {
                 alignment: 4,
             }];
         let mut changed_bytes = Vec::new();
-        encode_normalized_foreign_call(&mut changed_bytes, &changed);
+        encode_normalized_foreign_call(&mut changed_bytes, &changed).unwrap();
         assert_ne!(bytes, changed_bytes);
         let mut changed = source.clone();
         changed.call.scalar_arguments[0].parameter_index = 9;
         let mut changed_bytes = Vec::new();
-        encode_normalized_foreign_call(&mut changed_bytes, &changed);
+        encode_normalized_foreign_call(&mut changed_bytes, &changed).unwrap();
         assert_ne!(bytes, changed_bytes);
         let mut changed = source.clone();
         changed.call.result = target_operations::TargetBoundaryResult::Unit;
         let mut changed_bytes = Vec::new();
-        encode_normalized_foreign_call(&mut changed_bytes, &changed);
+        encode_normalized_foreign_call(&mut changed_bytes, &changed).unwrap();
         assert_ne!(bytes, changed_bytes);
     }
 
@@ -2044,7 +2058,7 @@ mod tests {
             },
         );
         let mut bytes = Vec::new();
-        encode_normalized_foreign_call(&mut bytes, &source);
+        encode_normalized_foreign_call(&mut bytes, &source).unwrap();
         let mut cursor = Cursor::new(&bytes);
         assert_eq!(decode_normalized_foreign_call(&mut cursor).unwrap(), source);
         assert_eq!(cursor.remaining(), 0);
@@ -2063,7 +2077,7 @@ mod tests {
         };
         result.place = semantic_vocabulary::PlaceId::new(11).unwrap();
         let mut changed_bytes = Vec::new();
-        encode_normalized_foreign_call(&mut changed_bytes, &changed);
+        encode_normalized_foreign_call(&mut changed_bytes, &changed).unwrap();
         assert_ne!(bytes, changed_bytes);
     }
 

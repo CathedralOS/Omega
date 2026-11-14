@@ -33,12 +33,61 @@ pub(crate) mod wire {
         )
     }
 
+    #[derive(Clone, Copy, Default)]
+    enum EncodingRole {
+        #[default]
+        ClosedPublication,
+        CheckingIdentity,
+    }
+
     #[derive(Default)]
     pub(crate) struct Writer {
         bytes: Vec<u8>,
+        role: EncodingRole,
+        closed_types: std::rc::Rc<std::cell::RefCell<crate::ClosedTypeCatalog>>,
     }
 
     impl Writer {
+        /// Checking keys identify rigid widths; they do not publish executable code.
+        pub(crate) fn checking_identity() -> Self {
+            Self {
+                role: EncodingRole::CheckingIdentity,
+                ..Self::default()
+            }
+        }
+
+        /// Local canonical keys keep their real bytes and share the closure
+        /// traversal with the enclosing module or record.
+        pub(crate) fn nested(&self) -> Self {
+            Self {
+                bytes: Vec::new(),
+                role: self.role,
+                closed_types: std::rc::Rc::clone(&self.closed_types),
+            }
+        }
+
+        pub(crate) fn require_integer_width(
+            &mut self,
+            integer: semantic_vocabulary::IntegerType,
+        ) -> Result<(), CodecError> {
+            if matches!(self.role, EncodingRole::CheckingIdentity)
+                && matches!(
+                    integer.width(),
+                    semantic_vocabulary::IntegerWidth::Parameter(_)
+                )
+            {
+                return Ok(());
+            }
+            self.closed_types.borrow_mut().record(integer).map(|_| ())
+        }
+
+        pub(crate) fn finish_closed(self) -> (Vec<u8>, crate::ClosedTypeCatalog) {
+            let types = std::rc::Rc::try_unwrap(self.closed_types)
+                .map(std::cell::RefCell::into_inner)
+                .unwrap_or_else(|types| types.borrow().clone());
+            (self.bytes, types)
+        }
+
         pub(crate) fn finish(self) -> Vec<u8> {
             self.bytes
         }
@@ -838,8 +887,19 @@ copied_fields! {
     Multiplicity: terminal_psi::StructuralMultiplicity
         => super::structural_result_wire::encode_multiplicity,
            super::structural_result_wire::decode_multiplicity;
-    Scalar: semantic_vocabulary::ScalarType
-        => super::scalar_wire::encode_scalar_type, super::scalar_wire::decode_scalar_type;
+}
+
+pub(crate) struct Scalar;
+impl Field<semantic_vocabulary::ScalarType> for Scalar {
+    fn write(
+        writer: &mut Writer,
+        value: &semantic_vocabulary::ScalarType,
+    ) -> Result<(), CodecError> {
+        super::scalar_wire::encode_scalar_type(writer, *value)
+    }
+    fn read(reader: &mut Reader<'_>) -> Result<semantic_vocabulary::ScalarType, CodecError> {
+        super::scalar_wire::decode_scalar_type(reader)
+    }
 }
 
 pub(crate) struct Index;

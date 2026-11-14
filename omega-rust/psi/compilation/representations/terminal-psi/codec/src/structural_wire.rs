@@ -236,27 +236,27 @@ pub(crate) mod structural_field_wire {
         match field_type {
             StructuralFieldType::AtomicBoundedInteger(bounded) => {
                 writer.u8(10);
-                encode_integer_type(writer, bounded.integer_type());
+                encode_integer_type(writer, bounded.integer_type())?;
                 encode_integer_value(writer, bounded.minimum());
                 encode_integer_value(writer, bounded.maximum());
             }
             StructuralFieldType::Atomic(scalar_type) => {
                 writer.u8(8);
-                encode_scalar_type(writer, *scalar_type);
+                encode_scalar_type(writer, *scalar_type)?;
             }
             StructuralFieldType::Scalar(scalar_type) => {
                 writer.u8(1);
-                encode_scalar_type(writer, *scalar_type);
+                encode_scalar_type(writer, *scalar_type)?;
             }
             StructuralFieldType::BoundedInteger(bounded) => {
                 writer.u8(6);
-                encode_integer_type(writer, bounded.integer_type());
+                encode_integer_type(writer, bounded.integer_type())?;
                 encode_integer_value(writer, bounded.minimum());
                 encode_integer_value(writer, bounded.maximum());
             }
             StructuralFieldType::RefinedScalar(refinement) => {
                 writer.u8(9);
-                encode_scalar_type(writer, refinement.carrier());
+                encode_scalar_type(writer, refinement.carrier())?;
                 encode_proposition(writer, refinement.predicate())?;
             }
             StructuralFieldType::IeeeFloat(format) => {
@@ -471,7 +471,7 @@ pub(crate) mod structural_place_wire {
         require_operand_path(path)?;
         writer.len(label, path.len())?;
         for segment in path {
-            encode_projection(writer, segment);
+            encode_projection(writer, segment)?;
         }
         Ok(())
     }
@@ -490,7 +490,7 @@ pub(crate) mod structural_place_wire {
                             "qualification wildcard is not a reference origin",
                         );
                     }
-                    encode_projection(writer, segment)
+                    encode_projection(writer, segment)?
                 }
                 terminal_psi::ReferenceOriginProjection::Element => writer.u8(9),
             }
@@ -498,13 +498,16 @@ pub(crate) mod structural_place_wire {
         Ok(())
     }
 
-    fn encode_projection(writer: &mut Writer, segment: &StructuralPathSegment) {
-        terminal_psi::structural_path_encoding::encode_structural_path_segment(
+    fn encode_projection(
+        writer: &mut Writer,
+        segment: &StructuralPathSegment,
+    ) -> Result<(), CodecError> {
+        terminal_psi::structural_path_encoding::try_encode_structural_path_segment(
             writer,
             segment,
             Writer::bytes,
             encode_scalar_type,
-        );
+        )
     }
 
     pub(crate) fn encode_obligation_ids(
@@ -735,7 +738,7 @@ pub(crate) mod structural_place_wire {
     ) -> Result<(), CodecError> {
         writer.len("qualification pattern", path.len())?;
         for step in path {
-            encode_projection(writer, step);
+            encode_projection(writer, step)?;
         }
         Ok(())
     }
@@ -1764,7 +1767,7 @@ pub(crate) mod structural_type_wire {
                 } else {
                     6
                 });
-                encode_scalar_type(writer, *scalar_type);
+                encode_scalar_type(writer, *scalar_type)?;
                 if let Some(restriction) = &declaration.scalar_restriction {
                     encode_structural_field_type(writer, restriction)?;
                 }
@@ -2044,7 +2047,7 @@ pub(crate) mod structural_type_wire {
                 writer.u8(if stored_scalar.is_some() { 2 } else { 1 });
                 writer.u64(*byte_offset);
                 if let Some(scalar) = stored_scalar {
-                    encode_scalar_type(writer, *scalar);
+                    encode_scalar_type(writer, *scalar)?;
                 }
             }
             Some(AuthoredFieldStorage::Repeated {

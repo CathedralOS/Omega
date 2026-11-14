@@ -647,15 +647,49 @@ fn fragment_scalar_result_normalization_kind(
         ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => Some(Kind::Float64ToBits),
         ScalarType::Boolean => Some(Kind::ZeroExtendU8),
         ScalarType::Integer(integer) => match (integer.sign(), integer.bits()) {
-            (semantic_vocabulary::IntegerSign::Unsigned, 8) => Some(Kind::ZeroExtendU8),
-            (semantic_vocabulary::IntegerSign::Unsigned, 16) => Some(Kind::ZeroExtendU16),
-            (semantic_vocabulary::IntegerSign::Unsigned, 32) => Some(Kind::ZeroExtendU32),
-            (semantic_vocabulary::IntegerSign::Unsigned, 64)
-            | (semantic_vocabulary::IntegerSign::Signed, 64) => Some(Kind::CopyI64),
-            (semantic_vocabulary::IntegerSign::Signed, 8) => Some(Kind::SignExtendI8),
-            (semantic_vocabulary::IntegerSign::Signed, 16) => Some(Kind::SignExtendI16),
-            (semantic_vocabulary::IntegerSign::Signed, 32) => Some(Kind::SignExtendI32),
+            (semantic_vocabulary::IntegerSign::Unsigned, Some(8)) => Some(Kind::ZeroExtendU8),
+            (semantic_vocabulary::IntegerSign::Unsigned, Some(16)) => Some(Kind::ZeroExtendU16),
+            (semantic_vocabulary::IntegerSign::Unsigned, Some(32)) => Some(Kind::ZeroExtendU32),
+            (semantic_vocabulary::IntegerSign::Unsigned, Some(64))
+            | (semantic_vocabulary::IntegerSign::Signed, Some(64)) => Some(Kind::CopyI64),
+            (semantic_vocabulary::IntegerSign::Signed, Some(8)) => Some(Kind::SignExtendI8),
+            (semantic_vocabulary::IntegerSign::Signed, Some(16)) => Some(Kind::SignExtendI16),
+            (semantic_vocabulary::IntegerSign::Signed, Some(32)) => Some(Kind::SignExtendI32),
             _ => None,
         },
+    }
+}
+
+#[cfg(test)]
+mod width_tests {
+    use super::*;
+    use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ValueId, WidthParameter};
+
+    #[test]
+    fn result_normalization_requires_a_known_supported_width() {
+        let scalar = |sign, bits| ScalarType::Integer(IntegerType::new(sign, bits).unwrap());
+        assert_eq!(
+            fragment_scalar_result_normalization_kind(scalar(IntegerSign::Signed, 8), false),
+            Some(selected_instructions::SelectedInstructionKind::SignExtendI8)
+        );
+        assert_eq!(
+            fragment_scalar_result_normalization_kind(scalar(IntegerSign::Unsigned, 64), false),
+            Some(selected_instructions::SelectedInstructionKind::CopyI64)
+        );
+        let parameter = ScalarType::Integer(IntegerType::parameterized(
+            IntegerSign::Signed,
+            WidthParameter {
+                owner: MachineId::new(1).unwrap(),
+                value: ValueId::new(1).unwrap(),
+            },
+        ));
+        assert_eq!(
+            fragment_scalar_result_normalization_kind(parameter, false),
+            None
+        );
+        assert_eq!(
+            fragment_scalar_result_normalization_kind(parameter, true),
+            None
+        );
     }
 }

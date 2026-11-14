@@ -444,6 +444,7 @@ impl<'t> Program<'t> {
             ));
         }
         let outer = std::mem::take(&mut self.scope);
+        let outer_widths = std::mem::take(&mut self.width_scope);
         // An elided lifetime in the signature is a fresh parameter of this
         // machine, which each call instantiates (`regions::Elision`).
         let elision = std::mem::replace(&mut self.elision, super::regions::Elision::Inputs(symbol));
@@ -452,6 +453,7 @@ impl<'t> Program<'t> {
         self.lifetime_owner = owner;
         self.elision = elision;
         let scope = std::mem::replace(&mut self.scope, outer);
+        let widths = std::mem::replace(&mut self.width_scope, outer_widths);
         let (signature, names, value_parameters) = read?;
         if matches!(reading, Reading::GenericEntry | Reading::Alternative(_))
             || (self.rigid && matches!(reading, Reading::Implementation))
@@ -486,6 +488,7 @@ impl<'t> Program<'t> {
         self.value_parameters.push(value_parameters);
         self.value_arguments.push(Vec::new());
         self.scopes.push(scope);
+        self.width_scopes.push(widths);
         Ok(())
     }
 
@@ -645,6 +648,7 @@ impl<'t> Program<'t> {
         self.value_parameters.push(0);
         self.value_arguments.push(arguments.to_vec());
         self.scopes.push(self.scope.clone());
+        self.width_scopes.push(Vec::new());
         Ok(id)
     }
 
@@ -675,6 +679,7 @@ impl<'t> Program<'t> {
         self.value_parameters.push(0);
         self.value_arguments.push(arguments.to_vec());
         self.scopes.push(Vec::new());
+        self.width_scopes.push(Vec::new());
         self.requirements.push(id);
         Ok(id)
     }
@@ -1079,6 +1084,116 @@ impl<'t> Program<'t> {
         Ok(witnesses)
     }
 
+    fn prepare_width_scope(
+        &mut self,
+        id: MachineId,
+        machine: &Machine,
+        state: &State,
+    ) -> Checked<PreparedFormalValues> {
+        use crate::body::FormalValueShape;
+        use typed_trees::data::TypeParameterKind;
+
+        let typed = self.typed;
+        let formals = span(
+            &typed.state_parameters,
+            state.parameters,
+            id,
+            "parameter span",
+        )?;
+        let binders = typed
+            .machine_type_parameters(machine)
+            .iter()
+            .filter_map(|parameter| match parameter.kind {
+                TypeParameterKind::Const { type_reference } => {
+                    Some((parameter.symbol, type_reference))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let mut symbols = binders
+            .iter()
+            .map(|(symbol, _)| *symbol)
+            .collect::<Vec<_>>();
+        symbols.sort_unstable_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+        if symbols.iter().any(|symbol| !symbol.is_valid())
+            || symbols.windows(2).any(|pair| pair[0] == pair[1])
+        {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Parameter("invalid or duplicate const binder"),
+            ));
+        }
+        let mut scope = self.scope.clone();
+        scope.sort_unstable_by_key(|(symbol, _)| (symbol.arena_index(), symbol.generation()));
+        let mut shapes = Vec::with_capacity(formals.len() + binders.len());
+        for formal in formals {
+            let (shape_type, borrowed) = match formal.type_reference.is_valid().then(|| {
+                typed
+                    .type_reference_table
+                    .type_reference(formal.type_reference)
+            }) {
+                Some(TypeReferenceNode::Reference { referee, .. }) => (*referee, true),
+                _ => (formal.type_reference, false),
+            };
+            shapes.push(FormalValueShape {
+                declared: self.declared_value_shape(id, shape_type, &scope)?,
+                erased: formal.relevance == language_core::BindingRelevance::Erased,
+                borrowed,
+            });
+        }
+        for (_, type_reference) in &binders {
+            shapes.push(FormalValueShape {
+                declared: self.declared_value_shape(id, *type_reference, &scope)?,
+                erased: false,
+                borrowed: false,
+            });
+        }
+        let result = state.return_type.is_valid()
+            && !matches!(
+                typed.type_reference_table.type_reference(state.return_type),
+                TypeReferenceNode::Unit
+            );
+        let result = result && self.declared_value_shape(id, state.return_type, &scope)?;
+        let values = crate::body::formal_value_ids(shapes.iter().copied(), result);
+        let mut widths = Vec::new();
+        for (position, (symbol, type_reference)) in binders.iter().enumerate() {
+            let TypeReferenceNode::Named {
+                symbol: carrier, ..
+            } = typed.type_reference_table.type_reference(*type_reference)
+            else {
+                continue;
+            };
+            if typed.symbols.builtin_type_atom(*carrier)
+                != Some(symbols::BuiltinTypeAtom::Integer(
+                    numerics::integer_carrier::FixedInteger::U64,
+                ))
+            {
+                continue;
+            }
+            let value = values[formals.len() + position].ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Parameter("const width without an input identity"),
+                )
+            })?;
+            widths.push(super::WidthBinding {
+                symbol: *symbol,
+                parameter: semantic_vocabulary::WidthParameter { owner: id, value },
+            });
+        }
+        widths.sort_unstable_by_key(|binding| {
+            (binding.symbol.arena_index(), binding.symbol.generation())
+        });
+        self.width_scope = widths;
+        Ok(PreparedFormalValues {
+            shapes,
+            result,
+            values,
+        })
+    }
+
     /// The value parameters of a generic check form's entry, in declaration
     /// order: each `const` binder with its carrier type. generics.md, "Value
     /// binders and const requirements": a `const Count: u32` binds a value
@@ -1124,16 +1239,6 @@ impl<'t> Program<'t> {
     ) -> Checked<(Signature, MachineNames, usize)> {
         let (machine, state) = self.declaration(id, symbol)?;
         self.served(id, symbol)?;
-        // The entry of a generic check form keeps its value parameters as
-        // formals; `machine_shape` refuses them on every other machine.
-        let binders = match reading {
-            Reading::GenericEntry => self.value_binders(id, machine)?,
-            Reading::Closed
-            | Reading::Implementation
-            | Reading::Provider
-            | Reading::Applied(_)
-            | Reading::Alternative(_) => Vec::new(),
-        };
         self.machine_shape(id, machine, reading)?;
         // What each type parameter stands for while this machine is read.
         self.scope = match reading {
@@ -1155,6 +1260,20 @@ impl<'t> Program<'t> {
                 Unserved::Spelling("type parameter without a symbol"),
             ));
         }
+        // A dependent carrier needs its width's real input identity before
+        // either its formal or result type can be read. Shape preparation
+        // emits no storage, regions or types; the one ordinary read below
+        // must reproduce this exact allocation.
+        let prepared = if matches!(reading, Reading::GenericEntry) {
+            Some(self.prepare_width_scope(id, machine, state)?)
+        } else {
+            None
+        };
+        let binders = if prepared.is_some() {
+            self.value_binders(id, machine)?
+        } else {
+            Vec::new()
+        };
         if !self.contracts_restate_formal_domains(state) {
             return Err(refuse(
                 id,
@@ -1175,6 +1294,16 @@ impl<'t> Program<'t> {
             &binders,
             &[],
         )?;
+        if prepared
+            .as_ref()
+            .is_some_and(|prepared| !prepared.matches(&signature))
+        {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Machine("dependent signature differs from its prepared input shapes"),
+            ));
+        }
         // A private omission requests inference; public omission and an
         // explicitly written false promise that the effect is absent.
         let bound =
@@ -1189,6 +1318,7 @@ impl<'t> Program<'t> {
                 !machine.blocks_keyword_source_spans.is_empty(),
             ),
         };
+
         signature.termination = self.termination(id, machine)?;
         self.inherit_requirement_contract(id, machine, &mut signature, &mut names)?;
         // A machine's header clauses belong to the machine declaration; its
@@ -2275,6 +2405,7 @@ impl<'t> Program<'t> {
         }
         let (machine, state) = self.declaration(id, symbol)?;
         self.scope = self.scopes.get(id).cloned().unwrap_or_default();
+        self.width_scope = self.width_scopes.get(id).cloned().unwrap_or_default();
         let formals = span(
             &typed.state_parameters,
             state.parameters,
@@ -2844,6 +2975,30 @@ enum Declarer {
     Requirement {
         declares_no_crash_route: bool,
     },
+}
+
+struct PreparedFormalValues {
+    shapes: Vec<crate::body::FormalValueShape>,
+    result: bool,
+    values: Vec<Option<ValueId>>,
+}
+
+impl PreparedFormalValues {
+    fn matches(&self, signature: &Signature) -> bool {
+        self.shapes.len() == signature.parameters.len()
+            && self
+                .shapes
+                .iter()
+                .zip(&signature.parameters)
+                .enumerate()
+                .all(|(position, (shape, value_type))| {
+                    shape.declared == value_type.declared().is_some()
+                        && shape.erased == signature.is_erased(position)
+                        && shape.borrowed == signature.borrowed(position).is_some()
+                })
+            && self.result == signature.result.and_then(ValueType::declared).is_some()
+            && self.values == signature.formal_values()
+    }
 }
 
 /// One value parameter of a generic check form: the binder's symbol, which

@@ -1101,7 +1101,7 @@ pub(crate) mod canonical_order {
     }
 
     fn canonical_proposition_bytes(proposition: &Proposition) -> Result<Vec<u8>, CodecError> {
-        let mut writer = Writer::default();
+        let mut writer = Writer::checking_identity();
         encode_proposition(&mut writer, proposition)?;
         Ok(writer.finish())
     }
@@ -1117,7 +1117,7 @@ pub(crate) mod canonical_order {
     }
 
     fn canonical_scalar_term_bytes(term: &ScalarTerm) -> Result<Vec<u8>, CodecError> {
-        let mut writer = Writer::default();
+        let mut writer = Writer::checking_identity();
         encode_scalar_term(&mut writer, term)?;
         Ok(writer.finish())
     }
@@ -1735,7 +1735,8 @@ pub(crate) mod machine_wire {
                 super::encode_integer_type(
                     &mut writer,
                     IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
-                );
+                )
+                .unwrap();
                 writer.id(ValueId::new(identity).unwrap());
             }
             writer.len("edges", 1).unwrap();
@@ -1746,7 +1747,8 @@ pub(crate) mod machine_wire {
             super::encode_integer_type(
                 &mut writer,
                 IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
-            );
+            )
+            .unwrap();
             writer.id(ValueId::new(3).unwrap());
             writer.u8(2);
             let bytes = writer.finish();
@@ -1951,15 +1953,19 @@ pub(crate) mod machine_wire {
     ) -> Result<(), CodecError> {
         writer.len(label, declarations.len())?;
         for declaration in declarations {
-            encode_declaration(writer, *declaration);
+            encode_declaration(writer, *declaration)?;
         }
         Ok(())
     }
 
-    pub(crate) fn encode_declaration(writer: &mut Writer, declaration: ValueDeclaration) {
+    pub(crate) fn encode_declaration(
+        writer: &mut Writer,
+        declaration: ValueDeclaration,
+    ) -> Result<(), CodecError> {
         writer.id(declaration.id);
-        encode_scalar_type(writer, declaration.scalar_type);
+        encode_scalar_type(writer, declaration.scalar_type)?;
         writer.u64(declaration.qualifications.get());
+        Ok(())
     }
 
     pub(crate) fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine, CodecError> {
@@ -2087,7 +2093,7 @@ pub(crate) mod machine_wire {
             ))?;
         writer.len("integer rank tuple", values.len())?;
         for value in values {
-            encode_integer_type(writer, value.integer_type);
+            encode_integer_type(writer, value.integer_type)?;
             writer.id(value.value);
         }
         Ok(())
@@ -4639,7 +4645,7 @@ pub(crate) use canonical_order::{
     validate_crash_route_predicates,
 };
 pub(crate) use module_foundation_validation::validate_structural_foundation;
-pub(crate) use module_wire::{decode_module_body, encode_raw};
+pub(crate) use module_wire::decode_module_body;
 pub(crate) use wire_fields::{CrashRoutes, Field};
 
 #[cfg(test)]
@@ -4776,9 +4782,15 @@ pub fn encode_module(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
 }
 
 pub(crate) fn encode_execution_module(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
+    encode_closed_execution_module(module).map(|(bytes, _)| bytes)
+}
+
+pub(crate) fn encode_closed_execution_module(
+    module: &TerminalModule,
+) -> Result<(Vec<u8>, crate::ClosedTypeCatalog), CodecError> {
     scalar_qualification_wire::validate(&module.scalar_qualifications)?;
     validate_canonical_order(module)?;
-    encode_raw(module)
+    module_wire::encode_raw_closed(module)
 }
 
 pub fn encode_structural_type_declaration(
@@ -4797,6 +4809,12 @@ pub fn module_decode_count() -> u64 {
 }
 
 pub fn decode_module(bytes: &[u8]) -> Result<TerminalModule, CodecError> {
+    decode_closed_parts(bytes).map(|(module, _, _)| module)
+}
+
+pub(crate) fn decode_closed_parts(
+    bytes: &[u8],
+) -> Result<(TerminalModule, Vec<u8>, crate::ClosedTypeCatalog), CodecError> {
     MODULE_DECODES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let mut reader = Reader::new(bytes);
     if reader.take(MAGIC.len())? != MAGIC {
@@ -4818,11 +4836,11 @@ pub fn decode_module(bytes: &[u8]) -> Result<TerminalModule, CodecError> {
         &mut proof_admission::Budget::default(),
     )?;
     dynamic_result_admission::validate_dynamic_descriptor_results(&module)?;
-    let canonical = encode_raw(&module)?;
+    let (canonical, types) = module_wire::encode_raw_closed(&module)?;
     if canonical != bytes {
         return Err(CodecError::NonCanonicalEncoding);
     }
-    Ok(module)
+    Ok((module, canonical, types))
 }
 
 pub fn encode_crash_route_buckets(
