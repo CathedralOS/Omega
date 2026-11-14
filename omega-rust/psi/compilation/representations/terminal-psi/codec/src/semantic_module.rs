@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 256`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 257`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -3556,10 +3556,10 @@ mod routed_scalar_tests {
                     subject,
                     proposition: predicate,
                 }),
-                establishment_routes: vec![ScalarDomainEstablishmentRoute::ExactMachine {
+                establishment_routes: Some(vec![ScalarDomainEstablishmentRoute::ExactMachine {
                     declaration: NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
                     machine_identity: TerminalIdentityIndex(3),
-                }],
+                }]),
             });
         module
             .scalar_qualifications
@@ -3760,9 +3760,7 @@ mod routed_scalar_tests {
                 "mutation {mutation}"
             );
         }
-        module.scalar_qualifications.domains[0]
-            .establishment_routes
-            .clear();
+        module.scalar_qualifications.domains[0].establishment_routes = None;
         module.scalar_qualifications.domains[0].predicate = None;
         module.scalar_qualifications.returns[0].origins = vec![ScalarReturnOrigin::Vacuous];
         assert_eq!(
@@ -3789,11 +3787,13 @@ mod routed_scalar_tests {
                 module.scalar_qualifications.returns[0].result = ValueId::new(9).unwrap()
             }),
             ("wrong issuer", |module| {
-                module.scalar_qualifications.domains[0].establishment_routes[0] =
-                    ScalarDomainEstablishmentRoute::ExactMachine {
-                        declaration: NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
-                        machine_identity: TerminalIdentityIndex(2),
-                    }
+                module.scalar_qualifications.domains[0]
+                    .establishment_routes
+                    .as_mut()
+                    .unwrap()[0] = ScalarDomainEstablishmentRoute::ExactMachine {
+                    declaration: NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
+                    machine_identity: TerminalIdentityIndex(2),
+                }
             }),
             ("missing predicate", |module| {
                 module.scalar_qualifications.domains[0].predicate = None
@@ -3848,6 +3848,40 @@ mod routed_scalar_tests {
             decode_module(&encode_module(&module).unwrap()).unwrap(),
             module
         );
+    }
+
+    // An explicit empty issuer set can transport an existing qualification,
+    // but it cannot make a fresh result. The wire and semantic identity must
+    // retain that distinction even when both choices contain zero routes.
+    #[test]
+    fn empty_issuer_set_round_trips_without_authorizing_fresh_membership() {
+        let mut denied = module();
+        denied.scalar_qualifications.domains[0].establishment_routes = Some(Vec::new());
+        assert!(encode_module(&denied).is_err());
+        assert!(decode_module(&encode_raw(&denied).unwrap()).is_err());
+
+        denied.machines[0].parameters[0].qualifications = ScalarQualificationSetId::new(1);
+        denied.machines[0].declaration.as_mut().unwrap().callable = TerminalIdentityIndex(2);
+        denied.scalar_qualifications.returns[0].origins = vec![ScalarReturnOrigin::Forwarded];
+        assert_eq!(
+            decode_module(&encode_module(&denied).unwrap()).unwrap(),
+            denied
+        );
+
+        let mut unrestricted = denied.clone();
+        unrestricted.scalar_qualifications.domains[0].establishment_routes = None;
+        assert_eq!(
+            decode_module(&encode_module(&unrestricted).unwrap()).unwrap(),
+            unrestricted
+        );
+        assert_ne!(
+            semantic_fingerprint(&denied).unwrap(),
+            semantic_fingerprint(&unrestricted).unwrap()
+        );
+
+        let mut detached = denied;
+        detached.machines[0].parameters[0].qualifications = ScalarQualificationSetId::ZERO;
+        assert!(decode_module(&encode_raw(&detached).unwrap()).is_err());
     }
 
     #[test]
@@ -4480,7 +4514,7 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // service ceiling respectively. Marker 255, which encodes every recursive
 // term as a postorder table of rows whose children are handles to earlier
 // rows and has no entry row, and all earlier layouts are incompatible.
-pub(crate) const FORMAT_MARKER: u16 = 256;
+pub(crate) const FORMAT_MARKER: u16 = 257;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -4715,7 +4749,7 @@ mod normal_qualification_tests {
             predicate: None,
             content_projection: None,
             byte_predicate: None,
-            establishment_routes: Vec::new(),
+            establishment_routes: None,
         });
         module.boundary_machines.push(BoundaryMachineDeclaration {
             id: BoundaryMachineId::new(1).unwrap(),
@@ -5313,7 +5347,7 @@ mod format_marker_tests {
         // independent Id and relocation layouts both used 251).
         // Neither body may be interpreted as the combined layout, regardless
         // of which payload follows their shared legacy marker.
-        for legacy in [250u16, 251, 252] {
+        for legacy in [250u16, 251, 252, 256] {
             for payload in [&[][..], &[0xff, 0xff, 0xff][..]] {
                 let mut bytes = MAGIC.to_vec();
                 bytes.extend_from_slice(&legacy.to_le_bytes());

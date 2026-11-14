@@ -812,6 +812,9 @@ pub(crate) mod component_memberships {
         right: &TerminalModule,
         target: &StructuralDomainDeclaration,
     ) -> bool {
+        if source.establishment_routes.is_none() != target.establishment_routes.is_none() {
+            return false;
+        }
         let same_name = |a, b| {
             NominalDeclarationIdentity::new(a).same_identity_as(
                 &left.identities,
@@ -862,6 +865,8 @@ pub(crate) mod component_memberships {
         let routes = |module: &TerminalModule, domain: &StructuralDomainDeclaration| {
             let mut rows = domain
                 .establishment_routes
+                .as_deref()
+                .unwrap_or_default()
                 .iter()
                 .map(|route| {
                     let kind = match route {
