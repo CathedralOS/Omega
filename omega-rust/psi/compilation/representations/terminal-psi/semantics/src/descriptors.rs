@@ -12024,7 +12024,8 @@ pub mod descriptor_results {
             }
             let mut results = Vec::new();
             if let Some(result) = result {
-                let BoundaryMachineResult::Structural(expected) = slot.result() else {
+                let declared_result = slot.result();
+                let BoundaryMachineResult::Structural(expected) = declared_result.as_ref() else {
                     return None;
                 };
                 if result.structural_type != expected.structural_type
@@ -12035,7 +12036,7 @@ pub mod descriptor_results {
                     return None;
                 }
                 results = public_result_slots(types, slot_kind, slot, result.place)?;
-            } else if matches!(slot.result(), BoundaryMachineResult::Structural(_)) {
+            } else if matches!(slot.result().as_ref(), BoundaryMachineResult::Structural(_)) {
                 return None;
             }
             Some(DescriptorInvocation {
@@ -12063,7 +12064,8 @@ pub mod descriptor_results {
             slot: &impl terminal_psi::ReferenceResultShape,
             place: PlaceId,
         ) -> Option<Vec<DescriptorResultSlot>> {
-            let BoundaryMachineResult::Structural(result) = slot.result() else {
+            let declared_result = slot.result();
+            let BoundaryMachineResult::Structural(result) = declared_result.as_ref() else {
                 return Some(Vec::new());
             };
             let mut results = Vec::new();
@@ -12071,7 +12073,7 @@ pub mod descriptor_results {
                 types.iter(),
                 result.structural_type,
                 result.multiplicity,
-                slot.reference_regions().len(),
+                slot.maximum_reference_leaves(),
             )
             .ok()?;
             for leaf in leaves {
@@ -12090,10 +12092,11 @@ pub mod descriptor_results {
                 if !selected_kind {
                     continue;
                 }
-                let leaf =
-                    descriptor_location(types, place, result.structural_type, &leaf.path, None)?;
+                let path = leaf.path;
+                let leaf = descriptor_location(types, place, result.structural_type, &path, None)?;
                 let mut origins = Vec::new();
-                for region in slot.reference_regions() {
+                for region in slot.reference_regions(&path) {
+                    let region = region.ok()?;
                     let destination = descriptor_location(
                         types,
                         place,
@@ -13639,83 +13642,139 @@ pub mod descriptor_results {
                         }
                         _ if direct_call.is_some() => {
                             let (callee, structural_arguments) = direct_call?;
-                            let mut matching = module
-                                .machines
-                                .iter()
-                                .filter(|machine| machine.id == callee);
-                            let callee = matching.next()?;
-                            if matching.next().is_some()
-                                || callee.structural_parameters.len() != structural_arguments.len()
+                            if let Some(required) = operation.required_contract
+                                && result.is_some_and(|result| {
+                                    terminal_psi::structural_type_contains_reference_by(
+                                        |id| module.structural_type(id),
+                                        result.structural_type,
+                                    )
+                                })
                             {
-                                return None;
-                            }
-                            let mut arguments = Vec::new();
-                            let mut argument_contents = Vec::new();
-                            let mut exact_arguments = true;
-                            for (actual, formal) in structural_arguments
-                                .iter()
-                                .zip(&callee.structural_parameters)
-                            {
-                                if actual.access != formal.access {
-                                    return None;
-                                }
-                                let argument = location(actual.place, &actual.path, None);
-                                argument_contents.push(
-                                    graph.place_types.get(&actual.place).and_then(|root_type| {
-                                        descriptor_contents_query(
-                                            &module.structural_types,
-                                            actual.place,
-                                            *root_type,
-                                            &actual.path,
-                                            None,
-                                        )
-                                    }),
-                                );
-                                exact_arguments &= argument.is_some();
-                                arguments.push(argument);
-                            }
-                            let descriptor_result = result.filter(|result| {
-                                slot_kind.tracks_returned_value(
-                                    &module.structural_types,
-                                    result.place,
-                                    result.structural_type,
+                                let public = crate::selected_reference_result(
+                                    module, machine.id, callee, required,
                                 )
-                            });
-                            if let Some(result) = descriptor_result {
-                                let expected = callee.result.structural()?;
-                                if result.structural_type != expected.structural_type
-                                    || result.multiplicity != expected.multiplicity
-                                    || result.qualifications != expected.qualifications
-                                    || !expected
-                                        .projected_qualifications
-                                        .iter()
-                                        .all(|row| result.projected_qualifications.contains(row))
+                                .ok()?;
+                                let mut call = public_invocation(
+                                    operation.id,
+                                    &module.structural_types,
+                                    slot_kind,
+                                    &public,
+                                    vec![callee],
+                                    structural_arguments,
+                                    result,
+                                    &graph.place_types,
+                                )?;
+                                let complete = call.arguments.iter().all(Option::is_some)
+                                    && call.argument_contents.iter().all(Option::is_some);
+                                if !complete {
+                                    mark_opaque_call_occupancy(
+                                        &graph.place_types,
+                                        &mut graph.unresolved_contents_writes,
+                                        &mut step,
+                                        slot_kind,
+                                        &module.structural_types,
+                                        position,
+                                        structural_arguments,
+                                    )?;
+                                    if matches!(
+                                        call.target,
+                                        DescriptorInvocationTarget::Public {
+                                            invalidates_contents: true,
+                                            ..
+                                        }
+                                    ) {
+                                        graph.unresolved_contents_writes.insert(position);
+                                        step.may_escape = true;
+                                    }
+                                }
+                                if let DescriptorInvocationTarget::Public {
+                                    effects_machine, ..
+                                } = &mut call.target
+                                {
+                                    *effects_machine = complete.then_some(callee);
+                                }
+                                graph.calls.insert(position, call);
+                            } else {
+                                let mut matching = module
+                                    .machines
+                                    .iter()
+                                    .filter(|machine| machine.id == callee);
+                                let callee = matching.next()?;
+                                if matching.next().is_some()
+                                    || callee.structural_parameters.len()
+                                        != structural_arguments.len()
                                 {
                                     return None;
                                 }
-                            }
-                            if !exact_arguments {
-                                mark_opaque_call_occupancy(
-                                    &graph.place_types,
-                                    &mut graph.unresolved_contents_writes,
-                                    &mut step,
-                                    slot_kind,
-                                    &module.structural_types,
+                                let mut arguments = Vec::new();
+                                let mut argument_contents = Vec::new();
+                                let mut exact_arguments = true;
+                                for (actual, formal) in structural_arguments
+                                    .iter()
+                                    .zip(&callee.structural_parameters)
+                                {
+                                    if actual.access != formal.access {
+                                        return None;
+                                    }
+                                    let argument = location(actual.place, &actual.path, None);
+                                    argument_contents.push(
+                                        graph.place_types.get(&actual.place).and_then(
+                                            |root_type| {
+                                                descriptor_contents_query(
+                                                    &module.structural_types,
+                                                    actual.place,
+                                                    *root_type,
+                                                    &actual.path,
+                                                    None,
+                                                )
+                                            },
+                                        ),
+                                    );
+                                    exact_arguments &= argument.is_some();
+                                    arguments.push(argument);
+                                }
+                                let descriptor_result = result.filter(|result| {
+                                    slot_kind.tracks_returned_value(
+                                        &module.structural_types,
+                                        result.place,
+                                        result.structural_type,
+                                    )
+                                });
+                                if let Some(result) = descriptor_result {
+                                    let expected = callee.result.structural()?;
+                                    if result.structural_type != expected.structural_type
+                                        || result.multiplicity != expected.multiplicity
+                                        || result.qualifications != expected.qualifications
+                                        || !expected.projected_qualifications.iter().all(|row| {
+                                            result.projected_qualifications.contains(row)
+                                        })
+                                    {
+                                        return None;
+                                    }
+                                }
+                                if !exact_arguments {
+                                    mark_opaque_call_occupancy(
+                                        &graph.place_types,
+                                        &mut graph.unresolved_contents_writes,
+                                        &mut step,
+                                        slot_kind,
+                                        &module.structural_types,
+                                        position,
+                                        structural_arguments,
+                                    )?;
+                                }
+                                graph.calls.insert(
                                     position,
-                                    structural_arguments,
-                                )?;
+                                    DescriptorInvocation {
+                                        operation: operation.id,
+                                        target: DescriptorInvocationTarget::Machine(callee.id),
+                                        arguments,
+                                        argument_contents,
+                                        result: descriptor_result
+                                            .map(|result| DescriptorLocation::whole(result.place)),
+                                    },
+                                );
                             }
-                            graph.calls.insert(
-                                position,
-                                DescriptorInvocation {
-                                    operation: operation.id,
-                                    target: DescriptorInvocationTarget::Machine(callee.id),
-                                    arguments,
-                                    argument_contents,
-                                    result: descriptor_result
-                                        .map(|result| DescriptorLocation::whole(result.place)),
-                                },
-                            );
                         }
                         OperationKind::BoundaryCall {
                             boundary,

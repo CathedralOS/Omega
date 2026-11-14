@@ -259,7 +259,7 @@ pub(crate) mod callable_identity {
             if signature.is_empty() {
                 return Err("requirement schema has no exact original signature");
             }
-            let mut bytes = b"omega.requirement-schema.v3\0".to_vec();
+            let mut bytes = b"omega.requirement-schema.v4\0".to_vec();
             let length = |bytes: &mut Vec<u8>, value: usize| -> Result<(), &'static str> {
                 bytes.extend(
                     u64::try_from(value)
@@ -321,7 +321,83 @@ pub(crate) mod callable_identity {
                 length(&mut bytes, contract.len())?;
                 bytes.extend(contract.as_bytes());
             }
+            // Callable identity uses result domains for overload selection;
+            // it does not describe the result's reference or lifetime. Keep
+            // the declaration's complete types here before that distinction
+            // is erased, so a receiver can check the derived loan groups.
+            let types = self.requirement_definition_types(owner, requirement);
+            bytes.push(u8::from(types.is_some()));
+            if let Some((parameters, result)) = types {
+                length(&mut bytes, owner.lifetime_parameters.len())?;
+                length(&mut bytes, parameters.len())?;
+                for parameter in parameters {
+                    length(&mut bytes, parameter.len())?;
+                    bytes.extend(parameter.as_bytes());
+                }
+                length(&mut bytes, result.len())?;
+                bytes.extend(result.as_bytes());
+            }
             Ok((bytes, kinds))
+        }
+
+        fn requirement_definition_types(
+            &self,
+            owner: &TraitDefinition,
+            requirement: &StateSignature,
+        ) -> Option<(Vec<String>, String)> {
+            use super::LifetimeParameterIdentity;
+            use super::identity_context::{
+                TypeIdentityContext, TypeIdentityQualification, normalize_type_reference,
+            };
+            use std::cell::Cell;
+
+            let mut type_parameters = self.trait_type_parameters(owner).to_vec();
+            type_parameters.extend_from_slice(self.state_signature_type_parameters(requirement));
+            let parameters = self.state_signature_parameters(requirement);
+            let mut binders = super::callable_type_binders(owner.symbol, &type_parameters);
+            binders.extend(
+                parameters
+                    .iter()
+                    .enumerate()
+                    .map(|(ordinal, parameter)| (parameter.symbol, format!("$value{ordinal}"))),
+            );
+            let lifetimes = [
+                (owner.symbol, owner.lifetime_parameters.len()),
+                (requirement.symbol, requirement.lifetime_parameters.len()),
+            ]
+            .into_iter()
+            .flat_map(|(declaration, count)| {
+                (0..count).map(move |ordinal| LifetimeParameterIdentity {
+                    declaration,
+                    ordinal,
+                })
+            })
+            .enumerate()
+            .map(|(ordinal, lifetime)| (lifetime, ordinal))
+            .collect::<Vec<_>>();
+            let invalid = Cell::new(false);
+            let context = TypeIdentityContext {
+                binders: &binders,
+                lifetime_binders: &lifetimes,
+                application_owner: requirement.symbol,
+                application_argument_owner: requirement.symbol,
+                signature_owners: Some((requirement.symbol, requirement.symbol)),
+                qualification: TypeIdentityQualification::PackageQualified,
+                invalid_application: Some(&invalid),
+                invalid_index_argument: Some(&invalid),
+                encountered_elided_regions: Some(&invalid),
+                ..Default::default()
+            };
+            let declared_type = |reference| {
+                self.contains_type_reference(reference)
+                    .then(|| normalize_type_reference(self, reference, &context))
+            };
+            let parameters = parameters
+                .iter()
+                .map(|parameter| declared_type(parameter.type_reference))
+                .collect::<Option<Vec<_>>>()?;
+            let result = declared_type(requirement.return_type)?;
+            (!invalid.get()).then_some((parameters, result))
         }
 
         pub fn operator_callable_identity(

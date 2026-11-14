@@ -1161,30 +1161,7 @@ pub(crate) mod structural_signature_wire {
                     output.dependencies.len(),
                 )?;
                 for dependency in &output.dependencies {
-                    match dependency {
-                        BoundaryLifetimeDependency::Referent {
-                            argument_index,
-                            access,
-                        } => {
-                            writer.u8(0);
-                            writer.u32(*argument_index);
-                            encode_structural_access(writer, *access);
-                        }
-                        BoundaryLifetimeDependency::Stored {
-                            argument_index,
-                            path,
-                            access,
-                        } => {
-                            writer.u8(1);
-                            writer.u32(*argument_index);
-                            encode_structural_access(writer, *access);
-                            encode_structural_path(
-                                writer,
-                                "boundary reference lifetime path",
-                                path,
-                            )?;
-                        }
-                    }
+                    encode_dependency(writer, dependency)?;
                 }
             }
             Ok(())
@@ -1200,18 +1177,7 @@ pub(crate) mod structural_signature_wire {
                 };
                 let path = decode_structural_path(reader)?;
                 let access = decode_structural_access(reader)?;
-                let dependencies = decode_counted(reader, |reader| match reader.u8()? {
-                    0 => Ok(BoundaryLifetimeDependency::Referent {
-                        argument_index: reader.u32()?,
-                        access: decode_structural_access(reader)?,
-                    }),
-                    1 => Ok(BoundaryLifetimeDependency::Stored {
-                        argument_index: reader.u32()?,
-                        access: decode_structural_access(reader)?,
-                        path: decode_structural_path(reader)?,
-                    }),
-                    tag => Err(CodecError::InvalidTag("BoundaryLifetimeDependency", tag)),
-                })?;
+                let dependencies = decode_counted(reader, decode_dependency)?;
                 Ok(BoundaryReferenceOutput {
                     destination,
                     path,
@@ -1219,6 +1185,50 @@ pub(crate) mod structural_signature_wire {
                     dependencies,
                 })
             })
+        }
+
+        pub(crate) fn encode_dependency(
+            writer: &mut Writer,
+            dependency: &BoundaryLifetimeDependency,
+        ) -> Result<(), CodecError> {
+            match dependency {
+                BoundaryLifetimeDependency::Referent {
+                    argument_index,
+                    access,
+                } => {
+                    writer.u8(0);
+                    writer.u32(*argument_index);
+                    encode_structural_access(writer, *access);
+                }
+                BoundaryLifetimeDependency::Stored {
+                    argument_index,
+                    path,
+                    access,
+                } => {
+                    writer.u8(1);
+                    writer.u32(*argument_index);
+                    encode_structural_access(writer, *access);
+                    encode_structural_path(writer, "boundary reference lifetime path", path)?;
+                }
+            }
+            Ok(())
+        }
+
+        pub(crate) fn decode_dependency(
+            reader: &mut Reader<'_>,
+        ) -> Result<BoundaryLifetimeDependency, CodecError> {
+            match reader.u8()? {
+                0 => Ok(BoundaryLifetimeDependency::Referent {
+                    argument_index: reader.u32()?,
+                    access: decode_structural_access(reader)?,
+                }),
+                1 => Ok(BoundaryLifetimeDependency::Stored {
+                    argument_index: reader.u32()?,
+                    access: decode_structural_access(reader)?,
+                    path: decode_structural_path(reader)?,
+                }),
+                tag => Err(CodecError::InvalidTag("BoundaryLifetimeDependency", tag)),
+            }
         }
     }
 
