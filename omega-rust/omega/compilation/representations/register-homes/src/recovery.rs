@@ -638,14 +638,18 @@ fn encode_classification_scalar_type(bytes: &mut Vec<u8>, scalar_type: ScalarTyp
         ScalarType::Boolean => bytes.push(0),
         ScalarType::Integer(integer) if integer.is_address() => {
             bytes.push(3);
-            push_encoded(bytes, integer.bits().to_le_bytes());
+            integer
+                .width()
+                .write_identity(|part| bytes.extend_from_slice(part));
         }
         ScalarType::Integer(integer) => {
             bytes.push(match integer.sign() {
                 IntegerSign::Signed => 1,
                 IntegerSign::Unsigned => 2,
             });
-            push_encoded(bytes, integer.bits().to_le_bytes());
+            integer
+                .width()
+                .write_identity(|part| bytes.extend_from_slice(part));
         }
         ScalarType::IeeeFloat(format) => {
             bytes.push(4);
@@ -1236,6 +1240,38 @@ mod tests {
                 }),
             }],
         }
+    }
+
+    #[test]
+    fn classification_scalar_identity_keeps_fixed_bytes_and_scopes_rigid_widths() {
+        use semantic_vocabulary::{IntegerSign, IntegerType, WidthParameter};
+        let encode = |integer| {
+            let mut bytes = Vec::new();
+            super::encode_classification_scalar_type(&mut bytes, ScalarType::Integer(integer));
+            bytes
+        };
+        assert_eq!(
+            encode(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+            [2, 64, 0]
+        );
+        assert_eq!(encode(IntegerType::address(64).unwrap()), [3, 64, 0]);
+        let parameter = |owner, value| {
+            IntegerType::parameterized(
+                IntegerSign::Unsigned,
+                WidthParameter {
+                    owner: MachineId::new(owner).unwrap(),
+                    value: ValueId::new(value).unwrap(),
+                },
+            )
+        };
+        let first = encode(parameter(1, 2));
+        assert_ne!(first, encode(parameter(3, 2)));
+        assert_ne!(first, encode(parameter(1, 4)));
+        assert_ne!(
+            first,
+            encode(IntegerType::new(IntegerSign::Unsigned, 64).unwrap())
+        );
+        assert_eq!(first, encode(parameter(1, 2)));
     }
 
     #[test]
