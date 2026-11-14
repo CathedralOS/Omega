@@ -505,6 +505,7 @@ pub(super) fn names_storage(expression: &Expression) -> bool {
         ExpressionKind::Borrow { .. }
         | ExpressionKind::Integer(_)
         | ExpressionKind::ByteLiteral(_)
+        | ExpressionKind::CollectionMeasure { .. }
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Array { .. }
         | ExpressionKind::Record { .. }
@@ -815,6 +816,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
             (ExpressionKind::Integer(a), ExpressionKind::Integer(b)) => a == b,
             (ExpressionKind::Boolean(a), ExpressionKind::Boolean(b)) => a == b,
             (ExpressionKind::ByteLiteral(a), ExpressionKind::ByteLiteral(b)) => a == b,
+            (ExpressionKind::CollectionMeasure { base: a, measure: am }, ExpressionKind::CollectionMeasure { base: b, measure: bm }) => am == bm && both(a, b),
             (ExpressionKind::Slot(a), ExpressionKind::Slot(b)) => a == b,
             (ExpressionKind::SavedSubject(a), ExpressionKind::SavedSubject(b)) => a == b,
             (
@@ -953,6 +955,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 ExpressionKind::SavedSubject(_)
                 | ExpressionKind::Integer(_)
             | ExpressionKind::ByteLiteral(_)
+        | ExpressionKind::CollectionMeasure { .. }
                 | ExpressionKind::Boolean(_)
                 | ExpressionKind::Slot(_)
                 | ExpressionKind::Array { .. }

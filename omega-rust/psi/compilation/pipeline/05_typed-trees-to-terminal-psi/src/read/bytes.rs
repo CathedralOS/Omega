@@ -219,6 +219,53 @@ fn byte_view_domains(
 }
 
 impl Program<'_> {
+    pub(super) fn collection_measure(
+        &mut self,
+        machine: MachineId,
+        slots: &[super::Slot],
+        receiver: typed_trees::expression::ExpressionHandle,
+        measure: typed_trees::expression::CollectionMeasure,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        use typed_trees::expression::CollectionMeasure;
+        let base = self.expression(machine, slots, receiver, None)?;
+        let Some(record) = self.opened(machine, base.result, super::authority::Access::Read)?
+        else {
+            return Err(refuse(
+                machine,
+                Construct::Machine,
+                Unserved::Typing("collection measurement of non-collection storage"),
+            ));
+        };
+        if measure != CollectionMeasure::Length
+            || !matches!(
+                self.data_type(machine, record)?.shape,
+                StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: Some(StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
+                })
+            )
+        {
+            return Err(refuse(
+                machine,
+                Construct::Machine,
+                Unserved::Expression("collection measurement without its descriptor operation"),
+            ));
+        }
+        let integer =
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .expect("u64 is valid");
+        Ok(Expression {
+            kind: ExpressionKind::CollectionMeasure {
+                base: Box::new(base),
+                measure,
+            },
+            result: Some(ValueType::plain(semantic_vocabulary::ScalarType::Integer(
+                integer,
+            ))),
+            source,
+        })
+    }
+
     /// Whether the type is a borrowed byte or typed view. Its complete
     /// region tuple belongs to the value type, never to its storage row.
     pub(super) fn is_borrowed_view(&self, value_type: ValueType) -> bool {

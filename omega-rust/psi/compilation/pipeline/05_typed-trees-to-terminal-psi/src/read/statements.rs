@@ -96,6 +96,7 @@ impl Program<'_> {
                         ExpressionKind::SavedSubject(_)
                         | ExpressionKind::Integer(_)
                         | ExpressionKind::ByteLiteral(_)
+                        | ExpressionKind::CollectionMeasure { .. }
                         | ExpressionKind::Boolean(_)
                         | ExpressionKind::Case { .. }
                         | ExpressionKind::IsCase { .. }

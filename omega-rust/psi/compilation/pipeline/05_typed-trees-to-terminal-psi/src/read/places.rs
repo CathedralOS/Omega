@@ -739,6 +739,11 @@ impl Program<'_> {
         member: &TableMemberExpression,
         source: SourceOrigin,
     ) -> Checked<Expression> {
+        if let typed_trees::expression::MemberSelection::CollectionMeasure(measure) =
+            member.selection
+        {
+            return self.collection_measure(id, slots, member.receiver, measure, source);
+        }
         if !member.selection.field_symbol().is_valid() {
             return Err(refuse(
                 id,

@@ -329,6 +329,7 @@ impl Walk<'_> {
             | ExpressionKind::Requalify(operand)
             | ExpressionKind::Establish { operand, .. } => self.expression(machine, operand),
             ExpressionKind::Field { base, .. }
+            | ExpressionKind::CollectionMeasure { base, .. }
             | ExpressionKind::Payload { base, .. }
             | ExpressionKind::IsCase { subject: base, .. }
             | ExpressionKind::Borrow { place: base, .. } => self.expression(machine, base),

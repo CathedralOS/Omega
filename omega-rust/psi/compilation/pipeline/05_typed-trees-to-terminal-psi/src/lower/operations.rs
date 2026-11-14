@@ -163,6 +163,9 @@ impl Lowering<'_> {
                 let scalar_type = self.result_type(expression)?;
                 self.read_field(base, *field, scalar_type, source)
             }
+            ExpressionKind::CollectionMeasure { base, measure } => {
+                self.measure_collection(base, *measure, source)
+            }
             ExpressionKind::Payload { base, case, field } => {
                 let scalar_type = self.result_type(expression)?;
                 self.read_payload(base, *case, *field, scalar_type, source)
