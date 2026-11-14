@@ -610,6 +610,7 @@ mod width_inventory_tests {
             structural_places: Vec::new(),
             block_entry_claims: Vec::new(),
             loan_completions: Vec::new(),
+            call_formations: Vec::new(),
             content_identity_reshuffles: Vec::new(),
             content_partition_compositions: Vec::new(),
             entry: block,
