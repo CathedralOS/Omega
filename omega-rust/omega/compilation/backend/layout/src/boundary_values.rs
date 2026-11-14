@@ -15,7 +15,9 @@ use calling_conventions::{
 use language_semantics::boundary_values::{
     BoundaryFieldRecipe, BoundaryRecordStorage, BoundaryValueRecipe, BoundaryValueRecipes,
 };
-use semantic_vocabulary::{ScalarApplicationId, ScalarType, StructuralFieldId, StructuralTypeId};
+use semantic_vocabulary::{
+    ClosedScalarType, ScalarApplicationId, ScalarType, StructuralFieldId, StructuralTypeId,
+};
 use target::NativeTarget;
 use terminal_psi::{
     StructuralFieldDeclaration, StructuralFieldType, StructuralRecordStorage, StructuralTypeShape,
@@ -306,6 +308,7 @@ pub struct TerminalBoundaryRecipes<'module> {
     module: &'module TerminalModule,
     target: &'module str,
     extents: &'module dyn Fn(ScalarApplicationId) -> Result<u64, StorageGeometryError>,
+    scalar_projection: Option<&'module dyn Fn(ScalarType) -> Option<ClosedScalarType>>,
     visiting: Vec<StructuralTypeId>,
     closed: Vec<(StructuralTypeId, Handle<BoundaryValueRecipe>)>,
     fields: Vec<(StructuralTypeId, StructuralFieldId, usize)>,
@@ -322,11 +325,25 @@ impl<'module> TerminalBoundaryRecipes<'module> {
             module,
             target,
             extents,
+            scalar_projection: None,
             visiting: Vec::new(),
             closed: Vec::new(),
             fields: Vec::new(),
             recipes: BoundaryValueRecipes::default(),
         }
+    }
+
+    /// Actual publication-backed recipes borrow their owner's closed catalog.
+    /// A missing descriptor refuses; only independent raw metadata uses `new`.
+    pub fn with_closed_scalars(
+        module: &'module TerminalModule,
+        target: &'module str,
+        extents: &'module dyn Fn(ScalarApplicationId) -> Result<u64, StorageGeometryError>,
+        scalar_projection: &'module dyn Fn(ScalarType) -> Option<ClosedScalarType>,
+    ) -> Self {
+        let mut recipes = Self::new(module, target, extents);
+        recipes.scalar_projection = Some(scalar_projection);
+        recipes
     }
 
     pub fn recipes(&self) -> &BoundaryValueRecipes {
@@ -349,15 +366,27 @@ impl<'module> TerminalBoundaryRecipes<'module> {
     }
 
     pub fn scalar(&mut self, scalar: ScalarType) -> Result<Handle<BoundaryValueRecipe>, String> {
-        let recipe = match scalar {
-            ScalarType::Boolean => BoundaryValueRecipe::Integer { byte_size: 1 },
-            ScalarType::Integer(integer) if integer.bits() % 8 == 0 => {
+        let closed = match self.scalar_projection {
+            Some(project) => {
+                project(scalar).ok_or("boundary scalar is not retained by its closed module")?
+            }
+            None => ClosedScalarType::try_from(scalar)
+                .map_err(|reason| format!("boundary scalar is not closed: {reason}"))?,
+        };
+        if closed.as_checking() != scalar {
+            return Err("boundary scalar projection changes its supplied type".into());
+        }
+        let recipe = match closed {
+            ClosedScalarType::Boolean => BoundaryValueRecipe::Integer { byte_size: 1 },
+            ClosedScalarType::Integer(integer) if integer.bits() % 8 == 0 => {
                 BoundaryValueRecipe::Integer {
                     byte_size: integer.bits() / 8,
                 }
             }
-            ScalarType::Integer(_) => return Err("boundary integer has no fixed byte width".into()),
-            ScalarType::IeeeFloat(format) => BoundaryValueRecipe::Float {
+            ClosedScalarType::Integer(_) => {
+                return Err("boundary integer has no fixed byte width".into());
+            }
+            ClosedScalarType::IeeeFloat(format) => BoundaryValueRecipe::Float {
                 byte_size: format.byte_size(),
             },
         };
@@ -542,6 +571,70 @@ mod tests {
     use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
     use tokens_to_syntax_trees::parse_syntax_trees;
     use typed_trees::TypedTrees;
+
+    #[test]
+    fn scalar_recipes_require_the_exact_closed_projection() {
+        use semantic_vocabulary::{
+            ClosedIntegerType, ClosedScalarType, IntegerSign, IntegerType, MachineId, ScalarType,
+            ValueId, WidthParameter,
+        };
+        let module = terminal_psi::TerminalModule::declarations();
+        let extents = |id| {
+            Err(terminal_semantics::StorageGeometryError::UnresolvedExtent(
+                id,
+            ))
+        };
+        let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 24).unwrap());
+        let closed = ClosedScalarType::try_from(scalar).unwrap();
+        let project = |requested| (requested == scalar).then_some(closed);
+        let mut recipes = TerminalBoundaryRecipes::with_closed_scalars(
+            &module,
+            "macos_arm64",
+            &extents,
+            &project,
+        );
+        let recipe = recipes.scalar(scalar).unwrap();
+        assert!(matches!(
+            recipes.recipes().values.get(recipe),
+            language_semantics::boundary_values::BoundaryValueRecipe::Integer { byte_size: 3 }
+        ));
+        let other = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
+        assert!(recipes.scalar(other).unwrap_err().contains("not retained"));
+        let wrong = |_| {
+            Some(ClosedScalarType::Integer(
+                ClosedIntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+            ))
+        };
+        let mut mismatched =
+            TerminalBoundaryRecipes::with_closed_scalars(&module, "macos_arm64", &extents, &wrong);
+        assert!(
+            mismatched
+                .scalar(scalar)
+                .unwrap_err()
+                .contains("changes its supplied type")
+        );
+        let mut independent = TerminalBoundaryRecipes::new(&module, "macos_arm64", &extents);
+        let symbolic = IntegerType::parameterized(
+            IntegerSign::Unsigned,
+            WidthParameter {
+                owner: MachineId::new(1).unwrap(),
+                value: ValueId::new(2).unwrap(),
+            },
+        );
+        assert!(
+            independent
+                .scalar(ScalarType::Integer(symbolic))
+                .unwrap_err()
+                .contains("not closed")
+        );
+        let non_byte = IntegerType::new(IntegerSign::Unsigned, 13).unwrap();
+        assert!(
+            independent
+                .scalar(ScalarType::Integer(non_byte))
+                .unwrap_err()
+                .contains("no fixed byte width")
+        );
+    }
 
     #[test]
     fn canonical_array_recipes_consume_only_completed_extent_inputs() {
