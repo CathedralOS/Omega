@@ -6372,7 +6372,7 @@ pub(crate) mod structural_case {
             root_shape,
             byte_offset,
             layout,
-            pointer_slot_list,
+            pointer_slots,
             region_byte_size,
             cases,
             ..
@@ -6380,10 +6380,6 @@ pub(crate) mod structural_case {
         else {
             return Err(invalid());
         };
-        let pointer_slots = source
-            .case_pointer_slots
-            .get(usize::try_from(*pointer_slot_list).map_err(|_| invalid())?)
-            .ok_or_else(invalid)?;
         let Some((last, tested)) = cases.split_last() else {
             return Err(invalid());
         };

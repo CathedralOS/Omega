@@ -793,7 +793,6 @@ pub(crate) mod scalar_graph {
                 plan: &AbstractOperationPlan,
                 unit: &PsiOptimizationUnit,
                 targeted: &target_operations::TargetUnitOperation,
-                case_pointer_slots: &mut Vec<Vec<legalized_operations::LegalizedCasePointerSlot>>,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let AbstractOperation::StructuralCaseMembership {
                     psi_operation,
@@ -811,6 +810,8 @@ pub(crate) mod scalar_graph {
                     case: stored_case,
                     case_tag,
                     tag_byte_offset,
+                    indices: stored_indices,
+                    pointer_slots,
                     ..
                 } = targeted
                 else {
@@ -823,13 +824,40 @@ pub(crate) mod scalar_graph {
                 {
                     return Err(Error::custody());
                 }
-                let (elements, pointer_slots) =
-                    scalar_graph_input::structural_case::membership_address(
+                // Extent and obligation live on the runtime-index operand, not
+                // on the retained chase. A path with no runtime index has an
+                // empty operand list, so this does not walk the type.
+                let indices = if path.iter().any(|segment| {
+                    matches!(
+                        segment,
+                        terminal_psi::StructuralPathSegment::RuntimeIndex { .. }
+                    )
+                }) {
+                    let elements = scalar_graph_input::structural_case::membership_address(
                         optimized, *source, path, plan,
                     )?;
-                let indices = o!(optimized => unit => *psi_operation => &elements)?;
-                let pointer_slot_list =
-                    super::super::intern_case_pointer_slots(case_pointer_slots, pointer_slots)?;
+                    o!(optimized => unit => *psi_operation => &elements)?
+                } else {
+                    Vec::new()
+                };
+                if stored_indices.len() != indices.len()
+                    || stored_indices
+                        .iter()
+                        .zip(&indices)
+                        .any(|(stored, resolved)| {
+                            stored.stride != resolved.stride
+                                || stored.operand.source_value() != resolved.operand.value
+                        })
+                    || pointer_slots.iter().any(|slot| {
+                        slot.scalar_descriptor
+                            || slot.index_start > slot.index_end
+                            || usize::try_from(slot.index_end)
+                                .ok()
+                                .is_none_or(|end| end > indices.len())
+                    })
+                {
+                    return Err(Error::custody());
+                }
                 Ok(LegalizedScalarInstructionKind::StructuralCaseMembership {
                     source: *source,
                     path: path.clone(),
@@ -837,7 +865,7 @@ pub(crate) mod scalar_graph {
                     case_tag: *case_tag,
                     tag_byte_offset: *tag_byte_offset,
                     indices,
-                    pointer_slot_list,
+                    pointer_slots: pointer_slots.clone(),
                 })
             }
 
@@ -1564,7 +1592,6 @@ pub(crate) mod scalar_graph {
                 'a,
                 'g,
             >,
-            case_pointer_slots: &mut Vec<Vec<legalized_operations::LegalizedCasePointerSlot>>,
         ) -> Result<LegalizedScalarInstruction, LegalizationError>
         where
             'a: 'g,
@@ -2089,12 +2116,7 @@ pub(crate) mod scalar_graph {
                     },
                     AbstractOperation::StructuralCaseMembership { .. } => {
                         storage_instructions::project_structural_case_membership(
-                            node,
-                            optimized,
-                            plan,
-                            unit,
-                            targeted,
-                            case_pointer_slots,
+                            node, optimized, plan, unit, targeted,
                         )?
                     }
                     AbstractOperation::StructuralLeafCopy { .. }
@@ -2587,7 +2609,6 @@ pub(crate) mod scalar_graph {
             plan: &AbstractOperationPlan,
             unit: &optimization_unit::PsiOptimizationUnit,
             targeted: &target_operations::TargetControlTerminator,
-            case_pointer_slots: &mut Vec<Vec<legalized_operations::LegalizedCasePointerSlot>>,
         ) -> Result<LegalizedScalarTerminator, LegalizationError> {
             let AbstractOperation::StructuralCase {
                 source,
@@ -2602,7 +2623,9 @@ pub(crate) mod scalar_graph {
                 path: stored_path,
                 byte_offset,
                 layout,
-                ..
+                pointer_slots,
+                region_byte_size,
+                cases: stored_cases,
             } = targeted
             else {
                 return Err(Error::custody());
@@ -2610,61 +2633,64 @@ pub(crate) mod scalar_graph {
             if stored_source.place() != *source || stored_path != path {
                 return Err(Error::custody());
             }
-            let (selected, pointer_slots, region_byte_size) =
-                scalar_graph_input::structural_case::retained_case_projection(
-                    function,
-                    *source,
-                    path,
-                    *byte_offset,
-                    layout,
-                    plan,
-                )?;
-            let pointer_slot_list =
-                super::intern_case_pointer_slots(case_pointer_slots, pointer_slots)?;
-            let root_shape = stored_source.layout().shape();
             let byte_offset = *byte_offset;
+            if pointer_slots
+                .iter()
+                .any(|slot| slot.scalar_descriptor || slot.index_start != slot.index_end)
+                || byte_offset
+                    .checked_add(layout.shape.byte_size)
+                    .is_none_or(|end| end > *region_byte_size)
+            {
+                return Err(Error::custody());
+            }
+            let root_shape = stored_source.layout().shape();
             let layout = layout.clone();
             let source = scalar_graph_input::structural_case::case_source(function, *source)?;
-            let declaration = plan.structural_type(selected).ok_or(Error::custody())?;
-            let declared: &[terminal_psi::StructuralCaseDeclaration] = match &declaration.shape {
-                terminal_psi::StructuralTypeShape::Sum { cases }
-                | terminal_psi::StructuralTypeShape::Mixed { cases, .. } => cases,
-                _ => return Err(Error::custody()),
-            };
-            if cases.len() != declared.len()
-                || cases.len() != node.successors.len()
+            if cases.len() != node.successors.len()
                 || cases.len() != layout.cases.len()
+                || cases.len() != stored_cases.len()
             {
                 return Err(Error::custody());
             }
             let mut successors = Vec::with_capacity(cases.len());
-            for (case_position, ((case, edge), declared)) in
-                cases.iter().zip(&node.successors).zip(declared).enumerate()
+            for (case_position, ((case, edge), stored)) in cases
+                .iter()
+                .zip(&node.successors)
+                .zip(stored_cases)
+                .enumerate()
             {
                 let destination = function.block(case.target).ok_or(Error::custody())?;
-                let fields = declared
-                    .fields
-                    .iter()
-                    .filter(|field| !field.relevance.is_erased())
-                    .collect::<Vec<_>>();
-                if case.payloads.len() != destination.parameters.len()
-                    || fields.len() != layout.cases[case_position].fields.len()
+                let case_tag = i32::try_from(case_position).map_err(|_| Error::custody())?;
+                if stored.psi_edge != case.psi_edge
+                    || stored.target != case.target
+                    || stored.case != case.case
+                    || stored.case_tag != case_tag
+                    || stored.payloads.len() != case.payloads.len()
+                    || case.payloads.len() != destination.parameters.len()
+                    || stored.structural_bindings != case.structural_bindings
+                    || stored.cleanup_actions != case.cleanup_actions
                 {
                     return Err(Error::custody());
                 }
                 let mut payloads = Vec::with_capacity(case.payloads.len());
-                for (payload, parameter) in case.payloads.iter().zip(&destination.parameters) {
-                    let field_position = fields
-                        .iter()
-                        .position(|field| field.id == payload.field)
-                        .ok_or(Error::custody())?;
+                for ((payload, parameter), stored_payload) in case
+                    .payloads
+                    .iter()
+                    .zip(&destination.parameters)
+                    .zip(&stored.payloads)
+                {
+                    if stored_payload.field != payload.field
+                        || stored_payload.parameter.block != case.target
+                        || stored_payload.parameter.value != payload.parameter
+                        || stored_payload.parameter.value != parameter.value
+                        || stored_payload.parameter.scalar_type != payload.scalar_type
+                        || stored_payload.parameter.scalar_type != parameter.scalar_type
+                    {
+                        return Err(Error::custody());
+                    }
                     payloads.push(LegalizedStructuralCasePayload {
                         field: payload.field,
-                        field_byte_offset: byte_offset
-                            .checked_add(
-                                layout.cases[case_position].fields[field_position].byte_offset,
-                            )
-                            .ok_or(Error::custody())?,
+                        field_byte_offset: stored_payload.field_byte_offset,
                         parameter: LegalizedValueDefinition {
                             value: parameter.value,
                             scalar_type: parameter.scalar_type,
@@ -2676,7 +2702,7 @@ pub(crate) mod scalar_graph {
                     edge: case.psi_edge,
                     target: case.target,
                     case: case.case,
-                    case_tag: i32::try_from(case_position).map_err(|_| Error::custody())?,
+                    case_tag,
                     payloads,
                     structural_bindings: super::terminator::successor(edge, function, plan, unit)?
                         .structural_bindings,
@@ -2691,8 +2717,8 @@ pub(crate) mod scalar_graph {
                 root_shape,
                 byte_offset,
                 layout,
-                pointer_slot_list,
-                region_byte_size,
+                pointer_slots: pointer_slots.clone(),
+                region_byte_size: *region_byte_size,
                 cases: successors,
                 effect: node.effect,
                 ownership: node.ownership.clone(),
@@ -2715,7 +2741,6 @@ pub(crate) mod scalar_graph {
             native: &target_operations::TargetOperationPlan,
             unit: &optimization_unit::PsiOptimizationUnit,
             targeted: &target_operations::TargetControlTerminator,
-            case_pointer_slots: &mut Vec<Vec<legalized_operations::LegalizedCasePointerSlot>>,
         ) -> Result<LegalizedScalarTerminator, LegalizationError> {
             let function = function_inputs.function();
             let cleanup_calls = scalar_graph_input::cleanup_calls::expected(
@@ -2931,14 +2956,9 @@ pub(crate) mod scalar_graph {
                         ownership: node.ownership.clone(),
                     }))
                 }
-                AbstractOperation::StructuralCase { .. } => super::structural_case::project(
-                    node,
-                    function,
-                    plan,
-                    unit,
-                    targeted,
-                    case_pointer_slots,
-                ),
+                AbstractOperation::StructuralCase { .. } => {
+                    super::structural_case::project(node, function, plan, unit, targeted)
+                }
                 AbstractOperation::ReturnUnit { psi_edge, .. } => {
                     Ok(LegalizedScalarTerminator::Return(LegalizedScalarReturn {
                         edge: *psi_edge,
@@ -3061,18 +3081,6 @@ pub(crate) mod scalar_graph {
         }
     }
 
-    fn intern_case_pointer_slots(
-        table: &mut Vec<Vec<legalized_operations::LegalizedCasePointerSlot>>,
-        slots: Vec<legalized_operations::LegalizedCasePointerSlot>,
-    ) -> Result<u32, LegalizationError> {
-        if let Some(index) = table.iter().position(|existing| existing == &slots) {
-            return u32::try_from(index).map_err(|_| LegalizationError::custody());
-        }
-        let index = u32::try_from(table.len()).map_err(|_| LegalizationError::custody())?;
-        table.push(slots);
-        Ok(index)
-    }
-
     pub(crate) fn derive<'a, 'g>(
         target: &target_operations::TargetFunction,
         abstracted: &abstract_operations::AbstractFunction,
@@ -3104,7 +3112,6 @@ pub(crate) mod scalar_graph {
             return Err(Error::custody());
         }
         let function_inputs = crate::legalization_function_inputs::FunctionInputs::new(optimized);
-        let case_pointer_slots = std::cell::RefCell::new(Vec::new());
         let blocks = optimized
             .blocks
             .iter()
@@ -3142,7 +3149,6 @@ pub(crate) mod scalar_graph {
                         unit,
                         row,
                         call_descriptor_origins,
-                        &mut case_pointer_slots.borrow_mut(),
                     )?);
                 }
                 *current_operation = None;
@@ -3158,7 +3164,6 @@ pub(crate) mod scalar_graph {
                         native,
                         unit,
                         &targeted.terminator,
-                        &mut case_pointer_slots.borrow_mut(),
                     )?,
                 })
             })
@@ -3175,7 +3180,6 @@ pub(crate) mod scalar_graph {
             ),
             entry_block: optimized.entry,
             blocks,
-            case_pointer_slots: case_pointer_slots.into_inner(),
             ownership_frontier_facts: unit
                 .ownership_frontier_facts
                 .iter()

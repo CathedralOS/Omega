@@ -1,9 +1,9 @@
 //! Selected instructions for sum rows the target plan already stores.
 //!
 //! Each scenario builds the target row directly and runs legalization and
-//! selection. The stored tag, offset, and layout are the ones the geometry
-//! walk records, which is what stage 02 stores and what `origin/main`
-//! recomputes. The expected text is the selection `origin/main` emitted.
+//! selection. The row carries the tag, offset, layout, pointer chase, and
+//! referent-region size that stage 02 records. The expected text is the
+//! selection `origin/main` emitted for that same geometry.
 
 use abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
@@ -21,11 +21,11 @@ use semantic_vocabulary::{
 };
 use target::NativeTarget;
 use target_operations::{
-    BoundaryOriginFacts, TargetControlBlock, TargetControlCaseSuccessor, TargetControlGraph,
-    TargetControlTerminator, TargetFunction, TargetOperationPlan, TargetStructuralCaseSource,
-    TargetStructuralHomeLayout, TargetStructuralHomeOrigin, TargetStructuralHomeRequirement,
-    TargetStructuralParameter, TargetUnitOperation, TargetUnitScalarArgumentSource,
-    TerminalPsiProvenance,
+    BoundaryOriginFacts, TargetCasePointerSlot, TargetControlBlock, TargetControlCaseSuccessor,
+    TargetControlGraph, TargetControlTerminator, TargetFunction, TargetOperationPlan,
+    TargetStructuralCaseSource, TargetStructuralHomeLayout, TargetStructuralHomeOrigin,
+    TargetStructuralHomeRequirement, TargetStructuralParameter, TargetUnitOperation,
+    TargetUnitScalarArgumentSource, TerminalPsiProvenance,
 };
 use terminal_psi::{
     BindingRelevance, SemanticFingerprint, StructuralAccess, StructuralCaseDeclaration,
@@ -172,6 +172,7 @@ fn membership_behind_pointer() -> String {
         case: case_id(1),
         case_tag: 0,
         indices: Vec::new(),
+        pointer_slots: carried_slots(&geometry),
     };
     let target = target_plan(&plan, vec![block(1, vec![membership], return_unit(1))]);
     select("membership-behind-pointer", &plan, target)
@@ -344,7 +345,9 @@ fn dispatch(
         source,
         path: path.clone(),
         byte_offset: geometry.byte_offset,
-        layout: selected,
+        layout: selected.clone(),
+        pointer_slots: carried_slots(&geometry),
+        region_byte_size: carried_region_size(&plan, &geometry, selected.shape.byte_size),
         cases: arms
             .iter()
             .enumerate()
@@ -477,6 +480,38 @@ fn term_successors(terminator: &SelectedTerminator) -> Vec<&SelectedSuccessor> {
             ..
         } => vec![when_nonzero, when_zero],
         _ => Vec::new(),
+    }
+}
+
+fn carried_slots(
+    geometry: &crate::structural_inputs::structural_reference_input::ReferenceSourceGeometry,
+) -> Vec<TargetCasePointerSlot> {
+    geometry
+        .pointer_slots
+        .iter()
+        .map(|slot| TargetCasePointerSlot {
+            byte_offset: slot.byte_offset,
+            index_start: u32::try_from(slot.indices.start).expect("pointer index"),
+            index_end: u32::try_from(slot.indices.end).expect("pointer index"),
+            scalar_descriptor: slot.scalar_descriptor,
+        })
+        .collect()
+}
+
+fn carried_region_size(
+    plan: &AbstractOperationPlan,
+    geometry: &crate::structural_inputs::structural_reference_input::ReferenceSourceGeometry,
+    sum_size: u32,
+) -> u32 {
+    if geometry.pointer_slots.is_empty() && geometry.region_root == geometry.selected {
+        sum_size
+    } else {
+        crate::structural_inputs::structural_reference_input::shape(
+            geometry.region_root,
+            plan.structural_types.as_slice(),
+        )
+        .expect("region size")
+        .byte_size
     }
 }
 

@@ -297,7 +297,6 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                     ownership: vec![OwnershipEvent::Cleanup(Vec::new())],
                 }),
             }],
-            case_pointer_slots: Vec::new(),
             ownership_frontier_facts: Vec::new(),
         }],
     }
@@ -500,7 +499,6 @@ pub(super) fn scalar_call_unit_plan() -> LegalizedOperationPlan {
                 ownership: vec![OwnershipEvent::Cleanup(Vec::new())],
             }),
         }],
-        case_pointer_slots: Vec::new(),
         ownership_frontier_facts: Vec::new(),
     });
     plan

@@ -5173,39 +5173,15 @@ pub(crate) mod structural_case {
             .ok_or(LegalizationError::custody())
     }
 
-    fn retained_pointer_slots(
-        slots: &[crate::structural_inputs::structural_reference_input::PointerSlot],
-    ) -> Result<Vec<legalized_operations::LegalizedCasePointerSlot>, LegalizationError> {
-        slots
-            .iter()
-            .map(|slot| {
-                Ok(legalized_operations::LegalizedCasePointerSlot {
-                    byte_offset: slot.byte_offset,
-                    index_start: u32::try_from(slot.indices.start)
-                        .map_err(|_| LegalizationError::custody())?,
-                    index_end: u32::try_from(slot.indices.end)
-                        .map_err(|_| LegalizationError::custody())?,
-                    scalar_descriptor: slot.scalar_descriptor,
-                })
-            })
-            .collect()
-    }
-
-    /// Address of a case-membership test. The tag and its byte offset come
-    /// from the target row; this returns only the index elements and the
-    /// pointer chases that row does not store.
+    /// Runtime-index operands for a case-membership test whose pointer chase
+    /// is already stored on the target row. Called only when the path contains
+    /// a runtime index, because extent and obligation are not part of that chase.
     pub(crate) fn membership_address(
         function: &PsiOptimizationFunction,
         source: PlaceId,
         path: &[terminal_psi::StructuralPathSegment],
         plan: &AbstractOperationPlan,
-    ) -> Result<
-        (
-            Vec<RuntimeElement>,
-            Vec<legalized_operations::LegalizedCasePointerSlot>,
-        ),
-        LegalizationError,
-    > {
+    ) -> Result<Vec<RuntimeElement>, LegalizationError> {
         let identity = source_identity(function, source, source_result(function, source))?;
         let geometry = reference_source_geometry(identity, path, &plan.structural_types)
             .ok_or(LegalizationError::custody())?;
@@ -5217,63 +5193,7 @@ pub(crate) mod structural_case {
         {
             return Err(LegalizationError::custody());
         }
-        Ok((
-            geometry.elements,
-            retained_pointer_slots(&geometry.pointer_slots)?,
-        ))
-    }
-
-    /// Pointer chases and the region size for a structural case whose tag
-    /// offset and sum layout were copied from the target row.
-    pub(crate) fn retained_case_projection(
-        function: &PsiOptimizationFunction,
-        source: PlaceId,
-        path: &[StructuralPathSegment],
-        byte_offset: u32,
-        layout: &calling_conventions::ConventionalSumLayout,
-        plan: &AbstractOperationPlan,
-    ) -> Result<
-        (
-            StructuralTypeId,
-            Vec<legalized_operations::LegalizedCasePointerSlot>,
-            u32,
-        ),
-        LegalizationError,
-    > {
-        let root = source_identity(function, source, source_result(function, source))?;
-        let geometry = reference_source_geometry(root, path, &plan.structural_types)
-            .ok_or(LegalizationError::custody())?;
-        if !geometry.elements.is_empty()
-            || !geometry.readable
-            || geometry
-                .pointer_slots
-                .iter()
-                .any(|slot| slot.scalar_descriptor)
-        {
-            return Err(LegalizationError::custody());
-        }
-        // A direct sum uses the copied layout's size. A pointer chase or a
-        // sum stored inside another region still needs that region's size,
-        // which the target row does not carry.
-        let region_byte_size =
-            if geometry.pointer_slots.is_empty() && geometry.region_root == geometry.selected {
-                layout.shape.byte_size
-            } else {
-                crate::structural_inputs::shape(geometry.region_root, &plan.structural_types)
-                    .ok_or(LegalizationError::custody())?
-                    .byte_size
-            };
-        if byte_offset
-            .checked_add(layout.shape.byte_size)
-            .is_none_or(|end| end > region_byte_size)
-        {
-            return Err(LegalizationError::custody());
-        }
-        Ok((
-            geometry.selected,
-            retained_pointer_slots(&geometry.pointer_slots)?,
-            region_byte_size,
-        ))
+        Ok(geometry.elements)
     }
 
     pub(crate) fn structural_transport_layout(

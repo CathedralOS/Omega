@@ -1624,6 +1624,8 @@ pub(crate) mod control_flow {
                         byte_offset,
                         layout,
                         cases,
+                        pointer_slots: _,
+                        region_byte_size: _,
                     },
                     AbstractOperation::StructuralCase {
                         source: expected_source,
@@ -5901,6 +5903,7 @@ pub(crate) mod unit {
                     case_tag,
                     tag_byte_offset,
                     indices,
+                    pointer_slots: _,
                 },
                 AbstractOperation::StructuralCaseMembership {
                     psi_operation: expected_operation,

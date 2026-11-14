@@ -31,10 +31,6 @@ pub struct LegalizedScalarFunction {
     pub structural: Option<crate::LegalizedStructuralContract>,
     pub entry_block: BlockId,
     pub blocks: Vec<LegalizedScalarBlock>,
-    /// Pointer chases for case dispatch and case membership. A row stores an
-    /// index into this table, so one path is stored once and both readers
-    /// use it.
-    pub case_pointer_slots: Vec<Vec<LegalizedCasePointerSlot>>,
     pub ownership_frontier_facts: Vec<optimization_unit::OwnershipFrontierFact>, // Verifier-owned ownership-frontier facts projected byte-exact from the source unit.
 }
 
@@ -693,7 +689,8 @@ pub enum LegalizedScalarInstructionKind {
         case_tag: u32,
         tag_byte_offset: u32,
         indices: Vec<LegalizedRuntimeIndexOperand>,
-        pointer_slot_list: u32, // Index into `LegalizedScalarFunction::case_pointer_slots`.
+        /// Pointer words the target membership row already recorded.
+        pointer_slots: Vec<target_operations::TargetCasePointerSlot>,
     },
     StructuralLeafCopy {
         result: terminal_psi::StructuralOperationResult,
@@ -1256,18 +1253,8 @@ impl LegalizedStructuralCaseSource {
     }
 }
 
-/// One pointer word between a sum and the storage selection has to load.
-///
-/// The target row already stores the sum tag, byte offset, and layout.
-/// It does not store these chases. Legalization records each distinct
-/// chase list once on the function, and the case row stores the index.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LegalizedCasePointerSlot {
-    pub byte_offset: u32,
-    pub index_start: u32,
-    pub index_end: u32,
-    pub scalar_descriptor: bool,
-}
+/// Pointer word carried forward from the target operation that projected it.
+pub type LegalizedCasePointerSlot = target_operations::TargetCasePointerSlot;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarTerminator {
@@ -1307,13 +1294,13 @@ pub enum LegalizedScalarTerminator {
         root_shape: calling_conventions::ValueShape,
         byte_offset: u32,
         layout: calling_conventions::ConventionalSumLayout,
-        pointer_slot_list: u32, // Index into `LegalizedScalarFunction::case_pointer_slots`.
-        // Byte size of the region a nonempty pointer chase addresses.
-        // The target case row stores the sum byte offset and layout only:
-        // stage 02 drops the chase and this size. After a chase the region
-        // is the referent, so the size is not `layout.shape.byte_size` when
-        // the sum sits in a larger pointed-to record. Selection reads it
-        // only for that borrowed dispatch.
+        /// Pointer words and referent-region size copied from the target case row.
+        ///
+        /// After a chase the region is the referent, so `region_byte_size` is
+        /// not `layout.shape.byte_size` when the sum is a field of a larger
+        /// pointed-to record. Selection borrows the chase and reads the size
+        /// only for that borrowed dispatch.
+        pointer_slots: Vec<target_operations::TargetCasePointerSlot>,
         region_byte_size: u32,
         cases: Vec<super::LegalizedStructuralCaseSuccessor>,
         effect: EffectLink,
