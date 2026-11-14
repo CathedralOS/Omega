@@ -5179,6 +5179,7 @@ impl Field<TerminalIdentityFormations> for IdentityFormations {
     }
 }
 
+#[cfg(test)]
 pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
     encode_raw_closed(module).map(|(bytes, _)| bytes)
 }

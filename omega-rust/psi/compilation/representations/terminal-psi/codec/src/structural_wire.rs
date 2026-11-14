@@ -471,7 +471,7 @@ pub(crate) mod structural_place_wire {
         require_operand_path(path)?;
         writer.len(label, path.len())?;
         for segment in path {
-            encode_projection(writer, segment);
+            encode_projection(writer, segment)?;
         }
         Ok(())
     }
@@ -490,7 +490,7 @@ pub(crate) mod structural_place_wire {
                             "qualification wildcard is not a reference origin",
                         );
                     }
-                    encode_projection(writer, segment)
+                    encode_projection(writer, segment)?
                 }
                 terminal_psi::ReferenceOriginProjection::Element => writer.u8(9),
             }
@@ -498,13 +498,16 @@ pub(crate) mod structural_place_wire {
         Ok(())
     }
 
-    fn encode_projection(writer: &mut Writer, segment: &StructuralPathSegment) {
-        terminal_psi::structural_path_encoding::encode_structural_path_segment(
+    fn encode_projection(
+        writer: &mut Writer,
+        segment: &StructuralPathSegment,
+    ) -> Result<(), CodecError> {
+        terminal_psi::structural_path_encoding::try_encode_structural_path_segment(
             writer,
             segment,
             Writer::bytes,
             encode_scalar_type,
-        );
+        )
     }
 
     pub(crate) fn encode_obligation_ids(
@@ -735,7 +738,7 @@ pub(crate) mod structural_place_wire {
     ) -> Result<(), CodecError> {
         writer.len("qualification pattern", path.len())?;
         for step in path {
-            encode_projection(writer, step);
+            encode_projection(writer, step)?;
         }
         Ok(())
     }

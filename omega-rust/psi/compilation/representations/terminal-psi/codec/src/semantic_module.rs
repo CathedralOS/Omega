@@ -4614,7 +4614,7 @@ pub(crate) use canonical_order::{
     validate_crash_route_predicates,
 };
 pub(crate) use module_foundation_validation::validate_structural_foundation;
-pub(crate) use module_wire::{decode_module_body, encode_raw};
+pub(crate) use module_wire::decode_module_body;
 pub(crate) use wire_fields::{CrashRoutes, Field};
 
 #[cfg(test)]
