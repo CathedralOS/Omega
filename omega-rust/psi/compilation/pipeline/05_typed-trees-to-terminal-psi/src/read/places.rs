@@ -129,7 +129,13 @@ impl Program<'_> {
         reference: typed_trees::types::TypeReferenceHandle,
     ) -> Checked<ValueType> {
         let typed = self.typed;
-        let data = typed.closed_data_definition(reference).ok_or_else(|| {
+        let semantic = super::source_records::semantic_reference(typed, reference, id)?;
+        // The canonical layout links to a natural semantic schema. Discover
+        // that same record first, with its own identity and field namespace.
+        if semantic != reference {
+            self.record_at(id, semantic)?;
+        }
+        let data = typed.closed_data_definition(semantic).ok_or_else(|| {
             refuse(
                 id,
                 Construct::Machine,
@@ -137,7 +143,7 @@ impl Program<'_> {
             )
         })?;
         let application = super::source_records::source_application(typed, data, reference, id)?;
-        let regions = self.occurrence_regions(id, data, reference)?;
+        let regions = self.occurrence_regions(id, data, semantic)?;
         self.record_definition(id, data, Some(application))
             .map(|value_type| with_regions(value_type, regions))
     }
@@ -226,6 +232,11 @@ impl Program<'_> {
                         data.generic_instance.is_none()
                             && data.type_parameters.is_empty()
                             && application.substitutions.is_empty()
+                            // An argument-free declaration is its natural
+                            // occurrence, never another selected storage form.
+                            && typed.normalized_nominal_type_identity(symbol).is_some_and(|identity| {
+                                identity == typed.normalized_type_identity(application.reference)
+                            })
                     }
                 }
         };
@@ -302,7 +313,12 @@ impl Program<'_> {
         self.lifetime_owner = enclosing;
         self.elision = elision;
         self.resolving.pop();
-        let (fields, field_symbols, cases, case_symbols) = read?;
+        let (fields, field_symbols, cases, case_symbols) = read.map_err(|mut refusal| {
+            refusal.detail.push_str(&format!(
+                " while reading the record application `{identity}`"
+            ));
+            refusal
+        })?;
         let mut mint = |fields: Vec<(String, ValueType)>| {
             let mut declared = Vec::with_capacity(fields.len());
             for (identity, value_type) in fields {

@@ -2186,22 +2186,52 @@ impl<'t> Program<'t> {
         // the permission to cross into its backing, whether it came from a
         // binding, a field or another helper call. An ordinary owned value
         // still needs an explicit borrow of its place.
-        let (mut place, access, explicit) = match node {
-            ExpressionNode::Borrow(borrow) => (
-                self.expression(id, slots, borrow.target, None)?,
-                borrow.access,
-                true,
-            ),
+        let (operand, access, explicit) = match node {
+            ExpressionNode::Borrow(borrow) => (borrow.target, borrow.access, true),
+            _ => (argument, formal.access, false),
+        };
+        // A recast presents the same captured place under another type. The
+        // parser keeps it inside the loan; it never produces an owned value.
+        let (mut place, presentation) = match self.node(id, operand)? {
+            ExpressionNode::Cast(cast) if cast.form.is_recast() => {
+                if access != ReferenceAccess::Shared || cast.form.recast_access() != Some(access) {
+                    return unserved(
+                        "exclusive storage view without establishment and handback evidence",
+                    );
+                }
+                if cast.semantic_domain_symbol.is_valid()
+                    || !cast.semantic_domain.is_empty()
+                    || cast.domain != numerics::arithmetic::ArithmeticDomain::Exact
+                {
+                    return unserved("storage view that also changes a domain");
+                }
+                let presentation = self.value_type(id, cast.target_type)?;
+                if presentation.qualification() != Qualification::NONE
+                    || !self.same_type(Some(presentation), expected)
+                {
+                    return unserved("storage view target differs from its borrowed destination");
+                }
+                if cast.result_type.is_valid()
+                    && self.value_type(id, cast.result_type)? != presentation
+                {
+                    return unserved("storage view has another retained result type");
+                }
+                (
+                    self.expression(id, slots, cast.value, None)?,
+                    Some(presentation),
+                )
+            }
             _ => (
                 self.expression(
                     id,
                     slots,
-                    argument,
-                    (formal.access == ReferenceAccess::Shared && self.is_borrowed_view(expected))
-                        .then_some(expected),
+                    operand,
+                    (!explicit
+                        && formal.access == ReferenceAccess::Shared
+                        && self.is_borrowed_view(expected))
+                    .then_some(expected),
                 )?,
-                formal.access,
-                false,
+                None,
             ),
         };
         // ownership.md, "Borrows and aliases": `&T` grants "Shared
@@ -2270,6 +2300,9 @@ impl<'t> Program<'t> {
                 result: Some(referent),
             };
         }
+        if presentation.is_some() {
+            self.representation_read_authorized(id, &place)?;
+        }
         let crossed = self.reference_place_access(id, slots, &place, access)?;
         let slot = root_slot(id, &place, &self.captures)?;
         if !crossed {
@@ -2295,8 +2328,8 @@ impl<'t> Program<'t> {
             self.written_through(id, &place)?;
         }
         // A scalar local that is an SSA value here gets a home for the loan;
-        // its type's identity is the formal's referent identity, the same
-        // scalar type.
+        // its type identity comes from the actual lender. A representation
+        // view must not give the backing the destination's different type.
         // A reference formal's referent is never policy-qualified
         // (`formal`), and the place a loan lends has the referent's type.
         if place.result.and_then(ValueType::policy).is_some() {
@@ -2307,20 +2340,74 @@ impl<'t> Program<'t> {
                 if matches!(lender.value_type, ValueType::Scalar(_, Qualification::NONE))
                     && !lender.homed =>
             {
-                Some(formal.home.clone().ok_or_else(|| {
+                let scalar = lender.value_type.scalar().ok_or_else(|| {
                     refuse(
                         id,
                         Construct::Machine,
-                        Unserved::Spelling("scalar referent without a type identity"),
+                        Unserved::Typing("scalar lender without its carrier"),
                     )
-                })?)
+                })?;
+                let atom = match scalar {
+                    semantic_vocabulary::ScalarType::Boolean => symbols::BuiltinTypeAtom::Bool,
+                    semantic_vocabulary::ScalarType::Integer(integer) if !integer.is_address() => {
+                        symbols::BuiltinTypeAtom::Integer(
+                            numerics::integer_carrier::FixedInteger::new(
+                                integer.sign(),
+                                u64::from(integer.bits().ok_or_else(|| {
+                                    refuse(
+                                        id,
+                                        Construct::Machine,
+                                        Unserved::Type(
+                                            "scalar lender has an unresolved integer width",
+                                        ),
+                                    )
+                                })?),
+                            )
+                            .ok_or_else(|| {
+                                refuse(
+                                    id,
+                                    Construct::Machine,
+                                    Unserved::Type("scalar lender has no fixed integer carrier"),
+                                )
+                            })?,
+                        )
+                    }
+                    _ => return unserved("scalar lender without a retained builtin carrier"),
+                };
+                let symbol = self
+                    .typed
+                    .symbols
+                    .builtin_atom_symbol(atom)
+                    .ok_or_else(|| {
+                        refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Type("scalar lender has no registered builtin"),
+                        )
+                    })?;
+                let reference = self
+                    .typed
+                    .type_reference_table
+                    .find_arithmetic_result_type_reference(
+                        symbol,
+                        numerics::arithmetic::ArithmeticDomain::Exact,
+                    )
+                    .ok_or_else(|| {
+                        refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Type("scalar lender has no registered type occurrence"),
+                        )
+                    })?;
+                let storage = self.storage_type(id, reference, lender.value_type)?;
+                Some(self.data_type(id, storage)?.identity.clone())
             }
             _ => None,
         };
         Ok((
             Expression {
                 call_context: None,
-                result: place.result,
+                result: presentation.or(place.result),
                 kind: ExpressionKind::Borrow {
                     access: formal.access,
                     place: Box::new(place),

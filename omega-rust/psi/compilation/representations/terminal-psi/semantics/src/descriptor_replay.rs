@@ -1654,22 +1654,7 @@ pub(crate) mod case_flow {
             if left.root != right.root {
                 return false;
             }
-            for (left, right) in left.path.iter().zip(&right.path) {
-                if left == right {
-                    continue;
-                }
-                return !matches!(
-                    (left, right),
-                    (
-                        DescriptorPathSegment::Field(_),
-                        DescriptorPathSegment::Field(_)
-                    ) | (
-                        DescriptorPathSegment::FixedIndex(_),
-                        DescriptorPathSegment::FixedIndex(_)
-                    )
-                );
-            }
-            true
+            crate::storage::place_paths::may_overlap(&left.path, &right.path)
         }
     }
     pub(crate) use values::{Storage, Transfer, contains_case};
@@ -2657,7 +2642,7 @@ pub(crate) mod contents_queries {
                 let DescriptorContentsStep::Address(segment) = step else {
                     return None;
                 };
-                selected.path.push(segment.clone());
+                selected.path.push(*segment);
             }
             if matches!(
                 steps.get(prefix_length),
@@ -2830,7 +2815,7 @@ pub(crate) mod contents_queries {
                 let DescriptorContentsStep::Address(segment) = step else {
                     return None;
                 };
-                path.push(segment.clone());
+                path.push(*segment);
             }
             query.steps.extend_from_slice(&steps[..length]);
             query.validate(self.types, self.parameter(machine, query.root)?.2)?;
@@ -4091,10 +4076,31 @@ pub(crate) mod engine {
                             DescriptorCallOrigin::Argument {
                                 source,
                                 projection: prefix,
-                            } => Some(Origin::Backing(DescriptorCallOrigin::Argument {
-                                source,
-                                projection: prefix.then(projection),
-                            })),
+                            } => {
+                                let composed = prefix.then(projection);
+                                if composed.exact
+                                    && !composed.indirect
+                                    && composed.window.is_none()
+                                    && composed.captured_at.is_none()
+                                {
+                                    // Exact projections keep their original
+                                    // storage identity, including any checked
+                                    // presentation step between its fields.
+                                    crate::descriptor_lifetimes::descriptor_location(
+                                        self.types,
+                                        source,
+                                        *machine.place_types.get(&source)?,
+                                        &composed.path,
+                                        None,
+                                    )
+                                    .map(Origin::Storage)
+                                } else {
+                                    Some(Origin::Backing(DescriptorCallOrigin::Argument {
+                                        source,
+                                        projection: composed,
+                                    }))
+                                }
+                            }
                             _ => None,
                         }
                     }
@@ -5603,7 +5609,7 @@ pub(crate) mod engine {
                         .steps
                         .iter()
                         .map(|step| match step {
-                            DescriptorContentsStep::Address(segment) => segment.clone(),
+                            DescriptorContentsStep::Address(segment) => *segment,
                             DescriptorContentsStep::AnyElement { .. } => unreachable!(),
                         })
                         .collect(),
@@ -6380,7 +6386,7 @@ impl DescriptorStoredOrigin {
                     steps
                         .iter()
                         .map(|step| match step {
-                            DescriptorContentsStep::Address(segment) => Some(segment.clone()),
+                            DescriptorContentsStep::Address(segment) => Some(*segment),
                             DescriptorContentsStep::AnyElement { .. } => None,
                         })
                         .collect::<Option<Vec<_>>>()?,
@@ -6429,7 +6435,7 @@ impl DescriptorStoredEffect {
         self.steps
             .iter()
             .map(|step| match step {
-                DescriptorContentsStep::Address(segment) => Some(segment.clone()),
+                DescriptorContentsStep::Address(segment) => Some(*segment),
                 DescriptorContentsStep::AnyElement { .. } => None,
             })
             .collect()

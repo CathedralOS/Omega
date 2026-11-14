@@ -113,6 +113,53 @@ impl Program<'_> {
         Ok(())
     }
 
+    pub(super) fn representation_read_authorized(
+        &self,
+        id: MachineId,
+        place: &Expression,
+    ) -> Checked<()> {
+        let mut captures = super::storage_path::Captures::new(id, &self.captures);
+        super::storage_path::walk(
+            place,
+            |capture| captures.resolve(capture),
+            |_, base| {
+                if let Some(value_type) = base.result {
+                    self.authorized(id, value_type, Access::Read)?;
+                }
+                Ok(())
+            },
+        )?;
+        let mut pending: Vec<_> = place.result.into_iter().collect();
+        let mut visited = Vec::new();
+        while let Some(value_type) = pending.pop() {
+            self.authorized(id, value_type, Access::Read)?;
+            let ValueType::Record(record, _, _) = value_type else {
+                continue;
+            };
+            if visited.contains(&record) {
+                continue;
+            }
+            visited.push(record);
+            match &self.data_type(id, record)?.shape {
+                StorageShape::Record(fields) => {
+                    pending.extend(fields.iter().map(|field| field.value_type))
+                }
+                StorageShape::FixedArray { element, .. } => {
+                    pending.push(ValueType::record(*element))
+                }
+                StorageShape::PrimitiveScalar { .. } => {}
+                _ => {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Expression("representation read without ordinary closed storage"),
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Refuses a zero-established value of `value_type` when the zero
     /// representation would hold a value in a domain nobody established.
     ///
