@@ -18,11 +18,15 @@ use std::sync::Arc;
 
 const TARGET: &str = "linux_x86_64";
 
-/// A boundary trait with one requirement and two data types that can be
-/// named as its provider.
-const SLOT: &str = "public boundary trait Service {\n    machine go() reaches none crashes none;\n}\ndata Native {}\ndata Other {}\n";
-const NATIVE_DEFAULT: &str = "machine Native::provider_defaults(defaults: &mut Native) {\n    Native::select_provider<Service, Native>(defaults);\n}\n";
-const OTHER_DEFAULT: &str = "machine Other::provider_defaults(defaults: &mut Other) {\n    Other::select_provider<Service, Other>(defaults);\n}\n";
+/// A boundary trait with one requirement, and the data types whose
+/// `provider_defaults` machines declare a target's defaults. A provider is
+/// a named implementation, never a data type (#3002).
+const SLOT: &str = "public boundary trait Service {\n    machine go() reaches none crashes none;\n}\ndata NativeDefaults {}\ndata OtherDefaults {}\n";
+/// Two named implementations of `Service`, each a provider a default can
+/// name.
+const PROVIDERS: &str = "Native satisfies Service {\n    machine go() reaches none crashes none {\n    }\n}\nOther satisfies Service {\n    machine go() reaches none crashes none {\n    }\n}\n";
+const NATIVE_DEFAULT: &str = "machine NativeDefaults::provider_defaults(defaults: &mut NativeDefaults) {\n    NativeDefaults::select_provider<Service, Native>(defaults);\n}\n";
+const OTHER_DEFAULT: &str = "machine OtherDefaults::provider_defaults(defaults: &mut OtherDefaults) {\n    OtherDefaults::select_provider<Service, Other>(defaults);\n}\n";
 const REACHES: &str = "machine main() {\n    Service::go();\n}\n";
 const REACHES_NOTHING: &str = "machine main() {\n}\n";
 
@@ -183,11 +187,8 @@ fn supplied_on(
     })
 }
 
-/// A provider machine for `Service::go` under each data type, and a second
-/// boundary trait the first provider can reach.
-const NATIVE_BODY: &str =
-    "machine Native::go() satisfies Service::go reaches none crashes none {\n}\n";
-const DEEPER: &str = "public boundary trait Deeper {\n    machine down() reaches none crashes none;\n}\npublic boundary trait Chained {\n    machine go() reaches Deeper crashes none;\n}\nmachine Native::chained() satisfies Chained::go reaches Deeper crashes none {\n    Deeper::down();\n}\nmachine Other::down() satisfies Deeper::down reaches none crashes none {\n}\nmachine Native::provider_defaults(defaults: &mut Native) {\n    Native::select_provider<Chained, Native>(defaults);\n    Native::select_provider<Deeper, Other>(defaults);\n}\n";
+/// A second boundary trait whose provider reaches a third.
+const DEEPER: &str = "public boundary trait Deeper {\n    machine down() reaches none crashes none;\n}\npublic boundary trait Chained {\n    machine go() reaches Deeper crashes none;\n}\nChaining satisfies Chained {\n    machine go() reaches Deeper crashes none {\n        Deeper::down();\n    }\n}\nBottom satisfies Deeper {\n    machine down() reaches none crashes none {\n    }\n}\nmachine NativeDefaults::provider_defaults(defaults: &mut NativeDefaults) {\n    NativeDefaults::select_provider<Chained, Chaining>(defaults);\n    NativeDefaults::select_provider<Deeper, Bottom>(defaults);\n}\n";
 
 /// The chosen provider of a reached requirement becomes a root of the same
 /// compilation: the module judged for the target holds the provider's
@@ -195,7 +196,7 @@ const DEEPER: &str = "public boundary trait Deeper {\n    machine down() reaches
 /// that reaches nothing is not judged again.
 #[test]
 fn a_chosen_provider_is_judged_as_a_root_of_the_same_compilation() {
-    let target = supplied_target(&format!("{SLOT}{NATIVE_DEFAULT}{NATIVE_BODY}"), REACHES)
+    let target = supplied_target(&format!("{SLOT}{PROVIDERS}{NATIVE_DEFAULT}"), REACHES)
         .expect("the provider refines the requirement");
     assert_eq!(target.roster.supplies.len(), 1);
     let supplied = target.accepted.expect("the chosen provider was judged");
@@ -203,7 +204,7 @@ fn a_chosen_provider_is_judged_as_a_root_of_the_same_compilation() {
     assert_eq!(target.supply.requirements().len(), 1);
 
     let unreached = supplied_target(
-        &format!("{SLOT}{NATIVE_DEFAULT}{NATIVE_BODY}"),
+        &format!("{SLOT}{PROVIDERS}{NATIVE_DEFAULT}"),
         REACHES_NOTHING,
     )
     .unwrap();
@@ -227,17 +228,21 @@ fn a_provider_that_reaches_a_requirement_has_its_supply_judged_too() {
     assert_eq!(supplied.module().machines.len(), 3);
 }
 
-/// The twins: a chosen provider that gives the requirement no machine, and
-/// one whose machine may crash where the requirement says `crashes none`,
-/// stop the program. Unchosen, the same declarations stop nothing.
+/// The twins: a chosen provider that implements another trait, so it gives
+/// the requirement no machine, and one whose machine may crash where the
+/// requirement says `crashes none`, stop the program. Unchosen, the same
+/// declarations stop nothing.
 #[test]
 fn a_chosen_provider_that_does_not_refine_its_requirement_stops_the_program() {
+    let stray = format!(
+        "{SLOT}public boundary trait Unrelated {{\n    machine go() reaches none crashes none;\n}}\nNative satisfies Unrelated {{\n    machine go() reaches none crashes none {{\n    }}\n}}\n{NATIVE_DEFAULT}"
+    );
     assert_eq!(
-        supplied_target(&format!("{SLOT}{NATIVE_DEFAULT}"), REACHES).unwrap_err(),
+        supplied_target(&stray, REACHES).unwrap_err(),
         "not supported yet: declaration provider that does not give a supplied requirement exactly one machine; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong"
     );
     let crashing = format!(
-        "{SLOT}{NATIVE_DEFAULT}machine Native::go() satisfies Service::go reaches none crashes Trap {{\n}}\n"
+        "{SLOT}{NATIVE_DEFAULT}Native satisfies Service {{\n    machine go() reaches none crashes Trap {{\n    }}\n}}\n"
     );
     let refused = supplied_target(&crashing, REACHES).unwrap_err();
     assert!(refused.contains("crash"), "{refused}");
@@ -253,8 +258,8 @@ fn a_chosen_provider_that_does_not_refine_its_requirement_stops_the_program() {
 /// provider calls a raw requirement of its own operating system. Both
 /// providers are judged in the Product's one module, which therefore
 /// declares both raw requirements.
-const PER_TARGET: &str = "public boundary trait LinuxRaw {\n    machine call() reaches none crashes none;\n}\npublic boundary trait WindowsRaw {\n    machine call() reaches none crashes none;\n}\ndata Leaf {}\nmachine Native::go() satisfies Service::go reaches LinuxRaw crashes none {\n    LinuxRaw::call();\n}\nmachine Other::go() satisfies Service::go reaches WindowsRaw crashes none {\n    WindowsRaw::call();\n}\nmachine Leaf::call() satisfies LinuxRaw::call reaches none crashes none {\n}\nmachine Leaf::provider_defaults(defaults: &mut Leaf) {\n    Leaf::select_provider<LinuxRaw, Leaf>(defaults);\n}\n";
-const REACHES_BOTH_OS: &str = "public boundary trait Service {\n    machine go() reaches LinuxRaw, WindowsRaw crashes none;\n}\ndata Native {}\ndata Other {}\n";
+const PER_TARGET: &str = "public boundary trait LinuxRaw {\n    machine call() reaches none crashes none;\n}\npublic boundary trait WindowsRaw {\n    machine call() reaches none crashes none;\n}\nNative satisfies Service {\n    machine go() reaches LinuxRaw crashes none {\n        LinuxRaw::call();\n    }\n}\nOther satisfies Service {\n    machine go() reaches WindowsRaw crashes none {\n        WindowsRaw::call();\n    }\n}\nLeaf satisfies LinuxRaw {\n    machine call() reaches none crashes none {\n    }\n}\ndata LeafDefaults {}\nmachine LeafDefaults::provider_defaults(defaults: &mut LeafDefaults) {\n    LeafDefaults::select_provider<LinuxRaw, Leaf>(defaults);\n}\n";
+const REACHES_BOTH_OS: &str = "public boundary trait Service {\n    machine go() reaches LinuxRaw, WindowsRaw crashes none;\n}\ndata NativeDefaults {}\ndata OtherDefaults {}\n";
 
 /// Keys `Native` and the raw Linux leaf to Linux and `Other` to Windows.
 fn key_per_target(defaults: &mut Vec<TargetProviderDefaults>) {
@@ -315,7 +320,7 @@ fn a_target_demands_what_its_own_chosen_providers_reach() {
 #[test]
 fn a_chosen_provider_the_module_does_not_hold_is_refused() {
     let (accepted, defaults, roster) =
-        judged(&format!("{SLOT}{NATIVE_DEFAULT}{NATIVE_BODY}"), REACHES);
+        judged(&format!("{SLOT}{PROVIDERS}{NATIVE_DEFAULT}"), REACHES);
     assert_eq!(
         compiler::prepare_supplied_target(compiler::TargetSupplySource {
             roster: &roster,
@@ -412,7 +417,10 @@ fn check_conditions(
 /// settled supply and the produced artifact is needed to check the program.
 #[test]
 fn a_module_that_reaches_nothing_checks_against_its_settled_execution() {
-    let (accepted, defaults) = accepted(&format!("{SLOT}{NATIVE_DEFAULT}"), REACHES_NOTHING);
+    let (accepted, defaults) = accepted(
+        &format!("{SLOT}{PROVIDERS}{NATIVE_DEFAULT}"),
+        REACHES_NOTHING,
+    );
     let settled = prepare(&accepted, &[], &defaults)
         .unwrap()
         .settle()
@@ -450,7 +458,7 @@ fn a_module_that_reaches_nothing_checks_against_its_settled_execution() {
 /// A second program with a different accepted module.
 fn accepted_other() -> (AcceptedTerminalSource, Vec<TargetProviderDefaults>) {
     accepted(
-        &format!("{SLOT}{NATIVE_DEFAULT}"),
+        &format!("{SLOT}{PROVIDERS}{NATIVE_DEFAULT}"),
         "machine helper() {\n}\nmachine main() {\n    helper();\n}\n",
     )
 }
@@ -461,7 +469,7 @@ fn accepted_other() -> (AcceptedTerminalSource, Vec<TargetProviderDefaults>) {
 /// was never settled.
 #[test]
 fn a_reached_requirement_forms_no_selected_execution_without_its_plan() {
-    let (accepted, defaults) = accepted(&format!("{SLOT}{NATIVE_DEFAULT}"), REACHES);
+    let (accepted, defaults) = accepted(&format!("{SLOT}{PROVIDERS}{NATIVE_DEFAULT}"), REACHES);
     let settled = prepare(&accepted, &[], &defaults)
         .unwrap()
         .settle()
@@ -482,7 +490,10 @@ fn a_reached_requirement_forms_no_selected_execution_without_its_plan() {
 /// declared, and settlement forms no plan.
 #[test]
 fn a_module_that_reaches_no_boundary_requirement_has_nothing_to_settle() {
-    let (accepted, defaults) = accepted(&format!("{SLOT}{NATIVE_DEFAULT}"), REACHES_NOTHING);
+    let (accepted, defaults) = accepted(
+        &format!("{SLOT}{PROVIDERS}{NATIVE_DEFAULT}"),
+        REACHES_NOTHING,
+    );
     assert_eq!(defaults.len(), 1, "the default is declared");
     assert!(accepted.module().boundary_machines.is_empty());
     let prepared = prepare(&accepted, &[], &defaults).unwrap();
@@ -493,7 +504,10 @@ fn a_module_that_reaches_no_boundary_requirement_has_nothing_to_settle() {
 
 #[test]
 fn unscoped_supply_keeps_pure_programs_targetless_and_refuses_provider_demands() {
-    let (accepted, defaults) = accepted(&format!("{SLOT}{NATIVE_DEFAULT}"), REACHES_NOTHING);
+    let (accepted, defaults) = accepted(
+        &format!("{SLOT}{PROVIDERS}{NATIVE_DEFAULT}"),
+        REACHES_NOTHING,
+    );
     let prepared = prepare_for_target(&accepted, &[], &defaults, None).unwrap();
     assert_eq!(prepared.target(), None);
     let settled = prepared.settle().unwrap();
@@ -510,7 +524,8 @@ fn unscoped_supply_keeps_pure_programs_targetless_and_refuses_provider_demands()
     );
     assert!(selected_dispatch::SelectedExecution::settle(Some(profile()), &settled).is_err());
 
-    let (reached, defaults) = self::accepted(&format!("{SLOT}{NATIVE_DEFAULT}"), REACHES);
+    let (reached, defaults) =
+        self::accepted(&format!("{SLOT}{PROVIDERS}{NATIVE_DEFAULT}"), REACHES);
     let error = prepare_for_target(&reached, &[], &defaults, None).unwrap_err();
     assert!(
         error.contains("requires an explicit deployment target"),
@@ -523,7 +538,7 @@ fn unscoped_supply_keeps_pure_programs_targetless_and_refuses_provider_demands()
 /// provider is refused by the requirement's and the provider's names.
 #[test]
 fn a_reached_requirement_settles_to_its_one_declared_default() {
-    let (accepted, defaults) = accepted(&format!("{SLOT}{NATIVE_DEFAULT}"), REACHES);
+    let (accepted, defaults) = accepted(&format!("{SLOT}{PROVIDERS}{NATIVE_DEFAULT}"), REACHES);
     let prepared = prepare(&accepted, &[], &defaults).unwrap();
     let [requirement] = prepared.requirements() else {
         panic!("one requirement is reached: {prepared:?}");
@@ -567,7 +582,11 @@ fn a_reached_requirement_with_no_provider_is_rejected() {
 #[test]
 fn a_reached_requirement_with_two_defaults_is_rejected_as_a_conflict() {
     assert_eq!(
-        settle(&format!("{SLOT}{NATIVE_DEFAULT}{OTHER_DEFAULT}"), REACHES).unwrap_err(),
+        settle(
+            &format!("{SLOT}{PROVIDERS}{NATIVE_DEFAULT}{OTHER_DEFAULT}"),
+            REACHES
+        )
+        .unwrap_err(),
         "boundary requirement `Service::go` has conflicting providers on target `linux_x86_64`: the target package declares `Native` and `Other`"
     );
 }
@@ -578,8 +597,10 @@ fn a_reached_requirement_with_two_defaults_is_rejected_as_a_conflict() {
 /// here is the selection the second default states.
 #[test]
 fn supply_is_ranked_by_authority_and_keyed_by_target() {
-    let (accepted, mut defaults) =
-        accepted(&format!("{SLOT}{NATIVE_DEFAULT}{OTHER_DEFAULT}"), REACHES);
+    let (accepted, mut defaults) = accepted(
+        &format!("{SLOT}{PROVIDERS}{NATIVE_DEFAULT}{OTHER_DEFAULT}"),
+        REACHES,
+    );
     assert_eq!(defaults.len(), 1, "untargeted defaults share one row");
     let other = defaults[0].selections.pop().expect("the second default");
     assert_eq!(other.provider_type.authored_path, "Other");
