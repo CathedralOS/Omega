@@ -630,6 +630,7 @@ pub(super) enum Reached<T> {
 #[derive(Default)]
 struct Draft {
     parameters: Vec<ValueDeclaration>,
+    structural_parameters: Vec<StructuralParameterDeclaration>,
     operations: Vec<Operation>,
     terminator: Option<Terminator>,
 }
@@ -997,6 +998,7 @@ impl<'a> Lowering<'a> {
                 return Err(self.internal("a block was left without a terminator"));
             };
             let mut block = Block::plain(block, block_parameters, terminator);
+            block.structural_parameters = std::mem::take(&mut draft.structural_parameters);
             block.operations = operations;
             blocks.push(block);
         }

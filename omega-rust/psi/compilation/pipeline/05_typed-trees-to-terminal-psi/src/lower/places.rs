@@ -1294,11 +1294,40 @@ impl<'a> Lowering<'a> {
                     }
                 }
             }
+            ExpressionKind::Match {
+                capture,
+                subject,
+                arms,
+                default,
+            } => {
+                let result_type = expression
+                    .result
+                    .ok_or_else(|| self.internal("a data match has no complete result type"))?;
+                let Value::Record(root) = self.match_value(
+                    subject,
+                    arms,
+                    default.as_deref(),
+                    result_type,
+                    expression.source,
+                    *capture,
+                )?
+                else {
+                    return Err(
+                        self.internal("a data match did not produce its structural parameter")
+                    );
+                };
+                Ok(Located {
+                    root,
+                    place: self.exact_root(root)?,
+                    path: Vec::new(),
+                    record,
+                    fresh: true,
+                })
+            }
             ExpressionKind::Integer(_)
             | ExpressionKind::Boolean(_)
             | ExpressionKind::IsCase { .. }
             | ExpressionKind::CollectionMeasure { .. }
-            | ExpressionKind::Match { .. }
             | ExpressionKind::Strict { .. }
             | ExpressionKind::Not(_)
             | ExpressionKind::BitwiseNot(_)
