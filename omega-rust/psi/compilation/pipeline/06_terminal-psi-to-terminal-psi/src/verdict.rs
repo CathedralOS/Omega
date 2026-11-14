@@ -888,19 +888,23 @@ fn examine(
         ) {
             Ok(plan) => plan,
             Err(error) => {
+                let concerns = match error.site() {
+                    Some(terminal_semantics::plain_affine::Site::Operation(at)) => {
+                        Construct::Operation(at)
+                    }
+                    Some(terminal_semantics::plain_affine::Site::Edge(at)) => Construct::Edge(at),
+                    None => Construct::Machine,
+                };
                 let (reason, detail) = match error {
-                    terminal_semantics::plain_affine::Error::Unsupported(detail) => {
+                    terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
                         (RefusalReason::Unsupported, detail)
                     }
-                    terminal_semantics::plain_affine::Error::Malformed(detail) => {
+                    terminal_semantics::plain_affine::Error::Malformed { detail, .. } => {
                         (RefusalReason::ForeignIdentity, detail)
                     }
                 };
                 return Err(fall_back_or_defect(refusal(
-                    reason,
-                    machine.id,
-                    Construct::Machine,
-                    detail,
+                    reason, machine.id, concerns, detail,
                 )));
             }
         };

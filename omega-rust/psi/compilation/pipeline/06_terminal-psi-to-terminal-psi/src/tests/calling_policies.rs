@@ -322,6 +322,106 @@ fn data_with_requires_is_lent_and_restored_at_loan_handback() {
     }
 }
 
+// An indexed replacement preserves an intact array's availability even
+// after a disjoint sibling moved. It neither reconstructs an unknown hole
+// nor supplies the separate bound needed by the actual runtime selector.
+#[test]
+fn runtime_record_replacement_needs_an_intact_array_and_its_actual_bound() {
+    let source = |prefix: &str, bound: u64| {
+        format!(
+            "data Item {{ value: u64; }}\n\
+         data Table {{ items: [Item; 2]; side: Item; }}\n\
+         machine root(mut table: Table, index: u64) -> u64 requires index < {bound} {{\n\
+             {prefix}\n\
+             table.items[index] = Item {{ value: 7 }};\n\
+             table.items[index].value\n\
+         }}"
+        )
+    };
+    for prefix in ["", "let detached: Item = table.side;"] {
+        let verdicts = judged(&source(prefix, 2), &["root"]);
+        let [Ok(RouteVerdict::Accepted(accepted))] = verdicts.as_slice() else {
+            panic!("an intact array stays available: {prefix}: {verdicts:?}")
+        };
+        accepted.publish_invocation().unwrap();
+        let module = &accepted.elaboration.module;
+        let mut forged = module.machines[0].clone();
+        terminal_semantics::plain_affine::verify(&forged, &module.structural_types).unwrap();
+        let store = forged.blocks.iter_mut().flat_map(|block| &mut block.operations).find(|operation| {
+            matches!(&operation.kind, terminal_psi::OperationKind::StoreStructuralField { path, .. }
+                if path.iter().any(|segment| matches!(segment, terminal_psi::StructuralPathSegment::RuntimeIndex { .. })))
+        }).expect("the actual source emits a runtime-indexed record store");
+        let stored_at = store.id;
+        let terminal_psi::OperationKind::StoreStructuralField { disposition, .. } = &mut store.kind
+        else {
+            unreachable!()
+        };
+        assert_eq!(
+            *disposition,
+            terminal_psi::StructuralStoreDisposition::ReplaceDiscardable
+        );
+        *disposition = terminal_psi::StructuralStoreDisposition::Vacant;
+        assert!(
+            matches!(
+                terminal_semantics::plain_affine::verify(&forged, &module.structural_types),
+                Err(terminal_semantics::plain_affine::Error::Malformed {
+                    detail: "a vacant store displaces established affine contents",
+                    site: Some(terminal_semantics::plain_affine::Site::Operation(at)),
+                }) if at == stored_at
+            ),
+            "source-free receiving reconstructs the disposition instead of trusting the producer tag"
+        );
+    }
+    let missing = judged(
+        &source("let detached: Item = table.items[0];", 2),
+        &["root"],
+    );
+    let [Ok(RouteVerdict::FallBack(refusal))] = missing.as_slice() else {
+        panic!("the inexact store cannot reconstruct a moved element: {missing:?}")
+    };
+    assert_eq!(refusal.reason, RefusalReason::Unsupported);
+    assert!(
+        matches!(refusal.concerns, Construct::Operation(_)),
+        "{refusal:?}"
+    );
+    assert!(
+        refusal
+            .detail
+            .ends_with("runtime-indexed replacement in an incomplete affine array"),
+        "{refusal:?}"
+    );
+    let unsafe_index = judged(&source("", 3), &["root"]);
+    let [
+        Ok(RouteVerdict::Rejected {
+            formations,
+            violations,
+            unproved,
+            unestablished,
+            conflicts,
+            exceeded,
+        }),
+    ] = unsafe_index.as_slice()
+    else {
+        panic!("store and read still owe the actual array bound: {unsafe_index:?}")
+    };
+    assert!(
+        formations.is_empty()
+            && violations.is_empty()
+            && unestablished.is_empty()
+            && conflicts.is_empty()
+            && exceeded.is_empty(),
+        "{unsafe_index:?}"
+    );
+    assert_eq!(unproved.len(), 2, "the actual store and read bounds");
+    assert!(
+        unproved.iter().all(|failure| matches!(
+            failure.kind,
+            terminal_check_tables::obligations::ObligationKind::OperationSafety { .. }
+        ) && failure.cause == UnprovedCause::NoDerivation),
+        "{unproved:?}"
+    );
+}
+
 const PLACE: &str = r#"
 data Place [copy]
     requires (self in Place::One) || ((self in Place::Two) && (self.count >= 1) && (self.count <= 16))

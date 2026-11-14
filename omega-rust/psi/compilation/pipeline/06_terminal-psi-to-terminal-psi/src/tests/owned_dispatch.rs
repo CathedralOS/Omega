@@ -146,7 +146,7 @@ fn a_dispatch_edge_disposes_of_exactly_what_the_schedule_says() {
     };
     assert!(matches!(
         edit(&|actions| actions.clear()),
-        Err(plain_affine::Error::Malformed(detail))
+        Err(plain_affine::Error::Malformed { detail, .. })
             if detail == "normal edge affine disposal differs from its canonical schedule"
     ));
     let borrowed = machine
@@ -161,7 +161,7 @@ fn a_dispatch_edge_disposes_of_exactly_what_the_schedule_says() {
     ] {
         assert!(matches!(
             edit(&|actions| actions.push(action.clone())),
-            Err(plain_affine::Error::Unsupported(detail))
+            Err(plain_affine::Error::Unsupported { detail, .. })
                 if detail == "disposal of storage the affine schedule does not own"
         ));
     }
