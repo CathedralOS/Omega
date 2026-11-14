@@ -524,7 +524,17 @@ impl Program<'_> {
             .signature_invokes
             .span(signature.invokes)
             .ok_or_else(|| unavailable(id, "requirement policy has a stale invocation span"))?;
-        let mut reach = crate::reach::written_ceiling(self.typed, id, signature.symbol)?;
+        let mut reach = if crate::reach::has_authored_ceiling(self.typed, id, signature.symbol)? {
+            if signature.service_reach_is_installation_bound {
+                return Err(unavailable(
+                    id,
+                    "requirement service reach remains bound to an installation",
+                ));
+            }
+            Some(finite_reach(self.typed, id, signature.service_reach_row)?)
+        } else {
+            None
+        };
         // An open requirement defers to the implementation's published bound.
         // Infer from its body only when that declaration also omits the bound.
         if reach.is_none() && source_owner != signature.symbol {

@@ -714,7 +714,7 @@ fn finish_reading(
     elaboration.machines = program.symbols.clone();
     elaboration.boundaries = program.boundaries.rows.map(|_, source| source.source);
     source.selection_questions = Some(source_selection_questions);
-    crate::reach::publish(program.typed, diagnostic, &services, &mut elaboration)?;
+    crate::reach::publish(diagnostic, &services, &mut elaboration)?;
     calling_abis.publish(&mut elaboration.module)?;
     if let Some(typed) = declared {
         declare::declare(

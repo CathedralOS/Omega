@@ -309,7 +309,6 @@ pub(crate) fn written_ceiling(
 /// State canonical rows from actual lowered direct, callable and boundary calls.
 /// No acceptance follows from this computation; the receiving judgment checks it.
 pub(crate) fn publish(
-    typed: &TypedTrees,
     entry: MachineId,
     services: &ServiceMap,
     elaboration: &mut Elaboration,
@@ -322,18 +321,16 @@ pub(crate) fn publish(
     }
     elaboration.reach.names = services.publish(entry, &mut elaboration.module)?;
     let mut ceilings = Vec::with_capacity(elaboration.module.machines.len());
-    for (id, symbol) in elaboration.machines.iter() {
-        let written = if elaboration.requirements.contains(&id) {
+    for machine in &elaboration.module.machines {
+        // Lowering retained the authored bound and its applied service
+        // identities. Publish those records for named machines and for
+        // conformance entries built from requirement signatures.
+        let written = if elaboration.requirements.contains(&machine.id) {
             None
         } else {
-            written_ceiling(typed, id, *symbol)?
+            machine.declared_service_reach.clone()
         };
-        ceilings.push(
-            written
-                .as_ref()
-                .map(|row| services.row(id, row))
-                .transpose()?,
-        );
+        ceilings.push(written);
     }
     let mut published = ceilings
         .iter()
