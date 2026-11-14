@@ -177,3 +177,32 @@ position reads the local, parameter or field; a type position, a literal
 suffix and a path qualifier read the builtin integer type. What a top-level
 declaration spelled like a carrier does has not been measured. No fixture pins
 any of this as intended.
+
+<a id="native-cache-producer-authorization"></a>
+
+### Q4 - Does enabling a native component cache authorize its producer?
+
+Decision name: `native-cache-producer-authorization`.
+
+**Customer.** Separate package builds reuse native components from the optional
+disk cache. `ComponentProductCache::load` checks the compiler identity, input
+key, record size and content digest before recovering a component. Those checks
+identify bytes; they do not authorize the process that produced them.
+
+**Gap.** [Publication and separate consumption](wiki/spec/terminal-psi/product.md#publication-and-separate-consumption)
+requires receiving-host authorization of the exact artifact and producer, and
+permits trusted internal outputs without replay. That page and
+[claim admission](wiki/drafts/designs/psi_claim_admission.md) do not say whether
+configuring `CompilerProductRetention` is itself that host authorization.
+The implementation has a directory and identities, but no separate decision.
+
+**Question.** (a) Require explicit host authorization for recovered components,
+treating unauthorized optional cache entries as misses and rebuilding source;
+or (b) define enabling a cache as an explicit host decision to trust its writers
+and recovered contents? Directory protection remains the host's responsibility,
+not a new Omega guarantee. Recommend (a), keeping byte identity separate from
+authorization without adding an OS credential or ACL system.
+
+**Until answered.** Cache recovery retains its existing behavior; hashes must
+not be described as producer authorization. The public native ingress repair
+remains under `PSI-CLAIM-ADMISSION`.
