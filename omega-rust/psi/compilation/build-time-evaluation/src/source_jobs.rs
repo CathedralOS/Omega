@@ -1198,6 +1198,88 @@ pub(crate) mod tests {
         );
     }
 
+    #[test]
+    fn the_library_c_layout_policy_keeps_its_existing_scalar_record() {
+        // The bundled generic policy must compute the kept C-layout example's
+        // real field placements. Its alias, operations and byte oracle stay
+        // unchanged while the compiler supplies the actual type application.
+        let mut source = with_reflection(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../samples/cli/facts/c_layout_scalar_record/local/main.omg"
+        )));
+        let entry = query_machine(&source, "main");
+        let records = source
+            .data_definitions()
+            .iter()
+            .filter(|data| data.name.as_str() == "Record")
+            .map(|data| data.symbol)
+            .collect::<Vec<_>>();
+        let [record] = records.as_slice() else {
+            panic!("the kept example declares one Record")
+        };
+        let record = *record;
+        let facts = layout_plans::LayoutTargetFacts {
+            profile: "linux_x86_64".into(),
+            pointer_size: 8,
+            pointer_alignment: 8,
+            case_tag_size: 4,
+            case_tag_alignment: 4,
+            little_endian: true,
+        };
+        evaluate_fixed_layout_applications(
+            &mut source,
+            &[FixedLayoutTargetScope {
+                target: facts.profile.clone(),
+                facts: Some(facts),
+                entry_declarations: Some(vec![entry]),
+                provider_declarations: Vec::new(),
+            }],
+            None,
+            None,
+            source::DependencyScope::Product,
+            &mut crate::SourceCompletionAccounting::default(),
+        )
+        .unwrap();
+        let plans = source
+            .plan_laid_layouts
+            .iter()
+            .filter(|plan| plan.data_symbol == record)
+            .collect::<Vec<_>>();
+        let [plan] = plans.as_slice() else {
+            panic!("the one C policy retains one actual record layout")
+        };
+        let geometry = plan
+            .geometry_for_target(&source, Some("linux_x86_64"))
+            .unwrap();
+        assert_eq!(geometry.validated_layout.size, Some(24));
+        assert_eq!(geometry.validated_layout.align, 8);
+        assert_eq!(geometry.validated_layout.offsets, Some(vec![0, 8, 16]));
+        let (prepared, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+            source,
+            &typed_trees_to_typed_trees::PreparationRequest::settled(),
+        )
+        .unwrap();
+        let accepted = psi_terminal_production::AcceptedTerminalSource::judge(
+            Arc::new(prepared),
+            psi_terminal_production::TerminalSourceCompilation {
+                declaration_metadata: &[],
+                entries: &[entry],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Portable,
+        )
+        .unwrap();
+        let bytes = terminal_codec::encode_module(accepted.module()).unwrap();
+        assert_eq!(
+            terminal_codec::decode_module(&bytes).unwrap(),
+            *accepted.module()
+        );
+    }
+
     /// The machine `name` that a `with_reflection` query declares. The real
     /// core is typed beside the query and its nested machines take ordinary
     /// names (`core/wire.omg` declares a `payload`), so a lookup by name
