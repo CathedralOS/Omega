@@ -1866,17 +1866,10 @@ impl<'t> Program<'t> {
         } else {
             self.value_type(id, referee)?
         };
-        // A data type with `requires` may be stored into by the callee of an
-        // exclusive loan, so its domain is owed again where the loan
-        // returns; no slice follows a domain across a call yet. A shared
-        // loan admits no store, so the value behind it is the one its owner
-        // established.
-        if let ValueType::Record(record, _, _) = value_type
-            && access == language_core::ReferenceAccess::Mutable
-            && self.restricted(record)
-        {
-            return unserved("reference to data with requires");
-        }
+        // Incoming data is already established, whether lent shared or
+        // exclusively. Stores through an exclusive loan owe the same data
+        // clauses as owned stores; the existing storage windows require
+        // restoration at normal handback. No predicate is waived here.
         let home = match value_type {
             ValueType::Rigid(_) => return unserved("reference to a value of a type parameter"),
             // Its place would be declared with the identity of a primitive
@@ -1906,32 +1899,6 @@ impl<'t> Program<'t> {
                 home,
             }),
         ))
-    }
-
-    /// Whether a data type or any data type inside it states `requires`.
-    fn restricted(&self, record: semantic_vocabulary::StructuralTypeId) -> bool {
-        let mut pending = vec![record];
-        while let Some(next) = pending.pop() {
-            let Some(data) = self.records.get(next) else {
-                return true;
-            };
-            if !data.requires.is_empty() {
-                return true;
-            }
-            if let crate::StorageShape::FixedArray { element, .. } = data.shape {
-                pending.push(element);
-            }
-            for field in data
-                .fields()
-                .iter()
-                .chain(data.cases().iter().flat_map(|case| &case.fields))
-            {
-                if let ValueType::Record(nested, _, _) = field.value_type {
-                    pending.push(nested);
-                }
-            }
-        }
-        false
     }
 
     /// Machine `id`'s body, read with the machine as the owner of the
