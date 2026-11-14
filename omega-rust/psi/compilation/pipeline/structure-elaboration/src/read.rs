@@ -35,6 +35,7 @@ mod machine;
 mod places;
 mod predicates;
 mod reflection;
+mod regions;
 mod services;
 mod source_records;
 mod statements;
@@ -134,6 +135,27 @@ pub(crate) struct Program<'t> {
     /// occurrence: the data declaration whose members are read, or the
     /// machine whose signature or body is (`types`, `value_type`).
     lifetime_owner: SymbolHandle,
+    /// The region tuples `body::Regions` names, by position; the first is
+    /// the empty tuple (`regions`).
+    region_tuples: Vec<Vec<regions::Region>>,
+    /// The text identities of `regions::Region::Fixed`, by position.
+    fixed_regions: Vec<String>,
+    /// What each region variable was decided as, if it was (`regions`).
+    region_variables: Vec<Option<regions::Region>>,
+    /// What an elided lifetime stands for where a type is being read.
+    elision: regions::Elision,
+    /// How many fresh lifetime parameters each machine's signature was
+    /// given for its elided applications.
+    elided_lifetimes: Vec<(SymbolHandle, usize)>,
+    /// The type the expression being read is expected to have, handed from
+    /// `expression` to the call or literal it dispatches to, which takes it
+    /// before reading anything nested (`regions`: a call instantiates its
+    /// callee's lifetimes from it first).
+    expected: Option<ValueType>,
+    /// Whether the type being read may be a byte view in a domain: true
+    /// while a data field's type or a cast's result type is read, the two
+    /// places such a view is served (`byte_view_type`).
+    qualified_views: bool,
     /// How many `StructuralFieldId`s the records above hold.
     fields_minted: u64,
     /// How many `StructuralCaseId`s the sums above hold.
@@ -163,8 +185,8 @@ struct Slot {
     /// An `[erased]` formal or local. A contract clause and an erased
     /// position may name it; a runtime expression may not.
     erased: bool,
-    /// A formal passed by reference, and its access. Its `value_type` is
-    /// the referent's: the slot names the caller's storage, read and (for
+    /// A reference formal or its captured binding, and its access. Its
+    /// `value_type` is the referent's: the slot names the caller's storage, read and (for
     /// `&mut`) written in place, never an SSA value or a root of its own.
     borrowed: Option<language_core::ReferenceAccess>,
 }
@@ -238,6 +260,13 @@ impl<'t> Program<'t> {
             record_sources: IdTable::default(),
             resolving: Vec::new(),
             lifetime_owner: SymbolHandle::invalid(),
+            region_tuples: vec![Vec::new()],
+            fixed_regions: Vec::new(),
+            region_variables: Vec::new(),
+            elision: regions::Elision::Declaration,
+            elided_lifetimes: Vec::new(),
+            expected: None,
+            qualified_views: false,
             fields_minted: 0,
             cases_minted: 0,
             captures: Vec::new(),
@@ -936,10 +965,7 @@ mod tests {
         let value = typed.expression_table.insert(ExpressionNode::Boolean(true));
         let slots = [Slot {
             symbol: local,
-            value_type: ValueType::Record(
-                StructuralTypeId::new(1).unwrap(),
-                crate::body::Qualification::NONE,
-            ),
+            value_type: ValueType::record(StructuralTypeId::new(1).unwrap()),
             assignable: true,
             homed: false,
             erased: false,
@@ -961,10 +987,7 @@ mod tests {
         // A binding that is not `mut` is neither replaced nor stored into.
         let frozen = [Slot {
             symbol: local,
-            value_type: ValueType::Record(
-                StructuralTypeId::new(1).unwrap(),
-                crate::body::Qualification::NONE,
-            ),
+            value_type: ValueType::record(StructuralTypeId::new(1).unwrap()),
             assignable: false,
             homed: false,
             erased: false,
@@ -1136,10 +1159,7 @@ mod tests {
         ]);
         let slots = [Slot {
             symbol: local,
-            value_type: ValueType::Record(
-                StructuralTypeId::new(1).unwrap(),
-                crate::body::Qualification::NONE,
-            ),
+            value_type: ValueType::record(StructuralTypeId::new(1).unwrap()),
             assignable: false,
             homed: false,
             erased: false,
@@ -1198,9 +1218,8 @@ mod tests {
         );
     }
 
-    // Capturing a selector uses the ordinary local binder. Its complete type
-    // must survive; a reference must not become an integer snapshot merely
-    // because both appear in an index expression.
+    // A captured scalar remains a value; a captured reference keeps the
+    // original storage and access instead of snapshotting the referent.
     #[test]
     fn operand_captures_keep_their_complete_binding_type() {
         use typed_trees::statement::TableLocalData;
@@ -1232,6 +1251,13 @@ mod tests {
             .insert(TypeReferenceNode::Reference {
                 referee: carrier,
                 access: ReferenceAccess::Shared,
+                lifetime: None,
+            });
+        let exclusive = typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: carrier,
+                access: ReferenceAccess::Mutable,
                 lifetime: None,
             });
         let initial = typed
@@ -1277,6 +1303,26 @@ mod tests {
         );
         assert!(!slot.assignable && !slot.homed && slot.borrowed.is_none());
         assert!(matches!(statement, crate::Statement::Bind { slot: 0, .. }));
+        let (captured, statement) = program
+            .local(
+                machine(),
+                &borrowed,
+                &TableLocalData {
+                    type_reference: reference,
+                    initial_value: borrowed_name,
+                    ..local.clone()
+                },
+            )
+            .unwrap();
+        assert_eq!(captured.borrowed, Some(ReferenceAccess::Shared));
+        assert!(captured.homed);
+        assert!(matches!(
+            statement,
+            crate::Statement::CaptureReference {
+                slot: 1,
+                original: 0
+            }
+        ));
         let mut refusal = |local: &TableLocalData| {
             program
                 .local(machine(), &borrowed, local)
@@ -1286,11 +1332,11 @@ mod tests {
         };
         assert_eq!(
             refusal(&TableLocalData {
-                type_reference: reference,
+                type_reference: exclusive,
                 initial_value: borrowed_name,
                 ..local.clone()
             }),
-            "type reference"
+            "statement reference capture without matching storage and access"
         );
         assert_eq!(
             refusal(&TableLocalData {

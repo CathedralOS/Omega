@@ -62,6 +62,10 @@ contract refinement, not inference from a selected provider. No guarded reach
 syntax is introduced. Termination must cover every admitted path; reachable
 divergence defeats an unconditional promise.
 
+Statements written after a call that checked evidence shows never returns are
+accepted as unreachable with an advisory warning; see
+[statements after a call that never returns](state_contracts.md#statements-after-a-call-that-never-returns).
+
 Normal-return `ensures` clauses keep their partial-correctness meaning. Exit
 does not establish them and does not necessarily violate them. An unconditional
 eventual-release or protocol-completion guarantee must account for terminal

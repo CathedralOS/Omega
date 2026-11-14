@@ -746,3 +746,42 @@ fn each_built_in_integer_name_is_judged_at_its_own_sign_and_width() {
     }
     assert!(wrong.is_empty(), "{wrong:#?}");
 }
+
+/// A dispatch over an owned sum that is not `[copy]`. The `Root` arm names
+/// nothing of the subject, so the subject is discarded on that case's edge
+/// (`wiki/spec/terminal-psi/control_flow.md`: "Selected payload fields become
+/// scalar parameters on that case's edge before cleanup."); the `Named` arm
+/// keeps it for the view it lends. The twin hands the same owned sum to two
+/// calls and is rejected: it was moved by the first.
+#[test]
+fn an_owned_sum_is_dispatched_and_disposed_of_once() {
+    let program = |again: &str| {
+        format!(
+            "data Selection<'storage> {{\n\
+                 case Root;\n\
+                 case Named(package: &'storage [u8]);\n\
+             }}\n\
+             machine take(view: &[u8]) {{ }}\n\
+             machine select(view: &[u8], selection: Selection) {{\n\
+                 transition selection {{\n\
+                     Selection::Root -> take(view)\n\
+                     Selection::Named {{ package }} -> take(package)\n\
+                 }}\n\
+             }}\n\
+             machine main() {{\n\
+                 let chosen: Selection = Selection::Named {{ package: \"here\" }};\n\
+                 let other: Selection = Selection::Root;\n\
+                 select(\"first\", chosen);\n\
+                 select(\"second\", {again});\n\
+             }}\n"
+        )
+    };
+    assert_eq!(
+        verdicts("owned_sum_dispatched", &program("other")),
+        ["accepted"]
+    );
+    assert_eq!(
+        verdicts("owned_sum_moved_twice", &program("chosen")),
+        ["rejected"]
+    );
+}

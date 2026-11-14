@@ -27,6 +27,7 @@ mod arithmetic_policies;
 mod arrays;
 mod boundary_calls;
 mod build_purpose;
+mod byte_domains;
 mod case_payloads;
 mod ceilings;
 mod empty_records;
@@ -35,9 +36,11 @@ mod entryless;
 mod guard_contradiction;
 mod inferred_bounds;
 mod lifetime_elision;
+mod lifetime_generics;
 mod machine_lifetimes;
 mod mathematical_clauses;
 mod mutable_formals;
+mod owned_dispatch;
 mod proof_scope;
 mod provider_supplies;
 mod ranges;
@@ -1311,6 +1314,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
         id: id(raw),
         identity: spelled.to_owned(),
         value_type,
+        byte_predicates: semantic_vocabulary::ByteSequencePredicateSet::EMPTY,
     };
     let mut records = IdTable::default();
     records.push(RecordType {
@@ -2991,6 +2995,7 @@ fn every_use_of_storage_has_exactly_one_verdict() {
             id: id(5),
             identity: String::from("v"),
             value_type: ValueType::plain(u32_type()),
+            byte_predicates: semantic_vocabulary::ByteSequencePredicateSet::EMPTY,
         }]),
         requires: vec![Proposition::LessOrEqual(number(1), field_of_self(5))],
     });
@@ -3127,6 +3132,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
         id: id(raw),
         identity: spelled.to_owned(),
         value_type,
+        byte_predicates: semantic_vocabulary::ByteSequencePredicateSet::EMPTY,
     };
     let case = |raw, spelled: &str, fields| CaseType {
         id: id(raw),
@@ -3788,6 +3794,7 @@ fn constrained() -> IdTable<StructuralTypeId, RecordType> {
         id: id(raw),
         identity: spelled.to_owned(),
         value_type,
+        byte_predicates: semantic_vocabulary::ByteSequencePredicateSet::EMPTY,
     };
     let record = |spelled: &str, fields, requires| RecordType {
         owns_linear_claim: false,
@@ -5316,6 +5323,7 @@ fn windowed() -> IdTable<StructuralTypeId, RecordType> {
         id: id(raw),
         identity: spelled.to_owned(),
         value_type: scalar,
+        byte_predicates: semantic_vocabulary::ByteSequencePredicateSet::EMPTY,
     };
     let at_least_one = |raw| Proposition::LessOrEqual(number(1), field_of_self(raw));
     let mut records = constrained();

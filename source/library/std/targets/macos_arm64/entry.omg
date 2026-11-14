@@ -176,7 +176,7 @@ machine MacosArm64::plan(signature: BoundarySignature) -> BoundaryPlanResult
     machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
             reason: CallingPolicyRejection {
-                reason: "MacosApplication requires exact physical or program-storage entry shapes",
+                reason: "MacosApplication requires exact physical or program-storage entry shapes" as +Utf8,
             },
         }
     }

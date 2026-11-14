@@ -21,9 +21,11 @@ regions. Nominal cleanup hooks, linear claims, reference-bearing data and
 extraction through borrowed storage remain outside this slice.
 A declaration may state lifetime parameters, `data Outer<'a>`, and a field
 may apply such data at them, `inner: Inner<'a>`: they are erased regions, so
-the declaration is one record type (`lifetime_binders`,
-`lifetime_application`). A field may store a byte view, `&'a [u8]`, whose
-type carries the region it names (`bytes`); a reference to anything else in a
+the declaration is one record row (`lifetime_binders`, `lifetime_application`),
+and the regions a value of it is at belong to its value type (`regions`): a
+field read, a literal or a store sees the field types at them
+(`field_type`). A field may store a byte view, `&'a [u8]`, whose type carries
+the region it names (`bytes`); a reference to anything else in a
 field is still refused (`type reference`).
 A declaration's `requires` is read into `RecordType::requires` by the clause
 reader the machine contracts use (`contracts`), over `self` and its fields;
@@ -112,7 +114,13 @@ impl Program<'_> {
         if let Some(reference) = data.generic_instance {
             return self.record_at(id, reference);
         }
+        // Named with no application, the declaration is at its own regions:
+        // a value of it holds views of whatever regions its declaration's
+        // parameters stand for (`regions`).
+        let elided = self.elided_regions(id, data.symbol)?;
+        let regions = self.intern_regions(elided);
         self.record_definition(id, data, None)
+            .map(|value_type| with_regions(value_type, regions))
     }
 
     pub(super) fn record_at(
@@ -129,7 +137,73 @@ impl Program<'_> {
             )
         })?;
         let application = super::source_records::source_application(typed, data, reference, id)?;
+        let regions = self.occurrence_regions(id, data, reference)?;
         self.record_definition(id, data, Some(application))
+            .map(|value_type| with_regions(value_type, regions))
+    }
+
+    /// The regions a type occurrence applies `data` at. `Message<'a>` names
+    /// `'a`: the parameter the typed trees resolved that argument to, else
+    /// the one its tag names in the occurrence's lifetime owner
+    /// (lifetimes.md: a named data application must "use binders declared in
+    /// the lexical owner"). `Message` with its lifetimes elided is at the
+    /// declaration's own regions.
+    fn occurrence_regions(
+        &mut self,
+        id: MachineId,
+        data: &DataDefinition,
+        reference: typed_trees::types::TypeReferenceHandle,
+    ) -> Checked<crate::body::Regions> {
+        use typed_trees::type_identity::lifetime_parameter_identity;
+        if data.lifetime_parameters.is_empty() {
+            return Ok(crate::body::Regions::NONE);
+        }
+        let typed = self.typed;
+        let table = &typed.type_reference_table;
+        let arguments: &[Identifier] = match table.type_reference(reference) {
+            TypeReferenceNode::Generic {
+                lifetime_arguments, ..
+            } => lifetime_arguments,
+            _ => &[],
+        };
+        if arguments.is_empty() {
+            let elided = self.elided_regions(id, data.symbol)?;
+            return Ok(self.intern_regions(elided));
+        }
+        let retained = table.operand_lifetimes(reference);
+        let owner = match table.operand_lifetime_owner(reference) {
+            owner if owner.is_valid() => owner,
+            _ => self.lifetime_owner,
+        };
+        let mut tuple = Vec::with_capacity(arguments.len());
+        for (slot, argument) in arguments.iter().enumerate() {
+            let parameter = match retained.get(slot) {
+                Some(region) if region.declaration.is_valid() => Some(*region),
+                _ if owner.is_valid() => {
+                    lifetime_parameter_identity(typed, owner, argument.as_str())
+                }
+                _ => None,
+            };
+            let parameter = parameter.ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Typing("lifetime argument its owner does not declare"),
+                )
+            })?;
+            tuple.push(super::regions::Region::Parameter(parameter));
+        }
+        Ok(self.intern_regions(tuple))
+    }
+
+    /// The declaration a record row was read from; invalid for a row with
+    /// none of its own (a view, an array, a literal).
+    pub(crate) fn source_declaration(
+        &self,
+        id: MachineId,
+        record: StructuralTypeId,
+    ) -> Checked<SymbolHandle> {
+        Ok(self.source(id, record)?.declaration)
     }
 
     fn record_definition(
@@ -173,7 +247,7 @@ impl Program<'_> {
             if let Some(application) = &application {
                 self.record_application(id, record, application.reference)?;
             }
-            return Ok(ValueType::Record(record, Qualification::NONE));
+            return Ok(ValueType::record(record));
         }
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Type(what));
         if self
@@ -201,6 +275,7 @@ impl Program<'_> {
         // is read under its own, so the enclosing owner is put back whether
         // or not the members were served.
         let enclosing = std::mem::replace(&mut self.lifetime_owner, symbol);
+        let elision = std::mem::replace(&mut self.elision, super::regions::Elision::Declaration);
         let read = (|| {
             // A closed metadata row is not argument admission. Each supplied
             // type must itself be a type this same checked route can serve.
@@ -212,6 +287,7 @@ impl Program<'_> {
             self.declared_members(id, members)
         })();
         self.lifetime_owner = enclosing;
+        self.elision = elision;
         self.resolving.pop();
         let (fields, field_symbols, cases, case_symbols) = read?;
         let mut mint = |fields: Vec<(String, ValueType)>| {
@@ -220,10 +296,12 @@ impl Program<'_> {
                 self.fields_minted += 1;
                 let field = StructuralFieldId::new(self.fields_minted)
                     .ok_or_else(|| unserved("field identity overflow"))?;
+                let byte_predicates = self.view_predicates(id, value_type)?;
                 declared.push(RecordField {
                     id: field,
                     identity,
                     value_type,
+                    byte_predicates,
                 });
             }
             Ok(declared)
@@ -260,7 +338,7 @@ impl Program<'_> {
                 .iter()
                 .chain(case_types.iter().flat_map(|case| &case.fields))
                 .any(|field| match field.value_type {
-                    ValueType::Record(child, _) => self
+                    ValueType::Record(child, _, _) => self
                         .records
                         .get(child)
                         .is_some_and(|record| record.owns_linear_claim),
@@ -300,7 +378,7 @@ impl Program<'_> {
             formal_fields: false,
             mathematical: MathematicalTerms::Refused("mathematical comparison in a data requires"),
             subject: Some(DataSubject {
-                value_type: ValueType::Record(record, Qualification::NONE),
+                value_type: ValueType::record(record),
                 symbol: data.predicate_subject_symbol,
                 root,
                 path: &[],
@@ -356,7 +434,7 @@ impl Program<'_> {
             .get_mut(record)
             .ok_or_else(|| unserved("record identity"))?
             .requires = requires;
-        Ok(ValueType::Record(record, Qualification::NONE))
+        Ok(ValueType::record(record))
     }
 
     /// The fields and cases of a data declaration, each with its symbols,
@@ -436,7 +514,7 @@ impl Program<'_> {
                 Unserved::Typing("data field that elides a lifetime argument"),
             ));
         }
-        let value_type = self.value_type(id, field.type_reference)?;
+        let value_type = self.qualified_view_type(id, field.type_reference)?;
         // lifetimes.md: "A lifetime relates a borrowed result or stored view
         // to storage that remains valid for its use." The one view a field
         // may store is a byte view, a `Record` here, and its type is keyed
@@ -445,7 +523,7 @@ impl Program<'_> {
         // the field. A slice that adds a field type storing a view some
         // other way adds its lifetime accounting with the arm it adds here.
         match value_type {
-            ValueType::Scalar(..) | ValueType::Record(_, _) | ValueType::Rigid(_) => {}
+            ValueType::Scalar(..) | ValueType::Record(_, _, _) | ValueType::Rigid(_) => {}
         }
         let identity = field.member_identity().spelling();
         if identity.is_empty() {
@@ -533,7 +611,22 @@ impl Program<'_> {
             })
     }
 
+    /// A field's type as a value of `record` at `regions` sees it: the
+    /// row's declared type with the declaration's own lifetimes replaced by
+    /// the value's (`regions::field_regions`).
     fn field_type(
+        &mut self,
+        id: MachineId,
+        record: StructuralTypeId,
+        regions: crate::body::Regions,
+        field: usize,
+    ) -> Checked<ValueType> {
+        let declared = self.declared_field_type(id, record, field)?;
+        let substitution = self.field_regions(id, record, regions)?;
+        Ok(self.substitute(declared, &substitution))
+    }
+
+    fn declared_field_type(
         &self,
         id: MachineId,
         record: StructuralTypeId,
@@ -553,6 +646,19 @@ impl Program<'_> {
     }
 
     fn payload_type(
+        &mut self,
+        id: MachineId,
+        record: StructuralTypeId,
+        regions: crate::body::Regions,
+        case: usize,
+        field: usize,
+    ) -> Checked<ValueType> {
+        let declared = self.declared_payload_type(id, record, case, field)?;
+        let substitution = self.field_regions(id, record, regions)?;
+        Ok(self.substitute(declared, &substitution))
+    }
+
+    fn declared_payload_type(
         &self,
         id: MachineId,
         record: StructuralTypeId,
@@ -672,15 +778,18 @@ impl Program<'_> {
                 Unserved::Typing("member of a value that is not a record"),
             ));
         };
+        let regions = base
+            .result
+            .map_or(crate::body::Regions::NONE, ValueType::regions);
         let base = Box::new(base);
         Ok(match self.member_of(id, record, member.member_symbol)? {
             Member::Field(field) => Expression {
-                result: Some(self.field_type(id, record, field)?),
+                result: Some(self.field_type(id, record, regions, field)?),
                 kind: ExpressionKind::Field { base, field },
                 source,
             },
             Member::Payload { case, field } => Expression {
-                result: Some(self.payload_type(id, record, case, field)?),
+                result: Some(self.payload_type(id, record, regions, case, field)?),
                 kind: ExpressionKind::Payload { base, case, field },
                 source,
             },
@@ -698,6 +807,7 @@ impl Program<'_> {
         literal: &TableStructLiteral,
         source: SourceOrigin,
     ) -> Checked<Expression> {
+        let expected = self.expected.take();
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
         let typing = |what| refuse(id, Construct::Machine, Unserved::Typing(what));
         let spelling = |what| refuse(id, Construct::Machine, Unserved::Spelling(what));
@@ -751,9 +861,22 @@ impl Program<'_> {
         };
         // A literal constructs the bare carrier: "Constructing a fresh valid
         // carrier precedes establishing its qualification" (domains.md).
-        let ValueType::Record(record, Qualification::NONE) = result else {
+        let ValueType::Record(record, Qualification::NONE, written) = result else {
             return Err(typing("record literal of a scalar or a qualified type"));
         };
+        // A literal is a fresh value, so the regions it is at are the ones
+        // the place it stands for asks (an argument, an initializer, a
+        // field), whatever lifetime spelling typing attached to its type: a
+        // literal passed to `from_source<'storage>(source: Source<'storage>)`
+        // carries that callee's `'storage`, which names no region the caller
+        // holds. What it holds is then judged against its field types at
+        // those regions, so a view of another region is still refused. With
+        // nothing expected it is at the regions its own type names.
+        let regions = match expected {
+            Some(ValueType::Record(row, Qualification::NONE, regions)) if row == record => regions,
+            _ => written,
+        };
+        let result = with_regions(result, regions);
         for reference in applications {
             if reference.is_valid() {
                 self.record_application(id, record, reference)?;
@@ -762,7 +885,7 @@ impl Program<'_> {
         // Stage 03 also records the literal's type as a type reference; it
         // must be this same record, or the literal applies a generic.
         if literal.application_type.is_valid()
-            && self.value_type(id, literal.application_type)? != result
+            && self.value_type(id, literal.application_type)?.erased() != result.erased()
         {
             return Err(unserved("record literal of an applied type"));
         }
@@ -770,6 +893,7 @@ impl Program<'_> {
             Some(symbol) => Some(self.case_position(id, record, symbol)?),
             None => None,
         };
+        let substitution = self.field_regions(id, record, regions)?;
         let data = self.data_type(id, record)?;
         let declared: Vec<ValueType> = match case {
             Some(case) => data
@@ -785,6 +909,10 @@ impl Program<'_> {
             }
             None => return Err(typing("literal of a sum without a case")),
         };
+        let declared: Vec<ValueType> = declared
+            .into_iter()
+            .map(|field| self.substitute(field, &substitution))
+            .collect();
         let authored = self.typed.expression_table.struct_fields(literal.fields);
         let mut seen = vec![false; declared.len()];
         let mut fields = Vec::with_capacity(authored.len());
@@ -811,7 +939,7 @@ impl Program<'_> {
             }
             let field_type = declared[position];
             let operand = self.expression(id, slots, field.value, Some(field_type))?;
-            if operand.result != Some(field_type) {
+            if !self.agrees(operand.result, field_type) {
                 return Err(typing("record literal field type"));
             }
             fields.push((position, operand));
@@ -1085,17 +1213,27 @@ fn record_shape_for<'m>(
     Ok(())
 }
 
+/// `value_type` at `regions`, when it is a record type; a record row is the
+/// same whatever regions a value of it holds (`regions`).
+pub(super) fn with_regions(value_type: ValueType, regions: crate::body::Regions) -> ValueType {
+    match value_type {
+        ValueType::Record(record, qualification, _) => {
+            ValueType::Record(record, qualification, regions)
+        }
+        other => other,
+    }
+}
+
 /// The lifetime binders of a data declaration, `data Message<'buffer>`.
 ///
 /// A lifetime parameter selects nothing a value is made of.
 /// `wiki/spec/language/lifetimes.md`: "Lifetime arguments are erased regions,
 /// separate from runtime generic arity, layout and monomorphization." So a
-/// declaration with lifetime parameters is one record type, whatever
+/// declaration with lifetime parameters is one record row, whatever
 /// lifetimes a use applies it at, and is read like plain data. The same
 /// sentence goes on: "Erasure does not remove semantic lifetime relations or
-/// loan obligations." Those belong to the views a value stores, and a
-/// stored view keeps its region in its own type (`declared_field`), so the
-/// declaration's record identity has none to keep.
+/// loan obligations." Those are kept in the value type instead: the regions
+/// a value is at (`regions`), which its stored views' types are read at.
 ///
 /// What is checked is the declaration itself: "Duplicate binders and
 /// undeclared tags reject." The typed trees name a lifetime parameter by its
@@ -1193,7 +1331,9 @@ fn copy_field_is_unrestricted(
     match field {
         // A policy changes no payload: the integer copies as its carrier does.
         ValueType::Scalar(..) => true,
-        ValueType::Record(record, _) => records.get(record).is_some_and(|record| record.copyable),
+        ValueType::Record(record, _, _) => {
+            records.get(record).is_some_and(|record| record.copyable)
+        }
         ValueType::Rigid(_) => false,
     }
 }
@@ -1219,16 +1359,16 @@ mod tests {
             requires: Vec::new(),
         });
         assert!(!copy_field_is_unrestricted(
-            ValueType::Record(owned, Qualification::NONE),
+            ValueType::record(owned),
             &records
         ));
         records.get_mut(owned).unwrap().copyable = true;
         assert!(copy_field_is_unrestricted(
-            ValueType::Record(owned, Qualification::NONE),
+            ValueType::record(owned),
             &records
         ));
         assert!(!copy_field_is_unrestricted(
-            ValueType::Record(StructuralTypeId::new(2).unwrap(), Qualification::NONE),
+            ValueType::record(StructuralTypeId::new(2).unwrap()),
             &records,
         ));
     }

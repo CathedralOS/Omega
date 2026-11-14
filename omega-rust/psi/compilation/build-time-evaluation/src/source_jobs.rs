@@ -801,6 +801,144 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn field_queries_return_the_selected_declaration_and_its_complete_application() {
+        fn field<'a>(value: &'a crate::BuildTimeValue, name: &str) -> &'a crate::BuildTimeValue {
+            let crate::BuildTimeValue::Struct { fields, .. } = value else {
+                panic!("the query returns the ordinary FieldInfo record")
+            };
+            let mut matches = fields.iter().filter(|(key, _)| key == name);
+            let (_, value) = matches.next().expect("declared description field");
+            assert!(matches.next().is_none());
+            value
+        }
+
+        let source = with_reflection(
+            "use omega::language::core::reflect;
+            data Cell<T> { #7 value: T; }
+            data Packet { case Ready(#9 value: u32); }
+            machine first() -> reflect::FieldInfo { reflect::field(Cell<u32>::value) }
+            machine second() -> reflect::FieldInfo { reflect::field(Cell<u64>::value) }
+            machine payload() -> reflect::FieldInfo { reflect::field(Packet::Ready::value) }",
+        );
+        let prepared = PreparedBuildMachineProgram::prepare(&source, None).unwrap();
+        let mut accounting = crate::SourceCompletionAccounting::default();
+        let mut values = Vec::new();
+        for name in ["first", "second", "payload"] {
+            let symbol = source.realized_machine_named(name).unwrap().symbol;
+            values.push(
+                prepared
+                    .entry(symbol, symbol, &[])
+                    .unwrap()
+                    .invoke_recorded(target(), &mut accounting)
+                    .unwrap_or_else(|reason| panic!("{name}: {reason}"))
+                    .value()
+                    .clone(),
+            );
+        }
+        for value in &values {
+            assert_eq!(
+                field(value, "name"),
+                &crate::BuildTimeValue::Text(b"value".to_vec())
+            );
+            assert_eq!(
+                field(value, "declaration_position"),
+                &crate::BuildTimeValue::Int(0)
+            );
+            assert_eq!(
+                field(value, "has_stable_number"),
+                &crate::BuildTimeValue::Bool(true)
+            );
+            assert_eq!(
+                field(value, "is_erased"),
+                &crate::BuildTimeValue::Bool(false)
+            );
+            assert!(
+                matches!(field(value, "source_revision"), crate::BuildTimeValue::Text(bytes) if !bytes.is_empty())
+            );
+        }
+        assert_eq!(
+            field(&values[0], "stable_number"),
+            &crate::BuildTimeValue::Int(7)
+        );
+        assert_eq!(
+            field(&values[2], "stable_number"),
+            &crate::BuildTimeValue::Int(9)
+        );
+        assert_eq!(
+            field(&values[0], "case_identity"),
+            &crate::BuildTimeValue::Text(Vec::new())
+        );
+        assert!(
+            matches!(field(&values[2], "case_identity"), crate::BuildTimeValue::Text(bytes) if !bytes.is_empty())
+        );
+        assert_eq!(
+            field(&values[0], "member_identity"),
+            field(&values[1], "member_identity")
+        );
+        assert_eq!(
+            field(&values[0], "owner_identity"),
+            field(&values[1], "owner_identity")
+        );
+        assert_ne!(
+            field(&values[0], "owner_application"),
+            field(&values[1], "owner_application")
+        );
+        assert_ne!(
+            field(&values[0], "qualified_type"),
+            field(&values[1], "qualified_type")
+        );
+        assert_eq!(
+            field(&values[0], "source_revision"),
+            field(&values[1], "source_revision")
+        );
+        accounting.validate_charges().unwrap();
+    }
+
+    #[test]
+    fn field_queries_reject_values_and_data_heads_without_reclassifying_ordinary_calls() {
+        let source = with_reflection(
+            "use omega::language::core::reflect;
+            data Cell { value: u32; }
+            machine held(value: u32) -> reflect::FieldInfo { reflect::field(value) }
+            machine wrong() -> reflect::FieldInfo { reflect::field(Cell) }
+            machine observed() -> reflect::FieldInfo {
+                let cell: Cell = Cell { value: 1 };
+                reflect::field(cell.value)
+            }
+            machine field(value: u32) -> u32 { value }
+            machine ordinary() -> u32 { field(7) }",
+        );
+        let prepared = PreparedBuildMachineProgram::prepare(&source, None).unwrap();
+        let mut accounting = crate::SourceCompletionAccounting::default();
+        for (name, arguments, expected) in [
+            (
+                "held",
+                vec![crate::BuildTimeValue::Int(3)],
+                "exact resolved field declaration",
+            ),
+            ("wrong", Vec::new(), "exact resolved field declaration"),
+            ("observed", Vec::new(), "uninvoked path"),
+        ] {
+            let symbol = source.realized_machine_named(name).unwrap().symbol;
+            let reason = prepared
+                .entry(symbol, symbol, &arguments)
+                .err()
+                .expect("a runtime value is not a field selector");
+            assert!(reason.contains(expected), "{name}: {reason}");
+        }
+        let symbol = source.realized_machine_named("ordinary").unwrap().symbol;
+        assert_eq!(
+            prepared
+                .entry(symbol, symbol, &[])
+                .unwrap()
+                .invoke_recorded(target(), &mut accounting)
+                .unwrap()
+                .value(),
+            &crate::BuildTimeValue::Int(7)
+        );
+    }
+
+    #[test]
     fn source_call_requests_keep_their_authored_operand_and_owner() {
         let source = with_reflection(
             "use omega::language::core::reflect;

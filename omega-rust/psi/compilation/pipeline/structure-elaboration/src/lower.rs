@@ -312,7 +312,7 @@ impl Lowering<'_> {
             // its primitive type, read and stored like a home.
             if let Some(borrowed) = signature.borrowed(position) {
                 let (referent, scalar) = match *value_type {
-                    ValueType::Record(record, _) => (record, false),
+                    ValueType::Record(record, _, _) => (record, false),
                     ValueType::Scalar(..) => (
                         self.records
                             .primitive(*value_type, borrowed.home.as_deref(), self.id)?,
@@ -374,7 +374,7 @@ impl Lowering<'_> {
                 }
                 // A record formal is a root place the machine owns for the
                 // activation; what it holds at entry is entry content.
-                ValueType::Record(record, _) => {
+                ValueType::Record(record, _, _) => {
                     let lane = self.position(formals.records.len())?;
                     let (place, _) =
                         self.root(StructuralPlaceKind::Parameter { position: lane }, record)?;
@@ -416,7 +416,7 @@ impl Lowering<'_> {
                 }
                 TerminalMachineResult::Scalar(declaration(value, scalar_type))
             }
-            Some(ValueType::Record(record, _)) => {
+            Some(ValueType::Record(record, _, _)) => {
                 let (place, _) = self.root(StructuralPlaceKind::Result, record)?;
                 TerminalMachineResult::Structural(StructuralResultDeclaration {
                     place,

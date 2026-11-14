@@ -163,8 +163,10 @@ fn statements(statements: &[Statement], sites: &mut Vec<CallSite>) {
                 expression(destination, sites);
                 expression(value, sites);
             }
-            // An erased term is a literal or a binding: it calls nothing.
-            Statement::Declare { .. } | Statement::Witness { .. } => {}
+            // Declarations, erased terms and reference captures call nothing.
+            Statement::Declare { .. }
+            | Statement::Witness { .. }
+            | Statement::CaptureReference { .. } => {}
             Statement::Dispatch {
                 subject,
                 arms,
@@ -290,7 +292,7 @@ fn expression(value: &Expression, sites: &mut Vec<CallSite>) {
 /// log that follows them, which a later slice of the loops lane serves.
 fn uses_storage(body: &Body, signature: &Signature) -> bool {
     fn stored(value: &Expression) -> bool {
-        if matches!(value.result, Some(ValueType::Record(_, _))) {
+        if matches!(value.result, Some(ValueType::Record(_, _, _))) {
             return true;
         }
         match &value.kind {
@@ -324,7 +326,7 @@ fn uses_storage(body: &Body, signature: &Signature) -> bool {
             Target::Unit | Target::Crash(_) => false,
         }
     }
-    let data = |value_type: &ValueType| matches!(value_type, ValueType::Record(_, _));
+    let data = |value_type: &ValueType| matches!(value_type, ValueType::Record(_, _, _));
     signature.parameters.iter().any(data)
         || !signature.borrowed.is_empty()
         || signature.result.as_ref().is_some_and(data)
@@ -333,9 +335,10 @@ fn uses_storage(body: &Body, signature: &Signature) -> bool {
             Statement::Bind { value, .. } | Statement::Evaluate(value) => stored(value),
             // Refused on a cycle by its own name, as an erased binding.
             Statement::Witness { .. } => false,
-            Statement::Declare { .. } | Statement::Store { .. } | Statement::Dispatch { .. } => {
-                true
-            }
+            Statement::CaptureReference { .. }
+            | Statement::Declare { .. }
+            | Statement::Store { .. }
+            | Statement::Dispatch { .. } => true,
             Statement::Arm { guard, target, .. } => {
                 guard.as_ref().is_some_and(stored) || arm(target)
             }

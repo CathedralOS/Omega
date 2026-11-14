@@ -603,15 +603,23 @@ pub fn elaborate_callable_witness<'a>(
 }
 
 fn elaborate_witness_call(
-    program: read::Program<'_>,
+    mut program: read::Program<'_>,
     entry: MachineId,
     callee: MachineId,
 ) -> Checked<Elaboration> {
     let required =
-        terminal_check_tables::row(&program.signatures, entry, entry, Construct::Machine)?;
+        terminal_check_tables::row(&program.signatures, entry, entry, Construct::Machine)?.clone();
     let supplied =
-        terminal_check_tables::row(&program.signatures, callee, entry, Construct::Machine)?;
-    if required.parameters != supplied.parameters || required.result != supplied.result {
+        terminal_check_tables::row(&program.signatures, callee, entry, Construct::Machine)?.clone();
+    let supplied_machine = program
+        .symbols
+        .get(callee)
+        .copied()
+        .unwrap_or_else(SymbolHandle::invalid);
+    // The implementation's lifetimes are its own; it refines the
+    // requirement when its signature is the requirement's once they are
+    // instantiated, as the witness's call instantiates them.
+    if !program.same_signature(entry, &required, &supplied, supplied_machine)? {
         return Err(refuse(
             entry,
             Construct::Machine,
@@ -890,9 +898,21 @@ fn lower_generic_for(
                     detail: detail.to_owned(),
                 }
             })?;
-        // Planning records disposal; it does not establish ownership. The
-        // checker reconstructs unavailable uses and the complete edge schedule.
+        // Receiving storage may be intact or exactly vacated by a preceding
+        // move. Install the mode reconstructed from the final ownership
+        // frontier; source syntax alone cannot distinguish them. The checker
+        // independently reconstructs these modes and the disposal schedule.
         for block in &mut machine.blocks {
+            for operation in &mut block.operations {
+                if let terminal_psi::OperationKind::StoreStructuralField { disposition, .. } =
+                    &mut operation.kind
+                    && let Ok(position) = plan
+                        .stores
+                        .binary_search_by_key(&operation.id, |(operation, _)| *operation)
+                {
+                    *disposition = plan.stores[position].1;
+                }
+            }
             use terminal_psi::Terminator;
             let append = |edge, actions: &mut Vec<terminal_psi::TerminalAffineCleanupAction>| {
                 actions.retain(|action| !plan.affine_roots.contains(action.place()));

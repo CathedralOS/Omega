@@ -153,7 +153,7 @@ impl Program<'_> {
                             }
                             ValueType::Scalar(..)
                             | ValueType::Rigid(_)
-                            | ValueType::Record(_, _) => None,
+                            | ValueType::Record(_, _, _) => None,
                         };
                     }
                     self.typed
@@ -315,6 +315,19 @@ impl Program<'_> {
         }
     }
 
+    /// `value_type` where a byte view in a domain is served: a data field's
+    /// type and a cast's result type (`byte_view_type`).
+    pub(super) fn qualified_view_type(
+        &mut self,
+        id: MachineId,
+        handle: TypeReferenceHandle,
+    ) -> Checked<ValueType> {
+        let outer = std::mem::replace(&mut self.qualified_views, true);
+        let read = self.value_type(id, handle);
+        self.qualified_views = outer;
+        read
+    }
+
     pub(super) fn value_type(
         &mut self,
         id: MachineId,
@@ -373,8 +386,9 @@ impl Program<'_> {
             return self.qualified_type(id, *base_type, *constraints);
         }
         // `Inner<'a>`: data applied at lifetime arguments and nothing else
-        // is the declaration's one record type, because a lifetime argument
-        // is an erased region (`places`, `lifetime_binders`). The
+        // is the declaration's one record row, because a lifetime argument
+        // is an erased region; the regions it names are part of the value
+        // type (`places::occurrence_regions`, `regions`). The
         // application itself is checked against the declaration and the
         // owner of the lifetimes it names (`lifetime_application`). An
         // application with a type, const or machine argument, or of data

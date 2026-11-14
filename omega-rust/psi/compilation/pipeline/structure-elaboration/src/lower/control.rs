@@ -225,12 +225,20 @@ impl Lowering<'_> {
         match statement {
             Statement::Bind { slot, value } => {
                 let bound = match value.result {
-                    Some(ValueType::Record(_, _)) => Bound::Record(self.bind_record(value)?),
+                    Some(ValueType::Record(_, _, _)) => Bound::Record(self.bind_record(value)?),
                     Some(ValueType::Scalar(..) | ValueType::Rigid(_)) | None => {
                         Bound::Scalar(self.scalar(value)?)
                     }
                 };
                 *self.slot_mut(*slot)? = Some(bound);
+                Ok(())
+            }
+            Statement::CaptureReference { slot, original } => {
+                let bound = *self.slot_mut(*original)?;
+                if !matches!(bound, Some(Bound::Record(_) | Bound::Home(_))) {
+                    return Err(self.internal("a reference capture has no storage"));
+                }
+                *self.slot_mut(*slot)? = bound;
                 Ok(())
             }
             Statement::Witness { slot, term } => {

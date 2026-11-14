@@ -10,7 +10,7 @@ public LinuxArm64ByteViewCalling satisfies CallingPolicy {
         transition accepted {
             true -> BoundaryPlanResult::Accepted { plan: plan }
             _ -> BoundaryPlanResult::Rejected {
-                reason: CallingPolicyRejection { reason: "expected bounded byte views and integer or sized-reference formals" }
+                reason: CallingPolicyRejection { reason: "expected bounded byte views and integer or sized-reference formals" as +Utf8 }
             }
         }
     }
@@ -23,7 +23,7 @@ public LinuxX86ByteViewCalling satisfies CallingPolicy {
         transition accepted {
             true -> BoundaryPlanResult::Accepted { plan: plan }
             _ -> BoundaryPlanResult::Rejected {
-                reason: CallingPolicyRejection { reason: "expected bounded byte views and integer or sized-reference formals" }
+                reason: CallingPolicyRejection { reason: "expected bounded byte views and integer or sized-reference formals" as +Utf8 }
             }
         }
     }
@@ -38,7 +38,7 @@ public SystemVByteViewCalling satisfies CallingPolicy {
         transition accepted {
             true -> BoundaryPlanResult::Accepted { plan: plan }
             _ -> BoundaryPlanResult::Rejected {
-                reason: CallingPolicyRejection { reason: "expected bounded byte views and integer or sized-reference formals" }
+                reason: CallingPolicyRejection { reason: "expected bounded byte views and integer or sized-reference formals" as +Utf8 }
             }
         }
     }
@@ -51,7 +51,7 @@ public DarwinArm64ByteViewCalling satisfies CallingPolicy {
         transition accepted {
             true -> BoundaryPlanResult::Accepted { plan: plan }
             _ -> BoundaryPlanResult::Rejected {
-                reason: CallingPolicyRejection { reason: "expected bounded byte views and integer or sized-reference formals" }
+                reason: CallingPolicyRejection { reason: "expected bounded byte views and integer or sized-reference formals" as +Utf8 }
             }
         }
     }
