@@ -70,6 +70,7 @@ fn a_no_normal_borrow_keeps_the_callers_affine_owner_suspended() {
             Statement::Evaluate(Expression {
                 call_context: None,
                 kind: ExpressionKind::Call {
+                    required_contract: None,
                     callee: id::<MachineId>(2).into(),
                     arguments: vec![borrowed],
                     designated: None,
@@ -98,6 +99,7 @@ fn a_no_normal_borrow_keeps_the_callers_affine_owner_suspended() {
                 vec![Borrowed {
                     position: 0,
                     access: ReferenceAccess::Mutable,
+                    referent: typed_trees_to_terminal_psi::BorrowedReferent::Value,
                     home: None,
                     regions: Default::default(),
                 }]

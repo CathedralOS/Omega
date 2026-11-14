@@ -191,15 +191,19 @@ pub(crate) mod compiler_evaluation {
                     count,
                     ..
                 } => {
-                    if let Some((_, count)) = count.integer_value()
-                        && value_type
-                            .exact_shift_right(value_type.minimum_value(), *count_type, count)
+                    if let Some((_, count)) = count.integer_value() {
+                        let minimum = value_type.minimum_value().ok_or(
+                            "the checked crash guard exact-shift count requires a concrete integer width",
+                        )?;
+                        if value_type
+                            .exact_shift_right(minimum, *count_type, count)
                             .is_none()
-                    {
-                        return Err(
-                            "the checked crash guard contains an undefined exact-shift count"
-                                .into(),
-                        );
+                        {
+                            return Err(
+                                "the checked crash guard contains an undefined exact-shift count"
+                                    .into(),
+                            );
+                        }
                     }
                 }
                 _ => (),
@@ -312,6 +316,36 @@ pub(crate) mod compiler_evaluation {
 
             fn integer(value: u128) -> ScalarTerm {
                 ScalarTerm::integer(integer_type(), IntegerValue::Unsigned(value)).unwrap()
+            }
+
+            #[test]
+            fn exact_shift_formation_requires_a_concrete_width_and_valid_count() {
+                let parameter = semantic_vocabulary::WidthParameter {
+                    owner: semantic_vocabulary::MachineId::new(1).unwrap(),
+                    value: ValueId::new(2).unwrap(),
+                };
+                let shift = |value_type, count| ScalarTerm::ExactIntegerShiftRight {
+                    value_type,
+                    count_type: integer_type(),
+                    value: Box::new(ScalarTerm::value(
+                        ValueId::FIRST,
+                        ScalarType::Integer(value_type),
+                    )),
+                    count: Box::new(integer(count)),
+                };
+                let symbolic = IntegerType::parameterized(IntegerSign::Unsigned, parameter);
+                assert!(
+                    require_formed_scalar(&shift(symbolic, 0))
+                        .unwrap_err()
+                        .contains("requires a concrete integer width")
+                );
+                let closed = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+                assert_eq!(require_formed_scalar(&shift(closed, 7)), Ok(false));
+                assert!(
+                    require_formed_scalar(&shift(closed, 8))
+                        .unwrap_err()
+                        .contains("undefined exact-shift count")
+                );
             }
 
             fn route(cause: CrashCause, guard: Proposition) -> CrashRouteBucket {
@@ -585,6 +619,7 @@ pub(crate) mod compiler_evaluation {
                         },
                     )],
                     contract: terminal_psi::MachineContract {
+                        selected_application: None,
                         declaration: None,
                         parameters: vec![terminal_psi::ValueDeclaration {
                             id: ValueId::FIRST,
@@ -919,7 +954,7 @@ pub(crate) mod compiler_evaluation {
         let mut effects = CompilerEvaluationEffects::default();
         let mut closure_violation = None;
         let selection_violation = require_invocation_selections(
-            scope,
+            artifact.module(),
             &closure,
             root,
             requester,
@@ -1029,7 +1064,7 @@ pub(crate) mod compiler_evaluation {
             .ok_or("declaration admission entry has no selected target body")?;
         let invocation = compiler_invocation_scope(scope, target, providers, root)?;
         require_invocation_selections(
-            scope,
+            artifact.module(),
             &invocation.closure,
             root,
             requester,
@@ -1038,7 +1073,7 @@ pub(crate) mod compiler_evaluation {
         )
     }
 
-    fn require_invocation_selections(
+    fn require_scope_selections(
         scope: &ProofApplicationScope,
         closure: &semantic_vocabulary::proof_applications::ProofApplicationReachability<
             ProofDeclarationId,
@@ -1067,10 +1102,72 @@ pub(crate) mod compiler_evaluation {
                 )?;
             }
         }
+        Ok(())
+    }
+
+    fn require_invocation_selections(
+        module: &terminal_psi::TerminalModule,
+        closure: &semantic_vocabulary::proof_applications::ProofApplicationReachability<
+            ProofDeclarationId,
+        >,
+        root: ProofDeclarationId,
+        requester: DeclarationCustody,
+        authority: Option<&dyn DeclarationSelectionAuthority>,
+        source_consent: Option<(
+            terminal_codec::TerminalExecutionView<'_>,
+            &dyn InvocationSourceSelection,
+        )>,
+    ) -> Result<(), String> {
+        let scope = &module.scalar_applications.proof_scope;
+        require_scope_selections(scope, closure, root, requester, authority, source_consent)?;
+        let selected = selected_call_request_sources(module, closure)?;
         for edge in &closure.invocations {
             if !edge.provider && !edge.static_delegation {
                 let source = declaration(scope, edge.source.machine())?;
                 let target = declaration(scope, edge.target.machine())?;
+                if let Some(ordinal) = edge.call_ordinal {
+                    let key = (edge.source.machine(), ordinal);
+                    if let Ok(position) = selected
+                        .binary_search_by_key(&key, |(caller, ordinal, _, _)| (*caller, *ordinal))
+                    {
+                        let (_, _, callee, supplier) = selected[position];
+                        if callee != edge.target.machine() {
+                            return Err("selected invocation names another canonical call".into());
+                        }
+                        let (
+                            DeclarationCustody::Package(caller),
+                            DeclarationCustody::Package(body),
+                        ) = (source.custody, target.custody)
+                        else {
+                            return Err("selected invocation lost its exact package custody".into());
+                        };
+                        let requests = source.selections.as_ref().map_err(Clone::clone)?;
+                        for request in [
+                            semantic_vocabulary::compiler_evaluation::DeclarationAuthorityRequest {
+                                requester: caller,
+                                owner: supplier,
+                            },
+                            semantic_vocabulary::compiler_evaluation::DeclarationAuthorityRequest {
+                                requester: supplier,
+                                owner: body,
+                            },
+                        ] {
+                            if requests
+                                .binary_search_by_key(
+                                    &(request.requester, request.owner),
+                                    |request| (request.requester, request.owner),
+                                )
+                                .is_err()
+                            {
+                                return Err("selected invocation lost its supplier's admitted source-selection requests".into());
+                            }
+                        }
+                        // These exact requests were admitted above. The source
+                        // chose the map; its supplier chose this body. Do not
+                        // charge that physical edge as a new authored choice.
+                        continue;
+                    }
+                }
                 require_invocation_selection(
                     (source.custody, Some(edge.source.machine())),
                     (target.custody, edge.target.machine()),
@@ -1080,6 +1177,144 @@ pub(crate) mod compiler_evaluation {
             }
         }
         Ok(())
+    }
+
+    // Source call summaries put direct calls before boundary calls. Prepare
+    // that same canonical order once, retaining the exact public application;
+    // an unrelated call or a global body membership cannot supply this join.
+    fn selected_call_request_sources(
+        module: &terminal_psi::TerminalModule,
+        closure: &semantic_vocabulary::proof_applications::ProofApplicationReachability<
+            ProofDeclarationId,
+        >,
+    ) -> Result<
+        Vec<(
+            ProofDeclarationId,
+            usize,
+            ProofDeclarationId,
+            semantic_vocabulary::PackageKeyIdentity,
+        )>,
+        String,
+    > {
+        use terminal_semantics::closed_conformances::{
+            declaration_package, dispatch_application, dispatch_applications,
+        };
+        let scope = &module.scalar_applications.proof_scope;
+        let mut declarations = scope
+            .callables
+            .iter()
+            .filter_map(|(_, row)| match row {
+                terminal_psi::ProofCallableAssociation::Callable {
+                    declaration,
+                    callable: TargetMachineCallable::Machine(machine),
+                } => Some((*machine, *declaration)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        declarations.sort_unstable();
+        if declarations.windows(2).any(|rows| rows[0].0 == rows[1].0) {
+            return Err("selected invocation has ambiguous emitted declaration custody".into());
+        }
+        let mut bodies = declarations
+            .iter()
+            .map(|(machine, declaration)| (*declaration, *machine))
+            .collect::<Vec<_>>();
+        bodies.sort_unstable();
+        if bodies.windows(2).any(|rows| rows[0].0 == rows[1].0) {
+            return Err("selected invocation has competing body associations".into());
+        }
+        let mut custodies = closure
+            .machines
+            .iter()
+            .map(|&declaration_id| {
+                declaration(scope, declaration_id).map(|facts| (declaration_id, facts.custody))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        custodies.sort_unstable_by_key(|(declaration, _)| *declaration);
+        let custody = |declaration| {
+            custodies
+                .binary_search_by_key(&declaration, |(declared, _)| *declared)
+                .map(|position| custodies[position].1)
+                .map_err(|_| "selected invocation has no reached declaration custody")
+        };
+        let applications = dispatch_applications(module);
+        let mut selected = Vec::new();
+        for &caller in &closure.machines {
+            let position = bodies
+                .binary_search_by_key(&caller, |(declaration, _)| *declaration)
+                .map_err(|_| "selected invocation lost its canonical caller")?;
+            let machine = module
+                .machine(bodies[position].1)
+                .ok_or("selected invocation lost its caller body")?;
+            let before = selected.len();
+            for (ordinal, call) in machine.module_invocations().enumerate() {
+                let Some(required) = call.inputs.required_contract else {
+                    continue;
+                };
+                let public = module
+                    .invocation_machine_contract(call.inputs.callee, Some(required))
+                    .ok_or("selected invocation lost its exact public/body association")?;
+                let dispatch = public
+                    .selected_application
+                    .as_ref()
+                    .ok_or("selected invocation lost its closed application")?;
+                let application =
+                    dispatch_application(&applications, machine.id, dispatch, call.inputs.callee)
+                        .map_err(str::to_owned)?;
+                let position = declarations
+                    .binary_search_by_key(&call.inputs.callee, |(machine, _)| *machine)
+                    .map_err(|_| "selected invocation lost its callee declaration")?;
+                let target = declarations[position].1;
+                if let (DeclarationCustody::Package(source), DeclarationCustody::Package(body)) =
+                    (custody(caller)?, custody(target)?)
+                    && source != body
+                {
+                    selected.push((caller, ordinal, target, application.declaration_identity));
+                }
+            }
+            if selected.len() != before {
+                let requests = declaration(scope, caller)?
+                    .selections
+                    .as_ref()
+                    .map_err(Clone::clone)?;
+                if requests.windows(2).any(|pair| {
+                    (pair[0].requester, pair[0].owner) >= (pair[1].requester, pair[1].owner)
+                }) {
+                    return Err("selected invocation requests are not in canonical order".into());
+                }
+            }
+        }
+        let mut identities = selected
+            .iter()
+            .map(|(_, _, _, identity)| *identity)
+            .collect::<Vec<_>>();
+        identities.sort_unstable();
+        identities.dedup();
+        let packages = identities
+            .into_iter()
+            .map(|identity| {
+                declaration_package(module, identity)
+                    .map(|package| (identity, package))
+                    .map_err(str::to_owned)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut requests = Vec::new();
+        for (caller, ordinal, target, identity) in selected {
+            let position = packages
+                .binary_search_by_key(&identity, |(identity, _)| *identity)
+                .map_err(|_| "selected invocation lost its declaration package")?;
+            if let Some(package) = packages[position].1 {
+                let source = custody(caller)?;
+                let body = custody(target)?;
+                if source != DeclarationCustody::Package(package)
+                    && body != DeclarationCustody::Package(package)
+                {
+                    requests.push((caller, ordinal, target, package));
+                }
+            }
+        }
+        requests.sort_unstable();
+        Ok(requests)
     }
 
     #[test]
@@ -1108,6 +1343,8 @@ pub(crate) mod compiler_evaluation {
             calls: Vec::new(),
             invocations: Vec::new(),
         };
+        // This model has no invocation edges: it checks root custody and
+        // source requests. Actual call associations use the source control.
         let check = |facts: Result<CompilerEvaluationDeclaration, String>| {
             let mut scope = ProofApplicationScope::default();
             scope
@@ -1117,7 +1354,7 @@ pub(crate) mod compiler_evaluation {
                     compiler_evaluation: facts,
                     ..Default::default()
                 });
-            require_invocation_selections(
+            require_scope_selections(
                 &scope,
                 &closure,
                 root,
@@ -1273,6 +1510,50 @@ pub(crate) mod compiler_evaluation {
             return Ok(());
         }
         require_selection(requester.0, owner.0, authority)
+    }
+
+    #[test]
+    fn closed_contract_custody_never_substitutes_for_a_package_edge() {
+        struct AllowPackages;
+        impl DeclarationSelectionAuthority for AllowPackages {
+            fn allows_declaration_selection(
+                &self,
+                _: semantic_vocabulary::PackageKeyIdentity,
+                _: semantic_vocabulary::PackageKeyIdentity,
+            ) -> bool {
+                true
+            }
+            fn package_label(&self, _: semantic_vocabulary::PackageKeyIdentity) -> String {
+                "package".into()
+            }
+        }
+        let package = DeclarationCustody::Package(
+            semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]).unwrap(),
+        );
+        let contract = DeclarationCustody::ToolchainContract;
+        let core = DeclarationCustody::Toolchain;
+        for (requester, owner) in [
+            (package, contract),
+            (contract, package),
+            (DeclarationCustody::Missing, contract),
+        ] {
+            assert!(require_selection(requester, owner, Some(&AllowPackages)).is_err());
+        }
+        for (requester, owner) in [
+            (contract, contract),
+            (contract, core),
+            (core, contract),
+            (package, package),
+        ] {
+            assert!(require_selection(requester, owner, Some(&AllowPackages)).is_ok());
+        }
+        let other = DeclarationCustody::Package(
+            semantic_vocabulary::PackageKeyIdentity::from_digest([2; 32]).unwrap(),
+        );
+        assert!(require_selection(package, package, None).is_ok());
+        assert!(require_selection(package, other, None).is_err());
+        assert!(require_selection(package, other, Some(&AllowPackages)).is_ok());
+        assert!(require_selection(DeclarationCustody::Missing, core, None).is_err());
     }
 
     fn covered_recursive_edge(

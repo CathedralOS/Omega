@@ -215,7 +215,7 @@ impl<'layout> CapturedStorage<'layout> {
             && values[0].path.is_empty()
             && matches!(values[0].contents.clone(), TerminalStorageContents::Scalar { value, stored_scalar: ScalarType::Integer(word) }
                 if value.scalar_type() == ScalarType::Integer(word)
-                    && word.bits() == 8 && !word.is_address());
+                    && word.bits() == Some(8) && !word.is_address());
         let mut encoded = Vec::with_capacity(values.len());
         for value in &values {
             let (offset, bytes) = if let Some(layout) = layout {
@@ -330,7 +330,7 @@ impl<'layout> CapturedStorage<'layout> {
             cell.byte_offset == offset
                 && self.captured_paths.binary_search(&cell.path).is_ok()
                 && matches!(cell.kind, NativeCellKind::Scalar(field)
-                    if matches!(field.logical_scalar, ScalarType::Integer(word) if word.bits() == 8 && !word.is_address())
+                    if matches!(field.logical_scalar, ScalarType::Integer(word) if word.bits() == Some(8) && !word.is_address())
                     && field.stored_scalar == field.logical_scalar)
         });
         let path = matches.next().ok_or_else(invalid_operands)?.path.clone();

@@ -132,6 +132,54 @@ pub fn validate_callable_operational_refinements(
             &contract.structural_parameters,
         )?;
     }
+    if module
+        .callables
+        .declaration_envelopes
+        .windows(2)
+        .any(|pair| pair[0].contract >= pair[1].contract)
+    {
+        return Err("declaration envelopes are repeated or unordered");
+    }
+    for contract in &module.declaration_contracts {
+        if module.callables.declaration_envelope(contract.id).is_none() {
+            return Err("public declaration has no exact complete operational envelope");
+        }
+    }
+    for row in &module.callables.declaration_envelopes {
+        let contract = module
+            .declaration_contract(row.contract)
+            .ok_or("declaration envelope has no exact public contract")?;
+        let declaration = contract
+            .declaration
+            .as_ref()
+            .ok_or("declaration envelope has no exact checked declaration")?;
+        validate_envelope(
+            module,
+            &services,
+            &row.envelope,
+            &contract.parameter_order,
+            contract.parameters.iter().map(|formal| formal.scalar_type),
+            &contract.structural_parameters,
+        )?;
+        let entries: Vec<_> = row
+            .envelope
+            .invocations
+            .iter()
+            .filter_map(|entry| match entry {
+                TerminalCallableInvocation::Service(service) => Some(*service),
+                TerminalCallableInvocation::Parameter(_) => None,
+            })
+            .collect();
+        if entries != contract.published_synchronous_entries
+            || row.envelope.service_reach != contract.published_service_ceiling
+            || row.envelope.suspends != contract.published_may_suspend
+            || row.envelope.blocks != contract.published_may_block
+            || row.envelope.suspends != declaration.published_may_suspend
+            || row.envelope.blocks != declaration.published_may_block
+        {
+            return Err("declaration envelope differs from its checked publication");
+        }
+    }
     for row in module.callables.machine_envelopes.iter().flatten() {
         let machine = module
             .machine(row.machine)

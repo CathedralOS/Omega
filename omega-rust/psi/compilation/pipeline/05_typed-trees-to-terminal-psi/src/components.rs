@@ -38,6 +38,7 @@ pub(crate) type Components = IdTable<MachineId, Vec<MachineId>>;
 struct CallSite {
     callee: MachineId,
     terminal: bool,
+    required_contract: Option<semantic_vocabulary::ContractId>,
 }
 
 fn index(machine: MachineId) -> usize {
@@ -104,6 +105,14 @@ pub(crate) fn components(
             }
         }
         if !members.is_empty() {
+            // A frame-reusing jump cannot yet retain the public call's exact
+            // invocation association. Keep that contract instead of erasing it.
+            if calls[this]
+                .iter()
+                .any(|site| site.required_contract.is_some() && members.contains(&site.callee))
+            {
+                return unserved(Unserved::Call("selected public contract on a call cycle"));
+            }
             if calls[this]
                 .iter()
                 .any(|site| !site.terminal && members.contains(&site.callee))
@@ -202,16 +211,25 @@ fn target(target: &Target, sites: &mut Vec<CallSite>) {
         Target::Unit | Target::Crash(_) => {}
         Target::Value(value) => match &value.kind {
             ExpressionKind::Call {
-                callee, arguments, ..
+                callee,
+                required_contract,
+                arguments,
+                ..
             } => {
-                call(callee, arguments, true, sites);
+                call(callee, arguments, *required_contract, true, sites);
             }
             _ => expression(value, sites),
         },
     }
 }
 
-fn call(callee: &CallTarget, arguments: &[Expression], terminal: bool, sites: &mut Vec<CallSite>) {
+fn call(
+    callee: &CallTarget,
+    arguments: &[Expression],
+    required_contract: Option<semantic_vocabulary::ContractId>,
+    terminal: bool,
+    sites: &mut Vec<CallSite>,
+) {
     if let Some(operand) = callee.operand() {
         expression(operand, sites);
     }
@@ -225,6 +243,7 @@ fn call(callee: &CallTarget, arguments: &[Expression], terminal: bool, sites: &m
         sites.push(CallSite {
             callee: *callee,
             terminal,
+            required_contract,
         });
     }
 }
@@ -253,6 +272,14 @@ fn expression(value: &Expression, sites: &mut Vec<CallSite>) {
         ExpressionKind::Array { elements } => {
             for element in elements {
                 expression(element, sites);
+            }
+        }
+        ExpressionKind::ByteSubslice { base, start, end } => {
+            for operand in std::iter::once(base.as_ref())
+                .chain(start.as_deref())
+                .chain(end.as_deref())
+            {
+                expression(operand, sites);
             }
         }
         ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index } => {
@@ -284,9 +311,12 @@ fn expression(value: &Expression, sites: &mut Vec<CallSite>) {
             expression(right, sites);
         }
         ExpressionKind::Call {
-            callee, arguments, ..
+            callee,
+            required_contract,
+            arguments,
+            ..
         } => {
-            call(callee, arguments, false, sites);
+            call(callee, arguments, *required_contract, false, sites);
         }
     }
 }
@@ -312,6 +342,7 @@ fn uses_storage(body: &Body, signature: &Signature) -> bool {
             | ExpressionKind::Record { .. }
             | ExpressionKind::Field { .. }
             | ExpressionKind::ByteElement { .. }
+            | ExpressionKind::ByteSubslice { .. }
             | ExpressionKind::CollectionMeasure { .. }
             | ExpressionKind::Case { .. }
             | ExpressionKind::Payload { .. }

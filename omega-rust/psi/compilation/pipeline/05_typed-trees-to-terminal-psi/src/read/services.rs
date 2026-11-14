@@ -6,7 +6,7 @@ use crate::reach::{SourceEnvelope, SourceInvocation as Invocation};
 use language_semantics::{
     ServiceReachId, ServiceReachRowId, TerminationGuarantee, TerminationInterface,
 };
-use semantic_vocabulary::{IdTable, MachineId};
+use semantic_vocabulary::{ContractId, IdTable, MachineId};
 use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
 use terminal_psi::TerminalCallableTermination;
 use typed_trees::TypedTrees;
@@ -173,6 +173,7 @@ impl Program<'_> {
         &mut self,
         bodies: &IdTable<MachineId, Body>,
     ) -> Checked<()> {
+        let declaration_policies = self.declaration_policies()?;
         // An abstract requirement can defer its operational contract to a
         // later application. The generic witness retains that open Signature;
         // it cannot publish a complete callable envelope or supply descriptors.
@@ -187,6 +188,23 @@ impl Program<'_> {
                     requirement,
                     "runtime callable needs the abstract requirement's complete operational contract",
                 ));
+            }
+            for (contract, policy) in declaration_policies.iter() {
+                if policy.reach.is_none()
+                    || policy.invokes.is_none()
+                    || policy.suspends.is_none()
+                    || policy.blocks.is_none()
+                {
+                    let caller = self
+                        .declaration_selections
+                        .get(contract)
+                        .and_then(Option::as_ref)
+                        .map_or(requirement, |selected| selected.0);
+                    return Err(unavailable(
+                        caller,
+                        "selected public contract needs completion in its open abstract operational context",
+                    ));
+                }
             }
             return Ok(());
         }
@@ -281,35 +299,51 @@ impl Program<'_> {
             for (id, uses) in calls.iter() {
                 let mut reached = empty();
                 for invocation in uses {
-                    let target_signature = self.source_call_signature(id, invocation.target)?;
-                    let envelope = match invocation.target {
-                        CallTarget::Machine(callee) => {
-                            terminal_check_tables::row(&published, *callee, id, Construct::Machine)?
-                        }
-                        CallTarget::Selected { contract, .. } => {
-                            &self
-                                .callables
-                                .contracts
-                                .get(*contract)
-                                .ok_or_else(|| {
-                                    unavailable(
-                                        id,
-                                        "invocation lost its retained callable contract",
-                                    )
-                                })?
-                                .envelope
-                        }
-                        CallTarget::Boundary { boundary, .. } => {
-                            &self
-                                .boundaries
-                                .row(*boundary)
-                                .ok_or_else(|| {
-                                    unavailable(
-                                        id,
-                                        "invocation lost its retained boundary contract",
-                                    )
-                                })?
-                                .envelope
+                    let target_signature = self.source_call_signature(
+                        id,
+                        invocation.target,
+                        invocation.required_contract,
+                    )?;
+                    let envelope = if let Some(required) = invocation.required_contract {
+                        self.declaration_envelopes.get(required).ok_or_else(|| {
+                            unavailable(
+                                id,
+                                "selected public contract has no complete envelope coordinate",
+                            )
+                        })?
+                    } else {
+                        match invocation.target {
+                            CallTarget::Machine(callee) => terminal_check_tables::row(
+                                &published,
+                                *callee,
+                                id,
+                                Construct::Machine,
+                            )?,
+                            CallTarget::Selected { contract, .. } => {
+                                &self
+                                    .callables
+                                    .contracts
+                                    .get(*contract)
+                                    .ok_or_else(|| {
+                                        unavailable(
+                                            id,
+                                            "invocation lost its retained callable contract",
+                                        )
+                                    })?
+                                    .envelope
+                            }
+                            CallTarget::Boundary { boundary, .. } => {
+                                &self
+                                    .boundaries
+                                    .row(*boundary)
+                                    .ok_or_else(|| {
+                                        unavailable(
+                                            id,
+                                            "invocation lost its retained boundary contract",
+                                        )
+                                    })?
+                                    .envelope
+                            }
                         }
                     };
                     union_services(&mut reached.service_reach, &envelope.service_reach);
@@ -441,6 +475,40 @@ impl Program<'_> {
                     changed = true;
                 }
             }
+            for (contract, policy) in declaration_policies.iter() {
+                let selected = self.declaration_selections.get(contract).ok_or_else(|| {
+                    unavailable(
+                        MachineId::new(1).expect("nonzero diagnostic"),
+                        "public contract lost its selection coordinate",
+                    )
+                })?;
+                let Some((caller, callee, ..)) = selected else {
+                    continue;
+                };
+                let reached = published
+                    .get(*callee)
+                    .ok_or_else(|| {
+                        unavailable(
+                            *caller,
+                            "selected public contract has no actual body envelope",
+                        )
+                    })?
+                    .clone();
+                let next = policy.complete(reached);
+                let previous = self
+                    .declaration_envelopes
+                    .get_mut(contract)
+                    .ok_or_else(|| {
+                        unavailable(
+                            *caller,
+                            "selected public contract lost its complete envelope coordinate",
+                        )
+                    })?;
+                if *previous != next {
+                    *previous = next;
+                    changed = true;
+                }
+            }
             if !changed {
                 break;
             }
@@ -472,9 +540,9 @@ impl Program<'_> {
                     .machine_by_symbol(*symbol)
                     .is_some_and(|machine| !machine.is_public);
                 if private
-                    && uses.iter().all(|invocation| {
-                        call_terminates(self, invocation.target, &local_termination)
-                    })
+                    && uses
+                        .iter()
+                        .all(|invocation| call_terminates(self, invocation, &local_termination))
                 {
                     *local_termination
                         .get_mut(id)
@@ -494,7 +562,7 @@ impl Program<'_> {
                 .get(id)
                 .ok_or_else(|| unavailable(id, "termination subject has no invocations"))?
                 .iter()
-                .any(|invocation| !call_terminates(self, invocation.target, &local_termination))
+                .any(|invocation| !call_terminates(self, invocation, &local_termination))
             {
                 return Err(unavailable(
                     id,
@@ -506,6 +574,53 @@ impl Program<'_> {
                 .map_err(|reason| unavailable(id, reason))?;
         }
         Ok(())
+    }
+
+    fn declaration_policies(&self) -> Checked<IdTable<ContractId, Policy>> {
+        let diagnostic = MachineId::new(1).expect("nonzero diagnostic identity");
+        if self.declaration_signatures.len() != self.declaration_sources.len()
+            || self.declaration_signatures.len() != self.declaration_selections.len()
+            || self.declaration_signatures.len() != self.declaration_envelopes.len()
+        {
+            return Err(unavailable(
+                diagnostic,
+                "public contracts lost their exact source coordinate tables",
+            ));
+        }
+        let mut policies = IdTable::default();
+        for (contract, signature) in self.declaration_signatures.iter() {
+            let envelope = self
+                .declaration_envelopes
+                .get(contract)
+                .ok_or_else(|| unavailable(diagnostic, "public contract has no source envelope"))?;
+            let policy = Policy {
+                reach: matches!(signature.reaches, crate::Ceiling::Authored(_))
+                    .then(|| envelope.service_reach.clone()),
+                invokes: matches!(signature.invokes, crate::Ceiling::Authored(_))
+                    .then(|| envelope.invocations.clone()),
+                suspends: signature.operational.suspension,
+                blocks: signature.operational.blocking,
+                termination: envelope.termination.clone(),
+            };
+            if matches!(self.declaration_selections.get(contract), Some(None))
+                && (policy.reach.is_none()
+                    || policy.invokes.is_none()
+                    || policy.suspends.is_none()
+                    || policy.blocks.is_none())
+            {
+                return Err(unavailable(
+                    diagnostic,
+                    "unselected public contract retains an open operational axis",
+                ));
+            }
+            if policies.push(policy) != contract {
+                return Err(unavailable(
+                    diagnostic,
+                    "public contract policy lost its exact coordinate",
+                ));
+            }
+        }
+        Ok(policies)
     }
 
     pub(super) fn retain_requirement_policy(
@@ -564,10 +679,21 @@ impl Program<'_> {
 
 fn call_terminates(
     program: &Program<'_>,
-    target: &CallTarget,
+    invocation: &Use<'_>,
     named: &IdTable<MachineId, bool>,
 ) -> bool {
-    match target {
+    if let Some(required) = invocation.required_contract {
+        return program
+            .declaration_envelopes
+            .get(required)
+            .is_some_and(|envelope| {
+                matches!(
+                    envelope.termination,
+                    TerminalCallableTermination::Terminates { .. }
+                )
+            });
+    }
+    match invocation.target {
         CallTarget::Machine(machine) => named.get(*machine) == Some(&true),
         CallTarget::Selected { contract, .. } => program
             .callables
@@ -622,13 +748,16 @@ impl Policy {
         }
         // Keep authored operational bounds even when a call exceeds them.
         // The Terminal checker rejects that actual call at its source position.
-        Ok(SourceEnvelope {
+        Ok(self.complete(reached))
+    }
+    fn complete(&self, reached: SourceEnvelope) -> SourceEnvelope {
+        SourceEnvelope {
             service_reach: self.reach.clone().unwrap_or(reached.service_reach),
             invocations: self.invokes.clone().unwrap_or(reached.invocations),
             suspends: self.suspends.unwrap_or(reached.suspends),
             blocks: self.blocks.unwrap_or(reached.blocks),
             termination: self.termination.clone(),
-        })
+        }
     }
 }
 fn empty() -> SourceEnvelope {
@@ -652,6 +781,7 @@ fn union<T: Clone + Ord>(to: &mut Vec<T>, from: &[T]) {
 }
 struct Use<'a> {
     target: &'a CallTarget,
+    required_contract: Option<ContractId>,
     arguments: &'a [Expression],
 }
 
@@ -700,7 +830,10 @@ fn collect_target<'a>(target: &'a Target, calls: &mut Vec<Use<'a>>) {
 fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) {
     match &expression.kind {
         E::Call {
-            callee, arguments, ..
+            callee,
+            required_contract,
+            arguments,
+            ..
         } => {
             if let CallTarget::Selected { callable, .. } = callee {
                 collect_expression(callable, calls);
@@ -710,6 +843,7 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) 
             }
             calls.push(Use {
                 target: callee,
+                required_contract: *required_contract,
                 arguments,
             });
         }
@@ -755,6 +889,15 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) 
                 collect_expression(element, calls);
             }
         }
+        E::ByteSubslice { base, start, end } => {
+            collect_expression(base, calls);
+            if let Some(start) = start {
+                collect_expression(start, calls);
+            }
+            if let Some(end) = end {
+                collect_expression(end, calls);
+            }
+        }
         E::Index { base, index } | E::ByteElement { base, index } => {
             collect_expression(base, calls);
             collect_expression(index, calls);
@@ -778,6 +921,9 @@ impl Program<'_> {
             if let Some(row) = row {
                 source_roots(row, &mut roots);
             }
+        }
+        for (_, row) in self.declaration_envelopes.iter() {
+            source_roots(row, &mut roots);
         }
         for (_, row) in self.boundaries.rows.iter() {
             source_roots(&row.envelope, &mut roots);

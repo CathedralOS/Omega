@@ -43,11 +43,12 @@ use std::cmp::Ordering;
 
 use proof_admission::{
     IntegerAffineWitness, PrimitiveJudgment, ProofNode, ProofRule, check_integer_affine_witness,
-    check_value_equality_denotation, decide_primitive, map_integer_affine_bound,
+    check_value_equality_denotation, compare_integer_math_terms, decide_primitive,
+    map_integer_affine_bound,
 };
 use semantic_vocabulary::{
-    IdTable, IntegerMathTerm, IntegerType, IntegerValue, Proposition, PropositionContext,
-    ScalarTerm, ScalarType, ValueId,
+    IdTable, IntegerCarrier, IntegerMathTerm, IntegerType, IntegerValue, Proposition,
+    PropositionContext, ScalarTerm, ScalarType, ValueId,
 };
 use terminal_check_tables::values::ValueRow;
 
@@ -80,6 +81,16 @@ const CASE_BRANCH_BUDGET: usize = 64;
 /// (`Prover::by_transport`), so a comparison of two such terms is evaluated,
 /// not searched for (`Prover::has_rules_for`).
 fn covered(goal: &Proposition, fixed: &dyn Fn(ValueId) -> bool) -> bool {
+    // The kernel also decides open expressions whose difference is constant.
+    // Both comparison outcomes are covered: an unequal result is a refused
+    // obligation, rather than an unsupported mathematical goal.
+    if let Proposition::IntegerMathEqual(left, right)
+    | Proposition::IntegerMathLessThan(left, right)
+    | Proposition::IntegerMathLessOrEqual(left, right) = goal
+        && matches!(compare_integer_math_terms(left, right), Ok(Some(_)))
+    {
+        return true;
+    }
     match goal {
         Proposition::Truth | Proposition::Falsehood => true,
         Proposition::Conjunction(parts) | Proposition::Disjunction(parts) => {
@@ -429,17 +440,8 @@ impl<'a> Prover<'a> {
         if self.equations.is_empty() {
             return None;
         }
-        self.select_transport_inputs(goal);
+        let target = self.transported_goal(goal)?;
         let inputs = &self.transport.selected;
-        let denotation = |proposition: &Proposition| {
-            check_value_equality_denotation(
-                self.context,
-                proposition,
-                inputs.iter().map(|&index| &self.equations[index].0),
-            )
-            .ok()
-        };
-        let target = denotation(goal)?;
         let premise = if target == Proposition::Truth {
             primitive(Proposition::Truth, PrimitiveJudgment::Truth)
         } else if let Some(fact) = self.facts.iter().find(|fact| fact.proposition == target) {
@@ -481,19 +483,38 @@ impl<'a> Prover<'a> {
         );
     }
 
+    fn transported_goal(&mut self, goal: &Proposition) -> Option<Proposition> {
+        self.select_transport_inputs(goal);
+        check_value_equality_denotation(
+            self.context,
+            goal,
+            self.transport
+                .selected
+                .iter()
+                .map(|&index| &self.equations[index].0),
+        )
+        .ok()
+    }
+
     /// Whether the rules cover `goal`'s form (`covered`) at this prover's
     /// program point: a value one of its equations fixes to a literal is that
     /// literal.
-    pub(crate) fn has_rules_for(&self, goal: &Proposition) -> bool {
-        covered(goal, &|value| {
-            self.equations.iter().any(|(equation, _)| {
-                matches!(
-                    equation,
+    pub(crate) fn has_rules_for(&mut self, goal: &Proposition) -> bool {
+        let fixed = |equations: &[(Proposition, ProofNode)], value| {
+            equations.iter().any(|(equation, _)| {
+                matches!(equation,
                     Proposition::Equal(ScalarTerm::Value { id, .. }, ScalarTerm::Integer { .. })
-                        if *id == value
-                )
+                    if *id == value)
             })
-        })
+        };
+        if covered(goal, &|value| fixed(&self.equations, value)) {
+            return true;
+        }
+        // Use the same exact definitions as certificate construction. A
+        // checked update can expose `entry + 1 == entry + 2`: the kernel can
+        // decide that comparison even though its original result was open.
+        self.transported_goal(goal)
+            .is_some_and(|goal| covered(&goal, &|value| fixed(&self.equations, value)))
     }
 
     fn closed(&self, proposition: Proposition) -> Option<ProofNode> {
@@ -531,13 +552,19 @@ impl<'a> Prover<'a> {
         else {
             return (None, None);
         };
+        // A rigid width has no concrete endpoint. Reporting bounds here
+        // must not turn an unknown carrier into a literal interval.
+        let (Some(minimum), Some(maximum)) = (integer.minimum_value(), integer.maximum_value())
+        else {
+            return (None, None);
+        };
         let narrower = |bound: Option<Bound>, carrier: IntegerValue| {
             bound
                 .map(|bound| bound.literal)
                 .filter(|literal| integer.compare(*literal, carrier) != Some(Ordering::Equal))
         };
-        let mut lower = narrower(self.bound(value, Direction::Lower), integer.minimum_value());
-        let mut upper = narrower(self.bound(value, Direction::Upper), integer.maximum_value());
+        let mut lower = narrower(self.bound(value, Direction::Lower), minimum);
+        let mut upper = narrower(self.bound(value, Direction::Upper), maximum);
         // A bound that holds only by cases is no bound of the value's own:
         // under `c == true` with `c` the join of `20 <= v && v <= 60`, the
         // limits are inside a disjunctive fact. Each literal such a fact
@@ -576,7 +603,7 @@ impl<'a> Prover<'a> {
             };
             if try_lower
                 && narrows(candidate, lower, Ordering::Greater)
-                && integer.compare(candidate, integer.minimum_value()) != Some(Ordering::Equal)
+                && integer.compare(candidate, minimum) != Some(Ordering::Equal)
                 && self
                     .prove(&Proposition::LessOrEqual(literal.clone(), subject.clone()))
                     .is_ok()
@@ -585,7 +612,7 @@ impl<'a> Prover<'a> {
             }
             if try_upper
                 && narrows(candidate, upper, Ordering::Less)
-                && integer.compare(candidate, integer.maximum_value()) != Some(Ordering::Equal)
+                && integer.compare(candidate, maximum) != Some(Ordering::Equal)
                 && self
                     .prove(&Proposition::LessOrEqual(subject.clone(), literal))
                     .is_ok()
@@ -1321,8 +1348,8 @@ impl<'a> Prover<'a> {
         direction: Direction,
     ) -> Option<Bound> {
         let literal = match direction {
-            Direction::Upper => integer.maximum_value(),
-            Direction::Lower => integer.minimum_value(),
+            Direction::Upper => integer.maximum_value()?,
+            Direction::Lower => integer.minimum_value()?,
         };
         let conclusion = Self::oriented(
             subject,
@@ -1386,6 +1413,48 @@ impl<'a> Prover<'a> {
         let axiom = self.facts[index].axiom;
         let proposition = self.facts[index].proposition.clone();
         match (&proposition, direction) {
+            // A public mathematical equality can bound a runtime value
+            // without becoming an unchecked machine-operation definition.
+            // First prove the expression's bound, then substitute this exact
+            // equality. The kernel checks both premises and the carrier form.
+            (Proposition::IntegerMathEqual(left, right), _) => {
+                if integer.carrier() != IntegerCarrier::Fixed || integer.is_address() {
+                    return None;
+                }
+                let embedded = IntegerMathTerm::embed(subject.clone())?;
+                let expression = if left == &embedded {
+                    right
+                } else if right == &embedded {
+                    left
+                } else {
+                    return None;
+                };
+                let image = self.arithmetic_image(expression, direction).ok()?;
+                let (limit, endpoint) = match (&image.conclusion, direction) {
+                    (Proposition::IntegerMathLessOrEqual(_, limit), Direction::Upper) => (limit, 0),
+                    (Proposition::IntegerMathLessOrEqual(limit, _), Direction::Lower) => (limit, 1),
+                    _ => return None,
+                };
+                let IntegerMathTerm::IntegerLiteral(limit) = limit else {
+                    return None;
+                };
+                let literal = limit.as_integer_value(integer)?;
+                Some(Bound {
+                    literal,
+                    proof: node(
+                        Self::oriented(
+                            subject,
+                            ScalarTerm::integer(integer, literal).ok()?,
+                            direction,
+                        ),
+                        ProofRule::IntegerOrderSubstitution {
+                            relation: Box::new(image),
+                            equality: Box::new(proof),
+                            endpoint,
+                        },
+                    ),
+                })
+            }
             // Direct bounds.
             (Proposition::LessOrEqual(left, literal), Direction::Upper)
             | (Proposition::LessOrEqual(literal, left), Direction::Lower)
@@ -1889,16 +1958,35 @@ impl<'a> Prover<'a> {
             (IntegerMathTerm::IntegerLiteral(_), term) => (term, left, Direction::Lower),
             _ => return Err("arithmetic goal between two open terms"),
         };
+        let image = self.arithmetic_image(term, direction)?;
+        self.land(image, term, limit, direction)
+    }
+
+    /// Bound the mathematical expression itself. Safety goals and public
+    /// equalities use the same checked image; an equality does not authorize
+    /// evaluating an overflowing machine operation or changing its policy.
+    fn arithmetic_image(
+        &mut self,
+        term: &IntegerMathTerm,
+        direction: Direction,
+    ) -> Result<ProofNode, Unproven> {
         let (operation, first, second) = match term {
             IntegerMathTerm::Add(first, second) => (Arithmetic::Add, first, second),
             IntegerMathTerm::Subtract(first, second) => (Arithmetic::Subtract, first, second),
             IntegerMathTerm::Multiply(first, second) => (Arithmetic::Multiply, first, second),
             IntegerMathTerm::ShiftLeft { value, count } => {
-                let affine = self.shift_left_image(value, count, direction)?;
-                return self.land(affine, term, limit, direction);
+                return self.shift_left_image(value, count, direction);
             }
             IntegerMathTerm::MathValue { source_type, value } => {
-                return self.value_in_carrier(*source_type, *value, term, limit, direction);
+                return self.value_image(*source_type, *value, term, direction);
+            }
+            IntegerMathTerm::IntegerLiteral(_) => {
+                return self
+                    .closed(Proposition::IntegerMathLessOrEqual(
+                        term.clone(),
+                        term.clone(),
+                    ))
+                    .ok_or("the kernel refuses the literal bound");
             }
             _ => return Err("arithmetic goal over a single term"),
         };
@@ -1934,8 +2022,7 @@ impl<'a> Prover<'a> {
             }
         }
         .map_err(|_| "operation term")?;
-        let affine = self.image(operation, &first, &second, target, direction)?;
-        self.land(affine, term, limit, direction)
+        self.image(operation, &first, &second, target, direction)
     }
 
     /// The goal `term <= limit` (or `limit <= term`) from `affine`, the

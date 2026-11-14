@@ -140,7 +140,7 @@ pub(crate) fn reference_graph(
         )
     })?;
     let contains = |root| {
-        terminal_psi::structural_type_contains_reference_by(|id| module.structural_type(id), root)
+        terminal_psi::structural_type_has_borrowed_storage_by(|id| module.structural_type(id), root)
     };
     let demanded = lowered
         .result
@@ -390,6 +390,7 @@ impl Storage<'_> {
                     "an invocation row's place is not the place the call lends",
                 ));
             }
+            self.byte_array_presentation(argument, parameter, concerns)?;
             let (expected_lender, parent, from, permitted) =
                 self.source_lender(&lent, access, concerns)?;
             let (obligation, row) = tables

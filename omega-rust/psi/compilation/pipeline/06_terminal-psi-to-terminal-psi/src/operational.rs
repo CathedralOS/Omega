@@ -6,7 +6,9 @@
 //! source tail call retains its interface on the jump which reuses its frame.
 //! Inferred contracts are the least fixed point of those same call envelopes.
 
-use semantic_vocabulary::{CallableContractId, InvocationSite, MachineId, TargetMachineCallable};
+use semantic_vocabulary::{
+    CallableContractId, ContractId, InvocationSite, MachineId, TargetMachineCallable,
+};
 use terminal_check_tables::edges::Callee;
 use terminal_check_tables::{Checked, Construct, RefusalReason};
 use terminal_psi::{CallAcknowledgement, CallOrigin, CallSite, TerminalMachine, Terminator};
@@ -18,6 +20,7 @@ struct Call {
     site: CallSite,
     callee: Callee,
     contract: Option<CallableContractId>,
+    required_contract: Option<ContractId>,
     acknowledgement: CallAcknowledgement,
     tail: bool,
 }
@@ -88,6 +91,7 @@ fn calls(elaboration: &Elaboration, machine: &TerminalMachine) -> Checked<Vec<Ca
                     site: CallSite::Operation(operation.id),
                     callee: actual.inputs.callee,
                     contract: actual.inputs.contract,
+                    required_contract: actual.inputs.required_contract,
                     acknowledgement: CallAcknowledgement::default(),
                     tail: false,
                 });
@@ -99,6 +103,7 @@ fn calls(elaboration: &Elaboration, machine: &TerminalMachine) -> Checked<Vec<Ca
                 site: CallSite::Edge(block.terminator.edge()),
                 callee: actual.inputs.callee,
                 contract: actual.inputs.contract,
+                required_contract: actual.inputs.required_contract,
                 acknowledgement: CallAcknowledgement::default(),
                 tail: false,
             });
@@ -147,6 +152,7 @@ fn calls(elaboration: &Elaboration, machine: &TerminalMachine) -> Checked<Vec<Ca
                 site: row.site,
                 callee: Callee::Declared(callee.id.into()),
                 contract: None,
+                required_contract: None,
                 acknowledgement: CallAcknowledgement::default(),
                 tail: true,
             });
@@ -197,6 +203,30 @@ pub(crate) fn judge(elaboration: &Elaboration) -> Checked<()> {
         .map(|(machine, _)| declared(machine).map(|bound| bound.unwrap_or(false)))
         .collect();
     let envelope = |call: &Call, summaries: &[[bool; 2]], caller, site| -> Checked<[bool; 2]> {
+        if let (Callee::Declared(TargetMachineCallable::Machine(body)), Some(required)) =
+            (call.callee, call.required_contract)
+        {
+            module
+                .invocation_machine_contract(body, Some(required))
+                .ok_or_else(|| {
+                    fault(
+                        caller,
+                        site,
+                        "selected call has no matching public operational contract",
+                    )
+                })?;
+            let envelope = module
+                .callables
+                .declaration_envelope(required)
+                .ok_or_else(|| {
+                    fault(
+                        caller,
+                        site,
+                        "selected public contract has no complete operational envelope",
+                    )
+                })?;
+            return Ok([envelope.suspends, envelope.blocks]);
+        }
         match call.callee {
             Callee::Declared(TargetMachineCallable::Machine(id)) => index(id)
                 .map(|position| summaries[position])

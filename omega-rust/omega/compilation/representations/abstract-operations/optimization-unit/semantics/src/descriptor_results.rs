@@ -2648,7 +2648,7 @@ pub(crate) fn element_coordinates_preserved<'a>(
                     && matches!(declaration.shape,
                         StructuralTypeShape::PrimitiveScalar(semantic_vocabulary::ScalarType::Integer(integer))
                             if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
-                                && integer.bits() == 8 && !integer.is_address())
+                                && integer.bits() == Some(8) && !integer.is_address())
             }) {
                 return false;
             }

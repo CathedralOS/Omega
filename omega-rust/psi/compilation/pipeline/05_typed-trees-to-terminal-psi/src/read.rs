@@ -37,7 +37,9 @@ mod casts;
 mod constant_values;
 mod contracts;
 mod expressions;
+pub(crate) mod logical;
 mod machine;
+mod mathematics;
 mod places;
 mod predicates;
 mod provider_selections;
@@ -66,6 +68,12 @@ use typed_trees::TypedTrees;
 use crate::body::{RecordType, Signature, ValueType};
 use crate::{Unserved, refuse};
 
+#[derive(Debug, Clone, Copy)]
+struct WidthBinding {
+    symbol: SymbolHandle,
+    parameter: semantic_vocabulary::WidthParameter,
+}
+
 pub(crate) struct Program<'t> {
     type_purpose: storage_metadata::TypePurpose,
     /// Sorted exact record IDs whose complete nested source type was read for a value use.
@@ -79,6 +87,7 @@ pub(crate) struct Program<'t> {
     pub(crate) admitted_signature_views: Vec<typed_trees::signature::StateSignature>,
     /// Choices made by this reader, prepared once before source admission.
     pub(crate) completed_operators: crate::selection_questions::CompletedOperators,
+    named_captures: crate::NamedCaptures,
     /// The typed-tree machine of each discovered `MachineId`.
     pub symbols: IdTable<MachineId, SymbolHandle>,
     pub signatures: IdTable<MachineId, Signature>,
@@ -93,7 +102,30 @@ pub(crate) struct Program<'t> {
     pub static_contracts: crate::static_contracts::StaticContracts,
     pub declaration_metadata: Vec<SymbolHandle>,
     pub declaration_signatures: IdTable<semantic_vocabulary::ContractId, Signature>,
-    pub declaration_symbols: IdTable<semantic_vocabulary::ContractId, SymbolHandle>,
+    pub declaration_envelopes:
+        IdTable<semantic_vocabulary::ContractId, crate::reach::SourceEnvelope>,
+    pub declaration_sources:
+        IdTable<semantic_vocabulary::ContractId, &'t typed_trees::signature::StateSignature>,
+    /// Selected headers keep their supplying call and complete application.
+    /// This is construction input for the existing public contract table,
+    /// not permission to invoke its implementation.
+    pub declaration_selections: IdTable<
+        semantic_vocabulary::ContractId,
+        Option<(
+            MachineId,
+            MachineId,
+            typed_trees::StaticRequirementDispatch,
+            typed_trees::expression::StaticMachineArgument,
+            SymbolHandle,
+        )>,
+    >,
+    /// Construction coordinates are coalesced once after reading. Calls keep
+    /// their construction coordinate until lowering translates it; the emitted
+    /// module contains one header for each complete selected application.
+    pub declaration_aliases:
+        IdTable<semantic_vocabulary::ContractId, semantic_vocabulary::ContractId>,
+    pub declaration_representatives:
+        IdTable<semantic_vocabulary::ContractId, semantic_vocabulary::ContractId>,
     /// Only this root of a refinement witness exposes the member's own
     /// body contract. Every named call, including recursion, uses its route.
     implementation_body: Option<MachineId>,
@@ -130,6 +162,10 @@ pub(crate) struct Program<'t> {
     /// `scope` of each machine, pushed with its signature and restored
     /// when its body is read.
     scopes: IdTable<MachineId, Vec<(SymbolHandle, ValueType)>>,
+    /// Static width binders retain the actual machine-local input identity.
+    /// Sorted by source symbol within this declaration's selected telescope.
+    width_scope: Vec<WidthBinding>,
+    width_scopes: IdTable<MachineId, Vec<WidthBinding>>,
     /// The generic machines a generic check form's entry calls at its own
     /// type parameters, each read once per tuple of type arguments as its
     /// contract with no body (`Elaboration::applications`).
@@ -146,6 +182,7 @@ pub(crate) struct Program<'t> {
     /// `Elaboration::value_parameters` and `Elaboration::value_arguments`,
     /// pushed with each machine's signature.
     pub value_parameters: IdTable<MachineId, usize>,
+    pub generic_binders: Vec<SymbolHandle>,
     pub value_arguments: IdTable<MachineId, Vec<semantic_vocabulary::ScalarTerm>>,
     /// Every record type a formal, local, result, field or literal named, in
     /// discovery order; a nested record is discovered before its owner.
@@ -258,7 +295,16 @@ impl<'t> Program<'t> {
         Ok(())
     }
 
+    #[cfg(test)]
     pub fn new(typed: &'t TypedTrees, rigid: bool) -> Self {
+        Self::with_captures(typed, rigid, crate::named_captures(typed))
+    }
+
+    pub fn with_captures(
+        typed: &'t TypedTrees,
+        rigid: bool,
+        captures: crate::NamedCaptures,
+    ) -> Self {
         Self {
             publication: terminal_codec::TerminalPublication::Portable,
             declaration_metadata: Vec::new(),
@@ -268,6 +314,7 @@ impl<'t> Program<'t> {
             admitted_declarations: typed_trees::references::DeclarationSelection::from_symbols([]),
             admitted_signature_views: Vec::new(),
             completed_operators: crate::selection_questions::CompletedOperators::default(),
+            named_captures: captures,
             symbols: IdTable::default(),
             signatures: IdTable::default(),
             declared_envelope_policies: IdTable::default(),
@@ -276,7 +323,11 @@ impl<'t> Program<'t> {
             external_providers: crate::external_providers::ExternalProviderNamespace::default(),
             static_contracts: crate::static_contracts::StaticContracts::default(),
             declaration_signatures: IdTable::default(),
-            declaration_symbols: IdTable::default(),
+            declaration_envelopes: IdTable::default(),
+            declaration_sources: IdTable::default(),
+            declaration_selections: IdTable::default(),
+            declaration_aliases: IdTable::default(),
+            declaration_representatives: IdTable::default(),
             implementation_body: None,
             services: IdTable::default(),
             resolving_services: Vec::new(),
@@ -288,11 +339,14 @@ impl<'t> Program<'t> {
             selections: Vec::new(),
             scope: Vec::new(),
             scopes: IdTable::default(),
+            width_scope: Vec::new(),
+            width_scopes: IdTable::default(),
             applications: Vec::new(),
             applied: Vec::new(),
             alternative: None,
             static_truths: Vec::new(),
             value_parameters: IdTable::default(),
+            generic_binders: Vec::new(),
             value_arguments: IdTable::default(),
             records: IdTable::default(),
             record_sources: IdTable::default(),
@@ -312,6 +366,122 @@ impl<'t> Program<'t> {
             conformance_witnesses: Vec::new(),
             supplied: Vec::new(),
         }
+    }
+
+    /// Read calls independently, then group their headers once. Sorting the
+    /// complete selected identities avoids rescanning prior headers for every
+    /// call, and keeps different applications of one requirement separate.
+    pub fn finish_declarations(&mut self, diagnostic: MachineId) -> Checked<()> {
+        let unavailable = |reason| {
+            refuse(
+                diagnostic,
+                Construct::Machine,
+                Unserved::Declaration(reason),
+            )
+        };
+        let mut ordered = Vec::with_capacity(self.declaration_signatures.len());
+        for (coordinate, _) in self.declaration_signatures.iter() {
+            let source = self
+                .declaration_sources
+                .get(coordinate)
+                .copied()
+                .ok_or_else(|| unavailable("public contract lost its exact source signature"))?;
+            let selected = self
+                .declaration_selections
+                .get(coordinate)
+                .ok_or_else(|| unavailable("public contract lost its selection coordinate"))?;
+            let key = if let Some((caller, body, dispatch, operand, owner)) = selected {
+                if !self.typed.symbols.symbols().nodes().is_valid(*owner) {
+                    return Err(unavailable(
+                        "selected contract lost its actual operand owner",
+                    ));
+                }
+                let application_identity = self
+                    .typed
+                    .declared_static_operand_identity(
+                        typed_trees::type_identity::DeclaredStaticOperandIdentityRequest {
+                            operand:
+                                typed_trees::type_identity::IndexIdentityArgument::StaticArgument(
+                                    operand,
+                                ),
+                            lexical_owner: *owner,
+                            binders: &[],
+                            lifetime_binders: &[],
+                        },
+                    )
+                    .ok_or_else(|| {
+                        unavailable("selected contract has unresolved static argument identity")
+                    })?;
+                let (declaring, _) = self
+                    .typed
+                    .trait_machine_signature(source.symbol)
+                    .ok_or_else(|| unavailable("selected contract lost its declaring trait"))?;
+                let requirement_identity = self
+                    .typed
+                    .trait_requirement_callable_identity(declaring, source);
+                if !requirement_identity.is_valid() {
+                    return Err(unavailable(
+                        "selected contract has no complete public signature identity",
+                    ));
+                }
+                Some((
+                    *caller,
+                    application_identity,
+                    requirement_identity,
+                    *body,
+                    (
+                        dispatch.evidence_parameter.arena_index(),
+                        dispatch.evidence_parameter.generation(),
+                    ),
+                ))
+            } else {
+                None
+            };
+            ordered.push((key, coordinate));
+        }
+        ordered.sort_unstable();
+        let mut aliases = vec![None; self.declaration_signatures.len()];
+        let mut representatives = IdTable::default();
+        let mut previous = None;
+        let mut representative = None;
+        for (key, source) in ordered {
+            let same = key.is_some() && previous.as_ref() == key.as_ref();
+            let canonical = if same {
+                let (canonical, original) = representative
+                    .ok_or_else(|| unavailable("selected contract lost its representative"))?;
+                if self.declaration_signatures.get(original)
+                    != self.declaration_signatures.get(source)
+                    || self.declaration_envelopes.get(original)
+                        != self.declaration_envelopes.get(source)
+                {
+                    return Err(unavailable(
+                        "one selected application produced different public signatures or envelopes",
+                    ));
+                }
+                canonical
+            } else {
+                let canonical = representatives.push(source);
+                representative = Some((canonical, source));
+                canonical
+            };
+            let slot = usize::try_from(source.get() - 1)
+                .ok()
+                .and_then(|position| aliases.get_mut(position))
+                .ok_or_else(|| {
+                    unavailable("public contract construction coordinate is unavailable")
+                })?;
+            *slot = Some(canonical);
+            previous = key;
+        }
+        let mut declared_aliases = IdTable::default();
+        for alias in aliases {
+            declared_aliases.push(
+                alias.ok_or_else(|| unavailable("public contract lost its emitted coordinate"))?,
+            );
+        }
+        self.declaration_aliases = declared_aliases;
+        self.declaration_representatives = representatives;
+        Ok(())
     }
 }
 
@@ -717,6 +887,7 @@ mod tests {
         let u32_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
         let result = ValueId::new(2).unwrap();
         let exit = ClauseScope {
+            logical: None,
             subject: None,
             formal_fields: false,
             mathematical: MathematicalTerms::Served,
@@ -837,6 +1008,7 @@ mod tests {
         let (mutable, immutable) = ([slot(true)], [slot(false)]);
         let values = [Some(value)];
         let scope = |slots, formal_fields| ClauseScope {
+            logical: None,
             subject: None,
             formal_fields,
             mathematical: MathematicalTerms::Served,
@@ -871,13 +1043,14 @@ mod tests {
         }];
         assert_eq!(
             read(&scope(&borrowed, false)).unwrap_err().detail,
-            "contract clause that names a borrowed formal outside requires"
+            "contract borrowed formal outside an admitted storage clause"
         );
     }
 
     #[test]
-    fn old_names_only_an_existing_runtime_scalar_input_and_keeps_its_policy() {
+    fn old_retains_the_existing_scalar_or_storage_input_and_its_policy() {
         use crate::body::{DomainSet, Policy, Qualification};
+        use semantic_vocabulary::PlaceId;
         use symbols::{BuiltinFunction, builtin_function_symbols};
         use typed_trees::expression::TableCallExpression;
         use typed_trees::name::Identifier;
@@ -993,6 +1166,7 @@ mod tests {
         let slots = [slot()];
         let values = [Some(value)];
         let scope = ClauseScope {
+            logical: None,
             slots: &slots,
             values: &values,
             bound: &[],
@@ -1069,7 +1243,7 @@ mod tests {
                 .unwrap_err()
                 .detail
         };
-        let no_input = "contract old of a subject without a scalar invocation input";
+        let no_input = "contract old of a subject without an admitted invocation input";
         assert_eq!(
             program
                 .term(machine(), &scope, old_literal, Some(scalar_type))
@@ -1096,7 +1270,7 @@ mod tests {
                 "contract old of other than one subject"
             );
         }
-        assert!(program.term(machine(), &scope, old_foreign, None).is_err());
+        let no_foreign = detail(&mut program, &scope, old_foreign);
         let forged = [(
             foreign,
             ScalarTerm::value(ValueId::new(999).unwrap(), scalar_type),
@@ -1110,7 +1284,20 @@ mod tests {
                 },
                 old_foreign
             ),
-            no_input
+            no_foreign
+        );
+        let copied_input = [(foreign, ScalarTerm::value(value, scalar_type))];
+        assert_eq!(
+            detail(
+                &mut program,
+                &ClauseScope {
+                    bound: &copied_input,
+                    ..scope
+                },
+                old_foreign
+            ),
+            no_foreign,
+            "a matching value ID does not turn a static name into a runtime input"
         );
         let wrong_carrier = [(foreign, ScalarTerm::value(value, ScalarType::Boolean))];
         assert_eq!(
@@ -1122,7 +1309,7 @@ mod tests {
                 },
                 old_foreign
             ),
-            no_input
+            no_foreign
         );
         let bound_constant = [(
             foreign,
@@ -1140,7 +1327,7 @@ mod tests {
                 },
                 old_foreign
             ),
-            no_input
+            no_foreign
         );
         let erased = [Slot {
             erased: true,
@@ -1173,15 +1360,48 @@ mod tests {
             ..slot()
         }];
         assert_eq!(
-            detail(
-                &mut program,
+            program.term(
+                machine(),
                 &ClauseScope {
                     slots: &borrowed,
                     ..scope
                 },
-                old
+                old,
+                None
             ),
-            "contract clause that names a borrowed formal outside requires"
+            Ok((
+                ScalarTerm::IntegerField {
+                    version: semantic_vocabulary::ContentPlaceVersion::Entry,
+                    root: PlaceId::new(1).unwrap(),
+                    path: Vec::new(),
+                    scalar_type: integer,
+                },
+                borrowed[0].value_type
+            ))
+        );
+        let forged_field = [(
+            foreign,
+            ScalarTerm::IntegerField {
+                version: semantic_vocabulary::ContentPlaceVersion::Current,
+                root: PlaceId::new(1).unwrap(),
+                path: Vec::new(),
+                scalar_type: integer,
+            },
+        )];
+        assert!(
+            program
+                .term(
+                    machine(),
+                    &ClauseScope {
+                        slots: &borrowed,
+                        bound: &forged_field,
+                        ..scope
+                    },
+                    old_foreign,
+                    None
+                )
+                .is_err(),
+            "a bound constant cannot impersonate the runtime input's field"
         );
         let domain = [Slot {
             value_type: ValueType::Scalar(
@@ -1217,7 +1437,7 @@ mod tests {
                 },
                 old_foreign
             ),
-            no_input
+            no_foreign
         );
         let qualified = [Slot {
             value_type: ValueType::Scalar(scalar_type, Qualification::of_policy(Policy::Wrapping)),
@@ -1506,6 +1726,7 @@ mod tests {
             None,
         );
         let scope = ClauseScope {
+            logical: None,
             subject: None,
             formal_fields: false,
             mathematical: MathematicalTerms::Served,
@@ -1995,6 +2216,7 @@ mod tests {
         let slots = [slot(rest), slot(count)];
         let values = [ValueId::new(1), ValueId::new(2)];
         let scope = |mathematical| ClauseScope {
+            logical: None,
             subject: None,
             formal_fields: true,
             mathematical,

@@ -478,6 +478,10 @@ impl Storage<'_> {
                     Stored::Moved(self.stored_at(*source, &[], concerns)?),
                 ));
             }
+            OperationKind::ByteSequenceSubslice { .. } => {
+                self.shared_subslice(operation)?;
+                rows.push((fresh()?, Stored::Established));
+            }
             OperationKind::EstablishReference { .. } => {
                 rows.push((fresh()?, Stored::Established));
             }

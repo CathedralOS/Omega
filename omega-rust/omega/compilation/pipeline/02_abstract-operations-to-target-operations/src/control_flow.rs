@@ -836,6 +836,7 @@ mod structural_case {
             runs,
             function,
             &super::scalar_sources::ScalarSources::from(&*live),
+            types,
         )?;
         super::primitive_storage::retain_result(*psi_operation, *result, live)?;
         operations.push(TargetUnitOperation::StructuralCaseMembership {
@@ -1749,10 +1750,14 @@ mod terminator {
                         *value, function, live,
                     )?)
                 } else {
-                    observations::scalar_values(live, &prepared.scalar_parameters)?
-                        .remove(value)
-                        .ok_or(LoweringError::UnknownValue(*value))?
-                        .into_expression(*value)?
+                    observations::scalar_values(
+                        live,
+                        &prepared.scalar_parameters,
+                        structural_types,
+                    )?
+                    .remove(value)
+                    .ok_or(LoweringError::UnknownValue(*value))?
+                    .into_expression(*value)?
                 };
                 if expression.scalar_type() != *scalar_type {
                     return Err(LoweringError::ValueTypeMismatch(*value));
@@ -1850,6 +1855,7 @@ mod terminator {
                                 scalar_type: ScalarType::Boolean,
                             },
                             &parameter.placement,
+                            structural_types,
                         )?,
                     }
                 } else if let Some((_, value)) = live.booleans.get(condition) {

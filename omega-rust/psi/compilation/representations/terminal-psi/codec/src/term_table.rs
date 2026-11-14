@@ -108,7 +108,7 @@ pub(crate) fn encode_rows<'term, T: 'term>(
         Visit(&'term T),
         Emit(&'term T, usize),
     }
-    let mut rows = Writer::default();
+    let mut rows = writer.nested();
     let mut count = 0_u32;
     let mut completed: Vec<u32> = Vec::new();
     let mut pending = Vec::new();

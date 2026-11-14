@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 264`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 267`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -1101,7 +1101,7 @@ pub(crate) mod canonical_order {
     }
 
     fn canonical_proposition_bytes(proposition: &Proposition) -> Result<Vec<u8>, CodecError> {
-        let mut writer = Writer::default();
+        let mut writer = Writer::checking_identity();
         encode_proposition(&mut writer, proposition)?;
         Ok(writer.finish())
     }
@@ -1117,7 +1117,7 @@ pub(crate) mod canonical_order {
     }
 
     fn canonical_scalar_term_bytes(term: &ScalarTerm) -> Result<Vec<u8>, CodecError> {
-        let mut writer = Writer::default();
+        let mut writer = Writer::checking_identity();
         encode_scalar_term(&mut writer, term)?;
         Ok(writer.finish())
     }
@@ -1742,7 +1742,8 @@ pub(crate) mod machine_wire {
                 super::encode_integer_type(
                     &mut writer,
                     IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
-                );
+                )
+                .unwrap();
                 writer.id(ValueId::new(identity).unwrap());
             }
             writer.len("edges", 1).unwrap();
@@ -1753,7 +1754,8 @@ pub(crate) mod machine_wire {
             super::encode_integer_type(
                 &mut writer,
                 IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
-            );
+            )
+            .unwrap();
             writer.id(ValueId::new(3).unwrap());
             writer.u8(2);
             let bytes = writer.finish();
@@ -1958,15 +1960,19 @@ pub(crate) mod machine_wire {
     ) -> Result<(), CodecError> {
         writer.len(label, declarations.len())?;
         for declaration in declarations {
-            encode_declaration(writer, *declaration);
+            encode_declaration(writer, *declaration)?;
         }
         Ok(())
     }
 
-    pub(crate) fn encode_declaration(writer: &mut Writer, declaration: ValueDeclaration) {
+    pub(crate) fn encode_declaration(
+        writer: &mut Writer,
+        declaration: ValueDeclaration,
+    ) -> Result<(), CodecError> {
         writer.id(declaration.id);
-        encode_scalar_type(writer, declaration.scalar_type);
+        encode_scalar_type(writer, declaration.scalar_type)?;
         writer.u64(declaration.qualifications.get());
+        Ok(())
     }
 
     pub(crate) fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine, CodecError> {
@@ -2094,7 +2100,7 @@ pub(crate) mod machine_wire {
             ))?;
         writer.len("integer rank tuple", values.len())?;
         for value in values {
-            encode_integer_type(writer, value.integer_type);
+            encode_integer_type(writer, value.integer_type)?;
             writer.id(value.value);
         }
         Ok(())
@@ -3727,6 +3733,7 @@ mod routed_scalar_tests {
         module.machines[0].blocks[0].operations.push(Operation {
             id: semantic_vocabulary::OperationId::new(1).unwrap(),
             static_reach_binding: None,
+            required_contract: None,
             suspension_crossing: None,
             result: OperationResult::Scalar(ValueDeclaration {
                 id: ValueId::new(3).unwrap(),
@@ -4577,6 +4584,7 @@ pub(crate) mod target_family_tests {
                 },
             }],
             contract: terminal_psi::MachineContract {
+                selected_application: None,
                 declaration: Some(terminal_psi::CheckedMachineDeclaration {
                     semantic_declaration: Default::default(),
                     parameter_types: Vec::new(),
@@ -4645,7 +4653,7 @@ pub(crate) use canonical_order::{
     validate_crash_route_predicates,
 };
 pub(crate) use module_foundation_validation::validate_structural_foundation;
-pub(crate) use module_wire::{decode_module_body, encode_raw};
+pub(crate) use module_wire::decode_module_body;
 pub(crate) use wire_fields::{CrashRoutes, Field};
 
 #[cfg(test)]
@@ -4762,13 +4770,11 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-// Marker 262 distinguishes an opaque supplied value from an empty record.
-// Earlier decoders cannot interpret that shape. The complete write frames,
-// numeric meanings and finite families published in 261/260/259 remain intact.
-// Marker 263 retains independent operational ceilings and call acknowledgements.
-// Marker 264 combines those declarations with normalized service schemas,
-// provider selections, exact entry commitments and runtime callable catalogs.
-pub(crate) const FORMAT_MARKER: u16 = 264;
+// Marker 267 combines normalized service schemas, provider selections, exact
+// entry commitments and complete callable envelopes with the selected public
+// contracts, entry/current observations and float-conversion carriers of 266.
+// Earlier markers cannot identify this combined layout.
+pub(crate) const FORMAT_MARKER: u16 = 267;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -4784,9 +4790,15 @@ pub fn encode_module(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
 }
 
 pub(crate) fn encode_execution_module(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
+    encode_closed_execution_module(module).map(|(bytes, _)| bytes)
+}
+
+pub(crate) fn encode_closed_execution_module(
+    module: &TerminalModule,
+) -> Result<(Vec<u8>, crate::ClosedTypeCatalog), CodecError> {
     scalar_qualification_wire::validate(&module.scalar_qualifications)?;
     validate_canonical_order(module)?;
-    encode_raw(module)
+    module_wire::encode_raw_closed(module)
 }
 
 pub fn encode_structural_type_declaration(
@@ -4805,6 +4817,12 @@ pub fn module_decode_count() -> u64 {
 }
 
 pub fn decode_module(bytes: &[u8]) -> Result<TerminalModule, CodecError> {
+    decode_closed_parts(bytes).map(|(module, _, _)| module)
+}
+
+pub(crate) fn decode_closed_parts(
+    bytes: &[u8],
+) -> Result<(TerminalModule, Vec<u8>, crate::ClosedTypeCatalog), CodecError> {
     MODULE_DECODES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let mut reader = Reader::new(bytes);
     if reader.take(MAGIC.len())? != MAGIC {
@@ -4826,11 +4844,11 @@ pub fn decode_module(bytes: &[u8]) -> Result<TerminalModule, CodecError> {
         &mut proof_admission::Budget::default(),
     )?;
     dynamic_result_admission::validate_dynamic_descriptor_results(&module)?;
-    let canonical = encode_raw(&module)?;
+    let (canonical, types) = module_wire::encode_raw_closed(&module)?;
     if canonical != bytes {
         return Err(CodecError::NonCanonicalEncoding);
     }
-    Ok(module)
+    Ok((module, canonical, types))
 }
 
 pub fn encode_crash_route_buckets(
@@ -5704,7 +5722,7 @@ mod format_marker_tests {
         // independent Id and relocation layouts both used 251).
         // Neither body may be interpreted as the combined layout, regardless
         // of which payload follows their shared legacy marker.
-        for legacy in [250u16, 251, 252, 256, 261, 262, 263] {
+        for legacy in [250u16, 251, 252, 256, 260, 261, 262, 263, 264, 265, 266] {
             for payload in [&[][..], &[0xff, 0xff, 0xff][..]] {
                 let mut bytes = MAGIC.to_vec();
                 bytes.extend_from_slice(&legacy.to_le_bytes());

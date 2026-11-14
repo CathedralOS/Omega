@@ -554,6 +554,7 @@ impl crate::Bindings for RenamedValues<'_> {
 
     fn field(
         &mut self,
+        version: semantic_vocabulary::ContentPlaceVersion,
         root: semantic_vocabulary::PlaceId,
         path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
         scalar_type: ScalarType,
@@ -562,11 +563,13 @@ impl crate::Bindings for RenamedValues<'_> {
         // another frame. Place identities and their projected paths stay put.
         Ok(match scalar_type {
             ScalarType::Integer(scalar_type) => ScalarTerm::IntegerField {
+                version,
                 root,
                 path: path.to_vec(),
                 scalar_type,
             },
             ScalarType::Boolean => ScalarTerm::BooleanField {
+                version,
                 root,
                 path: path.to_vec(),
             },

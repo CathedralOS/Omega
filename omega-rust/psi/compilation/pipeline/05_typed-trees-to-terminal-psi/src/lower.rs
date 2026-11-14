@@ -230,11 +230,16 @@ fn callable_header(
     boundaries: &crate::boundaries::BoundaryNamespace,
     crash_policy: crate::callable_headers::CallableCrashPolicy,
 ) -> Checked<SignatureHeader> {
+    // Header preparation constructs formals and the result without lowering
+    // a body or looking up an invocation-specific public declaration.
+    let declarations = IdTable::default();
     let (lowering, _, formals, result) = begin(
         context,
         signature,
         Signatures {
             machines: signatures,
+            declarations: &declarations,
+            declaration_aliases: None,
             boundaries,
         },
         outcomes,
@@ -313,6 +318,7 @@ fn contract_header(
     outcome: &Outcome,
 ) -> MachineContract {
     MachineContract {
+        selected_application: None,
         parameters: formals.scalars,
         parameter_order: formals.order,
         structural_parameters: formals.records,
@@ -353,25 +359,36 @@ pub(crate) fn declaration_contract(
     caller: MachineId,
     id: ContractId,
     signature: &Signature,
+    selected_body: Option<MachineId>,
     signatures: Signatures<'_>,
     outcomes: &IdTable<MachineId, Outcome>,
     records: &Records<'_>,
     callables: &crate::callables::CallableNamespace,
 ) -> Checked<MachineContract> {
+    let selected = selected_body
+        .map(|body| terminal_check_tables::row(outcomes, body, caller, Construct::Machine))
+        .transpose()?;
     let outcome = Outcome {
-        operational: signature.operational.published([false; 2]),
-        completes_normally: true,
+        operational: signature
+            .operational
+            .published(selected.map_or([false; 2], |outcome| outcome.operational)),
+        completes_normally: selected.is_none_or(|outcome| outcome.completes_normally),
         crash_routes: signature
             .declared_crash_routes()
+            .or_else(|| selected.map(|outcome| outcome.crash_routes.as_slice()))
             .unwrap_or_default()
             .to_vec(),
         service_reach: match &signature.reaches {
             crate::Ceiling::Authored(row) => row.clone(),
-            crate::Ceiling::Inferred => Vec::new(),
+            crate::Ceiling::Inferred => selected
+                .map(|outcome| outcome.service_reach.clone())
+                .unwrap_or_default(),
         },
         synchronous_entries: match &signature.invokes {
             crate::Ceiling::Authored(row) => row.clone(),
-            crate::Ceiling::Inferred => Vec::new(),
+            crate::Ceiling::Inferred => selected
+                .map(|outcome| outcome.synchronous_entries.clone())
+                .unwrap_or_default(),
         },
     };
     let mut lowering = Lowering::new(
@@ -618,8 +635,12 @@ impl Lowering<'_> {
                     .map(|exact| (formal.place, exact))
             })
             .collect::<Checked<_>>()?;
-        for clause in &signature.requires {
-            self.name_clause_contents(clause, &bindings)?;
+        for clause in signature.requires.iter().chain(&signature.ensures) {
+            self.name_clause_contents(
+                clause,
+                &bindings,
+                result.structural().map(|result| result.place),
+            )?;
         }
         Ok((formals, result))
     }

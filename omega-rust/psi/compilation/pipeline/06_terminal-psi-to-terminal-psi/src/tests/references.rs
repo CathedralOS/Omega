@@ -77,6 +77,7 @@ pub(super) fn lower_lending(
             .borrowed
             .iter()
             .map(|(position, access)| Borrowed {
+                referent: typed_trees_to_terminal_psi::BorrowedReferent::Value,
                 position: *position,
                 access: *access,
                 regions: Default::default(),
@@ -144,6 +145,7 @@ pub(super) fn invoke(callee: u64, arguments: Vec<Expression>) -> Statement {
     Statement::Evaluate(Expression {
         call_context: None,
         kind: ExpressionKind::Call {
+            required_contract: None,
             callee: id::<MachineId>(callee).into(),
             arguments,
             designated: None,
@@ -194,6 +196,7 @@ fn referent_below_ten() -> Proposition {
     };
     Proposition::LessThan(
         ScalarTerm::IntegerField {
+            version: semantic_vocabulary::ContentPlaceVersion::Current,
             root: PlaceId::new(1).unwrap(),
             path: Vec::new(),
             scalar_type: integer,
@@ -663,6 +666,7 @@ fn a_home_a_loan_gives_a_local_in_an_arm_is_not_the_continuations() {
                     target: Target::Value(Expression {
                         call_context: None,
                         kind: ExpressionKind::Call {
+                            required_contract: None,
                             callee: id::<MachineId>(2).into(),
                             arguments: vec![lend(
                                 ReferenceAccess::Mutable,

@@ -396,6 +396,8 @@ pub(crate) mod source_review {
     pub struct SourceCallCorrespondence {
         /// The lowered machine that executes this invocation.
         pub machine: semantic_vocabulary::MachineId,
+        /// The original member before call-component folding.
+        pub source_member: semantic_vocabulary::MachineId,
         pub site: semantic_vocabulary::InvocationSite,
         /// Combining a call cycle into one loop does not change this original
         /// source owner or its static argument environment.
@@ -938,7 +940,7 @@ pub(crate) mod canonical_values {
 }
 pub use callable_applications::{
     AppliedMachineCallable, AppliedMachineCallableId, CallableContractScope, CallableSubstitution,
-    ClosedRequirementApplication, RequirementLocalArgument,
+    ClosedRequirementApplication, NamedConformanceCaptureIndex, RequirementLocalArgument,
 };
 pub(crate) mod frozen {
     use super::TypedTrees;

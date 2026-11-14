@@ -39,6 +39,66 @@ fn refuse_parameters(
 }
 
 impl<'t> Program<'t> {
+    fn unapplied_map_body(&self, symbol: SymbolHandle) -> bool {
+        self.typed
+            .owned_conformance_realization(symbol)
+            .is_some_and(|(owner, _)| {
+                !owner.type_parameters.is_empty() || !owner.lifetime_parameters.is_empty()
+            })
+    }
+
+    pub(super) fn is_generic_template(&self, machine: &Machine) -> bool {
+        crate::is_generic_template(self.typed, machine)
+    }
+
+    fn generic_parameters(
+        &self,
+        id: MachineId,
+        machine: &'t Machine,
+    ) -> Checked<&'t [typed_trees::data::TypeParameter]> {
+        let own = self.typed.machine_type_parameters(machine);
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
+        if own.is_empty() != machine.type_parameters.is_empty() {
+            return Err(unserved("type parameter span"));
+        }
+        let Some((owner, _)) = self.typed.owned_conformance_realization(machine.symbol) else {
+            return Ok(own);
+        };
+        let enclosing = self.typed.conformance_type_parameters(owner);
+        if enclosing.is_empty() != owner.type_parameters.is_empty()
+            || !owner.lifetime_parameters.is_empty()
+            || enclosing.iter().any(|parameter| {
+                parameter.kind != typed_trees::data::TypeParameterKind::Type
+                    || parameter.bounds != typed_trees::data::DataProperties::default()
+            })
+            || (!enclosing.is_empty() && !own.is_empty())
+        {
+            return Err(unserved(
+                "generic map body needs its complete eligible telescope",
+            ));
+        }
+        Ok(if enclosing.is_empty() { own } else { enclosing })
+    }
+
+    fn generic_scope(
+        &self,
+        id: MachineId,
+        machine: &'t Machine,
+    ) -> Checked<Vec<(SymbolHandle, ValueType)>> {
+        Ok(self
+            .generic_parameters(id, machine)?
+            .iter()
+            .enumerate()
+            .filter(|(_, parameter)| parameter.kind == typed_trees::data::TypeParameterKind::Type)
+            .map(|(position, parameter)| {
+                (
+                    parameter.symbol,
+                    ValueType::Rigid(terminal_check_tables::values::RigidType(position as u32)),
+                )
+            })
+            .collect())
+    }
+
     /// A helper with no written input requirement can use what every caller
     /// guarantees. A written `requires true` must still support every input.
     /// Its declaration marker survives when normalization removes the literal
@@ -87,7 +147,10 @@ impl<'t> Program<'t> {
                 "contract span",
             )?;
             if !machine.is_public
-                && self.typed.owned_conformance_realization(*symbol).is_none()
+                && self
+                    .typed
+                    .owned_conformance_realization(self.typed.lifetime_declaration_owner(*symbol))
+                    .is_none()
                 && machine.satisfies.is_empty()
                 && !contracts.iter().any(|clause| {
                     clause.kind == SignatureContractKind::Requires
@@ -182,7 +245,10 @@ impl<'t> Program<'t> {
             };
             if !machine.is_public
                 && machine.satisfies.is_empty()
-                && self.typed.owned_conformance_realization(symbol).is_none()
+                && self
+                    .typed
+                    .owned_conformance_realization(self.typed.lifetime_declaration_owner(symbol))
+                    .is_none()
                 && crate::template_of(self.typed, symbol).is_none()
             {
                 local.push(id);
@@ -225,6 +291,13 @@ impl<'t> Program<'t> {
                 self.next_identity()?,
                 Construct::Machine,
                 Unserved::Declaration("machine admission after storage metadata"),
+            ));
+        }
+        if self.unapplied_map_body(symbol) && !(self.rigid && self.symbols.is_empty()) {
+            return Err(refuse(
+                self.next_identity()?,
+                Construct::Machine,
+                Unserved::Machine("generic map body needs its complete selected application"),
             ));
         }
         let diagnostic = self.next_identity()?;
@@ -360,7 +433,18 @@ impl<'t> Program<'t> {
                 Unserved::Declaration("machine admission after storage metadata"),
             ));
         }
+        if self.unapplied_map_body(symbol)
+            && !matches!(reading, Reading::GenericEntry)
+            && !(self.rigid && matches!(reading, Reading::Implementation))
+        {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Machine("generic map body needs its complete selected application"),
+            ));
+        }
         let outer = std::mem::take(&mut self.scope);
+        let outer_widths = std::mem::take(&mut self.width_scope);
         // An elided lifetime in the signature is a fresh parameter of this
         // machine, which each call instantiates (`regions::Elision`).
         let elision = std::mem::replace(&mut self.elision, super::regions::Elision::Inputs(symbol));
@@ -369,14 +453,43 @@ impl<'t> Program<'t> {
         self.lifetime_owner = owner;
         self.elision = elision;
         let scope = std::mem::replace(&mut self.scope, outer);
+        let widths = std::mem::replace(&mut self.width_scope, outer_widths);
         let (signature, names, value_parameters) = read?;
         self.admitted_declarations.include(symbol);
+        if matches!(reading, Reading::GenericEntry | Reading::Alternative(_))
+            || (self.rigid && matches!(reading, Reading::Implementation))
+        {
+            let (machine, _) = self.declaration(id, symbol)?;
+            let mut binders = self
+                .generic_parameters(id, machine)?
+                .iter()
+                .map(|parameter| parameter.symbol)
+                .collect::<Vec<_>>();
+            binders.extend(
+                self.typed
+                    .machine_callable_parameters(machine)
+                    .iter()
+                    .map(|parameter| parameter.symbol),
+            );
+            let mut known = self
+                .generic_binders
+                .iter()
+                .copied()
+                .map(|binder| (binder, ()))
+                .collect::<symbols::SymbolMap<_>>();
+            for binder in binders {
+                if known.insert(binder, ()).is_none() {
+                    self.generic_binders.push(binder);
+                }
+            }
+        }
         self.symbols.push(symbol);
         self.signatures.push(signature);
         self.names.push(names);
         self.value_parameters.push(value_parameters);
         self.value_arguments.push(Vec::new());
         self.scopes.push(scope);
+        self.width_scopes.push(widths);
         Ok(())
     }
 
@@ -440,8 +553,22 @@ impl<'t> Program<'t> {
         requirement: SymbolHandle,
         arguments: &[semantic_vocabulary::ScalarTerm],
         implementation: SymbolHandle,
+        expected: Option<&'t StateSignature>,
     ) -> Checked<MachineId> {
         let id = self.next_identity()?;
+        if self.rigid {
+            let machine = self
+                .typed
+                .machine_by_symbol(implementation)
+                .ok_or_else(|| {
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Machine("generic witness lost its actual body"),
+                    )
+                })?;
+            self.scope = self.generic_scope(id, machine)?;
+        }
         let mut declared = self.declared_requirement(id, declaring_trait, requirement)?;
         // An owning body's unique map is also the witness's application.
         // Recover that same prepared contract rather than checking a bare
@@ -470,24 +597,61 @@ impl<'t> Program<'t> {
                 Unserved::Machine("witness needs its exact closed trait application"),
             ));
         }
-        self.witnessed_signature(declared, arguments)
+        if expected.is_some_and(|signature| {
+            self.typed
+                .closed_requirement_application(signature.symbol)
+                .map_or(signature.symbol, |application| application.template)
+                != requirement
+        }) {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Machine("selected witness names another public declaration"),
+            ));
+        }
+        self.witnessed_signature(declared, arguments, expected)
     }
 
-    pub fn witnessed_signature(
+    pub(crate) fn witnessed_signature(
         &mut self,
         declared: &'t StateSignature,
         arguments: &[semantic_vocabulary::ScalarTerm],
+        expected: Option<&'t StateSignature>,
     ) -> Checked<MachineId> {
         let id = self.next_identity()?;
         let (signature, names) = self.requirement_signature(id, declared, arguments)?;
         self.retain_requirement_policy(id, declared, declared.symbol)?;
         self.admitted_declarations.include(declared.symbol);
+        // The owning-row query chooses the witness contract. A selected call
+        // must agree with it; the call cannot replace the body's requirement
+        // or supply a different public contract to make the witness pass.
+        if let Some(expected) = expected.filter(|expected| *expected != declared) {
+            let (expected, _) = self.requirement_signature(
+                id,
+                expected,
+                if expected.type_parameters.is_empty() {
+                    &[]
+                } else {
+                    arguments
+                },
+            )?;
+            if expected != signature {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Machine(
+                        "selected call disagrees with its independent public witness",
+                    ),
+                ));
+            }
+        }
         self.symbols.push(declared.symbol);
         self.signatures.push(signature);
         self.names.push(names);
         self.value_parameters.push(0);
         self.value_arguments.push(arguments.to_vec());
-        self.scopes.push(Vec::new());
+        self.scopes.push(self.scope.clone());
+        self.width_scopes.push(Vec::new());
         Ok(id)
     }
 
@@ -499,7 +663,7 @@ impl<'t> Program<'t> {
     ) -> Checked<MachineId> {
         let id = match supplied {
             crate::CallableDeclaration::Signature(signature) => {
-                self.witnessed_signature(signature, &[])?
+                self.witnessed_signature(signature, &[], None)?
             }
             crate::CallableDeclaration::Machine(symbol) => {
                 let id = self.next_identity()?;
@@ -539,6 +703,7 @@ impl<'t> Program<'t> {
         self.value_parameters.push(0);
         self.value_arguments.push(arguments.to_vec());
         self.scopes.push(Vec::new());
+        self.width_scopes.push(Vec::new());
         self.requirements.push(id);
         Ok(id)
     }
@@ -654,23 +819,29 @@ impl<'t> Program<'t> {
     /// passes here, as an entry, a Build selection, a subject declaration or
     /// a callee, so a declaration with a row is never read through.
     pub(super) fn served(&self, id: MachineId, declaration: SymbolHandle) -> Checked<()> {
-        match self.typed.deferred_refusal(declaration) {
-            None => Ok(()),
-            // A form that is an error in every program, found while typing
-            // saw the whole program, is raised here as a rejection. The
-            // statement holding it may never be lowered (one after a call
-            // that never returns), so this is the only place it is seen.
-            Some(row) if row.request.is_violation() => Err(crate::reject(
+        let Some(row) = self.typed.deferred_refusal(declaration) else {
+            return Ok(());
+        };
+        // Violations remain errors even when their statement is unreachable;
+        // an unsupported preparation request remains an unavailable judgment.
+        let mut refusal = if row.request.is_violation() {
+            crate::reject(
                 id,
                 crate::SourceOrigin::of(row.source_span),
                 row.request.construct(),
-            )),
-            Some(row) => Err(refuse(
+            )
+        } else {
+            refuse(
                 id,
                 Construct::Machine,
                 Unserved::Declaration(row.request.construct()),
-            )),
+            )
+        };
+        if !row.detail.is_empty() {
+            refusal.detail.push_str(": ");
+            refusal.detail.push_str(&row.detail);
         }
+        Err(refusal)
     }
 
     pub(super) fn declaration(
@@ -805,8 +976,13 @@ impl<'t> Program<'t> {
         // value of a known carrier, read as a formal no caller passes
         // (`value_binders`). A type parameter would put a value of a rigid
         // type into the lowered form, which has no row for one.
-        let parameters = self.typed.machine_type_parameters(machine);
-        if parameters.is_empty() != machine.type_parameters.is_empty() {
+        let own_parameters = self.typed.machine_type_parameters(machine);
+        let parameters = if matches!(reading, Reading::GenericEntry) {
+            self.generic_parameters(id, machine)?
+        } else {
+            own_parameters
+        };
+        if own_parameters.is_empty() != machine.type_parameters.is_empty() {
             return unserved("type parameter span");
         }
         // Each refusal says which rule the parameters broke and names the
@@ -938,6 +1114,116 @@ impl<'t> Program<'t> {
         Ok(witnesses)
     }
 
+    fn prepare_width_scope(
+        &mut self,
+        id: MachineId,
+        machine: &Machine,
+        state: &State,
+    ) -> Checked<PreparedFormalValues> {
+        use crate::body::FormalValueShape;
+        use typed_trees::data::TypeParameterKind;
+
+        let typed = self.typed;
+        let formals = span(
+            &typed.state_parameters,
+            state.parameters,
+            id,
+            "parameter span",
+        )?;
+        let binders = typed
+            .machine_type_parameters(machine)
+            .iter()
+            .filter_map(|parameter| match parameter.kind {
+                TypeParameterKind::Const { type_reference } => {
+                    Some((parameter.symbol, type_reference))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let mut symbols = binders
+            .iter()
+            .map(|(symbol, _)| *symbol)
+            .collect::<Vec<_>>();
+        symbols.sort_unstable_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+        if symbols.iter().any(|symbol| !symbol.is_valid())
+            || symbols.windows(2).any(|pair| pair[0] == pair[1])
+        {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Parameter("invalid or duplicate const binder"),
+            ));
+        }
+        let mut scope = self.scope.clone();
+        scope.sort_unstable_by_key(|(symbol, _)| (symbol.arena_index(), symbol.generation()));
+        let mut shapes = Vec::with_capacity(formals.len() + binders.len());
+        for formal in formals {
+            let (shape_type, borrowed) = match formal.type_reference.is_valid().then(|| {
+                typed
+                    .type_reference_table
+                    .type_reference(formal.type_reference)
+            }) {
+                Some(TypeReferenceNode::Reference { referee, .. }) => (*referee, true),
+                _ => (formal.type_reference, false),
+            };
+            shapes.push(FormalValueShape {
+                declared: self.declared_value_shape(id, shape_type, &scope)?,
+                erased: formal.relevance == language_core::BindingRelevance::Erased,
+                borrowed,
+            });
+        }
+        for (_, type_reference) in &binders {
+            shapes.push(FormalValueShape {
+                declared: self.declared_value_shape(id, *type_reference, &scope)?,
+                erased: false,
+                borrowed: false,
+            });
+        }
+        let result = state.return_type.is_valid()
+            && !matches!(
+                typed.type_reference_table.type_reference(state.return_type),
+                TypeReferenceNode::Unit
+            );
+        let result = result && self.declared_value_shape(id, state.return_type, &scope)?;
+        let values = crate::body::formal_value_ids(shapes.iter().copied(), result);
+        let mut widths = Vec::new();
+        for (position, (symbol, type_reference)) in binders.iter().enumerate() {
+            let TypeReferenceNode::Named {
+                symbol: carrier, ..
+            } = typed.type_reference_table.type_reference(*type_reference)
+            else {
+                continue;
+            };
+            if typed.symbols.builtin_type_atom(*carrier)
+                != Some(symbols::BuiltinTypeAtom::Integer(
+                    numerics::integer_carrier::FixedInteger::U64,
+                ))
+            {
+                continue;
+            }
+            let value = values[formals.len() + position].ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Parameter("const width without an input identity"),
+                )
+            })?;
+            widths.push(super::WidthBinding {
+                symbol: *symbol,
+                parameter: semantic_vocabulary::WidthParameter { owner: id, value },
+            });
+        }
+        widths.sort_unstable_by_key(|binding| {
+            (binding.symbol.arena_index(), binding.symbol.generation())
+        });
+        self.width_scope = widths;
+        Ok(PreparedFormalValues {
+            shapes,
+            result,
+            values,
+        })
+    }
+
     /// The value parameters of a generic check form's entry, in declaration
     /// order: each `const` binder with its carrier type. generics.md, "Value
     /// binders and const requirements": a `const Count: u32` binds a value
@@ -983,33 +1269,12 @@ impl<'t> Program<'t> {
     ) -> Checked<(Signature, MachineNames, usize)> {
         let (machine, state) = self.declaration(id, symbol)?;
         self.served(id, symbol)?;
-        // The entry of a generic check form keeps its value parameters as
-        // formals; `machine_shape` refuses them on every other machine.
-        let binders = match reading {
-            Reading::GenericEntry => self.value_binders(id, machine)?,
-            Reading::Closed
-            | Reading::Implementation
-            | Reading::Provider
-            | Reading::Applied(_)
-            | Reading::Alternative(_) => Vec::new(),
-        };
         self.machine_shape(id, machine, reading)?;
         // What each type parameter stands for while this machine is read.
         self.scope = match reading {
+            Reading::Implementation if self.rigid => self.generic_scope(id, machine)?,
             Reading::Closed | Reading::Implementation | Reading::Provider => Vec::new(),
-            Reading::GenericEntry => self
-                .typed
-                .machine_type_parameters(machine)
-                .iter()
-                .enumerate()
-                .filter(|(_, parameter)| {
-                    parameter.kind == typed_trees::data::TypeParameterKind::Type
-                })
-                .map(|(position, parameter)| {
-                    let rigid = terminal_check_tables::values::RigidType(position as u32);
-                    (parameter.symbol, ValueType::Rigid(rigid))
-                })
-                .collect(),
+            Reading::GenericEntry => self.generic_scope(id, machine)?,
             Reading::Applied(arguments) | Reading::Alternative(arguments) => self
                 .typed
                 .machine_type_parameters(machine)
@@ -1025,6 +1290,20 @@ impl<'t> Program<'t> {
                 Unserved::Spelling("type parameter without a symbol"),
             ));
         }
+        // A dependent carrier needs its width's real input identity before
+        // either its formal or result type can be read. Shape preparation
+        // emits no storage, regions or types; the one ordinary read below
+        // must reproduce this exact allocation.
+        let prepared = if matches!(reading, Reading::GenericEntry) {
+            Some(self.prepare_width_scope(id, machine, state)?)
+        } else {
+            None
+        };
+        let binders = if prepared.is_some() {
+            self.value_binders(id, machine)?
+        } else {
+            Vec::new()
+        };
         if !self.contracts_restate_formal_domains(state) {
             return Err(refuse(
                 id,
@@ -1045,6 +1324,16 @@ impl<'t> Program<'t> {
             &binders,
             &[],
         )?;
+        if prepared
+            .as_ref()
+            .is_some_and(|prepared| !prepared.matches(&signature))
+        {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Machine("dependent signature differs from its prepared input shapes"),
+            ));
+        }
         // A private omission requests inference; public omission and an
         // explicitly written false promise that the effect is absent.
         let bound =
@@ -1059,6 +1348,7 @@ impl<'t> Program<'t> {
                 !machine.blocks_keyword_source_spans.is_empty(),
             ),
         };
+
         signature.termination = self.termination(id, machine)?;
         self.inherit_requirement_contract(id, machine, &mut signature, &mut names)?;
         // A machine's header clauses belong to the machine declaration; its
@@ -1119,7 +1409,7 @@ impl<'t> Program<'t> {
     /// The one requirement that owns this body. A reference row owns no
     /// body and supplies no context here. Both source spellings therefore
     /// share the same advertised entry and the same root-only body check.
-    fn conformer_requirement(
+    pub(super) fn conformer_requirement(
         &self,
         id: MachineId,
         machine: &'t Machine,
@@ -1129,27 +1419,44 @@ impl<'t> Program<'t> {
         let context = match self.declared_requirement_origin(id, machine)? {
             Some(context) => context,
             None => {
-                let Some((implementation, row)) =
-                    typed.owned_conformance_realization(machine.symbol)
-                else {
+                let authored = typed.lifetime_declaration_owner(machine.symbol);
+                let Some((_, row)) = typed.owned_conformance_realization(authored) else {
                     return Ok(None);
                 };
-                // The same exact map/row query closes named calls. Its
-                // prepared signature retains the complete trait application;
-                // the map's own open telescope remains unavailable.
-                let Some((owner, selected, requirement)) = typed
-                    .named_conformance_member(implementation.symbol, row.requirement)
+                // The typed capture, when present, fixes the owning map's
+                // exact application. The template's generic check instead
+                // retains its own lexical telescope as a rigid scope.
+                let scope = typed
+                    .machine_conformance_requirement_scope(
+                        machine.symbol,
+                        row.declaring_trait,
+                        row.requirement,
+                    )
                     .map_err(unserved)?
-                else {
-                    return Err(unserved("conformer lost its exact owning requirement"));
-                };
+                    .ok_or_else(|| unserved("conformer lost its exact owning application"))?;
+                let requirement = typed
+                    .applied_callable_signature(&scope, row.requirement)
+                    .or_else(|| {
+                        (scope.substitutions.is_empty()
+                            && scope.declaration.lifetime_parameters.is_empty())
+                        .then(|| {
+                            typed.trait_machine_signature_by_symbol(
+                                scope.declaration,
+                                row.requirement,
+                            )
+                        })
+                        .flatten()
+                    })
+                    .ok_or_else(|| unserved("conformer lost its prepared owning requirement"))?;
                 let [entry] = typed.machine_states(machine) else {
                     return Err(unserved("conformer without one owned entry state"));
                 };
-                if owner.symbol != implementation.symbol
-                    || selected != row
-                    || entry.symbol != row.realization_state
-                {
+                if !typed.instantiated_machine_state_matches(
+                    machine.symbol,
+                    authored,
+                    row.realization_state,
+                    entry.symbol,
+                ) {
                     return Err(unserved("conformer disagrees with its exact owning row"));
                 }
                 (row.declaring_trait, requirement)
@@ -1823,15 +2130,19 @@ impl<'t> Program<'t> {
             result: ResultTerm::Absent("result in an entry clause"),
             subject: None,
             formal_fields: false,
+            logical: None,
             mathematical: MathematicalTerms::Served,
         };
-        // Only an entry `requires` may project a record formal.
+        // Requirements observe inputs; guarantees choose owned inputs or
+        // borrowed completion storage in the shared clause binding.
         let required = ClauseScope {
             formal_fields: true,
+            logical: None,
             mathematical: MathematicalTerms::Served,
             ..entry
         };
         let exit = ClauseScope {
+            formal_fields: true,
             result: match result {
                 // Keep the result's qualification until an operator or cast
                 // consumes it, just as for an input or a field.
@@ -1847,6 +2158,7 @@ impl<'t> Program<'t> {
                 Some(ValueType::Rigid(_)) => ResultTerm::Absent("result of a rigid type"),
                 None => ResultTerm::Absent("result of a Unit machine"),
             },
+            logical: None,
             mathematical: MathematicalTerms::Served,
             ..entry
         };
@@ -2332,6 +2644,11 @@ impl<'t> Program<'t> {
             Some(crate::body::Borrowed {
                 position: 0,
                 access,
+                referent: if is_view {
+                    crate::body::BorrowedReferent::Slice
+                } else {
+                    crate::body::BorrowedReferent::Value
+                },
                 regions,
                 home,
             }),
@@ -2370,6 +2687,7 @@ impl<'t> Program<'t> {
         let (machine, state) = self.declaration(id, symbol)?;
         self.scope = self.scopes.get(id).cloned().unwrap_or_default();
         self.lifetime_owner = symbol;
+        self.width_scope = self.width_scopes.get(id).cloned().unwrap_or_default();
         let formals = span(
             &typed.state_parameters,
             state.parameters,
@@ -2867,6 +3185,14 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
                 spans(element, binder, out);
             }
         }
+        ExpressionKind::ByteSubslice { base, start, end } => {
+            for operand in std::iter::once(base.as_ref())
+                .chain(start.as_deref())
+                .chain(end.as_deref())
+            {
+                spans(operand, binder, out);
+            }
+        }
         ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index } => {
             spans(base, binder, out);
             spans(index, binder, out);
@@ -2946,6 +3272,30 @@ pub(super) enum Declarer {
         declares_no_crash_route: bool,
         is_boundary: bool,
     },
+}
+
+struct PreparedFormalValues {
+    shapes: Vec<crate::body::FormalValueShape>,
+    result: bool,
+    values: Vec<Option<ValueId>>,
+}
+
+impl PreparedFormalValues {
+    fn matches(&self, signature: &Signature) -> bool {
+        self.shapes.len() == signature.parameters.len()
+            && self
+                .shapes
+                .iter()
+                .zip(&signature.parameters)
+                .enumerate()
+                .all(|(position, (shape, value_type))| {
+                    shape.declared == value_type.declared().is_some()
+                        && shape.erased == signature.is_erased(position)
+                        && shape.borrowed == signature.borrowed(position).is_some()
+                })
+            && self.result == signature.result.and_then(ValueType::declared).is_some()
+            && self.values == signature.formal_values()
+    }
 }
 
 /// One value parameter of a generic check form: the binder's symbol, which
@@ -3033,6 +3383,14 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
         ExpressionKind::Array { elements } => {
             for element in elements {
                 expression_slot_uses(element, uses);
+            }
+        }
+        ExpressionKind::ByteSubslice { base, start, end } => {
+            for operand in std::iter::once(base.as_ref())
+                .chain(start.as_deref())
+                .chain(end.as_deref())
+            {
+                expression_slot_uses(operand, uses);
             }
         }
         ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index } => {

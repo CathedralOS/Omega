@@ -970,8 +970,8 @@ mod source_guards {
 pub use callable_values::{
     TerminalBoundaryEnvelope, TerminalCallableCatalog, TerminalCallableContract,
     TerminalCallableEnvelope, TerminalCallableEvidenceLane, TerminalCallableInvocation,
-    TerminalCallableTermination, TerminalCallableTerminationPremise, TerminalMachineDescriptor,
-    TerminalMachineDescriptorOrigin, TerminalMachineEnvelope,
+    TerminalCallableTermination, TerminalCallableTerminationPremise, TerminalDeclarationEnvelope,
+    TerminalMachineDescriptor, TerminalMachineDescriptorOrigin, TerminalMachineEnvelope,
 };
 pub use language_core::BindingRelevance;
 pub use semantic_vocabulary::{

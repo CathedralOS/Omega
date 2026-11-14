@@ -246,6 +246,7 @@ pub(crate) mod semantic_rows {
             actual: ScalarType,
         },
         ExactCastRequiresValueOrLiteralOperand,
+        UnresolvedIntegerWidth(IntegerType),
         InvalidProposition(PropositionError),
     }
 
@@ -540,6 +541,7 @@ pub use bytes::byte_sequence_predicates::{
     indexed_byte_store_goal, machine_scalar_constant_origin, pure_byte_qualifications,
     scalar_array_qualifications_hold, scalar_constant_value, shared_byte_field_copy_predicates,
 };
+pub use bytes::operation_bounds::operation_safety_goal;
 pub use calls::call_composition::{
     BorrowedReferentPresentation, CallArgumentRule, CallCompositionSchema,
     CallCompositionSemanticRow, CallCrashRule, CallEvidenceRule, CallFrontierRule, CallOutcomeRule,
@@ -596,7 +598,7 @@ pub use semantic_rows::{
 pub use storage::arrival_storage::{
     StorageNames, arrival_parameter, borrowed_storage_parameter,
     borrowed_storage_reference_ceiling, descriptor_parameter_access, projection_before_edge,
-    root_before_edge, storage_names, view_descriptor_parameter,
+    root_before_edge, storage_names, structural_argument_source, view_descriptor_parameter,
     view_descriptor_projected_qualifications,
 };
 pub use storage::collection_backing::{
@@ -701,3 +703,104 @@ pub use calls::evidence_calls::validate_runtime_evidence_inputs;
 pub use scalars::unchanged_scalar::{UnchangedScalarOrigin, unchanged_scalar_identity};
 
 pub(crate) use structural::structural_declarations::{structural_declaration, structural_shape};
+
+#[cfg(test)]
+mod symbolic_integer_widths {
+    use super::*;
+    use semantic_vocabulary::{
+        IntegerSign, IntegerType, IntegerValue, MachineId, ScalarTerm, ScalarType, ValueId,
+        WidthParameter,
+    };
+
+    fn parameter(sign: IntegerSign) -> IntegerType {
+        IntegerType::parameterized(
+            sign,
+            WidthParameter {
+                owner: MachineId::new(1).unwrap(),
+                value: ValueId::new(2).unwrap(),
+            },
+        )
+    }
+
+    #[test]
+    fn symbolic_width_grants_no_storage_or_recast_geometry() {
+        let unsigned = parameter(IntegerSign::Unsigned);
+        let signed = parameter(IntegerSign::Signed);
+        let scalar = ScalarType::Integer(unsigned);
+        assert_eq!(reference_storage_byte_width(scalar), None);
+        assert_eq!(
+            reference_field_representation_width(
+                std::iter::empty(),
+                &terminal_psi::StructuralFieldType::Scalar(scalar),
+            ),
+            None
+        );
+        assert!(!scalar_reference_view_is_total(
+            scalar,
+            ScalarType::Integer(signed)
+        ));
+        assert!(ScalarRepresentationViewPair::classify(ScalarType::Boolean, scalar).is_none());
+        assert_eq!(
+            scalar_reference_view_value(
+                scalar,
+                scalar,
+                ScalarViewValue::Integer(IntegerValue::Unsigned(0)),
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn symbolic_endpoint_and_shift_goals_refuse_concrete_authority() {
+        let integer = parameter(IntegerSign::Unsigned);
+        let value = ScalarTerm::Value {
+            id: ValueId::new(3).unwrap(),
+            scalar_type: ScalarType::Integer(integer),
+        };
+        let closed = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        for goal in [
+            CanonicalScalarGoal::ExactCastRepresentable {
+                source_type: integer,
+                target_type: closed,
+                operand: value.clone(),
+            },
+            CanonicalScalarGoal::ExactShiftCount {
+                value_type: integer,
+                count_type: closed,
+                count: ScalarTerm::integer(closed, IntegerValue::Unsigned(0)).unwrap(),
+            },
+            CanonicalScalarGoal::NonzeroDivisor {
+                integer_type: integer,
+                divisor: value,
+            },
+        ] {
+            assert_eq!(
+                goal.kernel_proposition(),
+                Err(OperationSemanticError::UnresolvedIntegerWidth(integer))
+            );
+        }
+    }
+
+    #[test]
+    fn closed_geometry_and_one_bit_signed_divisor_keep_their_meaning() {
+        let byte = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+        assert_eq!(reference_storage_byte_width(byte), Some(1));
+        assert!(ScalarRepresentationViewPair::classify(ScalarType::Boolean, byte).is_some());
+        let integer = IntegerType::new(IntegerSign::Signed, 1).unwrap();
+        let divisor = ScalarTerm::Value {
+            id: ValueId::new(1).unwrap(),
+            scalar_type: ScalarType::Integer(integer),
+        };
+        let proposition = CanonicalScalarGoal::NonzeroDivisor {
+            integer_type: integer,
+            divisor,
+        }
+        .kernel_proposition()
+        .unwrap();
+        assert!(matches!(
+            proposition,
+            semantic_vocabulary::Proposition::LessOrEqual(_, _)
+        ));
+        proposition.validate().unwrap();
+    }
+}

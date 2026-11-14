@@ -94,6 +94,7 @@ use terminal_psi::{
 use crate::graph::Graph;
 use crate::{StorageUse, refusal};
 
+mod byte_views;
 mod contents;
 mod loans;
 mod log;
@@ -343,6 +344,8 @@ pub(crate) fn input_content(
 enum Reached {
     /// The one value every path supplies.
     Value(ValueId),
+    /// An extent defined by this exact reaching descriptor producer.
+    Extent(OperationId),
     /// Asked of a sum: the one case every path establishes it as.
     Case(StructuralCaseId),
     /// Every path supplies what a call returned: contents with no value
@@ -1026,7 +1029,7 @@ impl<'a> Storage<'a> {
 
     /// A normal call guarantee observes the actual returned root after its
     /// producer. Owned input names keep their before-call values; borrowed
-    /// completion observations need a separate, current-storage correspondence.
+    /// reads keep the captured actual place and observe it after this call.
     pub(crate) fn after_call<'s>(
         &'s self,
         tables: &'s MachineTables,
@@ -1507,6 +1510,14 @@ impl<'a> Storage<'a> {
             | StructuralTypeShape::Reference { .. } => {
                 found.push(at.clone());
             }
+            // Availability concerns the descriptor, not ownership of its
+            // backing. An exclusive descriptor is readable too; copying it
+            // still requires the separate unrestricted-copy judgment.
+            StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(terminal_psi::StructuralAccess::MutableBorrow),
+                },
+            ) => found.push(at.clone()),
             shape if is_shared_view(shape) => {
                 found.push(at.clone());
             }
@@ -1719,6 +1730,17 @@ impl<'a> Storage<'a> {
                         .kernel_proposition()
                         .map_err(crate::semantics_refusal(self.machine, id));
                 }
+                if let OperationKind::ByteSequenceSubslice {
+                    obligation: owned, ..
+                } = &operation.kind
+                {
+                    if *owned != obligation {
+                        return Err(
+                            self.foreign(concerns, "a byte subslice owns another obligation")
+                        );
+                    }
+                    return self.byte_subslice_goal(operation, types);
+                }
                 if let OperationKind::ByteSequenceRead {
                     source,
                     index,
@@ -1817,6 +1839,16 @@ impl<'a> Storage<'a> {
         types: &IdTable<ValueId, ScalarType>,
     ) -> Checked<Proposition> {
         let concerns = Construct::Operation(operation.id);
+        self.readable_byte_view(operation, source)?;
+        let byte = ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8)
+                .expect("u8 is valid"),
+        );
+        if operation.result.scalar_ref().is_none_or(|result| {
+            result.scalar_type != byte || result.qualifications != Default::default()
+        }) {
+            return Err(self.foreign(concerns, "a byte read must produce a plain u8"));
+        }
         let (block, after) = self
             .graph
             .locate(ProgramPoint::AfterOperation(operation.id))?;
@@ -1846,10 +1878,10 @@ impl<'a> Storage<'a> {
         if types.get(index).copied() != Some(count) || types.get(length).copied() != Some(count) {
             return Err(self.foreign(concerns, "a byte read's index or length is not a u64"));
         }
-        Ok(Proposition::LessThan(
-            ScalarTerm::value(index, count),
-            ScalarTerm::value(length, count),
-        ))
+        terminal_semantics::operation_safety_goal(operation, types)
+            .map_err(crate::semantics_refusal(self.machine, operation.id))?
+            .map(|(_, goal)| goal)
+            .ok_or_else(|| self.foreign(concerns, "a byte read has no canonical bounds goal"))
     }
 
     fn block(&self, id: BlockId) -> Checked<&'a Block> {
@@ -1935,6 +1967,16 @@ impl<'a> Storage<'a> {
                     .zero_case(row.lineage.root, beneath, concerns)?
                     .map_or(Reached::Unknown, Reached::Case),
                 (Stored::Zeroed, Asked::Contents(_)) => Reached::Unknown,
+                (Stored::Established, Asked::Contents(_))
+                    if beneath == [Segment::Extent]
+                        && matches!(
+                            self.operation(row.operation, concerns)?.kind,
+                            OperationKind::ByteSequenceSubslice { .. }
+                                | OperationKind::EstablishByteSequenceLiteral { .. }
+                        ) =>
+                {
+                    Reached::Extent(row.operation)
+                }
                 (Stored::Established, Asked::Contents(leaf)) => self
                     .interned(tables, leaf, concerns)?
                     .and_then(|place| {
@@ -2086,6 +2128,9 @@ impl<'a> Storage<'a> {
                 (Some(Reached::Value(known)), Reached::Value(value)) if known == value => {
                     Reached::Value(known)
                 }
+                (Some(Reached::Extent(known)), Reached::Extent(value)) if known == value => {
+                    Reached::Extent(known)
+                }
                 (Some(Reached::Case(known)), Reached::Case(case)) if known == case => {
                     Reached::Case(known)
                 }
@@ -2093,12 +2138,14 @@ impl<'a> Storage<'a> {
                 (
                     Some(
                         Reached::Value(_)
+                        | Reached::Extent(_)
                         | Reached::Case(_)
                         | Reached::Returned
                         | Reached::Unknown
                         | Reached::Closed,
                     ),
                     Reached::Value(_)
+                    | Reached::Extent(_)
                     | Reached::Case(_)
                     | Reached::Returned
                     | Reached::Unknown
@@ -2313,15 +2360,18 @@ impl<'a> Storage<'a> {
             .checked_sub(1)
             .ok_or_else(|| self.foreign(concerns, "a read has no point before it"))?;
         let mut budget = self.budget();
-        let Reached::Value(held) = self.reaching(
+        let reached = self.reaching(
             tables,
             Asked::Contents(&leaf),
             block,
             before,
             &mut budget,
             concerns,
-        )?
-        else {
+        )?;
+        if let Reached::Extent(producer) = reached {
+            return self.extent_equation(operation, producer);
+        }
+        let Reached::Value(held) = reached else {
             return Ok(None);
         };
         let held_type =
@@ -2469,6 +2519,7 @@ impl<'a> Storage<'a> {
                 }
             }
             Reached::Case(_)
+            | Reached::Extent(_)
             | Reached::Unknown
             | Reached::Unestablished
             | Reached::Open
@@ -3567,8 +3618,9 @@ impl Held<'_, '_> {
 }
 
 /// Input substitution and returned storage share the existing clause binding
-/// interface. Only the declared result root is redirected to the actual result;
-/// every field read uses the same checked reaching-write walk as data clauses.
+/// interface. The result uses its actual returned storage, and borrowed inputs
+/// use their captured storage at completion. Owned inputs and explicit entry
+/// reads keep the input observation. All use the same checked storage walk.
 pub(crate) struct Returned<'s, 'a, Inputs> {
     inputs: Inputs,
     input_formals: &'s [terminal_psi::StructuralParameterDeclaration],
@@ -3580,7 +3632,18 @@ pub(crate) struct Returned<'s, 'a, Inputs> {
     concerns: Construct,
 }
 
-impl<'s, 'a, Inputs: crate::Bindings<Error = crate::Unbound>> Returned<'s, 'a, Inputs> {
+/// Keep the actual place selected when the invocation's arguments were
+/// evaluated. A completion read changes its observation point, never the
+/// argument or the reference identity it follows.
+pub(crate) trait InputPlaces: crate::Bindings<Error = crate::Unbound> {
+    fn input_place(
+        &self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Result<Lineage, crate::Unbound>;
+}
+
+impl<'s, 'a, Inputs: InputPlaces> Returned<'s, 'a, Inputs> {
     fn owned_inputs(&mut self, root: PlaceId) -> Result<&mut Inputs, crate::Unbound> {
         let formal =
             terminal_psi::StructuralParameterDeclaration::find_by_place(self.input_formals, root)
@@ -3599,6 +3662,10 @@ impl<'s, 'a, Inputs: crate::Bindings<Error = crate::Unbound>> Returned<'s, 'a, I
         let (_, place) = self.structural.as_ref().ok_or(crate::Unbound::Unsupported(
             "no structural result correspondence",
         ))?;
+        self.held_at(place)
+    }
+
+    fn held_at<'p>(&'p self, place: &'p Lineage) -> Result<Held<'p, 'a>, crate::Unbound> {
         let (block, up_to) = self
             .storage
             .graph
@@ -3615,7 +3682,7 @@ impl<'s, 'a, Inputs: crate::Bindings<Error = crate::Unbound>> Returned<'s, 'a, I
     }
 }
 
-impl<Inputs: crate::Bindings<Error = crate::Unbound>> crate::Bindings for Returned<'_, '_, Inputs> {
+impl<Inputs: InputPlaces> crate::Bindings for Returned<'_, '_, Inputs> {
     type Error = crate::Unbound;
     fn value(
         &mut self,
@@ -3636,6 +3703,7 @@ impl<Inputs: crate::Bindings<Error = crate::Unbound>> crate::Bindings for Return
     }
     fn field(
         &mut self,
+        version: semantic_vocabulary::ContentPlaceVersion,
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         scalar_type: ScalarType,
@@ -3645,11 +3713,42 @@ impl<Inputs: crate::Bindings<Error = crate::Unbound>> crate::Bindings for Return
             .as_ref()
             .is_some_and(|(declared, _)| *declared == root)
         {
+            if version == semantic_vocabulary::ContentPlaceVersion::Entry {
+                return Err(crate::Unbound::Unsupported(
+                    "a result has no invocation-entry contents",
+                ));
+            }
             let subject = terminal_check_tables::program::self_place()
                 .ok_or(crate::Unbound::Unsupported("data subject identity"))?;
-            return self.held()?.field(subject, path, scalar_type);
+            return self.held()?.field(version, subject, path, scalar_type);
         }
-        self.owned_inputs(root)?.field(root, path, scalar_type)
+        let formal =
+            terminal_psi::StructuralParameterDeclaration::find_by_place(self.input_formals, root)
+                .ok_or(crate::Unbound::Unsupported(
+                "a completion clause names storage that is no formal",
+            ))?;
+        if !terminal_psi::structural_access_covers(
+            formal.access,
+            terminal_psi::StructuralAccess::SharedBorrow,
+        ) {
+            return Err(crate::Unbound::Unsupported(
+                "a clause reads a write-only input",
+            ));
+        }
+        if version == semantic_vocabulary::ContentPlaceVersion::Entry
+            || formal.access == terminal_psi::StructuralAccess::Owned
+        {
+            return self.inputs.field(version, root, path, scalar_type);
+        }
+        let actual = self.inputs.input_place(root, path)?;
+        let subject = terminal_check_tables::program::self_place()
+            .ok_or(crate::Unbound::Unsupported("data subject identity"))?;
+        self.held_at(&actual)?.field(
+            semantic_vocabulary::ContentPlaceVersion::Current,
+            subject,
+            &[],
+            scalar_type,
+        )
     }
     fn extent(
         &mut self,
@@ -3752,20 +3851,12 @@ impl crate::Bindings for AtEntry<'_, '_> {
 
     fn field(
         &mut self,
+        _: semantic_vocabulary::ContentPlaceVersion,
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         scalar_type: ScalarType,
     ) -> Result<ScalarTerm, crate::Unbound> {
-        self.observation(
-            extended(
-                Lineage {
-                    root,
-                    segments: Vec::new(),
-                },
-                path,
-            )?,
-            scalar_type,
-        )
+        self.observation(self.input_place(root, path)?, scalar_type)
     }
 
     fn extent(
@@ -3797,6 +3888,37 @@ impl crate::Bindings for AtEntry<'_, '_> {
     }
 }
 
+impl InputPlaces for AtEntry<'_, '_> {
+    fn input_place(
+        &self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Result<Lineage, crate::Unbound> {
+        let formal = terminal_psi::StructuralParameterDeclaration::find_by_place(
+            &self.storage.lowered.structural_parameters,
+            root,
+        )
+        .ok_or(crate::Unbound::Unsupported(
+            "a clause names storage that is no input",
+        ))?;
+        if !terminal_psi::structural_access_covers(
+            formal.access,
+            terminal_psi::StructuralAccess::SharedBorrow,
+        ) {
+            return Err(crate::Unbound::Unsupported(
+                "a clause reads a write-only input",
+            ));
+        }
+        extended(
+            Lineage {
+                root,
+                segments: Vec::new(),
+            },
+            path,
+        )
+    }
+}
+
 /// See `Storage::at_call`.
 pub(crate) struct AtCall<'s, 'a> {
     storage: &'s Storage<'a>,
@@ -3818,11 +3940,23 @@ impl AtCall<'_, '_> {
     ) -> Result<Lineage, crate::Unbound> {
         // The callee's root is one of its record formals; the actual is the
         // place at the same position of the structural lane.
-        let actual = self
+        let formal = self
             .callee_formals
             .iter()
             .find(|parameter| parameter.place == root)
-            .and_then(|parameter| usize::try_from(parameter.position).ok())
+            .ok_or(crate::Unbound::Unsupported(
+                "clause names storage that is no record formal of the callee",
+            ))?;
+        if !terminal_psi::structural_access_covers(
+            formal.access,
+            terminal_psi::StructuralAccess::SharedBorrow,
+        ) {
+            return Err(crate::Unbound::Unsupported(
+                "a clause reads a write-only input",
+            ));
+        }
+        let actual = usize::try_from(formal.position)
+            .ok()
             .and_then(|position| self.places.get(position))
             .ok_or(crate::Unbound::Unsupported(
                 "clause names storage that is no record formal of the callee",
@@ -3850,7 +3984,7 @@ impl AtCall<'_, '_> {
             ));
         }
         let mut budget = storage.budget();
-        let Reached::Value(held) = storage
+        let reached = storage
             .reaching(
                 self.tables,
                 Asked::Contents(&leaf),
@@ -3859,8 +3993,23 @@ impl AtCall<'_, '_> {
                 &mut budget,
                 self.concerns,
             )
-            .map_err(crate::Unbound::Refused)?
-        else {
+            .map_err(crate::Unbound::Refused)?;
+        if let Reached::Extent(producer) = reached {
+            let point = if self.up_to == 0 {
+                ProgramPoint::BlockEntry(self.block)
+            } else {
+                let block = storage.block(self.block).map_err(crate::Unbound::Refused)?;
+                let previous = self.up_to.min(block.operations.len()) - 1;
+                ProgramPoint::AfterOperation(block.operations[previous].id)
+            };
+            return storage
+                .extent_contents(producer, point, scalar_type)
+                .map_err(crate::Unbound::Refused)?
+                .ok_or(crate::Unbound::Unproved(
+                    "the actual's extent has no current endpoint correspondence",
+                ));
+        }
+        let Reached::Value(held) = reached else {
             return Err(crate::Unbound::Unproved(
                 "the actual's observation has no reaching value identity at the call",
             ));
@@ -3890,6 +4039,7 @@ impl crate::Bindings for AtCall<'_, '_> {
 
     fn field(
         &mut self,
+        _: semantic_vocabulary::ContentPlaceVersion,
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         scalar_type: ScalarType,
@@ -3920,6 +4070,16 @@ impl crate::Bindings for AtCall<'_, '_> {
     }
 }
 
+impl InputPlaces for AtCall<'_, '_> {
+    fn input_place(
+        &self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Result<Lineage, crate::Unbound> {
+        self.actual(root, path)
+    }
+}
+
 impl crate::Bindings for Held<'_, '_> {
     type Error = crate::Unbound;
     fn value(&mut self, _: ValueId, _: ScalarType) -> Result<ScalarTerm, crate::Unbound> {
@@ -3930,10 +4090,16 @@ impl crate::Bindings for Held<'_, '_> {
 
     fn field(
         &mut self,
+        version: semantic_vocabulary::ContentPlaceVersion,
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         scalar_type: ScalarType,
     ) -> Result<ScalarTerm, crate::Unbound> {
+        if version != semantic_vocabulary::ContentPlaceVersion::Current {
+            return Err(crate::Unbound::Unsupported(
+                "a data predicate has no invocation-entry contents",
+            ));
+        }
         let leaf = self.beneath(root, path)?;
         let storage = self.storage;
         if !matches!(
@@ -3994,6 +4160,7 @@ impl crate::Bindings for Held<'_, '_> {
         {
             Reached::Case(held) => Ok(held == case),
             Reached::Value(_)
+            | Reached::Extent(_)
             | Reached::Returned
             | Reached::Unknown
             | Reached::Unestablished
@@ -4040,18 +4207,26 @@ impl crate::Bindings for Named<'_> {
 
     fn field(
         &mut self,
+        version: semantic_vocabulary::ContentPlaceVersion,
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         scalar_type: ScalarType,
     ) -> Result<ScalarTerm, crate::Unbound> {
+        if version != semantic_vocabulary::ContentPlaceVersion::Current {
+            return Err(crate::Unbound::Unsupported(
+                "a data predicate has no invocation-entry contents",
+            ));
+        }
         self.beneath(root, path)?;
         match scalar_type {
             ScalarType::Integer(scalar_type) => Ok(ScalarTerm::IntegerField {
+                version,
                 root,
                 path: path.to_vec(),
                 scalar_type,
             }),
             ScalarType::Boolean => Ok(ScalarTerm::BooleanField {
+                version,
                 root,
                 path: path.to_vec(),
             }),
@@ -4104,10 +4279,16 @@ impl crate::Bindings for Observed<'_, '_> {
 
     fn field(
         &mut self,
+        version: semantic_vocabulary::ContentPlaceVersion,
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         scalar_type: ScalarType,
     ) -> Result<ScalarTerm, crate::Unbound> {
+        if version != semantic_vocabulary::ContentPlaceVersion::Current {
+            return Err(crate::Unbound::Unsupported(
+                "a data predicate has no invocation-entry contents",
+            ));
+        }
         if self.held.beneath(root, path)? != *self.leaf {
             return Err(crate::Unbound::Unproved(
                 "a field other than the one read provides no premise",

@@ -162,3 +162,283 @@ machine use(byte: u8) { }"
         "statement store into a value that is not a local"
     );
 }
+
+#[test]
+fn a_subslice_keeps_the_selected_bytes_and_exact_extent() {
+    let program = r#"
+        machine next(path: &[u8]) -> u8 requires path.len > 1 {
+            let suffix: &[u8] = path[1..];
+            suffix[0]
+        }
+        machine build_entry(path: &[u8]) {
+            transition path.len > 1 { true -> use(next(path)) false -> none() }
+        }
+        machine use(value: u8) {}
+        machine none() {}
+    "#;
+    assert_eq!(verdict(program), "accepted");
+}
+
+#[test]
+fn a_length_can_be_used_directly_as_a_call_argument() {
+    assert_eq!(
+        verdict("machine build_entry(path: &[u8]) { use(path.len); } machine use(length: u64) {}"),
+        "accepted"
+    );
+}
+
+#[test]
+fn shared_subslices_compose_with_literals_calls_and_stored_views() {
+    for program in [
+        r#"machine first(path: &[u8]) -> u8 requires path.len > 0 { path[0] }
+            machine build_entry() { use(first("AXYZ"[1..3])); }
+            machine use(byte: u8) {}"#,
+        r#"machine build_entry() { let bytes: &[u8] = "AXYZ"; let selected: &[u8] = bytes[1..3]; use(selected[1]); }
+            machine use(byte: u8) {}"#,
+        r#"machine build_entry(path: &[u8]) requires path.len > 2 {
+                let selected: &[u8] = path[1..=2]; let suffix: &[u8] = selected[1..]; use(suffix[0]);
+            } machine use(byte: u8) {}"#,
+        r#"machine select<'a>(path: &'a [u8]) -> &'a [u8] requires path.len > 1 { path[1..] }
+            machine build_entry(path: &[u8]) requires path.len > 1 { let selected: &[u8] = select(path); use(selected.len); }
+            machine use(length: u64) {}"#,
+        r#"data Holder<'a> { bytes: &'a [u8]; }
+            machine build_entry<'a>(holder: &Holder<'a>) requires holder.bytes.len > 1 {
+                let selected: &[u8] = holder.bytes[1..]; use(selected[0]);
+            } machine use(byte: u8) {}"#,
+        r#"machine first(path: &[u8]) -> u8 requires path.len > 0 { path[0] }
+            machine build_entry() { let path: &[u8] = "AXYZ"; use(first(path[1..3])); }
+            machine use(byte: u8) {}"#,
+        r#"machine build_entry(path: &[u8]) { let empty: &[u8] = path[path.len..]; use(empty.len); }
+            machine use(length: u64) {}"#,
+    ] {
+        assert_eq!(verdict(program), "accepted", "{program}");
+    }
+}
+
+#[test]
+fn subslice_bounds_must_belong_to_the_same_view_and_be_ordered() {
+    for program in [
+        "machine build_entry(path: &[u8]) requires path.len > 2 { let selected: &[u8] = path[2..1]; }",
+        "machine build_entry(path: &[u8]) requires path.len > 0 { let selected: &[u8] = path[0..2]; }",
+        "machine build_entry(other: &[u8], path: &[u8]) requires other.len > 2 { let selected: &[u8] = path[1..2]; }",
+        "machine build_entry(path: &[u8]) requires path.len > 1 { let selected: &[u8] = path[1..1]; use(selected[0]); } machine use(byte: u8) {}",
+    ] {
+        assert_eq!(verdict(program), "rejected", "{program}");
+    }
+}
+
+#[test]
+fn a_subslice_cannot_claim_another_measurement_or_mutable_access() {
+    use super::build_purpose::{frontier_of, package, roster, symbol};
+    let typed = frontier_of(
+        "machine product_entry() {}",
+        r#"
+        machine build_entry(path: &[u8]) requires path.len > 1 {
+            let selected: &[u8] = path[1..]; use(selected[0]);
+        } machine use(byte: u8) {}
+    "#,
+    );
+    let entry = symbol(&typed, "build_entry");
+    let elaborate = || {
+        typed_trees_to_terminal_psi::elaborate_for(
+            &typed,
+            roster(&[entry], &[Some(package())], source::DependencyScope::Build),
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .unwrap()
+    };
+    assert!(matches!(
+        judge(Ok(elaborate())).unwrap(),
+        RouteVerdict::Accepted(_)
+    ));
+    for fault in 0..5 {
+        let mut changed = elaborate();
+        let machine = changed
+            .module
+            .machines
+            .iter_mut()
+            .find(|machine| {
+                machine
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.operations)
+                    .any(|operation| {
+                        matches!(operation.kind, OperationKind::ByteSequenceSubslice { .. })
+                    })
+            })
+            .unwrap();
+        let slice = machine
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.operations)
+            .find(|operation| matches!(operation.kind, OperationKind::ByteSequenceSubslice { .. }))
+            .unwrap();
+        let OperationKind::ByteSequenceSubslice {
+            source,
+            start,
+            length,
+            ..
+        } = &mut slice.kind
+        else {
+            unreachable!()
+        };
+        match fault {
+            0 => *length = *start,
+            1 => source.access = terminal_psi::StructuralAccess::MutableBorrow,
+            2 => {
+                let terminal_psi::OperationResult::Structural(result) = &mut slice.result else {
+                    unreachable!()
+                };
+                result.multiplicity = terminal_psi::StructuralMultiplicity::Affine;
+            }
+            3 => {
+                machine.structural_parameters[0].access =
+                    terminal_psi::StructuralAccess::WriteOnlyBorrow;
+            }
+            4 => {
+                let input = &mut machine.structural_parameters[0];
+                input.multiplicity = terminal_psi::StructuralMultiplicity::Affine;
+                let declaration = changed
+                    .module
+                    .structural_types
+                    .iter_mut()
+                    .find(|row| row.id == input.structural_type)
+                    .unwrap();
+                declaration.shape = terminal_psi::StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { access: None },
+                );
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            !matches!(judge(Ok(changed)), Ok(RouteVerdict::Accepted(_))),
+            "fault {fault} accepted"
+        );
+    }
+}
+
+#[test]
+fn fixed_byte_arrays_can_supply_borrowed_view_parameters() {
+    for access in ["&", "&mut"] {
+        let program = format!(
+            r#"
+            machine count(bytes: {access} [u8]) -> u64 {{ bytes.len }}
+            machine middle(bytes: {access} [u8]) -> u8 {{
+                transition bytes.len > 1 {{ true -> bytes[1] false -> 0 }}
+            }}
+            machine build_entry() {{
+                let mut bytes: [u8; 3] = [17, 42, 99];
+                use(count({access} bytes), middle({access} bytes));
+                use_byte(bytes[0]);
+            }}
+            machine use(extent: u64, middle: u8) {{}}
+            machine use_byte(byte: u8) {{}}
+        "#
+        );
+        assert_eq!(verdict(&program), "accepted", "{program}");
+    }
+}
+
+#[test]
+fn an_array_loan_keeps_its_element_type_and_requested_access() {
+    assert_eq!(
+        verdict(
+            r#"machine count(bytes: &mut &mut [u8]) -> u64 { bytes.len }
+            machine build_entry() {
+                let mut bytes: [u8; 3] = [17, 42, 99]; use(count(&mut bytes));
+            }
+            machine use(extent: u64) {}"#
+        ),
+        "typing argument types"
+    );
+    assert_eq!(
+        verdict(
+            r#"
+        machine count(bytes: &mut [u8]) -> u64 { bytes.len }
+        machine build_entry() {
+            let mut bytes: [u8; 0] = [];
+            use(count(&mut bytes));
+        }
+        machine use(extent: u64) {}
+    "#
+        ),
+        "typing argument types"
+    );
+    assert_eq!(
+        verdict(
+            r#"
+        machine count(bytes: &[u8]) -> u64 { bytes.len }
+        machine build_entry() {
+            let bytes: [u8; 3] = [17, 42, 99];
+            use(count(bytes));
+        }
+        machine use(extent: u64) {}
+    "#
+        ),
+        "call argument for a borrowed formal that is not a borrow"
+    );
+    assert_eq!(
+        verdict(
+            r#"
+        machine count(bytes: &mut [u8]) -> u64 { bytes.len }
+        machine build_entry() {
+            let mut bytes: [u8; 3] = [17, 42, 99];
+            use(count(&bytes));
+        }
+        machine use(extent: u64) {}
+    "#
+        ),
+        "rejected"
+    );
+    assert_eq!(
+        verdict(
+            r#"
+        machine count(bytes: &mut [u8]) -> u64 { bytes.len }
+        machine build_entry() {
+            let mut words: [u16; 3] = [17, 42, 99];
+            use(count(&mut words));
+        }
+        machine use(extent: u64) {}
+    "#
+        ),
+        "typing argument types"
+    );
+}
+
+#[test]
+fn an_empty_byte_window_requires_existing_array_backing() {
+    let mut accepted = match judge_build(
+        "machine build_entry() { let bytes: [u8; 3] = [17, 42, 99]; use(&bytes); } \
+         machine use(bytes: &[u8]) {}",
+    )
+    .unwrap()
+    {
+        RouteVerdict::Accepted(accepted) => accepted,
+        other => panic!("{other:?}"),
+    };
+    let types = &mut accepted.elaboration.module.structural_types;
+    let array = types
+        .iter()
+        .find(|row| {
+            matches!(
+                row.shape,
+                terminal_psi::StructuralTypeShape::FixedArray { .. }
+            )
+        })
+        .unwrap()
+        .id;
+    let empty = [terminal_psi::StructuralPathSegment::FixedRange { start: 3, end: 3 }];
+    assert_eq!(
+        terminal_semantics::fixed_byte_storage_window(types.iter(), array, &empty)
+            .unwrap()
+            .length,
+        0
+    );
+    let declaration = types.iter_mut().find(|row| row.id == array).unwrap();
+    let terminal_psi::StructuralTypeShape::FixedArray { length, .. } = &mut declaration.shape
+    else {
+        unreachable!()
+    };
+    *length = terminal_psi::ArrayExtent::Literal(0);
+    assert!(terminal_semantics::fixed_byte_storage_window(types.iter(), array, &[]).is_none());
+}

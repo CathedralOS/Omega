@@ -2726,8 +2726,9 @@ pub(crate) mod callable_values_wire {
     use terminal_psi::{
         TerminalBoundaryEnvelope, TerminalCallableCatalog, TerminalCallableContract,
         TerminalCallableEnvelope, TerminalCallableEvidenceLane, TerminalCallableInvocation,
-        TerminalCallableTermination, TerminalCallableTerminationPremise, TerminalMachineDescriptor,
-        TerminalMachineDescriptorOrigin, TerminalMachineEnvelope,
+        TerminalCallableTermination, TerminalCallableTerminationPremise,
+        TerminalDeclarationEnvelope, TerminalMachineDescriptor, TerminalMachineDescriptorOrigin,
+        TerminalMachineEnvelope,
     };
 
     wire_record! {
@@ -2736,6 +2737,7 @@ pub(crate) mod callable_values_wire {
             descriptors: List<Descriptor>,
             machine_envelopes: List<Optional<NamedEnvelope>>,
             boundary_envelopes: List<Optional<BoundaryEnvelope>>,
+            declaration_envelopes: List<DeclarationEnvelope>,
         }
         Contract: TerminalCallableContract {
             id: Id,
@@ -2775,6 +2777,7 @@ pub(crate) mod callable_values_wire {
         }
         NamedEnvelope: TerminalMachineEnvelope { machine: Id, envelope: Envelope }
         BoundaryEnvelope: TerminalBoundaryEnvelope { boundary: Id, envelope: Envelope }
+        DeclarationEnvelope: TerminalDeclarationEnvelope { contract: Id, envelope: Envelope }
         Envelope: TerminalCallableEnvelope {
             service_reach: Ids,
             invocations: List<Invocation>,
@@ -2793,6 +2796,53 @@ pub(crate) mod callable_values_wire {
         Termination: TerminalCallableTermination, "TerminalCallableTermination" {
             0 => NotGuaranteed,
             1 => Terminates { premises: List<Premise> },
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use crate::wire_fields::{
+            Field,
+            wire::{Reader, Writer},
+        };
+        use semantic_vocabulary::{ContractId, ServiceId};
+
+        #[test]
+        fn declaration_envelopes_keep_parameter_invocations_and_exact_contract_ids() {
+            let catalog = TerminalCallableCatalog {
+                declaration_envelopes: vec![TerminalDeclarationEnvelope {
+                    contract: ContractId::new(7).unwrap(),
+                    envelope: TerminalCallableEnvelope {
+                        service_reach: vec![ServiceId::new(1).unwrap()],
+                        invocations: vec![TerminalCallableInvocation::Parameter(2)],
+                        suspends: false,
+                        blocks: true,
+                        termination: TerminalCallableTermination::NotGuaranteed,
+                    },
+                }],
+                ..Default::default()
+            };
+            let mut writer = Writer::default();
+            Catalog::write(&mut writer, &catalog).unwrap();
+            let bytes = writer.finish();
+            let mut reader = Reader::new(&bytes);
+            assert_eq!(Catalog::read(&mut reader).unwrap(), catalog);
+            assert_eq!(reader.remaining(), 0);
+            let mut duplicate = catalog.clone();
+            duplicate
+                .declaration_envelopes
+                .push(catalog.declaration_envelopes[0].clone());
+            assert!(
+                duplicate
+                    .declaration_envelope(ContractId::new(7).unwrap())
+                    .is_none()
+            );
+            assert!(
+                catalog
+                    .declaration_envelope(ContractId::new(8).unwrap())
+                    .is_none()
+            );
         }
     }
 }
@@ -2865,6 +2915,102 @@ pub(crate) mod float_meaning_wire {
         InputId: FloatProjectionInputId;
     }
 
+    use numerics::float_semantics::FloatSemanticOperationIdentity;
+    use numerics::integer_carrier::{FixedInteger, IntegerSign};
+
+    struct IntegerCarrier;
+    impl Field<FixedInteger> for IntegerCarrier {
+        fn write(writer: &mut Writer, value: &FixedInteger) -> Result<(), CodecError> {
+            writer.u8(u8::from(value.is_signed()));
+            writer.u64(value.width());
+            Ok(())
+        }
+        fn read(reader: &mut Reader<'_>) -> Result<FixedInteger, CodecError> {
+            let sign = match reader.u8()? {
+                0 => IntegerSign::Unsigned,
+                1 => IntegerSign::Signed,
+                tag => return Err(CodecError::InvalidTag("float semantic integer sign", tag)),
+            };
+            FixedInteger::new(sign, reader.u64()?).ok_or(CodecError::MalformedStructuralFoundation(
+                "float semantic integer width must be positive",
+            ))
+        }
+    }
+
+    wire_enum! {
+        SemanticOperation: FloatSemanticOperationIdentity, "FloatSemanticOperationIdentity" {
+            0 => Fixed(row: U8),
+            1 => FromInteger(carrier: IntegerCarrier),
+            2 => ToIntegerExact(carrier: IntegerCarrier),
+            3 => ToIntegerSaturating(carrier: IntegerCarrier),
+        }
+    }
+
+    #[cfg(test)]
+    mod float_conversion_identity_tests {
+        use super::*;
+        use numerics::float_semantics::{FloatSemanticOperation, FloatSemanticValueKind};
+
+        #[test]
+        fn width_parameterized_float_contracts_round_trip_without_source() {
+            for carrier in [
+                FixedInteger::signed(1),
+                FixedInteger::unsigned(13),
+                FixedInteger::signed(257),
+                FixedInteger::unsigned(u64::MAX),
+            ] {
+                let integer = FloatSemanticValueKind::Integer(carrier);
+                for (name, parameters, result) in [
+                    (
+                        "from_integer".to_owned(),
+                        vec![FloatSemanticValueKind::Format, integer],
+                        FloatSemanticValueKind::Meaning,
+                    ),
+                    (
+                        format!("to_{carrier}"),
+                        vec![FloatSemanticValueKind::Meaning],
+                        integer,
+                    ),
+                    (
+                        format!("to_{carrier}_saturating"),
+                        vec![FloatSemanticValueKind::Meaning],
+                        integer,
+                    ),
+                ] {
+                    let operation = FloatSemanticOperation::from_source_identity(
+                        "FloatSemantics",
+                        &name,
+                        &parameters,
+                        result,
+                    )
+                    .unwrap();
+                    let contract = operation.contract_identity();
+                    let mut writer = Writer::default();
+                    ApplicationContract::write(&mut writer, &contract).unwrap();
+                    let bytes = writer.finish();
+                    let decoded = ApplicationContract::read(&mut Reader::new(&bytes)).unwrap();
+                    assert_eq!(decoded, contract);
+                    assert_eq!(
+                        FloatSemanticOperation::for_contract_identity(&decoded),
+                        Some(operation)
+                    );
+                }
+            }
+        }
+
+        #[test]
+        fn width_parameterized_float_contracts_reject_invalid_carriers() {
+            for bytes in [
+                vec![1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                vec![2, 2, 13, 0, 0, 0, 0, 0, 0, 0],
+                vec![3, 0, 13],
+                vec![255],
+            ] {
+                assert!(SemanticOperation::read(&mut Reader::new(&bytes)).is_err());
+            }
+        }
+    }
+
     struct Format;
     impl Field<IeeeFloatFormat> for Format {
         fn write(writer: &mut Writer, value: &IeeeFloatFormat) -> Result<(), CodecError> {
@@ -2917,7 +3063,7 @@ pub(crate) mod float_meaning_wire {
             operands: List<ApplicationOperand>,
         }
         ApplicationContract: FloatSemanticContractIdentity {
-            row: U8,
+            operation: SemanticOperation,
             catalog_version: U16,
             commitment: Digest,
         }
@@ -3862,12 +4008,12 @@ pub(crate) mod scalar_application_wire {
                         LayoutMeasurement::Alignment => 2,
                     });
                     writer.u32(*semantics_version);
-                    encode_scalar_type(writer, *scalar_type);
+                    encode_scalar_type(writer, *scalar_type)?;
                 }
                 ScalarApplication::Evaluate { entry, scalar_type } => {
                     writer.u8(2);
                     encode_callable(writer, *entry);
-                    encode_scalar_type(writer, *scalar_type);
+                    encode_scalar_type(writer, *scalar_type)?;
                 }
             }
         }
@@ -4148,7 +4294,7 @@ pub(crate) mod scalar_condition_wire {
                 writer.id(*application);
                 writer.id(*machine);
                 writer.id(*result);
-                encode_scalar_type(writer, *scalar_type);
+                encode_scalar_type(writer, *scalar_type)?;
             }
         }
         Ok(())
@@ -5246,12 +5392,19 @@ impl Field<TerminalIdentityFormations> for IdentityFormations {
     }
 }
 
+#[cfg(test)]
 pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
+    encode_raw_closed(module).map(|(bytes, _)| bytes)
+}
+
+pub(crate) fn encode_raw_closed(
+    module: &TerminalModule,
+) -> Result<(Vec<u8>, crate::ClosedTypeCatalog), CodecError> {
     let mut writer = Writer::default();
     writer.bytes(MAGIC);
     writer.u16(FORMAT_MARKER);
     Module::write(&mut writer, module)?;
-    Ok(writer.finish())
+    Ok(writer.finish_closed())
 }
 
 pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModule, CodecError> {

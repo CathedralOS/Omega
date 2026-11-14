@@ -114,3 +114,10 @@ pub use table::{
 
 #[cfg(test)]
 mod tests;
+
+/// One exact formal occurrence within its source callable's ordered telescope.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ParameterOccurrence {
+    pub ordinal: usize,
+    pub symbol: SymbolHandle,
+}

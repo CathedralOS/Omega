@@ -300,7 +300,7 @@ impl Program<'_> {
             // A generic machine is checked once as written, as its own check
             // form, not as a closed body (`Elaboration::generic_templates`).
             // One whose only parameters are implementations is generic too.
-            if !machine.has_specialization_parameters() {
+            if !self.is_generic_template(machine) {
                 let id = self.subject_machine(machine.symbol)?;
                 self.subject_machines.push(id);
             } else {
@@ -386,6 +386,31 @@ impl Program<'_> {
                     ));
                 }
             }
+        }
+        Ok(())
+    }
+}
+
+impl Program<'_> {
+    /// A generic schema is checked in its own source binder namespace. The
+    /// same declaration owner forms its complete requirement contracts.
+    pub(crate) fn generic_trait(
+        &mut self,
+        declared: &typed_trees::trait_definition::TraitDefinition,
+    ) -> Checked<()> {
+        let diagnostic = MachineId::new(1).expect("1 is nonzero");
+        self.generic_binders.extend(
+            self.typed
+                .trait_type_parameters(declared)
+                .iter()
+                .map(|parameter| parameter.symbol),
+        );
+        if !self.trait_declaration(diagnostic, declared.symbol)? {
+            return Err(refuse(
+                diagnostic,
+                Construct::Machine,
+                Unserved::Declaration("generic trait lost its actual declaration"),
+            ));
         }
         Ok(())
     }

@@ -102,6 +102,50 @@ pub(super) fn source_sequence_view(
 }
 
 impl Program<'_> {
+    /// A byte-view parameter can borrow a fixed array's backing. Keep the
+    /// array's real type on the argument; canonical loan checking supplies
+    /// the descriptor's extent and checks its access at the call.
+    pub(super) fn borrowed_byte_array_matches(
+        &self,
+        actual: Option<ValueType>,
+        expected: ValueType,
+    ) -> bool {
+        let (
+            Some(ValueType::Record(actual, Qualification::NONE, _)),
+            ValueType::Record(expected, Qualification::NONE, _),
+        ) = (actual, expected)
+        else {
+            return false;
+        };
+        if !self.records.get(expected).is_some_and(|row| {
+            matches!(
+                row.shape,
+                StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(
+                        terminal_psi::StructuralAccess::SharedBorrow
+                            | terminal_psi::StructuralAccess::MutableBorrow
+                    ),
+                })
+            )
+        }) {
+            return false;
+        }
+        let Some(actual) = self.records.get(actual) else {
+            return false;
+        };
+        let StorageShape::FixedArray {
+            element,
+            length: ArrayExtent::Literal(length),
+        } = actual.shape
+        else {
+            return false;
+        };
+        length > 0 && actual.requires.is_empty() && self.records.get(element).is_some_and(|element|
+            element.requires.is_empty() && matches!(element.shape,
+                StorageShape::PrimitiveScalar { scalar_type: ScalarType::Integer(integer), policy: None }
+                    if integer.bits() == Some(8) && integer.sign() == IntegerSign::Unsigned && !integer.is_address()))
+    }
+
     pub(super) fn array_literal(
         &mut self,
         machine: MachineId,
@@ -161,9 +205,22 @@ impl Program<'_> {
         machine: MachineId,
         slots: &[Slot],
         indexed: &TableIndexedExpression,
-        source: SourceOrigin,
+        handle: ExpressionHandle,
+        expected: Option<ValueType>,
     ) -> Checked<Expression> {
-        let base = self.expression(machine, slots, indexed.collection, None)?;
+        let source = SourceOrigin::of(self.typed.expression_table.source_span(handle));
+        // A range preserves the backing region of its operand. Context can
+        // instantiate that region (including immutable literal backing), but
+        // never selects an operator or grants mutable access.
+        let hint = expected.filter(|value| matches!(value, ValueType::Record(row, _, _)
+            if matches!(self.records.get(*row).map(|row| &row.shape), Some(StorageShape::ByteSequence(carrier)) if carrier.is_shared_readable_view())));
+        let hint = matches!(
+            self.node(machine, indexed.index)?,
+            typed_trees::expression::ExpressionNode::Range(_)
+        )
+        .then_some(hint)
+        .flatten();
+        let base = self.expression(machine, slots, indexed.collection, hint)?;
         let Some(array) = self.opened(machine, base.result, Access::Read)? else {
             return Err(refuse(
                 machine,
@@ -172,6 +229,11 @@ impl Program<'_> {
             ));
         };
         if self.is_readable_byte_view(machine, array)? {
+            if let typed_trees::expression::ExpressionNode::Range(range) =
+                self.node(machine, indexed.index)?
+            {
+                return self.byte_subslice(machine, slots, base, range, handle, source);
+            }
             return self.byte_element(machine, slots, base, indexed.index, source);
         }
         let (element, extent) = self.array_element(machine, array)?;

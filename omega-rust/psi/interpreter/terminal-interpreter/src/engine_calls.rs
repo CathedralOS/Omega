@@ -865,6 +865,7 @@ pub(crate) mod frames {
                 content_identity_reshuffles: Vec::new(),
                 content_partition_compositions: Vec::new(),
                 contract: terminal_psi::MachineContract {
+                    selected_application: None,
                     declaration: None,
                     parameters: Vec::new(),
                     parameter_order: Vec::new(),
@@ -883,7 +884,7 @@ pub(crate) mod frames {
                 identity: terminal_codec::TerminalExecutionIdentity::portable(
                     terminal_codec::terminal_psi_identity(&module).unwrap(),
                 ),
-                catalogs: Arc::new(crate::embedding::program::ProgramStorage::Owned(module)),
+                catalogs: Arc::new(crate::embedding::program::ProgramStorage::Fixture(module)),
                 target_layouts: None,
                 scalar_geometry: None,
             })

@@ -231,9 +231,9 @@ impl RoutePublication {
 /// Why an accepted closure could not be published.
 #[derive(Debug)]
 pub enum PublicationError {
-    /// The closure retains abstract requirements or undeclared logical-frame
-    /// envelopes. Such generic/logical check forms prove obligations and are
-    /// never encoded as executable source programs.
+    /// The closure retains abstract requirements, logical-frame envelopes,
+    /// open source binders, static-value formals or opaque rigid values.
+    /// These generic check forms are never executable source programs.
     GenericCheckForm,
     /// A machine of the module has no declaration identity, for the reason
     /// given (`Elaboration::undeclared`). product.md: "Source-produced
@@ -253,19 +253,19 @@ impl AcceptedClosure {
     /// belongs to the codec; no intermediate source-side carrier is published.
     pub fn publish(&self) -> Result<RoutePublication, PublicationError> {
         self.validate_publication()?;
-        let module = self.elaboration.module.clone();
-        let identity =
-            terminal_codec::terminal_psi_identity(&module).map_err(PublicationError::Seals)?;
+        let module = terminal_codec::ClosedTerminalModule::new(self.elaboration.module.clone())
+            .map_err(PublicationError::Seals)?;
+        let identity = module.identity();
         let record = terminal_codec::PsiOptimizationExecutionRecord::new(
             optimization::PsiOptimizationSelections::default(),
             identity,
             identity,
         )
         .map_err(|error| PublicationError::Semantic(format!("{error:?}")))?;
-        let seals = terminal_codec::EvidenceSeals::for_module(&module, self.seals.clone())
-            .map_err(PublicationError::Seals)?;
-        let artifact = terminal_codec::CanonicalTerminalArtifact::from_parts(module, record, None)
-            .map_err(PublicationError::Artifact)?;
+        let seals = terminal_codec::EvidenceSeals::for_closed_module(&module, self.seals.clone());
+        let artifact =
+            terminal_codec::CanonicalTerminalArtifact::from_closed_parts(module, record, None)
+                .map_err(PublicationError::Artifact)?;
         Ok(RoutePublication { artifact, seals })
     }
 
@@ -275,17 +275,29 @@ impl AcceptedClosure {
         &self,
     ) -> Result<RoutePublication<terminal_codec::InvocationTerminalCode>, PublicationError> {
         self.validate_publication()?;
-        let module = self.elaboration.module.clone();
-        let seals = terminal_codec::EvidenceSeals::for_module(&module, self.seals.clone())
+        let module = terminal_codec::ClosedTerminalModule::new(self.elaboration.module.clone())
             .map_err(PublicationError::Seals)?;
-        let artifact =
-            terminal_codec::InvocationTerminalCode::new(module).map_err(PublicationError::Seals)?;
+        let seals = terminal_codec::EvidenceSeals::for_closed_module(&module, self.seals.clone());
+        let artifact = terminal_codec::InvocationTerminalCode::from_closed_module(module)
+            .map_err(PublicationError::Seals)?;
         Ok(RoutePublication { artifact, seals })
     }
 
     fn validate_publication(&self) -> Result<(), PublicationError> {
         if !self.elaboration.requirements.is_empty()
             || !self.elaboration.check_form_envelopes.is_empty()
+            || !self.elaboration.generic_binders.is_empty()
+            || self
+                .elaboration
+                .value_parameters
+                .iter()
+                .any(|(_, count)| *count != 0)
+            || self.elaboration.tables.machines.iter().any(|(_, machine)| {
+                machine
+                    .values
+                    .iter()
+                    .any(|(_, value)| value.rigid.is_some())
+            })
         {
             return Err(PublicationError::GenericCheckForm);
         }
@@ -795,6 +807,7 @@ fn conflict_statement(
 /// one, as the source does.
 fn describe_kind(kind: ObligationKind) -> String {
     match kind {
+        ObligationKind::IntegerWidthPositive { .. } => String::from("positive integer width"),
         ObligationKind::OperationSafety { .. } => String::from("operation safety"),
         ObligationKind::CallRequirement { clause, .. } => {
             format!(
@@ -1255,6 +1268,33 @@ pub(crate) fn judge_compilation_with_activity(
         }
         TerminalCompilation::Prepared(prepared) => prepared,
     };
+    match crate::callable_arrivals::check(prepared.arrivals, activity) {
+        Ok(unproved) if unproved.is_empty() => {}
+        Ok(unproved) => {
+            let verdict = if unproved
+                .iter()
+                .all(|failure| failure.cause == UnprovedCause::NoRuleForGoalForm)
+            {
+                RouteVerdict::Incomplete(unproved)
+            } else {
+                RouteVerdict::Rejected {
+                    formations: Vec::new(),
+                    violations: Vec::new(),
+                    unproved,
+                    unestablished: Vec::new(),
+                    conflicts: Vec::new(),
+                    exceeded: Vec::new(),
+                }
+            };
+            return vec![Ok(verdict)];
+        }
+        Err(refused) => {
+            return vec![
+                judge_owing_with_activity(Err(refused), AppliedContracts::Undecided, activity)
+                    .map_err(CompilationRefusal::Elaboration),
+            ];
+        }
+    }
     let forms = examine_generic_forms(prepared.forms, activity);
     // A selection borrows the same discharge that later decides its witness's
     // verdict. Several selections may name one witness; none owns a second

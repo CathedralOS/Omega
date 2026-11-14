@@ -176,6 +176,7 @@ impl Program<'_> {
                         )
                     })
                 })?;
+            let envelope = self.static_envelope(context, signature, declaration.is_boundary)?;
             // Abstract schemas retain their logical carriers. A closed
             // declaration also publishes its ordinary Terminal contract,
             // without manufacturing a body or an executable entry.
@@ -183,9 +184,14 @@ impl Program<'_> {
                 && declaration.lifetime_parameters.is_empty()
                 && signature.type_parameters.is_empty()
                 && abstract_types == 0
+                && matches!(&envelope.service_reach, SourceServiceCeiling::Closed(_))
             {
+                let complete = self.signature_envelope(context, signature)?;
                 let id = self.declaration_signatures.push(lowered.clone());
-                if self.declaration_symbols.push(signature.symbol) != id {
+                if self.declaration_sources.push(signature) != id
+                    || self.declaration_selections.push(None) != id
+                    || self.declaration_envelopes.push(complete) != id
+                {
                     return Err(services::unavailable(
                         context,
                         "requirement lost its declaration contract coordinate",
@@ -196,7 +202,7 @@ impl Program<'_> {
                 declaration: signature.symbol,
                 abstract_types,
                 signature: lowered,
-                envelope: self.static_envelope(context, signature, declaration.is_boundary)?,
+                envelope,
             });
         }
         self.static_contracts.schemas.insert(

@@ -1679,7 +1679,10 @@ pub mod expression {
                 )
             }
 
-            pub(crate) fn copy_call_operands_from(
+            /// Copy the existing call inputs and application into this table.
+            /// The caller assigns the new invocation owner and judges it; the
+            /// original application's tuple and scope remain untouched.
+            pub fn copy_call_operands_from(
                 &mut self,
                 source: &ExpressionTable,
                 expressions: &[ExpressionHandle],
@@ -5012,6 +5015,8 @@ pub mod expression {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
     pub struct AccessBorrowOperationRequest {
         pub factory: SymbolHandle,
+        pub source_parameter: SymbolHandle,
+        pub view_parameter: SymbolHandle,
         pub access: language_core::ReferenceAccess,
         pub backing: AccessBorrowBacking,
     }

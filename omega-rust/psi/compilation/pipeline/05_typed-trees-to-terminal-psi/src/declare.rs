@@ -34,6 +34,8 @@ that lists one, because it would publish a source-produced body with no
 declaration identity.
 */
 
+mod selected;
+
 use std::hash::{Hash, Hasher};
 
 use optimization::digest_encoder::DomainDigestEncoder;
@@ -70,12 +72,13 @@ impl Hasher for Commitment {
 /// requirement descriptions without giving a requirement an executable body.
 pub(crate) fn declare(
     typed: &TypedTrees,
-    machines: &IdTable<MachineId, SymbolHandle>,
-    signatures: &IdTable<MachineId, Signature>,
-    requirement_symbols: &IdTable<semantic_vocabulary::ContractId, SymbolHandle>,
-    requirement_signatures: &IdTable<semantic_vocabulary::ContractId, Signature>,
+    program: &crate::read::Program<'_>,
     elaboration: &mut Elaboration,
 ) -> Result<(), &'static str> {
+    let machines = &program.symbols;
+    let signatures = &program.signatures;
+    let requirement_sources = &program.declaration_sources;
+    let requirement_signatures = &program.declaration_signatures;
     let sources =
         source::source_identity::toolchain_source_identities(typed.symbols.source_files());
     // A service is committed to by its portable identity, never by its
@@ -158,16 +161,16 @@ pub(crate) fn declare(
             .as_ref()
             .map_err(|_| "a public requirement toolchain source has no exact identity")?;
         for contract in &mut elaboration.module.declaration_contracts {
-            let symbol = *requirement_symbols
+            let original = *program
+                .declaration_representatives
                 .get(contract.id)
+                .ok_or("public contract lost its source representative")?;
+            let requirement = *requirement_sources
+                .get(original)
                 .ok_or("public contract lost its source declaration coordinate")?;
             let signature = requirement_signatures
-                .get(contract.id)
+                .get(original)
                 .ok_or("public contract lost its exact source signature")?;
-            let (_, requirement) = typed
-                .trait_machine_signature(symbol)
-                .filter(|(_, requirement)| requirement.symbol == symbol)
-                .ok_or("public contract no longer names its declaring requirement")?;
             let reach = identities_of(&contract.published_service_ceiling)?;
             let entries = identities_of(&contract.published_synchronous_entries)?;
             let (_, declaration, _) = trait_requirement(
@@ -184,6 +187,52 @@ pub(crate) fn declare(
             )?;
             contract.declaration = Some(declaration);
         }
+        let links = selected::publish(
+            typed,
+            program,
+            sources,
+            &mut elaboration.module,
+            &mut identities,
+        )?;
+        for (required, application, mut dispatch) in links {
+            let application = elaboration
+                .module
+                .closed_conformance_applications
+                .get(application)
+                .ok_or("selected public contract lost its emitted application")?;
+            dispatch.conformance_application_report_fingerprint = application.report_fingerprint;
+            dispatch.conformance_application_commitment = application.commitment;
+            let contract = elaboration
+                .module
+                .declaration_contracts
+                .iter_mut()
+                .find(|contract| contract.id == required)
+                .ok_or("selected application lost its exact public contract")?;
+            if contract
+                .selected_application
+                .as_ref()
+                .is_some_and(|known| known != &dispatch)
+            {
+                return Err("one public contract is associated with different closed selections");
+            }
+            contract.selected_application = Some(dispatch);
+        }
+        elaboration
+            .module
+            .closed_conformance_applications
+            .sort_unstable_by(|left, right| {
+                (
+                    left.owner,
+                    identities.text(left.declaration_identity),
+                    left.report_fingerprint,
+                )
+                    .cmp(&(
+                        right.owner,
+                        identities.text(right.declaration_identity),
+                        right.report_fingerprint,
+                    ))
+            });
+        elaboration.module.closed_conformance_applications.dedup();
         Ok(())
     })();
     elaboration.module.identities = identities.build();
@@ -484,24 +533,28 @@ fn application(
     // template and arguments. Anonymous invocation source does not acquire
     // a package owner merely because stage 04 generated a specialization.
     let semantic = semantic_identity(typed, template, identities)?;
-    let mut rows = typed
-        .machine_specializations
-        .iter()
-        .filter(|row| row.instance == instance);
-    let (Some(row), None) = (rows.next(), rows.next()) else {
-        return Err("a generated machine does not have exactly one application");
-    };
+    let row = typed
+        .machine_instantiation(instance)?
+        .filter(|row| row.template() == template)
+        .ok_or("a generated machine does not have exactly one application")?;
+    let binding_application = row.binding_application();
+    if !typed
+        .expression_table
+        .static_machine_application_is_valid(binding_application)
+    {
+        return Err("a generated machine has a foreign binding application");
+    }
     let mut commitment = Commitment(DomainDigestEncoder::new(APPLICATION_DOMAIN));
     callable.hash(&mut commitment);
     let bindings = typed
         .expression_table
-        .static_machine_application_bindings(row.binding_application);
+        .static_machine_application_bindings(binding_application);
     if bindings.is_empty() {
         return Err("a generated machine's application binds nothing");
     }
     let arguments = typed
         .expression_table
-        .static_machine_application_arguments(row.binding_application);
+        .static_machine_application_arguments(binding_application);
     if arguments.len() != bindings.len() {
         return Err(
             "a generated machine's application binds other than one argument per parameter",
@@ -730,8 +783,7 @@ impl RequirementApplicationSource {
         if bindings.is_empty() || bindings.len() != closed.portable_local_arguments.len() {
             return Err("a closed requirement binds other than one argument per parameter");
         }
-        let mut commitment = Commitment(DomainDigestEncoder::new(APPLICATION_DOMAIN));
-        callable.hash(&mut commitment);
+        let mut selected = Vec::with_capacity(bindings.len());
         let mut arguments = Vec::with_capacity(bindings.len());
         for (binding, identity) in bindings.iter().zip(closed.portable_local_arguments) {
             let text = typed
@@ -740,11 +792,15 @@ impl RequirementApplicationSource {
                 .ok_or("a closed requirement's argument has no identity")?;
             match &binding.value {
                 StaticMachineBindingValue::Type(_) => {
-                    text.hash(&mut commitment);
+                    selected.push(
+                        language_semantics::conformance_identity::MachineOperandSelectionIdentity::Type(text.clone()),
+                    );
                     arguments.push(RequirementArgumentSource::Type(text));
                 }
                 StaticMachineBindingValue::Const(_) => {
-                    ("value", text.as_str()).hash(&mut commitment);
+                    selected.push(
+                        language_semantics::conformance_identity::MachineOperandSelectionIdentity::Const(text.clone()),
+                    );
                     arguments.push(RequirementArgumentSource::Const(text));
                 }
                 StaticMachineBindingValue::Conformance(_)
@@ -756,10 +812,14 @@ impl RequirementApplicationSource {
                 }
             }
         }
+        let commitment =
+            language_semantics::conformance_identity::requirement_application_commitment(
+                &callable, &selected,
+            )?;
         Ok(Self {
             callable,
             arguments,
-            commitment: commitment.0.finish(),
+            commitment,
         })
     }
 

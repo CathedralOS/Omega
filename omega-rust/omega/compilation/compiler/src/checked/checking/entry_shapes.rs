@@ -92,6 +92,14 @@ pub(super) fn bound_program_entry_shapes(
                 )
                 .map_err(Diagnostic::error)?,
                 visible_parameters,
+                address_model: target::TargetSemantics::close_address_model(profile).map(|model| {
+                    semantic_vocabulary::ScalarAddressModel {
+                        target: profile.target_name().to_owned(),
+                        carrier: model.carrier(),
+                        semantics_version: model.semantics_version(),
+                        commitment: model.commitment(),
+                    }
+                }),
             })
         })();
         match resolved {

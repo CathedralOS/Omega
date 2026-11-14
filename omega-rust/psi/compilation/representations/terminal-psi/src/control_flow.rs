@@ -437,6 +437,9 @@ pub(crate) mod invocations {
     #[derive(Clone, Copy)]
     pub struct ModuleInvocationInputs<'a, Callable = MachineId> {
         pub callee: Callable,
+        /// A selected call uses this public contract while executing `callee`.
+        /// A direct call leaves it absent and uses the body's own contract.
+        pub required_contract: Option<semantic_vocabulary::ContractId>,
         pub arguments: &'a [ValueId],
         pub erased_arguments: &'a [ScalarTerm],
         pub erased_proof_arguments: &'a [ProofTerm],
@@ -451,6 +454,7 @@ pub(crate) mod invocations {
         pub fn declared(self) -> ModuleInvocationInputs<'a, super::TargetMachineCallable> {
             ModuleInvocationInputs {
                 callee: super::TargetMachineCallable::Machine(self.callee),
+                required_contract: self.required_contract,
                 arguments: self.arguments,
                 erased_arguments: self.erased_arguments,
                 erased_proof_arguments: self.erased_proof_arguments,
@@ -480,6 +484,7 @@ pub(crate) mod invocations {
             {
                 return Some(ModuleInvocationInputs {
                     callee: super::TargetMachineCallable::Boundary(*boundary),
+                    required_contract: None,
                     arguments,
                     erased_arguments: &[],
                     erased_proof_arguments: &[],
@@ -583,6 +588,7 @@ pub(crate) mod invocations {
             };
             Some(ModuleInvocationInputs {
                 callee,
+                required_contract: None,
                 arguments,
                 erased_arguments,
                 erased_proof_arguments,
@@ -620,6 +626,7 @@ pub(crate) mod invocations {
                     InvocationSite::ExternalCompletion(*edge),
                     ModuleInvocationInputs {
                         callee: super::TargetMachineCallable::Boundary(*boundary),
+                        required_contract: None,
                         arguments,
                         erased_arguments: &[],
                         erased_proof_arguments: &[],
@@ -642,6 +649,7 @@ pub(crate) mod invocations {
         pub fn module_invocation(&self) -> Option<ModuleInvocationInputs<'_>> {
             let Self::InvokeNoNormal {
                 callee,
+                required_contract,
                 arguments,
                 erased_arguments,
                 erased_proof_arguments,
@@ -656,6 +664,7 @@ pub(crate) mod invocations {
             };
             Some(ModuleInvocationInputs {
                 callee: *callee,
+                required_contract: *required_contract,
                 arguments,
                 erased_arguments,
                 erased_proof_arguments,
@@ -681,7 +690,6 @@ pub(crate) mod invocations {
                 .iter()
                 .filter_map(|operation| {
                     operation
-                        .kind
                         .module_invocation()
                         .map(|inputs| ModuleInvocation {
                             site: semantic_vocabulary::InvocationSite::Operation(operation.id),
@@ -1045,6 +1053,10 @@ pub(crate) mod operations {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct Operation {
         pub static_reach_binding: Option<u32>,
+        /// Keep the public entry contract beside this exact operation. The
+        /// implementation remains the kind's physical target; no other call
+        /// of that implementation acquires this route.
+        pub required_contract: Option<semantic_vocabulary::ContractId>,
         pub suspension_crossing: Option<SuspensionCrossingId>,
         pub id: OperationId,
         pub result: OperationResult,
@@ -1059,11 +1071,26 @@ pub(crate) mod operations {
         ) -> Self {
             Self {
                 static_reach_binding: None,
+                required_contract: None,
                 suspension_crossing: None,
                 id,
                 result,
                 kind,
             }
+        }
+
+        pub fn module_invocation(&self) -> Option<super::ModuleInvocationInputs<'_>> {
+            let mut invocation = self.kind.module_invocation()?;
+            invocation.required_contract = self.required_contract;
+            Some(invocation)
+        }
+
+        pub fn declared_invocation(
+            &self,
+        ) -> Option<super::ModuleInvocationInputs<'_, super::TargetMachineCallable>> {
+            let mut invocation = self.kind.declared_invocation()?;
+            invocation.required_contract = self.required_contract;
+            Some(invocation)
         }
     }
 
@@ -2418,6 +2445,7 @@ pub(crate) mod termination {
         InvokeNoNormal {
             edge: EdgeId,
             static_reach_binding: Option<u32>,
+            required_contract: Option<semantic_vocabulary::ContractId>,
             callee: MachineId,
             arguments: Vec<ValueId>,
             erased_arguments: Vec<ScalarTerm>,

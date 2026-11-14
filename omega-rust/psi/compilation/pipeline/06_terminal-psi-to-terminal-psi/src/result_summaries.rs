@@ -185,6 +185,7 @@ impl Bindings for Returned<'_> {
     }
     fn field(
         &mut self,
+        _: semantic_vocabulary::ContentPlaceVersion,
         _: PlaceId,
         _: &[CanonicalStructuralPathSegment],
         _: ScalarType,

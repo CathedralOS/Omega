@@ -56,8 +56,9 @@ use crate::{Unserved, refuse};
 pub struct Outcome {
     /// Published suspension and blocking, independently bounded by the header.
     pub operational: [bool; 2],
-    /// Some path of the body reaches a normal return. When none does, a call
-    /// of the machine has no normal successor (`Terminator::InvokeNoNormal`).
+    /// A normal return is possible under what callers may know. A local
+    /// checked body can exclude it; an opaque contract cannot borrow the
+    /// selected body's stronger outcome.
     pub completes_normally: bool,
     /// The published crash routes in canonical form, over the formals.
     pub crash_routes: Vec<CrashRouteBucket>,
@@ -82,17 +83,31 @@ pub struct Outcome {
 ///
 /// A machine in `requirements` is a requirement's contract and has no body:
 /// its member may return, and it may crash only as its authored ceiling says.
+/// Source body summaries are restricted to `local_results`; all other rows
+/// retain a possible normal return while their actual bodies are still walked
+/// for service, crash and operational contributions.
 pub(crate) fn outcomes(
     bodies: &IdTable<MachineId, Body>,
     signatures: Signatures<'_>,
     requirements: &[MachineId],
     callables: &crate::callables::CallableNamespace,
-    boundaries: &crate::boundaries::BoundaryNamespace,
+    local_results: Option<&[MachineId]>,
 ) -> Checked<IdTable<MachineId, Outcome>> {
+    // A closed-body input has no source-unit boundary. Source compilations
+    // supply the same actual private-body roster as result-summary checking.
+    let mut local = bodies.map(|_, _| local_results.is_none());
+    for &machine in local_results.unwrap_or_default() {
+        *local.get_mut(machine).ok_or_else(|| {
+            refuse(
+                machine,
+                Construct::Machine,
+                Unserved::Machine("local body summary outside the module"),
+            )
+        })? = true;
+    }
     let mut walk = Walk {
         signatures,
         callables,
-        boundaries,
         requirements,
         reached: bodies.map(|_, _| Reached::default()),
         causes: BTreeSet::new(),
@@ -108,7 +123,10 @@ pub(crate) fn outcomes(
             let completes_normally = if requirements.contains(&machine) {
                 true
             } else {
-                walk.statements(machine, &body.statements)?
+                // Always walk the body for its other effects. Only its
+                // normal-completion inference is private to the unit.
+                let completes = walk.statements(machine, &body.statements)?;
+                completes || local.get(machine) != Some(&true)
             };
             let found = Reached {
                 operational: walk.operational,
@@ -179,7 +197,6 @@ struct Contributed {
 struct Walk<'b> {
     signatures: Signatures<'b>,
     callables: &'b crate::callables::CallableNamespace,
-    boundaries: &'b crate::boundaries::BoundaryNamespace,
     /// Machines that are a requirement's contract and have no body.
     requirements: &'b [MachineId],
     reached: IdTable<MachineId, Reached>,
@@ -384,6 +401,17 @@ impl Walk<'_> {
                 }
                 Ok(true)
             }
+            ExpressionKind::ByteSubslice { base, start, end } => {
+                for operand in std::iter::once(base.as_ref())
+                    .chain(start.as_deref())
+                    .chain(end.as_deref())
+                {
+                    if !self.expression(machine, operand)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
             ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index } => {
                 Ok(self.expression(machine, base)? && self.expression(machine, index)?)
             }
@@ -409,7 +437,10 @@ impl Walk<'_> {
                 Ok(true)
             }
             ExpressionKind::Call {
-                callee, arguments, ..
+                callee,
+                required_contract,
+                arguments,
+                ..
             } => {
                 if let Some(operand) = callee.operand()
                     && !self.expression(machine, operand)?
@@ -466,28 +497,42 @@ impl Walk<'_> {
                         }
                         return Ok(true);
                     }
-                    CallTarget::Boundary { boundary, .. } => {
-                        let outcome = self.boundaries.outcome(*boundary).ok_or_else(|| {
-                            refuse(
-                                machine,
-                                Construct::Machine,
-                                Unserved::Call("boundary call has no published outcome"),
-                            )
-                        })?;
-                        for (contributes, published) in
-                            self.operational.iter_mut().zip(outcome.operational)
+                    CallTarget::Boundary { boundary } => {
+                        let signature = self.signatures.invocation(
+                            semantic_vocabulary::TargetMachineCallable::Boundary(*boundary),
+                            *required_contract,
+                            machine,
+                        )?;
+                        for (contributes, published) in self
+                            .operational
+                            .iter_mut()
+                            .zip(signature.operational.published([false; 2]))
                         {
                             *contributes |= published;
                         }
-                        self.causes
-                            .extend(outcome.crash_routes.iter().map(|bucket| bucket.cause));
-                        self.contributed[Axis::Reach as usize]
-                            .services
-                            .extend(outcome.service_reach);
-                        self.contributed[Axis::Entries as usize]
-                            .services
-                            .extend(outcome.synchronous_entries);
-                        return Ok(outcome.completes_normally);
+                        let routes = signature.declared_crash_routes().ok_or_else(|| {
+                            refuse(
+                                machine,
+                                Construct::Machine,
+                                Unserved::Call("boundary call has no published crash contract"),
+                            )
+                        })?;
+                        self.causes.extend(routes.iter().map(|route| route.cause));
+                        for axis in Axis::ALL {
+                            let Ceiling::Authored(row) = signature.ceiling(axis) else {
+                                return Err(refuse(
+                                    machine,
+                                    Construct::Machine,
+                                    Unserved::Call("boundary call has an open operational ceiling"),
+                                ));
+                            };
+                            self.contributed[axis as usize]
+                                .services
+                                .extend(row.iter().copied());
+                        }
+                        return Ok(required_contract.is_some()
+                            || self.signatures.completion(*boundary, machine)?
+                                == semantic_vocabulary::BoundaryCompletion::NormalReturn);
                     }
                     CallTarget::Machine(_) => {}
                 }
@@ -509,28 +554,38 @@ impl Walk<'_> {
                         Unserved::Call("callee outside the module"),
                     )
                 })?;
-                let completes = reached.completes_normally;
+                // A routed requirement advertises its own contract, never
+                // the stronger private outcome of its chosen implementation.
+                let completes = required_contract.is_some() || reached.completes_normally;
                 let causes = reached.causes.clone();
-                let signature = self.signatures.get((*callee).into(), machine)?;
+                let signature =
+                    self.signatures
+                        .invocation((*callee).into(), *required_contract, machine)?;
                 let published = signature.operational.published(reached.operational);
                 for (contributes, published) in self.operational.iter_mut().zip(published) {
                     *contributes |= published;
                 }
                 let mut joins = Vec::with_capacity(Axis::ALL.len());
                 for axis in Axis::ALL {
-                    let row = self.published_row(*callee, axis, reached, false)?;
-                    // An open requirement is itself the open call; a machine
-                    // with a written ceiling closes whatever its body calls.
-                    let open = match signature.ceiling(axis) {
-                        Ceiling::Authored(_) => false,
+                    let (row, open) = match signature.ceiling(axis) {
+                        Ceiling::Authored(row) => (row.clone(), false),
                         Ceiling::Inferred => {
-                            reached.contributed[axis as usize].open
-                                || self.requirements.contains(callee)
+                            let physical = self.signatures.get((*callee).into(), machine)?;
+                            let open = matches!(physical.ceiling(axis), Ceiling::Inferred)
+                                && (reached.contributed[axis as usize].open
+                                    || self.requirements.contains(callee));
+                            (self.published_row(*callee, axis, reached, false)?, open)
                         }
                     };
                     joins.push((axis, row, open));
                 }
-                let published = self.published(*callee, &causes)?;
+                // A written public ceiling governs this call even if its
+                // selected implementation promises less. Only an omitted
+                // ceiling is closed from that exact body's outcome.
+                let published = match signature.declared_crash_routes() {
+                    Some(routes) => routes.to_vec(),
+                    None => self.published(*callee, &causes)?,
+                };
                 self.causes
                     .extend(published.iter().map(|bucket| bucket.cause));
                 for (axis, row, open) in joins {

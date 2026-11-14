@@ -4961,10 +4961,10 @@ pub(crate) mod global_value_numbering {
                             (operands.right, zero)
                         }
                         (BitwiseFamily::Or, Kind::IntegerBitwiseOrAllOnesLeft) => {
-                            (operands.left, ones)
+                            (operands.left, ones?)
                         }
                         (BitwiseFamily::Or, Kind::IntegerBitwiseOrAllOnesRight) => {
-                            (operands.right, ones)
+                            (operands.right, ones?)
                         }
                         _ => return None,
                     };
@@ -4998,10 +4998,10 @@ pub(crate) mod global_value_numbering {
                     let ones = all_ones(operands.scalar_type);
                     let (law_side, law_constant) = match (operands.family, identity) {
                         (BitwiseFamily::And, Kind::IntegerBitwiseAndAllOnesLeft) => {
-                            (BitwiseSide::Left, ones)
+                            (BitwiseSide::Left, ones?)
                         }
                         (BitwiseFamily::And, Kind::IntegerBitwiseAndAllOnesRight) => {
-                            (BitwiseSide::Right, ones)
+                            (BitwiseSide::Right, ones?)
                         }
                         (BitwiseFamily::Or, Kind::IntegerBitwiseOrZeroLeft) => {
                             (BitwiseSide::Left, zero)
@@ -5439,10 +5439,67 @@ pub(crate) mod global_value_numbering {
                 }
             }
 
-            fn all_ones(scalar_type: IntegerType) -> IntegerValue {
+            fn all_ones(scalar_type: IntegerType) -> Option<IntegerValue> {
+                // A missing unsigned endpoint supplies no law literal. Zero
+                // identities above remain independent of that endpoint.
                 match scalar_type.sign() {
-                    IntegerSign::Signed => IntegerValue::Signed(-1),
+                    IntegerSign::Signed => Some(IntegerValue::Signed(-1)),
                     IntegerSign::Unsigned => scalar_type.maximum_value(),
+                }
+            }
+
+            #[cfg(test)]
+            mod width_closure_tests {
+                use super::*;
+                use semantic_vocabulary::{MachineId, WidthParameter};
+
+                #[test]
+                fn an_unknown_unsigned_maximum_cannot_supply_an_all_ones_law() {
+                    let symbolic = IntegerType::parameterized(
+                        IntegerSign::Unsigned,
+                        WidthParameter {
+                            owner: MachineId::new(1).unwrap(),
+                            value: ValueId::new(2).unwrap(),
+                        },
+                    );
+                    let operation = |scalar_type| O::IntegerBitwiseOr {
+                        psi_operation: OperationId::new(1).unwrap(),
+                        result: ValueId::new(3).unwrap(),
+                        scalar_type,
+                        left: ValueId::new(4).unwrap(),
+                        right: ValueId::new(5).unwrap(),
+                    };
+                    assert!(
+                        bitwise_absorbing::classify(
+                            &operation(symbolic),
+                            TotalScalarIdentityKind::IntegerBitwiseOrAllOnesLeft
+                        )
+                        .is_none()
+                    );
+                    let known = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+                    assert_eq!(
+                        bitwise_absorbing::classify(
+                            &operation(known),
+                            TotalScalarIdentityKind::IntegerBitwiseOrAllOnesLeft
+                        )
+                        .unwrap()
+                        .law_constant,
+                        IntegerValue::Unsigned(255)
+                    );
+                    let zero = O::IntegerBitwiseAnd {
+                        psi_operation: OperationId::new(1).unwrap(),
+                        result: ValueId::new(3).unwrap(),
+                        scalar_type: symbolic,
+                        left: ValueId::new(4).unwrap(),
+                        right: ValueId::new(5).unwrap(),
+                    };
+                    assert!(
+                        bitwise_absorbing::classify(
+                            &zero,
+                            TotalScalarIdentityKind::IntegerBitwiseAndZeroLeft
+                        )
+                        .is_some()
+                    );
                 }
             }
         }
@@ -6602,7 +6659,7 @@ const OPERAND_SUBSTITUTION_RULES: &[OperandSubstitutionRule] = &[
         use optimization_unit::{
             PsiOptimizationFunction, PsiOptimizationUnit, PsiRewriteCandidate,
         };
-        use semantic_vocabulary::{IntegerCarrier, IntegerSign};
+        use semantic_vocabulary::IntegerCarrier;
 
         use crate::OptimizationUnitValidationError;
 
@@ -6637,8 +6694,7 @@ const OPERAND_SUBSTITUTION_RULES: &[OperandSubstitutionRule] = &[
                 operation.integer_arithmetic_operands(IntegerArithmeticOperator::Divide)?;
             let positive_one_is_representable = operands.scalar_type.carrier()
                 == IntegerCarrier::Fixed
-                && !(operands.scalar_type.sign() == IntegerSign::Signed
-                    && operands.scalar_type.bits() == 1);
+                && operands.scalar_type.admits(operands.scalar_type.one());
             if !positive_one_is_representable || operands.left != operands.right {
                 return None;
             }
@@ -6658,6 +6714,44 @@ const OPERAND_SUBSTITUTION_RULES: &[OperandSubstitutionRule] = &[
                 );
             }
             Ok(())
+        }
+        #[cfg(test)]
+        mod width_closure_tests {
+            use super::*;
+            use semantic_vocabulary::{
+                IntegerSign, IntegerType, MachineId, ObligationId, OperationId, ValueId,
+                WidthParameter,
+            };
+
+            #[test]
+            fn self_division_requires_a_positive_one_inhabitant() {
+                let shape = |scalar_type| {
+                    integer_self_divide_shape(&O::IntegerArithmetic {
+                        psi_operation: OperationId::new(1).unwrap(),
+                        result: ValueId::new(3).unwrap(),
+                        scalar_type,
+                        arithmetic: abstract_operations::IntegerArithmetic::new(
+                            IntegerOverflowPolicy::Exact,
+                            IntegerArithmeticOperator::Divide,
+                            Some(ObligationId::new(1).unwrap()),
+                        )
+                        .unwrap(),
+                        left: ValueId::new(4).unwrap(),
+                        right: ValueId::new(4).unwrap(),
+                    })
+                    .is_some()
+                };
+                assert!(!shape(IntegerType::new(IntegerSign::Signed, 1).unwrap()));
+                assert!(shape(IntegerType::new(IntegerSign::Unsigned, 1).unwrap()));
+                assert!(shape(IntegerType::new(IntegerSign::Signed, 8).unwrap()));
+                let parameter = WidthParameter {
+                    owner: MachineId::new(1).unwrap(),
+                    value: ValueId::new(2).unwrap(),
+                };
+                for sign in [IntegerSign::Signed, IntegerSign::Unsigned] {
+                    assert!(!shape(IntegerType::parameterized(sign, parameter)));
+                }
+            }
         }
     }
     mod unit_divisor {

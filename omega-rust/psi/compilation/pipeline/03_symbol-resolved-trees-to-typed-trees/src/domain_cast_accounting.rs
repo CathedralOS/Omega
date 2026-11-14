@@ -338,7 +338,9 @@ fn declared_type(
         return None;
     }
     match table.expression(expression) {
-        ExpressionNode::Name(_)
+        ExpressionNode::Integer(_)
+        | ExpressionNode::Boolean(_)
+        | ExpressionNode::Name(_)
         | ExpressionNode::Member(_)
         | ExpressionNode::Indexed(_)
         | ExpressionNode::Call(_) => {

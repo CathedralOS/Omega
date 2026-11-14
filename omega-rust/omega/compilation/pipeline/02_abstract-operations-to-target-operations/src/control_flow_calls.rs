@@ -18,7 +18,6 @@ pub(crate) mod borrowed_calls {
     use crate::structural_type_lookup::StructuralTypeLookup;
     use abstract_operations::{AbstractFunction, AbstractOperation};
     use calling_conventions::ValueShape;
-    use semantic_vocabulary::MachineId;
     use target_operations::{
         TargetStructuralArgument, TargetStructuralArgumentSource, TargetStructuralParameter,
     };
@@ -171,6 +170,7 @@ pub(crate) mod borrowed_calls {
                     runs,
                     function,
                     &super::scalar_sources::ScalarSources::from(live),
+                    types,
                 )?,
                 source,
                 destination: destination.placement.clone(),
@@ -284,6 +284,7 @@ pub(crate) mod borrowed_calls {
             runs,
             function,
             &super::scalar_sources::ScalarSources::from(live),
+            types,
         )?;
         Ok(TargetStructuralArgument {
             place: argument.place,
@@ -305,7 +306,6 @@ pub(crate) mod borrowed_calls {
         argument: &terminal_psi::StructuralArgument,
         declaration: &terminal_psi::StructuralParameterDeclaration,
         destination: &TargetStructuralParameter,
-        callee: MachineId,
         function: &AbstractFunction,
         live: &LiveDefinitions,
         types: &StructuralTypeLookup<'_>,
@@ -322,19 +322,6 @@ pub(crate) mod borrowed_calls {
             &live.block_views,
             types,
         )?;
-        if let Some(window) = crate::unit::roster_arguments::fixed_array_view_argument(
-            argument,
-            declaration,
-            destination.shape,
-            &destination.placement,
-            callee,
-            &root.declaration,
-            root.backing_shape.byte_size,
-            root.source.clone(),
-            types,
-        )? {
-            return Ok(window);
-        }
         stored_descriptor_argument(
             argument,
             declaration,
@@ -412,6 +399,7 @@ pub(crate) mod borrowed_calls {
             runs,
             function,
             &super::scalar_sources::ScalarSources::from(live),
+            types,
         )?;
         Ok(TargetStructuralArgument {
             place: argument.place,
@@ -434,41 +422,12 @@ pub(crate) mod borrowed_calls {
         argument: &terminal_psi::StructuralArgument,
         declaration: &terminal_psi::StructuralParameterDeclaration,
         destination: &TargetStructuralParameter,
-        callee: MachineId,
         function: &AbstractFunction,
         prepared: &PreparedFunctionSignature,
         live: &LiveDefinitions,
         types: &StructuralTypeLookup<'_>,
     ) -> Result<TargetStructuralArgument, LoweringError> {
         let shared = argument.access == StructuralAccess::SharedBorrow;
-        if prepared.parameter(argument.place).is_some()
-            || live.structural_homes.contains_key(&argument.place)
-            || live.block_views.contains(&argument.place)
-            || live.address_joins.contains(&argument.place)
-        {
-            let root = crate::unit::argument_roots::resolve(
-                argument.place,
-                function,
-                prepared.parameters.iter(),
-                &live.structural_homes,
-                &live.address_joins,
-                &live.block_views,
-                types,
-            )?;
-            if let Some(presentation) = crate::unit::roster_arguments::fixed_array_view_argument(
-                argument,
-                declaration,
-                destination.shape,
-                &destination.placement,
-                callee,
-                &root.declaration,
-                root.backing_shape.byte_size,
-                root.source,
-                types,
-            )? {
-                return Ok(presentation);
-            }
-        }
         if !argument.path.is_empty() {
             return self::argument(
                 argument,
@@ -526,8 +485,11 @@ pub(crate) mod borrowed_calls {
         } else if let Some((producer, structural_type)) = live.views.get(&argument.place) {
             let source =
                 if crate::scalar::element_views::is_element_view_parameter(declaration, types) {
-                    let values =
-                        super::observations::scalar_values(live, &prepared.scalar_parameters)?;
+                    let values = super::observations::scalar_values(
+                        live,
+                        &prepared.scalar_parameters,
+                        types,
+                    )?;
                     let (_, identity, access) = crate::scalar::element_views::resolve_element_view(
                         function,
                         types,
@@ -548,8 +510,11 @@ pub(crate) mod borrowed_calls {
                         psi_operation: *producer,
                     }
                 } else {
-                    let values =
-                        super::observations::scalar_values(live, &prepared.scalar_parameters)?;
+                    let values = super::observations::scalar_values(
+                        live,
+                        &prepared.scalar_parameters,
+                        types,
+                    )?;
                     let (_, access) = crate::scalar::byte_views::resolve_byte_view(
                         function,
                         types,
@@ -795,6 +760,7 @@ pub(crate) mod byte_arguments {
                 runs,
                 function,
                 &super::scalar_sources::ScalarSources::from(live),
+                types,
             )?,
             source,
             destination: destination.placement.clone(),
@@ -1181,7 +1147,7 @@ pub(crate) mod calls {
                     .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
                 let operand = super::scalar_sources::source(selector, function, live)?;
                 if !matches!(operand.scalar_type(), semantic_vocabulary::ScalarType::Integer(integer)
-                if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 64)
+                if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == Some(64))
                 {
                     return Err(LoweringError::ValueTypeMismatch(selector));
                 }
@@ -1682,6 +1648,37 @@ pub(crate) mod calls {
             shape: placement.shape,
             placement: placement.placement.clone(),
         };
+        // Present an array's backing before classifying ordinary reference
+        // and descriptor arguments. Every addressable root uses the same
+        // checked window, including a field or a block arrival.
+        if prepared.parameter(argument.place).is_some()
+            || live.structural_homes.contains_key(&argument.place)
+            || live.block_views.contains(&argument.place)
+            || live.address_joins.contains(&argument.place)
+        {
+            let root = crate::unit::argument_roots::resolve(
+                argument.place,
+                function,
+                prepared.parameters.iter(),
+                &live.structural_homes,
+                &live.address_joins,
+                &live.block_views,
+                types,
+            )?;
+            if let Some(presentation) = crate::unit::roster_arguments::fixed_array_view_argument(
+                argument,
+                declaration,
+                destination.shape,
+                &destination.placement,
+                callee,
+                &root.declaration,
+                root.backing_shape.byte_size,
+                root.source,
+                types,
+            )? {
+                return Ok(presentation);
+            }
+        }
         if let Some(argument) = super::byte_arguments::shared_owner_view(
             argument,
             declaration,
@@ -1767,7 +1764,6 @@ pub(crate) mod calls {
                 argument,
                 declaration,
                 destination,
-                callee,
                 function,
                 live,
                 types,
@@ -1782,7 +1778,6 @@ pub(crate) mod calls {
                 argument,
                 declaration,
                 destination,
-                callee,
                 function,
                 prepared,
                 live,
@@ -1918,7 +1913,7 @@ pub(crate) mod owned_arguments {
         function: &abstract_operations::AbstractFunction,
         prepared: &crate::function_signature::PreparedFunctionSignature,
         live: &LiveDefinitions,
-        types: &StructuralLayouts<'_>,
+        types: &crate::structural_type_lookup::StructuralTypeLookup<'_>,
     ) -> Result<TargetStructuralArgument, LoweringError> {
         let invalid = |reason| LoweringError::InvalidOwnedStructuralArgument {
             source: argument.place,
@@ -2032,6 +2027,7 @@ pub(crate) mod owned_arguments {
                 index_runs,
                 function,
                 &super::scalar_sources::ScalarSources::from(live),
+                types,
             )?,
             source,
             destination: destination.placement.clone(),

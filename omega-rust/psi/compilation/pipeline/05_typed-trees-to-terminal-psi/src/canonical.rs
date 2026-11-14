@@ -28,6 +28,30 @@ pub(crate) fn clauses(
         .map_err(|detail| refusal(id, detail))
 }
 
+/// Keep a clause's source description beside its canonical proposition.
+/// Associated data never participates in proposition identity or ordering.
+pub(crate) fn associated_clauses<T>(
+    propositions: Vec<(Proposition, T)>,
+    repeated: Repeated,
+    id: MachineId,
+) -> Checked<Vec<(Proposition, T)>> {
+    let mut keyed = Vec::with_capacity(propositions.len());
+    for (proposition, associated) in propositions {
+        let key = terminal_codec::canonical_proposition_order_key(&proposition)
+            .map_err(|_| refusal(id, "unencodable proposition".into()))?;
+        keyed.push((key, proposition, associated));
+    }
+    keyed.sort_by(|left, right| left.0.cmp(&right.0));
+    if matches!(repeated, Repeated::Refuse) && keyed.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+        return Err(refusal(id, "duplicate clause".into()));
+    }
+    keyed.dedup_by(|later, earlier| later.0 == earlier.0);
+    Ok(keyed
+        .into_iter()
+        .map(|(_, proposition, associated)| (proposition, associated))
+        .collect())
+}
+
 pub(crate) fn conjunction(conjuncts: Vec<Proposition>, id: MachineId) -> Checked<Proposition> {
     terminal_codec::contract_forms::conjunction(conjuncts).map_err(|detail| refusal(id, detail))
 }

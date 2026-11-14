@@ -54,6 +54,16 @@ Calls between the copied declarations use that one symbol map. Runtime values
 still require explicit arguments; no enclosing activation is captured. A child
 with its own static parameters is left unserved with the whole tree.
 
+A fully applied named map with a default type-only telescope uses the same
+copier through [named conformance preparation](src/passes/specialization/named_conformances.rs).
+Its call retains the public requirement. An existing `CapturedMachineApplication`
+retains the actual constructor bindings, complete tuple and lexical owner, with
+fresh body, state and formal correspondence. An unused binder still belongs to
+that capture's source application. The copier preserves written reach rows,
+including `reaches none`; installation-bound rows remain unserved. Captured
+members with nested declaration trees, map lifetimes and non-type map binders
+remain unserved. This metadata grants no accepted-template proof.
+
 The record-pattern pass resolves a subject that names a parameter or a typed
 local whose declared type is a plain, non-generic record. A field path, a call
 result, an applied generic record, a quotient and a sum stay unresolved, and

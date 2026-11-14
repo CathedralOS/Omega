@@ -337,6 +337,7 @@ pub(crate) fn reference_call_argument(
         runs,
         function,
         &super::scalar_sources::ScalarSources::from(live),
+        types,
     )?;
     if selected != declaration.structural_type
         || crate::structural_signature::StructuralCallSignature::parameter_shape(
@@ -1557,13 +1558,14 @@ mod stored_calls {
                     && structural_arguments.len() == declaration.structural_parameters.len()
                     && structural_arguments.iter().zip(&declaration.structural_parameters)
                         .all(|(actual, formal)| actual.access == formal.access)
-                    && target_operations::descriptor_input_guard(
+                    && target_operations::descriptor_input_guard_with_closed_scalars(
                         declaration,
                         binding,
                         types.catalog(),
                         |buffer| {
                             crate::borrowed_storage::capture_type(buffer, types)
                         },
+                        |scalar| types.closed_scalar(scalar),
                     )
                     .is_ok_and(|guard| guard.is_some())
             },

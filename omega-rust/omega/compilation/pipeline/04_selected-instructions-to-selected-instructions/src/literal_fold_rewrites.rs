@@ -3990,9 +3990,54 @@ pub(crate) mod selected_lowering {
                 }
             }
 
+            #[cfg(test)]
+            #[test]
+            fn scalar_materialization_requires_a_known_fitting_carrier() {
+                use semantic_vocabulary::{IntegerType, MachineId, ValueId, WidthParameter};
+                let unsigned = |bits| {
+                    ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, bits).unwrap())
+                };
+                let signed = |bits| {
+                    ScalarType::Integer(IntegerType::new(IntegerSign::Signed, bits).unwrap())
+                };
+                assert_eq!(
+                    scalar_materialize_value(255, unsigned(8)),
+                    Some(IntegerValue::Unsigned(255))
+                );
+                assert_eq!(scalar_materialize_value(256, unsigned(8)), None);
+                assert_eq!(
+                    scalar_materialize_value(8191, unsigned(13)),
+                    Some(IntegerValue::Unsigned(8191))
+                );
+                assert_eq!(
+                    scalar_materialize_value(u64::MAX, signed(32)),
+                    Some(IntegerValue::Signed(-1))
+                );
+                assert_eq!(scalar_materialize_value(128, signed(8)), None);
+                assert_eq!(scalar_materialize_value(0, unsigned(128)), None);
+                assert_eq!(
+                    scalar_materialize_value(
+                        0,
+                        ScalarType::Integer(IntegerType::address(64).unwrap())
+                    ),
+                    None
+                );
+                let parameter = IntegerType::parameterized(
+                    IntegerSign::Unsigned,
+                    WidthParameter {
+                        owner: MachineId::new(1).unwrap(),
+                        value: ValueId::new(1).unwrap(),
+                    },
+                );
+                assert_eq!(
+                    scalar_materialize_value(0, ScalarType::Integer(parameter)),
+                    None
+                );
+            }
+
             fn scalar_materialize_value(bits: u64, scalar: ScalarType) -> Option<IntegerValue> {
                 let integer = scalar.as_integer()?;
-                if integer.is_address() || integer.bits() > 64 {
+                if integer.is_address() || integer.bits()? > 64 {
                     return None;
                 }
                 let value = match integer.sign() {

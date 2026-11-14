@@ -53,6 +53,7 @@ on (`arrivals`). Kinds outside those five are refused as `Unsupported`.
 
 mod arrivals;
 mod call_contracts;
+mod callable_arrivals;
 mod ceilings;
 mod crashes;
 mod describe;
@@ -396,6 +397,7 @@ fn discharge_inner(
     carried: &[Carried<'_>],
     activity: &mut ProofSearchActivity,
 ) -> Checked<Discharge> {
+    minted::width_questions_are_minted(elaboration)?;
     operational::judge(elaboration)?;
     // A caller may retain old contents only outside the callee's actual
     // writes. Check every published frame before summaries or knowledge can
@@ -601,7 +603,7 @@ fn machine(
         reference_graph,
     } = prepare(module, domains, id, tables, knowledge)?;
     let references = std::cell::RefCell::new(
-        terminal_semantics::descriptor_results::DescriptorAnalysis::with_reference_slots(
+        terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
             &module.structural_types,
             &reference_graph,
         ),
@@ -1225,7 +1227,7 @@ impl Prepared {
         types: &'a [terminal_psi::StructuralTypeDeclaration],
     ) -> std::cell::RefCell<terminal_semantics::descriptor_results::DescriptorAnalysis<'a>> {
         std::cell::RefCell::new(
-            terminal_semantics::descriptor_results::DescriptorAnalysis::with_reference_slots(
+            terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
                 types,
                 &self.reference_graph,
             ),
@@ -1257,7 +1259,7 @@ pub(crate) fn prepare(
     let reference_graph = places::reference_graph(module, id)?;
     if fill {
         let references = std::cell::RefCell::new(
-            terminal_semantics::descriptor_results::DescriptorAnalysis::with_reference_slots(
+            terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
                 &module.structural_types,
                 &reference_graph,
             ),
@@ -1543,11 +1545,12 @@ impl Bindings for ErasedTerms<'_> {
 
     fn field(
         &mut self,
+        version: semantic_vocabulary::ContentPlaceVersion,
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         scalar_type: ScalarType,
     ) -> Result<ScalarTerm, Unbound> {
-        self.runtime.field(root, path, scalar_type)
+        self.runtime.field(version, root, path, scalar_type)
     }
 
     fn extent(
@@ -1627,6 +1630,7 @@ impl Bindings for ScalarActuals<'_> {
 
     fn field(
         &mut self,
+        _: semantic_vocabulary::ContentPlaceVersion,
         _: PlaceId,
         _: &[CanonicalStructuralPathSegment],
         _: ScalarType,
@@ -1711,6 +1715,18 @@ fn stated_goal(
 ) -> Checked<Proposition> {
     let concerns = Construct::Obligation(obligation);
     match *kind {
+        ObligationKind::IntegerWidthPositive { parameter } => {
+            let integer = semantic_vocabulary::IntegerType::new(
+                semantic_vocabulary::IntegerSign::Unsigned,
+                64,
+            )
+            .expect("u64 is a supported carrier");
+            Ok(Proposition::LessThan(
+                ScalarTerm::integer(integer, semantic_vocabulary::IntegerValue::Unsigned(0))
+                    .expect("zero is a u64 value"),
+                ScalarTerm::value(parameter, ScalarType::Integer(integer)),
+            ))
+        }
         ObligationKind::OperationSafety { site } => storage.safety_goal(site, obligation, types),
         ObligationKind::CallRequirement { invocation, clause } => {
             let row = terminal_check_tables::row(

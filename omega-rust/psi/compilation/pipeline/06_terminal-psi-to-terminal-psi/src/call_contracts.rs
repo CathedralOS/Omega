@@ -2,8 +2,8 @@
 //! callable contributes its catalog contract, never a predicted body.
 
 use semantic_vocabulary::{
-    CallableContractId, InvocationSite, ObligationId, ProofTerm, Proposition, ScalarTerm,
-    ScalarType, ValueId,
+    CallableContractId, ContractId, InvocationSite, ObligationId, ProofTerm, Proposition,
+    ScalarTerm, ScalarType, ValueId,
 };
 use terminal_check_tables::edges::{Callee, InvocationRow};
 use terminal_check_tables::{Checked, Construct, InvocationId, MachineTables, RefusalReason};
@@ -17,6 +17,7 @@ use terminal_psi::{
 pub(crate) struct Inputs<'a> {
     pub callee: Callee,
     pub contract: Option<CallableContractId>,
+    pub required_contract: Option<ContractId>,
     pub arguments: &'a [ValueId],
     pub structural_arguments: &'a [StructuralArgument],
     pub erased_arguments: &'a [ScalarTerm],
@@ -25,6 +26,33 @@ pub(crate) struct Inputs<'a> {
     pub claim_transfers: &'a [terminal_psi::ClaimTransfer],
     pub completion_receipts: &'a [terminal_psi::CompletionReceipt],
     pub crash_continuations: Option<&'a [CrashRouteBucket]>,
+}
+
+impl<'a> Inputs<'a> {
+    fn declared(
+        inputs: terminal_psi::ModuleInvocationInputs<
+            'a,
+            semantic_vocabulary::TargetMachineCallable,
+        >,
+    ) -> Self {
+        Self {
+            callee: Callee::Declared(inputs.callee),
+            contract: None,
+            required_contract: inputs.required_contract,
+            arguments: inputs.arguments,
+            structural_arguments: inputs.structural_arguments,
+            erased_arguments: inputs.erased_arguments,
+            erased_proof_arguments: inputs.erased_proof_arguments,
+            requirements: inputs.requirement_obligations,
+            claim_transfers: inputs.claim_transfers,
+            completion_receipts: inputs.completion_receipts,
+            crash_continuations: matches!(
+                inputs.callee,
+                semantic_vocabulary::TargetMachineCallable::Machine(_)
+            )
+            .then_some(inputs.crash_continuations),
+        }
+    }
 }
 
 /// Only invocation terminators form calls. A branch has several successor
@@ -130,69 +158,41 @@ pub(crate) fn inputs_at(
     caller: &TerminalMachine,
     site: InvocationSite,
 ) -> Checked<Option<Inputs<'_>>> {
-    let mut inputs = caller
-        .module_invocations()
-        .filter(|call| call.site == site)
-        .map(|call| Inputs {
-            callee: Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(
-                call.inputs.callee,
-            )),
-            contract: None,
-            arguments: call.inputs.arguments,
-            structural_arguments: call.inputs.structural_arguments,
-            erased_arguments: call.inputs.erased_arguments,
-            erased_proof_arguments: call.inputs.erased_proof_arguments,
-            requirements: call.inputs.requirement_obligations,
-            claim_transfers: call.inputs.claim_transfers,
-            completion_receipts: call.inputs.completion_receipts,
-            crash_continuations: Some(call.inputs.crash_continuations),
-        })
-        .chain(
-            caller
-                .callable_invocations()
-                .filter(|call| call.site == site)
-                .map(|call| Inputs {
+    let mut inputs = caller.blocks.iter().flat_map(|block| {
+        block
+            .operations
+            .iter()
+            .filter_map(|operation| {
+                if site != InvocationSite::Operation(operation.id) {
+                    return None;
+                }
+                if let Some(inputs) = operation.declared_invocation() {
+                    return Some(Inputs::declared(inputs));
+                }
+                operation.kind.callable_invocation().map(|inputs| Inputs {
                     callee: Callee::Selected {
-                        callable: call.inputs.callee,
+                        callable: inputs.callee,
                     },
-                    contract: Some(call.inputs.contract),
-                    arguments: call.inputs.arguments,
-                    structural_arguments: call.inputs.structural_arguments,
-                    erased_arguments: call.inputs.erased_arguments,
-                    erased_proof_arguments: call.inputs.erased_proof_arguments,
-                    requirements: call.inputs.requirement_obligations,
-                    claim_transfers: call.inputs.claim_transfers,
+                    contract: Some(inputs.contract),
+                    required_contract: operation.required_contract,
+                    arguments: inputs.arguments,
+                    structural_arguments: inputs.structural_arguments,
+                    erased_arguments: inputs.erased_arguments,
+                    erased_proof_arguments: inputs.erased_proof_arguments,
+                    requirements: inputs.requirement_obligations,
+                    claim_transfers: inputs.claim_transfers,
                     completion_receipts: &[],
-                    crash_continuations: Some(call.inputs.crash_continuations),
-                }),
-        )
-        .chain(
-            caller
-                .boundary_invocations()
-                .filter(|call| call.site == site)
-                .map(|call| Inputs {
-                    callee: Callee::Declared(semantic_vocabulary::TargetMachineCallable::Boundary(
-                        call.boundary,
-                    )),
-                    contract: None,
-                    arguments: call.arguments,
-                    structural_arguments: call.structural_arguments,
-                    erased_arguments: &[],
-                    erased_proof_arguments: &[],
-                    requirements: call.requirement_obligations,
-                    claim_transfers: &[],
-                    completion_receipts: match call.completion {
-                        terminal_psi::control_flow::BoundaryInvocationCompletion::Normal {
-                            receipts,
-                            ..
-                        } => receipts,
-                        terminal_psi::control_flow::BoundaryInvocationCompletion::External(_) => {
-                            &[]
-                        }
-                    },
-                    crash_continuations: None,
-                }),
-        );
+                    crash_continuations: Some(inputs.crash_continuations),
+                })
+            })
+            .chain(
+                block
+                    .terminator
+                    .declared_invocation()
+                    .filter(|(candidate, _)| *candidate == site)
+                    .map(|(_, inputs)| Inputs::declared(inputs)),
+            )
+    });
     let first = inputs.next();
     if inputs.next().is_some() {
         return Err(crate::refusal(
@@ -217,23 +217,30 @@ pub(crate) fn invocation<'a>(
         |detail| crate::refusal(RefusalReason::ForeignIdentity, caller.id, concerns, detail);
     let inputs = inputs_at(caller, row.site)?
         .ok_or_else(|| refuse("invocation row restates no lowered call"))?;
-    if row.callee != inputs.callee {
+    if row.callee != inputs.callee || row.required_contract != inputs.required_contract {
         return Err(refuse(
             "invocation row and lowered call name different targets",
         ));
     }
     let contract = match inputs.callee {
         Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(id)) => {
-            let selected = crate::terminal_machine(&module.machines, id, caller.id)?;
+            let contract = module
+                .invocation_machine_contract(id, inputs.required_contract)
+                .ok_or_else(|| refuse("call has no exact published contract"))?;
             PublicContract::machine(
-                &selected.contract,
-                &selected.structural_parameters,
-                &selected.parameters,
-                &selected.parameter_order,
-                &selected.result,
+                contract,
+                &contract.structural_parameters,
+                &contract.parameters,
+                &contract.parameter_order,
+                &contract.result,
             )
         }
         Callee::Selected { callable } => {
+            if inputs.required_contract.is_some() {
+                return Err(refuse(
+                    "runtime callable carries a declared implementation contract",
+                ));
+            }
             let value = tables
                 .values
                 .get(callable)
@@ -261,6 +268,11 @@ pub(crate) fn invocation<'a>(
             )
         }
         Callee::Declared(semantic_vocabulary::TargetMachineCallable::Boundary(boundary)) => {
+            if inputs.required_contract.is_some() {
+                return Err(refuse(
+                    "boundary call carries a selected implementation contract",
+                ));
+            }
             let boundary = module
                 .boundary_machine(boundary)
                 .ok_or_else(|| refuse("boundary invocation names no published declaration"))?;
@@ -307,11 +319,8 @@ pub(crate) fn invocation<'a>(
                 declaration.source.published_may_suspend != envelope.suspends
                     || declaration.source.published_may_block != envelope.blocks
             }) {
-                return Err(crate::refusal(
-                    RefusalReason::Unsupported,
-                    caller.id,
-                    concerns,
-                    "boundary call needs its suspension and blocking proof",
+                return Err(refuse(
+                    "published operational contract differs from its declared or inferred envelope",
                 ));
             }
             if boundary.structural_parameters.iter().any(|formal| {

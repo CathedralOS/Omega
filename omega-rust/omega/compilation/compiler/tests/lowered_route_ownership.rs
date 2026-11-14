@@ -607,6 +607,7 @@ fn whole_owned_transfers_consume_their_homes_once() {
             ExpressionKind::Call {
                 callee: id::<semantic_vocabulary::MachineId>(callee).into(),
                 arguments,
+                required_contract: None,
                 designated: None,
             },
             result,
@@ -861,6 +862,7 @@ mod transferred_on_one_path {
             ExpressionKind::Call {
                 callee: id::<semantic_vocabulary::MachineId>(callee).into(),
                 arguments,
+                required_contract: None,
                 designated: None,
             },
             Some(result),

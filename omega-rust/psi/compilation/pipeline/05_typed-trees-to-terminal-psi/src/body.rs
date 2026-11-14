@@ -15,8 +15,9 @@ fields and no case, a sum has cases and no field.
 */
 
 use semantic_vocabulary::{
-    CrashCause, IdTable, IntegerValue, MachineId, Proposition, ScalarType, StructuralCaseId,
-    StructuralFieldId, StructuralTypeId, TargetMachineCallable, ValueId,
+    BoundaryMachineId, CrashCause, IdTable, IntegerValue, MachineId, PlaceId, Proposition,
+    ScalarType, StructuralCaseId, StructuralFieldId, StructuralTypeId, TargetMachineCallable,
+    ValueId,
 };
 use terminal_check_tables::values::RigidType;
 use terminal_psi::CrashRouteBucket;
@@ -443,10 +444,64 @@ pub struct Signature {
 #[derive(Clone, Copy)]
 pub(crate) struct Signatures<'a> {
     pub machines: &'a IdTable<MachineId, Signature>,
+    pub declarations: &'a IdTable<semantic_vocabulary::ContractId, Signature>,
+    pub declaration_aliases:
+        Option<&'a IdTable<semantic_vocabulary::ContractId, semantic_vocabulary::ContractId>>,
     pub boundaries: &'a crate::boundaries::BoundaryNamespace,
 }
 
 impl<'a> Signatures<'a> {
+    pub fn canonical_contract(
+        self,
+        required: Option<semantic_vocabulary::ContractId>,
+        caller: MachineId,
+    ) -> terminal_check_tables::Checked<Option<semantic_vocabulary::ContractId>> {
+        match (required, self.declaration_aliases) {
+            (None, _) => Ok(None),
+            (Some(required), None) => Ok(Some(required)),
+            (Some(required), Some(aliases)) => terminal_check_tables::row(
+                aliases,
+                required,
+                caller,
+                terminal_check_tables::Construct::Machine,
+            )
+            .copied()
+            .map(Some),
+        }
+    }
+
+    pub fn invocation(
+        self,
+        callable: TargetMachineCallable,
+        required: Option<semantic_vocabulary::ContractId>,
+        caller: MachineId,
+    ) -> terminal_check_tables::Checked<&'a Signature> {
+        match required {
+            None => self.get(callable, caller),
+            Some(required) => terminal_check_tables::row(
+                self.declarations,
+                required,
+                caller,
+                terminal_check_tables::Construct::Machine,
+            ),
+        }
+    }
+
+    /// The declared completion of a boundary requirement.
+    pub fn completion(
+        self,
+        boundary: BoundaryMachineId,
+        caller: MachineId,
+    ) -> terminal_check_tables::Checked<semantic_vocabulary::BoundaryCompletion> {
+        self.boundaries.completion(boundary).ok_or_else(|| {
+            crate::refuse(
+                caller,
+                terminal_check_tables::Construct::Machine,
+                crate::Unserved::Call("boundary has no retained completion contract"),
+            )
+        })
+    }
+
     pub fn get(
         self,
         callable: TargetMachineCallable,
@@ -472,6 +527,14 @@ impl<'a> Signatures<'a> {
     }
 }
 
+/// A slice reference can borrow array backing; a reference to a stored value
+/// borrows that value itself, even when it happens to contain a descriptor.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BorrowedReferent {
+    Value,
+    Slice,
+}
+
 /// One formal passed by reference.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Borrowed {
@@ -480,6 +543,8 @@ pub struct Borrowed {
     /// `Shared` for `&T`, `Mutable` for `&mut T`. `&write T` is refused by
     /// the reader.
     pub access: language_core::ReferenceAccess,
+    /// The authored referent, before slice references become descriptor types.
+    pub referent: BorrowedReferent,
     /// The outer loan region, kept apart from any regions inside the
     /// referent. Returning a reference must preserve this actual input.
     pub regions: Regions,
@@ -558,6 +623,19 @@ impl Signature {
             || matches!(self.parameters.get(position), Some(ValueType::Record(..)))
     }
 
+    /// A structural result follows every structural input. It has no entry
+    /// contents; clause naming uses this coordinate to keep result reads
+    /// separate from the input observations it records.
+    pub fn structural_result_place(&self) -> Option<PlaceId> {
+        if !matches!(self.result, Some(ValueType::Record(..))) {
+            return None;
+        }
+        let inputs = (0..self.parameters.len())
+            .filter(|position| self.is_place(*position))
+            .count();
+        PlaceId::new(u64::try_from(inputs).ok()?.checked_add(1)?)
+    }
+
     /// The value identity of each formal, by position; `None` for a record
     /// formal, which is a place. See `formal_values`.
     pub fn formal_values(&self) -> Vec<Option<ValueId>> {
@@ -594,6 +672,25 @@ pub fn formal_values(
             (value_type.declared().is_some(), erased, borrowed)
         }),
         result.and_then(ValueType::declared).is_some(),
+    )
+}
+
+/// Declaration shapes permit numbering inputs before their dependent carrier
+/// widths are read. Full signature preparation must agree with this roster.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct FormalValueShape {
+    pub declared: bool,
+    pub erased: bool,
+    pub borrowed: bool,
+}
+
+pub(crate) fn formal_value_ids(
+    formals: impl Iterator<Item = FormalValueShape> + Clone,
+    result: bool,
+) -> Vec<Option<ValueId>> {
+    terminal_check_tables::contracts::formal_value_ids(
+        formals.map(|shape| (shape.declared, shape.erased, shape.borrowed)),
+        result,
     )
 }
 
@@ -801,6 +898,13 @@ pub enum ExpressionKind {
         base: Box<Expression>,
         index: Box<Expression>,
     },
+    /// A new descriptor over the same shared backing. Missing endpoints
+    /// mean zero and the captured descriptor's own length, respectively.
+    ByteSubslice {
+        base: Box<Expression>,
+        start: Option<Box<Expression>>,
+        end: Option<Box<Expression>>,
+    },
     Array {
         elements: Vec<Expression>,
     },
@@ -937,6 +1041,7 @@ pub enum ExpressionKind {
     /// Evaluate the selected callable first, then arguments in authored order.
     Call {
         callee: CallTarget,
+        required_contract: Option<semantic_vocabulary::ContractId>,
         arguments: Vec<Expression>,
         designated: Option<DesignatedOperands>,
     },

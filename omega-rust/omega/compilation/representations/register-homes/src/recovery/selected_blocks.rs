@@ -33,7 +33,10 @@ use super::structural_contracts::{
     encode_runtime_indices, encode_semantic_argument,
 };
 
-pub(super) fn encode_block(bytes: &mut Vec<u8>, block: &SelectedBlock) {
+pub(super) fn encode_block(
+    bytes: &mut Vec<u8>,
+    block: &SelectedBlock,
+) -> Result<(), terminal_codec::CodecError> {
     crate::codec_bytes::push_encoded(bytes, block.id.0.to_le_bytes());
     match block.origin {
         SelectedBlockOrigin::Source(source) => {
@@ -68,7 +71,8 @@ pub(super) fn encode_block(bytes: &mut Vec<u8>, block: &SelectedBlock) {
         &block.terminator,
         encode_instruction,
         encode_successor,
-    );
+    )?;
+    Ok(())
 }
 
 pub(super) fn decode_block(
@@ -168,7 +172,10 @@ pub(super) fn decode_block(
     })
 }
 
-pub(super) fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
+pub(super) fn encode_successor(
+    bytes: &mut Vec<u8>,
+    successor: &SelectedSuccessor,
+) -> Result<(), terminal_codec::CodecError> {
     bytes.push(match successor.role {
         SelectedSuccessorRole::Semantic => 0,
         SelectedSuccessorRole::EdgeTransferContinuation => 1,
@@ -191,7 +198,7 @@ pub(super) fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccesso
     for binding in &successor.bindings {
         crate::codec_bytes::push_encoded(bytes, binding.semantic.parameter.get().to_le_bytes());
         crate::codec_bytes::push_encoded(bytes, binding.semantic.argument.get().to_le_bytes());
-        encode_scalar(bytes, binding.semantic.scalar_type);
+        encode_scalar(bytes, binding.semantic.scalar_type)?;
         match binding.transport {
             SelectedValueTransport::Unused => bytes.push(0),
             SelectedValueTransport::Registers {
@@ -213,7 +220,7 @@ pub(super) fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccesso
     }
     length(bytes, successor.structural_bindings.len());
     for binding in &successor.structural_bindings {
-        encode_runtime_indices(bytes, &binding.source_indices);
+        encode_runtime_indices(bytes, &binding.source_indices)?;
         crate::codec_bytes::push_encoded(bytes, binding.semantic.parameter.get().to_le_bytes());
         encode_semantic_argument(bytes, &binding.semantic.argument);
         match binding.transport {
@@ -283,6 +290,7 @@ pub(super) fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccesso
         }
     }
     encode_work(bytes, &successor.work);
+    Ok(())
 }
 
 pub(super) fn decode_successor(
@@ -529,6 +537,24 @@ mod tests {
     }
 
     #[test]
+    fn successor_propagates_unclosed_scalar_width_refusal() {
+        let parameter = semantic_vocabulary::WidthParameter {
+            owner: semantic_vocabulary::MachineId::new(1).unwrap(),
+            value: ValueId::new(1).unwrap(),
+        };
+        let mut successor = successor();
+        successor.bindings[0].semantic.scalar_type = ScalarType::Integer(
+            IntegerType::parameterized(semantic_vocabulary::IntegerSign::Unsigned, parameter),
+        );
+        assert!(matches!(
+            encode_successor(&mut Vec::new(), &successor),
+            Err(terminal_codec::CodecError::IntegerWidthClosure(
+                semantic_vocabulary::IntegerWidthClosureError::Parameter(actual)
+            )) if actual == parameter
+        ));
+    }
+
+    #[test]
     fn successor_scalar_reference_preserves_both_storage_interpretations() {
         use ::selected_instructions::{
             LocalStorageSlotId, SelectedAddressBase, SelectedScalarReferenceSource,
@@ -584,7 +610,7 @@ mod tests {
                     destination,
                 };
             let mut bytes = Vec::new();
-            encode_successor(&mut bytes, &original);
+            encode_successor(&mut bytes, &original).unwrap();
             let mut cursor = Cursor::new(&bytes);
             assert_eq!(decode_successor(&mut cursor).unwrap(), original);
             assert_eq!(cursor.remaining(), 0);
@@ -599,7 +625,7 @@ mod tests {
             destination,
         };
         let mut invalid = Vec::new();
-        encode_successor(&mut invalid, &original);
+        encode_successor(&mut invalid, &original).unwrap();
         assert_eq!(
             decode_successor(&mut Cursor::new(&invalid)),
             Err(FixedViewCopyDecodeError::InvalidStructuralTransport)
@@ -610,7 +636,7 @@ mod tests {
     fn successor_register_transport_has_exact_canonical_bytes() {
         let original = successor();
         let mut encoded = Vec::new();
-        encode_successor(&mut encoded, &original);
+        encode_successor(&mut encoded, &original).unwrap();
         let golden = "0001000000000000000200000003000000000000000100000000000000040000000000000005000000000000000001110000001d0000000000000000000000000000000000000000";
         let expected = (0..golden.len())
             .step_by(2)
@@ -623,7 +649,7 @@ mod tests {
         let mut unused = original;
         unused.bindings[0].transport = SelectedValueTransport::Unused;
         let mut unused_encoded = Vec::new();
-        encode_successor(&mut unused_encoded, &unused);
+        encode_successor(&mut unused_encoded, &unused).unwrap();
         assert_eq!(unused_encoded.len(), encoded.len() - 8);
         assert_eq!(unused_encoded[46], 0);
         assert_eq!(
@@ -668,7 +694,7 @@ mod tests {
             },
         };
         let mut encoded = Vec::new();
-        encode_block(&mut encoded, &block);
+        encode_block(&mut encoded, &block).unwrap();
         let mut cursor = Cursor::new(&encoded);
         assert_eq!(decode_block(&mut cursor).unwrap(), block);
         assert_eq!(cursor.remaining(), 0);
@@ -677,7 +703,7 @@ mod tests {
         };
         *operation = semantic_vocabulary::OperationId::new(10).unwrap();
         let mut changed = Vec::new();
-        encode_block(&mut changed, &block);
+        encode_block(&mut changed, &block).unwrap();
         assert_ne!(encoded, changed);
     }
 
@@ -721,7 +747,7 @@ mod tests {
             },
         };
         let mut encoded = Vec::new();
-        encode_block(&mut encoded, &block);
+        encode_block(&mut encoded, &block).unwrap();
         let mut cursor = Cursor::new(&encoded);
         let decoded = decode_block(&mut cursor).unwrap();
         assert_eq!(decoded, block);
@@ -733,7 +759,7 @@ mod tests {
         };
         *operation = semantic_vocabulary::OperationId::new(10).unwrap();
         let mut changed = Vec::new();
-        encode_block(&mut changed, &block);
+        encode_block(&mut changed, &block).unwrap();
         assert_ne!(encoded, changed);
     }
 
@@ -781,7 +807,7 @@ mod tests {
                 },
             };
             let mut encoded = Vec::new();
-            encode_block(&mut encoded, &block);
+            encode_block(&mut encoded, &block).unwrap();
             let mut cursor = Cursor::new(&encoded);
             assert_eq!(decode_block(&mut cursor).unwrap(), block);
             assert_eq!(cursor.remaining(), 0);
@@ -811,7 +837,7 @@ mod tests {
                     _ => unreachable!(),
                 }
                 let mut changed_bytes = Vec::new();
-                encode_block(&mut changed_bytes, &changed);
+                encode_block(&mut changed_bytes, &changed).unwrap();
                 assert_ne!(changed_bytes, encoded);
                 assert_eq!(
                     decode_block(&mut Cursor::new(&changed_bytes)).unwrap(),
@@ -864,11 +890,11 @@ mod tests {
                 },
             });
         let mut stored_bytes = Vec::new();
-        encode_successor(&mut stored_bytes, &original);
+        encode_successor(&mut stored_bytes, &original).unwrap();
         let mut unused = original.clone();
         unused.structural_bindings[0].transport = SelectedStructuralTransport::Unused;
         let mut unused_bytes = Vec::new();
-        encode_successor(&mut unused_bytes, &unused);
+        encode_successor(&mut unused_bytes, &unused).unwrap();
         let transport_offset = stored_bytes
             .iter()
             .zip(&unused_bytes)
@@ -887,7 +913,7 @@ mod tests {
         ] {
             original.structural_bindings[0].transport = transport;
             let mut bytes = Vec::new();
-            encode_successor(&mut bytes, &original);
+            encode_successor(&mut bytes, &original).unwrap();
             let mut cursor = Cursor::new(&bytes);
             assert_eq!(decode_successor(&mut cursor).unwrap(), original);
             assert_eq!(cursor.remaining(), 0);
@@ -900,7 +926,7 @@ mod tests {
     #[test]
     fn successor_rejects_unknown_transport_and_incomplete_register_pair() {
         let mut encoded = Vec::new();
-        encode_successor(&mut encoded, &successor());
+        encode_successor(&mut encoded, &successor()).unwrap();
         encoded[46] = 2;
         assert_eq!(
             decode_successor(&mut Cursor::new(&encoded)),
@@ -920,7 +946,7 @@ mod tests {
         let mut original = successor();
         original.role = SelectedSuccessorRole::EdgeTransferContinuation;
         let mut encoded = Vec::new();
-        encode_successor(&mut encoded, &original);
+        encode_successor(&mut encoded, &original).unwrap();
         assert_eq!(encoded[0], 1);
         assert_eq!(
             decode_successor(&mut Cursor::new(&encoded)).unwrap(),
@@ -928,7 +954,7 @@ mod tests {
         );
         original.role = SelectedSuccessorRole::CaseDispatchContinuation;
         encoded.clear();
-        encode_successor(&mut encoded, &original);
+        encode_successor(&mut encoded, &original).unwrap();
         assert_eq!(
             decode_successor(&mut Cursor::new(&encoded)).unwrap(),
             original
@@ -948,7 +974,7 @@ mod tests {
         original.psi_edge = None;
         original.bindings.clear();
         let mut encoded = Vec::new();
-        encode_successor(&mut encoded, &original);
+        encode_successor(&mut encoded, &original).unwrap();
         assert_eq!(
             decode_successor(&mut Cursor::new(&encoded)).unwrap(),
             original
@@ -960,7 +986,7 @@ mod tests {
         );
         original.role = SelectedSuccessorRole::Semantic;
         encoded.clear();
-        encode_successor(&mut encoded, &original);
+        encode_successor(&mut encoded, &original).unwrap();
         assert_eq!(
             decode_successor(&mut Cursor::new(&encoded)),
             Err(FixedViewCopyDecodeError::InvalidSuccessorLineage)
@@ -976,7 +1002,7 @@ mod tests {
             target: BlockId::new(91).unwrap(),
         };
         let mut encoded = Vec::new();
-        encode_block(&mut encoded, &block);
+        encode_block(&mut encoded, &block).unwrap();
         let mut cursor = Cursor::new(&encoded);
         assert_eq!(decode_block(&mut cursor).unwrap(), block);
         assert_eq!(cursor.remaining(), 0);
@@ -985,14 +1011,14 @@ mod tests {
             case_ordinal: 2,
         };
         encoded.clear();
-        encode_block(&mut encoded, &block);
+        encode_block(&mut encoded, &block).unwrap();
         assert_eq!(decode_block(&mut Cursor::new(&encoded)).unwrap(), block);
         block.origin = SelectedBlockOrigin::Operation {
             source: BlockId::new(91).unwrap(),
             operation: semantic_vocabulary::OperationId::new(71).unwrap(),
         };
         encoded.clear();
-        encode_block(&mut encoded, &block);
+        encode_block(&mut encoded, &block).unwrap();
         assert_eq!(decode_block(&mut Cursor::new(&encoded)).unwrap(), block);
         encoded[4] = 4;
         assert_eq!(
@@ -1060,7 +1086,7 @@ mod tests {
         ] {
             original.structural_case.as_mut().unwrap().payloads[0].transport = transport;
             let mut encoded = Vec::new();
-            encode_successor(&mut encoded, &original);
+            encode_successor(&mut encoded, &original).unwrap();
             assert_eq!(
                 decode_successor(&mut Cursor::new(&encoded)).unwrap(),
                 original
@@ -1098,7 +1124,7 @@ mod tests {
                 }
             }
             let mut encoded = Vec::new();
-            encode_successor(&mut encoded, &changed);
+            encode_successor(&mut encoded, &changed).unwrap();
             assert_ne!(encoded, encodings[2], "mutation {mutation}");
             assert_eq!(
                 decode_successor(&mut Cursor::new(&encoded)).unwrap(),
@@ -1137,7 +1163,7 @@ mod tests {
                 },
             });
         let mut encoded = Vec::new();
-        encode_successor(&mut encoded, &original);
+        encode_successor(&mut encoded, &original).unwrap();
         let mut cursor = Cursor::new(&encoded);
         assert_eq!(decode_successor(&mut cursor).unwrap(), original);
         assert_eq!(cursor.remaining(), 0);
@@ -1163,7 +1189,7 @@ mod tests {
             *align = alignment;
             *source_byte_offset = source_offset;
             let mut encoded = Vec::new();
-            encode_successor(&mut encoded, &forged);
+            encode_successor(&mut encoded, &forged).unwrap();
             assert_eq!(
                 decode_successor(&mut Cursor::new(&encoded)),
                 Err(FixedViewCopyDecodeError::InvalidStructuralTransport)
@@ -1180,7 +1206,7 @@ mod tests {
             place: semantic_vocabulary::PlaceId::new(12).unwrap(),
         };
         let mut encoded = Vec::new();
-        encode_successor(&mut encoded, &forged);
+        encode_successor(&mut encoded, &forged).unwrap();
         assert_eq!(
             decode_successor(&mut Cursor::new(&encoded)),
             Err(FixedViewCopyDecodeError::InvalidStructuralTransport)
@@ -1227,7 +1253,7 @@ mod tests {
                     },
                 });
             let mut encoded = Vec::new();
-            encode_successor(&mut encoded, &original);
+            encode_successor(&mut encoded, &original).unwrap();
             let mut cursor = Cursor::new(&encoded);
             assert_eq!(decode_successor(&mut cursor).unwrap(), original);
             assert_eq!(cursor.remaining(), 0);
@@ -1250,7 +1276,7 @@ mod tests {
                     };
                 }
                 let mut encoded = Vec::new();
-                encode_successor(&mut encoded, &forged);
+                encode_successor(&mut encoded, &forged).unwrap();
                 assert_eq!(
                     decode_successor(&mut Cursor::new(&encoded)),
                     Err(FixedViewCopyDecodeError::InvalidStructuralTransport)
@@ -1313,7 +1339,7 @@ mod tests {
             ],
         });
         let mut encoded = Vec::new();
-        encode_successor(&mut encoded, &original);
+        encode_successor(&mut encoded, &original).unwrap();
         let mut cursor = Cursor::new(&encoded);
         assert_eq!(decode_successor(&mut cursor).unwrap(), original);
         assert_eq!(cursor.remaining(), 0);

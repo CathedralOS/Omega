@@ -194,11 +194,11 @@ fn signed_immediate_fits_declared(immediate: IntegerValue, scalar_type: ScalarTy
         return false;
     };
     match integer.bits() {
-        8 => i8::try_from(value).is_ok(),
-        16 => i16::try_from(value).is_ok(),
-        32 => i32::try_from(value).is_ok(),
-        64 => i64::try_from(value).is_ok(),
-        128 => true,
+        Some(8) => i8::try_from(value).is_ok(),
+        Some(16) => i16::try_from(value).is_ok(),
+        Some(32) => i32::try_from(value).is_ok(),
+        Some(64) => i64::try_from(value).is_ok(),
+        Some(128) => true,
         _ => false,
     }
 }
@@ -367,4 +367,34 @@ pub(crate) fn derive_hosted_builtin_child(
         PhysicalRelocationDisposition::DirectInstructionBytes,
     )
     .into())
+}
+
+#[cfg(test)]
+mod width_tests {
+    use super::*;
+    use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ValueId, WidthParameter};
+
+    #[test]
+    fn hosted_immediate_requires_a_known_width_and_original_value_fit() {
+        let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 8).unwrap());
+        assert!(signed_immediate_fits_declared(
+            IntegerValue::Signed(127),
+            scalar
+        ));
+        assert!(!signed_immediate_fits_declared(
+            IntegerValue::Signed(128),
+            scalar
+        ));
+        let parameter = ScalarType::Integer(IntegerType::parameterized(
+            IntegerSign::Signed,
+            WidthParameter {
+                owner: MachineId::new(1).unwrap(),
+                value: ValueId::new(1).unwrap(),
+            },
+        ));
+        assert!(!signed_immediate_fits_declared(
+            IntegerValue::Signed(0),
+            parameter
+        ));
+    }
 }

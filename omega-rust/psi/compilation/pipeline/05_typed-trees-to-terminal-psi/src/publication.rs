@@ -31,9 +31,10 @@ pub struct SourceFormCorrespondence {
     pub selection_questions: Option<crate::selection_questions::RawSelectionQuestions>,
 }
 
-pub(crate) struct PreparedProgram {
+pub(crate) struct PreparedProgram<'source> {
     pub program: Elaboration,
     pub source: SourceFormCorrespondence,
+    pub selected_calls: Vec<crate::compilation::SelectedSourceCall<'source>>,
 }
 
 /// Reading and lowering retain the exact typed occurrence until its emitted
@@ -43,6 +44,7 @@ pub(crate) struct PreparedProgram {
 pub enum SourceOrigin {
     Authored(source::SourceSpan),
     AuthoredNode {
+        source_member: MachineId,
         owner: symbols::SymbolHandle,
         node: typed_trees::SourceNode,
         span: Option<source::SourceSpan>,
@@ -56,6 +58,13 @@ impl SourceOrigin {
             Self::Authored(span) => Some(span),
             Self::AuthoredNode { span, .. } => span,
             Self::Unpositioned(_) => None,
+        }
+    }
+
+    pub fn source_member(self) -> Option<MachineId> {
+        match self {
+            Self::AuthoredNode { source_member, .. } => Some(source_member),
+            Self::Authored(_) | Self::Unpositioned(_) => None,
         }
     }
 

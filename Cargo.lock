@@ -2381,6 +2381,7 @@ dependencies = [
 name = "terminal-check-tables"
 version = "0.1.0"
 dependencies = [
+ "arena",
  "diagnostics",
  "language-core",
  "semantic-vocabulary",

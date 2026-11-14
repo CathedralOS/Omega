@@ -78,6 +78,7 @@ pub(crate) mod structural_reference_input {
     }
 
     pub(crate) fn scalar_shape(scalar: ScalarType) -> Option<ValueShape> {
+        // Independent geometry metadata uses the shared fallible classifier.
         ValueShape::for_scalar(scalar)
     }
 

@@ -276,7 +276,28 @@ pub(super) enum EvaluatedCallTarget {
 }
 
 impl Lowering<'_> {
-    fn target_signature(&self, target: &CallTarget) -> Checked<Signature> {
+    fn target_signature(
+        &self,
+        target: &CallTarget,
+        required_contract: Option<semantic_vocabulary::ContractId>,
+    ) -> Checked<Signature> {
+        if let Some(required) = required_contract {
+            let target = match target {
+                CallTarget::Machine(machine) => (*machine).into(),
+                CallTarget::Boundary { boundary } => {
+                    semantic_vocabulary::TargetMachineCallable::Boundary(*boundary)
+                }
+                CallTarget::Selected { .. } => {
+                    return Err(
+                        self.internal("selected callable also names a declared public contract")
+                    );
+                }
+            };
+            return self
+                .signatures
+                .invocation(target, Some(required), self.id)
+                .cloned();
+        }
         match target {
             CallTarget::Machine(machine) => terminal_check_tables::row(
                 self.signatures.machines,
@@ -323,15 +344,19 @@ impl Lowering<'_> {
         }
     }
 
-    fn target_outcome(&self, target: &CallTarget) -> Checked<Outcome> {
-        match target {
+    fn target_outcome(
+        &self,
+        target: &CallTarget,
+        required_contract: Option<semantic_vocabulary::ContractId>,
+    ) -> Checked<Outcome> {
+        let mut outcome = match target {
             CallTarget::Machine(machine) => self.outcome(*machine).cloned(),
             CallTarget::Boundary { boundary, .. } => self.boundary_outcome(*boundary),
             CallTarget::Selected { contract, .. } => {
                 let row = self.callables.contracts.get(*contract).ok_or_else(|| {
                     self.internal("selected call has no retained public contract")
                 })?;
-                let signature = self.target_signature(target)?;
+                let signature = self.target_signature(target, None)?;
                 let crash_routes = match signature.crashes {
                     CrashCeiling::Authored(routes) => routes,
                     CrashCeiling::DeclaredNone => Vec::new(),
@@ -363,7 +388,24 @@ impl Lowering<'_> {
                     },
                 })
             }
+        }?;
+        if required_contract.is_some() {
+            let signature = self.target_signature(target, required_contract)?;
+            // A routed public requirement keeps its own continuation and
+            // written bounds; only omitted clauses use the completed source.
+            outcome.completes_normally = true;
+            outcome.operational = signature.operational.published(outcome.operational);
+            if let Some(routes) = signature.declared_crash_routes() {
+                outcome.crash_routes = routes.to_vec();
+            }
+            if let crate::Ceiling::Authored(row) = signature.reaches {
+                outcome.service_reach = row;
+            }
+            if let crate::Ceiling::Authored(row) = signature.invokes {
+                outcome.synchronous_entries = row;
+            }
         }
+        Ok(outcome)
     }
 
     /// Evaluates a call's arguments left to right.
@@ -425,8 +467,9 @@ impl Lowering<'_> {
                 }
             }
         }
-        // Requirements observe the exact actual subtree, even when no body
-        // operation reads that leaf. Recording a name grants no premise.
+        // Contracts observe the exact actual subtree, even when no body
+        // operation reads that leaf. Naming a leaf supplies no premise; a
+        // guarantee will use its independently checked after-call identity.
         let bindings = evaluated
             .actuals
             .iter()
@@ -441,8 +484,9 @@ impl Lowering<'_> {
                 Ok((formal, actual))
             })
             .collect::<Checked<Vec<_>>>()?;
-        for clause in &signature.requires {
-            self.name_clause_contents(clause, &bindings)?;
+        let result = signature.structural_result_place();
+        for clause in signature.requires.iter().chain(&signature.ensures) {
+            self.name_clause_contents(clause, &bindings, result)?;
         }
         Ok(Reached::Value(evaluated))
     }
@@ -545,12 +589,16 @@ impl Lowering<'_> {
     fn invoke_no_normal(
         &mut self,
         target: EvaluatedCallTarget,
+        required_contract: Option<semantic_vocabulary::ContractId>,
         signature: &Signature,
         arguments: Arguments,
         outcome: &Outcome,
         acknowledgement: terminal_psi::CallAcknowledgement,
         source: SourceOrigin,
     ) -> Checked<()> {
+        if required_contract.is_some() {
+            return Err(self.internal("public routed call lost its normal continuation"));
+        }
         if let EvaluatedCallTarget::Boundary { boundary } = target {
             return self.invoke_boundary_no_normal(boundary, arguments, acknowledgement, source);
         }
@@ -575,6 +623,7 @@ impl Lowering<'_> {
         let requirements = self.invocation(
             InvocationSite::InvokeNoNormal(edge),
             target,
+            required_contract,
             signature.requires.len(),
             &arguments.actuals,
             before,
@@ -596,6 +645,9 @@ impl Lowering<'_> {
         self.terminate(Terminator::InvokeNoNormal {
             edge,
             static_reach_binding: None,
+            required_contract: self
+                .signatures
+                .canonical_contract(required_contract, self.id)?,
             callee: machine,
             structural_arguments,
             arguments: arguments.scalars,
@@ -613,6 +665,7 @@ impl Lowering<'_> {
         &mut self,
         site: InvocationSite,
         target: EvaluatedCallTarget,
+        required_contract: Option<semantic_vocabulary::ContractId>,
         clauses: usize,
         actuals: &[Actual],
         before: ProgramPoint,
@@ -631,16 +684,26 @@ impl Lowering<'_> {
             acknowledgement,
             tail_callee: None,
         });
-        if let Some((owner, node)) = source.node() {
+        if let SourceOrigin::AuthoredNode {
+            source_member,
+            owner,
+            node,
+            ..
+        } = source
+        {
             self.source_calls
                 .push(typed_trees::SourceCallCorrespondence {
                     machine: self.id,
+                    source_member,
                     site,
                     owner,
                     source: node,
                 });
         }
         let invocation = self.tables.invocations.push(InvocationRow {
+            required_contract: self
+                .signatures
+                .canonical_contract(required_contract, self.id)?,
             site,
             callee: match target {
                 EvaluatedCallTarget::Machine(machine) => {
@@ -681,6 +744,7 @@ impl Lowering<'_> {
     pub(super) fn call(
         &mut self,
         callee: &CallTarget,
+        required_contract: Option<semantic_vocabulary::ContractId>,
         arguments: &[Expression],
         designated: Option<crate::body::DesignatedOperands>,
         result: Option<ValueType>,
@@ -690,8 +754,16 @@ impl Lowering<'_> {
         if designated.is_some() && !matches!(callee, CallTarget::Boundary { .. }) {
             return Err(self.internal("designated operands on a call that is no boundary call"));
         }
-        let signature = self.target_signature(callee)?;
-        let outcome = self.target_outcome(callee)?;
+        let signature = self.target_signature(callee, required_contract)?;
+        let outcome = self.target_outcome(callee, required_contract)?;
+        match (result, signature.result) {
+            (Some(ValueType::Rigid(actual)), Some(ValueType::Rigid(declared)))
+                if actual == declared => {}
+            (Some(ValueType::Rigid(_)), _) | (_, Some(ValueType::Rigid(_))) => {
+                return Err(self.internal("a call changed its declared rigid result type"));
+            }
+            _ => {}
+        }
         if matches!(callee, CallTarget::Boundary { .. })
             && self.signature.termination != crate::Termination::Silent
             && signature.termination == crate::Termination::Silent
@@ -712,6 +784,7 @@ impl Lowering<'_> {
             }
             self.invoke_no_normal(
                 target,
+                required_contract,
                 &signature,
                 arguments,
                 &outcome,
@@ -730,6 +803,7 @@ impl Lowering<'_> {
         let requirements = self.invocation(
             InvocationSite::Operation(operation),
             target,
+            required_contract,
             signature.requires.len(),
             &arguments.actuals,
             before,
@@ -779,7 +853,9 @@ impl Lowering<'_> {
                 }
             }
             EvaluatedCallTarget::Machine(callee) => match result {
-                Some(ValueType::Scalar(..)) if structural_arguments.is_empty() => {
+                Some(ValueType::Scalar(..) | ValueType::Rigid(_))
+                    if structural_arguments.is_empty() =>
+                {
                     OperationKind::Call {
                         callee,
                         arguments: scalars,
@@ -789,16 +865,18 @@ impl Lowering<'_> {
                         crash_continuations,
                     }
                 }
-                Some(ValueType::Scalar(..)) => OperationKind::CallStructuralScalar {
-                    callee,
-                    arguments: scalars,
-                    erased_arguments,
-                    erased_proof_arguments: Vec::new(),
-                    structural_arguments,
-                    claim_transfers: Vec::new(),
-                    requirement_obligations: requirements,
-                    crash_continuations,
-                },
+                Some(ValueType::Scalar(..) | ValueType::Rigid(_)) => {
+                    OperationKind::CallStructuralScalar {
+                        callee,
+                        arguments: scalars,
+                        erased_arguments,
+                        erased_proof_arguments: Vec::new(),
+                        structural_arguments,
+                        claim_transfers: Vec::new(),
+                        requirement_obligations: requirements,
+                        crash_continuations,
+                    }
+                }
                 None => OperationKind::CallUnit {
                     callee,
                     arguments: scalars,
@@ -820,9 +898,6 @@ impl Lowering<'_> {
                     crash_continuations,
                     selected_evidence: Vec::new(),
                 },
-                Some(ValueType::Rigid(_)) => {
-                    return Err(self.internal("a call returns a value of a rigid type"));
-                }
             },
         };
         let value = match result {
@@ -836,10 +911,32 @@ impl Lowering<'_> {
                 Value::Record(root)
             }
             None => self.emit(operation, None, kind)?,
-            Some(ValueType::Rigid(_)) => {
-                return Err(self.internal("a call returns a value of a rigid type"));
+            Some(ValueType::Rigid(rigid)) => {
+                let value = self.rigid_value(
+                    rigid,
+                    terminal_check_tables::values::ValueOrigin::Operation(operation),
+                );
+                self.emit_operation(
+                    operation,
+                    terminal_psi::OperationResult::Scalar(super::declaration(
+                        value,
+                        terminal_check_tables::values::RigidType::DECLARED_AS,
+                    )),
+                    kind,
+                )?;
+                Value::Scalar(value)
             }
         };
+        let canonical_contract = self
+            .signatures
+            .canonical_contract(required_contract, self.id)?;
+        let Some(emitted) = self.draft()?.operations.last_mut() else {
+            return Err(self.internal("a call emitted no operation"));
+        };
+        if emitted.id != operation {
+            return Err(self.internal("a selected contract lost its exact call operation"));
+        }
+        emitted.required_contract = canonical_contract;
         self.returned_loans(&arguments.loans, operation)?;
         if !arguments.homes.is_empty() {
             let homes: Vec<_> = arguments.homes.iter().map(ArgumentHome::place).collect();

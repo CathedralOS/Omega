@@ -292,6 +292,7 @@ pub(crate) mod contract_wire {
         Contract: MachineContract {
             id: Id,
             declaration: Optional<MachineDeclaration>,
+            selected_application: Optional<super::module_wire::proof_output_wire::Dispatch>,
             parameters: List<Declaration>,
             parameter_order: List<ParameterKind>,
             structural_parameters: List<super::structural_signature_wire::StructuralParameter>,
@@ -420,7 +421,7 @@ pub(crate) mod integer_math_term_wire {
                 }
                 IntegerMathTerm::MathValue { source_type, value } => {
                     writer.u8(2);
-                    encode_integer_type(writer, *source_type);
+                    encode_integer_type(writer, *source_type)?;
                     writer.id(*value);
                 }
                 IntegerMathTerm::Add(_, _) => writer.u8(3),
@@ -504,7 +505,8 @@ pub(crate) mod mathematical_certificate_wire {
         arena: &TermArena,
         certificate: &MathematicalCertificate,
     ) -> Result<Vec<u8>, CodecError> {
-        let mut term_writer = MathematicalTermWriter::new(arena);
+        let mut writer = Writer::default();
+        let mut term_writer = MathematicalTermWriter::new(arena, writer.nested());
         for declaration in &certificate.signature {
             term_writer.encode_term(declaration.ty)?;
             if let Some(body) = declaration.body {
@@ -525,7 +527,6 @@ pub(crate) mod mathematical_certificate_wire {
             ..
         } = term_writer;
 
-        let mut writer = Writer::default();
         writer.bytes(MAGIC);
         writer.u16(FORMAT_MARKER);
         writer.u32(certificate.level_arity);
@@ -624,10 +625,10 @@ pub(crate) mod mathematical_certificate_wire {
     }
 
     impl<'arena> MathematicalTermWriter<'arena> {
-        fn new(arena: &'arena TermArena) -> Self {
+        fn new(arena: &'arena TermArena, nodes: Writer) -> Self {
             Self {
                 arena,
-                nodes: Writer::default(),
+                nodes,
                 by_handle: HashMap::new(),
                 by_bytes: HashMap::new(),
                 count: 0,
@@ -720,7 +721,7 @@ pub(crate) mod mathematical_certificate_wire {
 
         /// Writes one row whose children already have rows.
         fn emit(&mut self, handle: TermHandle) -> Result<(), CodecError> {
-            let mut node = Writer::default();
+            let mut node = self.nodes.nested();
             match self.arena.get(handle) {
                 Term::Dummy => {
                     return Err(CodecError::MalformedMathematicalCertificate(
@@ -2112,7 +2113,7 @@ pub(crate) mod scalar_qualification_wire {
             writer.id(domain.semantic_domain);
             encode_required_memberships(writer, &domain.required_memberships)?;
             writer.u32(domain.identity.0);
-            encode_scalar_type(writer, domain.carrier);
+            encode_scalar_type(writer, domain.carrier)?;
             writer.boolean(domain.predicate.is_some());
             if let Some(predicate) = &domain.predicate {
                 writer.id(predicate.subject);
@@ -2157,7 +2158,7 @@ pub(crate) mod scalar_qualification_wire {
         writer.len("scalar field qualifications", catalog.fields.len())?;
         for field in &catalog.fields {
             writer.id(field.field);
-            encode_scalar_type(writer, field.value_type.scalar_type);
+            encode_scalar_type(writer, field.value_type.scalar_type)?;
             writer.u64(field.value_type.qualifications.get());
         }
         writer.len("scalar qualification coercions", catalog.coercions.len())?;
@@ -2186,7 +2187,7 @@ pub(crate) mod scalar_qualification_wire {
         for range in &catalog.integer_entry_ranges {
             writer.id(range.machine);
             writer.id(range.parameter);
-            encode_integer_type(writer, range.integer_type);
+            encode_integer_type(writer, range.integer_type)?;
             encode_integer_value(writer, range.minimum);
             encode_integer_value(writer, range.maximum);
         }
@@ -2458,7 +2459,7 @@ pub(crate) mod scalar_term_wire {
             } => {
                 writer.u8(41);
                 writer.id(*application);
-                encode_scalar_type(writer, *scalar_type);
+                encode_scalar_type(writer, *scalar_type)?;
             }
             ScalarTerm::StructuralRead {
                 root,
@@ -2467,7 +2468,7 @@ pub(crate) mod scalar_term_wire {
             } => {
                 writer.u8(40);
                 writer.id(*root);
-                encode_scalar_type(writer, *scalar_type);
+                encode_scalar_type(writer, *scalar_type)?;
                 writer.len("scalar read path", path.len())?;
                 for projection in path {
                     match projection {
@@ -2500,8 +2501,16 @@ pub(crate) mod scalar_term_wire {
                     }
                 }
             }
-            ScalarTerm::IeeeFloatField { root, path, format } => {
-                writer.u8(38);
+            ScalarTerm::IeeeFloatField {
+                version,
+                root,
+                path,
+                format,
+            } => {
+                writer.u8(match version {
+                    semantic_vocabulary::ContentPlaceVersion::Current => 38,
+                    semantic_vocabulary::ContentPlaceVersion::Entry => 44,
+                });
                 encode_canonical_structural_field(writer, *root, path, "IEEE float field path")?;
                 encode_ieee_float_format(writer, *format);
             }
@@ -2521,20 +2530,31 @@ pub(crate) mod scalar_term_wire {
             ScalarTerm::Value { id, scalar_type } => {
                 writer.u8(1);
                 writer.id(*id);
-                encode_scalar_type(writer, *scalar_type);
+                encode_scalar_type(writer, *scalar_type)?;
             }
-            ScalarTerm::BooleanField { root, path } => {
-                writer.u8(34);
+            ScalarTerm::BooleanField {
+                version,
+                root,
+                path,
+            } => {
+                writer.u8(match version {
+                    semantic_vocabulary::ContentPlaceVersion::Current => 34,
+                    semantic_vocabulary::ContentPlaceVersion::Entry => 42,
+                });
                 encode_canonical_structural_field(writer, *root, path, "Boolean field path")?;
             }
             ScalarTerm::IntegerField {
+                version,
                 root,
                 path,
                 scalar_type,
             } => {
-                writer.u8(35);
+                writer.u8(match version {
+                    semantic_vocabulary::ContentPlaceVersion::Current => 35,
+                    semantic_vocabulary::ContentPlaceVersion::Entry => 43,
+                });
                 encode_canonical_structural_field(writer, *root, path, "Integer field path")?;
-                encode_integer_type(writer, *scalar_type);
+                encode_integer_type(writer, *scalar_type)?;
             }
             ScalarTerm::ByteSequencePredicate {
                 predicate,
@@ -2552,7 +2572,7 @@ pub(crate) mod scalar_term_wire {
             } => {
                 writer.u8(36);
                 encode_canonical_structural_field(writer, *root, path, "View extent path")?;
-                encode_integer_type(writer, *scalar_type);
+                encode_integer_type(writer, *scalar_type)?;
             }
             ScalarTerm::Boolean(value) => {
                 writer.u8(2);
@@ -2562,111 +2582,120 @@ pub(crate) mod scalar_term_wire {
             ScalarTerm::BooleanEqual { .. } => writer.u8(11),
             ScalarTerm::IntegerBitwiseNot { scalar_type, .. } => {
                 writer.u8(20);
-                encode_integer_type(writer, *scalar_type);
+                encode_integer_type(writer, *scalar_type)?;
             }
             ScalarTerm::IntegerWiden {
                 source_type,
                 target_type,
                 ..
-            } => typed_pair_row(writer, 21, *source_type, *target_type),
+            } => typed_pair_row(writer, 21, *source_type, *target_type)?,
             ScalarTerm::IntegerExactCast {
                 source_type,
                 target_type,
                 ..
-            } => typed_pair_row(writer, 22, *source_type, *target_type),
+            } => typed_pair_row(writer, 22, *source_type, *target_type)?,
             ScalarTerm::WrappingIntegerShiftLeft {
                 value_type,
                 count_type,
                 ..
-            } => typed_pair_row(writer, 18, *value_type, *count_type),
+            } => typed_pair_row(writer, 18, *value_type, *count_type)?,
             ScalarTerm::WrappingIntegerShiftRight {
                 value_type,
                 count_type,
                 ..
-            } => typed_pair_row(writer, 19, *value_type, *count_type),
+            } => typed_pair_row(writer, 19, *value_type, *count_type)?,
             ScalarTerm::ExactIntegerShiftRight {
                 value_type,
                 count_type,
                 ..
-            } => typed_pair_row(writer, 23, *value_type, *count_type),
+            } => typed_pair_row(writer, 23, *value_type, *count_type)?,
             ScalarTerm::ExactIntegerShiftLeft {
                 value_type,
                 count_type,
                 ..
-            } => typed_pair_row(writer, 24, *value_type, *count_type),
+            } => typed_pair_row(writer, 24, *value_type, *count_type)?,
             ScalarTerm::Integer { scalar_type, value } => {
                 writer.u8(3);
-                encode_integer_type(writer, *scalar_type);
+                encode_integer_type(writer, *scalar_type)?;
                 encode_integer_value(writer, *value);
             }
-            ScalarTerm::IntegerEqual { scalar_type, .. } => typed_row(writer, 12, *scalar_type),
-            ScalarTerm::IntegerLessThan { scalar_type, .. } => typed_row(writer, 13, *scalar_type),
+            ScalarTerm::IntegerEqual { scalar_type, .. } => typed_row(writer, 12, *scalar_type)?,
+            ScalarTerm::IntegerLessThan { scalar_type, .. } => typed_row(writer, 13, *scalar_type)?,
             ScalarTerm::IntegerLessOrEqual { scalar_type, .. } => {
-                typed_row(writer, 14, *scalar_type)
+                typed_row(writer, 14, *scalar_type)?
             }
             ScalarTerm::IntegerBitwiseAnd { scalar_type, .. } => {
-                typed_row(writer, 15, *scalar_type)
+                typed_row(writer, 15, *scalar_type)?
             }
-            ScalarTerm::IntegerBitwiseOr { scalar_type, .. } => typed_row(writer, 16, *scalar_type),
+            ScalarTerm::IntegerBitwiseOr { scalar_type, .. } => {
+                typed_row(writer, 16, *scalar_type)?
+            }
             ScalarTerm::IntegerBitwiseXor { scalar_type, .. } => {
-                typed_row(writer, 17, *scalar_type)
+                typed_row(writer, 17, *scalar_type)?
             }
-            ScalarTerm::ExactIntegerAdd { scalar_type, .. } => typed_row(writer, 25, *scalar_type),
+            ScalarTerm::ExactIntegerAdd { scalar_type, .. } => typed_row(writer, 25, *scalar_type)?,
             ScalarTerm::ExactIntegerSubtract { scalar_type, .. } => {
-                typed_row(writer, 26, *scalar_type)
+                typed_row(writer, 26, *scalar_type)?
             }
             ScalarTerm::ExactIntegerMultiply { scalar_type, .. } => {
-                typed_row(writer, 27, *scalar_type)
+                typed_row(writer, 27, *scalar_type)?
             }
             ScalarTerm::ExactIntegerDivide { scalar_type, .. } => {
-                typed_row(writer, 28, *scalar_type)
+                typed_row(writer, 28, *scalar_type)?
             }
             ScalarTerm::ExactIntegerRemainder { scalar_type, .. } => {
-                typed_row(writer, 29, *scalar_type)
+                typed_row(writer, 29, *scalar_type)?
             }
             ScalarTerm::WrappingIntegerDivide { scalar_type, .. } => {
-                typed_row(writer, 30, *scalar_type)
+                typed_row(writer, 30, *scalar_type)?
             }
             ScalarTerm::WrappingIntegerRemainder { scalar_type, .. } => {
-                typed_row(writer, 31, *scalar_type)
+                typed_row(writer, 31, *scalar_type)?
             }
             ScalarTerm::SaturatingIntegerDivide { scalar_type, .. } => {
-                typed_row(writer, 32, *scalar_type)
+                typed_row(writer, 32, *scalar_type)?
             }
             ScalarTerm::SaturatingIntegerRemainder { scalar_type, .. } => {
-                typed_row(writer, 33, *scalar_type)
+                typed_row(writer, 33, *scalar_type)?
             }
             ScalarTerm::WrappingIntegerAdd { scalar_type, .. } => {
-                typed_row(writer, 4, *scalar_type)
+                typed_row(writer, 4, *scalar_type)?
             }
             ScalarTerm::SaturatingIntegerAdd { scalar_type, .. } => {
-                typed_row(writer, 5, *scalar_type)
+                typed_row(writer, 5, *scalar_type)?
             }
             ScalarTerm::WrappingIntegerSubtract { scalar_type, .. } => {
-                typed_row(writer, 6, *scalar_type)
+                typed_row(writer, 6, *scalar_type)?
             }
             ScalarTerm::SaturatingIntegerSubtract { scalar_type, .. } => {
-                typed_row(writer, 7, *scalar_type)
+                typed_row(writer, 7, *scalar_type)?
             }
             ScalarTerm::WrappingIntegerMultiply { scalar_type, .. } => {
-                typed_row(writer, 8, *scalar_type)
+                typed_row(writer, 8, *scalar_type)?
             }
             ScalarTerm::SaturatingIntegerMultiply { scalar_type, .. } => {
-                typed_row(writer, 9, *scalar_type)
+                typed_row(writer, 9, *scalar_type)?
             }
         }
         Ok(())
     }
 
-    fn typed_row(writer: &mut Writer, tag: u8, scalar_type: IntegerType) {
+    fn typed_row(writer: &mut Writer, tag: u8, scalar_type: IntegerType) -> Result<(), CodecError> {
         writer.u8(tag);
-        encode_integer_type(writer, scalar_type);
+        encode_integer_type(writer, scalar_type)?;
+        Ok(())
     }
 
-    fn typed_pair_row(writer: &mut Writer, tag: u8, first: IntegerType, second: IntegerType) {
+    fn typed_pair_row(
+        writer: &mut Writer,
+        tag: u8,
+        first: IntegerType,
+        second: IntegerType,
+    ) -> Result<(), CodecError> {
         writer.u8(tag);
-        encode_integer_type(writer, first);
-        encode_integer_type(writer, second);
+        encode_integer_type(writer, first)?;
+        encode_integer_type(writer, second)?;
+        Ok(())
     }
 
     type Binary = fn(IntegerType, ScalarTerm, ScalarTerm) -> Result<ScalarTerm, PropositionError>;
@@ -2789,13 +2818,30 @@ pub(crate) mod scalar_term_wire {
             31 => binary_row(reader, children, ScalarTerm::wrapping_integer_remainder)?,
             32 => binary_row(reader, children, ScalarTerm::saturating_integer_divide)?,
             33 => binary_row(reader, children, ScalarTerm::saturating_integer_remainder)?,
-            34 => {
+            tag @ (34 | 42) => {
                 let (root, path) = decode_canonical_structural_field(reader)?;
-                ScalarTerm::boolean_field_path(root, path)
+                ScalarTerm::BooleanField {
+                    version: if tag == 34 {
+                        semantic_vocabulary::ContentPlaceVersion::Current
+                    } else {
+                        semantic_vocabulary::ContentPlaceVersion::Entry
+                    },
+                    root,
+                    path,
+                }
             }
-            35 => {
+            tag @ (35 | 43) => {
                 let (root, path) = decode_canonical_structural_field(reader)?;
-                ScalarTerm::integer_field_path(root, path, decode_integer_type(reader)?)
+                ScalarTerm::IntegerField {
+                    version: if tag == 35 {
+                        semantic_vocabulary::ContentPlaceVersion::Current
+                    } else {
+                        semantic_vocabulary::ContentPlaceVersion::Entry
+                    },
+                    root,
+                    path,
+                    scalar_type: decode_integer_type(reader)?,
+                }
             }
             36 => {
                 let (root, path) = decode_canonical_structural_field(reader)?;
@@ -2806,13 +2852,18 @@ pub(crate) mod scalar_term_wire {
                 2 => semantic_vocabulary::IeeeFloatValue::Binary64(reader.u64()?),
                 tag => return Err(CodecError::InvalidTag("IeeeFloatValue", tag)),
             }),
-            38 => {
+            tag @ (38 | 44) => {
                 let (root, path) = decode_canonical_structural_field(reader)?;
-                let term = ScalarTerm::ieee_float_field_path(
+                let term = ScalarTerm::IeeeFloatField {
+                    version: if tag == 38 {
+                        semantic_vocabulary::ContentPlaceVersion::Current
+                    } else {
+                        semantic_vocabulary::ContentPlaceVersion::Entry
+                    },
                     root,
                     path,
-                    decode_ieee_float_format(reader)?,
-                );
+                    format: decode_ieee_float_format(reader)?,
+                };
                 term.validate_after_operands()
                     .map_err(CodecError::MalformedProposition)?;
                 term
@@ -2881,6 +2932,62 @@ pub(crate) mod scalar_term_wire {
         use semantic_vocabulary::{PlaceId, ScalarType};
 
         #[test]
+        fn entry_field_observations_remain_distinct_on_the_wire() {
+            use semantic_vocabulary::{
+                ContentPlaceVersion, IeeeFloatFormat, IntegerSign, IntegerType,
+            };
+            let root = PlaceId::new(1).unwrap();
+            let path = vec![CanonicalStructuralPathSegment::Field(
+                semantic_vocabulary::StructuralFieldId::new(2).unwrap(),
+            )];
+            let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+            for (current, current_tag, entry_tag) in [
+                (ScalarTerm::boolean_field_path(root, path.clone()), 34, 42),
+                (
+                    ScalarTerm::integer_field_path(root, path.clone(), integer),
+                    35,
+                    43,
+                ),
+                (
+                    ScalarTerm::ieee_float_field_path(
+                        root,
+                        path.clone(),
+                        IeeeFloatFormat::Binary32,
+                    ),
+                    38,
+                    44,
+                ),
+            ] {
+                let mut entry = current.clone();
+                match &mut entry {
+                    ScalarTerm::BooleanField { version, .. }
+                    | ScalarTerm::IntegerField { version, .. }
+                    | ScalarTerm::IeeeFloatField { version, .. } => {
+                        *version = ContentPlaceVersion::Entry
+                    }
+                    _ => unreachable!("the cases are scalar field observations"),
+                }
+                let mut encoded = Vec::new();
+                for (term, tag) in [(&current, current_tag), (&entry, entry_tag)] {
+                    let mut row = Writer::default();
+                    write_scalar_row(&mut row, term).unwrap();
+                    assert_eq!(row.finish()[0], tag);
+                    let mut writer = Writer::default();
+                    encode_scalar_term(&mut writer, term).unwrap();
+                    let bytes = writer.finish();
+                    let mut reader = Reader::new(&bytes);
+                    assert_eq!(decode_scalar_term(&mut reader).unwrap(), *term);
+                    assert_eq!(reader.remaining(), 0);
+                    encoded.push(bytes);
+                }
+                assert_ne!(
+                    encoded[0], encoded[1],
+                    "an entry read cannot become a current read"
+                );
+            }
+        }
+
+        #[test]
         fn explicit_reference_read_has_an_exact_canonical_wire_roundtrip() {
             let term = ScalarTerm::structural_read(
                 PlaceId::new(1).unwrap(),
@@ -2929,12 +3036,15 @@ pub(crate) mod scalar_wire {
     use super::structural_field_wire::{decode_ieee_float_format, encode_ieee_float_format};
     use super::wire::{Reader, Writer};
 
-    pub(crate) fn encode_scalar_type(writer: &mut Writer, scalar_type: ScalarType) {
+    pub(crate) fn encode_scalar_type(
+        writer: &mut Writer,
+        scalar_type: ScalarType,
+    ) -> Result<(), CodecError> {
         match scalar_type {
             ScalarType::Boolean => writer.u8(1),
             ScalarType::Integer(integer_type) => {
                 writer.u8(2);
-                encode_integer_type(writer, integer_type);
+                encode_integer_type(writer, integer_type)?;
             }
             ScalarType::IeeeFloat(format) => {
                 writer.u8(3);
@@ -2945,6 +3055,7 @@ pub(crate) mod scalar_wire {
                 writer.u64(contract.get());
             }
         }
+        Ok(())
     }
 
     pub(crate) fn encode_ieee_float_value(writer: &mut Writer, value: IeeeFloatValue) {
@@ -2960,16 +3071,25 @@ pub(crate) mod scalar_wire {
         }
     }
 
-    pub(crate) fn encode_integer_type(writer: &mut Writer, integer_type: IntegerType) {
+    pub(crate) fn encode_integer_type(
+        writer: &mut Writer,
+        integer_type: IntegerType,
+    ) -> Result<(), CodecError> {
+        writer.require_integer_width(integer_type)?;
         writer.u8(match (integer_type.carrier(), integer_type.sign()) {
             (IntegerCarrier::Fixed, IntegerSign::Signed) => 1,
             (IntegerCarrier::Fixed, IntegerSign::Unsigned) => 2,
             (IntegerCarrier::Address, IntegerSign::Unsigned) => 3,
             (IntegerCarrier::Address, IntegerSign::Signed) => {
-                unreachable!("address carriers are unsigned")
+                return Err(CodecError::IntegerWidthClosure(
+                    semantic_vocabulary::IntegerWidthClosureError::SignedAddress,
+                ));
             }
         });
-        writer.u16(integer_type.bits());
+        integer_type
+            .width()
+            .write_identity(|bytes| writer.bytes(bytes));
+        Ok(())
     }
 
     pub(crate) fn encode_integer_value(writer: &mut Writer, value: IntegerValue) {

@@ -29,7 +29,7 @@ use crate::{
 #[derive(Debug, Clone, Copy)]
 pub struct AdmissionSource<'a> {
     pub plan: &'a AbstractOperationPlan,
-    pub module: &'a TerminalModule,
+    pub closed_module: &'a terminal_codec::ClosedTerminalModule,
     pub target_machine_selections: Option<&'a AdmittedTargetMachineSelections>,
     pub program_entry: Option<AdmittedProgramEntryCall>,
     pub private_entry_ram: &'a [terminal_installation::CheckedPrivateEntryRamRecipe],
@@ -40,8 +40,12 @@ impl<'a> AdmissionSource<'a> {
         self.plan
     }
 
-    pub const fn module(&self) -> &'a TerminalModule {
-        self.module
+    pub fn module(&self) -> &'a TerminalModule {
+        self.closed_module.module()
+    }
+
+    pub const fn closed_module(&self) -> &'a terminal_codec::ClosedTerminalModule {
+        self.closed_module
     }
 
     pub const fn target_machine_selections(&self) -> Option<&'a AdmittedTargetMachineSelections> {
@@ -63,7 +67,7 @@ impl<'a> AdmissionSource<'a> {
         boundary: BoundaryMachineId,
     ) -> Result<Option<terminal_psi::TargetMachineCallable>, String> {
         terminal_installation::admitted_boundary_member(
-            self.module,
+            self.module(),
             self.target_machine_selections,
             boundary,
         )
@@ -74,8 +78,8 @@ impl<'a> AdmissionSource<'a> {
         boundary: BoundaryMachineId,
     ) -> Result<semantic_vocabulary::CallingAbiIdentity, String> {
         let declaration =
-            selected_calling_boundary(self.module, self.target_machine_selections, boundary)?;
-        self.module.calling_abi_identity(declaration)
+            selected_calling_boundary(self.module(), self.target_machine_selections, boundary)?;
+        self.module().calling_abi_identity(declaration)
     }
 }
 

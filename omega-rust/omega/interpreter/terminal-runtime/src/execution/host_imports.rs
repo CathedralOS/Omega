@@ -667,7 +667,7 @@ pub(super) fn bind<'host>(
                 OutputKind::Byte => {
                     signature.structural_parameters.is_empty()
                         && matches!(signature.scalar_parameters.as_slice(),
-                [ScalarType::Integer(integer)] if integer.sign() == IntegerSign::Signed && integer.bits() == 32)
+                [ScalarType::Integer(integer)] if integer.sign() == IntegerSign::Signed && integer.bits() == Some(32))
                 }
             };
         if !valid {

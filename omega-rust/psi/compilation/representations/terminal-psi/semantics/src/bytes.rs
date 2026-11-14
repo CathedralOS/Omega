@@ -3,6 +3,84 @@ Semantic judgments for byte-sequence carriers, byte-view operations, and little-
 byte-window reads and stores.
 */
 
+pub(crate) mod operation_bounds {
+    use crate::{OperationSemanticError, OperationSemanticTag, ValueTypes};
+    use semantic_vocabulary::{
+        IntegerSign, IntegerType, ObligationId, Proposition, ScalarTerm, ScalarType,
+    };
+    use terminal_psi::{Operation, OperationKind};
+
+    /// The goal owned by an operation, shared by checking and evidence
+    /// publication. Byte bounds do not establish their own source, access or
+    /// measurement correspondence; those remain separate storage judgments.
+    pub fn operation_safety_goal(
+        operation: &Operation,
+        types: &impl ValueTypes,
+    ) -> Result<Option<(ObligationId, Proposition)>, OperationSemanticError> {
+        if let Some(semantics) = crate::proof_bearing_scalar_leaf_semantics(operation, types)? {
+            return Ok(Some((
+                semantics.obligation(),
+                semantics.canonical_goal().kernel_proposition()?,
+            )));
+        }
+        let count =
+            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"));
+        let value = |id, tag| {
+            let actual = types
+                .value_type(id)
+                .ok_or(OperationSemanticError::UnknownValue(id))?;
+            if actual != count {
+                return Err(OperationSemanticError::OperandShapeMismatch(tag));
+            }
+            Ok(ScalarTerm::value(id, count))
+        };
+        let (obligation, goal) = match &operation.kind {
+            OperationKind::ByteSequenceRead {
+                index,
+                length,
+                obligation,
+                ..
+            }
+            | OperationKind::ByteSequenceWrite {
+                index,
+                length,
+                obligation,
+                ..
+            } => {
+                let tag = if matches!(operation.kind, OperationKind::ByteSequenceRead { .. }) {
+                    OperationSemanticTag::ByteSequenceRead
+                } else {
+                    OperationSemanticTag::ByteSequenceWrite
+                };
+                (
+                    *obligation,
+                    Proposition::LessThan(value(*index, tag)?, value(*length, tag)?),
+                )
+            }
+            OperationKind::ByteSequenceSubslice {
+                start,
+                end,
+                length,
+                obligation,
+                ..
+            } => {
+                let tag = OperationSemanticTag::ByteSequenceSubslice;
+                let (start, end, length) =
+                    (value(*start, tag)?, value(*end, tag)?, value(*length, tag)?);
+                (
+                    *obligation,
+                    Proposition::Conjunction(vec![
+                        Proposition::LessOrEqual(start, end.clone()),
+                        Proposition::LessOrEqual(end, length),
+                    ]),
+                )
+            }
+            _ => return Ok(None),
+        };
+        Ok(Some((obligation, goal)))
+    }
+}
+
 pub(crate) mod byte_carriers {
 
     use semantic_vocabulary::{ScalarType, StructuralFieldId, StructuralTypeId};
@@ -23,13 +101,15 @@ pub(crate) mod byte_carriers {
 
     fn leaf_scalar_carriers(field: &StructuralFieldDeclaration) -> Option<(u64, ScalarType)> {
         match field.field_type {
-            StructuralFieldType::Scalar(ScalarType::Integer(integer)) => (integer.bits() % 8 == 0)
-                .then(|| (u64::from(integer.bits() / 8), ScalarType::Integer(integer))),
+            StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
+                let bits = integer.bits()?;
+                (bits % 8 == 0).then(|| (u64::from(bits / 8), ScalarType::Integer(integer)))
+            }
             StructuralFieldType::Scalar(ScalarType::Boolean) => Some((1, ScalarType::Boolean)),
             StructuralFieldType::BoundedInteger(bounds) => {
                 let integer = bounds.integer_type();
-                (integer.bits() % 8 == 0)
-                    .then(|| (u64::from(integer.bits() / 8), ScalarType::Integer(integer)))
+                let bits = integer.bits()?;
+                (bits % 8 == 0).then(|| (u64::from(bits / 8), ScalarType::Integer(integer)))
             }
             _ => None,
         }
@@ -285,7 +365,7 @@ pub(crate) mod byte_sequence_predicates {
                 crate::structural_declaration(types.clone(), element).is_some_and(|row| {
                     matches!(row.shape, StructuralTypeShape::PrimitiveScalar(
                         semantic_vocabulary::ScalarType::Integer(integer)
-                    ) if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 8 && !integer.is_address())
+                    ) if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == Some(8) && !integer.is_address())
                 })
             }
             _ => false,

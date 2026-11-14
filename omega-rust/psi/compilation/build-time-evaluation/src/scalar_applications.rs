@@ -1268,7 +1268,8 @@ mod tests {
                 let (observations, conditions) = evaluated(&artifact, &targets, &providers, 5);
                 let model = model_target.map(|target| ScalarAddressModel {
                     target: target.into(),
-                    carrier: IntegerType::supported_address_representation(),
+                    carrier:
+                        semantic_vocabulary::ClosedIntegerType::supported_address_representation(),
                     semantics_version: 1,
                     commitment: [42; 32],
                 });
@@ -1420,7 +1421,7 @@ mod tests {
                             selected.address_model =
                                 Ok(Some(terminal_installation::ScalarAddressModel {
                                     target: "macos_arm64".into(),
-                                    carrier: IntegerType::supported_address_representation(),
+                                    carrier: semantic_vocabulary::ClosedIntegerType::supported_address_representation(),
                                     semantics_version: 1,
                                     commitment: [1; 32],
                                 }));
@@ -1690,6 +1691,7 @@ mod tests {
             content_identity_reshuffles: Vec::new(),
             content_partition_compositions: Vec::new(),
             contract: terminal_psi::MachineContract {
+                selected_application: None,
                 declaration: None,
                 parameters: Vec::new(),
                 parameter_order: Vec::new(),

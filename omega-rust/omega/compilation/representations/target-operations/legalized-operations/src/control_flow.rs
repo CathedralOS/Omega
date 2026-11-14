@@ -80,7 +80,7 @@ impl SaturatingCarrier {
         if integer.carrier() != IntegerCarrier::Fixed {
             return None;
         }
-        Some(match (integer.sign(), integer.bits()) {
+        Some(match (integer.sign(), integer.bits()?) {
             (IntegerSign::Signed, 8) => Self::I8,
             (IntegerSign::Signed, 16) => Self::I16,
             (IntegerSign::Signed, 32) => Self::I32,
@@ -279,6 +279,33 @@ pub struct LegalizedStructuralCasePayload {
 #[cfg(test)]
 mod tests {
     use super::{SaturatingCarrier, TrappingForm, TrappingOperation};
+
+    #[test]
+    fn saturation_requires_a_supported_concrete_fixed_carrier() {
+        use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ValueId, WidthParameter};
+        for carrier in SaturatingCarrier::ALL {
+            assert_eq!(
+                SaturatingCarrier::from_integer(carrier.integer_type()),
+                Some(carrier)
+            );
+        }
+        let symbolic = IntegerType::parameterized(
+            IntegerSign::Unsigned,
+            WidthParameter {
+                owner: MachineId::new(1).unwrap(),
+                value: ValueId::new(1).unwrap(),
+            },
+        );
+        assert_eq!(SaturatingCarrier::from_integer(symbolic), None);
+        assert_eq!(
+            SaturatingCarrier::from_integer(IntegerType::new(IntegerSign::Unsigned, 13).unwrap()),
+            None
+        );
+        assert_eq!(
+            SaturatingCarrier::from_integer(IntegerType::address(64).unwrap()),
+            None
+        );
+    }
 
     #[test]
     fn every_form_has_a_distinct_dense_ordinal() {

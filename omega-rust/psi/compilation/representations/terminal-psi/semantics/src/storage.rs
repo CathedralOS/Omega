@@ -1444,6 +1444,7 @@ pub mod activation_storage {
                         },
                     )],
                     contract: terminal_psi::MachineContract {
+                        selected_application: None,
                         declaration: None,
                         parameters: Vec::new(),
                         parameter_order: Vec::new(),
@@ -1708,6 +1709,43 @@ pub(crate) mod arrival_storage {
         }
     }
 
+    /// Read the existing root's type, access and qualifications for argument
+    /// presentation. This grants no loan: resource claims and result
+    /// qualification establishments still require the consumer's own checks.
+    /// A result has no parameter position, so its caller supplies that label.
+    pub fn structural_argument_source(
+        machine: &TerminalMachine,
+        place: PlaceId,
+        result_position: u32,
+    ) -> Option<std::borrow::Cow<'_, StructuralParameterDeclaration>> {
+        if let Some(parameter) = arrival_parameter(machine, place) {
+            return Some(std::borrow::Cow::Borrowed(parameter));
+        }
+        let root = exactly_one(machine.structural_places.iter(), |root| root.id == place)?;
+        let StructuralPlaceKind::OperationResult {
+            producer,
+            structural_type,
+        } = root.kind
+        else {
+            return None;
+        };
+        let operation = exactly_one(machine.operations(), |operation| operation.id == producer)?;
+        let result = operation
+            .result
+            .as_structural()
+            .filter(|result| result.place == place && result.structural_type == structural_type)?;
+        Some(std::borrow::Cow::Owned(StructuralParameterDeclaration {
+            place,
+            position: result_position,
+            structural_type,
+            multiplicity: result.multiplicity,
+            access: terminal_psi::StructuralAccess::Owned,
+            qualifications: result.qualifications.clone(),
+            projected_qualifications: result.projected_qualifications.clone(),
+            additional_input_qualifications: result.additional_input_qualifications.clone(),
+        }))
+    }
+
     pub fn root_before_edge(
         machine: &TerminalMachine,
         block: BlockId,
@@ -1814,18 +1852,21 @@ pub mod borrowed_storage {
                 return Err("write-frame machines are not at their declared positions".to_owned());
             }
         }
-        let mut graph = match crate::descriptor_results::terminal_graph_closure(
+        let mut graph = Vec::new();
+        for row in crate::descriptor_results::terminal_graph_rows(
             module,
             module.machines.iter().map(|machine| machine.id),
             DescriptorSlotKind::BorrowedStorage,
             &[],
         ) {
-            Ok(graph) => graph,
-            Err(DescriptorGraphError::IncompleteMachine(_)) => return Ok(frames),
-            Err(DescriptorGraphError::MissingOrAmbiguousMachine(machine)) => {
-                return Err(format!("write frame has no unique machine {machine:?}"));
+            match row {
+                Ok(body) => graph.push(body),
+                Err(DescriptorGraphError::IncompleteMachine(_)) => {}
+                Err(DescriptorGraphError::MissingOrAmbiguousMachine(machine)) => {
+                    return Err(format!("write frame has no unique machine {machine:?}"));
+                }
             }
-        };
+        }
         // Later local summaries may strengthen scalar entry and result facts.
         // They must not silently narrow a published storage-effect contract.
         // Retain the actual alias/custody flow and infer a conservative frame
@@ -1837,7 +1878,15 @@ pub mod borrowed_storage {
         }
         let mut analysis =
             DescriptorAnalysis::with_borrowed_storage_slots(&module.structural_types, &graph);
-        for machine in &module.machines {
+        for body in &graph {
+            // The frame roster above checked dense module positions before
+            // graph construction, so this is the same original body owner.
+            let position = usize::try_from(body.id.get() - 1)
+                .map_err(|_| "write-frame machine position cannot be represented")?;
+            let machine = module
+                .machines
+                .get(position)
+                .ok_or("write-frame source machine disappeared")?;
             let Some(written) = analysis
                 .write_frame(machine.id)
                 .map_err(|detail| format!("write frame for {:?}: {detail}", machine.id))?
@@ -2911,7 +2960,7 @@ pub(crate) mod collection_backing {
                         && matches!(declaration.shape,
                         StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
                             if integer.sign() == IntegerSign::Unsigned
-                                && integer.bits() == 8 && !integer.is_address())
+                                && integer.bits() == Some(8) && !integer.is_address())
                 })
                 && region == terminal_psi::ElementViewRegion::WholeCollection
                 && !matches!(
@@ -2959,7 +3008,7 @@ pub(crate) mod collection_backing {
                         && matches!(declaration.shape,
                                 StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
                                     if integer.sign() == IntegerSign::Unsigned
-                                        && integer.bits() == 8 && !integer.is_address())
+                                        && integer.bits() == Some(8) && !integer.is_address())
                 }) =>
             {
                 Some(CollectionBacking {
@@ -3056,9 +3105,9 @@ pub(crate) mod element_representation {
         match scalar {
             ScalarType::Boolean => Some(1),
             ScalarType::Integer(integer)
-                if !integer.is_address() && matches!(integer.bits(), 8 | 16 | 32 | 64) =>
+                if !integer.is_address() && matches!(integer.bits(), Some(8 | 16 | 32 | 64)) =>
             {
-                Some(u64::from(integer.bits() / 8))
+                Some(u64::from(integer.bits()? / 8))
             }
             ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => Some(4),
             ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => Some(8),
@@ -3346,7 +3395,7 @@ pub(crate) mod representation_regions {
                 length: terminal_psi::ArrayExtent::Literal(length),
             } => {
                 let element = exactly_one(types, |row| row.id == *element)?;
-                matches!(element.shape, StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer)) if !integer.is_address() && integer.sign() == IntegerSign::Unsigned && integer.bits()==8).then_some(*length)
+                matches!(element.shape, StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer)) if !integer.is_address() && integer.sign() == IntegerSign::Unsigned && integer.bits()==Some(8)).then_some(*length)
             }
             StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
                 capacity,
@@ -3586,7 +3635,9 @@ pub mod run_custody {
         field
             .scalar_type()
             .and_then(|scalar| scalar.as_integer())
-            .is_some_and(|integer| integer.sign() == IntegerSign::Unsigned && integer.bits() == 64)
+            .is_some_and(|integer| {
+                integer.sign() == IntegerSign::Unsigned && integer.bits() == Some(64)
+            })
     }
 }
 pub(crate) mod storage_dependencies {

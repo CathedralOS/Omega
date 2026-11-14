@@ -63,17 +63,16 @@ pub(crate) mod call_foundations {
         machine: &TerminalMachine,
         invocation: ModuleInvocationInputs<'_>,
     ) -> Result<(), CodecError> {
-        let callee =
-            module
-                .machine(invocation.callee)
-                .ok_or(CodecError::MalformedStructuralFoundation(
-                    "module invocation references an unknown callee",
-                ))?;
+        let callee = module
+            .invocation_machine_contract(invocation.callee, invocation.required_contract)
+            .ok_or(CodecError::MalformedStructuralFoundation(
+                "module invocation references an unknown callee",
+            ))?;
         if invocation.arguments.len() != callee.parameters.len()
-            || invocation.erased_arguments.len() != callee.contract.erased_scalar_formals.len()
-            || invocation.erased_proof_arguments.len() != callee.contract.erased_proof_formals.len()
+            || invocation.erased_arguments.len() != callee.erased_scalar_formals.len()
+            || invocation.erased_proof_arguments.len() != callee.erased_proof_formals.len()
             || invocation.structural_arguments.len() != callee.structural_parameters.len()
-            || invocation.requirement_obligations.len() != callee.contract.requires.len()
+            || invocation.requirement_obligations.len() != callee.requires.len()
         {
             return malformed("module invocation has the wrong entry or obligation arity");
         }
@@ -100,7 +99,7 @@ pub(crate) mod call_foundations {
         for (actual, formal) in invocation
             .erased_arguments
             .iter()
-            .zip(&callee.contract.erased_scalar_formals)
+            .zip(&callee.erased_scalar_formals)
         {
             if actual.scalar_type() != formal.scalar_type {
                 return malformed("module invocation erased argument has the wrong carrier");
@@ -751,7 +750,7 @@ pub(crate) mod call_foundations {
             || !matches!(declaration.scalar_parameters.first(),
                 Some(semantic_vocabulary::ScalarType::Integer(integer))
                     if integer.sign() == semantic_vocabulary::IntegerSign::Signed
-                        && integer.bits() == 32 && !integer.is_address())
+                        && integer.bits() == Some(32) && !integer.is_address())
             || !declaration.structural_parameters.is_empty()
         {
             return malformed(
@@ -946,7 +945,7 @@ pub(crate) mod call_foundations {
         }
         let matches_carrier = |scalar, carrier: RegisterCarrier| {
             matches!(scalar, semantic_vocabulary::ScalarType::Integer(integer)
-                if !integer.is_address() && integer.bits() == carrier.bits()
+                if !integer.is_address() && integer.bits() == Some(carrier.bits())
                     && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned)
         };
         let signature = event.operation();
@@ -3729,7 +3728,7 @@ pub(crate) mod scalar_applications {
                     if !matches!(scalar_type, ScalarType::Integer(integer)
                         if integer.carrier() == IntegerCarrier::Fixed
                             && integer.sign() == IntegerSign::Unsigned
-                            && integer.bits() == 64)
+                            && integer.bits() == Some(64))
                     {
                         return malformed(
                             "layout observation result is not the byte-count carrier",
@@ -4758,7 +4757,7 @@ pub(crate) mod scalar_observations {
             {
                 return malformed("scalar application term has no exact catalog carrier");
             }
-            if let ScalarTerm::BooleanField { root, path }
+            if let ScalarTerm::BooleanField { root, path, .. }
             | ScalarTerm::IntegerField { root, path, .. }
             | ScalarTerm::IeeeFloatField { root, path, .. } = term
             {
@@ -5469,7 +5468,7 @@ pub(crate) mod storage_foundations {
                 || !machine.operations().any(|candidate| {
                     matches!(&candidate.kind, OperationKind::ByteSequenceLength { source: measured } if measured.place == *source && measured.path.is_empty())
                         && candidate.result.scalar_ref().is_some_and(|result| result.id == *length
-                            && matches!(result.scalar_type, ScalarType::Integer(integer) if integer.sign() == IntegerSign::Unsigned && integer.bits() == 64))
+                            && matches!(result.scalar_type, ScalarType::Integer(integer) if integer.sign() == IntegerSign::Unsigned && integer.bits() == Some(64)))
                 })
             {
                 return malformed("byte field store source or exact length is invalid");
@@ -5485,7 +5484,7 @@ pub(crate) mod storage_foundations {
             };
             if operation.result.scalar().is_none_or(|result| {
                 !matches!(result.scalar_type, ScalarType::Integer(integer)
-                    if integer.sign() == IntegerSign::Unsigned && integer.bits() == 64)
+                    if integer.sign() == IntegerSign::Unsigned && integer.bits() == Some(64))
             }) {
                 return malformed("byte field length requires an unsigned 64-bit scalar result");
             }
@@ -7463,7 +7462,7 @@ pub(crate) mod storage_foundations {
         if let Some(storage) = storage {
             let offset_type = declared_scalar_type(machine, storage.byte_offset);
             let offset_is_u64 = matches!(offset_type, Some(ScalarType::Integer(integer))
-                if !integer.is_address() && integer.bits() == 64
+                if !integer.is_address() && integer.bits() == Some(64)
                     && integer.sign() == IntegerSign::Unsigned);
             if !offset_is_u64 {
                 return malformed("reference storage offset is not a u64 scalar");
@@ -8046,7 +8045,7 @@ pub(crate) mod storage_foundations {
                             element.shape,
                             StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
                                 if !integer.is_address()
-                                    && integer.bits() == bits
+                                    && integer.bits() == Some(bits)
                                     && integer.sign() == IntegerSign::Unsigned
                         )
                 }),
@@ -10091,7 +10090,7 @@ pub(crate) mod value_foundations {
         if regions.len() != 2
             || regions.iter().any(|field| field.relevance.is_erased())
             || !address(&regions[0])
-            || !matches!(regions[1].field_type, StructuralFieldType::Scalar(semantic_vocabulary::ScalarType::Integer(ty)) if !ty.is_address() && ty.sign() == semantic_vocabulary::IntegerSign::Unsigned && ty.bits() == 64)
+            || !matches!(regions[1].field_type, StructuralFieldType::Scalar(semantic_vocabulary::ScalarType::Integer(ty)) if !ty.is_address() && ty.sign() == semantic_vocabulary::IntegerSign::Unsigned && ty.bits() == Some(64))
         {
             return malformed("native code layout region needs base addr and length u64");
         }
@@ -10272,6 +10271,16 @@ fn validate_callable_scalar_types(module: &TerminalModule) -> Result<(), CodecEr
             check(value.scalar_type)?;
         }
     }
+    for contract in &module.declaration_contracts {
+        for formal in contract
+            .parameters
+            .iter()
+            .chain(&contract.erased_scalar_formals)
+            .chain(contract.result.scalar_ref())
+        {
+            check(formal.scalar_type)?;
+        }
+    }
     for boundary in &module.boundary_machines {
         for scalar in &boundary.scalar_parameters {
             check(*scalar)?;
@@ -10413,12 +10422,118 @@ fn declaration_identity_references(
     )
 }
 
-// Public requirements describe inputs and promises without supplying code.
-// Validate their own formal namespace before any invocation can use them.
-fn validate_declaration_contracts(module: &TerminalModule) -> Result<(), CodecError> {
+// A received callable promise may name its inputs and result, regardless of
+// whether the module also contains its body. In particular, an entry-time
+// field read needs an actual input; a result has no invocation-entry value.
+fn validate_contract_formals(
+    module: &TerminalModule,
+    contract: &terminal_psi::MachineContract,
+) -> Result<(), CodecError> {
     use semantic_vocabulary::{PropositionContext, StructuralPlaceKind};
     use terminal_psi::TerminalMachineResult;
 
+    let places = contract
+        .structural_parameters
+        .iter()
+        .map(|parameter| {
+            (
+                parameter.place,
+                StructuralPlaceKind::Parameter {
+                    position: parameter.position,
+                },
+            )
+        })
+        .collect::<Vec<_>>();
+    let requires = PropositionContext::from_value_types_and_places(
+        contract
+            .parameters
+            .iter()
+            .chain(&contract.erased_scalar_formals)
+            .map(|formal| (formal.id, formal.scalar_type)),
+        places.iter().copied(),
+    )
+    .map_err(CodecError::MalformedProposition)?;
+    for proposition in contract
+        .requires
+        .iter()
+        .chain(&contract.source_checked_requires)
+    {
+        requires
+            .validate(proposition)
+            .map_err(CodecError::MalformedProposition)?;
+    }
+    let result_place = match &contract.result {
+        TerminalMachineResult::Structural(result) => {
+            if !has_structural_type(module, result.structural_type) {
+                return malformed("public contract result references an unknown type");
+            }
+            validate_structural_qualifications(
+                module,
+                result.structural_type,
+                &result.qualifications,
+                &result.projected_qualifications,
+            )?;
+            Some((result.place, StructuralPlaceKind::Result))
+        }
+        _ => None,
+    };
+    let ensures = PropositionContext::from_value_types_and_places(
+        contract
+            .parameters
+            .iter()
+            .chain(&contract.erased_scalar_formals)
+            .chain(contract.result.scalar_ref())
+            .map(|formal| (formal.id, formal.scalar_type)),
+        places.iter().copied().chain(result_place),
+    )
+    .map_err(CodecError::MalformedProposition)?;
+    for proposition in contract
+        .ensures
+        .iter()
+        .map(|clause| &clause.proposition)
+        .chain(
+            contract
+                .outcome_specific_ensures
+                .iter()
+                .map(|clause| &clause.proposition),
+        )
+    {
+        ensures
+            .validate(proposition)
+            .map_err(CodecError::MalformedProposition)?;
+    }
+    for bucket in contract
+        .crash_routes
+        .iter()
+        .chain(contract.declared_crash_routes.iter().flatten())
+    {
+        for guard in &bucket.alternatives {
+            if let terminal_psi::CrashRouteGuard::Predicate(predicate) = guard {
+                requires
+                    .validate(predicate.proposition())
+                    .map_err(CodecError::MalformedProposition)?;
+            }
+        }
+    }
+    for claim in &contract.entry_claims {
+        let parameter = contract
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == claim.input)
+            .ok_or(CodecError::MalformedStructuralFoundation(
+                "public contract claim has no structural formal",
+            ))?;
+        if parameter.multiplicity == StructuralMultiplicity::Unrestricted {
+            return malformed("public contract claim cannot bind an unrestricted formal");
+        }
+        validate_structural_path(module, parameter.structural_type, &claim.path)?;
+    }
+    Ok(())
+}
+
+// Bodyless declarations retain descriptive source identities. Their absence
+// of code adds no trust to the promises shared with executable contracts.
+fn validate_callable_contracts(module: &TerminalModule) -> Result<(), CodecError> {
     // Existing bodies are addressed by MachineId, even when an older producer
     // reused a contract coordinate. A new declaration-only coordinate must
     // never alias one of those body-owned contracts.
@@ -10432,6 +10547,13 @@ fn validate_declaration_contracts(module: &TerminalModule) -> Result<(), CodecEr
         if body_contracts.binary_search(&contract.id).is_ok() {
             return malformed("bodyless contract aliases a body-owned contract identity");
         }
+    }
+    if module
+        .machines
+        .iter()
+        .any(|machine| machine.contract.selected_application.is_some())
+    {
+        return malformed("a physical body contract carries an invocation-specific selection");
     }
     for contract in module
         .declaration_contracts
@@ -10450,6 +10572,12 @@ fn validate_declaration_contracts(module: &TerminalModule) -> Result<(), CodecEr
                 .declared_crash_routes
                 .as_ref()
                 .is_some_and(|row| row != &contract.crash_routes)
+            || contract
+                .declared_suspension
+                .is_some_and(|allowed| allowed != contract.published_may_suspend)
+            || contract
+                .declared_blocking
+                .is_some_and(|allowed| allowed != contract.published_may_block)
         {
             return malformed("authored callable effects differ from their published promises");
         }
@@ -10467,6 +10595,7 @@ fn validate_declaration_contracts(module: &TerminalModule) -> Result<(), CodecEr
                 .as_deref()
                 .unwrap_or_default(),
         )?;
+        validate_contract_formals(module, contract)?;
     }
     for contract in &module.declaration_contracts {
         contract
@@ -10481,6 +10610,11 @@ fn validate_declaration_contracts(module: &TerminalModule) -> Result<(), CodecEr
                 ))?;
         if declaration.contract == [0; 32] {
             return malformed("public contract has no source commitment");
+        }
+        if declaration.published_may_suspend != contract.published_may_suspend
+            || declaration.published_may_block != contract.published_may_block
+        {
+            return malformed("public operational contract differs from its source declaration");
         }
         for identity in declaration_identity_references(declaration) {
             if module.identities.text(identity).is_none_or(str::is_empty) {
@@ -10521,102 +10655,6 @@ fn validate_declaration_contracts(module: &TerminalModule) -> Result<(), CodecEr
                 return malformed("public contract scalar formal has unknown qualifications");
             }
         }
-        let places = contract
-            .structural_parameters
-            .iter()
-            .map(|parameter| {
-                (
-                    parameter.place,
-                    StructuralPlaceKind::Parameter {
-                        position: parameter.position,
-                    },
-                )
-            })
-            .collect::<Vec<_>>();
-        let requires = PropositionContext::from_value_types_and_places(
-            contract
-                .parameters
-                .iter()
-                .chain(&contract.erased_scalar_formals)
-                .map(|formal| (formal.id, formal.scalar_type)),
-            places.iter().copied(),
-        )
-        .map_err(CodecError::MalformedProposition)?;
-        for proposition in contract
-            .requires
-            .iter()
-            .chain(&contract.source_checked_requires)
-        {
-            requires
-                .validate(proposition)
-                .map_err(CodecError::MalformedProposition)?;
-        }
-        let result_place = match &contract.result {
-            TerminalMachineResult::Structural(result) => {
-                if !has_structural_type(module, result.structural_type) {
-                    return malformed("public contract result references an unknown type");
-                }
-                validate_structural_qualifications(
-                    module,
-                    result.structural_type,
-                    &result.qualifications,
-                    &result.projected_qualifications,
-                )?;
-                Some((result.place, StructuralPlaceKind::Result))
-            }
-            _ => None,
-        };
-        let ensures = PropositionContext::from_value_types_and_places(
-            contract
-                .parameters
-                .iter()
-                .chain(&contract.erased_scalar_formals)
-                .chain(contract.result.scalar_ref())
-                .map(|formal| (formal.id, formal.scalar_type)),
-            places.iter().copied().chain(result_place),
-        )
-        .map_err(CodecError::MalformedProposition)?;
-        for proposition in contract
-            .ensures
-            .iter()
-            .map(|clause| &clause.proposition)
-            .chain(
-                contract
-                    .outcome_specific_ensures
-                    .iter()
-                    .map(|clause| &clause.proposition),
-            )
-        {
-            ensures
-                .validate(proposition)
-                .map_err(CodecError::MalformedProposition)?;
-        }
-        for bucket in contract
-            .crash_routes
-            .iter()
-            .chain(contract.declared_crash_routes.iter().flatten())
-        {
-            for guard in &bucket.alternatives {
-                if let terminal_psi::CrashRouteGuard::Predicate(predicate) = guard {
-                    requires
-                        .validate(predicate.proposition())
-                        .map_err(CodecError::MalformedProposition)?;
-                }
-            }
-        }
-        for claim in &contract.entry_claims {
-            let parameter = contract
-                .structural_parameters
-                .iter()
-                .find(|parameter| parameter.place == claim.input)
-                .ok_or(CodecError::MalformedStructuralFoundation(
-                    "public contract claim has no structural formal",
-                ))?;
-            if parameter.multiplicity == StructuralMultiplicity::Unrestricted {
-                return malformed("public contract claim cannot bind an unrestricted formal");
-            }
-            validate_structural_path(module, parameter.structural_type, &claim.path)?;
-        }
     }
     Ok(())
 }
@@ -10627,7 +10665,7 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
         .map_err(CodecError::MalformedStructuralFoundation)?;
     terminal_semantics::callable_envelopes::validate_callable_operational_refinements(module)
         .map_err(CodecError::MalformedStructuralFoundation)?;
-    validate_declaration_contracts(module)?;
+    validate_callable_contracts(module)?;
     scalar_applications::validate(module)?;
     task_activation::validate(module)?;
     module
@@ -11282,6 +11320,11 @@ fn validate_operation_foundation(
             );
         }
     }
+    if operation.required_contract.is_some() && operation.module_invocation().is_none() {
+        return malformed(
+            "public requirement contract is attached to an operation that is not a module call",
+        );
+    }
     if let OperationKind::ReadScalarApplication { application } = operation.kind {
         let Some(carrier) = module
             .scalar_applications
@@ -11366,7 +11409,7 @@ fn validate_operation_foundation(
         }
         OperationKind::EstablishActivationClaim { committed, .. } => {
             if !matches!(declared_scalar_type(machine, *committed), Some(ScalarType::Integer(integer))
-                if integer.bits() == 64 && integer.sign() == IntegerSign::Unsigned
+                if integer.bits() == Some(64) && integer.sign() == IntegerSign::Unsigned
                     && integer.carrier() == IntegerCarrier::Fixed)
             {
                 return malformed(
@@ -11392,7 +11435,7 @@ fn validate_operation_foundation(
             if operation.result.structural().is_none()
                 || source.access != StructuralAccess::Owned
                 || !matches!(declared_scalar_type(machine, *committed_at), Some(ScalarType::Integer(integer))
-                    if integer.bits() == 64 && integer.sign() == IntegerSign::Unsigned
+                    if integer.bits() == Some(64) && integer.sign() == IntegerSign::Unsigned
                         && integer.carrier() == IntegerCarrier::Fixed)
             {
                 return malformed(
@@ -11829,19 +11872,12 @@ fn validate_structural_arguments(
                 );
             }
         }
-        let result_backing = result.map(|result| StructuralParameterDeclaration {
-            place: argument.place,
-            position: expected.position,
-            structural_type: actual_type,
-            multiplicity: result.multiplicity,
-            access: StructuralAccess::Owned,
-            qualifications: result.qualifications.clone(),
-            projected_qualifications: result.projected_qualifications.clone(),
-            additional_input_qualifications: result.additional_input_qualifications.clone(),
-        });
-        let backing = parameter
-            .or_else(|| block_parameter(machine, argument.place))
-            .or(result_backing.as_ref());
+        let source = terminal_semantics::structural_argument_source(
+            machine,
+            argument.place,
+            expected.position,
+        );
+        let backing = source.as_deref();
         if backing.is_some_and(|actual| {
             (fixed_byte_array_loan(
                 module.structural_types.iter(),

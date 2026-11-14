@@ -163,7 +163,7 @@ pub(crate) fn collection_field_type(
         .type_reference_table
         .peeled_type_reference(reference);
     let definition = program
-        .closed_data_definition(reference)
+        .closed_data_field_definition(reference)
         .ok_or_else(|| crate::unavailable_judgment("applied collection field type"))?;
     let field = program
         .data_constructor_field(reference, definition.symbol, symbol)
@@ -209,6 +209,35 @@ pub(crate) fn declared_callable_value_type(
     // is a value query, not a writable-place query or admission of an `old`
     // subject: the lowered reader still checks its input identity and phase.
     let table = &program.expression_table;
+    // A suffixed literal fixes its own carrier. Reading a receiving type here
+    // could re-land it in a different carrier or silently drop its policy.
+    let literal = if table.expression_is_valid(target) {
+        match table.expression(target) {
+            ExpressionNode::Integer(literal) => literal.landing().map(|landing| {
+                (
+                    typed_trees::types::builtin_type_atom(landing.landed_type),
+                    landing.domain,
+                )
+            }),
+            ExpressionNode::Boolean(_) => Some((
+                symbols::BuiltinTypeAtom::Bool,
+                numerics::arithmetic::ArithmeticDomain::Exact,
+            )),
+            _ => None,
+        }
+    } else {
+        None
+    };
+    if let Some((atom, policy)) = literal {
+        let symbol = program
+            .symbols
+            .builtin_atom_symbol(atom)
+            .ok_or_else(|| crate::unavailable_judgment("literal's retained carrier"))?;
+        return program
+            .type_reference_table
+            .find_arithmetic_result_type_reference(symbol, policy)
+            .ok_or_else(|| crate::unavailable_judgment("literal's retained qualified type"));
+    }
     let mut target = target;
     for _ in 0..table.expression_count() {
         if !table.expression_is_valid(target) {
@@ -415,7 +444,7 @@ fn declared_field_type(
         .type_reference_table
         .peeled_type_reference(reference);
     let data = program
-        .closed_data_definition(carrier)
+        .closed_data_field_definition(carrier)
         .ok_or_else(|| crate::unavailable_judgment("assignment field application"))?;
     let mut fields = program
         .data_members(data)
@@ -791,35 +820,23 @@ impl<'program> DeclaredCallTargets<'program> {
             )
     }
 
-    /// The public requirement is the authored target; the named map owns
-    /// its separate body demand. Close only a unique owned row with its real
-    /// entry state, leaving open maps and reference selections unresolved.
-    fn owned_named_call(&self, target: SymbolHandle, receiver: CallReceiver) -> bool {
+    /// The same checked row identifies an inline body or an existing machine.
+    /// Closing its original selection records that choice, not its validity.
+    fn named_call(&self, target: SymbolHandle, receiver: CallReceiver) -> bool {
         let CallReceiver::Named(namespace) = receiver else {
             return false;
         };
-        let Ok(Some((owner, row, _))) = self.program.named_conformance_member(namespace, target)
-        else {
-            return false;
-        };
-        if !row.source.owns_realization() {
-            return false;
-        }
-        let Some((actual_owner, actual_row)) = self
-            .program
-            .owned_conformance_realization(row.realization_machine)
-        else {
-            return false;
-        };
-        let Some(machine) = self.program.machine_by_symbol(row.realization_machine) else {
-            return false;
-        };
-        let [entry] = self.program.machine_states(machine) else {
-            return false;
-        };
-        actual_owner.symbol == owner.symbol
-            && actual_row == row
-            && entry.symbol == row.realization_state
+        matches!(
+            self.program.named_conformance_member(namespace, target),
+            Ok(Some(_))
+        )
+    }
+
+    fn named_expression_call(&self, call: &typed_trees::expression::TableCallExpression) -> bool {
+        matches!(
+            self.program.named_conformance_call_member(call),
+            Ok(Some(_))
+        )
     }
 
     /// What a call typing did not bind still asks of a later pass, or `None`
@@ -918,7 +935,7 @@ pub(crate) fn defer_unbound_calls(
                 .then_some(call.target.as_str());
                 in_expressions.push((handle, request, bare));
             }
-            if targets.owned_named_call(call.target_symbol, receiver)
+            if targets.named_expression_call(call)
                 && let Some(occurrence) = call.authored_call_selection
             {
                 closed_selections.push((occurrence, call.target_symbol));
@@ -968,7 +985,7 @@ pub(crate) fn defer_unbound_calls(
                             .then_some(call.target.as_str());
                             in_declarations.push((machine.symbol, request, call.source_span, bare));
                         }
-                        if targets.owned_named_call(call.target_symbol, receiver)
+                        if targets.named_call(call.target_symbol, receiver)
                             && let Some(occurrence) = call.authored_call_selection
                         {
                             closed_selections.push((occurrence, call.target_symbol));

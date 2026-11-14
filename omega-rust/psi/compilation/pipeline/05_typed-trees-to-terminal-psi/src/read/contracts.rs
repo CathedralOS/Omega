@@ -33,7 +33,8 @@ pub(super) struct ClauseScope<'s> {
     /// (`body::formal_values`); `None` for a record or borrowed formal.
     /// Body assignments change working slots, never these contract inputs.
     /// The signature owner constructs this roster from declaration formals
-    /// only; `old` additionally excludes erased and borrowed formals.
+    /// only. `old` excludes erased inputs; borrowed inputs use their exact
+    /// storage observation instead of a scalar input identity.
     pub(super) values: &'s [Option<ValueId>],
     /// The value parameters this reading of the clause has bound, each to
     /// its literal: a requirement read at the static arguments of one call
@@ -49,20 +50,16 @@ pub(super) struct ClauseScope<'s> {
     /// disjunction, because it never enters the module's contracts: the
     /// checker replaces its names by values before it is a goal.
     pub(super) subject: Option<DataSubject<'s>>,
-    /// Whether a term may project a record formal (`p.first`): so for an
-    /// entry `requires` clause, whose term is then the field of the
-    /// formal's place, about what that place holds at entry
-    /// (fact_validity.md: "Entry hypotheses bind exact invocation formals
-    /// or structural entry paths"). A crash route guard and an `ensures`
-    /// clause may not, yet: the reader still needs their owned-input or
-    /// borrowed-completion field correspondence. The input of an owned
-    /// record means its original inline fields, independently of later
-    /// writes to its working place (`state_contracts.md`, "Contract inputs
-    /// and working values").
+    /// Whether a term may project a formal (`p.first`). Entry requirements
+    /// read the invocation input. Normal guarantees keep owned inline input
+    /// fields, but read borrowed storage at completion. `old` explicitly
+    /// selects the input observation. Crash guards retain their separate
+    /// admission rule.
     pub(super) formal_fields: bool,
     /// Whether a comparison in this clause may be between mathematical
     /// integers (`embed(a) + embed(b) <= 99`).
     pub(super) mathematical: MathematicalTerms,
+    pub(super) logical: Option<super::logical::LogicalScope<'s>>,
 }
 
 /// Whether a clause may compare mathematical integers. A machine's
@@ -263,6 +260,19 @@ impl Program<'_> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
         if !expression.is_valid() {
             return unserved("missing clause expression");
+        }
+        match typed.expression_table.expression(expression) {
+            ExpressionNode::Boolean(value) => {
+                return Ok(if *value {
+                    Proposition::Truth
+                } else {
+                    Proposition::Falsehood
+                });
+            }
+            ExpressionNode::Call(call) if self.is_mathematical_term(expression) => {
+                return self.mathematical_clause(id, scope, call);
+            }
+            _ => {}
         }
         let ExpressionNode::Binary(binary) = typed.expression_table.expression(expression) else {
             return unserved("clause that is not a comparison or conjunction");
@@ -535,6 +545,11 @@ impl Program<'_> {
         if !expression.is_valid() {
             return unserved("missing term");
         }
+        if let Some(logical) = &scope.logical
+            && let Some((term, scalar)) = logical.term(typed, expression)?
+        {
+            return Ok((term, ValueType::Scalar(scalar, Qualification::NONE)));
+        }
         match typed.expression_table.expression(expression) {
             ExpressionNode::Name(path) if path.static_application.is_valid() => {
                 unserved("applied name used as a plain scalar term")
@@ -583,13 +598,12 @@ impl Program<'_> {
             }
             ExpressionNode::Name(path) => {
                 let slot = self.slot_of(id, scope.slots, path)?;
-                // A borrowed scalar formal is a place too: an entry clause
-                // names what its referent holds at entry, as it names a
-                // field of a record formal. A guarantee would name what it
-                // holds at the return, a version no slice serves yet.
+                // A borrowed scalar is storage too. The clause's consumer
+                // observes entry or completion through the same exact input
+                // place as a projected record field.
                 if scope.slots[slot].borrowed.is_some() {
                     if !scope.formal_fields {
-                        return unserved("clause that names a borrowed formal outside requires");
+                        return unserved("borrowed formal outside an admitted storage clause");
                     }
                     let ValueType::Scalar(scalar_type, qualification) =
                         scope.slots[slot].value_type
@@ -600,6 +614,7 @@ impl Program<'_> {
                     return match scalar_type {
                         ScalarType::Integer(integer) => Ok((
                             ScalarTerm::IntegerField {
+                                version: semantic_vocabulary::ContentPlaceVersion::Current,
                                 root,
                                 path: Vec::new(),
                                 scalar_type: integer,
@@ -608,6 +623,7 @@ impl Program<'_> {
                         )),
                         ScalarType::Boolean => Ok((
                             ScalarTerm::BooleanField {
+                                version: semantic_vocabulary::ContentPlaceVersion::Current,
                                 root,
                                 path: Vec::new(),
                             },
@@ -617,8 +633,8 @@ impl Program<'_> {
                         ScalarType::Callable(_) => unserved("callable field in a clause"),
                     };
                 }
-                // A record formal is a place, not a value: a clause can only
-                // project it, which the member arm below refuses.
+                // A record formal is a place, not a scalar value: a clause
+                // names it through the admitted field projection below.
                 // A policy-qualified formal is named as its stored value: a
                 // comparison of it compares that value whatever the policy.
                 let ValueType::Scalar(scalar_type, qualification) = scope.slots[slot].value_type
@@ -776,11 +792,10 @@ impl Program<'_> {
         }
     }
 
-    /// A by-value scalar's entry observation is its existing logical input.
-    /// Keep its complete declared type for the consumer's qualification and
-    /// cast checks, and require this signature's actual runtime input identity.
-    /// A result, erased value, bound constant, computed term or storage read
-    /// cannot acquire an entry identity by being wrapped in `old`.
+    /// `old` reads the invocation input, not the current working storage.
+    /// A scalar input already has that identity; a projected field retains
+    /// its exact root/path and asks the existing storage binding for the entry
+    /// observation. Results and computed terms have no such input.
     fn old_term(
         &mut self,
         id: MachineId,
@@ -798,10 +813,19 @@ impl Program<'_> {
         let argument = self.old_argument(id, call)?;
         let inputs = ClauseScope {
             result: ResultTerm::Absent("result has no callable-entry value"),
+            formal_fields: true,
+            // Static substitutions are not invocation inputs. Resolve the
+            // authored subject against the actual formal roster, so a bound
+            // term cannot impersonate an input by reusing its numeric IDs.
+            bound: &[],
             ..*scope
         };
-        let term = self.term(id, &inputs, argument, expected)?;
-        let is_input = match &term.0 {
+        let mut term = self.term(id, &inputs, argument, expected)?;
+        let is_input = match &mut term.0 {
+            ScalarTerm::IntegerField { version, .. } | ScalarTerm::BooleanField { version, .. } => {
+                *version = semantic_vocabulary::ContentPlaceVersion::Entry;
+                true
+            }
             ScalarTerm::Value {
                 id: value,
                 scalar_type,
@@ -819,7 +843,7 @@ impl Program<'_> {
             return Err(refuse(
                 id,
                 Construct::Machine,
-                Unserved::Contract("old of a subject without a scalar invocation input"),
+                Unserved::Contract("old of a subject without an admitted invocation input"),
             ));
         }
         Ok(term)
@@ -968,6 +992,9 @@ impl Program<'_> {
     /// integers. An `embed` inside a call's or a cast's operand does not; that
     /// operand is the call's or the cast's to read.
     fn mathematical(&self, expression: ExpressionHandle) -> bool {
+        if self.is_mathematical_term(expression) {
+            return true;
+        }
         let table = &self.typed.expression_table;
         let mut pending = vec![expression];
         while let Some(expression) = pending.pop() {
@@ -1072,6 +1099,9 @@ impl Program<'_> {
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
     ) -> Checked<IntegerMathTerm> {
+        if scope.logical.is_some() {
+            return self.logical_mathematical_term(id, scope, expression);
+        }
         let typed = self.typed;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
         if !expression.is_valid() {
@@ -1190,6 +1220,7 @@ impl Program<'_> {
             ValueType::Rigid(_) => unserved("field of a rigid type in a clause"),
             ValueType::Scalar(ScalarType::Integer(scalar_type), qualification) => Ok((
                 ScalarTerm::IntegerField {
+                    version: semantic_vocabulary::ContentPlaceVersion::Current,
                     root,
                     path,
                     scalar_type,
@@ -1197,7 +1228,11 @@ impl Program<'_> {
                 ValueType::Scalar(ScalarType::Integer(scalar_type), qualification),
             )),
             ValueType::Scalar(ScalarType::Boolean, qualification) => Ok((
-                ScalarTerm::BooleanField { root, path },
+                ScalarTerm::BooleanField {
+                    version: semantic_vocabulary::ContentPlaceVersion::Current,
+                    root,
+                    path,
+                },
                 ValueType::Scalar(ScalarType::Boolean, qualification),
             )),
             ValueType::Scalar(ScalarType::IeeeFloat(_), Qualification::NONE) => {
@@ -1210,9 +1245,9 @@ impl Program<'_> {
     }
 
     /// The storage a clause's expression names. In a data clause: `self`, a
-    /// field named bare, or a member path beneath either. In a machine's
-    /// entry clause: a record formal, whose root is its place, or a member
-    /// path beneath one. `None` for an expression that names no storage.
+    /// field named bare, or a member path beneath either. In an admitted
+    /// machine clause: a formal, whose root is its place, or a member path
+    /// beneath one. `None` for an expression that names no storage.
     /// Every step is resolved from a symbol; a name or member the typed
     /// trees hold only as a spelling is refused.
     fn projected(
@@ -1265,6 +1300,13 @@ impl Program<'_> {
                         ));
                     }
                     let slot = self.slot_of(id, scope.slots, path)?;
+                    if scope.slots[slot].erased {
+                        return Err(refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Contract("erased input used as structural storage"),
+                        ));
+                    }
                     // A clause that names a field of a formal reads inside
                     // the formal's value, as a body does.
                     let Some(record) =

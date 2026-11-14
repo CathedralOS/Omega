@@ -3554,6 +3554,19 @@ pub mod trait_definition {
                 lexical_owner: SymbolHandle,
                 application: TypeReferenceHandle,
             ) -> Option<AppliedTraitScope<'_>> {
+                if let TypeReferenceNode::Named { symbol, .. } =
+                    self.type_reference_table.type_reference(application)
+                {
+                    let selected = self.conformance_by_symbol(*symbol)?;
+                    // A missing generic tuple cannot become a zero-argument
+                    // selection. Only a genuinely closed declaration has this view.
+                    if !selected.type_parameters.is_empty()
+                        || !selected.lifetime_parameters.is_empty()
+                    {
+                        return None;
+                    }
+                    return AppliedTraitScope::from_conformance(self, selected);
+                }
                 let TypeReferenceNode::Generic {
                     base_symbol,
                     lifetime_arguments,
@@ -3563,6 +3576,20 @@ pub mod trait_definition {
                 else {
                     return None;
                 };
+                // A named map's application binds its own telescope first;
+                // its trait arguments can then refer to those exact binders.
+                if let Some(conformance) = self.conformance_by_symbol(*base_symbol) {
+                    return AppliedTraitScope::from_conformance_application(
+                        self,
+                        conformance,
+                        TraitApplicationArguments {
+                            lexical_owner,
+                            enclosing_data_applications: &[],
+                            arguments: self.type_reference_table.type_reference_handles(*arguments),
+                            lifetimes: lifetime_arguments,
+                        },
+                    );
+                }
                 AppliedTraitScope::new(
                     self,
                     self.trait_definition_by_symbol(*base_symbol)?,

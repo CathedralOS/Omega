@@ -419,9 +419,23 @@ fn expression_equation(
             machine,
             value: *id,
         }),
-        ScalarTerm::BooleanField { root, path }
-        | ScalarTerm::IntegerField { root, path, .. }
-        | ScalarTerm::IeeeFloatField { root, path, .. } => {
+        ScalarTerm::BooleanField {
+            version: semantic_vocabulary::ContentPlaceVersion::Current,
+            root,
+            path,
+        }
+        | ScalarTerm::IntegerField {
+            version: semantic_vocabulary::ContentPlaceVersion::Current,
+            root,
+            path,
+            ..
+        }
+        | ScalarTerm::IeeeFloatField {
+            version: semantic_vocabulary::ContentPlaceVersion::Current,
+            root,
+            path,
+            ..
+        } => {
             let root_type = calls
                 .machine(machine)
                 .ok_or("handle expression names an unreached machine")?

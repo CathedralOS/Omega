@@ -2842,8 +2842,7 @@ pub(crate) mod operator {
         entry: &syntax::item::State,
         namespace: &str,
         leaf: &str,
-    ) -> Result<&'static numerics::float_semantics_catalog::FloatSemanticOperation, Diagnostic>
-    {
+    ) -> Result<numerics::float_semantics_catalog::FloatSemanticOperation, Diagnostic> {
         use numerics::float_semantics_catalog::{FloatSemanticOperation, FloatSemanticValueKind};
         let name = machine.name.as_str(syntax_trees);
         let drift = |detail: String| {
@@ -2901,10 +2900,10 @@ pub(crate) mod operator {
                     "its signature ({}) -> {} matches no catalog row",
                     parameters
                         .iter()
-                        .map(|kind| kind.spelling())
+                        .map(ToString::to_string)
                         .collect::<Vec<_>>()
                         .join(", "),
-                    result.spelling()
+                    result
                 ))
             })
     }

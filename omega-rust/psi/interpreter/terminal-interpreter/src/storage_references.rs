@@ -3084,7 +3084,7 @@ impl TerminalExecution<'_> {
             || !matches!(
                 self.structural_declaration(element)?.shape,
                 StructuralTypeShape::PrimitiveScalar(semantic_vocabulary::ScalarType::Integer(integer))
-                    if integer.bits() == 8
+                    if integer.bits() == Some(8)
                         && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
                         && !integer.is_address()
             )

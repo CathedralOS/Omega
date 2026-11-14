@@ -9,7 +9,9 @@ use calling_conventions::{CallSignature, ValueShape, validate_boundary_entry_pla
 use runtime_abi::{
     DescriptorAbi, DescriptorOperation, NativeBorrowedStorageLayout, NativeStorageRepetition,
 };
-use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType, StructuralTypeId};
+use semantic_vocabulary::{
+    ClosedScalarType, IntegerSign, IntegerType, ScalarType, StructuralTypeId,
+};
 use std::borrow::Borrow;
 use terminal_psi::StructuralTypeShape;
 use terminal_psi::{
@@ -31,6 +33,24 @@ pub fn descriptor_input_guard<Layout: Borrow<NativeBorrowedStorageLayout>>(
     binding: &NormalizedForeignCallBinding,
     structural_types: &[StructuralTypeDeclaration],
     layout_of: impl FnOnce(StructuralTypeId) -> Option<Layout>,
+) -> Result<Option<DescriptorInputGuard>, &'static str> {
+    descriptor_input_guard_with_closed_scalars(
+        declaration,
+        binding,
+        structural_types,
+        layout_of,
+        |scalar| scalar.try_into().ok(),
+    )
+}
+
+/// Artifact-backed callers project from their retained type catalog. The
+/// callback only closes a supplied identity; it cannot substitute another one.
+pub fn descriptor_input_guard_with_closed_scalars<Layout: Borrow<NativeBorrowedStorageLayout>>(
+    declaration: &BoundaryMachineDeclaration,
+    binding: &NormalizedForeignCallBinding,
+    structural_types: &[StructuralTypeDeclaration],
+    layout_of: impl FnOnce(StructuralTypeId) -> Option<Layout>,
+    mut close_scalar: impl FnMut(ScalarType) -> Option<ClosedScalarType>,
 ) -> Result<Option<DescriptorInputGuard>, &'static str> {
     let [parameter] = declaration.structural_parameters.as_slice() else {
         return Ok(None);
@@ -56,9 +76,9 @@ pub fn descriptor_input_guard<Layout: Borrow<NativeBorrowedStorageLayout>>(
         structural_types,
         parameter.structural_type,
         parameter.access,
-        &declaration.scalar_parameters,
-        result,
+        (&declaration.scalar_parameters, result),
         layout_of,
+        &mut close_scalar,
     )
 }
 
@@ -69,6 +89,28 @@ pub fn descriptor_input_guard_for_call<Layout: Borrow<NativeBorrowedStorageLayou
     structural_arguments: &[NormalizedForeignStructuralArgument],
     result: &TargetBoundaryResult,
     layout_of: impl FnOnce(StructuralTypeId) -> Option<Layout>,
+) -> Result<Option<DescriptorInputGuard>, &'static str> {
+    descriptor_input_guard_for_call_with_closed_scalars(
+        binding,
+        structural_types,
+        scalar_arguments,
+        structural_arguments,
+        result,
+        layout_of,
+        |scalar| scalar.try_into().ok(),
+    )
+}
+
+pub fn descriptor_input_guard_for_call_with_closed_scalars<
+    Layout: Borrow<NativeBorrowedStorageLayout>,
+>(
+    binding: &NormalizedForeignCallBinding,
+    structural_types: &[StructuralTypeDeclaration],
+    scalar_arguments: &[NormalizedForeignScalarArgument],
+    structural_arguments: &[NormalizedForeignStructuralArgument],
+    result: &TargetBoundaryResult,
+    layout_of: impl FnOnce(StructuralTypeId) -> Option<Layout>,
+    mut close_scalar: impl FnMut(ScalarType) -> Option<ClosedScalarType>,
 ) -> Result<Option<DescriptorInputGuard>, &'static str> {
     if !matches!(
         selected_descriptor(binding),
@@ -114,9 +156,9 @@ pub fn descriptor_input_guard_for_call<Layout: Borrow<NativeBorrowedStorageLayou
         structural_types,
         selected,
         argument.access,
-        &scalars,
-        result,
+        (&scalars, result),
         layout_of,
+        &mut close_scalar,
     )
 }
 
@@ -125,10 +167,11 @@ fn derive<Layout: Borrow<NativeBorrowedStorageLayout>>(
     types: &[StructuralTypeDeclaration],
     buffer: StructuralTypeId,
     access: StructuralAccess,
-    scalars: &[ScalarType],
-    result: Option<ScalarType>,
+    scalar_signature: (&[ScalarType], Option<ScalarType>),
     layout_of: impl FnOnce(StructuralTypeId) -> Option<Layout>,
+    close_scalar: &mut impl FnMut(ScalarType) -> Option<ClosedScalarType>,
 ) -> Result<Option<DescriptorInputGuard>, &'static str> {
+    let (scalars, result) = scalar_signature;
     let operation = selected_descriptor(binding);
     let Some((abi, DescriptorOperation::Read)) = operation else {
         return Ok(None);
@@ -179,7 +222,7 @@ fn derive<Layout: Borrow<NativeBorrowedStorageLayout>>(
     Ok(Some(DescriptorInputGuard {
         count_scalar_argument: 1,
         structural_argument: 0,
-        max_bytes: u64::from(scalar_prefix(layout, types)?),
+        max_bytes: u64::from(scalar_prefix(layout, types, close_scalar)?),
         count_type: count,
     }))
 }
@@ -199,6 +242,7 @@ fn selected_descriptor(
 fn scalar_prefix(
     layout: &NativeBorrowedStorageLayout,
     types: &[StructuralTypeDeclaration],
+    close_scalar: &mut impl FnMut(ScalarType) -> Option<ClosedScalarType>,
 ) -> Result<u32, &'static str> {
     let mut limit = layout.byte_size;
     for region in layout.opaque_regions() {
@@ -262,15 +306,7 @@ fn scalar_prefix(
     }
     let mut recipes = Vec::new();
     for field in layout.fields() {
-        let bytes = match field.stored_scalar {
-            ScalarType::Boolean => 1,
-            ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => 4,
-            ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => 8,
-            ScalarType::Integer(integer) if !integer.is_address() && integer.bits() % 8 == 0 => {
-                u32::from(integer.bits() / 8)
-            }
-            _ => return Err("descriptor scalar prefix has no native byte codec"),
-        };
+        let bytes = scalar_prefix_byte_width(field.stored_scalar, close_scalar)?;
         if field.byte_offset < limit {
             recipes.push(PrefixRecipe {
                 offset: field.byte_offset,
@@ -293,6 +329,27 @@ fn scalar_prefix(
         }
     }
     Ok(end)
+}
+
+/// The public classifier accepts independent raw layout metadata. A concrete
+/// descriptor must exist before a supplied field can contribute byte coverage.
+fn scalar_prefix_byte_width(
+    scalar: ScalarType,
+    close_scalar: &mut impl FnMut(ScalarType) -> Option<ClosedScalarType>,
+) -> Result<u32, &'static str> {
+    let closed =
+        close_scalar(scalar).ok_or("descriptor scalar prefix requires a closed scalar type")?;
+    if closed.as_checking() != scalar {
+        return Err("descriptor scalar prefix closure changes its supplied type");
+    }
+    Ok(match closed {
+        ClosedScalarType::Boolean => 1,
+        ClosedScalarType::IeeeFloat(format) => u32::from(format.byte_size()),
+        ClosedScalarType::Integer(integer) if !integer.is_address() && integer.bits() % 8 == 0 => {
+            u32::from(integer.bits() / 8)
+        }
+        _ => return Err("descriptor scalar prefix has no native byte codec"),
+    })
 }
 
 struct PrefixRecipe {
@@ -360,4 +417,61 @@ fn merge(intervals: &mut Vec<(u32, u32)>) {
         }
     }
     *intervals = merged;
+}
+
+#[cfg(test)]
+mod width_closure_tests {
+    use super::*;
+    use semantic_vocabulary::{
+        ClosedIntegerType, IeeeFloatFormat, MachineId, ValueId, WidthParameter,
+    };
+
+    #[test]
+    fn descriptor_scalar_geometry_keeps_exact_width_and_projection_identity() {
+        let mut independent = |scalar: ScalarType| scalar.try_into().ok();
+        for bits in [8, 24, 64, 128] {
+            let integer = IntegerType::new(IntegerSign::Signed, bits).unwrap();
+            assert_eq!(
+                scalar_prefix_byte_width(ScalarType::Integer(integer), &mut independent),
+                Ok(u32::from(bits / 8))
+            );
+        }
+        for (scalar, bytes) in [
+            (ScalarType::Boolean, 1),
+            (ScalarType::IeeeFloat(IeeeFloatFormat::Binary32), 4),
+            (ScalarType::IeeeFloat(IeeeFloatFormat::Binary64), 8),
+        ] {
+            assert_eq!(
+                scalar_prefix_byte_width(scalar, &mut independent),
+                Ok(bytes)
+            );
+        }
+        for integer in [
+            IntegerType::new(IntegerSign::Unsigned, 13).unwrap(),
+            IntegerType::address(64).unwrap(),
+        ] {
+            assert!(
+                scalar_prefix_byte_width(ScalarType::Integer(integer), &mut independent).is_err()
+            );
+        }
+        let symbolic = IntegerType::parameterized(
+            IntegerSign::Unsigned,
+            WidthParameter {
+                owner: MachineId::new(1).unwrap(),
+                value: ValueId::new(2).unwrap(),
+            },
+        );
+        assert_eq!(
+            scalar_prefix_byte_width(ScalarType::Integer(symbolic), &mut independent),
+            Err("descriptor scalar prefix requires a closed scalar type")
+        );
+        let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
+        assert!(scalar_prefix_byte_width(scalar, &mut |_| None).is_err());
+        let other =
+            ClosedScalarType::Integer(ClosedIntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+        assert_eq!(
+            scalar_prefix_byte_width(scalar, &mut |_| Some(other)),
+            Err("descriptor scalar prefix closure changes its supplied type")
+        );
+    }
 }

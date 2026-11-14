@@ -115,6 +115,7 @@ fn catalog() -> TerminalCallableCatalog {
             .collect(),
         machine_envelopes: Vec::new(),
         boundary_envelopes: Vec::new(),
+        declaration_envelopes: Vec::new(),
     }
 }
 

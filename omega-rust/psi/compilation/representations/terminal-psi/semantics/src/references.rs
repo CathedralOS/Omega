@@ -2531,7 +2531,7 @@ pub(crate) mod reference_origins {
             StructuralTypeShape::ByteSequence(_) => {
                 let mut matching = types.filter(|declaration| declaration.scalar_restriction.is_none()
                     && matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
-                        if integer.sign() == IntegerSign::Unsigned && integer.bits() == 8 && !integer.is_address()));
+                        if integer.sign() == IntegerSign::Unsigned && integer.bits() == Some(8) && !integer.is_address()));
                 let element = matching.next()?;
                 matching.next().is_none().then_some(element.id)
             }
@@ -2681,7 +2681,7 @@ pub(crate) mod reference_storage_geometry {
                     u128::try_from(maximum).ok()?
                 }
                 (IntegerValue::Unsigned(_), IntegerValue::Unsigned(maximum)) => maximum,
-                _ => return Some(u64::from(integer.integer_type().bits())),
+                _ => return Some(u64::from(integer.integer_type().bits()?)),
             };
             return Some(u64::from((u128::BITS - maximum.leading_zeros()).max(1)));
         }
@@ -2699,7 +2699,7 @@ pub(crate) mod reference_storage_geometry {
             // cannot represent that association.
             ScalarType::Callable(_) => None,
             ScalarType::Boolean => Some(1),
-            ScalarType::Integer(integer) => Some(u64::from(integer.bits())),
+            ScalarType::Integer(integer) => Some(u64::from(integer.bits()?)),
             ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => Some(32),
             ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => Some(64),
         }
@@ -5035,8 +5035,11 @@ pub(crate) mod reference_views {
     }
     pub fn reference_storage_byte_width(stored: ScalarType) -> Option<u8> {
         match stored {
-            ScalarType::Integer(integer) if !integer.is_address() && integer.bits() % 8 == 0 => {
-                u8::try_from(integer.bits() / 8).ok()
+            ScalarType::Integer(integer) if !integer.is_address() => {
+                let bits = integer.bits()?;
+                (bits % 8 == 0)
+                    .then(|| u8::try_from(bits / 8).ok())
+                    .flatten()
             }
             ScalarType::Callable(_) => Some(8),
             ScalarType::Boolean => Some(1),
@@ -5126,7 +5129,7 @@ pub(crate) mod reference_views {
             return false;
         };
         let byte_endpoint = matches!(source_shape, StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
-            if !integer.is_address() && integer.bits() == 8
+            if !integer.is_address() && integer.bits() == Some(8)
                 && integer.sign() == IntegerSign::Unsigned);
         let Some(target) = crate::structural_shape(types.clone(), *referent) else {
             return false;
@@ -5179,7 +5182,7 @@ pub(crate) mod reference_views {
 
     fn is_byte_scalar(scalar: ScalarType) -> bool {
         matches!(scalar, ScalarType::Integer(integer) if !integer.is_address()
-            && integer.bits() == 8 && integer.sign() == IntegerSign::Unsigned)
+            && integer.bits() == Some(8) && integer.sign() == IntegerSign::Unsigned)
     }
 
     fn storage_scalars_satisfy<'types>(
@@ -5229,7 +5232,7 @@ pub(crate) mod reference_views {
             return !source.is_address()
                 && !target.is_address()
                 && source.bits() == target.bits()
-                && source.bits() <= 64;
+                && source.bits().is_some_and(|bits| bits <= 64);
         }
         ScalarRepresentationViewPair::classify(source, target)
             .is_some_and(|pair| !pair.requires_landing())
@@ -5315,7 +5318,7 @@ pub(crate) mod reference_views {
             return Some(ScalarViewValue::Integer(integer_from_bits(
                 target,
                 integer_bits(source, value)?,
-            )));
+            )?));
         }
         ScalarRepresentationViewPair::classify(source, target)?.view(value)
     }
@@ -5547,7 +5550,7 @@ pub(crate) mod resident_references {
             || field_type(length).is_none_or(|integer| {
                 integer.is_address()
                     || integer.sign() != semantic_vocabulary::IntegerSign::Unsigned
-                    || integer.bits() != 64
+                    || integer.bits() != Some(64)
             })
         {
             return Err("placement extent geometry roles have incorrect scalar types");

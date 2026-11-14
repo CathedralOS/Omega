@@ -1,0 +1,20 @@
+// Expected exit: 0.
+// The body preserves its input at every positive static width, independently
+// of the two widths selected below. The fail twin changes only its guarantee.
+machine identity<const N: u64>(value: u<N>) -> u<N>
+requires N > 0u64
+ensures result != value
+crashes none
+{
+    value
+}
+machine main() crashes Trap {
+    let wide: u32 = identity<32>(37u32);
+    let narrow: u8 = identity<8>(201u8);
+    transition wide == 37u32 && narrow == 201u8 {
+        true -> done()
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

@@ -7,7 +7,7 @@ use calling_conventions::{
     ValueLocation, ValueShape, evaluate_call_plan,
 };
 use register_model::validate_physical_register_model;
-use semantic_vocabulary::{IntegerSign, ScalarType};
+use semantic_vocabulary::{ClosedScalarType, IntegerSign, ScalarType};
 use target::{Architecture, NativeTarget};
 
 use crate::native_bridge_encoding::{
@@ -90,17 +90,26 @@ pub fn emit_native_foreign_bridge(
 ) -> Result<NativeForeignBridge, Error> {
     let policy = CallingPolicy::native_for_target(request.target);
     let foreign = &request.foreign.plan().call;
-    if request.scalar_parameters.len() != foreign.parameters.len()
-        || request
-            .scalar_parameters
-            .iter()
-            .zip(&foreign.parameters)
-            .any(|(scalar, parameter)| {
-                scalar.is_some_and(|scalar| ValueShape::for_scalar(scalar) != Some(parameter.shape))
-            })
-    {
+    if request.scalar_parameters.len() != foreign.parameters.len() {
         return Err(Error::ScalarParameterMismatch);
     }
+    let scalar_parameters = request
+        .scalar_parameters
+        .iter()
+        .zip(&foreign.parameters)
+        .map(|(scalar, parameter)| {
+            scalar
+                .map(|scalar| {
+                    let closed = ClosedScalarType::try_from(scalar)
+                        .map_err(|_| Error::ScalarParameterMismatch)?;
+                    if ValueShape::for_closed_scalar(closed) != Some(parameter.shape) {
+                        return Err(Error::ScalarParameterMismatch);
+                    }
+                    Ok(closed)
+                })
+                .transpose()
+        })
+        .collect::<Result<Vec<_>, Error>>()?;
     if foreign.policy != policy
         || foreign.entry_control != EntryControl::CallReturn
         || foreign.stack_alignment != 16
@@ -312,14 +321,14 @@ pub fn emit_native_foreign_bridge(
             true,
         )?;
     }
-    for (argument, scalar) in arguments.iter().zip(&request.scalar_parameters) {
+    for (argument, scalar) in arguments.iter().zip(&scalar_parameters) {
         encoding.distribute_argument(
             &mut bytes,
             &argument.placement,
             argument.snapshot,
             argument.extent,
         )?;
-        if let Some(ScalarType::Integer(integer)) = scalar
+        if let Some(ClosedScalarType::Integer(integer)) = scalar
             && integer.sign() == IntegerSign::Signed
             && matches!(integer.bits(), 8 | 16)
         {

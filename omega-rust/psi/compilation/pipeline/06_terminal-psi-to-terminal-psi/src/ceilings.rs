@@ -216,7 +216,23 @@ fn envelope_for<'a>(
     let module = &elaboration.module;
     match inputs.callee {
         Callee::Declared(TargetMachineCallable::Machine(machine)) => {
-            machine_envelope(elaboration, machine)
+            if let Some(required) = inputs.required_contract {
+                module
+                    .invocation_machine_contract(machine, Some(required))
+                    .ok_or_else(|| fault(caller, "selected call has no exact public contract"))?;
+                module
+                    .callables
+                    .declaration_envelope(required)
+                    .map(Envelope::Runtime)
+                    .ok_or_else(|| {
+                        fault(
+                            caller,
+                            "selected public contract has no complete operational envelope",
+                        )
+                    })
+            } else {
+                machine_envelope(elaboration, machine)
+            }
         }
         Callee::Declared(TargetMachineCallable::Boundary(boundary)) => module
             .callables
@@ -723,6 +739,9 @@ pub(crate) fn judge(
     for contract in &module.callables.contracts {
         well_formed_reach(module, first, &contract.envelope.service_reach)?;
     }
+    for row in &module.callables.declaration_envelopes {
+        well_formed_reach(module, first, &row.envelope.service_reach)?;
+    }
     if let Some(TargetMachineCallable::Machine(entry)) = module.entry
         && let Envelope::Runtime(envelope) = machine_envelope(elaboration, entry)?
         && envelope.service_reach != module.root_service_reach.concrete
@@ -766,6 +785,13 @@ pub(crate) fn judge(
                     .iter()
                     .any(|entry| matches!(entry, Entry::Parameter(_)))
             });
+    let needs_values = needs_values
+        || module.callables.declaration_envelopes.iter().any(|row| {
+            row.envelope
+                .invocations
+                .iter()
+                .any(|entry| matches!(entry, Entry::Parameter(_)))
+        });
     let values = needs_values
         .then(|| terminal_callable_values(module))
         .transpose()

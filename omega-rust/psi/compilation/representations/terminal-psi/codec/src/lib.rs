@@ -27,7 +27,9 @@ and package review tools to inspect manifests, traces, and proof certificates.
 
 mod block_wire;
 mod canonical_artifact;
+mod closed_module;
 pub mod contract_forms;
+pub use closed_module::{ClosedTerminalModule, ClosedTypeCatalog};
 pub mod entry_receipt;
 mod wire_fields;
 pub(crate) use canonical_artifact::execution_code;
@@ -111,6 +113,7 @@ pub(crate) mod codec_error {
         MalformedMathematicalCertificate(&'static str),
         InvalidIdentityFormation(String),
         MalformedProposition(PropositionError),
+        IntegerWidthClosure(semantic_vocabulary::IntegerWidthClosureError),
         ObligationLedgerMismatch,
     }
 

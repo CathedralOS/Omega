@@ -42,16 +42,14 @@ use diagnostics::Diagnostic;
 use effects::CompilerAccessorScalarOperation;
 use effects::provider_plan::{ProviderPlan, ServiceSchema};
 use semantic_vocabulary::{
-    BoundaryCompletion, ExternalCompletionKind, IeeeFloatFormat, IntegerSign, ScalarType,
+    BoundaryCompletion, ClosedScalarType, ExternalCompletionKind, IeeeFloatFormat, IntegerSign,
 };
 use target_operations::{
     BoundarySettlementRealization, CompilerBuiltinExecution, HostedExitProcessI32Realization,
     HostedReadByteRealization, HostedWriteByteI32Realization,
     NearestIeeeFloatArithmeticRealization,
 };
-use terminal_psi::{
-    BoundaryMachineDeclaration, StructuralAccess, TerminalAccessorKind, TerminalModule,
-};
+use terminal_psi::{BoundaryMachineDeclaration, StructuralAccess, TerminalAccessorKind};
 use terminal_semantics::AccessorScalarBoundaryDemand;
 
 pub(super) fn settle_compiler_builtins<'request>(
@@ -200,7 +198,7 @@ pub(super) fn settle_compiler_builtins<'request>(
                 )
                 .map_err(|reason| vec![Diagnostic::error(reason)])?;
                 validate_access_schema(
-                    module,
+                    input.closed_module(),
                     boundary,
                     proposal.provider_plan,
                     proposal.semantic_schema,
@@ -455,7 +453,7 @@ fn access_operation(operation: TerminalAccessorKind) -> CompilerAccessorScalarOp
 }
 
 fn validate_access_schema(
-    module: &TerminalModule,
+    closed: &terminal_codec::ClosedTerminalModule,
     boundary: &BoundaryMachineDeclaration,
     plan: &ProviderPlan,
     schema: &ServiceSchema,
@@ -464,6 +462,11 @@ fn validate_access_schema(
     let invalid = || {
         "placed scalar selected schema does not match its Terminal signature and effects".to_owned()
     };
+    let module = closed.module();
+    let closed_scalar = closed
+        .closed_types()
+        .scalar(demand.scalar)
+        .map_err(|cause| format!("placed scalar descriptor is not retained: {cause}"))?;
     let [method] = schema.declaration.methods.as_slice() else {
         return Err(invalid());
     };
@@ -481,7 +484,7 @@ fn validate_access_schema(
         StructuralAccess::MutableBorrow => "ref-mut",
         _ => return Err(invalid()),
     };
-    let (scalar, logical_bits) = primitive_access_carrier(demand.scalar)?;
+    let (scalar, logical_bits) = primitive_access_carrier(closed_scalar)?;
     let mut parameters = vec![format!("{borrow}({accessor})")];
     let name = match demand.operation {
         TerminalAccessorKind::Read => "read",
@@ -581,13 +584,13 @@ fn validate_access_schema(
     Ok(())
 }
 
-fn primitive_access_carrier(scalar: ScalarType) -> Result<(String, u64), String> {
+fn primitive_access_carrier(scalar: ClosedScalarType) -> Result<(String, u64), String> {
     let (name, bits) = match scalar {
-        ScalarType::Boolean => ("bool".to_owned(), 8),
-        ScalarType::Integer(integer) if integer.is_address() => {
+        ClosedScalarType::Boolean => ("bool".to_owned(), 8),
+        ClosedScalarType::Integer(integer) if integer.is_address() => {
             ("addr".to_owned(), u64::from(integer.bits()))
         }
-        ScalarType::Integer(integer) => (
+        ClosedScalarType::Integer(integer) => (
             format!(
                 "{}{}",
                 if integer.sign() == IntegerSign::Signed {
@@ -599,9 +602,9 @@ fn primitive_access_carrier(scalar: ScalarType) -> Result<(String, u64), String>
             ),
             u64::from(integer.bits()),
         ),
-        ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => ("f32".to_owned(), 32),
-        ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => ("f64".to_owned(), 64),
-        ScalarType::Callable(_) => {
+        ClosedScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => ("f32".to_owned(), 32),
+        ClosedScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => ("f64".to_owned(), 64),
+        ClosedScalarType::Callable(_) => {
             return Err(
                 "native placed scalar access cannot carry local callable descriptors".to_owned(),
             );
@@ -849,5 +852,33 @@ mod selected_completion_contract_tests {
             &ordinary,
             "Boundary::invoke"
         ));
+    }
+}
+
+#[cfg(test)]
+mod closed_width_tests {
+    use super::*;
+    use semantic_vocabulary::ClosedIntegerType;
+
+    #[test]
+    fn primitive_schema_names_preserve_exact_closed_width_and_address_kind() {
+        for (integer, expected) in [
+            (
+                ClosedIntegerType::new(IntegerSign::Signed, 24).unwrap(),
+                "named(name(i24))",
+            ),
+            (
+                ClosedIntegerType::new(IntegerSign::Unsigned, 13).unwrap(),
+                "named(name(u13))",
+            ),
+            (ClosedIntegerType::address(48).unwrap(), "named(name(addr))"),
+        ] {
+            assert_eq!(
+                primitive_access_carrier(ClosedScalarType::Integer(integer))
+                    .unwrap()
+                    .0,
+                expected
+            );
+        }
     }
 }

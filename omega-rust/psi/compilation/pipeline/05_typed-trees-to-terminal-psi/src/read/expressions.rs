@@ -38,6 +38,7 @@ impl<'t> Program<'t> {
                 )
             })?;
         Ok(SourceOrigin::AuthoredNode {
+            source_member: id,
             owner,
             node,
             span: SourceOrigin::of(span).span(),
@@ -416,7 +417,9 @@ impl<'t> Program<'t> {
             ExpressionNode::Cast(cast) => return self.cast(id, slots, cast, source),
             ExpressionNode::Float(_) => return unserved("float literal"),
             ExpressionNode::UndeterminedNaN(_) => return unserved("undetermined NaN"),
-            ExpressionNode::Indexed(indexed) => return self.indexed(id, slots, indexed, source),
+            ExpressionNode::Indexed(indexed) => {
+                return self.indexed(id, slots, indexed, handle, expected);
+            }
             ExpressionNode::Member(member) => return self.member(id, slots, member, source),
             ExpressionNode::Borrow(_) => {
                 let Some(expected) = expected else {
@@ -631,10 +634,13 @@ impl<'t> Program<'t> {
             None => return Err(unserved("match with a Unit arm")),
         };
         if result.is_some_and(|result| result != value_type) {
-            return Err(refuse(
+            return Err(self.mistyped(
                 id,
-                Construct::Machine,
-                Unserved::Typing("match arm value type"),
+                value.source,
+                super::rejections::Destination::MatchArm,
+                *result,
+                value.result,
+                "match arm value type",
             ));
         }
         *result = Some(value_type);
@@ -1140,12 +1146,14 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
             (
                 ExpressionKind::Call {
                     callee: a,
+                    required_contract: a_required,
                     arguments: a_arguments,
                     designated: a_designated,
                     ..
                 },
                 ExpressionKind::Call {
                     callee: b,
+                    required_contract: b_required,
                     arguments: b_arguments,
                     designated: b_designated,
                     ..
@@ -1155,6 +1163,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 // host ticket. Equal syntax is not one observed result.
                 matches!(a, crate::body::CallTarget::Machine(_))
                     && a == b
+                    && a_required == b_required
                     && a_designated == b_designated
                     && a_arguments.len() == b_arguments.len()
                     && a_arguments.iter().zip(b_arguments).all(|(a, b)| both(a, b))
@@ -1164,6 +1173,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
             }
             (ExpressionKind::Index { base: a, index: ai }, ExpressionKind::Index { base: b, index: bi }) => both(a, b) && both(ai, bi),
             (ExpressionKind::ByteElement { base: a, index: ai }, ExpressionKind::ByteElement { base: b, index: bi }) => both(a, b) && both(ai, bi),
+            (ExpressionKind::ByteSubslice { base: a, start: ast, end: ae }, ExpressionKind::ByteSubslice { base: b, start: bst, end: be }) => both(a,b) && match (ast,bst) { (Some(a),Some(b)) => both(a,b), (None,None) => true, _ => false } && match (ae,be) { (Some(a),Some(b)) => both(a,b), (None,None) => true, _ => false },
             (ExpressionKind::Record { fields: a }, ExpressionKind::Record { fields: b }) => {
                 a.len() == b.len()
                     && a.iter()
@@ -1258,6 +1268,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
             | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::CollectionMeasure { .. }
                 | ExpressionKind::ByteElement { .. }
+            | ExpressionKind::ByteSubslice { .. }
                 | ExpressionKind::Boolean(_)
                 | ExpressionKind::MachineValue { .. }
                 | ExpressionKind::Slot(_)

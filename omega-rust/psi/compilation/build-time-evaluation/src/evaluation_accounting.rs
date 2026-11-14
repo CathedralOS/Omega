@@ -318,6 +318,10 @@ pub struct PureTerminalEvaluationReceipt {
     requester: symbols::SymbolHandle,
     caller: symbols::SymbolHandle,
     call: typed_trees::expression::ExpressionHandle,
+    call_site: Option<(
+        semantic_vocabulary::MachineId,
+        semantic_vocabulary::InvocationSite,
+    )>,
     arguments: Vec<BuildTimeValue>,
     program: Arc<psi_terminal_production::ProducedTerminalProgram>,
     admission: terminal_installation::AdmittedCompilerEvaluation,
@@ -353,6 +357,11 @@ impl PureTerminalEvaluationReceipt {
         {
             return Err("evaluation receipt has another accepted code owner".into());
         }
+        let mut sites = accepted.source_call_sites(caller, call);
+        let call_site = sites.next();
+        if sites.next().is_some() {
+            return Err("evaluation receipt has multiple sites for its actual call".into());
+        }
         let receipt = Self {
             request_source,
             source: Arc::clone(accepted.source()),
@@ -360,6 +369,7 @@ impl PureTerminalEvaluationReceipt {
             requester,
             caller,
             call,
+            call_site,
             arguments: arguments.to_vec(),
             program,
             admission,
@@ -397,6 +407,36 @@ impl PureTerminalEvaluationReceipt {
             .call_node(self.call)
             .ok_or_else(|| "source invocation lost its retained call".into())
     }
+    /// The operation is the one associated with this receipt's retained call
+    /// before execution. A source description can materialize without a call
+    /// operation; an ordinary or selected execution cannot substitute one.
+    pub fn invocation(
+        &self,
+    ) -> Result<
+        Option<(
+            semantic_vocabulary::MachineId,
+            terminal_psi::ModuleInvocation<'_>,
+        )>,
+        String,
+    > {
+        let Some((caller, site)) = self.call_site else {
+            return Ok(None);
+        };
+        let module = self.program.view().module();
+        if module.entry != Some(semantic_vocabulary::TargetMachineCallable::Machine(caller)) {
+            return Err("source invocation receipt names another canonical caller".into());
+        }
+        let invocation = module
+            .machine(caller)
+            .and_then(|machine| {
+                machine
+                    .module_invocations()
+                    .find(|invocation| invocation.site == site)
+            })
+            .ok_or("source invocation receipt lost its exact emitted call site")?;
+        Ok(Some((caller, invocation)))
+    }
+
     pub fn arguments(&self) -> &[BuildTimeValue] {
         &self.arguments
     }
@@ -474,13 +514,104 @@ impl PureTerminalEvaluationReceipt {
             return Err("source invocation receipt names another call".into());
         }
         let call = self.call()?;
-        if call.target_symbol != self.machine
-            && self
+        let source_view = typed_trees::references::StaticArgumentCall::Expression(self.call, call);
+        if source_view.applications().any(|application| {
+            !self
                 .source
-                .machine_holding_state(call.target_symbol)
-                .is_none_or(|machine| machine.symbol != self.machine)
-        {
-            return Err("source invocation call selects another declaration".into());
+                .expression_table
+                .static_machine_application_is_valid(application)
+        }) {
+            return Err("source invocation has a stale application in its retained call".into());
+        }
+        let lexical_owner = source_view.lexical_owner(&self.source);
+        let lexical_owner = if lexical_owner.is_valid() {
+            lexical_owner
+        } else {
+            self.caller
+        };
+        if let Some((_, invocation)) = self.invocation()? {
+            let module = self.program.view().module();
+            let body = module
+                .machine(invocation.inputs.callee)
+                .ok_or("source invocation lost its actual executable body")?;
+            let declared = self
+                .source
+                .machine_by_symbol(self.machine)
+                .ok_or("source invocation lost its executable source declaration")?;
+            let expected = self
+                .source
+                .machine_callable_identity_text(declared)
+                .filter(|identity| !identity.is_empty())
+                .ok_or("source invocation body has no complete source callable identity")?;
+            if body
+                .declaration
+                .as_ref()
+                .and_then(|declaration| module.identities.text(declaration.callable))
+                != Some(expected.as_str())
+            {
+                return Err("source invocation site names another executable declaration".into());
+            }
+            match self
+                .source
+                .source_call_declaration(lexical_owner, source_view)?
+            {
+                typed_trees::callable_signature_shapes::CallableDeclaration::Machine(_) => {
+                    if invocation.inputs.required_contract.is_some() {
+                        return Err(
+                            "direct source invocation was replaced by a selected call".into()
+                        );
+                    }
+                }
+                typed_trees::callable_signature_shapes::CallableDeclaration::Signature(
+                    required,
+                ) => {
+                    let contract = invocation
+                        .inputs
+                        .required_contract
+                        .and_then(|required| {
+                            module.invocation_machine_contract(
+                                invocation.inputs.callee,
+                                Some(required),
+                            )
+                        })
+                        .ok_or("selected source invocation lost its actual public contract")?;
+                    let (owner, _) = self
+                        .source
+                        .trait_machine_signature(required.symbol)
+                        .ok_or("selected source invocation lost its public source declaration")?;
+                    let expected = self
+                        .source
+                        .trait_requirement_callable_identity_text(owner, required);
+                    if contract
+                        .declaration
+                        .as_ref()
+                        .and_then(|declaration| module.identities.text(declaration.callable))
+                        != Some(expected.as_str())
+                        || contract.selected_application.is_none()
+                    {
+                        return Err(
+                            "selected source invocation changed its exact public application"
+                                .into(),
+                        );
+                    }
+                }
+            }
+        } else {
+            if typed_trees::reflection::construction::declaration_query_argument_role(
+                &self.source,
+                source_view,
+            ) != typed_trees::references::StaticArgumentRole::DeclarationDescription
+            {
+                return Err("source invocation lost its actual emitted call association".into());
+            }
+            if call.target_symbol != self.machine
+                && self
+                    .source
+                    .machine_holding_state(call.target_symbol)
+                    .is_none_or(|machine| machine.symbol != self.machine)
+            {
+                return Err("source description call selects another declaration".into());
+            }
         }
         let selected = self
             .program

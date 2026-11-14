@@ -9,8 +9,8 @@ use crate::{
     TerminalIdentityIndex, ValueDeclaration,
 };
 use semantic_vocabulary::{
-    BoundaryMachineId, CallableContractId, MachineDescriptorId, MachineId, ObligationId, ServiceId,
-    StructuralDomainId,
+    BoundaryMachineId, CallableContractId, ContractId, MachineDescriptorId, MachineId,
+    ObligationId, ServiceId, StructuralDomainId,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -19,6 +19,7 @@ pub struct TerminalCallableCatalog {
     pub descriptors: Vec<TerminalMachineDescriptor>,
     pub machine_envelopes: Vec<Option<TerminalMachineEnvelope>>,
     pub boundary_envelopes: Vec<Option<TerminalBoundaryEnvelope>>,
+    pub declaration_envelopes: Vec<TerminalDeclarationEnvelope>,
 }
 
 /// Named declarations publish their own operational contract independently of
@@ -34,6 +35,14 @@ pub struct TerminalMachineEnvelope {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalBoundaryEnvelope {
     pub boundary: BoundaryMachineId,
+    pub envelope: TerminalCallableEnvelope,
+}
+
+/// A selected requirement keeps its complete public effects beside its own
+/// contract, independently of the executable body chosen to implement it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalDeclarationEnvelope {
+    pub contract: ContractId,
     pub envelope: TerminalCallableEnvelope,
 }
 
@@ -114,6 +123,22 @@ pub struct TerminalCallableTerminationPremise {
 }
 
 impl TerminalCallableCatalog {
+    pub fn declaration_envelope(&self, contract: ContractId) -> Option<&TerminalCallableEnvelope> {
+        let position = self
+            .declaration_envelopes
+            .partition_point(|row| row.contract < contract);
+        let row = self.declaration_envelopes.get(position)?;
+        if row.contract != contract
+            || self
+                .declaration_envelopes
+                .get(position + 1)
+                .is_some_and(|next| next.contract == contract)
+        {
+            return None;
+        }
+        Some(&row.envelope)
+    }
+
     pub fn validate_scalar_type(
         &self,
         scalar: semantic_vocabulary::ScalarType,

@@ -53,6 +53,7 @@ mod owned_match_results;
 mod owned_records;
 mod proof_scope;
 mod provider_supplies;
+mod published_no_return;
 mod qualified_terms;
 mod ranges;
 mod reach;
@@ -66,6 +67,7 @@ mod source_operators;
 mod stored_views;
 mod type_parameters;
 mod value_parameters;
+mod width_parameters;
 
 fn integer_type(sign: IntegerSign) -> IntegerType {
     IntegerType::new(sign, 32).unwrap()
@@ -123,6 +125,7 @@ fn strict(operation: Strict, left: Expression, right: Expression) -> Expression 
 fn call(callee: u64, arguments: Vec<Expression>) -> Expression {
     expression(
         ExpressionKind::Call {
+            required_contract: None,
             callee: id::<MachineId>(callee).into(),
             arguments,
             designated: None,
@@ -1520,6 +1523,7 @@ fn transferred_when(flag: usize, value: usize) -> Expression {
         slot(flag, bool_type()),
         of_type(
             ExpressionKind::Call {
+                required_contract: None,
                 callee: id::<MachineId>(2).into(),
                 arguments: vec![place(value, point())],
                 designated: None,
@@ -1839,6 +1843,7 @@ fn affine_terminal_boundaries_transfer_custody_once() {
     exiting.module.machines[0].blocks[0].terminator = terminal_psi::Terminator::InvokeNoNormal {
         edge: id(1),
         static_reach_binding: None,
+        required_contract: None,
         callee: id(1),
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
@@ -2141,6 +2146,7 @@ fn a_copy_reads_as_what_its_source_held_and_a_call_result_as_its_own_unknown_lea
                 2,
                 of_type(
                     ExpressionKind::Call {
+                        required_contract: None,
                         callee: id::<MachineId>(3).into(),
                         arguments: Vec::new(),
                         designated: None,
@@ -3141,6 +3147,7 @@ fn every_use_of_storage_has_exactly_one_verdict() {
                 4,
                 of_type(
                     ExpressionKind::Call {
+                        required_contract: None,
                         callee: id::<MachineId>(2).into(),
                         arguments: vec![place(4, point())],
                         designated: None,
@@ -3863,6 +3870,7 @@ fn data(raw: u64) -> ValueType {
 /// from the value down to it.
 fn own(path: Vec<CanonicalStructuralPathSegment>) -> ScalarTerm {
     ScalarTerm::IntegerField {
+        version: semantic_vocabulary::ContentPlaceVersion::Current,
         root: typed_trees_to_terminal_psi::self_place().unwrap(),
         path,
         scalar_type: integer_type(IntegerSign::Unsigned),
@@ -4164,6 +4172,7 @@ fn returned_span_store(stored: u128) -> (typed_trees_to_terminal_psi::Elaboratio
                     0,
                     of_type(
                         ExpressionKind::Call {
+                            required_contract: None,
                             callee: id::<MachineId>(2).into(),
                             arguments: Vec::new(),
                             designated: None,
@@ -4789,6 +4798,7 @@ fn a_read_of_what_a_call_returned_carries_its_types_clause() {
                     0,
                     of_type(
                         ExpressionKind::Call {
+                            required_contract: None,
                             callee: id::<MachineId>(3).into(),
                             arguments: Vec::new(),
                             designated: None,
@@ -4827,6 +4837,7 @@ fn a_read_of_what_a_call_returned_carries_its_types_clause() {
 /// clause names it: a field term rooted at that formal's place.
 fn formal_field(field: u64) -> ScalarTerm {
     ScalarTerm::IntegerField {
+        version: semantic_vocabulary::ContentPlaceVersion::Current,
         root: id(1),
         path: vec![CanonicalStructuralPathSegment::Field(id(field))],
         scalar_type: integer_type(IntegerSign::Unsigned),
@@ -4847,6 +4858,7 @@ fn peek() -> Shaped {
 fn peeking(argument: Expression) -> Expression {
     of_type(
         ExpressionKind::Call {
+            required_contract: None,
             callee: id::<MachineId>(2).into(),
             arguments: vec![argument],
             designated: None,
@@ -4897,6 +4909,7 @@ fn a_requirement_over_a_field_of_a_record_formal_is_decided_by_the_actuals_leaf(
             u32_type().into(),
             vec![returns(peeking(of_type(
                 ExpressionKind::Call {
+                    required_contract: None,
                     callee: id::<MachineId>(3).into(),
                     arguments: Vec::new(),
                     designated: None,
@@ -5001,6 +5014,7 @@ fn taker(record: u64) -> Shaped {
 fn taking(callee: u64, argument: Expression) -> Expression {
     of_type(
         ExpressionKind::Call {
+            required_contract: None,
             callee: id::<MachineId>(callee).into(),
             arguments: vec![argument],
             designated: None,
@@ -6407,6 +6421,7 @@ mod generic_bodies {
         closure.selections = vec![
             Selected {
                 caller: id(1),
+                required_contract: None,
                 parameter: symbols::SymbolHandle::from_parts(3, 1),
                 declaring_trait: symbols::SymbolHandle::from_parts(4, 1),
                 requirement,
@@ -6419,6 +6434,7 @@ mod generic_bodies {
         specializations.push(Some(template));
         specializations.push(None);
         TerminalCompilation::Prepared(PreparedCompilation {
+            arrivals: Vec::new(),
             closure: Ok(closure),
             forms: vec![GenericForms {
                 template,

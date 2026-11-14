@@ -242,6 +242,88 @@ pub(crate) mod callable_identity {
             )
         }
 
+        /// Keep the declaration's own parameter categories with its signature.
+        /// The receiving artifact checks this definition against each emitted
+        /// method tuple; describing it establishes no conformance or proof.
+        pub fn requirement_schema_definition(
+            &self,
+            owner: &TraitDefinition,
+            requirement: &StateSignature,
+        ) -> Result<(Vec<u8>, Vec<u8>), &'static str> {
+            use crate::data::TypeParameterKind;
+            let parameters = self.state_signature_type_parameters(requirement);
+            if parameters.is_empty() != requirement.type_parameters.is_empty() {
+                return Err("requirement schema has an invalid parameter span");
+            }
+            let signature = self.trait_requirement_callable_identity_text(owner, requirement);
+            if signature.is_empty() {
+                return Err("requirement schema has no exact original signature");
+            }
+            let mut bytes = b"omega.requirement-schema.v3\0".to_vec();
+            let length = |bytes: &mut Vec<u8>, value: usize| -> Result<(), &'static str> {
+                bytes.extend(
+                    u64::try_from(value)
+                        .map_err(|_| "requirement schema length overflows")?
+                        .to_le_bytes(),
+                );
+                Ok(())
+            };
+            length(&mut bytes, signature.len())?;
+            bytes.extend(signature.as_bytes());
+            length(&mut bytes, requirement.lifetime_parameters.len())?;
+            length(&mut bytes, parameters.len())?;
+            let mut kinds = Vec::with_capacity(parameters.len());
+            for parameter in parameters {
+                let (kind, contract) = match &parameter.kind {
+                    TypeParameterKind::Type => (1, String::new()),
+                    TypeParameterKind::Const { type_reference }
+                    | TypeParameterKind::Value { type_reference } => {
+                        if !self
+                            .type_reference_table
+                            .contains_type_reference(*type_reference)
+                        {
+                            return Err("requirement schema has a stale parameter carrier");
+                        }
+                        let identity = self
+                            .type_identity_text(
+                                self.package_qualified_type_identity(*type_reference),
+                            )
+                            .filter(|identity| !identity.is_empty())
+                            .ok_or(
+                                "requirement schema parameter has no declared carrier identity",
+                            )?;
+                        let kind = if matches!(parameter.kind, TypeParameterKind::Const { .. }) {
+                            2
+                        } else {
+                            3
+                        };
+                        (kind, identity)
+                    }
+                    TypeParameterKind::Machine { .. }
+                    | TypeParameterKind::Implementation
+                    | TypeParameterKind::Proposition { .. } => {
+                        return Err(
+                            "requirement schema needs its complete higher-order parameter contract",
+                        );
+                    }
+                };
+                kinds.push(kind);
+                bytes.push(kind);
+                bytes.push(match parameter.bounds.multiplicity {
+                    language_semantics::Multiplicity::Unrestricted => 1,
+                    language_semantics::Multiplicity::Affine => 2,
+                    language_semantics::Multiplicity::Linear => 3,
+                });
+                if let Some(carry) = parameter.bounds.carry {
+                    bytes.extend(carry.to_string().as_bytes());
+                }
+                bytes.push(0);
+                length(&mut bytes, contract.len())?;
+                bytes.extend(contract.as_bytes());
+            }
+            Ok((bytes, kinds))
+        }
+
         pub fn operator_callable_identity(
             &self,
             operator: &OperatorDefinition,
@@ -7702,7 +7784,7 @@ impl TypedTrees {
         let reference = self
             .type_reference_table
             .unconstrained_type_reference(reference);
-        self.closed_data_definition(reference)
+        self.closed_data_field_definition(reference)
             .or_else(|| self.data_application_definition(reference))
     }
 
@@ -7710,10 +7792,28 @@ impl TypedTrees {
         &self,
         reference: TypeReferenceHandle,
     ) -> Option<&data::DataDefinition> {
-        self.closed_data_definition(
-            self.type_reference_table
-                .unconstrained_type_reference(reference),
-        )
+        // A field keeps its semantic type through a representation choice,
+        // including before that choice's geometry has been evaluated. Following
+        // the authenticated storage argument grants no layout or access rights.
+        let mut reference = reference;
+        for _ in 0..=self.type_reference_table.type_reference_count() {
+            if !self.type_reference_table.contains_type_reference(reference) {
+                return None;
+            }
+            match self.type_reference_table.type_reference(reference) {
+                crate::types::TypeReferenceNode::Constrained { base_type, .. } => {
+                    reference = *base_type;
+                }
+                crate::types::TypeReferenceNode::Generic { .. } => {
+                    match self.layout_storage_arguments(reference) {
+                        Some(storage) => reference = storage.semantic_type,
+                        None => return self.closed_data_definition(reference),
+                    }
+                }
+                _ => return self.closed_data_definition(reference),
+            }
+        }
+        None
     }
 
     pub fn closed_data_definition(
@@ -7780,7 +7880,7 @@ impl TypedTrees {
         reference: TypeReferenceHandle,
         authored: SymbolHandle,
     ) -> Option<&data::DataDefinition> {
-        self.closed_data_definition(reference)?;
+        self.closed_data_field_definition(reference)?;
         self.data_constructor_definition(reference, authored)
     }
 
@@ -7860,7 +7960,7 @@ impl TypedTrees {
         authored: SymbolHandle,
         retained: SymbolHandle,
     ) -> Option<&data::DataField> {
-        self.closed_data_definition(reference)?;
+        self.closed_data_field_definition(reference)?;
         self.data_constructor_field(reference, authored, retained)
     }
 
@@ -7962,7 +8062,7 @@ impl TypedTrees {
         retained: SymbolHandle,
         member_name: &str,
     ) -> Option<&data::DataField> {
-        let instance = self.closed_data_definition(reference)?;
+        let instance = self.closed_data_field_definition(reference)?;
         let mut fields =
             self.data_members(instance)
                 .iter()

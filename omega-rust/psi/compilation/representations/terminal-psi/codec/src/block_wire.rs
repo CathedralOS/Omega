@@ -695,7 +695,7 @@ pub(crate) mod storage_operations {
             writer.id(storage.byte_offset);
             writer.boolean(storage.stored_scalar.is_some());
             if let Some(stored_scalar) = storage.stored_scalar {
-                encode_scalar_type(writer, stored_scalar);
+                encode_scalar_type(writer, stored_scalar)?;
             }
         }
         Ok(())
@@ -954,6 +954,7 @@ pub(crate) mod terminator_wire {
             19 => InvokeNoNormal {
                 edge: Id,
                 static_reach_binding: Optional<U32>,
+                required_contract: Optional<Id>,
                 callee: Id,
                 arguments: Ids,
                 erased_arguments: ScalarTerms,
@@ -1071,6 +1072,7 @@ mod owned_value_tests {
         let operation = Operation {
             id: OperationId::new(9).unwrap(),
             static_reach_binding: None,
+            required_contract: None,
             suspension_crossing: None,
             kind: OperationKind::MoveStructuralValue {
                 source: StructuralArgument {
@@ -1139,6 +1141,7 @@ mod unknown_tag_tests {
         let operation = Operation {
             id: OperationId::new(1).unwrap(),
             static_reach_binding: None,
+            required_contract: None,
             suspension_crossing: None,
             result: OperationResult::Scalar(ValueDeclaration {
                 id: ValueId::new(1).unwrap(),
@@ -1232,11 +1235,15 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
     if let Some(binder) = operation.static_reach_binding {
         writer.u32(binder);
     }
+    writer.boolean(operation.required_contract.is_some());
+    if let Some(contract) = operation.required_contract {
+        writer.id(contract);
+    }
     match &operation.result {
         OperationResult::Unit => writer.u8(0),
         OperationResult::Scalar(result) => {
             writer.u8(1);
-            encode_declaration(writer, *result);
+            encode_declaration(writer, *result)?;
         }
         OperationResult::Structural(result) => {
             writer.u8(2);
@@ -1277,6 +1284,11 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
     } else {
         None
     };
+    let required_contract = if reader.boolean()? {
+        Some(reader.id("ContractId")?)
+    } else {
+        None
+    };
     let result = match reader.u8()? {
         0 => OperationResult::Unit,
         1 => OperationResult::Scalar(decode_declaration(reader)?),
@@ -1291,6 +1303,7 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
     };
     Ok(Operation {
         static_reach_binding,
+        required_contract,
         suspension_crossing,
         id: operation_id,
         result,

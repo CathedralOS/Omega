@@ -46,7 +46,7 @@ impl Program<'_> {
             ScalarType::Integer(integer) => {
                 BuiltinTypeAtom::Integer(numerics::integer_carrier::FixedInteger::new(
                     integer.sign(),
-                    integer.bits().into(),
+                    integer.bits()?.into(),
                 )?)
             }
             ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => {

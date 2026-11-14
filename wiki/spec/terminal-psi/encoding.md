@@ -42,7 +42,7 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
-Marker 255 introduced term tables. Current marker 264 combines normalized service contracts, selected provider
+Marker 255 introduced term tables. Current marker 267 combines normalized service contracts, selected provider
 coordinates, entry source commitments and sealed native execution meanings with
 typed dynamic-family tuple members and exact numeric intrinsic sign and width.
 It also retains the independent operational ceilings and exact call formations
@@ -96,7 +96,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 264 even when every table
+order below. This layout uses semantic format marker 267 even when every table
 is empty, and retains the Id formation catalog below; older markers reject
 rather than selecting an optional dialect:
 
@@ -568,6 +568,18 @@ A scalar term is a [term table](#term-tables) of scalar rows. Each row is a
 | 38 | IeeeFloatField | root place id + counted canonical path segments + IEEE format |
 | 39 | ByteSequencePredicate | predicate `u8` + root place id + counted canonical path segments |
 | 40 | StructuralRead | root place id + scalar type + counted scalar-read projections |
+| 41 | Application | scalar application id + scalar type |
+| 42 | EntryBooleanField | root place id + counted canonical path segments |
+| 43 | EntryIntegerField | root place id + counted canonical path segments + integer type |
+| 44 | EntryIeeeFloatField | root place id + counted canonical path segments + IEEE format |
+
+An entry field observation names an invocation input and requests that
+input's entry contents. It cannot name a local or a result. The ordinary
+field forms retain their existing encoding: an owned input's inline fields
+mean the supplied value, while a borrowed input in a normal guarantee is
+observed at completion. Both forms keep the same exact root, path and carrier
+checks. An entry observation supplies no ownership or permission to read
+unavailable storage.
 
 The byte-predicate tag selects exactly one primitive: `1` is `valid_utf8`, `2`
 is `no_nul`, `4` is `ascii_only`, and `8` is `non_empty`. Other values reject.
@@ -939,6 +951,23 @@ The affine cleanup actions a terminator carries are a closed `u8` space:
 
 ## Machine rows
 
+Marker 267 combines these public-call and observation records with normalized
+service schemas, provider selections, entry commitments and the complete
+callable catalogs. Marker 266's float-conversion integer carriers remain intact.
+Every earlier format rejects before its payload is interpreted.
+
+Marker 265 distinguishes entry field observations (scalar tags 42–44) from
+ordinary field observations. It keeps the selected public-call, operational,
+context and write-summary data of the preceding format. A decoder rejects
+marker 264 before interpreting its payload as this format.
+
+Marker 264 additionally retains each selected invocation's public contract
+identity separately from its executable machine. Its declaration contract
+retains the exact closed conformance application; decoding checks that the
+call, public header and selected method describe that same application. The
+operational bounds and call acknowledgements introduced by marker 263 remain
+present. Earlier markers reject before payload decoding.
+
 Marker 263 retains each callable's declared suspension and blocking bounds as
 optional Boolean fields, followed by its published suspension and blocking
 flags. An omitted bound requests inference; a written bound fixes publication.
@@ -983,7 +1012,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 264 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 267 + `u16` vocabulary
 marker 135 + a Boolean default-entry presence flag, followed by the entry
 callable when present and the module tables in the declaration order below.
 The entry callable uses its ordinary machine-or-boundary tag and identifier
@@ -2152,8 +2181,8 @@ it receives. Neither operation uses the legacy implementation-table roster to
 choose a signature or replace the current value with a named body.
 
 The callable catalog immediately follows the legacy dynamic-dispatch catalog.
-It contains four counted tables, in order: contracts, descriptors, optional
-named-machine envelopes, and optional boundary envelopes. Each sparse envelope
+It contains five counted tables, in order: contracts, descriptors, optional
+named-machine envelopes, optional boundary envelopes, and declaration envelopes. Each sparse envelope
 table is indexed by its machine or boundary id minus one; a present row repeats
 that exact id. These rows retain complete checked declaration ceilings
 independently of a descriptor's refinement assertion.
@@ -2166,8 +2195,15 @@ independently of a descriptor's refinement assertion.
 | descriptor origin | application identity-table index + optional conformance identity-table index + optional requirement identity-table index |
 | named-machine envelope | machine id + operational envelope |
 | boundary envelope | boundary machine id + operational envelope |
+| declaration envelope | public contract id + operational envelope |
 | operational envelope | service ids + invocation dependencies + suspension Boolean + blocking Boolean + termination guarantee |
 | termination premise | `u32` parameter position + structural path + domain id |
+
+Declaration envelopes are strictly ordered by public contract id. Each retained
+public declaration contract has exactly one complete row, including callable
+parameter invocation dependencies and termination premises. A selected call
+reads that public row independently of its chosen implementation. Missing,
+duplicate or unrelated rows reject.
 
 Lists use ordinary counted-table encoding. Optional identity-table indices use a
 presence Boolean followed by a `u32` index; both envelope tables likewise

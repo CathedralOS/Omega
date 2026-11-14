@@ -61,6 +61,7 @@ fn call(callee: u64, arguments: Vec<Expression>, result: Option<ScalarType>) -> 
             callee: id::<MachineId>(callee).into(),
             arguments,
             designated: None,
+            required_contract: None,
         },
         result,
     )
@@ -202,6 +203,8 @@ fn lower_records(
     bodies.push(body);
     let boundary_signatures = crate::boundaries::BoundaryNamespace::default();
     let signatures = crate::body::Signatures {
+        declarations: &IdTable::default(),
+        declaration_aliases: None,
         machines: signatures,
         boundaries: &boundary_signatures,
     };
@@ -1275,6 +1278,7 @@ fn a_never_returning_record_base_stops_its_field_projection() {
             of_type(
                 ExpressionKind::Call {
                     callee: id::<semantic_vocabulary::MachineId>(2).into(),
+                    required_contract: None,
                     arguments: Vec::new(),
                     designated: None,
                 },
@@ -1651,12 +1655,14 @@ fn outcomes_follow_the_ceiling_or_the_body() {
         let table = outcomes(
             &bodies,
             crate::body::Signatures {
+                declarations: &IdTable::default(),
+                declaration_aliases: None,
                 machines: &signatures,
                 boundaries: &crate::boundaries::BoundaryNamespace::default(),
             },
             &[],
             &crate::callables::CallableNamespace::default(),
-            &crate::boundaries::BoundaryNamespace::default(),
+            None,
         )
         .unwrap();
         [1, 2].map(|raw| table.get(id(raw)).unwrap().clone())
@@ -1709,12 +1715,14 @@ fn a_body_that_declares_crashes_none_publishes_no_route() {
         outcomes(
             &bodies,
             crate::body::Signatures {
+                declarations: &IdTable::default(),
+                declaration_aliases: None,
                 machines: &signatures,
                 boundaries: &crate::boundaries::BoundaryNamespace::default(),
             },
             &[],
             &crate::callables::CallableNamespace::default(),
-            &crate::boundaries::BoundaryNamespace::default(),
+            None,
         )
         .map(|table| table.get(id(1)).unwrap().clone())
     };
@@ -1779,12 +1787,14 @@ fn a_skipped_operand_cannot_end_the_machine() {
     let table = outcomes(
         &bodies,
         crate::body::Signatures {
+            declarations: &IdTable::default(),
+            declaration_aliases: None,
             machines: &signatures,
             boundaries: &crate::boundaries::BoundaryNamespace::default(),
         },
         &[],
         &crate::callables::CallableNamespace::default(),
-        &crate::boundaries::BoundaryNamespace::default(),
+        None,
     )
     .unwrap();
     assert_eq!(
@@ -2125,6 +2135,7 @@ fn a_whole_copy_logs_one_row_on_its_fresh_root_and_names_its_source() {
                         callee: id::<MachineId>(2).into(),
                         arguments: Vec::new(),
                         designated: None,
+                        required_contract: None,
                     },
                     point(),
                 ),
@@ -3404,6 +3415,7 @@ fn a_module_with_a_sum_declares_its_cases_and_encodes() {
 /// and with a second clause `from.y <= to.y`, and `Shape` unconstrained.
 fn constrained() -> IdTable<StructuralTypeId, RecordType> {
     let own = |fields: &[u64]| ScalarTerm::IntegerField {
+        version: semantic_vocabulary::ContentPlaceVersion::Current,
         root: crate::self_place().unwrap(),
         path: fields
             .iter()
@@ -3528,6 +3540,7 @@ fn an_entry_clause_over_a_record_formals_field_encodes_in_the_module_contract() 
     // The clause is a field term rooted at the formal's place, the first
     // place of the machine, and the module that carries it encodes.
     let field = ScalarTerm::IntegerField {
+        version: semantic_vocabulary::ContentPlaceVersion::Current,
         root: id(1),
         path: vec![CanonicalStructuralPathSegment::Field(id(1))],
         scalar_type: match u32_type() {

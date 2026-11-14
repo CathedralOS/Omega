@@ -6,11 +6,12 @@ use symbols::SymbolHandle;
 use terminal_check_tables::compilation::{GenericForms, PreparedCompilation, TerminalCompilation};
 use typed_trees::TypedTrees;
 
-type WitnessRow = (
+type WitnessRow<'source> = (
     SymbolHandle,
     SymbolHandle,
     Vec<semantic_vocabulary::ScalarTerm>,
     SymbolHandle,
+    Option<&'source typed_trees::signature::StateSignature>,
 );
 
 /// The driver keeps source publication custody while passing only `program`
@@ -40,20 +41,77 @@ pub fn prepare_compilation(
             };
         }
     }
-    let (mut closure, primary_source) =
-        match crate::elaborate_source_for(typed, compilation, publication) {
-            Ok(prepared) => (Ok(prepared.program), Some(prepared.source)),
-            Err(refusal) => (Err(refusal), None),
+    let captures = crate::named_captures(typed);
+    let arrivals = compilation
+        .bindings
+        .iter()
+        .map(|binding| {
+            let requirement = binding
+                .requirement
+                .rejoin(
+                    &typed.symbols,
+                    typed.traits().iter().flat_map(|owner| {
+                        typed
+                            .trait_machine_signatures(owner)
+                            .iter()
+                            .map(|row| row.symbol)
+                    }),
+                )
+                .map_err(|detail| terminal_check_tables::Refusal {
+                    reason: terminal_check_tables::RefusalReason::ForeignIdentity,
+                    machine: semantic_vocabulary::MachineId::new(1)
+                        .expect("nonzero diagnostic identity"),
+                    concerns: terminal_check_tables::Construct::Machine,
+                    detail: detail.to_owned(),
+                })?;
+            let (_, required) = typed.trait_machine_signature(requirement).ok_or_else(|| {
+                crate::refuse(
+                    semantic_vocabulary::MachineId::new(1).expect("nonzero diagnostic identity"),
+                    terminal_check_tables::Construct::Machine,
+                    crate::Unserved::Contract("bound arrival lost its exact source signature"),
+                )
+            })?;
+            let source = binding.source_span.map_or(
+                crate::SourceOrigin::Unpositioned(crate::Unpositioned::ConformanceWitness),
+                crate::SourceOrigin::Authored,
+            );
+            let mut witness = crate::read::logical::projected_arrival(
+                typed,
+                required,
+                binding.implementation,
+                &binding.visible_parameters,
+                binding.address_model.as_ref(),
+                source,
+                captures.clone(),
+            )?;
+            witness.slot = binding.slot.clone();
+            Ok(witness)
+        })
+        .collect();
+    let (mut closure, primary_source, signatures) =
+        match crate::elaborate_source_for(typed, compilation, publication, captures.clone()) {
+            Ok(prepared) => (
+                Ok(prepared.program),
+                Some(prepared.source),
+                prepared.selected_calls,
+            ),
+            Err(refusal) => (Err(refusal), None, Vec::new()),
         };
     let mut source = crate::SourceCorrespondence {
         forms: vec![primary_source],
     };
     let mut templates = Vec::new();
-    let mut rows: Vec<WitnessRow> = Vec::new();
+    let mut rows: Vec<WitnessRow<'_>> = Vec::new();
+    let mut selected_failure = None;
     let mut specializations = semantic_vocabulary::IdTable::default();
     let mut selection_witnesses = Vec::new();
     if let Ok(closure) = &mut closure {
         templates = std::mem::take(&mut closure.generic_templates);
+        let mut indexed_templates = templates
+            .iter()
+            .copied()
+            .map(|template| (template, ()))
+            .collect::<symbols::SymbolMap<_>>();
         rows.extend(
             std::mem::take(&mut closure.conformance_witnesses)
                 .into_iter()
@@ -63,21 +121,57 @@ pub fn prepare_compilation(
                         row.requirement,
                         Vec::new(),
                         row.implementation,
+                        None,
                     )
                 }),
         );
         for (_, symbol) in closure.machines.iter() {
-            specializations.push(crate::template_of(typed, *symbol));
+            let template = crate::template_of(typed, *symbol);
+            // A closed invocation still owes the generic source declaration's
+            // universal check, even when no whole-package subject was requested.
+            if let Some(template) = template
+                && indexed_templates.insert(template, ()).is_none()
+                && typed
+                    .machine_by_symbol(template)
+                    .is_some_and(|machine| crate::is_generic_template(typed, machine))
+            {
+                templates.push(template);
+            }
+            specializations.push(template);
         }
         for (selection, selected) in closure.selections.iter().enumerate() {
+            if selected_failure.is_some() {
+                break;
+            }
             let Some(implementation) = closure.machines.get(selected.implementation) else {
                 continue;
+            };
+            let signature = match selected_signature_key(selected).and_then(|key| {
+                signatures
+                    .binary_search_by_key(&key, |row| row.key)
+                    .map(|position| signatures[position].signature)
+                    .map_err(|_| {
+                        crate::refuse(
+                            selected.caller,
+                            terminal_check_tables::Construct::Machine,
+                            crate::Unserved::Declaration(
+                                "selected witness has no exact source call correspondence",
+                            ),
+                        )
+                    })
+            }) {
+                Ok(signature) => signature,
+                Err(reason) => {
+                    selected_failure = Some(reason);
+                    break;
+                }
             };
             let row = (
                 selected.declaring_trait,
                 selected.requirement,
                 selected.value_arguments.clone(),
                 *implementation,
+                Some(signature),
             );
             let position = rows
                 .iter()
@@ -89,17 +183,22 @@ pub fn prepare_compilation(
             selection_witnesses.push((selection, position));
         }
     }
-    let forms = prepare_generic_forms(typed, templates, &mut source);
+    if let Some(reason) = selected_failure {
+        closure = Err(reason);
+    }
+    let forms = prepare_generic_forms(typed, templates, &captures, &mut source);
     let mut witnesses = Vec::new();
     let mut next = 0;
     while next < rows.len() {
-        let (declaring_trait, requirement, arguments, implementation) = &rows[next];
+        let (declaring_trait, requirement, arguments, implementation, signature) = &rows[next];
         let prepared = crate::prepare_witness(
             typed,
             *declaring_trait,
             *requirement,
             arguments,
             *implementation,
+            *signature,
+            captures.clone(),
         );
         let mut witness = match prepared {
             Ok(prepared) => {
@@ -118,6 +217,7 @@ pub fn prepare_compilation(
                     row.requirement,
                     Vec::new(),
                     row.implementation,
+                    None,
                 );
                 if !rows.contains(&row) {
                     rows.push(row);
@@ -131,6 +231,7 @@ pub fn prepare_compilation(
         source,
         program: TerminalCompilation::Prepared(PreparedCompilation {
             closure,
+            arrivals,
             forms,
             witnesses,
             specializations,
@@ -139,24 +240,236 @@ pub fn prepare_compilation(
     }
 }
 
+type SelectedSignatureKey = (
+    semantic_vocabulary::MachineId,
+    semantic_vocabulary::ContractId,
+    semantic_vocabulary::MachineId,
+);
+/// A borrowed view of the call already joined to its emitted operation. It
+/// stays inside source preparation and is discarded before Terminal checking.
+/// It describes the chosen contract; no call or witness is accepted by it.
+pub(crate) struct SelectedSourceCall<'source> {
+    pub key: SelectedSignatureKey,
+    pub signature: &'source typed_trees::signature::StateSignature,
+    pub call: typed_trees::references::StaticArgumentCall<'source>,
+    pub emitted_caller: semantic_vocabulary::MachineId,
+}
+
+fn selected_signature_key(
+    selected: &crate::Selected,
+) -> terminal_check_tables::Checked<SelectedSignatureKey> {
+    let required = selected.required_contract.ok_or_else(|| {
+        crate::refuse(
+            selected.caller,
+            terminal_check_tables::Construct::Machine,
+            crate::Unserved::Declaration("selected witness has no public header"),
+        )
+    })?;
+    Ok((selected.caller, required, selected.implementation))
+}
+
+/// Several public contracts can select the same body. Join each source call
+/// to its exact emitted site once, then reuse that applied signature for the
+/// independent witnesses. A body's identity cannot choose its public contract.
+pub(crate) fn prepare_selected_signatures<'source>(
+    typed: &'source TypedTrees,
+    closure: &crate::Elaboration,
+    source: &crate::SourceFormCorrespondence,
+) -> terminal_check_tables::Checked<Vec<SelectedSourceCall<'source>>> {
+    use terminal_check_tables::Construct;
+    use typed_trees::expression::ExpressionNode;
+    let mut demanded = closure
+        .selections
+        .iter()
+        .filter(|selected| closure.machines.get(selected.implementation).is_some())
+        .map(selected_signature_key)
+        .collect::<terminal_check_tables::Checked<Vec<_>>>()?;
+    demanded.sort_unstable();
+    demanded.dedup();
+    if demanded.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut invocations = closure
+        .module
+        .machines
+        .iter()
+        .flat_map(|machine| {
+            machine.module_invocations().filter_map(move |invocation| {
+                invocation.inputs.required_contract.map(|required| {
+                    (
+                        (machine.id, invocation.site),
+                        required,
+                        invocation.inputs.callee,
+                    )
+                })
+            })
+        })
+        .collect::<Vec<_>>();
+    invocations.sort_unstable_by_key(|(site, _, _)| *site);
+    if let Some(pair) = invocations.windows(2).find(|pair| pair[0].0 == pair[1].0) {
+        return Err(crate::refuse(
+            pair[0].0.0,
+            Construct::Machine,
+            crate::Unserved::Declaration("selected source call has duplicate emitted sites"),
+        ));
+    }
+    let mut signatures = Vec::new();
+    for correspondence in &source.calls {
+        let caller = correspondence.machine;
+        let member = correspondence.source_member;
+        let site = (caller, correspondence.site);
+        let Ok(position) = invocations.binary_search_by_key(&site, |(site, _, _)| *site) else {
+            continue;
+        };
+        let (_, required, body) = invocations[position];
+        let key = (member, required, body);
+        if demanded.binary_search(&key).is_err() {
+            continue;
+        }
+        let unavailable = |reason| {
+            crate::refuse(
+                member,
+                Construct::Machine,
+                crate::Unserved::Declaration(reason),
+            )
+        };
+        let declaration = closure
+            .module
+            .declaration_contract(required)
+            .ok_or_else(|| unavailable("selected witness lost its public header"))?
+            .declaration
+            .as_ref()
+            .ok_or_else(|| unavailable("selected witness lost its public source declaration"))?;
+        let source_owner = closure
+            .machines
+            .get(member)
+            .ok_or_else(|| unavailable("source call lost its requesting member"))?;
+        if *source_owner != correspondence.owner
+            || !typed
+                .symbols
+                .symbols()
+                .nodes()
+                .is_valid(correspondence.owner)
+        {
+            return Err(unavailable(
+                "source call lost its exact original declaration owner",
+            ));
+        }
+        let call = match correspondence.source {
+            typed_trees::SourceNode::Expression(expression) => {
+                if !typed.expression_table.expression_is_valid(expression) {
+                    return Err(unavailable("source call has a stale expression coordinate"));
+                }
+                let ExpressionNode::Call(call) = typed.expression_table.expression(expression)
+                else {
+                    return Err(unavailable(
+                        "source call no longer names its retained expression",
+                    ));
+                };
+                typed_trees::references::StaticArgumentCall::Expression(expression, call)
+            }
+            typed_trees::SourceNode::Statement(statement) => {
+                if !typed.statement_table.statement_is_valid(statement) {
+                    return Err(unavailable("source call has a stale statement coordinate"));
+                }
+                let typed_trees::statement::StatementNode::Call(call) =
+                    typed.statement_table.statement(statement)
+                else {
+                    return Err(unavailable(
+                        "selected requirement call has no retained static-call statement",
+                    ));
+                };
+                typed_trees::references::StaticArgumentCall::Statement(call)
+            }
+        };
+        let lexical_owner = call.lexical_owner(typed);
+        let owner = if lexical_owner == SymbolHandle::invalid() {
+            correspondence.owner
+        } else {
+            lexical_owner
+        };
+        if !typed.symbols.symbols().nodes().is_valid(owner) {
+            return Err(unavailable(
+                "selected source call has a stale supplying declaration",
+            ));
+        }
+        let applied = typed
+            .source_call_requirement_signature(owner, call)
+            .map_err(|reason| {
+                let mut refusal = unavailable("applied public requirement");
+                refusal.detail.push_str(": ");
+                refusal.detail.push_str(&reason);
+                refusal
+            })?;
+        let (declaring, _) = typed
+            .trait_machine_signature(applied.symbol)
+            .ok_or_else(|| unavailable("selected witness lost its exact declaring trait"))?;
+        let identity = typed.trait_requirement_callable_identity_text(declaring, applied);
+        if closure.module.identities.text(declaration.callable) != Some(identity.as_str()) {
+            return Err(unavailable(
+                "selected witness differs from the invocation's public signature",
+            ));
+        }
+        signatures.push(SelectedSourceCall {
+            key,
+            signature: applied,
+            call,
+            emitted_caller: caller,
+        });
+    }
+    signatures.sort_unstable_by_key(|row| row.key);
+    for pair in signatures.windows(2) {
+        if pair[0].key == pair[1].key && pair[0].signature != pair[1].signature {
+            let (caller, _, _) = pair[0].key;
+            return Err(crate::refuse(
+                caller,
+                Construct::Machine,
+                crate::Unserved::Declaration(
+                    "selected witness has different applied public signatures",
+                ),
+            ));
+        }
+    }
+    // Equal signatures can originate in different supplying scopes. Keep
+    // every occurrence for declaration-authority requests, while witnesses
+    // reuse any matching signature only after full equality was checked.
+    for (caller, required, body) in demanded {
+        if signatures
+            .binary_search_by_key(&(caller, required, body), |row| row.key)
+            .is_err()
+        {
+            return Err(crate::refuse(
+                caller,
+                Construct::Machine,
+                crate::Unserved::Declaration(
+                    "selected witness has no exact source call correspondence",
+                ),
+            ));
+        }
+    }
+    Ok(signatures)
+}
+
 fn prepare_generic_forms(
     typed: &TypedTrees,
     mut templates: Vec<SymbolHandle>,
+    captures: &crate::NamedCaptures,
     source: &mut crate::SourceCorrespondence,
 ) -> Vec<GenericForms> {
     let mut forms = Vec::new();
     let mut next = 0;
     while next < templates.len() {
         let template = templates[next];
-        let elaborated = crate::prepare_generic_forms(typed, &[template]).map(|forms| {
-            forms
-                .into_iter()
-                .map(|prepared| {
-                    source.forms.push(Some(prepared.source));
-                    prepared.program
-                })
-                .collect::<Vec<_>>()
-        });
+        let elaborated =
+            crate::prepare_generic_forms(typed, &[template], captures.clone()).map(|forms| {
+                forms
+                    .into_iter()
+                    .map(|prepared| {
+                        source.forms.push(Some(prepared.source));
+                        prepared.program
+                    })
+                    .collect::<Vec<_>>()
+            });
         if elaborated.is_err() {
             source.forms.push(None);
         }

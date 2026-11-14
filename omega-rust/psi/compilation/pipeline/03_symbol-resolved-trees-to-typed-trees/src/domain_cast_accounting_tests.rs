@@ -28,6 +28,48 @@ fn machine(typed: &TypedTrees, name: &str) -> SymbolHandle {
 }
 
 #[test]
+fn typed_scalar_literals_keep_their_carriers_during_domain_accounting() {
+    // A suffix fixes the operand before the cast chooses a domain. The two
+    // same-named domains must follow that carrier, not a receiving context.
+    let (_, typed) = source(
+        r#"
+domain u64::Marked;
+domain u8::Marked;
+domain bool::Ready;
+machine wide() -> u64 in Marked { 42u64 as +Marked }
+machine narrow() -> u8 in Marked { 42u8 as +Marked }
+machine ready() -> bool in Ready { true as +Ready }
+"#,
+    );
+    assert!(
+        typed.deferred_refusals.is_empty(),
+        "{:?}",
+        typed.deferred_refusals
+    );
+    let owner = machine(&typed, "wide");
+    let mut casts = 0;
+    for (_, expression) in typed.expression_table.expression_entries() {
+        let ExpressionNode::Cast(cast) = expression else {
+            continue;
+        };
+        let operand = declared_callable_value_type(&typed, owner, cast.value).unwrap();
+        let domain = typed
+            .domain_definition(cast.semantic_domain_symbol)
+            .unwrap();
+        assert_eq!(
+            typed.normalized_type_identity(operand),
+            typed.normalized_type_identity(domain.target_type)
+        );
+        assert_eq!(
+            typed.type_reference_table.primitive_type(operand),
+            typed.type_reference_table.primitive_type(cast.result_type)
+        );
+        casts += 1;
+    }
+    assert_eq!(casts, 3);
+}
+
+#[test]
 fn machine_and_requirement_contracts_retain_each_domain_entry() {
     let (_, typed) = source(
         r#"
