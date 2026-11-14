@@ -8,7 +8,7 @@
 //!
 //! Before these names were carried, every message read `unproved obligation:
 //! <kind>: <cause>`, and 1 of 292 measured `fail/` rejections contained its
-//! pinned fragment (`wiki/drafts/designs/route_one_diagnostics.md`).
+//! pinned fragment (`https://github.com/CathedralOS/Omega/blob/3b24dc9383e37416021ff19b350869a147c57432/wiki/drafts/designs/route_one_diagnostics.md`, removed since).
 #[path = "support/unbuilt_frontier.rs"]
 mod unbuilt_frontier;
 

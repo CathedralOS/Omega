@@ -24,7 +24,7 @@ needs new code on both sides. This record reverses the order: lower first,
 then check. Checking runs on the explicit form the compiler already emits, so
 the checker and the product name the same values and nothing is carried
 between them. It supersedes the design section of
-[fact transport](fact_transport.md), whose evidence still stands and whose
+[fact transport](https://github.com/CathedralOS/Omega/blob/3b24dc9383e37416021ff19b350869a147c57432/wiki/drafts/designs/fact_transport.md), whose evidence still stands and whose
 errors are listed [below](#corrections-to-fact-transport).
 
 ## Why the order is the problem
@@ -272,7 +272,7 @@ before variants are added. Route one is:
   obligations discharged with kernel-checked evidence (all of the subset's);
   decisions keyed on text (none); steps that drop without a refusal (none);
   meanings one kind of obligation has (one, wherever the value sits;
-  [restated below](#one-meaning-per-obligation)). [Route one measures](route_one_measures.md)
+  [restated below](#one-meaning-per-obligation)). [Route one measures](https://github.com/CathedralOS/Omega/blob/3b24dc9383e37416021ff19b350869a147c57432/wiki/drafts/designs/route_one_measures.md)
   records all eight and the verdict against the stop rule this record first
   carried.
 - **Gate.** [The gate](#the-gate) below. It replaces the stop rule, which
@@ -284,27 +284,18 @@ before variants are added. Route one is:
 removed now. The router (`products/src/terminal_publication.rs`, `ProductRoster::judge`)
 takes the route's verdict as the compilation's only verdict:
 
-- The route rejects: the compilation fails with the route's diagnostics. The
-  old checker's diagnostics no longer follow them.
+- The route rejects: the compilation fails with the route's diagnostics.
 - The route cannot judge the program (`RefusalReason::Unsupported`, an
   `Incomplete` verdict, or a defect of the route): the compilation fails with
-  an error that opens "not supported yet" and names the construct or goal. The
-  program is not given to Psi 05. A missing verdict is a refusal, never an
-  acceptance.
-- The route accepts: Psi 05 and 06 still run until they are deleted, only
-  because product selection, the provider inventory and target preparation
-  read their output. They also still judge the Build program and the bound
-  target's entry-contract source, which the route does not lower yet, and a
-  rejection placed there stands. A rejection placed anywhere else fails with
-  "no product route yet".
+  an error that opens "not supported yet" and names the construct or goal.
+  A missing verdict is a refusal, never an acceptance.
 
-Deleting Psi 05 and 06 removes that last use. From then on a product exists
-only through the route's own published module (`AcceptedClosure::publish`),
-so that hand-off is the critical path, and until the route lowers Build
-programs no compilation completes. The four conditions below no longer decide
-whether the old stages may be deleted. Conditions 1 to 3 remain as statements
-of what the route must get right; condition 4 is replaced by the deletion
-itself. The paragraphs below that describe the router while both checkers
+A product exists only through the route's own published module
+(`AcceptedClosure::publish`), so that hand-off is the critical path, and until
+the route lowers Build programs no compilation completes. The four
+conditions below no longer decide whether the old stages may be deleted.
+Conditions 1 to 3 remain as statements of what the route must get right;
+condition 4 is replaced by the deletion itself. The paragraphs below that describe the router while both checkers
 shipped are the record of that earlier state.
 
 The owner lifted the pause on 2026-11-12: the construct lanes resume now, and
@@ -323,7 +314,7 @@ This replaces the stop rule this record first carried: "If the route is not
 clearly smaller than what it replaces, cannot reach agreement on the widened
 subset, or cannot prove two-value relations through its single certificate
 route, the replacement stops and this record is withdrawn in favor of
-migrating in place." [Route one measures](route_one_measures.md#verdict-against-the-stop-rule)
+migrating in place." [Route one measures](https://github.com/CathedralOS/Omega/blob/3b24dc9383e37416021ff19b350869a147c57432/wiki/drafts/designs/route_one_measures.md#verdict-against-the-stop-rule)
 found that rule could not be evaluated. "Clearly smaller" had no number to
 compare, because the route retired no old code. Agreement failed for
 classified causes that the rule did not tell apart from a failure of the
@@ -349,7 +340,7 @@ that cannot fail cannot hold work back, and work went ahead
      it cannot lower. A sweep found
      49 such `fail/` programs; none is accepted now, and the compiler test
      `lowered_route_subjects` pins it
-     ([route one measures](route_one_measures.md#2-verdict-agreement)).
+     ([route one measures](https://github.com/CathedralOS/Omega/blob/3b24dc9383e37416021ff19b350869a147c57432/wiki/drafts/designs/route_one_measures.md#2-verdict-agreement)).
      Still open for this condition: the closure also names "the Build and
      preparation entries the compile executes". The route roots neither the
      Build program, which the Build activation checks with the current
@@ -589,7 +580,7 @@ that cannot fail cannot hold work back, and work went ahead
 
    **Measured 2026-11-12: the covered subset makes almost none of the old
    checker unreachable, so nothing is retired.** The 12 programs of the
-   [places gate](places_foundation_lane.md#gate-re-run-2026-11-12) that both
+   [places gate](https://github.com/CathedralOS/Omega/blob/3b24dc9383e37416021ff19b350869a147c57432/wiki/drafts/designs/places_foundation_lane.md#gate-re-run-2026-11-12) that both
    checkers accept run 233,226 of the 596,993 instrumented lines of the
    three stages. A sample of 36 programs the route does not serve (every
    fourteenth of the gate's 502 "outside" programs) runs 325,931. Together
@@ -747,7 +738,7 @@ places foundation have already landed
    expressions, so `ExactPlaceId` projections, structural roots and the forward
    write log (`places`, `roots`, `writes`, all empty in the scalar spine) are
    built once. [Places foundation lane](places_foundation_lane.md) is the
-   staged plan: scope, tables, corpus slice, measures and worker brief.
+   staged plan: scope, tables and measures.
 2. **First parallel group (five lanes):** references, loans, windows, ownership
    and cleanup; calls and callee summaries; loops, recursion and termination;
    integers, floats, casts and domains; proofs, evidence and quotients.
@@ -759,12 +750,9 @@ places foundation have already landed
 
 There is no second checker to agree with. A lane is measured by the programs
 it moves from refused to judged: the router refuses a compilation on any
-`RefusalReason::Unsupported`, so the count of refused programs in the
-post-merge ledger is the progress number, and a lane is done when the corpus
-rows of its families are judged and their verdicts match the rows' expected
-outcomes. The first lane by programs unblocked is the product hand-off from
-the route's published module, then Build programs and the entry-contract
-source, which every compilation needs.
+`RefusalReason::Unsupported`. The first lane by programs unblocked is the
+product hand-off from the route's published module, then Build programs and
+the entry-contract source, which every compilation needs.
 
 ### Census of evidence
 
@@ -838,118 +826,13 @@ What the numbers do not say:
 These accept invalid programs, or can, on `main` today. They were read in the
 code and are not yet confirmed by a run:
 
-- The prover's check that a call guarantee still describes a copied argument
-  looks only at the callee's own writes, not at writes by the call's other
-  operands (`checks_contracts_prover.rs` `capture_preserved`). Three
-  `fail/calls/copied_*_ensures_cannot_restore_*` programs exercise it.
-- A call the flow builder cannot match records no write
-  (`flow_expression.rs` `invoke`).
-- Index segments compare by expression structure, so a fact on `a[i]` can
-  outlive a change to `i` (`validation/src/places.rs`).
 - Omega 01 turns every operation obligation reference in a unit into an
   accepted fact, with no evidence attached
   (`01_abstract-operations-to-abstract-operations/src/verified_unit.rs`
   `source_checked_obligation_facts`); the interpreter still checks. A wrongly
-  kept fact therefore makes native code and the interpreter disagree. An
-  earlier wording said the back end read a list of source-checked obligations
-  from lowering; no reader of that list was found.
+  kept fact therefore makes native code and the interpreter disagree.
 
-The full read added seven places that accept on missing or mismatched input.
-Each was traced on 2026-11-10 at `c118c914794`, and the probes were run on the
-Mac mini. One accepted an invalid program and has since been closed; the other
-six are closed or not
-reached:
-
-- **Accepted an invalid program; closed.** The default-domain driver skipped
-  its end-of-state window check when the state contained any crash statement,
-  even one that cannot run (`domains_and_predicates.rs` `walk_state`). A write
-  that breaks a data `requires`, then a complete dispatch whose arms all
-  return, then a dead `crash Trap;` was accepted. Without the crash, the same
-  program was rejected. The driver now checks open windows at each returning
-  row of the dispatch and lets only a crash row that ends the dispatch abandon
-  one. Witness: `fail/dependent/data_requires_return_beside_dead_crash`, now
-  rejected with a recorded ledger row. A crash beside a normal exit on another
-  path cannot be written: the parser makes `crash` an unguarded statement that
-  ends the dispatch.
-- A linear carry fact crosses a call when its place label text equals the
-  argument's spelling (`flow_calls.rs:419`). This adds nothing beyond
-  `places_match`, which already compares labels made from bare symbol names
-  (`facts/src/lib.rs:1827`). Two distinct locals or parameters cannot share a
-  name: `value_custody_core.rs:5750` and `declarations_core.rs:2373` reject
-  that. Label collisions remain only through index or expression spelling,
-  which is the `places.rs` item above.
-- An `ensures` subject binds to a callee parameter by name alone
-  (`flow_calls.rs:1066`). This is closed: the parameters and the contracts come
-  from one signature, and duplicate parameter names are rejected
-  (`declarations_core.rs:2373`).
-- With no checked body to consult, the fence on a call's result domains
-  answers yes (`flow_calls.rs:546`). For a direct call, the callee's own exit
-  refuses a forged `ensures result in D` (`checks_contracts_exits.rs:9902`).
-  The bodyless-realization case was not run.
-- A recognizer for two-arm guarded values compares the first arm's condition
-  with itself (`contract_entailment.rs:44311`). Read only: this fails
-  closed. The recognizer is a fallback, tried only when the primary case walk
-  returns nothing, and the primary walk's refusals stay in the same batch
-  (`:90466-90474`). Its two arms must be the state's only statements, both
-  value returns. Each arm is judged with no hypothesis from its guard, and the
-  claim is proven only when every arm proves it.
-- A storage validity check answers "valid" when no storage graph exists
-  (`contract_entailment.rs:73358`). Read only: this branch is never reached. No storage
-  version is produced without a graph, and all seven callers are guarded.
-- An arena returns a shared dummy row for an invalid or stale handle
-  (`arena.rs:1023`). An invalid expression handle therefore reads as the
-  literal `0`, and the operator `requires` check compares that text
-  (`checks_operators.rs:2319`). An operand `0` was still refused, by the
-  call `requires` check (`checks_contracts_calls.rs:3508`). Other tables'
-  dummy rows were not audited.
-
-The carry-label place, the arena place and the `places.rs` item share one
-mechanism: they decide that two values are the same by comparing their
-spelling. Each is closed today only by the check that stands behind it.
-
-A review of the automated accept-on-unknown trace named nine more candidates.
-Each was run with `omega --check` at `10d773ae305` on 2026-11-10. None
-accepts an invalid program. Two of them really do miss on unknown input and
-are covered only by a check in another file:
-
-- **Extent search budget.** The inline-extent search gives up after 4096 steps
-  and reports "no runtime extent" (`value_custody_core.rs:9551`). A data type
-  that holds a generic doubled ten or more levels deep, beside
-  `[u8; Count]` with a runtime `Count`, loses the "runtime value ... for an
-  inline fixed-array extent" diagnostic. At depth 9 the diagnostic is still
-  reported. The program is still rejected by the cleanup-disposition check
-  (`flow.rs:10785`). With a const extent, the same deep type is accepted, so
-  that rejection depends on the runtime extent, not on the depth.
-- **Transition handback.** The scalar-loan handback check skips
-  `CallSite::TransitionNamed` (`contract_entailment.rs:21217`). Lending
-  `&mut target.count` to a nested or top-level machine through `transition`
-  still reaches the same check and is rejected (`:21352`). A callee that
-  `ensures slot == 0` is accepted. No transition shape reaching `:21217`
-  was found.
-
-The other seven are closed:
-
-- Field signedness from the first machine (`proof/src/checker.rs:5446`).
-  This cannot be written, because a `self` receiver in a machine body is
-  rejected by the parser (`expressions.rs:1728`).
-- Assembly that raises a rank before recursion. Rejected by the ranking check
-  (`checks_termination.rs:8113`). The same assembly writing another local is
-  accepted.
-- A live crash beside a return. A partial dispatch is rejected as
-  fall-through (`equality_and_exhaustiveness.rs:984`), and an arm cannot be
-  `crash` (parse error, "expected `->`").
-- A reference local lending a restricted field, including one chosen in a
-  `match`. Rejected at `contract_entailment.rs:21352`.
-- A guard on one local reused for a same-spelled call initializer of another.
-  Rejected by the call `requires` check (`checks_contracts_calls.rs:3508`).
-  Guarding the second local itself is accepted.
-- The binding-observation retry. A read through a view after a write to its
-  owner is rejected by the borrow-conflict check (`checks_borrows.rs:4709`).
-- Atoms keyed on `Debug` text (`contract_entailment.rs:58147`). Settled by
-  reading. Each `Debug` impl omits only the fields that semantic equality
-  ignores, so two terms that are not equal never print the same text.
-
-Must-reject programs the corpus lacks, none under `facts/`: knowledge that
+Must-reject programs to cover: knowledge that
 survives a pause; a write through a partly overlapping window; a linear value
 consumed on a loop back-edge; a copied scalar whose source a later operand
 overwrites; a rank premise across a pause.
@@ -994,7 +877,7 @@ overwrites; a rank premise across a pause.
   carries per-machine `MachineSources` over dense identities with explicit
   `Unpositioned` reasons; whether that suffices for every diagnostic across the
   remaining families is checked as each lane lands. Measured on every
-  `fail/` fixture: [route one diagnostics](route_one_diagnostics.md). Where
+  `fail/` fixture: [route one diagnostics](https://github.com/CathedralOS/Omega/blob/3b24dc9383e37416021ff19b350869a147c57432/wiki/drafts/designs/route_one_diagnostics.md). Where
   the route rejects, 288 of 293 rejections name the defect's obligation at
   its construct, but no message states the failing condition; the missing
   part is mapping, not information the lowered form lacks.

@@ -83,9 +83,8 @@ observed directly, not inferred from a diagnostic saying only that encoding ran.
   Scoped package-manager/orchestration Clippy, formatting and repository rules
   pass. Clippy reports one existing unrelated conversion warning in validation.
 
-The public source controls reuse
-[`native_component_reuse`](../../../tests/omega/pass/build/native_component_reuse/)
-and [`captured_source_generated_constant`](../../../tests/omega/pass/build/captured_source_generated_constant/).
+The public source control reuses
+[`captured_source_generated_constant`](../../../tests/fixtures/pass/build/captured_source_generated_constant/).
 The ordinary composition control removes only the Independent selection flag in
 an ignored copy. No language syntax or contract is weakened to produce a hit.
 

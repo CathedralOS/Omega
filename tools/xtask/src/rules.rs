@@ -1372,7 +1372,7 @@ const RATCHET_SPECS: &[RatchetSpec] = &[
             "*Place*, *Path* or *Projection*, per non-test file under",
             "omega-rust/psi/compilation. Counts may only fall: facts travel on one place",
             "key, one overlap relation and one formal-to-actual map",
-            "(wiki/drafts/designs/fact_transport.md).",
+            "(https://github.com/CathedralOS/Omega/blob/3b24dc9383e37416021ff19b350869a147c57432/wiki/drafts/designs/fact_transport.md).",
         ],
         advice: "Do not add another place comparison, rebaser or path type. The checker on the lowered form names places by terminal_check_tables::ExactPlaceId (wiki/drafts/designs/check_on_lowered_form.md); existing tree-level code keeps using validation::storage_path_relations::canonical_place_segments_may_overlap until it is replaced.",
     },
