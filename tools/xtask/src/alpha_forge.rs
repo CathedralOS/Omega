@@ -366,7 +366,7 @@ EB .rel8 far
 
     #[test]
     fn windows_listing_reproduces_the_committed_seed() {
-        let root = crate::repo_root();
+        let root = crate::repo_root().expect("test runs in the Omega workspace");
         let listing = root.join("bootstrap/interpreted/0_alpha/alpha_x64_windows.hex");
         let committed = root.join("bootstrap/interpreted/0_alpha/alpha_x64_windows.exe");
         let image = forge_file(&listing).unwrap();

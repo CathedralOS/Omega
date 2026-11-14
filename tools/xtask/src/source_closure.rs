@@ -714,7 +714,7 @@ mod tests {
 
     #[test]
     fn selected_compiler_closures_match_their_pinned_bytes() {
-        let root = crate::repo_root();
+        let root = crate::repo_root().expect("test runs in the Omega workspace");
         let cases = [
             (
                 "tests/bootstrap/epsilon-source-closure/fixture.sources",
