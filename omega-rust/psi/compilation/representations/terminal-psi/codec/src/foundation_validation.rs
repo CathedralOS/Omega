@@ -127,14 +127,126 @@ pub(crate) mod call_foundations {
     pub(crate) fn validate_no_normal_invocation(
         module: &TerminalModule,
         block: &Block,
+        inhabitation: &terminal_semantics::inhabitation::Inhabitation,
     ) -> Result<(), CodecError> {
-        let Terminator::InvokeNoNormal { callee, .. } = block.terminator else {
+        let Terminator::InvokeNoNormal {
+            callee,
+            required_contract,
+            ..
+        } = block.terminator
+        else {
             return Ok(());
         };
+        let contract = module
+            .invocation_machine_contract(callee, required_contract)
+            .ok_or(CodecError::MalformedStructuralFoundation(
+                "no-normal invocation has no exact declared callee contract",
+            ))?;
+        // A genuinely empty declared result excludes normal completion even
+        // when the body syntactically returns an impossible input. The visible
+        // invocation contract, including a selected requirement, is the owner
+        // of this promise; a private implementation cannot replace it.
+        if let TerminalMachineResult::Structural(result) = &contract.result
+            && inhabitation.status(result.structural_type)
+                == terminal_semantics::inhabitation::Status::ProvedEmpty
+        {
+            return Ok(());
+        }
+        if required_contract.is_some() {
+            return malformed("no-normal invocation has no uninhabited published result");
+        }
         match terminal_semantics::control_graph::normal_completion_possible(module, callee) {
             Ok(false) => Ok(()),
             Ok(true) => malformed("no-normal invocation callee has a normal return"),
             Err(_) => malformed("no-normal invocation has no exact closed callee control graph"),
+        }
+    }
+
+    #[cfg(test)]
+    mod no_normal_result_tests {
+        use super::*;
+        use semantic_vocabulary::{ContractId, EdgeId, MachineId};
+        use terminal_semantics::inhabitation::{Inhabitation, TerminalContracts};
+
+        fn invocation(required_contract: Option<ContractId>) -> Block {
+            let mut block = crate::semantic_module::target_family_tests::unit_machine(
+                MachineId::new(2).unwrap(),
+            )
+            .blocks
+            .remove(0);
+            block.terminator = Terminator::InvokeNoNormal {
+                edge: EdgeId::new(1).unwrap(),
+                static_reach_binding: None,
+                required_contract,
+                callee: MachineId::new(1).unwrap(),
+                arguments: Vec::new(),
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            };
+            block
+        }
+
+        #[test]
+        fn an_inhabited_normal_result_does_not_justify_a_forged_no_normal_call() {
+            let mut module = TerminalModule::declarations();
+            module
+                .machines
+                .push(crate::semantic_module::target_family_tests::unit_machine(
+                    MachineId::new(1).unwrap(),
+                ));
+            let query = Inhabitation::prepare(&TerminalContracts::new([])).unwrap();
+            assert_eq!(
+                validate_no_normal_invocation(&module, &invocation(None), &query),
+                malformed("no-normal invocation callee has a normal return"),
+            );
+        }
+
+        #[test]
+        fn a_selected_returning_contract_does_not_inherit_a_private_infinite_loop() {
+            let mut module = TerminalModule::declarations();
+            let mut callee = crate::semantic_module::target_family_tests::unit_machine(
+                MachineId::new(1).unwrap(),
+            );
+            callee.blocks[0].terminator = Terminator::Jump {
+                edge: EdgeId::new(1).unwrap(),
+                target: callee.entry,
+                arguments: Vec::new(),
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+                cleanup_actions: Vec::new(),
+            };
+            let mut public = callee.contract.clone();
+            public.id = ContractId::new(2).unwrap();
+            public.selected_application = Some(terminal_psi::StaticRequirementDispatch {
+                conformance_application_report_fingerprint: 0,
+                conformance_application_commitment: Default::default(),
+                public_requirement_identity: Default::default(),
+                declaring_trait_identity: Default::default(),
+                requirement_identity: Default::default(),
+                realization_identity: Default::default(),
+                realization_callable_identity: Default::default(),
+                realization: callee.id,
+            });
+            module.declaration_contracts.push(public);
+            module.machines.push(callee);
+            let query = Inhabitation::prepare(&TerminalContracts::new([])).unwrap();
+            // The local graph is valid evidence at an ordinary local call.
+            validate_no_normal_invocation(&module, &invocation(None), &query).unwrap();
+            // A selected public Unit result carries no such promise. This
+            // tests the guard separately from conformance metadata admission.
+            assert_eq!(
+                validate_no_normal_invocation(
+                    &module,
+                    &invocation(Some(ContractId::new(2).unwrap())),
+                    &query,
+                ),
+                malformed("no-normal invocation has no uninhabited published result"),
+            );
         }
     }
 
@@ -2283,6 +2395,7 @@ pub(crate) mod machine_foundations {
         module: &TerminalModule,
         machine: &TerminalMachine,
         transfers: &mut super::storage_foundations::StructuralTransferInputs<'_>,
+        inhabitation: &terminal_semantics::inhabitation::Inhabitation,
     ) -> Result<(), CodecError> {
         if let Err(reason) = machine.validate_parameter_order() {
             return malformed(reason);
@@ -2345,7 +2458,7 @@ pub(crate) mod machine_foundations {
         validate_operation_result_places(machine)?;
         for block in &machine.blocks {
             super::call_foundations::validate_external_completion(module, machine, block)?;
-            super::call_foundations::validate_no_normal_invocation(module, block)?;
+            super::call_foundations::validate_no_normal_invocation(module, block, inhabitation)?;
             validate_partial_affine_discards(module, machine, block)?;
         }
         Ok(())
@@ -10551,8 +10664,16 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
         }
     }
     let mut transfers = storage_foundations::StructuralTransferInputs::new(module);
+    let contracts =
+        terminal_semantics::inhabitation::TerminalContracts::new(module.structural_types.iter());
+    let inhabitation = terminal_semantics::inhabitation::Inhabitation::prepare(&contracts)
+        .map_err(|_| {
+            CodecError::MalformedStructuralFoundation(
+                "no-normal validation has incomplete declared type contracts",
+            )
+        })?;
     for machine in &module.machines {
-        machine_foundations::validate_machine(module, machine, &mut transfers)?;
+        machine_foundations::validate_machine(module, machine, &mut transfers, &inhabitation)?;
     }
     terminal_semantics::activation_storage::validate_module(module)
         .map_err(CodecError::MalformedStructuralFoundation)?;
