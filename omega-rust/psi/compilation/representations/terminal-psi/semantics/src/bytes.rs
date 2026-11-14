@@ -23,13 +23,15 @@ pub(crate) mod byte_carriers {
 
     fn leaf_scalar_carriers(field: &StructuralFieldDeclaration) -> Option<(u64, ScalarType)> {
         match field.field_type {
-            StructuralFieldType::Scalar(ScalarType::Integer(integer)) => (integer.bits() % 8 == 0)
-                .then(|| (u64::from(integer.bits() / 8), ScalarType::Integer(integer))),
+            StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
+                let bits = integer.bits()?;
+                (bits % 8 == 0).then(|| (u64::from(bits / 8), ScalarType::Integer(integer)))
+            }
             StructuralFieldType::Scalar(ScalarType::Boolean) => Some((1, ScalarType::Boolean)),
             StructuralFieldType::BoundedInteger(bounds) => {
                 let integer = bounds.integer_type();
-                (integer.bits() % 8 == 0)
-                    .then(|| (u64::from(integer.bits() / 8), ScalarType::Integer(integer)))
+                let bits = integer.bits()?;
+                (bits % 8 == 0).then(|| (u64::from(bits / 8), ScalarType::Integer(integer)))
             }
             _ => None,
         }
@@ -285,7 +287,7 @@ pub(crate) mod byte_sequence_predicates {
                 crate::structural_declaration(types.clone(), element).is_some_and(|row| {
                     matches!(row.shape, StructuralTypeShape::PrimitiveScalar(
                         semantic_vocabulary::ScalarType::Integer(integer)
-                    ) if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 8 && !integer.is_address())
+                    ) if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == Some(8) && !integer.is_address())
                 })
             }
             _ => false,

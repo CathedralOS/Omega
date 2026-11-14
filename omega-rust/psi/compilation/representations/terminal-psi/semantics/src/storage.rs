@@ -2910,7 +2910,7 @@ pub(crate) mod collection_backing {
                         && matches!(declaration.shape,
                         StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
                             if integer.sign() == IntegerSign::Unsigned
-                                && integer.bits() == 8 && !integer.is_address())
+                                && integer.bits() == Some(8) && !integer.is_address())
                 })
                 && region == terminal_psi::ElementViewRegion::WholeCollection
                 && !matches!(
@@ -2958,7 +2958,7 @@ pub(crate) mod collection_backing {
                         && matches!(declaration.shape,
                                 StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
                                     if integer.sign() == IntegerSign::Unsigned
-                                        && integer.bits() == 8 && !integer.is_address())
+                                        && integer.bits() == Some(8) && !integer.is_address())
                 }) =>
             {
                 Some(CollectionBacking {
@@ -3055,9 +3055,9 @@ pub(crate) mod element_representation {
         match scalar {
             ScalarType::Boolean => Some(1),
             ScalarType::Integer(integer)
-                if !integer.is_address() && matches!(integer.bits(), 8 | 16 | 32 | 64) =>
+                if !integer.is_address() && matches!(integer.bits(), Some(8 | 16 | 32 | 64)) =>
             {
-                Some(u64::from(integer.bits() / 8))
+                Some(u64::from(integer.bits()? / 8))
             }
             ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => Some(4),
             ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => Some(8),
@@ -3345,7 +3345,7 @@ pub(crate) mod representation_regions {
                 length: terminal_psi::ArrayExtent::Literal(length),
             } => {
                 let element = exactly_one(types, |row| row.id == *element)?;
-                matches!(element.shape, StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer)) if !integer.is_address() && integer.sign() == IntegerSign::Unsigned && integer.bits()==8).then_some(*length)
+                matches!(element.shape, StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer)) if !integer.is_address() && integer.sign() == IntegerSign::Unsigned && integer.bits()==Some(8)).then_some(*length)
             }
             StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
                 capacity,
@@ -3585,7 +3585,9 @@ pub mod run_custody {
         field
             .scalar_type()
             .and_then(|scalar| scalar.as_integer())
-            .is_some_and(|integer| integer.sign() == IntegerSign::Unsigned && integer.bits() == 64)
+            .is_some_and(|integer| {
+                integer.sign() == IntegerSign::Unsigned && integer.bits() == Some(64)
+            })
     }
 }
 pub(crate) mod storage_dependencies {

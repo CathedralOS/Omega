@@ -422,7 +422,7 @@ pub(crate) mod access_lifecycles {
                             .is_none_or(|integer| {
                                 integer.is_address()
                                     || integer.sign() != IntegerSign::Unsigned
-                                    || integer.bits() != 64
+                                    || integer.bits() != Some(64)
                             })
                     {
                         return Err("placement failure coordinate is not a represented u64");
@@ -987,7 +987,7 @@ pub(crate) mod access_lifecycles {
                         .is_none_or(|integer| {
                             integer.is_address()
                                 || integer.sign() != semantic_vocabulary::IntegerSign::Unsigned
-                                || integer.bits() != 64
+                                || integer.bits() != Some(64)
                         })
                 {
                     return Err("typed run changed its owned backing or u64 count roles");
