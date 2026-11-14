@@ -39,13 +39,3 @@ pub use target_providers::{
     selected_checked_adapter_header, selected_checked_invocation_rows,
     selected_provider_candidate_rows,
 };
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SelectedFamilyRealizationSource {
-    pub head_declaration_identity: String,
-    pub head_callable_identity: String,
-    pub target: String,
-    pub selected_requirement_identity: String,
-    pub provider_plan_report_identity: u64,
-    pub provider_plan_digest: effects::provider_plan::ProviderPlanDigest,
-}

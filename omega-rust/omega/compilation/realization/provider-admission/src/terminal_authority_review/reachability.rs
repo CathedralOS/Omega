@@ -79,11 +79,7 @@ impl<'a> AuthorityGraph<'a> {
         let bridge = input
             .selected_program_entry_call()
             .map(|entry| (entry.boundary(), entry.entry()));
-        let calls = terminal_installation::SynchronousCallGraph::new(
-            input.module(),
-            input.target_machine_selections(),
-            bridge,
-        )?;
+        let calls = terminal_installation::SynchronousCallGraph::new(input.module(), bridge)?;
         Ok(Self {
             input,
             functions,

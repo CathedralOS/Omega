@@ -15,7 +15,7 @@ target-dependent operations must still resolve a deployment.
 use backend_plan::TerminalTargetProviderProposal;
 use runtime_abi::target_carrier_layout;
 use std::sync::Arc;
-use terminal_installation::admit_target_machine_selections;
+use terminal_installation::terminal_target_context;
 
 pub fn complete<'scope>(
     artifact: &Arc<terminal_codec::CanonicalTerminalArtifact>,
@@ -87,7 +87,7 @@ pub fn complete<'scope>(
                         .layout_target_facts()
                         .ok_or("scalar evaluation target has no immutable layout catalogue")?,
                 ),
-                targets: Some(admit_target_machine_selections(artifact.view(), scope)),
+                targets: Some(terminal_target_context(artifact.view(), scope)),
                 providers,
                 import_realizations: Some(Box::new(realizations)),
                 address_model: Ok(address_model),

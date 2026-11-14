@@ -675,12 +675,12 @@ have no package session to attach them. The invocation-local selection is not
 serialized or an installed capability. Actual receiving-artifact admission still
 checks every selected export at the cross-artifact edge.
 
-Checked-provider binding also closes exact selecting declarations and target-family
+Checked-provider binding also closes exact selecting declarations and provider
 associations into a source-free record beside the complete selected plans. Native
 request projection borrows that record instead of reopening typed declarations.
 Preparation retains a refusal as data until the native handoff demands it, so a
-checking-only stop does not acquire native-only obligations. Physical family
-membership and receiving admission still belong to the Terminal consumer.
+checking-only stop does not acquire native-only obligations. Physical realization
+and receiving admission still belong to the Psi consumer.
 
 Ordinary provider binding retains closed intrinsic/syscall applications, but
 does not replay checked-adapter instances. Native realization and unoptimized

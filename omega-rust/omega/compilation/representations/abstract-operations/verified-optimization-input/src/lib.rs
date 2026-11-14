@@ -13,7 +13,7 @@
 use abstract_operations::AbstractOperationPlan;
 use installation_evidence::InstalledAssumedBindingEvidence;
 use terminal_installation::{
-    AdmittedScalarApplications, AdmittedTargetLayouts, AdmittedTargetMachineSelections,
+    AdmittedScalarApplications, AdmittedTargetLayouts, TerminalTargetContext,
 };
 
 mod native_execution_scope;
@@ -61,9 +61,8 @@ pub struct VerifiedPsiOptimizationInput {
     admitted_assumed_bindings: Vec<InstalledAssumedBindingEvidence>,
     admitted_native_callbacks: provider_admission::AdmittedNativeCallbackCohort,
     admitted_installed_interrupts: provider_admission::AdmittedInstalledInterruptCohort,
-    target_machine_selections: Option<AdmittedTargetMachineSelections>,
+    target_context: Option<TerminalTargetContext>,
     target_layout_selections: Option<AdmittedTargetLayouts>,
-    target_family_realizations: Vec<effects::SelectedTargetFamilyRealization>,
     external_requirement_applications: Vec<effects::SelectedExternalRequirementApplication>,
     selected_provider_requirement_identities: terminal_psi::TerminalIdentityTable,
     evidence: ObligationEvidence,
@@ -89,7 +88,7 @@ impl VerifiedPsiOptimizationInput {
     pub fn lowered(
         plan: AbstractOperationPlan,
         artifact: terminal_installation::AuthorizedTerminalArtifact,
-        target_machine_selections: Option<AdmittedTargetMachineSelections>,
+        target_context: Option<TerminalTargetContext>,
     ) -> Result<Self, &'static str> {
         if plan.psi != artifact.artifact().view().identity() {
             return Err("lowered plan belongs to another host-authorized artifact");
@@ -107,9 +106,8 @@ impl VerifiedPsiOptimizationInput {
             plan,
             context: VerifiedPsiOptimizationContext { artifact },
             admitted_assumed_bindings: Vec::new(),
-            target_machine_selections,
+            target_context,
             target_layout_selections: None,
-            target_family_realizations: Vec::new(),
             external_requirement_applications: Vec::new(),
             selected_provider_requirement_identities: terminal_psi::TerminalIdentityTable::from(
                 Vec::new(),
@@ -131,7 +129,7 @@ impl VerifiedPsiOptimizationInput {
         if let Some(scope) = scope.as_ref() {
             scope.require_input_context(
                 &self.plan,
-                self.target_machine_selections.as_ref(),
+                self.target_context.as_ref(),
                 selected_provider_closure,
             )?;
             if scope.entry_call() != entry_call.as_ref() {
@@ -149,11 +147,9 @@ impl VerifiedPsiOptimizationInput {
         Ok(())
     }
 
-    /// Records the provider rows that realize target families and external
-    /// requirements, with the identity table their rows index.
+    /// Retain exact selected external requirement applications and their identity table.
     pub fn retain_selected_providers(
         &mut self,
-        family_realizations: Vec<effects::SelectedTargetFamilyRealization>,
         external_requirement_applications: Vec<effects::SelectedExternalRequirementApplication>,
         identities: terminal_psi::TerminalIdentityTable,
         selected_provider_closure: [u8; 32],
@@ -161,11 +157,10 @@ impl VerifiedPsiOptimizationInput {
         if let Some(scope) = self.native_execution_scope.as_ref() {
             scope.require_input_context(
                 &self.plan,
-                self.target_machine_selections.as_ref(),
+                self.target_context.as_ref(),
                 selected_provider_closure,
             )?;
         }
-        self.target_family_realizations = family_realizations;
         self.external_requirement_applications = external_requirement_applications;
         self.selected_provider_requirement_identities = identities;
         self.selected_provider_closure = Some(selected_provider_closure);
@@ -248,7 +243,7 @@ impl VerifiedPsiOptimizationInput {
             program_entry: self.selected_program_entry_call,
             artifact: self.context.artifact,
             assumed_bindings: self.admitted_assumed_bindings,
-            target_machine_selections: self.target_machine_selections,
+            target_context: self.target_context,
             native_callbacks: self.admitted_native_callbacks,
             installed_interrupts: self.admitted_installed_interrupts,
         }
@@ -262,12 +257,8 @@ impl VerifiedPsiOptimizationInput {
         &self.context
     }
 
-    pub fn target_machine_selections(&self) -> Option<&AdmittedTargetMachineSelections> {
-        self.target_machine_selections.as_ref()
-    }
-
-    pub fn target_family_realizations(&self) -> &[effects::SelectedTargetFamilyRealization] {
-        &self.target_family_realizations
+    pub fn target_context(&self) -> Option<&TerminalTargetContext> {
+        self.target_context.as_ref()
     }
 
     pub fn selected_provider_requirement_identities(&self) -> &terminal_psi::TerminalIdentityTable {
@@ -282,28 +273,10 @@ impl VerifiedPsiOptimizationInput {
         &self,
         boundary: semantic_vocabulary::BoundaryMachineId,
     ) -> Result<semantic_vocabulary::CallingAbiIdentity, String> {
-        let declaration = selected_calling_boundary(
-            self.context.module(),
-            self.target_machine_selections(),
-            boundary,
-        )?;
+        let declaration = boundary;
         self.context.module().calling_abi_identity(declaration)
     }
-
-    pub fn target_family_member(
-        &self,
-        boundary: semantic_vocabulary::BoundaryMachineId,
-    ) -> Result<Option<terminal_psi::TargetMachineCallable>, String> {
-        target_family_member(
-            self.context.module(),
-            self.target_machine_selections(),
-            boundary,
-        )
-    }
 }
-
-use provider_admission::selected_calling_boundary;
-use terminal_installation::admitted_boundary_member as target_family_member;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifiedPsiOptimizationContext {
@@ -336,7 +309,7 @@ pub struct AdmittedLoweringFacts {
     artifact: terminal_installation::AuthorizedTerminalArtifact,
     program_entry: Option<SelectedProgramEntryCall>,
     assumed_bindings: Vec<InstalledAssumedBindingEvidence>,
-    target_machine_selections: Option<AdmittedTargetMachineSelections>,
+    target_context: Option<TerminalTargetContext>,
     native_callbacks: provider_admission::AdmittedNativeCallbackCohort,
     installed_interrupts: provider_admission::AdmittedInstalledInterruptCohort,
 }
@@ -353,7 +326,7 @@ impl AdmittedLoweringFacts {
         {
             return Err("lowering facts belong to another Terminal program or entry");
         }
-        if let Some(selections) = &self.target_machine_selections {
+        if let Some(selections) = &self.target_context {
             let profile = target::TargetProfile::from_canonical_target_name(selections.target())
                 .map_err(|_| "lowering facts name an unknown target")?;
             if selections.terminal_psi() != plan.psi || profile.native_target() != target {
@@ -378,7 +351,7 @@ impl AdmittedLoweringFacts {
             return Ok(None);
         };
         let selections = self
-            .target_machine_selections
+            .target_context
             .as_ref()
             .ok_or("native execution scope has no target selection custody")?;
         let profile = target::TargetProfile::from_canonical_target_name(selections.target())
@@ -416,8 +389,8 @@ impl AdmittedLoweringFacts {
         &self.assumed_bindings
     }
 
-    pub const fn target_machine_selections(&self) -> Option<&AdmittedTargetMachineSelections> {
-        self.target_machine_selections.as_ref()
+    pub const fn target_context(&self) -> Option<&TerminalTargetContext> {
+        self.target_context.as_ref()
     }
 
     pub const fn native_callbacks(&self) -> &provider_admission::AdmittedNativeCallbackCohort {

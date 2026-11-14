@@ -13,8 +13,8 @@ use semantic_vocabulary::{
 };
 use terminal_psi::control_flow::BoundaryInvocationCompletion;
 use terminal_psi::{
-    ModuleInvocationInputs, OperationKind, StructuralArgument, TargetMachineCallable,
-    TerminalAffineCleanupAction, TerminalMachine,
+    ModuleInvocationInputs, OperationKind, StructuralArgument, TerminalAffineCleanupAction,
+    TerminalMachine,
 };
 
 use super::context::ReviewContext;
@@ -361,11 +361,6 @@ fn boundary_target(
         && entry.boundary() == boundary
     {
         return Ok(CallTarget::Machine(entry.entry()));
-    }
-    if let Some(TargetMachineCallable::Machine(machine)) =
-        context.input.target_family_member(boundary)?
-    {
-        return Ok(CallTarget::Machine(machine));
     }
     if let Some(TerminalMechanismIdentity::CompilerIntrinsic(intrinsic)) =
         context.mechanism(boundary)

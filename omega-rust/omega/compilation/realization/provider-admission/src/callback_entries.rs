@@ -254,11 +254,6 @@ impl<'a> PreparedEntries<'a> {
         if inbound.plan.plan() != occurrence.boundary_entry_plan() {
             return Err("entry changed its independently selected inbound plan".into());
         }
-        let boundary = super::super::selected_calling_boundary(
-            module,
-            self.input.target_machine_selections(),
-            boundary,
-        )?;
         let parameters = calling_conventions::TerminalCallingTelescope::for_application(
             module, boundary, inbound,
         )?

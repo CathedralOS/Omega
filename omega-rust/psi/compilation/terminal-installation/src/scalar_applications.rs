@@ -14,8 +14,7 @@ use terminal_psi::{
 use terminal_semantics::{ReferenceStorageGeometry, StorageGeometryError};
 
 use crate::{
-    AdmittedProviderSelections, AdmittedTargetLayouts, AdmittedTargetMachineSelections,
-    TerminalScalarValue,
+    AdmittedProviderSelections, AdmittedTargetLayouts, TerminalScalarValue, TerminalTargetContext,
 };
 
 pub(crate) mod conditions {
@@ -1354,7 +1353,7 @@ pub(crate) mod abi_storage_tests {
             ScalarApplicationId::new(2).unwrap(),
         ];
         assert_eq!(demand.applications(), expected);
-        let targets = crate::admit_target_machine_selections(artifact.view(), "macos_arm64");
+        let targets = crate::terminal_target_context(artifact.view(), "macos_arm64");
         let providers = crate::admit_provider_installation(artifact.view(), &[], &[]).unwrap();
         let observations = ScalarApplicationObservations::new(
             artifact.view(),
@@ -1388,7 +1387,7 @@ pub(crate) mod abi_storage_tests {
             .map(|key| CallingAbiStorageDemand::new(artifact.view(), "macos_arm64", key).unwrap())
             .collect::<Vec<_>>();
         assert_eq!(demands[0].applications(), demands[1].applications());
-        let targets = crate::admit_target_machine_selections(artifact.view(), "macos_arm64");
+        let targets = crate::terminal_target_context(artifact.view(), "macos_arm64");
         let providers = crate::admit_provider_installation(artifact.view(), &[], &[]).unwrap();
         let observations = || {
             ScalarApplicationObservations::new(
@@ -1424,6 +1423,97 @@ pub(crate) mod abi_storage_tests {
     }
 
     #[test]
+    fn target_context_binds_artifact_without_selecting_an_entry_body() {
+        use crate::{TerminalEntryError, TerminalTargetContext};
+        use semantic_vocabulary::TargetMachineCallable;
+        let (artifact, _) = fixture(false, false);
+        let (other, _) = fixture(true, false);
+        let machine = MachineId::new(1).unwrap();
+        let block = semantic_vocabulary::BlockId::new(1).unwrap();
+        let mut module = artifact.semantic_module().clone();
+        module.machines.push(terminal_psi::TerminalMachine {
+            id: machine,
+            attachment: None,
+            nominal_cleanup_subject: None,
+            ranked_scc: None,
+            assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
+            structural_places: Vec::new(),
+            block_entry_claims: Vec::new(),
+            loan_completions: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            call_formations: Vec::new(),
+            entry: block,
+            blocks: vec![terminal_psi::Block::plain(
+                block,
+                Vec::new(),
+                terminal_psi::Terminator::ReturnUnit {
+                    edge: semantic_vocabulary::EdgeId::new(1).unwrap(),
+                    cleanup_actions: Vec::new(),
+                },
+            )],
+            contract: terminal_psi::MachineContract::empty(
+                semantic_vocabulary::ContractId::new(1).unwrap(),
+            ),
+        });
+        let optimization =
+            terminal_codec::build_identity_optimization_execution_record(&module).unwrap();
+        let artifact =
+            terminal_codec::CanonicalTerminalArtifact::from_parts(module, optimization, None)
+                .unwrap();
+
+        for target in ["macos_arm64", "linux_arm64"] {
+            let context = crate::terminal_target_context(artifact.view(), target);
+            assert_eq!(context.target(), target);
+            assert_eq!(
+                context.entry(
+                    artifact.view().identity(),
+                    artifact.semantic_module(),
+                    TargetMachineCallable::Machine(machine)
+                ),
+                Ok(machine)
+            );
+            assert_eq!(
+                context.entry(
+                    other.view().identity(),
+                    other.semantic_module(),
+                    TargetMachineCallable::Machine(machine)
+                ),
+                Err(TerminalEntryError::TerminalIdentityMismatch)
+            );
+            let missing = MachineId::new(99).unwrap();
+            assert_eq!(
+                context.entry(
+                    artifact.view().identity(),
+                    artifact.semantic_module(),
+                    TargetMachineCallable::Machine(missing)
+                ),
+                Err(TerminalEntryError::MissingMachine(missing))
+            );
+            let boundary = TargetMachineCallable::Boundary(
+                semantic_vocabulary::BoundaryMachineId::new(1).unwrap(),
+            );
+            assert_eq!(
+                context.entry(
+                    artifact.view().identity(),
+                    artifact.semantic_module(),
+                    boundary
+                ),
+                Err(TerminalEntryError::NonExecutableEntry(boundary))
+            );
+        }
+        assert_eq!(
+            TerminalTargetContext::resolve_entry(
+                None,
+                artifact.view().identity(),
+                artifact.semantic_module(),
+                TargetMachineCallable::Machine(machine)
+            ),
+            Ok(machine)
+        );
+    }
+
+    #[test]
     fn abi_storage_request_refuses_other_artifact_and_target() {
         let (artifact, keys) = fixture(false, false);
         let (other, _) = fixture(true, false);
@@ -1435,7 +1525,7 @@ pub(crate) mod abi_storage_tests {
                 .unwrap()
                 .contains("another Terminal artifact")
         );
-        let targets = crate::admit_target_machine_selections(artifact.view(), "linux_arm64");
+        let targets = crate::terminal_target_context(artifact.view(), "linux_arm64");
         let providers = crate::admit_provider_installation(artifact.view(), &[], &[]).unwrap();
         let error = ScalarApplicationObservations::new(
             artifact.view(),
@@ -1455,7 +1545,7 @@ pub(crate) mod abi_storage_tests {
         let (artifact, keys) = fixture(false, true);
         let demand =
             CallingAbiStorageDemand::new(artifact.view(), "macos_arm64", &keys[0]).unwrap();
-        let targets = crate::admit_target_machine_selections(artifact.view(), "macos_arm64");
+        let targets = crate::terminal_target_context(artifact.view(), "macos_arm64");
         let providers = crate::admit_provider_installation(artifact.view(), &[], &[]).unwrap();
         let observations = ScalarApplicationObservations::new(
             artifact.view(),
@@ -1483,9 +1573,7 @@ pub(crate) mod abi_storage_tests {
 }
 pub(crate) mod closure {
     use super::{ScalarApplicationObservations, ScalarApplicationValues, ScalarConditionSelection};
-    use crate::{
-        AdmittedProviderSelections, AdmittedTargetLayouts, AdmittedTargetMachineSelections,
-    };
+    use crate::{AdmittedProviderSelections, AdmittedTargetLayouts, TerminalTargetContext};
     use numerics::bignum::BigInt;
     use terminal_codec::TerminalArtifactView;
     use terminal_psi::{
@@ -1497,7 +1585,7 @@ pub(crate) mod closure {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct ScalarScopeInputs {
-        targets: Option<AdmittedTargetMachineSelections>,
+        targets: Option<TerminalTargetContext>,
         providers: AdmittedProviderSelections,
         layouts: Option<AdmittedTargetLayouts>,
         address_model: Option<ScalarAddressModel>,
@@ -1513,7 +1601,7 @@ pub(crate) mod closure {
     }
 
     impl ScalarScopeInputs {
-        pub fn targets(&self) -> Option<&AdmittedTargetMachineSelections> {
+        pub fn targets(&self) -> Option<&TerminalTargetContext> {
             self.targets.as_ref()
         }
         pub fn providers(&self) -> &AdmittedProviderSelections {
@@ -2100,7 +2188,7 @@ pub(crate) enum EntryResult {
 
 pub struct ScalarApplicationObservations<'artifact> {
     artifact: terminal_codec::TerminalExecutionView<'artifact>,
-    targets: Option<&'artifact AdmittedTargetMachineSelections>,
+    targets: Option<&'artifact TerminalTargetContext>,
     providers: &'artifact AdmittedProviderSelections,
     layouts: Option<AdmittedTargetLayouts>,
     carrier_layout: Option<semantic_vocabulary::TargetCarrierLayout>,
@@ -2136,7 +2224,7 @@ impl ScalarApplicationValues {
 impl<'artifact> ScalarApplicationObservations<'artifact> {
     pub fn new<'layout>(
         artifact: impl Into<terminal_codec::TerminalExecutionView<'artifact>>,
-        targets: impl Into<Option<&'artifact AdmittedTargetMachineSelections>>,
+        targets: impl Into<Option<&'artifact TerminalTargetContext>>,
         providers: &'artifact AdmittedProviderSelections,
         target_layout: impl Into<Option<&'layout crate::LayoutTargetFacts>>,
     ) -> Result<Self, String> {
@@ -2149,7 +2237,7 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
             return Err("scalar observations name a different Terminal artifact".into());
         }
         if let Some(target) = artifact.module().folded_constants.target.as_deref()
-            && (targets.map(AdmittedTargetMachineSelections::target) != Some(target)
+            && (targets.map(TerminalTargetContext::target) != Some(target)
                 || providers.folded_constant_target() != Some(target))
         {
             return Err(
@@ -2202,11 +2290,11 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
     pub fn carrier_layout(&self) -> Option<semantic_vocabulary::TargetCarrierLayout> {
         self.carrier_layout
     }
-    pub fn targets(&self) -> Option<&AdmittedTargetMachineSelections> {
+    pub fn targets(&self) -> Option<&TerminalTargetContext> {
         self.targets
     }
     pub fn target(&self) -> Option<&str> {
-        self.targets.map(AdmittedTargetMachineSelections::target)
+        self.targets.map(TerminalTargetContext::target)
     }
     pub fn providers(&self) -> &AdmittedProviderSelections {
         self.providers
@@ -2355,7 +2443,7 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
         else {
             return Err("scalar application is not a complete evaluation entry".into());
         };
-        let machine = AdmittedTargetMachineSelections::resolve_entry(
+        let machine = TerminalTargetContext::resolve_entry(
             self.targets,
             self.artifact.identity(),
             self.artifact.module(),
