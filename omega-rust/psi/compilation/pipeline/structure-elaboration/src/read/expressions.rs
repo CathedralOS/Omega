@@ -117,7 +117,7 @@ impl<'t> Program<'t> {
                     ValueType::Scalar(..) => {
                         return unserved("erased term of a qualified type");
                     }
-                    ValueType::Record(_, _) | ValueType::Rigid(_) => {
+                    ValueType::Record(_, _, _) | ValueType::Rigid(_) => {
                         return unserved("erased term of a data type");
                     }
                 }
@@ -292,6 +292,7 @@ impl<'t> Program<'t> {
                 };
             }
             ExpressionNode::Call(call) => {
+                self.expected = expected;
                 return self.call_expression(id, slots, call, handle, source);
             }
             ExpressionNode::TypeExpression(_) => return unserved("type expression"),
@@ -334,6 +335,7 @@ impl<'t> Program<'t> {
             ExpressionNode::Borrow(_) => return unserved("borrow"),
             ExpressionNode::Range(_) => return unserved("range"),
             ExpressionNode::StructLiteral(literal) => {
+                self.expected = expected;
                 return self.record_literal(id, slots, handle, literal, source);
             }
             ExpressionNode::String(bytes) => return self.byte_literal(id, bytes, expected, source),
@@ -462,7 +464,9 @@ impl<'t> Program<'t> {
             let value = self.expression(id, slots, arm.value, result.map(ValueType::plain))?;
             let value_type = match value.result {
                 Some(ValueType::Scalar(scalar_type, Qualification::NONE)) => scalar_type,
-                Some(ValueType::Record(_, _)) => return Err(unserved("match with a data result")),
+                Some(ValueType::Record(_, _, _)) => {
+                    return Err(unserved("match with a data result"));
+                }
                 Some(ValueType::Scalar(..)) => {
                     return Err(unserved("match with a qualified result"));
                 }
@@ -600,7 +604,7 @@ fn binary_expression(
         ValueType::Scalar(carrier, qualification) if qualification.domains.is_empty() => {
             Some((carrier, qualification.policy))
         }
-        ValueType::Scalar(..) | ValueType::Record(_, _) | ValueType::Rigid(_) => None,
+        ValueType::Scalar(..) | ValueType::Record(_, _, _) | ValueType::Rigid(_) => None,
     };
     let (Some((left_type, left_policy)), Some((right_type, right_policy))) =
         (carried(left_type), carried(right_type))

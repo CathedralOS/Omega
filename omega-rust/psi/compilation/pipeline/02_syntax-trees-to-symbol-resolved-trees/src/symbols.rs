@@ -5340,14 +5340,6 @@ impl syntax_trees::SyntaxTextContext for NamespaceDeclarations {
 }
 
 impl NamespaceDeclarations {
-    pub(crate) fn module_paths(&self) -> &[Vec<syntax_trees::identifier::Identifier>] {
-        &self.modules
-    }
-
-    pub(crate) fn import_paths(&self) -> &[Vec<syntax_trees::identifier::Identifier>] {
-        &self.imports
-    }
-
     pub(crate) fn record_module(
         &mut self,
         syntax: &syntax_trees::SyntaxTrees,
@@ -5483,6 +5475,68 @@ fn assign_program_symbols(
     diagnostics
 }
 
+/*
+    The integer carriers this forest spells that have no fixed root slot:
+    `u13` as a type, `7u13` as a literal suffix, `u13` qualifying a path.
+    Names can only be bound to symbols that exist, so the table is given one
+    builtin type per carrier before any reference is resolved. Whether a
+    spelling is used as a type is not decided here: an unused symbol binds
+    nothing, and a carrier this scan missed stays unresolved and is refused
+    where it is used.
+*/
+fn spelled_integer_carriers(
+    syntax: &syntax_trees::SyntaxTrees,
+) -> Vec<numerics::integer_carrier::FixedInteger> {
+    use syntax_trees::expression::ExpressionNode;
+    use syntax_trees::types::TypeReferenceNode;
+    let mut carriers = Vec::new();
+    let mut spelled = |carrier: Option<numerics::integer_carrier::FixedInteger>| {
+        if let Some(carrier) = carrier
+            && symbols::BuiltinTypeAtom::Integer(carrier)
+                .roster_ordinal()
+                .is_none()
+        {
+            carriers.push(carrier);
+        }
+    };
+    for (_, node) in syntax.type_references.iter_type_references() {
+        if let TypeReferenceNode::Named(name) = node {
+            spelled(
+                numerics::integer_carrier::FixedInteger::from_decimal_spelling(name.as_str(syntax)),
+            );
+        }
+    }
+    for (_, node) in syntax.expressions.iter_expressions() {
+        match node {
+            ExpressionNode::Integer(literal) => {
+                spelled(
+                    literal
+                        .landing()
+                        .and_then(|landing| match landing.landed_type {
+                            numerics::literals::LandedIntegerType::Fixed(carrier) => Some(carrier),
+                            numerics::literals::LandedIntegerType::Addr => None,
+                        }),
+                );
+            }
+            ExpressionNode::Name { members, .. } => {
+                /* Only a qualifier can be a type; a name alone is a value such as a local `i1`. */
+                let members = syntax.expressions.identifier_path_members(*members);
+                for qualifier in members.split_last().map_or(&[][..], |(_, head)| head) {
+                    spelled(
+                        numerics::integer_carrier::FixedInteger::from_decimal_spelling(
+                            qualifier.as_str(syntax),
+                        ),
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+    carriers.sort_unstable();
+    carriers.dedup();
+    carriers
+}
+
 pub(crate) fn assign_symbols(
     program: &mut SymbolResolvedTrees,
     sources: Option<Arc<SourceMap>>,
@@ -5494,6 +5548,7 @@ pub(crate) fn assign_symbols(
         symbol_resolved_trees::types::OperandLifetimeOwnerHandle,
         crate::resolution::operand_owners::DeclarationInput,
     )],
+    integer_carriers: &[numerics::integer_carrier::FixedInteger],
 ) -> Result<(), Vec<Diagnostic>> {
     let mut symbols = build_symbol_table(
         program,
@@ -5502,6 +5557,7 @@ pub(crate) fn assign_symbols(
         const_declarations,
         !namespace_declarations.modules.is_empty(),
     );
+    symbols.install_integer_types(integer_carriers.iter().copied());
     namespace_declarations.install(&mut symbols)?;
     let has_sources = sources.is_some() || !namespace_declarations.modules.is_empty();
     let mut symbols = insert_selected_machine_children(program, symbols, sources, 0, has_sources);
@@ -5530,6 +5586,7 @@ pub(crate) fn assign_symbols_against_resolved_base(
         symbol_resolved_trees::types::OperandLifetimeOwnerHandle,
         crate::resolution::operand_owners::DeclarationInput,
     )],
+    integer_carriers: &[numerics::integer_carrier::FixedInteger],
 ) -> Result<(), Vec<Diagnostic>> {
     symbol_table::extend_symbol_table(
         program,
@@ -5538,6 +5595,9 @@ pub(crate) fn assign_symbols_against_resolved_base(
         roots,
         const_declarations,
     );
+    program
+        .symbols
+        .install_integer_types(integer_carriers.iter().copied());
     namespace_declarations.install(&mut program.symbols)?;
     let table = std::mem::take(&mut program.symbols);
     program.symbols =
@@ -5623,8 +5683,11 @@ pub(crate) use lookup::{
     the static module calls and outcome-specific contracts that need it. A
     seeded lowerer extends its base's table in place.
 */
-pub(crate) fn assign(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
-    assign_declarations(lowerer)?;
+pub(crate) fn assign(
+    lowerer: &mut Lowerer,
+    syntax: &syntax_trees::SyntaxTrees,
+) -> Result<(), Vec<Diagnostic>> {
+    assign_declarations(lowerer, syntax)?;
     let machines = lowerer
         .symbol_resolved_trees
         .machines
@@ -5638,7 +5701,11 @@ pub(crate) fn assign(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
     Allocate and resolve declaration identities before any body-local symbol
     batch. Both eager resolution and retained-body completion use this boundary.
 */
-pub(crate) fn assign_declarations(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
+pub(crate) fn assign_declarations(
+    lowerer: &mut Lowerer,
+    syntax: &syntax_trees::SyntaxTrees,
+) -> Result<(), Vec<Diagnostic>> {
+    let integer_carriers = spelled_integer_carriers(syntax);
     let operand_bindings = crate::resolution::operand_owners::bindings(lowerer)?;
     let seeded_roots = lowerer.seed.as_ref().map(|seed| seed.roots);
     match seeded_roots {
@@ -5650,6 +5717,7 @@ pub(crate) fn assign_declarations(lowerer: &mut Lowerer) -> Result<(), Vec<Diagn
             &lowerer.namespace_declarations,
             lowerer.bound_generic_application_origins,
             &operand_bindings,
+            &integer_carriers,
         )?,
         Some(roots) => {
             let sources = lowerer.sources.take().ok_or_else(|| {
@@ -5666,6 +5734,7 @@ pub(crate) fn assign_declarations(lowerer: &mut Lowerer) -> Result<(), Vec<Diagn
                 &lowerer.namespace_declarations,
                 lowerer.bound_generic_application_origins,
                 &operand_bindings,
+                &integer_carriers,
             )?;
         }
     }

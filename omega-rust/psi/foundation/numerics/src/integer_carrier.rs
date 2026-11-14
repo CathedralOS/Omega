@@ -90,16 +90,6 @@ impl FixedInteger {
     }
 
     /*
-        The spellings the front end admits as type names today: the eight
-        conventional widths. This is the one place that restriction lives;
-        it goes when name resolution admits every width
-        (`TASKS.md`, WIDTH-INDEXED-INTEGERS).
-    */
-    pub fn from_builtin_name(name: &str) -> Option<Self> {
-        Self::from_decimal_spelling(name).filter(|carrier| carrier.native_scalar_bytes().is_some())
-    }
-
-    /*
         Whether the carrier contains the mathematical integer, decided from
         bit lengths so an enormous width never builds its endpoints.
     */

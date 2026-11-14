@@ -1939,7 +1939,7 @@ pub(crate) mod state {
             typed::expression::ExpressionNode::Member(member) => {
                 let (root, _, mut members) = proof_output_receiver_parts(program, member.receiver)?;
                 members.push(member.member.clone());
-                Some((root, member.member_symbol, members))
+                Some((root, member.selection.field_symbol(), members))
             }
             _ => None,
         }

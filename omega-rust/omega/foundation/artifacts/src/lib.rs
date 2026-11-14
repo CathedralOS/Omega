@@ -7,7 +7,7 @@ We separate two diagnostic measurement mechanisms from compilation semantics:
    unmeasured builds avoid `Instant::now()` calls in subordinate passes; when
    enabled, the CLI formats and emits the timing ladder to stderr.
 2. Activity counters (`compile_timings::counters`): relaxed process-wide atomic
-   totals that count frontend reuses, pre-build checks, settled checks, and
+   totals that count frontend reuses, settled checks, and
    Build activations for review gates and regression tests.
 
 Trust records and artifact validation belong to realization's trust model, not

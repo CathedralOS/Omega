@@ -1695,11 +1695,9 @@ pub(crate) fn validate(
         call.validate_shape()
     }
     .map_err(|_| invalid())?;
-    let canonical = evaluate_call_plan(call.call_plan.policy, &call_abi_signature(call))
-        .map_err(|_| invalid())?;
-    if call.call_plan != canonical {
-        return Err(invalid());
-    }
+    // Legalization already stored this call's calling-convention plan. Selection
+    // checks the roles and arguments it is about to encode; it does not compute
+    // the plan again.
     if call
         .arguments
         .iter()

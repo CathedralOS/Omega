@@ -3662,47 +3662,6 @@ pub(crate) mod payloads {
                 if let Some(applied) = applied {
                     *program.expression_table.expression_mut(handle) = applied;
                 }
-                if let Some(mut authority) = program
-                    .expression_table
-                    .index_expression_authority(handle)
-                    .cloned()
-                {
-                    if let Some(normalization) = &mut authority.normalization {
-                        normalization.index_type =
-                            self.type_reference(program, normalization.index_type)?;
-                    }
-                    if let Some(operation) = &mut authority.operation {
-                        operation.operand_type =
-                            self.type_reference(program, operation.operand_type)?;
-                        if let Some(application) = &mut operation.application {
-                            self.static_arguments(program, std::slice::from_mut(application))?;
-                        }
-                        if let Some((_, selected)) = self
-                            .static_arguments
-                            .iter()
-                            .rev()
-                            .find(|(binder, _)| *binder == operation.provider)
-                        {
-                            let alias = if program.symbols.get(selected.symbol).kind
-                                == symbols::SymbolKind::ConformanceParameter
-                            {
-                                program.symbols.name(selected.symbol).to_owned()
-                            } else {
-                                let conformance = program.conformance_by_symbol(selected.symbol)
-                                .ok_or("applied index authority lost its selected evidence declaration")?;
-                                conformance
-                                    .alias
-                                    .as_ref()
-                                    .map_or("<unnamed-conformance>", |alias| alias.as_str())
-                                    .to_owned()
-                            };
-                            operation.apply_provider(selected, &alias);
-                        }
-                    }
-                    *program
-                        .expression_table
-                        .index_expression_authority_mut(handle) = authority;
-                }
             }
             Ok(copied)
         }

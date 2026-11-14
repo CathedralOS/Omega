@@ -1384,11 +1384,11 @@ use terminal_psi::{RecordFieldValue, StructuralAccess, StructuralArgument};
 use crate::body::{RecordField, RecordType};
 
 fn point() -> ValueType {
-    ValueType::Record(id(1), Qualification::NONE)
+    ValueType::record(id(1))
 }
 
 fn line() -> ValueType {
-    ValueType::Record(id(2), Qualification::NONE)
+    ValueType::record(id(2))
 }
 
 fn records() -> IdTable<StructuralTypeId, RecordType> {
@@ -1396,6 +1396,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
         id: id(raw),
         identity: spelled.to_owned(),
         value_type,
+        byte_predicates: semantic_vocabulary::ByteSequencePredicateSet::EMPTY,
     };
     let mut records = IdTable::default();
     records.push(RecordType {
@@ -2374,7 +2375,7 @@ const BOXED: usize = 2;
 const EMPTY: usize = 3;
 
 fn shape() -> ValueType {
-    ValueType::Record(id(2), Qualification::NONE)
+    ValueType::record(id(2))
 }
 
 fn sums() -> IdTable<StructuralTypeId, RecordType> {
@@ -2382,6 +2383,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
         id: id(raw),
         identity: spelled.to_owned(),
         value_type,
+        byte_predicates: semantic_vocabulary::ByteSequencePredicateSet::EMPTY,
     };
     let case = |raw, spelled: &str, fields| CaseType {
         id: id(raw),

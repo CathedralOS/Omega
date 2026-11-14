@@ -495,7 +495,7 @@ mod body_completion {
                 .map_err(|error| vec![error])?;
         }
         crate::selection::select_operator_homes(lowerer)?;
-        crate::symbols::assign_declarations(lowerer)
+        crate::symbols::assign_declarations(lowerer, syntax)
     }
 
     fn lower_selected_bodies(
@@ -2282,7 +2282,7 @@ fn index_declarations(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(),
     lowering::lower_items(lowerer, syntax)?;
     lower_mathematical_definitions(lowerer, syntax)?;
     selection::select_operator_homes(lowerer)?;
-    crate::symbols::assign_declarations(lowerer)
+    crate::symbols::assign_declarations(lowerer, syntax)
 }
 
 /*
@@ -2620,9 +2620,9 @@ fn drive_recorded(
 > {
     lowering::lower_items(&mut lowerer, syntax)?;
     lower_mathematical_definitions(&mut lowerer, syntax)?;
-    let constant_selection = lowerer.take_constant_selection()?;
     selection::select_operator_homes(&mut lowerer)?;
-    crate::symbols::assign(&mut lowerer)?;
+    let constant_selection = lowerer.take_constant_selection()?;
+    crate::symbols::assign(&mut lowerer, syntax)?;
     finish_resolution(&mut lowerer, syntax, &[], &[])?;
     let links = lowerer.equation_sources.take();
     Ok((lowerer.into_trees(), constant_selection, links))

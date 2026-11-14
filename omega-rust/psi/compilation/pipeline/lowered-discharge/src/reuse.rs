@@ -1152,7 +1152,6 @@ impl Carry<'_> {
             Some(rigid) => {
                 mine.rigid.is_none()
                     && mine.origin == theirs.origin
-                    && mine.selects == theirs.selects
                     && self.instantiation.types.iter().any(|(bound, scalar_type)| {
                         *bound == rigid && *scalar_type == mine.scalar_type
                     })

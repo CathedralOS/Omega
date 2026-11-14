@@ -2463,3 +2463,65 @@ mod closed_contract_scope {
         assert_eq!(resolve(&separate, 1, "Console", SymbolKind::Data), None);
     }
 }
+
+/*
+    `u13` is a builtin type the same way `u32` is: one symbol per carrier,
+    whose atom is the carrier. Only where the symbol sits differs: eight
+    carriers have fixed root slots, the others are installed on request.
+*/
+mod integer_types {
+    use crate::{
+        BuiltinTypeAtom, SymbolKind, SymbolNameRef, SymbolTableBuilder, builtin_type_symbols,
+    };
+    use numerics::integer_carrier::FixedInteger;
+
+    #[test]
+    fn a_carrier_without_a_fixed_slot_has_one_installed_symbol() {
+        let mut builder = SymbolTableBuilder::new();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        builder.insert_children(
+            root,
+            builtin_type_symbols()
+                .into_iter()
+                .chain([(SymbolKind::Data, SymbolNameRef::Static("u7"))]),
+        );
+        let mut table = builder.finish();
+        let odd = BuiltinTypeAtom::Integer(FixedInteger::unsigned(13));
+        let word = BuiltinTypeAtom::Integer(FixedInteger::unsigned(32));
+        assert_eq!(table.builtin_atom_symbol(odd), None);
+        let fixed = table.builtin_atom_symbol(word).unwrap();
+        assert_eq!(table.builtin_type_atom(fixed), Some(word));
+
+        table.install_integer_types([
+            FixedInteger::unsigned(13),
+            FixedInteger::unsigned(32),
+            FixedInteger::unsigned(13),
+            FixedInteger::signed(13),
+        ]);
+        let installed = table.builtin_atom_symbol(odd).unwrap();
+        assert_eq!(table.name(installed), "u13");
+        assert_eq!(table.get(installed).kind, SymbolKind::BuiltinType);
+        assert_eq!(table.builtin_type_atom(installed), Some(odd));
+        assert_ne!(
+            table.builtin_atom_symbol(BuiltinTypeAtom::Integer(FixedInteger::signed(13))),
+            Some(installed)
+        );
+        /* A carrier with a fixed slot keeps it and gains no second symbol. */
+        assert_eq!(table.builtin_atom_symbol(word), Some(fixed));
+        assert_eq!(table.root_children_named("u32").count(), 1);
+        /* Installing a carrier again finds the symbol it already has. */
+        table.install_integer_types([FixedInteger::unsigned(13)]);
+        assert_eq!(table.builtin_atom_symbol(odd), Some(installed));
+        assert_eq!(table.root_children_named("u13").count(), 1);
+
+        /* A declaration spelled like a carrier is that declaration, not the carrier. */
+        let declared = table.root_children_named("u7").next().unwrap();
+        assert_eq!(table.builtin_type_atom(declared), None);
+        let seven = BuiltinTypeAtom::Integer(FixedInteger::unsigned(7));
+        assert_eq!(table.builtin_atom_symbol(seven), None);
+        table.install_integer_types([FixedInteger::unsigned(7)]);
+        let carrier = table.builtin_atom_symbol(seven).unwrap();
+        assert_ne!(carrier, declared);
+        assert_eq!(table.builtin_type_atom(carrier), Some(seven));
+    }
+}

@@ -371,9 +371,10 @@ pub(crate) mod progress {
             typed::expression::ExpressionNode::Member(member) => {
                 let mut subject = subject_path(program, member.receiver, parameters)?;
                 let symbol = member
-                    .member_symbol
+                    .selection
+                    .field_symbol()
                     .is_valid()
-                    .then_some(member.member_symbol)
+                    .then_some(member.selection.field_symbol())
                     .or_else(|| {
                         resolve_subject_member_symbol(
                             program,

@@ -27,7 +27,7 @@ impl Program<'_> {
     ) -> Checked<Expression> {
         // A literal constructs the bare carrier, whatever its context
         // expects: a qualified destination then refuses the plain value.
-        let Some(ValueType::Record(array, _)) = expected else {
+        let Some(ValueType::Record(array, _, regions)) = expected else {
             return Err(refuse(
                 machine,
                 Construct::Machine,
@@ -35,7 +35,9 @@ impl Program<'_> {
             ));
         };
         let (element, extent) = self.array_element(machine, array)?;
-        let declared = self.storage_value_type(machine, element)?;
+        // An array value holds its elements' regions (`array_type`).
+        let declared =
+            super::places::with_regions(self.storage_value_type(machine, element)?, regions);
         let supplied = self.typed.expression_table.expression_handles(supplied);
         if u64::try_from(supplied.len()).ok() != Some(extent) {
             return Err(refuse(
@@ -47,7 +49,7 @@ impl Program<'_> {
         let mut elements = Vec::with_capacity(supplied.len());
         for handle in supplied {
             let element = self.expression(machine, slots, *handle, Some(declared))?;
-            if element.result != Some(declared) {
+            if !self.agrees(element.result, declared) {
                 return Err(refuse(
                     machine,
                     Construct::Machine,
@@ -58,7 +60,7 @@ impl Program<'_> {
         }
         Ok(Expression {
             kind: ExpressionKind::Array { elements },
-            result: Some(ValueType::record(array)),
+            result: Some(ValueType::Record(array, Qualification::NONE, regions)),
             source,
         })
     }
@@ -79,7 +81,11 @@ impl Program<'_> {
             ));
         };
         let (element, _) = self.array_element(machine, array)?;
-        let result = self.storage_value_type(machine, element)?;
+        let regions = base
+            .result
+            .map_or(crate::body::Regions::NONE, ValueType::regions);
+        let result =
+            super::places::with_regions(self.storage_value_type(machine, element)?, regions);
         let index_type = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| {
             refuse(
                 machine,
@@ -146,7 +152,7 @@ impl Program<'_> {
                 scalar_type,
                 policy: Some(policy),
             } => ValueType::Scalar(scalar_type, Qualification::of_policy(policy)),
-            _ => ValueType::Record(storage, Qualification::NONE),
+            _ => ValueType::record(storage),
         })
     }
 
@@ -178,7 +184,7 @@ impl Program<'_> {
             matches!(&row.shape, StorageShape::FixedArray { element: known, length }
                 if *known == element && *length == extent)
         }) {
-            return Ok(ValueType::Record(id, Qualification::NONE));
+            return Ok(ValueType::Record(id, Qualification::NONE, value.regions()));
         }
         let copyable = self.data_type(machine, element)?.copyable;
         let identity = self.storage_identity(machine, reference)?;
@@ -192,7 +198,9 @@ impl Program<'_> {
             requires: Vec::new(),
         });
         self.record_sources.push(physical_source(reference));
-        Ok(ValueType::Record(id, Qualification::NONE))
+        // The row is the element's carrier; the regions its elements hold
+        // belong to the array value's type, as a record's do (`regions`).
+        Ok(ValueType::Record(id, Qualification::NONE, value.regions()))
     }
 
     fn storage_type(
@@ -212,7 +220,7 @@ impl Program<'_> {
                     Unserved::Type("array of elements that carry a declared domain"),
                 ));
             }
-            ValueType::Record(id, Qualification::NONE) => return Ok(id),
+            ValueType::Record(id, Qualification::NONE, _) => return Ok(id),
             ValueType::Record(..) => {
                 return Err(refuse(
                     machine,

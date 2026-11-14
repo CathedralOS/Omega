@@ -354,8 +354,8 @@ impl Program<'_> {
                             source.region_owner,
                             machine,
                         )?
-                        .is_some_and(|(source_carrier, identity)| {
-                            source_carrier == carrier && identity == declaration.identity
+                        .is_some_and(|view| {
+                            view.carrier == carrier && view.identity == declaration.identity
                         })
                 } else {
                     carrier.is_shared_readable_view()
@@ -543,11 +543,13 @@ mod tests {
                     id: StructuralFieldId::new(3).unwrap(),
                     identity: "first".into(),
                     value_type: scalar,
+                    byte_predicates: semantic_vocabulary::ByteSequencePredicateSet::EMPTY,
                 },
                 RecordField {
                     id: StructuralFieldId::new(7).unwrap(),
                     identity: "second".into(),
                     value_type: scalar,
+                    byte_predicates: semantic_vocabulary::ByteSequencePredicateSet::EMPTY,
                 },
             ]),
             requires: Vec::new(),
@@ -655,14 +657,8 @@ mod tests {
             let mut builtins = SymbolTableBuilder::child_handles(
                 builder.insert_children(
                     root,
-                    BuiltinTypeAtom::ALL
-                        .iter()
-                        .map(|atom| {
-                            (
-                                SymbolKind::BuiltinType,
-                                SymbolNameRef::Static(atom.symbol_name()),
-                            )
-                        })
+                    symbols::builtin_type_symbols()
+                        .into_iter()
                         .chain([(SymbolKind::Data, token("Container"))]),
                 ),
             )
@@ -791,15 +787,15 @@ mod tests {
         let nested = fixture.apply(second, second);
         let alias = fixture.apply(fixture.u64_type, fixture.u64_type);
         let mut program = Program::new(&fixture.typed, false);
-        let ValueType::Record(first_record, _) = program.record_at(machine(), first).unwrap()
+        let ValueType::Record(first_record, _, _) = program.record_at(machine(), first).unwrap()
         else {
             panic!("record");
         };
-        let ValueType::Record(second_record, _) = program.record_at(machine(), second).unwrap()
+        let ValueType::Record(second_record, _, _) = program.record_at(machine(), second).unwrap()
         else {
             panic!("record");
         };
-        let ValueType::Record(nested_record, _) = program.record_at(machine(), nested).unwrap()
+        let ValueType::Record(nested_record, _, _) = program.record_at(machine(), nested).unwrap()
         else {
             panic!("record");
         };

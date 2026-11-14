@@ -50,7 +50,7 @@ public DescriptorCalling satisfies CallingPolicy {
             BoundaryPlanResult::Accepted { plan: selected }
         }
         machine rejected() -> BoundaryPlanResult {
-            BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "one word parameter and result required" } }
+            BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "one word parameter and result required" as +Utf8 } }
         }
     }
 }
@@ -81,7 +81,7 @@ public UnusedDescriptorCalling satisfies CallingPolicy {
             BoundaryPlanResult::Accepted { plan: scalar_plan }
         }
         machine rejected() -> BoundaryPlanResult {
-            BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "one word parameter and result required" } }
+            BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "one word parameter and result required" as +Utf8 } }
         }
     }
 }

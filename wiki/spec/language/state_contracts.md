@@ -306,6 +306,60 @@ This is an advisory diagnostic, not an inherent language error. Proving the path
 impossible, pruning its emitted code and issuing a warning are separate decisions.
 Proof soundness does not depend on pruning or on warning emission.
 
+## Statements after a call that never returns
+
+Named decision: `code-after-no-return-call`, settled 2026-11-13.
+
+When checked call information excludes normal return, the call has no normal
+successor. Executable statements written after it on that path are unreachable,
+not inherently erroneous: the program is accepted and the statements never
+execute.
+
+```omega
+machine shutdown(code: i32)
+reaches ProcessExit
+{
+    ProcessExit::exit_process(code);
+
+    let unused: u32 = 7; // Warning: unreachable after a non-returning call.
+}
+```
+
+This is the [unreachable-branch](#unreachable-branches) policy applied to a
+statement sequence, not a second rule:
+
+| Situation | Result |
+| --- | --- |
+| Checked evidence establishes that the call cannot return normally | The following executable statements are accepted as unreachable, with a warning by default. |
+| The call can return on some paths | The continuation is checked on those returning paths. |
+| Non-return is unknown | The continuation is not assumed unreachable. |
+| Unreachability arises only through generic specialization or compile-time selection | Accepted; no warning solely for that specialization. |
+| Nested machine declarations follow the call | They are declarations, not statements after the call, and are checked normally. |
+
+The evidence is the call's checked outcome information under the ordinary
+contract and summary-visibility rules. A callee's name, a reach ceiling or an
+optimizer's prediction is not evidence: `reaches ProcessExit` means the callee
+may exit, not that it always does ([process exit](process_exit.md#progress-and-conditional-calls)).
+
+Unreachable statements are still source. Syntax, name resolution, types and
+declaration validity are checked as usual; an unknown machine name or malformed
+type is an error wherever it appears. Obligations that would need an execution
+of the impossible continuation demand no fresh proofs, resources or ownership
+dispositions. The reachable prefix, including argument evaluation and the
+call's own authority and requirement checks, is checked in full.
+
+No normal return is invented. Unreachable statements contribute no executed
+continuation, no synthetic Unit result, no cleanup edge after the call, no
+ownership frontier, and no `ensures` fact handed to a surviving continuation.
+A call that ends by process exit keeps its
+[abandonment](process_exit.md#abandonment-and-survivors) meaning.
+
+Issue one advisory warning at the first unreachable executable statement, with
+a note locating the call that prevents continuation, not one per following
+statement. As with unreachable branches, the warning is not a language error,
+and soundness depends on neither the warning nor pruning. No `never` type,
+keyword or completion mechanism is introduced.
+
 ## Terminal calls in transition arms
 
 Resolve every called target as a machine, nested or otherwise. A terminal call

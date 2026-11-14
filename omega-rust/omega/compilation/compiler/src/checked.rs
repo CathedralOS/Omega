@@ -26,8 +26,8 @@ mod target_preparation;
 mod test_roots;
 
 pub use artifacts::compile_timings::counters::{
-    checked_compilation_call_count, preliminary_check_totals, settled_check_totals,
-    source_assembly_invocation_count, typed_frontier_reuse_count,
+    checked_compilation_call_count, settled_check_totals, source_assembly_invocation_count,
+    typed_frontier_reuse_count,
 };
 pub use checking::compile_thread::{
     COMPILE_STACK_SIZE, run_on_compile_thread, spawn_compile_worker,
