@@ -7926,7 +7926,7 @@ pub(crate) mod storage_foundations {
                             byte_offset: 0,
                             stored_scalar: Some(scalar(32)),
                         }),
-                        inline_carrier: None,
+                        inline_carrier: Some(ty(1)),
                         relevance: BindingRelevance::Relevant,
                     }],
                     storage: StructuralRecordStorage::Authored(AuthoredRecordStorage {

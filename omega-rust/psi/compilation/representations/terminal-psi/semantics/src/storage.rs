@@ -3,6 +3,7 @@ Semantic judgments for activation storage, arrival storage, borrowed storage pro
 storage dependency tracking across `TerminalMachine` blocks.
 */
 
+pub mod place_paths;
 pub mod type_graph;
 
 pub mod activation_storage {
@@ -2113,7 +2114,9 @@ pub mod borrowed_storage {
                 .position(|segment| {
                     !matches!(
                         segment,
-                        StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+                        StructuralPathSegment::Field(_)
+                            | StructuralPathSegment::FixedIndex(_)
+                            | StructuralPathSegment::RepresentationView { .. }
                     )
                 })
                 .unwrap_or(path.len());
@@ -2290,6 +2293,7 @@ pub mod borrowed_storage {
                                 }
                                 StructuralPathSegment::Field(_)
                                 | StructuralPathSegment::Case(_)
+                                | StructuralPathSegment::RepresentationView { .. }
                                     if offset.is_none() =>
                                 {
                                     result.push(Exact(segment.clone()))
@@ -2372,6 +2376,23 @@ pub mod borrowed_storage {
             }
             composed
         }
+    }
+
+    #[cfg(test)]
+    #[test]
+    fn exact_storage_projection_keeps_the_view_between_its_prefix_and_suffix() {
+        let prefix = StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(31));
+        let view = StructuralPathSegment::RepresentationView {
+            structural_type: StructuralTypeId::new(1).unwrap(),
+            stored_scalar: None,
+        };
+        let suffix = StructuralPathSegment::FixedIndex(3);
+        let projection = Projection::new(&[prefix.clone()])
+            .then(&Projection::new(&[view.clone()]))
+            .then(&Projection::new(&[suffix.clone()]));
+        assert!(projection.exact);
+        assert!(!projection.indirect);
+        assert_eq!(projection.path, [prefix, view, suffix]);
     }
 
     #[derive(Clone)]
