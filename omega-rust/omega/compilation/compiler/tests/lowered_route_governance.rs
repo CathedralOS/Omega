@@ -105,8 +105,9 @@ fn a_rejection_is_reported_as_the_route_reports_it() {
     );
 }
 
-/// A bound entry that returns a value fails the route's source-owned calling
-/// shape, and the compilation reports that diagnostic.
+/// Bound entries owe both their source-owned calling shape and every
+/// continuation precondition, including bindings outside the requested target.
+/// The product check reports the route's actual rejection in each case.
 #[test]
 fn an_invalid_bound_entry_reports_the_routes_rejection() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
@@ -128,4 +129,51 @@ fn an_invalid_bound_entry_reports_the_routes_rejection() {
             .all(|message| !message.starts_with(NO_PRODUCT_ROUTE)),
         "{messages:#?}"
     );
+
+    for (fixture, callee, clause, expected_calls) in [
+        (
+            "tests/fixtures/fail/build/program_entry_unestablished_requires",
+            "launch",
+            "false",
+            3,
+        ),
+        (
+            "tests/fixtures/fail/build/unrequested_target_entry_unestablished_requires",
+            "other",
+            "0 == 1",
+            1,
+        ),
+    ] {
+        let (messages, verdict) = rejected(fixture);
+        let RouteVerdict::Rejected {
+            formations,
+            unproved,
+            ..
+        } = verdict
+        else {
+            panic!("the installed call must reject: {verdict:?}");
+        };
+        assert!(formations.is_empty(), "the calling shape is valid");
+        assert_eq!(
+            unproved.len(),
+            expected_calls,
+            "each binding owes its own call"
+        );
+        for failure in unproved {
+            assert!(!failure.cause.is_incomplete(), "{failure:?}");
+            let message = failure.message();
+            assert!(
+                message.contains(&format!("requires contract for call {callee}")),
+                "{message}"
+            );
+            assert!(message.contains(clause), "{message}");
+            assert!(messages.contains(&message), "{messages:#?}");
+        }
+        assert!(
+            messages
+                .iter()
+                .all(|message| !message.starts_with(NO_PRODUCT_ROUTE)),
+            "{messages:#?}"
+        );
+    }
 }

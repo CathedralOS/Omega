@@ -7279,7 +7279,7 @@ impl TypedTrees {
         let reference = self
             .type_reference_table
             .unconstrained_type_reference(reference);
-        self.closed_data_definition(reference)
+        self.closed_data_field_definition(reference)
             .or_else(|| self.data_application_definition(reference))
     }
 
@@ -7287,10 +7287,28 @@ impl TypedTrees {
         &self,
         reference: TypeReferenceHandle,
     ) -> Option<&data::DataDefinition> {
-        self.closed_data_definition(
-            self.type_reference_table
-                .unconstrained_type_reference(reference),
-        )
+        // A field keeps its semantic type through a representation choice,
+        // including before that choice's geometry has been evaluated. Following
+        // the authenticated storage argument grants no layout or access rights.
+        let mut reference = reference;
+        for _ in 0..=self.type_reference_table.type_reference_count() {
+            if !self.type_reference_table.contains_type_reference(reference) {
+                return None;
+            }
+            match self.type_reference_table.type_reference(reference) {
+                crate::types::TypeReferenceNode::Constrained { base_type, .. } => {
+                    reference = *base_type;
+                }
+                crate::types::TypeReferenceNode::Generic { .. } => {
+                    match self.layout_storage_arguments(reference) {
+                        Some(storage) => reference = storage.semantic_type,
+                        None => return self.closed_data_definition(reference),
+                    }
+                }
+                _ => return self.closed_data_definition(reference),
+            }
+        }
+        None
     }
 
     pub fn closed_data_definition(
@@ -7357,7 +7375,7 @@ impl TypedTrees {
         reference: TypeReferenceHandle,
         authored: SymbolHandle,
     ) -> Option<&data::DataDefinition> {
-        self.closed_data_definition(reference)?;
+        self.closed_data_field_definition(reference)?;
         self.data_constructor_definition(reference, authored)
     }
 
@@ -7437,7 +7455,7 @@ impl TypedTrees {
         authored: SymbolHandle,
         retained: SymbolHandle,
     ) -> Option<&data::DataField> {
-        self.closed_data_definition(reference)?;
+        self.closed_data_field_definition(reference)?;
         self.data_constructor_field(reference, authored, retained)
     }
 
@@ -7539,7 +7557,7 @@ impl TypedTrees {
         retained: SymbolHandle,
         member_name: &str,
     ) -> Option<&data::DataField> {
-        let instance = self.closed_data_definition(reference)?;
+        let instance = self.closed_data_field_definition(reference)?;
         let mut fields =
             self.data_members(instance)
                 .iter()

@@ -65,6 +65,10 @@ pub fn substitute_clause<Error: From<&'static str>>(
     Ok(match proposition {
         Proposition::Truth => Proposition::Truth,
         Proposition::Falsehood => Proposition::Falsehood,
+        // An opaque proposition has no bindable scalar or storage name.
+        // Its enclosing proposition scope owns its complete meaning; this
+        // preserves that identity and introduces no premise or proof.
+        Proposition::Atom(atom) => Proposition::Atom(*atom),
         Proposition::Equal(left, right) => Proposition::Equal(
             substitute_clause_term(left, bindings)?,
             substitute_clause_term(right, bindings)?,

@@ -34,7 +34,9 @@ mod casts;
 mod constant_values;
 mod contracts;
 mod expressions;
+pub(crate) mod logical;
 mod machine;
+mod mathematics;
 mod places;
 mod predicates;
 mod references;
@@ -859,6 +861,7 @@ mod tests {
         let u32_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
         let result = ValueId::new(2).unwrap();
         let exit = ClauseScope {
+            logical: None,
             subject: None,
             formal_fields: false,
             mathematical: MathematicalTerms::Served,
@@ -979,6 +982,7 @@ mod tests {
         let (mutable, immutable) = ([slot(true)], [slot(false)]);
         let values = [Some(value)];
         let scope = |slots, formal_fields| ClauseScope {
+            logical: None,
             subject: None,
             formal_fields,
             mathematical: MathematicalTerms::Served,
@@ -1134,6 +1138,7 @@ mod tests {
         let slots = [slot()];
         let values = [Some(value)];
         let scope = ClauseScope {
+            logical: None,
             slots: &slots,
             values: &values,
             bound: &[],
@@ -1637,6 +1642,7 @@ mod tests {
             None,
         );
         let scope = ClauseScope {
+            logical: None,
             subject: None,
             formal_fields: false,
             mathematical: MathematicalTerms::Served,
@@ -2125,6 +2131,7 @@ mod tests {
         let slots = [slot(rest), slot(count)];
         let values = [ValueId::new(1), ValueId::new(2)];
         let scope = |mathematical| ClauseScope {
+            logical: None,
             subject: None,
             formal_fields: true,
             mathematical,

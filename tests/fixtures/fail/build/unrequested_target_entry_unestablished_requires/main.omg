@@ -1,0 +1,7 @@
+// Expected checking rejection: the unrequested Windows binding still owes its precondition.
+// The arrival establishes each bound continuation's published precondition before invocation.
+machine launch() requires true { }
+trait EntryCondition {
+    machine enter() requires 0u32 == 1u32;
+}
+machine other() satisfies EntryCondition::enter { }

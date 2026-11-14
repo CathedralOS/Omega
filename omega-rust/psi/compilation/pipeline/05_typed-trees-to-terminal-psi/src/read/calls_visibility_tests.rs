@@ -271,10 +271,15 @@ fn selected_native_declarations_preserve_each_operational_flag() {
 }
 
 #[test]
-fn a_flagged_requirement_still_needs_its_operational_witness() {
+fn a_requirement_signature_retains_operational_promises_without_an_executable_body() {
     for (suspends, blocks) in [(true, false), (false, true)] {
         let fixture = Fixture::with_effects(true, suspends, blocks);
-        let refused = Program::new(&fixture.typed, false)
+        let (_, requirement) = fixture
+            .typed
+            .trait_machine_signature(fixture.requirement)
+            .unwrap();
+        let mut program = Program::new(&fixture.typed, false);
+        let identity = program
             .witnessed(
                 fixture.owner,
                 fixture.requirement,
@@ -282,7 +287,15 @@ fn a_flagged_requirement_still_needs_its_operational_witness() {
                 fixture.helper,
                 None,
             )
-            .unwrap_err();
-        assert_eq!(refused.detail, "machine suspends or blocks");
+            .expect("retain the signature for ordinary operational checking");
+        assert_eq!(program.symbols.get(identity), Some(&requirement.symbol));
+        let signature = program.signatures.get(identity).unwrap();
+        assert_eq!(signature.operational.suspension, Some(suspends));
+        assert_eq!(signature.operational.blocking, Some(blocks));
+        // Retaining an interface neither manufactures its body nor admits an
+        // executable call. Invocation acknowledgements and ceilings are checked
+        // by the ordinary lowered-form checker.
+        let refused = program.body(identity).unwrap_err();
+        assert_eq!(refused.detail, "call target is not a machine declaration");
     }
 }

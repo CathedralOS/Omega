@@ -205,7 +205,7 @@ fn a_boundary_requirement_is_judged_at_the_type_a_call_applies_it_at() {
 }
 
 #[test]
-fn an_unserved_operational_contract_cannot_be_added_to_a_lowered_boundary() {
+fn changed_boundary_effects_must_match_the_published_call_envelope() {
     for blocks in [false, true] {
         let mut elaboration = boundary("reaches none", 7).unwrap();
         let declaration = &mut elaboration.module.boundary_machines[0]
@@ -216,20 +216,21 @@ fn an_unserved_operational_contract_cannot_be_added_to_a_lowered_boundary() {
         declaration.published_may_block = blocks;
         declaration.published_may_suspend = !blocks;
         let refusal = discharge(&mut elaboration).unwrap_err();
-        assert_eq!(refusal.reason, RefusalReason::Unsupported);
+        assert_eq!(refusal.reason, RefusalReason::ForeignIdentity);
         assert_eq!(
             refusal.detail,
-            "boundary call needs its suspension and blocking proof"
+            "published operational contract differs from its declared or inferred envelope"
         );
     }
 }
 
 #[test]
 fn source_boundary_effects_still_require_their_invocation_proof() {
-    for effect in ["suspends", "blocks"] {
+    for (effect, acknowledgement) in [("suspends", "suspend"), ("blocks", "block")] {
         // The source declares the effect; no mutation of the published
         // metadata supplies it. This ordinary call has no operational proof.
-        let mut elaboration = boundary(&format!("reaches none {effect}"), 7)
+        let text = boundary_source(&format!("reaches none {effect}"), 7);
+        let mut elaboration = invocation(typed(&text))
             .expect("the declared boundary contract reaches invocation checking");
         let published = &elaboration.module.boundary_machines[0]
             .declaration
@@ -239,10 +240,14 @@ fn source_boundary_effects_still_require_their_invocation_proof() {
         assert_eq!(published.published_may_suspend, effect == "suspends");
         assert_eq!(published.published_may_block, effect == "blocks");
         let refusal = discharge(&mut elaboration).unwrap_err();
-        assert_eq!(refusal.reason, RefusalReason::Unsupported);
+        let RefusalReason::Violation(Some(site)) = refusal.reason else {
+            panic!("expected the authored call's operational violation: {refusal:?}");
+        };
+        let call = text.rfind("read(").expect("the authored boundary call");
+        assert_eq!(site.span, source::Span::new(call, call + "read".len()));
         assert_eq!(
             refusal.detail,
-            "boundary call needs its suspension and blocking proof"
+            format!("call may {acknowledgement} and requires a {acknowledgement} acknowledgement")
         );
     }
 }

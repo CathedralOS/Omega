@@ -273,6 +273,7 @@ impl Program<'_> {
             result: ResultTerm::Absent("result in a domain predicate"),
             subject: None,
             formal_fields: false,
+            logical: None,
             mathematical: MathematicalTerms::Refused(
                 "mathematical comparison in a domain predicate",
             ),
@@ -399,6 +400,7 @@ impl Program<'_> {
                 owner: SymbolHandle::invalid(),
                 result: ResultTerm::Absent("result in a domain predicate"),
                 formal_fields: false,
+                logical: None,
                 mathematical: MathematicalTerms::Refused(
                     "mathematical comparison in a domain predicate",
                 ),

@@ -151,7 +151,7 @@ pub(crate) fn collection_field_type(
         .type_reference_table
         .peeled_type_reference(reference);
     let definition = program
-        .closed_data_definition(reference)
+        .closed_data_field_definition(reference)
         .ok_or_else(|| crate::unavailable_judgment("applied collection field type"))?;
     let field = program
         .data_constructor_field(reference, definition.symbol, symbol)
@@ -197,6 +197,35 @@ pub(crate) fn declared_callable_value_type(
     // is a value query, not a writable-place query or admission of an `old`
     // subject: the lowered reader still checks its input identity and phase.
     let table = &program.expression_table;
+    // A suffixed literal fixes its own carrier. Reading a receiving type here
+    // could re-land it in a different carrier or silently drop its policy.
+    let literal = if table.expression_is_valid(target) {
+        match table.expression(target) {
+            ExpressionNode::Integer(literal) => literal.landing().map(|landing| {
+                (
+                    typed_trees::types::builtin_type_atom(landing.landed_type),
+                    landing.domain,
+                )
+            }),
+            ExpressionNode::Boolean(_) => Some((
+                symbols::BuiltinTypeAtom::Bool,
+                numerics::arithmetic::ArithmeticDomain::Exact,
+            )),
+            _ => None,
+        }
+    } else {
+        None
+    };
+    if let Some((atom, policy)) = literal {
+        let symbol = program
+            .symbols
+            .builtin_atom_symbol(atom)
+            .ok_or_else(|| crate::unavailable_judgment("literal's retained carrier"))?;
+        return program
+            .type_reference_table
+            .find_arithmetic_result_type_reference(symbol, policy)
+            .ok_or_else(|| crate::unavailable_judgment("literal's retained qualified type"));
+    }
     let mut target = target;
     for _ in 0..table.expression_count() {
         if !table.expression_is_valid(target) {
@@ -403,7 +432,7 @@ fn declared_field_type(
         .type_reference_table
         .peeled_type_reference(reference);
     let data = program
-        .closed_data_definition(carrier)
+        .closed_data_field_definition(carrier)
         .ok_or_else(|| crate::unavailable_judgment("assignment field application"))?;
     let mut fields = program
         .data_members(data)
