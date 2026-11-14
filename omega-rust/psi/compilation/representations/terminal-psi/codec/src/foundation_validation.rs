@@ -652,7 +652,7 @@ pub(crate) mod call_foundations {
             || !matches!(declaration.scalar_parameters.first(),
                 Some(semantic_vocabulary::ScalarType::Integer(integer))
                     if integer.sign() == semantic_vocabulary::IntegerSign::Signed
-                        && integer.bits() == 32 && !integer.is_address())
+                        && integer.bits() == Some(32) && !integer.is_address())
             || !declaration.structural_parameters.is_empty()
         {
             return malformed(
@@ -847,7 +847,7 @@ pub(crate) mod call_foundations {
         }
         let matches_carrier = |scalar, carrier: RegisterCarrier| {
             matches!(scalar, semantic_vocabulary::ScalarType::Integer(integer)
-                if !integer.is_address() && integer.bits() == carrier.bits()
+                if !integer.is_address() && integer.bits() == Some(carrier.bits())
                     && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned)
         };
         let signature = event.operation();
@@ -3599,7 +3599,7 @@ pub(crate) mod scalar_applications {
                     if !matches!(scalar_type, ScalarType::Integer(integer)
                         if integer.carrier() == IntegerCarrier::Fixed
                             && integer.sign() == IntegerSign::Unsigned
-                            && integer.bits() == 64)
+                            && integer.bits() == Some(64))
                     {
                         return malformed(
                             "layout observation result is not the byte-count carrier",
@@ -5334,7 +5334,7 @@ pub(crate) mod storage_foundations {
                 || !machine.operations().any(|candidate| {
                     matches!(&candidate.kind, OperationKind::ByteSequenceLength { source: measured } if measured.place == *source && measured.path.is_empty())
                         && candidate.result.scalar_ref().is_some_and(|result| result.id == *length
-                            && matches!(result.scalar_type, ScalarType::Integer(integer) if integer.sign() == IntegerSign::Unsigned && integer.bits() == 64))
+                            && matches!(result.scalar_type, ScalarType::Integer(integer) if integer.sign() == IntegerSign::Unsigned && integer.bits() == Some(64)))
                 })
             {
                 return malformed("byte field store source or exact length is invalid");
@@ -5350,7 +5350,7 @@ pub(crate) mod storage_foundations {
             };
             if operation.result.scalar().is_none_or(|result| {
                 !matches!(result.scalar_type, ScalarType::Integer(integer)
-                    if integer.sign() == IntegerSign::Unsigned && integer.bits() == 64)
+                    if integer.sign() == IntegerSign::Unsigned && integer.bits() == Some(64))
             }) {
                 return malformed("byte field length requires an unsigned 64-bit scalar result");
             }
@@ -7328,7 +7328,7 @@ pub(crate) mod storage_foundations {
         if let Some(storage) = storage {
             let offset_type = declared_scalar_type(machine, storage.byte_offset);
             let offset_is_u64 = matches!(offset_type, Some(ScalarType::Integer(integer))
-                if !integer.is_address() && integer.bits() == 64
+                if !integer.is_address() && integer.bits() == Some(64)
                     && integer.sign() == IntegerSign::Unsigned);
             if !offset_is_u64 {
                 return malformed("reference storage offset is not a u64 scalar");
@@ -7911,7 +7911,7 @@ pub(crate) mod storage_foundations {
                             element.shape,
                             StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
                                 if !integer.is_address()
-                                    && integer.bits() == bits
+                                    && integer.bits() == Some(bits)
                                     && integer.sign() == IntegerSign::Unsigned
                         )
                 }),
@@ -9956,7 +9956,7 @@ pub(crate) mod value_foundations {
         if regions.len() != 2
             || regions.iter().any(|field| field.relevance.is_erased())
             || !address(&regions[0])
-            || !matches!(regions[1].field_type, StructuralFieldType::Scalar(semantic_vocabulary::ScalarType::Integer(ty)) if !ty.is_address() && ty.sign() == semantic_vocabulary::IntegerSign::Unsigned && ty.bits() == 64)
+            || !matches!(regions[1].field_type, StructuralFieldType::Scalar(semantic_vocabulary::ScalarType::Integer(ty)) if !ty.is_address() && ty.sign() == semantic_vocabulary::IntegerSign::Unsigned && ty.bits() == Some(64))
         {
             return malformed("native code layout region needs base addr and length u64");
         }
@@ -11022,7 +11022,7 @@ fn validate_operation_foundation(
         }
         OperationKind::EstablishActivationClaim { committed, .. } => {
             if !matches!(declared_scalar_type(machine, *committed), Some(ScalarType::Integer(integer))
-                if integer.bits() == 64 && integer.sign() == IntegerSign::Unsigned
+                if integer.bits() == Some(64) && integer.sign() == IntegerSign::Unsigned
                     && integer.carrier() == IntegerCarrier::Fixed)
             {
                 return malformed(
@@ -11048,7 +11048,7 @@ fn validate_operation_foundation(
             if operation.result.structural().is_none()
                 || source.access != StructuralAccess::Owned
                 || !matches!(declared_scalar_type(machine, *committed_at), Some(ScalarType::Integer(integer))
-                    if integer.bits() == 64 && integer.sign() == IntegerSign::Unsigned
+                    if integer.bits() == Some(64) && integer.sign() == IntegerSign::Unsigned
                         && integer.carrier() == IntegerCarrier::Fixed)
             {
                 return malformed(
