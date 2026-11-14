@@ -220,13 +220,6 @@ framework or a list of features that remain unimplemented.
 - Cost: a second, looser reading of the Provider position stays served for no library; delete `DefaultClosure` and the `ProviderForm` parameter, turn the test into the refusal twin, and give the probe a named implementation
 - Reported: 2026-11-14, worker-15 (Claude Code), while moving std's ProcessExit defaults to a named implementation
 
-### Const evaluation still keys integer carriers by spelling and folds in i128
-- Category: branch per shape
-- Where: Stage 02's `preparation_const_evaluation.rs`
-- Saw: the const evaluator keys integer carriers by type-name strings and folds in `i128`, so it serves widths to 64 bits for shifts and 127 for ranges
-- Cost: constant evaluation discards the authoritative integer metadata and narrows otherwise valid width-indexed arithmetic to host-integer limits
-- Reported: 2026-11-13, Claude Code, while replacing the eight integer names with a sign and a width
-
 ### The lowered form drops declared domains, so only the reader knows a value's type
 - Category: a verdict with nothing behind it
 - Where: `05_typed-trees-to-terminal-psi/src/lower.rs` and `policy.rs` (`qualifications: ScalarQualificationSetId::ZERO`); `terminal-psi/src/types_and_values.rs` (`ScalarQualificationCatalog`, `ScalarDomainDeclaration`, `ScalarQualificationCoercion`)
@@ -380,3 +373,10 @@ framework or a list of features that remain unimplemented.
 - Saw: `omega run --both` on the unchanged fixture reports `cannot prove requires contract for call settle from main: inferred input condition`, with `kernel Certificate(IntegerOrderMiddleMismatch)`, before either engine runs. Observed on Windows x86-64 with the scalar receiving-type diagnostic repair, then reproduced at the same line after restoring all changed production files exactly to `44ed2132219fb20261abeab4ef3e61b4ab0f845a` and rebuilding `omega` through `mbx`. The fixture is unchanged, and its contracts and guards were not weakened.
 - Cost: a simple scalar contract program cannot provide native/Psi execution evidence, and an invalid proof certificate is surfaced as a caller fact it should establish instead of identifying the proof producer's disagreement with the kernel
 - Reported: 2026-11-14, Codex, while checking scalar receiving-type diagnostics
+
+### Nominal const-domain bounds recover data properties by a name scan
+- Category: identity re-derived by a consumer
+- Where: Stage 02 `preparation_const_evaluation.rs`, `carrier_satisfies_declared_bounds`
+- Saw: the non-scalar branch receives a carrier display string and takes the first root data header with that name; the selected nominal declaration does not accompany this property query
+- Cost: generic-domain bound checking cannot rejoin the declaration that owns the value and instead depends on root order when package instances contain same-named data
+- Reported: 2026-11-14, Codex worker-22, while preserving integer metadata through constant evaluation
