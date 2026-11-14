@@ -335,12 +335,21 @@ pub mod descriptor_lifetimes {
                         let field = exactly_one(fields.iter(), |field| {
                             field.id == *id && !field.relevance.is_erased()
                         })?;
+                        // A leaf field that states its carrier names its
+                        // exact declaration. Reading it back from the leaf
+                        // shape finds nothing as soon as two declarations
+                        // share that shape, as the byte views of two regions
+                        // do, and a path ending at such a field would then
+                        // have no type at all.
                         tip = match field.field_type {
                             StructuralFieldType::Structural(id) => Some(id),
-                            _ => field
-                                .field_type
-                                .canonical_leaf_type()
-                                .and_then(|leaf| leaf.leaf_declaration(types.iter()))
+                            _ => crate::inline_carrier_declaration(types.iter(), field)
+                                .or_else(|| {
+                                    field
+                                        .field_type
+                                        .canonical_leaf_type()
+                                        .and_then(|leaf| leaf.leaf_declaration(types.iter()))
+                                })
                                 .map(|declaration| declaration.id),
                         };
                         StructuralPathSegment::Field(field.identity)
