@@ -583,7 +583,9 @@ fn names_requirement(
 
 /// The module-level demand tables whose rows need a plan this route cannot
 /// form yet. Each is named for what a program asked for, and an empty table
-/// asks for nothing.
+/// asks for nothing. Checked candidate declarations are inventory: reached
+/// choices join them through canonical realization and its actual execution
+/// inputs. They introduce no instance demand of their own.
 fn unplanned_demands(module: &TerminalModule) -> Vec<&'static str> {
     [
         (
@@ -591,8 +593,7 @@ fn unplanned_demands(module: &TerminalModule) -> Vec<&'static str> {
             "an external provider realization",
         ),
         (
-            !module.provider_candidates.is_empty()
-                || !module.provider_instance_requirements.is_empty(),
+            !module.provider_instance_requirements.is_empty(),
             "a provider instance",
         ),
         (

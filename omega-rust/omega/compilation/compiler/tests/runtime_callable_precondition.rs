@@ -5,12 +5,13 @@
 
 use platform_custody::temporary_directory::TemporaryDirectory;
 use semantic_vocabulary::{IntegerValue, Proposition, ScalarTerm, ScalarType};
+use terminal_check_tables::compilation::TerminalCompilation;
 use terminal_check_tables::edges::{Actual, Callee};
 use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::values::ValueOrigin;
 use terminal_psi::{BoundaryParameterKind, OperationKind};
 use terminal_psi_to_terminal_psi::RouteVerdict;
-use typed_trees_to_terminal_psi::{Compilation, elaborate};
+use typed_trees_to_terminal_psi::{Compilation, prepare_compilation};
 
 // Preserved source SHA-256: 3e3e00c91368d7805f96ef210086bad767251abafc46ce5d0ad3c39cbc4a4154.
 const INVALID: &str = r#"// A machine value call must prove the public precondition for its actuals.
@@ -113,7 +114,7 @@ fn check_preserved_rejection() {
     let probe = declaration("probe");
     // This is a checking root with its authored parameters, not a hosted
     // ProgramEntry. The ordinary reader and judge own its complete closure.
-    let elaboration = elaborate(
+    let prepared = prepare_compilation(
         typed,
         Compilation {
             declaration_metadata: &[],
@@ -127,8 +128,21 @@ fn check_preserved_rejection() {
             providers: None,
             bindings: &[],
         },
-    )
-    .expect("the unchanged source must elaborate instead of reporting unsupported");
+        terminal_codec::TerminalPublication::Portable,
+    );
+    let prepared = match prepared.program {
+        TerminalCompilation::Prepared(prepared) => prepared,
+        stopped => panic!("the unchanged source must reach complete preparation: {stopped:?}"),
+    };
+    assert!(prepared.forms.is_empty());
+    assert!(
+        !prepared.witnesses.is_empty(),
+        "the named conformance owes its genuine refinement witness"
+    );
+    let elaboration = prepared
+        .closure
+        .as_ref()
+        .expect("the unchanged source must elaborate instead of reporting unsupported");
     assert!(elaboration.generic_templates.is_empty());
     let probe = elaboration
         .machines
@@ -241,8 +255,13 @@ fn check_preserved_rejection() {
         "one(scale, 200)"
     );
 
-    let verdict =
-        terminal_psi_to_terminal_psi::judge(Ok(elaboration)).expect("one ordinary source judgment");
+    let mut verdicts =
+        terminal_psi_to_terminal_psi::judge_compilation(TerminalCompilation::Prepared(prepared))
+            .into_iter();
+    let verdict = verdicts
+        .next()
+        .expect("the exact primary closure has a verdict")
+        .expect("one ordinary source judgment");
     let RouteVerdict::Rejected {
         formations,
         violations,
@@ -273,6 +292,12 @@ fn check_preserved_rejection() {
         }),
         "the selected call's exact public value <= 100 requirement must remain unproved: {unproved:?}"
     );
+    for verdict in verdicts {
+        assert!(
+            matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+            "each genuine supplemental refinement must accept: {verdict:?}",
+        );
+    }
 }
 
 #[test]
