@@ -157,10 +157,6 @@ machine use(byte: u8) { }"
         ),
         "expression byte of a view stored in a field"
     );
-    assert_eq!(
-        verdict("machine build_entry(path: &mut [u8]) requires path.len > 0 { path[0] = 1; }"),
-        "statement store into a value that is not a local"
-    );
 }
 
 #[test]
@@ -328,7 +324,7 @@ fn fixed_byte_arrays_can_supply_borrowed_view_parameters() {
             }}
             machine build_entry() {{
                 let mut bytes: [u8; 3] = [17, 42, 99];
-                use(count({access} bytes), middle({access} bytes));
+                use(count({access} bytes[..]), middle({access} bytes[..]));
                 use_byte(bytes[0]);
             }}
             machine use(extent: u64, middle: u8) {{}}
@@ -336,6 +332,27 @@ fn fixed_byte_arrays_can_supply_borrowed_view_parameters() {
         "#
         );
         assert_eq!(verdict(&program), "accepted", "{program}");
+    }
+}
+
+#[test]
+fn explicit_array_views_keep_exact_length_and_release_the_original_backing() {
+    for access in ["&", "&mut"] {
+        let program = format!(
+            r#"
+            machine demand(bytes: {access} [u8]) requires bytes.len == 3 {{}}
+            machine build_entry() {{
+                let mut bytes: [u8; 3] = [17, 42, 99];
+                let view: {access} [u8] = {access} bytes[..];
+                demand(view);
+                use_byte(bytes[0]);
+            }}
+            machine use_byte(byte: u8) {{}}
+        "#
+        );
+        assert_eq!(verdict(&program), "accepted", "{program}");
+        let wrong_length = program.replace("bytes.len == 3", "bytes.len == 4");
+        assert!(verdict(&wrong_length).starts_with("rejected"));
     }
 }
 
@@ -362,7 +379,7 @@ fn an_array_loan_keeps_its_element_type_and_requested_access() {
         machine use(extent: u64) {}
     "#
         ),
-        "typing argument types"
+        "rejected"
     );
     assert_eq!(
         verdict(
@@ -408,7 +425,7 @@ fn an_array_loan_keeps_its_element_type_and_requested_access() {
 #[test]
 fn an_empty_byte_window_requires_existing_array_backing() {
     let mut accepted = match judge_build(
-        "machine build_entry() { let bytes: [u8; 3] = [17, 42, 99]; use(&bytes); } \
+        "machine build_entry() { let bytes: [u8; 3] = [17, 42, 99]; use(&bytes[..]); } \
          machine use(bytes: &[u8]) {}",
     )
     .unwrap()
@@ -441,4 +458,311 @@ fn an_empty_byte_window_requires_existing_array_backing() {
     };
     *length = terminal_psi::ArrayExtent::Literal(0);
     assert!(terminal_semantics::fixed_byte_storage_window(types.iter(), array, &[]).is_none());
+}
+
+#[test]
+fn mutable_byte_stores_preserve_the_descriptor_and_its_bound() {
+    for program in [
+        "machine build_entry(bytes: &mut [u8]) requires bytes.len > 0 { bytes[0] = 42; use(bytes[0], bytes.len); } machine use(value: u8, length: u64) {}",
+        "machine prefix(bytes: &mut [u8]) -> u8 requires bytes.len > 1 { bytes[0] = 7; 42 } machine build_entry(bytes: &mut [u8]) requires bytes.len > 1 { bytes[1] = prefix(bytes); use(bytes[1]); } machine use(value: u8) {}",
+    ] {
+        match judge_build(program) {
+            Ok(RouteVerdict::Accepted(_)) => {}
+            Ok(RouteVerdict::Rejected {
+                unproved,
+                unestablished,
+                conflicts,
+                ..
+            }) => {
+                panic!(
+                    "{program}: unproved={:?}; storage={:?}; conflicts={conflicts:?}",
+                    unproved
+                        .iter()
+                        .map(|row| (&row.kind, &row.detail, &row.statement))
+                        .collect::<Vec<_>>(),
+                    unestablished
+                        .iter()
+                        .map(|row| &row.detail)
+                        .collect::<Vec<_>>()
+                );
+            }
+            other => panic!("{program}: {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn a_byte_store_needs_mutable_access_and_its_own_index_bound() {
+    for program in [
+        "machine build_entry(bytes: &mut [u8]) { bytes[0] = 42; }",
+        "machine build_entry(bytes: &mut [u8]) requires bytes.len > 0 { bytes[1] = 42; }",
+        "machine build_entry(other: &[u8], bytes: &mut [u8]) requires other.len > 0 { bytes[0] = 42; }",
+    ] {
+        assert_eq!(verdict(program), "rejected", "{program}");
+    }
+    assert_eq!(
+        verdict("machine build_entry(bytes: &[u8]) requires bytes.len > 0 { bytes[0] = 42; }"),
+        "statement store through a byte view without mutable access"
+    );
+    assert_eq!(
+        verdict(
+            "machine build_entry(bytes: & &mut [u8]) requires bytes.len > 0 { bytes[0] = 42; }"
+        ),
+        "statement store through shared descriptor storage"
+    );
+}
+
+#[test]
+fn a_byte_store_cannot_claim_another_measurement_or_access() {
+    use super::build_purpose::{frontier_of, package, roster, symbol};
+    let typed = frontier_of(
+        "machine product_entry() {}",
+        "machine build_entry(bytes: &mut [u8], other: &[u8]) requires bytes.len > 0 && other.len > 0 { let spare: [u8; 1] = [5]; bytes[0] = 42; }",
+    );
+    let entry = symbol(&typed, "build_entry");
+    let elaborate = || {
+        typed_trees_to_terminal_psi::elaborate_for(
+            &typed,
+            roster(&[entry], &[Some(package())], source::DependencyScope::Build),
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .unwrap()
+    };
+    assert!(matches!(
+        judge(Ok(elaborate())).unwrap(),
+        RouteVerdict::Accepted(_)
+    ));
+    for fault in 0..4 {
+        let mut changed = elaborate();
+        let array_type = changed
+            .module
+            .structural_types
+            .iter()
+            .find(|row| {
+                matches!(
+                    row.shape,
+                    terminal_psi::StructuralTypeShape::FixedArray { .. }
+                )
+            })
+            .unwrap()
+            .id;
+        let machine = changed
+            .module
+            .machines
+            .iter_mut()
+            .find(|machine| {
+                machine.operations().any(|operation| {
+                    matches!(operation.kind, OperationKind::ByteSequenceWrite { .. })
+                })
+            })
+            .unwrap();
+        match fault {
+            0 => {
+                let other = machine.structural_parameters[1].place;
+                let measurement = machine
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|block| &mut block.operations)
+                    .find(|operation| {
+                        matches!(operation.kind, OperationKind::ByteSequenceLength { .. })
+                    })
+                    .unwrap();
+                let OperationKind::ByteSequenceLength { source } = &mut measurement.kind else {
+                    unreachable!()
+                };
+                source.place = other;
+            }
+            1 => {
+                machine.structural_parameters[0].access =
+                    terminal_psi::StructuralAccess::SharedBorrow
+            }
+            2 => {
+                let store = machine
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|block| &mut block.operations)
+                    .find(|operation| {
+                        matches!(operation.kind, OperationKind::ByteSequenceWrite { .. })
+                    })
+                    .unwrap();
+                let OperationKind::ByteSequenceWrite { value, length, .. } = &mut store.kind else {
+                    unreachable!()
+                };
+                *value = *length;
+            }
+            3 => {
+                let array = machine
+                    .structural_places
+                    .iter()
+                    .find(|place| {
+                        matches!(place.kind,
+                    semantic_vocabulary::StructuralPlaceKind::OperationResult { structural_type, .. }
+                        if structural_type == array_type)
+                    })
+                    .unwrap()
+                    .id;
+                let measurement = machine
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|block| &mut block.operations)
+                    .find(|operation| {
+                        matches!(operation.kind, OperationKind::ByteSequenceLength { .. })
+                    })
+                    .unwrap();
+                let OperationKind::ByteSequenceLength { source } = &mut measurement.kind else {
+                    unreachable!()
+                };
+                source.place = array;
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            !matches!(judge(Ok(changed)), Ok(RouteVerdict::Accepted(_))),
+            "fault {fault} accepted"
+        );
+    }
+}
+
+#[test]
+fn a_shared_reference_kept_across_a_byte_store_prevents_the_write() {
+    let before = "machine build_entry(bytes: &mut [u8]) requires bytes.len > 0 { let observed: & &mut [u8] = &bytes; observe(observed); bytes[0] = 42; } machine observe(value: & &mut [u8]) {}";
+    assert_eq!(verdict(before), "accepted");
+    let across = "machine build_entry(bytes: &mut [u8]) requires bytes.len > 0 { let observed: & &mut [u8] = &bytes; bytes[0] = 42; observe(observed); } machine observe(value: & &mut [u8]) {}";
+    let actual = verdict(across);
+    assert!(actual.starts_with("rejected"), "{actual}");
+}
+
+#[test]
+fn byte_store_array_backing_program_is_checked_without_changing_its_operations() {
+    let program = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/fixtures/run/views/byte_view_store/main.omg"
+    ))
+    .replace("machine main()", "machine build_entry()");
+    assert_eq!(verdict(&program), "accepted");
+    let out_of_bounds = program.replace("put(&mut bytes[..], 1, 73)", "put(&mut bytes[..], 3, 73)");
+    assert_ne!(out_of_bounds, program);
+    assert_eq!(verdict(&out_of_bounds), "rejected");
+}
+
+#[test]
+fn replacing_a_stored_view_does_not_preserve_its_previous_extent() {
+    let program = r#"
+        data Holder<'a> { bytes: &'a [u8]; }
+        machine replace<'a>(holder: &mut Holder<'a>) { holder.bytes = ""; }
+        machine build_entry<'a>(holder: &mut Holder<'a>) requires holder.bytes.len > 0 {
+            replace(holder);
+            let selected: &[u8] = holder.bytes[0..1];
+        }
+    "#;
+    assert_eq!(verdict(program), "rejected");
+}
+
+#[test]
+fn writes_through_array_views_retire_old_backing_facts_not_saved_values() {
+    for write in [
+        "mutate(&mut bytes[..]);",
+        "let view: &mut [u8] = &mut bytes[..]; view[0] = 0; count(view.len);",
+    ] {
+        let source = |observed| {
+            format!(
+                r#"
+            machine mutate(bytes: &mut [u8]) requires bytes.len > 0 {{ bytes[0] = 0; }}
+            machine demand(value: u8) requires value == 17 {{}}
+            machine count(extent: u64) requires extent == 3 {{}}
+            machine build_entry() {{
+                let mut bytes: [u8; 3] = [17, 42, 99];
+                let saved: u8 = bytes[0];
+                {write}
+                demand({observed});
+            }}
+        "#
+            )
+        };
+        // The old scalar remains exactly what was read before mutation.
+        let saved = source("saved");
+        assert_eq!(verdict(&saved), "accepted", "{saved}");
+        // A later read of changed storage cannot reuse that old fact.
+        let changed = source("bytes[0]");
+        let refused = judge_build(&changed).unwrap();
+        let call_requirement = matches!(refused, RouteVerdict::Rejected { ref unproved, .. }
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. })));
+        assert!(
+            call_requirement,
+            "{write}: expected an unproved CallRequirement; verdict: {}",
+            verdict(&changed)
+        );
+    }
+}
+
+#[test]
+fn a_view_write_keeps_facts_about_sibling_fields() {
+    let source = r#"
+        data Packet { before: u8; bytes: [u8; 3]; after: u8; }
+        machine mutate(bytes: &mut [u8]) requires bytes.len > 0 { bytes[0] = 0; }
+        machine before(value: u8) requires value == 17 {}
+        machine after(value: u8) requires value == 99 {}
+        machine build_entry() {
+            let mut packet: Packet = Packet { before: 17, bytes: [17, 42, 99], after: 99 };
+            mutate(&mut packet.bytes[..]);
+            before(packet.before);
+            after(packet.after);
+        }
+    "#;
+    assert_eq!(verdict(source), "accepted");
+    let stale = source.replace("before(packet.before)", "before(packet.bytes[0])");
+    assert!(
+        verdict(&stale).starts_with("rejected"),
+        "{}",
+        verdict(&stale)
+    );
+}
+
+#[test]
+fn a_shared_array_view_cannot_observe_write_only_backing() {
+    use super::build_purpose::{frontier_of, package, roster, symbol};
+    let typed = frontier_of(
+        "machine product_entry() {}",
+        "machine build_entry(bytes: &mut [u8; 3]) { let view: &[u8] = &bytes[..]; }",
+    );
+    let entry = symbol(&typed, "build_entry");
+    let elaborate = || {
+        typed_trees_to_terminal_psi::elaborate_for(
+            &typed,
+            roster(&[entry], &[Some(package())], source::DependencyScope::Build),
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .unwrap()
+    };
+    assert!(matches!(
+        judge(Ok(elaborate())).unwrap(),
+        RouteVerdict::Accepted(_)
+    ));
+    let mut changed = elaborate();
+    let machine = changed
+        .module
+        .machines
+        .iter_mut()
+        .find(|machine| {
+            machine.operations().any(|operation| {
+                matches!(operation.kind, OperationKind::EstablishElementView { .. })
+            })
+        })
+        .unwrap();
+    machine.structural_parameters[0].access = terminal_psi::StructuralAccess::WriteOnlyBorrow;
+    let refused = judge(Ok(changed)).unwrap();
+    let category = match &refused {
+        RouteVerdict::Accepted(_) => "accepted".to_owned(),
+        RouteVerdict::Incomplete(_) => "incomplete".to_owned(),
+        RouteVerdict::FallBack(refusal) => format!("fallback: {}", refusal.detail),
+        RouteVerdict::Rejected { conflicts, .. } => format!(
+            "loan conflicts: {:?}",
+            conflicts.iter().map(|row| row.conflict).collect::<Vec<_>>()
+        ),
+    };
+    assert!(
+        matches!(refused, RouteVerdict::Rejected { ref conflicts, .. }
+        if conflicts.iter().any(|row| row.conflict == crate::LoanConflict::AccessExceedsParent)),
+        "expected the source loan authority check to refuse write-only observation: {category}"
+    );
 }

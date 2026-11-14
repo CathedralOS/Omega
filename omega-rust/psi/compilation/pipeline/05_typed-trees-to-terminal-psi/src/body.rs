@@ -922,6 +922,13 @@ pub enum ExpressionKind {
         start: Option<Box<Expression>>,
         end: Option<Box<Expression>>,
     },
+    /// An explicit borrow of a whole byte array. The descriptor borrows
+    /// the selected backing; its formation owns a separate loan occurrence.
+    ArrayView {
+        base: Box<Expression>,
+        access: language_core::ReferenceAccess,
+        element: StructuralTypeId,
+    },
     Array {
         elements: Vec<Expression>,
     },

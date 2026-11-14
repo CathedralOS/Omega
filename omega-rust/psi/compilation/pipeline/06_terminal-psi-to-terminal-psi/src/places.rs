@@ -94,6 +94,7 @@ use terminal_psi::{
 use crate::graph::Graph;
 use crate::{StorageUse, refusal};
 
+mod byte_payloads;
 mod byte_views;
 mod contents;
 mod loans;
@@ -641,6 +642,7 @@ impl<'a> Storage<'a> {
                 row.stored = Stored::Moved(source);
             }
         }
+        storage.byte_payload_writes()?;
         Ok(storage)
     }
 
@@ -1380,12 +1382,20 @@ impl<'a> Storage<'a> {
                     return Err(self.foreign(concerns, "a referent crossing on a case namespace"));
                 }
                 (Shape::Typed(owner), Segment::Extent) => {
-                    if !self
-                        .declaration(owner, concerns)?
-                        .shape
-                        .is_borrowed_byte_view()
+                    let shape = &self.declaration(owner, concerns)?.shape;
+                    if !shape.is_borrowed_byte_view()
+                        && !matches!(
+                            shape,
+                            StructuralTypeShape::FixedArray {
+                                length: terminal_psi::ArrayExtent::Literal(_),
+                                ..
+                            }
+                        )
                     {
-                        return Err(self.foreign(concerns, "an extent is not of a byte descriptor"));
+                        return Err(self.foreign(
+                            concerns,
+                            "an extent names neither a byte view nor a closed array",
+                        ));
                     }
                     Shape::Scalar(ScalarType::Integer(
                         semantic_vocabulary::IntegerType::new(
@@ -1627,6 +1637,20 @@ impl<'a> Storage<'a> {
         match &operation.kind {
             OperationKind::ByteSequenceLength { source } => {
                 let mut leaf = self.argument(source, concerns)?;
+                let descriptor = match self.shape(&leaf, concerns)? {
+                    Shape::View => true,
+                    Shape::Typed(owner) => self
+                        .declaration(owner, concerns)?
+                        .shape
+                        .is_borrowed_byte_view(),
+                    _ => false,
+                };
+                if !descriptor {
+                    return Err(self.foreign(
+                        concerns,
+                        "a byte length operation requires a byte descriptor",
+                    ));
+                }
                 leaf.segments.push(Segment::Extent);
                 let Shape::Scalar(scalar_type) = self.shape(&leaf, concerns)? else {
                     return Err(self.foreign(concerns, "an extent has no scalar carrier"));
@@ -1742,16 +1766,18 @@ impl<'a> Storage<'a> {
                     return self.byte_subslice_goal(operation, types);
                 }
                 if let OperationKind::ByteSequenceRead {
-                    source,
-                    index,
-                    length,
-                    obligation: owned,
+                    obligation: owned, ..
+                }
+                | OperationKind::ByteSequenceWrite {
+                    obligation: owned, ..
                 } = &operation.kind
                 {
                     if *owned != obligation {
-                        return Err(self.foreign(concerns, "a byte read owns another obligation"));
+                        return Err(
+                            self.foreign(concerns, "a byte operation owns another obligation")
+                        );
                     }
-                    return self.byte_read_goal(operation, *source, *index, *length, types);
+                    return self.byte_element_goal(operation, types);
                 }
                 operation.kind.structural_projections()
             }
@@ -1817,38 +1843,53 @@ impl<'a> Storage<'a> {
         })
     }
 
-    /// What a byte read owes: `index < length`, where `length` is the view's
-    /// own extent as it stands at the read. byte_views.md, `ByteSequenceRead`:
-    /// "`u64` index and length; dominating length observation of the
-    /// identical view; checked `index < length`", and "An arbitrary
-    /// equal-valued length, other view, sibling branch, or future producer
-    /// supplies no length custody."
-    ///
-    /// The length is accepted only as the result of the operation directly
-    /// before the read, when that operation measures the same whole view.
-    /// Nothing runs between the two, so nothing can have replaced the view:
-    /// "An intervening operation capable of changing the backing extent
-    /// invalidates an earlier length witness". A measurement made earlier
-    /// than that is a valid form this derivation does not judge.
-    fn byte_read_goal(
+    /// Reads and writes prove their bound against the exact descriptor
+    /// measured immediately before use. A write additionally needs exclusive
+    /// backing access; neither an equal count nor another view supplies it.
+    fn byte_element_goal(
         &self,
         operation: &Operation,
-        source: PlaceId,
-        index: ValueId,
-        length: ValueId,
         types: &IdTable<ValueId, ScalarType>,
     ) -> Checked<Proposition> {
         let concerns = Construct::Operation(operation.id);
-        self.readable_byte_view(operation, source)?;
         let byte = ScalarType::Integer(
             semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8)
                 .expect("u8 is valid"),
         );
-        if operation.result.scalar_ref().is_none_or(|result| {
-            result.scalar_type != byte || result.qualifications != Default::default()
-        }) {
-            return Err(self.foreign(concerns, "a byte read must produce a plain u8"));
-        }
+        let (source, index, length) = match &operation.kind {
+            OperationKind::ByteSequenceRead {
+                source,
+                index,
+                length,
+                ..
+            } => {
+                self.readable_byte_view(operation, *source)?;
+                if operation.result.scalar_ref().is_none_or(|result| {
+                    result.scalar_type != byte || result.qualifications != Default::default()
+                }) {
+                    return Err(self.foreign(concerns, "a byte read must produce a plain u8"));
+                }
+                (*source, *index, *length)
+            }
+            OperationKind::ByteSequenceWrite {
+                destination,
+                index,
+                value,
+                length,
+                ..
+            } => {
+                self.writable_byte_view(operation, *destination)?;
+                if !matches!(operation.result, terminal_psi::OperationResult::Unit)
+                    || types.get(*value).copied() != Some(byte)
+                {
+                    return Err(
+                        self.foreign(concerns, "a byte store requires a u8 value and Unit result")
+                    );
+                }
+                (*destination, *index, *length)
+            }
+            _ => return Err(self.foreign(concerns, "byte bounds requested for another operation")),
+        };
         let (block, after) = self
             .graph
             .locate(ProgramPoint::AfterOperation(operation.id))?;
@@ -1856,19 +1897,17 @@ impl<'a> Storage<'a> {
             .checked_sub(2)
             .and_then(|position| self.block(block).ok()?.operations.get(position))
             .is_some_and(|measurement| {
-                matches!(
-                    &measurement.kind,
-                    OperationKind::ByteSequenceLength { source: measured }
-                        if measured.place == source && measured.path.is_empty()
-                ) && measurement
-                    .result
-                    .scalar_ref()
-                    .is_some_and(|result| result.id == length)
+                matches!(&measurement.kind, OperationKind::ByteSequenceLength { source: measured }
+                    if measured.place == source && measured.path.is_empty())
+                    && measurement
+                        .result
+                        .scalar_ref()
+                        .is_some_and(|result| result.id == length)
             });
         if !measured {
             return Err(self.unsupported(
                 concerns,
-                "a byte read whose length is not its view's measurement directly before it",
+                "a byte operation whose length is not its view's measurement directly before it",
             ));
         }
         let count = ScalarType::Integer(
@@ -1876,12 +1915,12 @@ impl<'a> Storage<'a> {
                 .expect("u64 is valid"),
         );
         if types.get(index).copied() != Some(count) || types.get(length).copied() != Some(count) {
-            return Err(self.foreign(concerns, "a byte read's index or length is not a u64"));
+            return Err(self.foreign(concerns, "a byte operation's index or length is not a u64"));
         }
         terminal_semantics::operation_safety_goal(operation, types)
             .map_err(crate::semantics_refusal(self.machine, operation.id))?
             .map(|(_, goal)| goal)
-            .ok_or_else(|| self.foreign(concerns, "a byte read has no canonical bounds goal"))
+            .ok_or_else(|| self.foreign(concerns, "a byte operation has no canonical bounds goal"))
     }
 
     fn block(&self, id: BlockId) -> Checked<&'a Block> {
@@ -1973,6 +2012,8 @@ impl<'a> Storage<'a> {
                             self.operation(row.operation, concerns)?.kind,
                             OperationKind::ByteSequenceSubslice { .. }
                                 | OperationKind::EstablishByteSequenceLiteral { .. }
+                                | OperationKind::EstablishElementView { .. }
+                                | OperationKind::EstablishMutableElementView { .. }
                         ) =>
                 {
                     Reached::Extent(row.operation)
@@ -2098,6 +2139,78 @@ impl<'a> Storage<'a> {
     /// of `block`: the one reaching walk. It answers what a scalar leaf
     /// holds and which case a sum is established as; the two differ only in
     /// which rows end a path and in what an edge can establish.
+    /// A helper can change a slice's bytes while keeping its original window.
+    /// Preserve a length fact only after proving the same descriptor survives
+    /// every normal return through each overlapping loan.
+    fn call_preserves_extent(
+        &self,
+        asked: Asked<'_>,
+        row: &Logged,
+        concerns: Construct,
+    ) -> Checked<bool> {
+        let (Stored::Established, Asked::Contents(leaf)) = (&row.stored, asked) else {
+            return Ok(false);
+        };
+        let Some((Segment::Extent, parent)) = leaf.segments.split_last() else {
+            return Ok(false);
+        };
+        let descriptor = Lineage {
+            root: leaf.root,
+            segments: parent.to_vec(),
+        };
+        let operation = self.operation(row.operation, concerns)?;
+        if operation.declared_invocation().is_none() {
+            return Ok(false);
+        }
+        let (block, after) = self
+            .graph
+            .locate(ProgramPoint::AfterOperation(operation.id))?;
+        let position = after
+            .checked_sub(1)
+            .ok_or_else(|| self.foreign(concerns, "call observation has no operation position"))?;
+        let at = (
+            block,
+            u32::try_from(position)
+                .map_err(|_| self.foreign(concerns, "call observation position exceeds u32"))?,
+        );
+        let watched = self.backing(&descriptor, block, position, concerns)?;
+        let mut covered = false;
+        for (parameter, argument) in operation.kind.structural_arguments().iter().enumerate() {
+            if !matches!(
+                argument.access,
+                terminal_psi::StructuralAccess::MutableBorrow
+                    | terminal_psi::StructuralAccess::WriteOnlyBorrow
+            ) {
+                continue;
+            }
+            let actual = self.argument(argument, concerns)?;
+            let actual = self.backing(&actual, block, position, concerns)?;
+            if !overlap(&watched, &actual) {
+                continue;
+            }
+            if watched.root != actual.root || !watched.segments.starts_with(&actual.segments) {
+                return Ok(false);
+            }
+            let relative = Lineage {
+                root: watched.root,
+                segments: watched.segments[actual.segments.len()..].to_vec(),
+            };
+            let Some(relative) = relative.descriptor_location() else {
+                return Ok(false);
+            };
+            if !self
+                .references
+                .borrow_mut()
+                .call_preserves_descriptor_storage(self.machine, at, parameter, &relative.path)
+                .map_err(|detail| self.unsupported(concerns, detail))?
+            {
+                return Ok(false);
+            }
+            covered = true;
+        }
+        Ok(covered)
+    }
+
     fn reaching(
         &self,
         tables: &MachineTables,
@@ -2160,17 +2273,19 @@ impl<'a> Storage<'a> {
             // The last row in this block, at or before the point, that ends
             // the path: the latest position, and in one position the later
             // log entry.
-            let last = self
-                .log
-                .iter()
-                .enumerate()
-                .filter(|(_, row)| {
-                    row.block == block && row.position <= up_to && asked.ended_by(row)
-                })
-                .fold(None::<(usize, &Logged)>, |best, row| match best {
-                    Some(best) if best.1.position > row.1.position => Some(best),
-                    Some(_) | None => Some(row),
-                });
+            let mut last: Option<(usize, &Logged)> = None;
+            for (index, row) in self.log.iter().enumerate() {
+                if row.block != block
+                    || row.position > up_to
+                    || !asked.ended_by(row)
+                    || self.call_preserves_extent(asked, row, concerns)?
+                {
+                    continue;
+                }
+                if last.is_none_or(|(_, previous)| previous.position <= row.position) {
+                    last = Some((index, row));
+                }
+            }
             if let Some((index, _)) = last {
                 supply(self.supplied(tables, index, asked, budget, concerns)?);
                 continue;
@@ -2721,9 +2836,11 @@ impl<'a> Storage<'a> {
             }
             // A byte is read through the view's descriptor, so the whole
             // descriptor is read where its byte is.
-            OperationKind::ByteSequenceRead { source, .. } => {
-                Ok(vec![self.stored_at(*source, &[], concerns)?])
-            }
+            OperationKind::ByteSequenceRead { source, .. }
+            | OperationKind::ByteSequenceWrite {
+                destination: source,
+                ..
+            } => Ok(vec![self.stored_at(*source, &[], concerns)?]),
             OperationKind::StructuralCaseLeafCopy { .. } => {
                 Err(self.unsupported(concerns, "a case leaf copy"))
             }
@@ -2784,6 +2901,11 @@ impl<'a> Storage<'a> {
             .filter(|row| row.operation == operation.id)
             .map(|row| row.captured.clone())
             .collect();
+        if let OperationKind::ByteSequenceWrite { destination, .. } = &operation.kind {
+            // The payload changes even though the descriptor has no store
+            // row. Retained loans protect that backing against this write.
+            changes.push(self.stored_at(*destination, &[], concerns)?);
+        }
         for argument in operation
             .kind
             .constructor_arguments()
@@ -4046,6 +4168,44 @@ impl crate::Bindings for AtCall<'_, '_> {
         scalar_type: semantic_vocabulary::IntegerType,
     ) -> Result<ScalarTerm, crate::Unbound> {
         let mut leaf = self.actual(root, path)?;
+        // A fixed array lends its declared extent. This is a type fact,
+        // independent of its contents; loan and initialization checks still
+        // decide whether the actual may supply the view.
+        if let Shape::Typed(array) = self
+            .storage
+            .shape(&leaf, self.concerns)
+            .map_err(crate::Unbound::Refused)?
+            && let StructuralTypeShape::FixedArray {
+                length: terminal_psi::ArrayExtent::Literal(length),
+                ..
+            } = self
+                .storage
+                .declaration(array, self.concerns)
+                .map_err(crate::Unbound::Refused)?
+                .shape
+        {
+            if scalar_type
+                != semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    64,
+                )
+                .expect("u64 is valid")
+            {
+                return Err(crate::Unbound::Unsupported(
+                    "an array view extent that is not a u64",
+                ));
+            }
+            return ScalarTerm::integer(
+                scalar_type,
+                semantic_vocabulary::IntegerValue::Unsigned(u128::from(length)),
+            )
+            .map_err(|error| {
+                crate::Unbound::Refused(self.storage.foreign(
+                    self.concerns,
+                    &format!("invalid fixed-array extent: {error:?}"),
+                ))
+            });
+        }
         leaf.segments.push(Segment::Extent);
         self.observation(leaf, ScalarType::Integer(scalar_type))
     }

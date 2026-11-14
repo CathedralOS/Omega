@@ -3805,3 +3805,6 @@ fn a_scalar_match_evaluates_its_subject_once_and_tests_each_value_in_authored_or
     }
     assert!(matches!(join.terminator, Terminator::Return { value, .. } if value == result.id));
 }
+
+#[path = "tests/array_views.rs"]
+mod array_views;

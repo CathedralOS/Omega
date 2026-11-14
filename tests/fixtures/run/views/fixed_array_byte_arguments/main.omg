@@ -10,15 +10,15 @@ machine shared_middle(bytes: &[u8]) -> u8 {
 }
 machine main() crashes Trap {
     let mut bytes: [u8; 3] = [17, 42, 99];
-    let extent: u64 = count(&mut bytes);
-    let selected: u8 = middle(&mut bytes);
-    let shared: u8 = shared_middle(&bytes);
+    let extent: u64 = count(&mut bytes[..]);
+    let selected: u8 = middle(&mut bytes[..]);
+    let shared: u8 = shared_middle(&bytes[..]);
     let mut short: [u8; 1] = [53];
-    let fallback: u8 = middle(&mut short);
-    let shared_fallback: u8 = shared_middle(&short);
+    let fallback: u8 = middle(&mut short[..]);
+    let shared_fallback: u8 = shared_middle(&short[..]);
     let mut packet: Packet = Packet { before: 61, bytes: [31, 73, 89], after: 97 };
-    let field_extent: u64 = count(&mut packet.bytes);
-    let field_selected: u8 = middle(&mut packet.bytes);
+    let field_extent: u64 = count(&mut packet.bytes[..]);
+    let field_selected: u8 = middle(&mut packet.bytes[..]);
     transition extent == 3 && bytes[0] == 17 && bytes[1] == 42 && bytes[2] == 99
         && selected == 42 && shared == 42 && field_extent == 3 && field_selected == 73
         && fallback == 0 && shared_fallback == 0 && short[0] == 53
