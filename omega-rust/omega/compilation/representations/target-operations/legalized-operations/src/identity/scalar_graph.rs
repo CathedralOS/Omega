@@ -546,7 +546,7 @@ pub(super) fn encode(
                     case_tag,
                     tag_byte_offset,
                     indices,
-                    pointer_slots,
+                    pointer_slot_list,
                 } => {
                     bytes.push(24);
                     crate::codec_bytes::push_encoded(bytes, source.get().to_le_bytes());
@@ -555,7 +555,7 @@ pub(super) fn encode(
                     crate::codec_bytes::push_encoded(bytes, case_tag.to_le_bytes());
                     crate::codec_bytes::push_encoded(bytes, tag_byte_offset.to_le_bytes());
                     encode_runtime_indices(bytes, indices);
-                    encode_case_pointer_slots(bytes, pointer_slots);
+                    crate::codec_bytes::push_encoded(bytes, pointer_slot_list.to_le_bytes());
                 }
                 LegalizedScalarInstructionKind::StructuralLeafCopy {
                     result,
@@ -1306,6 +1306,10 @@ pub(super) fn encode(
         }
         encode_terminator(bytes, &block.terminator);
     }
+    encode_len(bytes, function.case_pointer_slots.len());
+    for slots in &function.case_pointer_slots {
+        encode_case_pointer_slots(bytes, slots);
+    }
     encode_len(bytes, function.ownership_frontier_facts.len());
     for fact in &function.ownership_frontier_facts {
         bytes.extend_from_slice(&fact.identity.bytes());
@@ -1607,7 +1611,7 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
             root_shape,
             byte_offset,
             layout,
-            pointer_slots,
+            pointer_slot_list,
             region_byte_size,
             cases,
             effect,
@@ -1619,7 +1623,7 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
             super::calling::encode_shape(bytes, *root_shape);
             crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
             encode_layout(bytes, layout);
-            encode_case_pointer_slots(bytes, pointer_slots);
+            crate::codec_bytes::push_encoded(bytes, pointer_slot_list.to_le_bytes());
             crate::codec_bytes::push_encoded(bytes, region_byte_size.to_le_bytes());
             encode_len(bytes, cases.len());
             for case in cases {

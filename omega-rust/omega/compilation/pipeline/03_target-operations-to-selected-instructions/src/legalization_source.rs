@@ -793,6 +793,7 @@ pub(crate) mod scalar_graph {
                 plan: &AbstractOperationPlan,
                 unit: &PsiOptimizationUnit,
                 targeted: &target_operations::TargetUnitOperation,
+                case_pointer_slots: &mut Vec<Vec<legalized_operations::LegalizedCasePointerSlot>>,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let AbstractOperation::StructuralCaseMembership {
                     psi_operation,
@@ -827,6 +828,8 @@ pub(crate) mod scalar_graph {
                         optimized, *source, path, plan,
                     )?;
                 let indices = o!(optimized => unit => *psi_operation => &elements)?;
+                let pointer_slot_list =
+                    super::super::intern_case_pointer_slots(case_pointer_slots, pointer_slots)?;
                 Ok(LegalizedScalarInstructionKind::StructuralCaseMembership {
                     source: *source,
                     path: path.clone(),
@@ -834,7 +837,7 @@ pub(crate) mod scalar_graph {
                     case_tag: *case_tag,
                     tag_byte_offset: *tag_byte_offset,
                     indices,
-                    pointer_slots,
+                    pointer_slot_list,
                 })
             }
 
@@ -1561,6 +1564,7 @@ pub(crate) mod scalar_graph {
                 'a,
                 'g,
             >,
+            case_pointer_slots: &mut Vec<Vec<legalized_operations::LegalizedCasePointerSlot>>,
         ) -> Result<LegalizedScalarInstruction, LegalizationError>
         where
             'a: 'g,
@@ -2085,7 +2089,12 @@ pub(crate) mod scalar_graph {
                     },
                     AbstractOperation::StructuralCaseMembership { .. } => {
                         storage_instructions::project_structural_case_membership(
-                            node, optimized, plan, unit, targeted,
+                            node,
+                            optimized,
+                            plan,
+                            unit,
+                            targeted,
+                            case_pointer_slots,
                         )?
                     }
                     AbstractOperation::StructuralLeafCopy { .. }
@@ -2578,6 +2587,7 @@ pub(crate) mod scalar_graph {
             plan: &AbstractOperationPlan,
             unit: &optimization_unit::PsiOptimizationUnit,
             targeted: &target_operations::TargetControlTerminator,
+            case_pointer_slots: &mut Vec<Vec<legalized_operations::LegalizedCasePointerSlot>>,
         ) -> Result<LegalizedScalarTerminator, LegalizationError> {
             let AbstractOperation::StructuralCase {
                 source,
@@ -2609,6 +2619,8 @@ pub(crate) mod scalar_graph {
                     layout,
                     plan,
                 )?;
+            let pointer_slot_list =
+                super::intern_case_pointer_slots(case_pointer_slots, pointer_slots)?;
             let root_shape = stored_source.layout().shape();
             let byte_offset = *byte_offset;
             let layout = layout.clone();
@@ -2679,7 +2691,7 @@ pub(crate) mod scalar_graph {
                 root_shape,
                 byte_offset,
                 layout,
-                pointer_slots,
+                pointer_slot_list,
                 region_byte_size,
                 cases: successors,
                 effect: node.effect,
@@ -2703,6 +2715,7 @@ pub(crate) mod scalar_graph {
             native: &target_operations::TargetOperationPlan,
             unit: &optimization_unit::PsiOptimizationUnit,
             targeted: &target_operations::TargetControlTerminator,
+            case_pointer_slots: &mut Vec<Vec<legalized_operations::LegalizedCasePointerSlot>>,
         ) -> Result<LegalizedScalarTerminator, LegalizationError> {
             let function = function_inputs.function();
             let cleanup_calls = scalar_graph_input::cleanup_calls::expected(
@@ -2918,9 +2931,14 @@ pub(crate) mod scalar_graph {
                         ownership: node.ownership.clone(),
                     }))
                 }
-                AbstractOperation::StructuralCase { .. } => {
-                    super::structural_case::project(node, function, plan, unit, targeted)
-                }
+                AbstractOperation::StructuralCase { .. } => super::structural_case::project(
+                    node,
+                    function,
+                    plan,
+                    unit,
+                    targeted,
+                    case_pointer_slots,
+                ),
                 AbstractOperation::ReturnUnit { psi_edge, .. } => {
                     Ok(LegalizedScalarTerminator::Return(LegalizedScalarReturn {
                         edge: *psi_edge,
@@ -3042,6 +3060,19 @@ pub(crate) mod scalar_graph {
             })
         }
     }
+
+    fn intern_case_pointer_slots(
+        table: &mut Vec<Vec<legalized_operations::LegalizedCasePointerSlot>>,
+        slots: Vec<legalized_operations::LegalizedCasePointerSlot>,
+    ) -> Result<u32, LegalizationError> {
+        if let Some(index) = table.iter().position(|existing| existing == &slots) {
+            return u32::try_from(index).map_err(|_| LegalizationError::custody());
+        }
+        let index = u32::try_from(table.len()).map_err(|_| LegalizationError::custody())?;
+        table.push(slots);
+        Ok(index)
+    }
+
     pub(crate) fn derive<'a, 'g>(
         target: &target_operations::TargetFunction,
         abstracted: &abstract_operations::AbstractFunction,
@@ -3073,6 +3104,7 @@ pub(crate) mod scalar_graph {
             return Err(Error::custody());
         }
         let function_inputs = crate::legalization_function_inputs::FunctionInputs::new(optimized);
+        let case_pointer_slots = std::cell::RefCell::new(Vec::new());
         let blocks = optimized
             .blocks
             .iter()
@@ -3110,6 +3142,7 @@ pub(crate) mod scalar_graph {
                         unit,
                         row,
                         call_descriptor_origins,
+                        &mut case_pointer_slots.borrow_mut(),
                     )?);
                 }
                 *current_operation = None;
@@ -3125,6 +3158,7 @@ pub(crate) mod scalar_graph {
                         native,
                         unit,
                         &targeted.terminator,
+                        &mut case_pointer_slots.borrow_mut(),
                     )?,
                 })
             })
@@ -3141,6 +3175,7 @@ pub(crate) mod scalar_graph {
             ),
             entry_block: optimized.entry,
             blocks,
+            case_pointer_slots: case_pointer_slots.into_inner(),
             ownership_frontier_facts: unit
                 .ownership_frontier_facts
                 .iter()

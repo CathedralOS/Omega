@@ -722,3 +722,6 @@ pub use selection::{ValidatedSelectedInstructions, selected_instruction_plan_ide
 pub use legalization::{
     LegalizationError as TargetOperationAuditError, verify_target_operation_plan,
 };
+
+#[cfg(test)]
+mod sum_layout_selection;

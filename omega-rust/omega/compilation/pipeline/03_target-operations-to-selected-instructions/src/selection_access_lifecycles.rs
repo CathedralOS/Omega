@@ -2594,6 +2594,7 @@ pub(crate) mod resource_profile {
                                 }),
                                 entry_block: BlockId::new(7).unwrap(),
                                 blocks: vec![],
+                                case_pointer_slots: vec![],
                                 ownership_frontier_facts: vec![],
                             };
                             builder.open_block = Some(operation_control::OpenBlock {

@@ -1983,7 +1983,7 @@ pub(crate) mod case_membership {
             case_tag,
             tag_byte_offset,
             indices,
-            pointer_slots,
+            pointer_slot_list,
             ..
         } = &row.kind
         else {
@@ -1993,7 +1993,7 @@ pub(crate) mod case_membership {
         if result.scalar_type != ScalarType::Boolean {
             return Err(invalid());
         }
-        let pointer_slots = stored_pointer_slots(pointer_slots)?;
+        let pointer_slots = stored_pointer_slots(source, *pointer_slot_list)?;
         let place = *place;
         let tag = transport_register(builder, place, *tag_byte_offset)?;
         let provenance = operation_provenance(row, vec![result.value]);
@@ -2070,11 +2070,16 @@ pub(crate) mod case_membership {
     }
 
     fn stored_pointer_slots(
-        slots: &[legalized_operations::LegalizedCasePointerSlot],
+        function: &LegalizedScalarFunction,
+        list: u32,
     ) -> Result<
         Vec<crate::structural_inputs::structural_reference_input::PointerSlot>,
         SelectedInstructionError,
     > {
+        let slots = function
+            .case_pointer_slots
+            .get(usize::try_from(list).map_err(|_| invalid())?)
+            .ok_or_else(invalid)?;
         slots
             .iter()
             .map(|slot| {
