@@ -143,6 +143,12 @@ fn an_invalid_bound_entry_reports_the_routes_rejection() {
             "0 == 1",
             1,
         ),
+        (
+            "tests/fixtures/fail/build/program_entry_named_predicate_requires",
+            "launch",
+            "is_zero(1)",
+            4,
+        ),
     ] {
         let (messages, verdict) = rejected(fixture);
         let RouteVerdict::Rejected {
@@ -176,4 +182,20 @@ fn an_invalid_bound_entry_reports_the_routes_rejection() {
             "{messages:#?}"
         );
     }
+    let (messages, verdict) =
+        rejected("tests/fixtures/fail/proofs/unused_partial_mathematical_predicate");
+    let RouteVerdict::Rejected { violations, .. } = verdict else {
+        panic!("an unused declaration still owes operand formation: {verdict:?}");
+    };
+    assert_eq!(violations.len(), 1);
+    let failure = &violations[0];
+    assert!(
+        failure.statement.contains("a trapping operator"),
+        "{failure:?}"
+    );
+    assert!(
+        failure.site.is_some(),
+        "the declaration keeps its authored location"
+    );
+    assert!(messages.contains(&failure.message()), "{messages:#?}");
 }
