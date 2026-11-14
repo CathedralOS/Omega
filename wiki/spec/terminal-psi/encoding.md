@@ -240,7 +240,7 @@ and no role tag.
 
 Predicate node tags are integer literal (1),
 Boolean literal (2), scalar observation (3), forwarding (4), negation (5), and
-binary operator (6). Binary operators are `and`, `or`, equality, inequality,
+binary operator (6). Binary operators are `and`, `or `, equality, inequality,
 less, less-or-equal, greater, greater-or-equal (tags 1 through 8). Child and
 root coordinates are zero-based positions in that row's node list, not arena
 handles; every child precedes its parent. Integer payloads use the canonical
@@ -1457,15 +1457,21 @@ record whose geometry remains target dependent uses structural shape tag `13`,
 a nonzero layout-application `u32`, and its counted structural fields. It has
 no packed or host-selected geometry in the portable artifact.
 
-A packed record or a sum whose data declaration states `requires` clauses
-uses structural shape tag `17` or `18` in place of `1` or `3`, followed after
-the shape by the counted clauses as canonical propositions, in authored
-order: the declaration-owned requirement of
-[structural access](structural_access.md#complete-record-construction). A
-clause names its own declaration's fields and cases, with `self` as place 1.
-Tags `17` and `18` with zero clauses, and clauses on any other shape, are
-rejected, so a declaration without clauses keeps its earlier bytes and has
-one encoding.
+A record's invariant must survive its chosen physical layout. From marker 267,
+structural shape tag `17` wraps the record's ordinary storage shape tag and payload
+(`1` packed, `10` authored, `13` target layout, `14` access view or `15` accessor),
+followed by its nonempty counted `requires` clauses as canonical propositions
+in authored order. The sum wrapper remains tag `18`, with its ordinary sum
+payload followed by the same counted clauses. Each clause names its own
+fields and cases, with `self` as place 1, under the
+[structural access contract](structural_access.md#complete-record-construction).
+A wrapper with zero clauses or a record wrapper around another constructor
+is rejected. Declarations without clauses retain their ordinary encoding.
+This records the invariant; the receiving checker still proves construction,
+replacement and consumption obligations independently of geometry.
+Marker 266 and older artifacts cannot be reinterpreted as this nested record
+encoding; marker 266's float conversion carrier and marker 265's field observation
+identities remain part of the current schema.
 
 A layout application encodes its `u32` id, record and schema type ids, policy
 identity string, family callable, and `u16` Schema ABI version. Its counted
@@ -1731,7 +1737,7 @@ producer state and rederives every ordering rule.
 
 | Row | Fields |
 | --- | --- |
-| structural type declaration | `bool` quotient-carrier presence + optional quotient carrier id + structural type id + `u32` interned identity + `bool` owns linear claim + `bool` no-code affine cleanup authority + `bool` descriptor cleanup + `bool` logical copy permission + structural type shape, then the declaration's counted `requires` clauses when the shape tag is `17` or `18` |
+| structural type declaration | `bool` quotient-carrier presence + optional quotient carrier id + structural type id + `u32` interned identity + `bool` owns linear claim + `bool` no-code affine cleanup authority + `bool` descriptor cleanup + `bool` logical copy permission + structural type shape, then the declaration's counted `requires` clauses for wrappers `17` (ordinary record shape tag + payload) or `18` (sum payload) |
 | structural referent identity | structural type id + canonical closed-type identity string + `bool` foreign-reference descriptor role + `bool` boundary-opaque declaration role; no storage shape |
 | structural field | structural field id + identity string + binding relevance + structural field type |
 | structural case | structural case id + identity string + counted payload structural fields |
@@ -1840,7 +1846,7 @@ structural declaration carries a supplied provider.
 `RuntimeIndex` selects one element of the fixed array its prefix resolves to
 by the runtime integer the selector value holds. The operation carrying the
 path owns the obligation; the verifier reconstructs `selector < extent` (and
-`0 <= selector` for a signed carrier) from the declared extent, so no bound is
+`0 <= selector ` for a signed carrier) from the declared extent, so no bound is
 encoded. Tag 5 carried the retired parameter-position spelling with a restated
 interval and is refused.
 
