@@ -1,8 +1,6 @@
-# Witness tree
+# Fact samples
 
-This directory is the old witness tree. It is not the pin set. Do not add a program here for a fact that tests/omega already pins. A new file here is only for an obligation that has no corpus pin yet.
-
-The pin set is tests/omega/pass/facts, tests/omega/fail/facts, and tests/omega/run/facts. A fact lives there once. compiler-check keeps those pins.
+This directory contains retained fact samples and is subject to the repository's [freeze](../../../AGENTS.md#no-omg-file-bloat). The former `tests/omega/` corpus is retired ([tests/README.md](../../../tests/README.md#the-former-corpus)). Follow the current repository testing instructions when repairing a sample. Shared dependency packages are described below.
 
 ## Dependency packages
 
