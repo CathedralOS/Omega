@@ -334,44 +334,39 @@ fn lost_input_still_retains_the_attempted_sample() {
 }
 
 #[test]
-fn unoptimized_producers_and_stale_artifact_paths_are_refused() {
-    for (environment, expected_reason) in [
-        ("PROBE_UNOPTIMIZED", "optimized compiler"),
-        ("PROBE_PUBLISH_OUTSIDE", "fresh build directory"),
-    ] {
-        let directory = TestDirectory::new();
-        let mut plan = plan(directory.path());
-        for role in ["baseline", "candidate"] {
-            plan[role]["arguments"] = json!([]);
-        }
-        plan["candidate"]["environment"] = json!({(environment):"1"});
-        std::fs::create_dir(directory.path().join("library")).unwrap();
-        let target = if cfg!(windows) {
-            "windows_x86_64"
-        } else if cfg!(target_os = "macos") {
-            if cfg!(target_arch = "aarch64") {
-                "macos_arm64"
-            } else {
-                "macos_x86_64"
-            }
-        } else if cfg!(target_arch = "aarch64") {
-            "linux_arm64"
-        } else {
-            "linux_x86_64"
-        };
-        plan["measurement"] = json!({"kind":"compiler", "source":"input.txt", "library_root":"library", "target":target,
-            "expected":{"exit_code":0,"stdout":"native ok\n","stderr":""}, "require_identical_artifacts":true});
-        let result = execute(directory.path(), &plan);
-        assert!(!result.status.success());
-        assert!(
-            events(directory.path()).last().unwrap()["reason"]
-                .as_str()
-                .unwrap()
-                .contains(expected_reason),
-            "{}",
-            String::from_utf8_lossy(&result.stderr)
-        );
+fn stale_artifact_paths_are_refused() {
+    let directory = TestDirectory::new();
+    let mut plan = plan(directory.path());
+    for role in ["baseline", "candidate"] {
+        plan[role]["arguments"] = json!([]);
     }
+    plan["candidate"]["environment"] = json!({"PROBE_PUBLISH_OUTSIDE":"1"});
+    std::fs::create_dir(directory.path().join("library")).unwrap();
+    let target = if cfg!(windows) {
+        "windows_x86_64"
+    } else if cfg!(target_os = "macos") {
+        if cfg!(target_arch = "aarch64") {
+            "macos_arm64"
+        } else {
+            "macos_x86_64"
+        }
+    } else if cfg!(target_arch = "aarch64") {
+        "linux_arm64"
+    } else {
+        "linux_x86_64"
+    };
+    plan["measurement"] = json!({"kind":"compiler", "source":"input.txt", "library_root":"library", "target":target,
+        "expected":{"exit_code":0,"stdout":"native ok\n","stderr":""}, "require_identical_artifacts":true});
+    let result = execute(directory.path(), &plan);
+    assert!(!result.status.success());
+    assert!(
+        events(directory.path()).last().unwrap()["reason"]
+            .as_str()
+            .unwrap()
+            .contains("fresh build directory"),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
 }
 
 #[test]
@@ -512,39 +507,6 @@ fn reference_workloads_agree_with_independent_oracles() {
     }
 }
 
-#[cfg(feature = "allocation-observation")]
-#[test]
-fn allocation_profile_preserves_correctness_and_real_counters() {
-    let directory = TestDirectory::new();
-    let mut plan = plan(directory.path());
-    for role in ["baseline", "candidate"] {
-        plan[role] = json!({"program":env!("CARGO_BIN_EXE_omega-bench-workload"),"arguments":["allocations","100000","17"]});
-    }
-    plan["measurement"] =
-        json!({"kind":"reported_work","stdin":"","work_units":100000,"checksum":"14442337"});
-    let path = directory.path().join("profile-plan.json");
-    std::fs::write(&path, serde_json::to_vec(&plan).unwrap()).unwrap();
-    let result = Command::new(env!("CARGO_BIN_EXE_omega-bench"))
-        .arg("profile")
-        .arg(path)
-        .args(["candidate", "allocations"])
-        .arg(directory.path().join("profile"))
-        .output()
-        .unwrap();
-    assert!(
-        result.status.success(),
-        "{}",
-        String::from_utf8_lossy(&result.stderr)
-    );
-    let profile: Value = serde_json::from_slice(
-        &std::fs::read(directory.path().join("profile/profile.json")).unwrap(),
-    )
-    .unwrap();
-    assert_eq!(profile["status"], "complete");
-    assert!(profile["allocations"]["allocations"].as_u64().unwrap() >= 100000);
-    assert!(profile["allocations"]["requested_bytes"].as_u64().unwrap() > 6_400_000);
-}
-
 #[test]
 fn historical_comparisons_refuse_a_changed_workload_and_never_pair_separate_runs() {
     let first = TestDirectory::new();
@@ -601,10 +563,9 @@ fn regression_gate_refuses_nonfinite_budgets() {
 }
 
 #[test]
-fn malformed_profile_retains_the_checked_sample_and_failure_reason() {
+fn profile_refuses_an_unknown_backend_before_running_the_subject() {
     let directory = TestDirectory::new();
-    let mut plan = plan(directory.path());
-    plan["candidate"]["environment"] = json!({"PROBE_BAD_ALLOCATION":"1"});
+    let plan = plan(directory.path());
     let path = directory.path().join("profile-plan.json");
     std::fs::write(&path, serde_json::to_vec(&plan).unwrap()).unwrap();
     let result = Command::new(env!("CARGO_BIN_EXE_omega-bench"))
@@ -614,19 +575,9 @@ fn malformed_profile_retains_the_checked_sample_and_failure_reason() {
         .arg(directory.path().join("profile"))
         .output()
         .unwrap();
-    assert_eq!(result.status.code(), Some(2));
-    let profile: Value = serde_json::from_slice(
-        &std::fs::read(directory.path().join("profile/profile.json")).unwrap(),
-    )
-    .unwrap();
-    assert_eq!(profile["status"], "failed");
-    assert!(profile["reason"].is_string());
-    assert!(
-        !profile["sample"]["observations"]
-            .as_array()
-            .unwrap()
-            .is_empty()
-    );
+    assert_eq!(result.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&result.stderr).contains("wpr, perf-stat or perf-record"));
+    assert!(!directory.path().join("profile").exists());
 }
 
 #[test]

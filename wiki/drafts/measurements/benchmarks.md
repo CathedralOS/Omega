@@ -6,17 +6,17 @@ the compatibility failures preventing a full-build baseline.
 
 Versioned compile-time, peak-memory, code-size, and runtime
 measurements of the reference compiler, one JSON record per (subject,
-target, exact rule selection) row. Committed rows live in
-`tools/benchmark/records/`; the current harness is described in
-[tools/benchmark](../../../tools/benchmark/README.md). This note holds methodology and host
+target, exact rule selection) row. The rows were deleted from the tree and
+remain at [`tools/benchmark/records/` as of `09d7d4c08e`](https://github.com/CathedralOS/Omega/tree/09d7d4c08e992a86d024086327cbff44c4d5f92b/tools/benchmark/records);
+the current harness is described in [tools/benchmark](../../../tools/benchmark/README.md). This note holds methodology and host
 coverage; it is not a leaderboard. Delete this note once
 `tools/benchmark/README.md` owns the method and the host-coverage
 account.
 
 ## Method
 
-The committed records came from a Python harness, `tools/benchmark/benchmark.py`,
-which the Rust `omega-bench` in `tools/benchmark/src/` replaces. That harness compiled the subject with
+The records came from a Python harness, `tools/benchmark/benchmark.py` (since
+deleted), which the Rust `omega-bench` in `tools/benchmark/src/` replaces. That harness compiled the subject with
 `omega --timings --target <profile>` into a fresh temporary build
 directory per sample, recorded the wall clock and per-child peak RSS of
 each compile, kept the published executable for its size, then ran it
@@ -37,7 +37,7 @@ Units are milliseconds and bytes. The records carry the schema marker
 
 ## Host-row matrix
 
-The [2026-10-29 Windows run](../../../tools/benchmark/evidence/2026-10-29-windows/README.md)
+The [2026-10-29 Windows run](https://github.com/CathedralOS/Omega/blob/09d7d4c08e992a86d024086327cbff44c4d5f92b/tools/benchmark/evidence/2026-10-29-windows/README.md)
 retains its exact producer, replay commands and rejected attempts. The table
 also contains older observations from different sources and hosts; it does not
 establish a speedup between those rows.
@@ -102,14 +102,14 @@ rows. The block was generated from the committed records.
 
 Four measured linux_x86_64 rows exist: the w9 session produced the
 dev-profile `omega` compile/run row for `cli_mvp` (record
-`tools/benchmark/records/cli_mvp__linux_x86_64__default.json`), a
+[`cli_mvp__linux_x86_64__default.json`](https://github.com/CathedralOS/Omega/blob/09d7d4c08e992a86d024086327cbff44c4d5f92b/tools/benchmark/records/cli_mvp__linux_x86_64__default.json)), a
 release-profile `omega` measured `wrapping_square_sum` under a non-default
 selection (`CopyPropagation` disabled; record
-`wrapping_square_sum__linux_x86_64__sel-885944b13b84.json` — the first
+[`wrapping_square_sum__linux_x86_64__sel-885944b13b84.json`](https://github.com/CathedralOS/Omega/blob/09d7d4c08e992a86d024086327cbff44c4d5f92b/tools/benchmark/records/wrapping_square_sum__linux_x86_64__sel-885944b13b84.json) — the first
 selection-keyed row, covering the enabled/disabled dimension of the record
 space), a second non-default selection row (`SparseConditionalConstantPropagation`
 disabled), and the missing default-selection `wrapping_square_sum` row
-(`wrapping_square_sum__linux_x86_64__default.json` — compile median
+([`wrapping_square_sum__linux_x86_64__default.json`](https://github.com/CathedralOS/Omega/blob/09d7d4c08e992a86d024086327cbff44c4d5f92b/tools/benchmark/records/wrapping_square_sum__linux_x86_64__default.json) — compile median
 33396.8 ms, runtime median 4.37554 ms over 5 exit-0 samples, published
 8192 B artifact, recorded at `e7c0099cb2` on linux x86-64 dev-profile
 `omega`).
@@ -157,8 +157,7 @@ uncovered occurrence lived in the shared `std`/entry plumbing every
 `build.omg` dependency — `math_proofs` and `structural_proofs` — were
 blocked on selection (no authored `ProgramEntry`). `structural_proofs`
 now carries an authored `build.omg` + `ProgramEntry` and its compile-only
-`linux_x86_64` record is committed (`records/structural_proofs__
-linux_x86_64__default.json`, measured this host); `math_proofs` still
+`linux_x86_64` record is committed ([`structural_proofs__linux_x86_64__default.json`](https://github.com/CathedralOS/Omega/blob/09d7d4c08e992a86d024086327cbff44c4d5f92b/tools/benchmark/records/structural_proofs__linux_x86_64__default.json), measured this host); `math_proofs` still
 fails earlier at checked-call selection — that fix stays with
 PROOF-SAMPLES-CHECKED-CALL-SELECTION.
 
@@ -171,7 +170,7 @@ post-unblock record is now committed —
 `wrapping_square_sum__linux_x86_64__default.json` at `e7c0099cb2`
 (compile 33396.8 ms median, runtime 4.37554 ms median, 8192 B).
 The remaining frontier is further record-production legs
-(`tools/benchmark/records/`) and the uncovered host rows —
+and the uncovered host rows —
 `linux_arm64`, `macos_arm64`, `windows_x86_64`, and `uefi_x86_64` each
 still need their named runtime environment, and `macos_x86_64` stays
 structurally unavailable under MACOS-X64-HOST-PROFILE.
@@ -215,7 +214,7 @@ intact.
 Update (z27, `5e2d355a02`, linux x86_64 host): the first
 dependency-free proof subject is committed — `structural_proofs` ×
 `linux_x86_64` default selection
-(`tools/benchmark/records/structural_proofs__linux_x86_64__default.json`):
+([`structural_proofs__linux_x86_64__default.json`](https://github.com/CathedralOS/Omega/blob/09d7d4c08e992a86d024086327cbff44c4d5f92b/tools/benchmark/records/structural_proofs__linux_x86_64__default.json)):
 3 compile samples, median 34932.9 ms, published 8192 B artifact,
 runtime `skipped` (proof machines emit no runtime code). `math_proofs`
 still fails earlier at checked-call selection
