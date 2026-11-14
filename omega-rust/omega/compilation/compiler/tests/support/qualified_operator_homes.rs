@@ -117,3 +117,34 @@ fn domain_operators_cross_package_boundaries_without_importing_their_module() {
         .unwrap();
     });
 }
+
+#[test]
+fn a_selected_operator_keeps_its_authored_call_requirement() {
+    let _guard = super::FIXTURE_COMPILATIONS.lock().unwrap();
+    std::thread::scope(|scope| {
+        compiler::checked::spawn_compile_worker(scope, || {
+            let restricted = Project::copy_fixture("requires");
+            let declaration = restricted.0.join("provider/main.omg");
+            let original = std::fs::read_to_string(&declaration).unwrap();
+            let changed = original.replacen(
+                ") -> u32 in Distance {",
+                ") -> u32 in Distance requires (left as -Distance) <= 1u32 {",
+                1,
+            );
+            assert_ne!(changed, original);
+            std::fs::write(declaration, changed).unwrap();
+            let diagnostics = check(&restricted.main())
+                .expect_err("the unchanged left operand 2 cannot satisfy the selected requirement");
+            assert!(
+                diagnostics.iter().any(|diagnostic| {
+                    diagnostic.message.contains("cannot prove")
+                        && diagnostic.message.contains("requires")
+                }),
+                "{diagnostics:#?}"
+            );
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+    });
+}
