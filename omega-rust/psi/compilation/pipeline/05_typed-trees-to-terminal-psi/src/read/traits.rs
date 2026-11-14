@@ -509,9 +509,31 @@ fn schema_shape(
         || schema.refines.is_some()
         || !schema.refinement_clauses.is_empty()
     {
+        let resolved = typed.symbols.symbols().nodes().is_valid(schema.symbol);
+        let declaration = if resolved {
+            typed.symbols.display_path(schema.symbol, "::")
+        } else {
+            schema.name.as_str().to_owned()
+        };
+        let source = resolved
+            .then(|| typed.symbols.symbol_provenance_source_span(schema.symbol))
+            .flatten()
+            .and_then(|span| {
+                typed
+                    .symbols
+                    .source_file(span)
+                    .map(|file| (&file.path, span))
+            });
         return Err(services::unavailable(
             context,
-            "trait has unresolved identity or unrepresented laws, inheritance, refinements or regions",
+            format!(
+                "trait `{declaration}` cannot be lowered: resolved declaration={resolved}, lifetime parameters={}, conformance bounds={}, required laws={}, inheritance={}, refinements={}; source {source:?}",
+                schema.lifetime_parameters.len(),
+                schema.conformance_bounds.len(),
+                schema.requires.len(),
+                schema.refines.is_some(),
+                schema.refinement_clauses.len(),
+            ),
         ));
     }
     let parameters = typed
