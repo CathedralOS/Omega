@@ -7311,7 +7311,16 @@ pub(crate) mod storage_foundations {
         if !compatible {
             return malformed("reference establishment has incompatible source storage geometry");
         }
-        if result.multiplicity != StructuralMultiplicity::Affine
+        // A shared reference can be copied while each copy keeps its loan.
+        // Exclusive references still require a single affine descriptor.
+        let valid_multiplicity = result.multiplicity == StructuralMultiplicity::Affine
+            || result.multiplicity == StructuralMultiplicity::Unrestricted
+                && *access == StructuralAccess::SharedBorrow
+                && terminal_semantics::is_copyable_carrier(
+                    module.structural_types.iter(),
+                    result.structural_type,
+                );
+        if !valid_multiplicity
             || !result.qualifications.is_empty()
             || !result.claims.is_empty()
             || *access != source.access
@@ -8044,6 +8053,60 @@ pub(crate) mod storage_foundations {
                 validate_establish_reference(&module, &machine, &formation),
                 Ok(())
             );
+
+            // The source producer marks shared references as copyable. The
+            // importer must retain that permission without granting it to
+            // an exclusive reference or inventing a linear claim.
+            let OperationResult::Structural(result) = &mut formation.result else {
+                unreachable!()
+            };
+            result.multiplicity = StructuralMultiplicity::Unrestricted;
+            assert_eq!(
+                validate_establish_reference(&module, &machine, &formation),
+                Ok(())
+            );
+            let StructuralTypeShape::Reference { access, .. } =
+                &mut module.structural_types[4].shape
+            else {
+                unreachable!()
+            };
+            *access = StructuralAccess::MutableBorrow;
+            let OperationKind::EstablishReference { source, .. } = &mut formation.kind else {
+                unreachable!()
+            };
+            source.access = StructuralAccess::MutableBorrow;
+            machine.structural_parameters[0].access = StructuralAccess::MutableBorrow;
+            assert_eq!(
+                validate_establish_reference(&module, &machine, &formation),
+                Err(CodecError::MalformedStructuralFoundation(
+                    "reference establishment has inconsistent carrier ownership or access"
+                ))
+            );
+            let StructuralTypeShape::Reference { access, .. } =
+                &mut module.structural_types[4].shape
+            else {
+                unreachable!()
+            };
+            *access = StructuralAccess::SharedBorrow;
+            let OperationKind::EstablishReference { source, .. } = &mut formation.kind else {
+                unreachable!()
+            };
+            source.access = StructuralAccess::SharedBorrow;
+            machine.structural_parameters[0].access = StructuralAccess::SharedBorrow;
+            let OperationResult::Structural(result) = &mut formation.result else {
+                unreachable!()
+            };
+            result.multiplicity = StructuralMultiplicity::Linear;
+            assert_eq!(
+                validate_establish_reference(&module, &machine, &formation),
+                Err(CodecError::MalformedStructuralFoundation(
+                    "reference establishment has inconsistent carrier ownership or access"
+                ))
+            );
+            let OperationResult::Structural(result) = &mut formation.result else {
+                unreachable!()
+            };
+            result.multiplicity = StructuralMultiplicity::Affine;
 
             // A reference result can retain its own narrower physical codec.
             // Reducing its referent to u64 must not erase the crossing fence.

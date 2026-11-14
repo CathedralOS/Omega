@@ -240,7 +240,7 @@ and no role tag.
 
 Predicate node tags are integer literal (1),
 Boolean literal (2), scalar observation (3), forwarding (4), negation (5), and
-binary operator (6). Binary operators are `and`, `or `, equality, inequality,
+binary operator (6). Binary operators are `and`, `or`, equality, inequality,
 less, less-or-equal, greater, greater-or-equal (tags 1 through 8). Child and
 root coordinates are zero-based positions in that row's node list, not arena
 handles; every child precedes its parent. Integer payloads use the canonical
@@ -1846,7 +1846,7 @@ structural declaration carries a supplied provider.
 `RuntimeIndex` selects one element of the fixed array its prefix resolves to
 by the runtime integer the selector value holds. The operation carrying the
 path owns the obligation; the verifier reconstructs `selector < extent` (and
-`0 <= selector ` for a signed carrier) from the declared extent, so no bound is
+`0 <= selector` for a signed carrier) from the declared extent, so no bound is
 encoded. Tag 5 carried the retired parameter-position spelling with a restated
 interval and is refused.
 
