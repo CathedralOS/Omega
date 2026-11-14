@@ -38,6 +38,7 @@ mod compiler_primitive_headers;
 mod empty_records;
 mod entry_inputs;
 mod entryless;
+mod floats;
 mod guard_contradiction;
 mod handoffs;
 mod indexed_contracts;

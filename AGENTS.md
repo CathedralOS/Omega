@@ -379,11 +379,11 @@ reads the allowed lanes from this table:
 | `build` | Build system in `omega-rust/omega/build-system/` (`orchestration/`, `build-settings/`) and `build.omg` declarations. |
 | `packages` | Package acquisition, graphs, review, admission, and update workflows in `omega-rust/omega/packages/`. |
 | `cli` | Command parsing, flags, help, and dispatch in `omega-rust/omega/application/cli/src/`. |
-| `tooling` | Shipped developer tools and shared host support in `omega-rust/omega/foundation/`. |
+| `tooling` | Shipped developer tooling and shared host support compiled into `omega` (`omega-rust/omega/foundation/`). |
 | `library` | Bundled packages in `source/library/` (`core`, `alloc`, `std`, etc.). |
 | `samples` | Standalone sample content in `samples/`. A regression fixture for a compiler fix uses that compiler stage's lane. |
 | `tests` | Shared test infrastructure, kept fixtures, or multi-owner gates. Stage-specific tests use their stage's lane. |
-| `tools` | Repository utilities in `tools/`. |
+| `tools` | Repository maintenance tooling, CI/bootstrap helpers, ratchets, and `mbx xtask` (`tools/xtask/`). |
 | `repo` | Repository workflow, `AGENTS.md`, `.agents/skills/`, CI, and workspace configuration. |
 | `docs` | Explanatory documentation-only changes in `wiki/`, READMEs, or guides. |
 
