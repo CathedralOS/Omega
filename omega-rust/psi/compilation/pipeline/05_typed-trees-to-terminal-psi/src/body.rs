@@ -570,21 +570,41 @@ pub fn formal_values(
     formals: impl Iterator<Item = (ValueType, bool, bool)> + Clone,
     result: Option<ValueType>,
 ) -> Vec<Option<ValueId>> {
+    formal_value_ids(
+        formals.map(|(value_type, erased, borrowed)| FormalValueShape {
+            declared: value_type.declared().is_some(),
+            erased,
+            borrowed,
+        }),
+        result.and_then(ValueType::declared).is_some(),
+    )
+}
+
+/// Signature preparation needs the actual input identities before reading a
+/// carrier whose width names one of them. These are declaration shapes only:
+/// reading the full type still happens once, and must agree with this roster.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct FormalValueShape {
+    pub declared: bool,
+    pub erased: bool,
+    pub borrowed: bool,
+}
+
+pub(crate) fn formal_value_ids(
+    formals: impl Iterator<Item = FormalValueShape> + Clone,
+    result: bool,
+) -> Vec<Option<ValueId>> {
     let relevant = formals
         .clone()
-        .filter(|(value_type, erased, borrowed)| {
-            value_type.declared().is_some() && !erased && !borrowed
-        })
+        .filter(|shape| shape.declared && !shape.erased && !shape.borrowed)
         .count() as u64;
-    let result = u64::from(result.and_then(ValueType::declared).is_some());
-    let (mut next_relevant, mut next_erased) = (0, relevant + result);
+    let (mut next_relevant, mut next_erased) = (0, relevant + u64::from(result));
     formals
-        .map(|(value_type, erased, borrowed)| {
-            if borrowed {
+        .map(|shape| {
+            if shape.borrowed || !shape.declared {
                 return None;
             }
-            value_type.declared()?;
-            let next = if erased {
+            let next = if shape.erased {
                 &mut next_erased
             } else {
                 &mut next_relevant
