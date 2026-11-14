@@ -169,6 +169,9 @@ pub(crate) struct Program<'t> {
     /// Every record type a formal, local, result, field or literal named, in
     /// discovery order; a nested record is discovered before its owner.
     pub records: IdTable<StructuralTypeId, RecordType>,
+    /// Only completed source contracts enter this stage-local query cache.
+    /// It contains no value facts and is never published as evidence.
+    inhabitation: terminal_semantics::inhabitation::Inhabitation,
     /// The symbols each record type was resolved from, by the same identity.
     record_sources: IdTable<StructuralTypeId, places::RecordSource>,
     /// The data declarations being resolved, outermost first: a declaration
@@ -327,6 +330,7 @@ impl<'t> Program<'t> {
             generic_binders: Vec::new(),
             value_arguments: IdTable::default(),
             records: IdTable::default(),
+            inhabitation: Default::default(),
             record_sources: IdTable::default(),
             resolving: Vec::new(),
             lifetime_owner: SymbolHandle::invalid(),

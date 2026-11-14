@@ -235,7 +235,7 @@ impl Program<'_> {
         let crate::ExpressionKind::Borrow { place, .. } = &value.kind else {
             unreachable!()
         };
-        if !self.agrees(place.result, referent) {
+        if !self.same_type(place.result, referent) {
             return Err(refuse(
                 machine,
                 Construct::Machine,

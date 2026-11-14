@@ -557,7 +557,19 @@ impl<'t> Program<'t> {
         result: &mut Option<ValueType>,
     ) -> Checked<Expression> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
-        let value = self.expression(id, slots, value, *result)?;
+        // An earlier arm that produces no value supplies no expected type
+        // for a later, returning arm. Its own expression remains unchanged.
+        let expected = result.filter(|value_type| !self.type_excludes_values(*value_type));
+        let value = self.expression(id, slots, value, expected)?;
+        if value
+            .result
+            .is_some_and(|value_type| self.type_excludes_values(value_type))
+        {
+            if result.is_none() {
+                *result = value.result;
+            }
+            return Ok(value);
+        }
         let value_type = match value.result {
             Some(
                 value_type @ (ValueType::Scalar(_, Qualification::NONE)
@@ -571,7 +583,9 @@ impl<'t> Program<'t> {
             }
             None => return Err(unserved("match with a Unit arm")),
         };
-        if result.is_some_and(|result| result != value_type) {
+        if result.is_some_and(|result| {
+            !self.type_excludes_values(result) && !self.agrees(Some(value_type), result)
+        }) {
             return Err(refuse(
                 id,
                 Construct::Machine,
