@@ -1322,12 +1322,68 @@ fn captured_build_constant_session(
 #[test]
 fn build_constant_captured_source_cost_survives_real_readiness_and_cleanup() {
     let (workspace, mut session, outcome) = captured_build_constant_session("positive");
-    let _resolved = outcome.unwrap_or_else(|error| panic!("captured positive Build: {error}"));
-    let history = session.resources().source_completion_accounting().clone();
+    let resolved = outcome.unwrap_or_else(|error| panic!("captured positive Build: {error}"));
     assert!(
-        !history.receipts().is_empty(),
+        !session
+            .resources()
+            .source_completion_accounting()
+            .receipts()
+            .is_empty(),
         "actual readiness must retain the computed constant work"
     );
+    let profile = resolved.execution_profile;
+    for build in resolved.builds {
+        let inputs = build.package_inputs().clone();
+        let product = build
+            .complete(session.compiler(), profile, inputs)
+            .unwrap_or_else(|failure| {
+                panic!(
+                    "captured Build Product rejoin: {}",
+                    diagnostics::join_messages(&failure.into_diagnostics())
+                )
+            });
+        // The package coordinator retains this actual prepared owner before
+        // consuming it for a target product; use that same published ledger.
+        session
+            .resources()
+            .record_source_completion(product.source_completion_accounting().clone());
+        let checked = session
+            .compiler()
+            .check_package_build(product)
+            .unwrap_or_else(|failure| {
+                panic!(
+                    "captured Product source: {}",
+                    diagnostics::join_messages(&failure.into_diagnostics())
+                )
+            });
+        let accounting = checked.source_completion_accounting();
+        accounting.validate_charges().unwrap();
+        let invocations = accounting
+            .receipts()
+            .iter()
+            .filter_map(|record| match record {
+                build_time_evaluation::PureEvaluationRecord::Invocation(receipt)
+                    if receipt.request_source().symbols.name(receipt.requester()) == "VALUE" =>
+                {
+                    Some(receipt.request_source().identity.get())
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            invocations.len(),
+            2,
+            "the retyped Build must evaluate its own constant"
+        );
+        assert_ne!(
+            invocations[0], invocations[1],
+            "the new Build cannot borrow the earlier source receipt"
+        );
+        session
+            .resources()
+            .record_source_completion(accounting.clone());
+    }
+    let history = session.resources().source_completion_accounting().clone();
     history.validate_charges().unwrap();
     let staging = force_build_cleanup_failure(&workspace.path().join("session"));
     let primary = package_manager::operations::PackageInspectionError::from(
