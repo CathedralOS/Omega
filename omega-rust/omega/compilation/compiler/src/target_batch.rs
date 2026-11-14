@@ -91,23 +91,32 @@ impl crate::CompilationSession {
             } = prepared;
             let source = match source {
                 Some(Ok(source)) => self.check_completed_source(source, returned),
-                Some(Err(failure)) => Err(failure.into_diagnostics()),
+                Some(Err(failure)) => Err(failure),
                 None => Err(vec![Diagnostic::error(
                     "admitted target has no shared source preparation",
-                )]),
+                )]
+                .into()),
             };
             let prepared_targets: Vec<_> = targets
                 .into_iter()
                 .map(|(profile, target)| {
-                    let prepared = target.and_then(|target| {
-                        let source = source.as_ref().map_err(Clone::clone)?;
-                        let prepared = PreparedProductTarget::capture(
-                            source,
-                            target.profile(),
-                            target.package_inputs(),
-                        )?;
-                        Ok((target, source, prepared))
-                    });
+                    let prepared = target
+                        .map_err(crate::CompileFailure::from)
+                        .and_then(|target| {
+                            let source = source.as_ref().map_err(Clone::clone)?;
+                            let prepared = PreparedProductTarget::capture(
+                                source,
+                                target.profile(),
+                                target.package_inputs(),
+                            )
+                            .map_err(|diagnostics| {
+                                crate::CompileFailure::source_completion(
+                                    diagnostics,
+                                    source.source_completion_accounting.clone(),
+                                )
+                            })?;
+                            Ok((target, source, prepared))
+                        });
                     (profile, prepared)
                 })
                 .collect();
@@ -115,12 +124,16 @@ impl crate::CompilationSession {
                 .into_iter()
                 .map(|(profile, prepared)| {
                     let product = prepared.and_then(|(target, source, prepared)| {
-                        select_target_product(&shared, target, source, prepared)
+                        select_target_product(&shared, target, source, prepared).map_err(
+                            |diagnostics| {
+                                crate::CompileFailure::source_completion(
+                                    diagnostics,
+                                    source.source_completion_accounting.clone(),
+                                )
+                            },
+                        )
                     });
-                    (
-                        profile,
-                        product.map_err(CompilationProductError::Production),
-                    )
+                    (profile, product.map_err(CompilationProductError::from))
                 })
                 .collect();
 

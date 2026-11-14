@@ -651,20 +651,19 @@ impl RequestedConstants for crate::PreCheckEvaluation {
             })
             .and_then(|span| program.symbols.source_file(span))
             .and_then(|file| file.package_identity);
-        recorded
-            .accounting
-            .append(crate::evaluate_constant_initializers(
-                program,
-                psi_terminal_production::TerminalSourceCompilation {
-                    entries: &[],
-                    subjects: &[subject],
-                    purpose: source::DependencyScope::Product,
-                    selected: &[],
-                    bindings: &[],
-                    supplies: &[],
-                },
-                None,
-            )?);
+        crate::evaluate_constant_initializers(
+            program,
+            psi_terminal_production::TerminalSourceCompilation {
+                entries: &[],
+                subjects: &[subject],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            None,
+            &mut recorded.accounting,
+        )?;
         Ok(recorded)
     }
 }
@@ -1083,8 +1082,9 @@ fn an_unread_machine_constant_is_pending_until_the_actual_scope_demands_it() {
             bindings: &[],
             supplies: &[],
         };
-        let accounting =
-            crate::evaluate_constant_initializers(&mut program, request, None).unwrap();
+        let mut accounting = crate::SourceCompletionAccounting::default();
+        crate::evaluate_constant_initializers(&mut program, request, None, &mut accounting)
+            .unwrap();
         assert!(accounting.receipts().is_empty());
         assert!(program.const_declarations()[0].evaluated_value.is_none());
         crate::validate_constant_evaluations(&program, &accounting).unwrap();
@@ -1101,9 +1101,13 @@ fn an_unread_machine_constant_is_pending_until_the_actual_scope_demands_it() {
                 ..request
             },
         ] {
-            let error =
-                crate::evaluate_constant_initializers(&mut program.clone(), requested, None)
-                    .unwrap_err();
+            let error = crate::evaluate_constant_initializers(
+                &mut program.clone(),
+                requested,
+                None,
+                &mut crate::SourceCompletionAccounting::default(),
+            )
+            .unwrap_err();
             let diagnostic = diagnostics::join_messages(&error);
             assert!(
                 diagnostic.contains("target")
@@ -1182,4 +1186,103 @@ fn a_constant_receipt_authenticates_ordered_argument_storage() {
                 .contains("input storage")
         );
     }
+}
+
+#[test]
+fn a_later_constant_admission_failure_keeps_the_work_of_earlier_jobs() {
+    let (_, _, base, pending) = constant_base(&[(
+        "main.omg",
+        r#"
+        const FIRST:u64 = first();
+        const SECOND:u64 = bounded(9u64);
+        machine first()->u64 { 4u64 }
+        machine bounded(value:u64)->u64 requires value <= 5 { value }
+    "#,
+    )]);
+    let mut program = base.typed().clone();
+    pending.evaluate_or_defer_recorded(&mut program).unwrap();
+    let mut accounting = crate::SourceCompletionAccounting::default();
+    let error = crate::evaluate_constant_initializers(
+        &mut program,
+        psi_terminal_production::TerminalSourceCompilation {
+            entries: &[],
+            subjects: &[semantic_vocabulary::PackageKeyIdentity::from_digest(
+                [1; 32],
+            )],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        },
+        None,
+        &mut accounting,
+    )
+    .unwrap_err();
+    assert!(diagnostics::join_messages(&error).contains("requires"));
+    assert_eq!(accounting.receipts().len(), 1);
+    let crate::PureEvaluationRecord::Invocation(receipt) = &accounting.receipts()[0] else {
+        panic!("actual invocation")
+    };
+    assert!(receipt.usage().total_units() > 0);
+    assert!(matches!(
+        receipt.outcome(),
+        crate::PureTerminalEvaluationOutcome::Materialized {
+            value: crate::BuildTimeValue::Int(4),
+            ..
+        }
+    ));
+    accounting.validate_charges().unwrap();
+    assert!(program.const_declarations()[0].evaluated_value.is_some());
+    assert!(program.const_declarations()[1].evaluated_value.is_none());
+}
+
+#[test]
+fn an_exhausted_constant_job_keeps_its_failed_invocation_usage() {
+    let (_, _, base, pending) = constant_base(&[(
+        "main.omg",
+        r#"
+        const VALUE:u64 = countdown(20000u64);
+        machine countdown(remaining:u64)->u64 terminates by remaining {
+            transition remaining > 0 {
+                true -> countdown(remaining - 1u64)
+                _ -> 4u64
+            }
+        }
+    "#,
+    )]);
+    let mut program = base.typed().clone();
+    pending.evaluate_or_defer_recorded(&mut program).unwrap();
+    let mut accounting = crate::SourceCompletionAccounting::default();
+    let error = crate::evaluate_constant_initializers(
+        &mut program,
+        psi_terminal_production::TerminalSourceCompilation {
+            entries: &[],
+            subjects: &[semantic_vocabulary::PackageKeyIdentity::from_digest(
+                [1; 32],
+            )],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        },
+        None,
+        &mut accounting,
+    )
+    .unwrap_err();
+    assert_eq!(
+        accounting.receipts().len(),
+        1,
+        "{}",
+        diagnostics::join_messages(&error)
+    );
+    let crate::PureEvaluationRecord::Invocation(receipt) = &accounting.receipts()[0] else {
+        panic!("actual invocation")
+    };
+    assert!(receipt.usage().total_units() > 0);
+    assert!(matches!(
+        receipt.outcome(),
+        crate::PureTerminalEvaluationOutcome::Failed { .. }
+    ));
+    accounting.validate_charges().unwrap();
+    assert!(program.const_declarations()[0].evaluated_value.is_none());
 }

@@ -125,6 +125,21 @@ impl From<Vec<Diagnostic>> for CompilationProductError {
     }
 }
 
+impl From<crate::CompileFailure> for CompilationProductError {
+    fn from(failure: crate::CompileFailure) -> Self {
+        match failure {
+            crate::CompileFailure::SourceCompletion {
+                diagnostics,
+                accounting,
+            } => Self::ProductionAttempt {
+                diagnostics,
+                accounting,
+            },
+            other => Self::Production(other.into_diagnostics()),
+        }
+    }
+}
+
 impl CompilationProductError {
     pub fn into_diagnostics(self) -> Vec<Diagnostic> {
         match self {

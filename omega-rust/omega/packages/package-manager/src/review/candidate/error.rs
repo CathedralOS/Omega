@@ -88,7 +88,7 @@ pub enum CompileResolvedPackageReviewsError {
     },
     Compilation {
         package: PackageKey,
-        diagnostics: Vec<Diagnostic>,
+        failure: CompileFailure,
     },
     BuildConsentRequired {
         package: PackageKey,
@@ -145,10 +145,10 @@ impl CompileResolvedPackageReviewsError {
         failure: CompileFailure,
     ) -> Self {
         match failure {
-            CompileFailure::Diagnostics(diagnostics) => Self::Compilation {
-                package,
-                diagnostics,
-            },
+            failure
+            @ (CompileFailure::Diagnostics(_) | CompileFailure::SourceCompletion { .. }) => {
+                Self::Compilation { package, failure }
+            }
             CompileFailure::BuildConsentRequired(requests) => {
                 let projected = requests
                     .iter()
@@ -297,10 +297,21 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
                 }
                 Ok(())
             }
-            Self::Compilation {
-                package,
-                diagnostics,
-            } => render_package_diagnostics(formatter, "checked compilation", package, diagnostics),
+            Self::Compilation { package, failure } => match failure {
+                CompileFailure::Diagnostics(diagnostics)
+                | CompileFailure::SourceCompletion { diagnostics, .. } => {
+                    render_package_diagnostics(
+                        formatter,
+                        "checked compilation",
+                        package,
+                        diagnostics,
+                    )
+                }
+                CompileFailure::BuildConsentRequired(requests) => write!(
+                    formatter,
+                    "restricted Build execution requires explicit consent; pending requests: {requests:?}"
+                ),
+            },
             Self::Projection {
                 package,
                 diagnostics,

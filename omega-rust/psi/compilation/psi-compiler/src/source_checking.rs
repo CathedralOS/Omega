@@ -105,50 +105,69 @@ pub struct FrozenSource {
     pub accounting: build_time_evaluation::SourceCompletionAccounting,
 }
 
+/// A failed preparation keeps actual invocation usage, including successful
+/// earlier jobs and a metered failed run. No frozen product accompanies it.
+#[derive(Debug)]
+pub struct SourcePreparationFailure {
+    pub diagnostics: Vec<Diagnostic>,
+    pub accounting: build_time_evaluation::SourceCompletionAccounting,
+}
+
 impl SourcePreparationRequest<'_> {
-    pub fn prepare(self) -> Result<FrozenSource, Vec<Diagnostic>> {
-        // Opaque property receipts came from the deleted checker. Supplying one
-        // cannot stand in for evidence from the new route.
-        if !self.admission.external_roots.is_empty() || self.admission.declarations.is_some() {
-            return Err(vec![Diagnostic::error(
-                "no product route yet: source selection authority admission",
-            )]);
-        }
-        self.admission.representations.require_none_requested()?;
-        let mut program = self.program;
-        typed_trees::boundary_completions::prepare_source_completion(
-            &mut program,
-            self.admission.completion,
-        )?;
-        build_time_evaluation::evaluate_fixed_layout_applications(
-            &mut program,
-            self.admission.layout_scopes,
-            self.admission.layout_selection_authority.clone(),
-        )?;
-        constant_entries::retain_evaluation_entries(&mut program)?;
+    pub fn prepare(self) -> Result<FrozenSource, SourcePreparationFailure> {
         let mut accounting = self.accounting;
-        accounting.append(build_time_evaluation::evaluate_constant_initializers(
-            &mut program,
-            self.compilation,
-            self.admission.layout_selection_authority,
-        )?);
-        build_time_evaluation::validate_constant_evaluations(&program, &accounting).map_err(
-            |reason| {
-                vec![Diagnostic::error(format!(
-                    "constant materialization receipt join: {reason}"
-                ))]
-            },
-        )?;
-        let mut preparation = typed_trees_to_typed_trees::PreparationRequest::settled()
-            .with_wire_compatibility_demands(self.admission.wire_demands);
-        if let Some(authority) = self.admission.asm_authority {
-            preparation = preparation.with_asm_authority(authority);
+        let result = (|| -> Result<Arc<typed_trees::FrozenTypedTrees>, Vec<Diagnostic>> {
+            // Opaque property receipts came from the deleted checker. Supplying one
+            // cannot stand in for evidence from the new route.
+            if !self.admission.external_roots.is_empty() || self.admission.declarations.is_some() {
+                return Err(vec![Diagnostic::error(
+                    "no product route yet: source selection authority admission",
+                )]);
+            }
+            self.admission.representations.require_none_requested()?;
+            let mut program = self.program;
+            typed_trees::boundary_completions::prepare_source_completion(
+                &mut program,
+                self.admission.completion,
+            )?;
+            build_time_evaluation::evaluate_fixed_layout_applications(
+                &mut program,
+                self.admission.layout_scopes,
+                self.admission.layout_selection_authority.clone(),
+            )?;
+            constant_entries::retain_evaluation_entries(&mut program)?;
+            build_time_evaluation::evaluate_constant_initializers(
+                &mut program,
+                self.compilation,
+                self.admission.layout_selection_authority,
+                &mut accounting,
+            )?;
+            build_time_evaluation::validate_constant_evaluations(&program, &accounting).map_err(
+                |reason| {
+                    vec![Diagnostic::error(format!(
+                        "constant materialization receipt join: {reason}"
+                    ))]
+                },
+            )?;
+            let mut preparation = typed_trees_to_typed_trees::PreparationRequest::settled()
+                .with_wire_compatibility_demands(self.admission.wire_demands);
+            if let Some(authority) = self.admission.asm_authority {
+                preparation = preparation.with_asm_authority(authority);
+            }
+            let (program, _) =
+                typed_trees_to_typed_trees::prepare_typed_trees(program, &preparation)?;
+            Ok(Arc::new(program))
+        })();
+        match result {
+            Ok(program) => Ok(FrozenSource {
+                program,
+                accounting,
+            }),
+            Err(diagnostics) => Err(SourcePreparationFailure {
+                diagnostics,
+                accounting,
+            }),
         }
-        let (program, _) = typed_trees_to_typed_trees::prepare_typed_trees(program, &preparation)?;
-        Ok(FrozenSource {
-            program: Arc::new(program),
-            accounting,
-        })
     }
 }
 
@@ -196,10 +215,14 @@ mod tests {
             },
         }
         .prepare();
-        let Err(diagnostics) = result else {
+        let Err(failure) = result else {
             panic!("legacy authority must not become a prepared product");
         };
-        assert!(diagnostics[0].message.contains("no product route yet"));
+        assert!(
+            failure.diagnostics[0]
+                .message
+                .contains("no product route yet")
+        );
     }
 
     #[test]
@@ -279,11 +302,12 @@ mod tests {
                 },
             }
             .prepare();
-            let Err(diagnostics) = result else {
+            let Err(failure) = result else {
                 panic!("{dimension} input was silently discarded");
             };
             assert_eq!(
-                diagnostics[0].message, "no product route yet: opaque representation admission",
+                failure.diagnostics[0].message,
+                "no product route yet: opaque representation admission",
                 "{dimension} must reach the missing admission obligation",
             );
         }

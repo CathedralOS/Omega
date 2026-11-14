@@ -525,7 +525,8 @@ pub fn evaluate(
     program: &mut TypedTrees,
     request: psi_terminal_production::TerminalSourceCompilation<'_>,
     authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
-) -> Result<SourceCompletionAccounting, Vec<Diagnostic>> {
+    accounting: &mut SourceCompletionAccounting,
+) -> Result<(), Vec<Diagnostic>> {
     let demanded =
         demanded_constants(program, request).map_err(|reason| vec![Diagnostic::error(reason)])?;
     let jobs = program
@@ -550,9 +551,8 @@ pub fn evaluate(
             })
         })
         .collect::<Vec<_>>();
-    let mut accounting = SourceCompletionAccounting::default();
     if jobs.is_empty() {
-        return Ok(accounting);
+        return Ok(());
     }
     let mut constants = program
         .const_declarations()
@@ -609,7 +609,7 @@ pub fn evaluate(
                         carrier_layout: None,
                         address_model: None,
                     },
-                    &mut accounting,
+                    accounting,
                 )?
                 .into_value();
             let carrier = program.tables.const_declarations.get(handle).declared_type;
@@ -661,5 +661,5 @@ pub fn evaluate(
             "constant evaluation dependency cycle",
         )]);
     }
-    Ok(accounting)
+    Ok(())
 }
