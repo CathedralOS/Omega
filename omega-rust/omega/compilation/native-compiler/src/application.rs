@@ -12,7 +12,7 @@ use terminal_psi_to_abstract_operations::{
 };
 
 pub struct TerminalApplication {
-    pub artifact: Arc<terminal_codec::CanonicalTerminalArtifact>,
+    pub artifact: terminal_installation::AuthorizedTerminalArtifact,
     pub receipt: terminal_psi::CheckedProgramEntryTerminalReceipt,
     pub provider_proposals: Vec<backend_plan::TerminalTargetProviderProposal>,
     pub physical_entry_adapter: bool,
@@ -27,11 +27,14 @@ impl TerminalApplication {
         self,
         request: TerminalNativeProposalRequest<'_>,
     ) -> Result<RetainedTerminalArtifact, Vec<Diagnostic>> {
-        let mut proposal =
-            project_terminal_native_realization_proposal(&self.artifact, self.receipt, request)?;
+        let mut proposal = project_terminal_native_realization_proposal(
+            self.artifact.shared_artifact(),
+            self.receipt,
+            request,
+        )?;
         if self.physical_entry_adapter {
             proposal
-                .bind_physical_adapter(&self.artifact)
+                .bind_physical_adapter(self.artifact.artifact())
                 .map_err(|message| vec![Diagnostic::error(message)])?;
         }
         RetainedTerminalArtifact::new_with_native_realization_proposal(
