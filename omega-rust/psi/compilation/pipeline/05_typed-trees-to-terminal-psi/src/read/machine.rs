@@ -1314,6 +1314,29 @@ impl<'t> Program<'t> {
         requirement: &'t StateSignature,
         arguments: &[semantic_vocabulary::ScalarTerm],
     ) -> Checked<(Signature, MachineNames)> {
+        let (signature, names) = self.declared_requirement_signature(id, requirement, arguments)?;
+        // These callable and witness uses cannot yet carry operational proof.
+        // Do not treat declared suspension or blocking as absent.
+        if requirement.suspends || requirement.blocks {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Machine("suspends or blocks"),
+            ));
+        }
+        Ok((signature, names))
+    }
+
+    /// Read the types, logical clauses and ceilings of a requirement.
+    /// Boundary publication retains its suspension and blocking flags on the
+    /// checked declaration, and an actual call still owes their proof. Other
+    /// consumers use `requirement_signature`, which refuses unsupported effects.
+    pub(super) fn declared_requirement_signature(
+        &mut self,
+        id: MachineId,
+        requirement: &'t StateSignature,
+        arguments: &[semantic_vocabulary::ScalarTerm],
+    ) -> Checked<(Signature, MachineNames)> {
         // As a machine's: an elided lifetime is a fresh parameter of the
         // requirement, which each call instantiates (`regions::Elision`).
         let elision = std::mem::replace(
@@ -1392,9 +1415,6 @@ impl<'t> Program<'t> {
                 .is_abstract(requirement.service_reach_row)
         {
             return unserved("service reach bound by an installation");
-        }
-        if requirement.suspends || requirement.blocks {
-            return unserved("suspends or blocks");
         }
         let (mut signature, mut names) = self.contract(
             id,

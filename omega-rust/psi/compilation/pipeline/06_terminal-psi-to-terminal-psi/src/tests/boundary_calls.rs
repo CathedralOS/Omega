@@ -223,6 +223,29 @@ fn an_unserved_operational_contract_cannot_be_added_to_a_lowered_boundary() {
 }
 
 #[test]
+fn source_boundary_effects_still_require_their_invocation_proof() {
+    for effect in ["suspends", "blocks"] {
+        // The source declares the effect; no mutation of the published
+        // metadata supplies it. This ordinary call has no operational proof.
+        let mut elaboration = boundary(&format!("reaches none {effect}"), 7)
+            .expect("the declared boundary contract reaches invocation checking");
+        let published = &elaboration.module.boundary_machines[0]
+            .declaration
+            .as_ref()
+            .unwrap()
+            .source;
+        assert_eq!(published.published_may_suspend, effect == "suspends");
+        assert_eq!(published.published_may_block, effect == "blocks");
+        let refusal = discharge(&mut elaboration).unwrap_err();
+        assert_eq!(refusal.reason, RefusalReason::Unsupported);
+        assert_eq!(
+            refusal.detail,
+            "boundary call needs its suspension and blocking proof"
+        );
+    }
+}
+
+#[test]
 fn source_boundary_crashes_are_not_erased_by_the_call_operand_shape() {
     let call = |actual| {
         let typed = typed(&format!(

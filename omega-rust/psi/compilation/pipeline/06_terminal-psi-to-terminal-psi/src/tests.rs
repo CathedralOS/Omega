@@ -15,8 +15,8 @@ use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::values::Justification;
 use terminal_check_tables::{Checked, ProgramPoint, RefusalReason};
 use typed_trees_to_terminal_psi::{
-    Body, CrashCeiling, Expression, ExpressionKind, Signature, SourceOrigin, Statement, Strict,
-    Target, Termination, Unpositioned, ValueType,
+    Body, CrashCeiling, Expression, ExpressionKind, Selector, Signature, SourceOrigin, Statement,
+    Strict, Target, Termination, Unpositioned, ValueType,
 };
 
 use crate::{Discharge, Discharged, Evidence, RouteVerdict, UnprovedObligation, discharge, judge};
@@ -3219,7 +3219,10 @@ fn matching(
         ExpressionKind::Match {
             capture: None,
             subject: Box::new(subject),
-            arms,
+            arms: arms
+                .into_iter()
+                .map(|(case, arm)| (Selector::Case(case), arm))
+                .collect(),
             default: default.map(Box::new),
         },
         u32_type().into(),
