@@ -3147,22 +3147,15 @@ impl TerminalExecution<'_> {
         storage: Option<terminal_psi::ReferenceStorageView>,
     ) -> Result<(), TerminalInterpretError> {
         let result = operation.result.structural().ok_or_else(malformed)?;
-        // A shared carrier may be copied (ownership.md, "Borrows and
-        // aliases": "Shared loans may duplicate or reborrow"), so its
-        // declaration is copyable and its result unrestricted. An exclusive
-        // one keeps affine custody (structural_access.md: "Exclusive carriers
-        // have affine custody even when their referent is unrestricted").
-        // The result must be the one its own carrier declaration gives.
-        let (_, carried) = self.reference_contract(result.structural_type)?;
-        let copyable = self
-            .structural_types()
-            .get(&result.structural_type)
-            .is_some_and(|declaration| declaration.copyable);
-        let declared = if copyable && carried == StructuralAccess::SharedBorrow {
-            StructuralMultiplicity::Unrestricted
-        } else {
-            StructuralMultiplicity::Affine
-        };
+        // Formation owns the new permission's lifecycle. Shared type copy
+        // permission governs later copies; use the same creation contract
+        // as the producer and receiving semantics for this actual operation.
+        self.reference_contract(result.structural_type)?;
+        let declared = terminal_semantics::StructuralEffectSemanticRow::for_tag(
+            terminal_semantics::OperationSemanticTag::for_operation(&operation.kind),
+        )
+        .and_then(|row| row.schema().required_result_multiplicity())
+        .ok_or_else(malformed)?;
         if result.multiplicity != declared
             || !result.qualifications.is_empty()
             || !result.claims.is_empty()
