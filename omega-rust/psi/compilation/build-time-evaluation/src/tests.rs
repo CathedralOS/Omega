@@ -186,7 +186,7 @@ fn ordinary_contract_sources_reach_typed_preparation_without_being_evaluated() {
 #[test]
 fn retired_tree_receipts_cannot_be_decoded_as_canonical_scalar_receipts() {
     let limits = compiler_storage::RecordLimits::default();
-    // The old enum reserved wire tag zero for a source/checked-tree receipt.
+    // The old enum reserved wire tag zero for a source evaluation receipt.
     // No old tree or supposed proof is constructed to test that boundary.
     let bytes = compiler_storage::encode(&0_u32, limits).expect("retired tag");
     let error = compiler_storage::decode::<PureEvaluationRecord>(&bytes, limits)

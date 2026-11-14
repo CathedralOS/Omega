@@ -47,7 +47,7 @@ fn prepare_saved_project(root: &str, target: &str, output: &str) -> Result<()> {
             };
         }
     };
-    // The saved product no longer needs checked trees or source continuations.
+    // The saved product no longer needs an earlier program or source continuations.
     // Release them before decoding a second copy for the round-trip check.
     drop(session);
     if !pending

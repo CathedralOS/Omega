@@ -1,7 +1,7 @@
 // Auxiliary validator over stable public complete-project and runtime APIs.
 // It compiles the real Omega application once, retains that exact Terminal
 // artifact and provider provisions, then checks both engines for every fixture.
-// No checked-tree interpretation, artifact reconstruction or trust bypass.
+// No earlier-program interpretation, artifact reconstruction or trust bypass.
 use std::{fs, path::{Path, PathBuf}, process::{Command, Stdio}};
 use package_manager::operations::{prepare_local_project, LocalProjectPreparationOptions};
 use orchestration::{PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};

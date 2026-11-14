@@ -20,7 +20,7 @@ authored `build.omg` code can run:
    list halts immediately with `CompileFailure::BuildConsentRequired` before the
    reviewed action can execute.
 4. The accepted invocation executes under its fresh admission and account.
-   The old checked-tree cache is deleted; no prior checked result substitutes
+   The old result cache is deleted; no prior checked result substitutes
    for this source owner, accepted module, or invocation authority.
 
 `PreparedBuildEvaluation` holds the admitted execution

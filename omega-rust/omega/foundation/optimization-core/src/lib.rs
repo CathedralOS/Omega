@@ -12,7 +12,7 @@ without pulling in IR representations or target lowerers.
 /*
 The subsystem is organized around `optimization_core.rs`, which declares the
 closed `Optimization` and `OptimizationExecutionPhase` vocabularies and their
-canonical selection codec (`OMGOPT\0\0` v15):
+canonical selection codec (`OMGOPT\0\0` v16):
 - `contracts/`: rule declarations (`OptimizationRuleContract`), analysis bitsets
   (`AnalysisSet`, `AnalysisInvalidationSet`), work budgets
   (`OptimizationWorkBudget`), and candidate verdicts

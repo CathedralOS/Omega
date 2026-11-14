@@ -11,7 +11,7 @@ request sharing and target products; the application owns Build execution.
 | Which stage transforms this program? | [pipeline/](pipeline/README.md): numbered source-to-Terminal transforms, each with its own operation entrance |
 | What program does a stage consume or produce? | [representations/](representations/README.md): independent durable IR packages; Terminal codec and verification live beside their subject |
 | Is this source declaration, call or value legal? | [program_validation.rs](checking/src/program_validation.rs): reusable judgments and retained analyses, not construction of the complete checked program |
-| Where is the checked program constructed? | [Psi 05 checking.rs](pipeline/05_typed-trees-to-checked-trees/src/checking.rs): orders specialization, validation, facts, flow, ownership and proof checks |
+| Where is the checked program constructed? | [Structure elaboration](pipeline/structure-elaboration/README.md) and [lowered discharge](pipeline/lowered-discharge/README.md): the lowered-form checker |
 | Where are proof obligations produced and discharged? | [proof/lib.rs](proof/src/lib.rs): source obligation construction and search; [admission](proof/admission/README.md) independently checks supplied mathematical evidence |
 | Where do evaluated values change the program? | [build-time-evaluation/src/lib.rs](build-time-evaluation/src/lib.rs): evaluation admission and source/typed result elaboration using the separately owned checked interpreter |
 | Where is a Terminal artifact independently checked? | [Terminal verification](representations/terminal-psi/verification/README.md): reconstructs obligations from the portable artifact, without trusting its producer's decisions |

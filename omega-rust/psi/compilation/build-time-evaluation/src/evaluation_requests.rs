@@ -1,4 +1,4 @@
-//! Real invocation configuration and value data, without a checked-tree input.
+//! Real invocation configuration and value data, without an earlier program input.
 use build_time_values::BuildTimeValue;
 use std::fmt;
 use symbols::SymbolHandle;

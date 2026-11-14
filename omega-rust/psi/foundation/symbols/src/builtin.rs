@@ -311,8 +311,8 @@ pub enum BuiltinFunction {
     AsmEnableInterrupts,
     /*
         Compiler-balanced RFLAGS snapshot/restore intrinsics. The source
-        spelling uses explicit u64 places; raw stack-mutating push/pop never
-        enters the checked tree.
+        spelling uses explicit u64 places; raw stack-mutating push/pop is not
+        an admitted intrinsic.
     */
     AsmSnapshotFlags,
     AsmRestoreFlags,

@@ -28,7 +28,7 @@ The independent
 [Terminal interpreter](../../interpreter/terminal-interpreter/README.md) consumes
 Terminal Psi without creating another pipeline representation.
 
-The retired checked-tree and facts packages are removed. Checking facts now
+The retired facts package is removed. Checking facts now
 belong to the lowered-form checker tables, not a second source judgment.
 Constituent semantic records have separate package owners:
 [flow-effects](../../foundation/flow-effects/src/lib.rs) holds operational,

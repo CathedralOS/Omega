@@ -13,9 +13,13 @@ fn limits(work: u64, cells: u64, bytes: u64) -> BuildEvaluationSponsorLimits {
 }
 
 fn terminal() -> EvaluationMeasurementIdentity {
+    EvaluationMeasurementIdentity::current()
+}
+
+fn other_schedule() -> EvaluationMeasurementIdentity {
     EvaluationMeasurementIdentity::TerminalPsi {
         work_schedule: WorkScheduleIdentity::new(1).unwrap(),
-        storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
+        storage_schedule: TerminalStorageScheduleIdentity::new(2).unwrap(),
     }
 }
 
@@ -24,29 +28,18 @@ fn sponsor(cells: u64, bytes: u64) -> BuildEvaluationSponsor {
 }
 
 #[test]
-fn aggregate_identity_refuses_both_engine_substitutions_without_charge() {
-    let tree = BuildEvaluationSponsor::new(limits(10, 4, 8));
-    tree.charge_work_unit().unwrap();
-    assert!(tree.begin_invocation(terminal(), 10).is_err());
-    assert_eq!(tree.consumed_work_units(), 1);
-    let terminal = sponsor(4, 8);
-    let invocation = terminal
-        .begin_invocation(terminal.measurement(), 10)
-        .unwrap();
+fn non_current_measurement_is_refused_without_a_charge() {
+    let sponsor = sponsor(4, 8);
+    let invocation = sponsor.begin_invocation(sponsor.measurement(), 10).unwrap();
     invocation.charge_work(1).unwrap();
+    assert!(sponsor.begin_invocation(other_schedule(), 10).is_err());
     assert!(
-        terminal
-            .begin_invocation(EvaluationMeasurementIdentity::CheckedTree, 10)
-            .is_err()
+        BuildEvaluationSponsor::new_with_measurement(limits(10, 4, 8), other_schedule()).is_err()
     );
-    assert!(terminal.charge_work_unit().is_err());
-    assert!(terminal.reserve_live_cell().is_err());
-    assert!(terminal.reserve_live_text_bytes(1).is_err());
-    assert!(terminal.charge_result_custody(1, 1).is_err());
-    assert_eq!(terminal.consumed_work_units(), 1);
-    assert_eq!(terminal.live_storage_cells(), 0);
-    assert_eq!(terminal.live_payload_bytes(), 0);
-    assert_eq!(terminal.consumed_result_storage_cells(), 0);
+    assert_eq!(sponsor.consumed_work_units(), 1);
+    assert_eq!(sponsor.live_storage_cells(), 0);
+    assert_eq!(sponsor.live_payload_bytes(), 0);
+    assert_eq!(sponsor.consumed_result_storage_cells(), 0);
 }
 
 #[test]
@@ -223,21 +216,13 @@ fn host_charges_are_observed_locally_and_aggregate_refusal_is_atomic() {
 
 #[test]
 fn unsupported_storage_schedule_is_not_schedule_one_by_default() {
-    let identity = EvaluationMeasurementIdentity::TerminalPsi {
-        work_schedule: WorkScheduleIdentity::new(1).unwrap(),
-        storage_schedule: TerminalStorageScheduleIdentity::new(2).unwrap(),
-    };
-    assert_ne!(EvaluationMeasurementIdentity::CheckedTree, terminal());
+    let identity = other_schedule();
+    assert_ne!(identity, terminal());
     assert!(BuildEvaluationSponsor::new_with_measurement(limits(10, 4, 8), identity).is_err());
     let sponsor = sponsor(4, 8);
     let invocation = sponsor.begin_invocation(terminal(), 10).unwrap();
     let mut usage = *invocation.snapshot().unwrap().record();
     usage.measurement = identity;
-    assert_eq!(
-        usage.validate(),
-        Err(BuildEvaluationUsageError::UnsupportedMeasurementIdentity)
-    );
-    usage.measurement = EvaluationMeasurementIdentity::CheckedTree;
     assert_eq!(
         usage.validate(),
         Err(BuildEvaluationUsageError::UnsupportedMeasurementIdentity)

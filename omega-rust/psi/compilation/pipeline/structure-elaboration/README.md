@@ -1100,8 +1100,8 @@ field and case identities down to the field, and a case test is a
 case-membership proposition on such a path. Nothing proves or knows a clause
 in that form. Each type's declaration in the module states its clauses
 (`StructuralTypeDeclaration::requires`), so they are encoded with the module
-and part of its identity; the current pipeline proves them on checked trees
-and its declarations state none. `Elaboration::domains` restates them by the
+and part of its identity; the published module proves those clauses outside
+the module text, and its declarations state none. `Elaboration::domains` restates them by the
 type's identity for the checker, which refuses a table that differs from the
 declarations.
 
@@ -1197,7 +1197,7 @@ An origin is the authored span, or `Unpositioned` with the reason
 `DispatchContinuation`, `ImplicitReturn`, `ArgumentRetirement`, or
 `SpanAbsent` when the typed tree's span is empty). It never borrows a neighbour's position.
 `LoweredSourceCustody` was not used: it records call occurrences only and
-depends on `checked-trees`.
+depended on a removed representation.
 
 `Elaboration::names` ([names.rs](src/names.rs)) is what diagnostics call
 those constructs, because the lowered form carries identities and spans but
@@ -1220,7 +1220,7 @@ Pure helpers only: `numerics::integer_policy::integer_policy_bridge` (which
 operations are partial), the Terminal Psi data types,
 `terminal_codec::canonical_proposition_order_key` and
 `canonical_scalar_term_order_key` (Terminal Psi's canonical order). Nothing
-from Psi 05, validation, checked trees or Psi 06 is used or depended on.
+from Psi 05, validation, or Psi 06 is used or depended on.
 
 ## Findings
 
@@ -1361,7 +1361,7 @@ worked around by adding to `terminal-check-tables`.
 24. **Terminal Psi carries no data `requires`.** For
     `data R requires low <= high`, the current pipeline's module holds the
     construction and the store with `range_obligation: None` and no clause
-    anywhere: it proves the domain on checked trees. The clauses therefore
+    anywhere: it proves the domain outside the module text. The clauses therefore
     travel in `Elaboration::domains`, a field of this crate's result, not in
     the module and not in `terminal-check-tables`.
 25. **No field in this subset has a `range_obligation`.** The slot is set

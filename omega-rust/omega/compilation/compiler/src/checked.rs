@@ -3,7 +3,7 @@ We orchestrate compiler work from assembled syntax and Build continuations to a
 sealed `CheckedCompilation` and target-captured declaration custody.
 
 Start at `CompilationSession` (`compilation_session.rs`) for invocation-level
-reuse of parsed sources, Pure Build judgments, and checked trees, and
+reuse of parsed sources and Pure Build judgments, and
 `checking.rs` for the feed-forward source and Build continuation pipeline.
 */
 
