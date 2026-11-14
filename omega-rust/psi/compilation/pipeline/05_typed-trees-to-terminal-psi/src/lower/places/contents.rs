@@ -138,10 +138,9 @@ impl Lowering<'_> {
                         .ok_or_else(|| self.internal("a storage write has no row"))?;
                     if let (Content::Overwritten, ProgramPoint::AfterOperation(call)) =
                         (write.content, write.at)
+                        && call_operations.binary_search(&call).is_ok()
                     {
-                        if call_operations.binary_search(&call).is_ok() {
-                            calls.push(call);
-                        }
+                        calls.push(call);
                     }
                 }
                 match row.origin {

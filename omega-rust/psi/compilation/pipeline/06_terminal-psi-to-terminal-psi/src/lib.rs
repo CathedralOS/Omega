@@ -1027,7 +1027,8 @@ fn fill_knowledge(
                     Justification::OperationSemantics(operation.id),
                 );
             }
-            // And what the type of the storage it reads says of that value.
+            // A read or a returning call establishes the applicable type
+            // constraints on its exact observed storage versions.
             for premise in storage
                 .read_premises(tables, operation)?
                 .into_iter()

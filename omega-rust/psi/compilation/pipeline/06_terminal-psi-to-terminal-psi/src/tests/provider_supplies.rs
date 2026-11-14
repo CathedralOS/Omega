@@ -373,3 +373,20 @@ fn a_supplied_body_has_no_cached_or_selected_named_entry() {
         "a provider cannot be selected as an ordinary named program entry"
     );
 }
+
+#[test]
+fn an_ordinary_policy_supply_checks_its_body_without_declaring_a_boundary() {
+    let ordinary = |body| {
+        program(CONTRACT, "", body)
+            .replace("boundary trait Service", "trait Service")
+            .replace("Service::go(3)", "Native::go(3)")
+    };
+    let accepted = supplied(&ordinary("value + 1"), "Service::go").unwrap();
+    assert!(
+        accepted
+            .iter()
+            .any(|machine| machine.ends_with("Native::go"))
+    );
+    let refused = supplied(&ordinary("value + 2"), "Service::go").unwrap_err();
+    assert!(refused.contains("rejected"), "{refused}");
+}
