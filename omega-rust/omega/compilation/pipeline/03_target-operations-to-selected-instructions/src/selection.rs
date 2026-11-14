@@ -1848,6 +1848,7 @@ pub(crate) use crate::legalization::ValidatedLegalizedOperations;
 #[allow(unused_imports)]
 pub(crate) use construction::build_plan;
 
+#[cfg(test)]
 pub(crate) fn select_instructions(
     legalized: &ValidatedLegalizedOperations,
     constraints: &SelectedSelectionConstraints,

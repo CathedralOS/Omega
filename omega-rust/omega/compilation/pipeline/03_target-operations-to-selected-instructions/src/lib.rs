@@ -709,15 +709,17 @@ pub use structural_inputs::structural_reference_input::{
     reference_formation_geometry,
 };
 
-pub(crate) use legalization::{
-    LegalizationError, ValidatedLegalizedOperations, legalize_target_operations,
-};
+#[cfg(test)]
+pub(crate) use legalization::legalize_target_operations;
+pub(crate) use legalization::{LegalizationError, ValidatedLegalizedOperations};
 pub use optimized::{
     OptimizedSelectionPipelineError, StagedOptimizedSelectedInstructions,
     StagedOptimizedSelectionCustodyReceipt, TargetSelectionInput,
     stage_optimized_instruction_selection,
 };
-pub(crate) use selection::{SelectedInstructionError, select_instructions};
+pub(crate) use selection::SelectedInstructionError;
+#[cfg(test)]
+pub(crate) use selection::select_instructions;
 pub use selection::{ValidatedSelectedInstructions, selected_instruction_plan_identity};
 
 pub use legalization::{
