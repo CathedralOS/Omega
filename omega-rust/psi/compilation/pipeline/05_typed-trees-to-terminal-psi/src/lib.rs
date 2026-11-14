@@ -823,6 +823,7 @@ fn lower_generic_for<'source>(
             .as_ref()
             .map(|local| local.outcomes.as_slice()),
         &declared.records.inhabitation,
+        &components,
     )?;
     // Declaration checking publishes no executable arrival or root reach.
     if let Some(entry) = entry {
