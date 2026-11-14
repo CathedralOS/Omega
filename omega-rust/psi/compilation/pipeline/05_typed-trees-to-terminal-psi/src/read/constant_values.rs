@@ -131,13 +131,16 @@ impl Program<'_> {
                 else {
                     return Ok(false);
                 };
+                let Some(bits) = integer.bits() else {
+                    return Ok(false);
+                };
                 let expected = format!(
                     "{}{}",
                     match integer.sign() {
                         IntegerSign::Signed => 'i',
                         IntegerSign::Unsigned => 'u',
                     },
-                    integer.bits()
+                    bits
                 );
                 !integer.is_address()
                     && *type_name == expected
