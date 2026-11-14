@@ -176,7 +176,8 @@ machine route() -> u32 {{
     bump(&mut held.location)
 }}
 machine replace_with_git(held: &mut Source) {{
-    held = Source::Git {{ repository: 1, revision: 2 }};
+    let next: Source = Source::Git {{ repository: 1, revision: 2 }};
+    held = next;
 }}
 "#
         )
