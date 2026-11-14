@@ -19,7 +19,7 @@ use effects::{
     CheckedSyscallArgumentContractIdentity, SyscallTerminalMechanismIdentity,
     TerminalMechanismIdentity,
 };
-use semantic_vocabulary::{IeeeFloatFormat, IntegerCarrier, IntegerSign, ScalarType};
+use semantic_vocabulary::{ClosedScalarType, IeeeFloatFormat, IntegerCarrier, IntegerSign};
 use terminal_psi::{StructuralAccess, StructuralMultiplicity};
 
 use crate::digest_encoder::DomainDigestEncoder;
@@ -112,7 +112,11 @@ pub(crate) fn conservative_syscall_terminal_mechanism(
     number: i64,
     plan: &abstract_operations::AbstractOperationPlan,
     boundary: semantic_vocabulary::BoundaryMachineId,
+    closed: &terminal_codec::ClosedTerminalModule,
 ) -> Result<TerminalMechanismIdentity, String> {
+    if plan.psi != closed.identity() {
+        return Err("syscall plan differs from its retained closed module".to_owned());
+    }
     if !matches!(
         target,
         target::TargetProfile::LinuxX64 | target::TargetProfile::LinuxArm64
@@ -190,7 +194,11 @@ pub(crate) fn conservative_syscall_terminal_mechanism(
     }
     push_count(&mut digest, declaration.scalar_parameters.len())?;
     for scalar in &declaration.scalar_parameters {
-        encode_scalar(&mut digest, *scalar);
+        let scalar = closed
+            .closed_types()
+            .scalar(*scalar)
+            .map_err(|cause| format!("syscall scalar descriptor is not retained: {cause}"))?;
+        encode_scalar(&mut digest, scalar);
     }
     push_count(&mut digest, declaration.structural_parameters.len())?;
     for (ordinal, parameter) in declaration.structural_parameters.iter().enumerate() {
@@ -245,10 +253,10 @@ fn push_count(digest: &mut DomainDigestEncoder, count: usize) -> Result<(), Stri
     Ok(())
 }
 
-fn encode_scalar(digest: &mut DomainDigestEncoder, scalar: ScalarType) {
+fn encode_scalar(digest: &mut DomainDigestEncoder, scalar: ClosedScalarType) {
     match scalar {
-        ScalarType::Boolean => digest.byte(0),
-        ScalarType::Integer(integer) => {
+        ClosedScalarType::Boolean => digest.byte(0),
+        ClosedScalarType::Integer(integer) => {
             digest.byte(1);
             digest.byte(match integer.carrier() {
                 IntegerCarrier::Fixed => 0,
@@ -260,7 +268,7 @@ fn encode_scalar(digest: &mut DomainDigestEncoder, scalar: ScalarType) {
             });
             digest.raw(&integer.bits().to_be_bytes());
         }
-        ScalarType::IeeeFloat(format) => {
+        ClosedScalarType::IeeeFloat(format) => {
             digest.byte(2);
             digest.byte(match format {
                 IeeeFloatFormat::Binary32 => 0,
@@ -284,5 +292,32 @@ const fn access_tag(access: StructuralAccess) -> u8 {
         StructuralAccess::SharedBorrow => 1,
         StructuralAccess::MutableBorrow => 2,
         StructuralAccess::WriteOnlyBorrow => 3,
+    }
+}
+
+#[cfg(test)]
+mod closed_width_tests {
+    use super::*;
+    use semantic_vocabulary::ClosedIntegerType;
+
+    #[test]
+    fn closed_scalar_commitments_keep_the_legacy_big_endian_width_bytes() {
+        for (integer, bytes) in [
+            (
+                ClosedIntegerType::new(IntegerSign::Signed, 24).unwrap(),
+                [1, 0, 0, 0, 24],
+            ),
+            (
+                ClosedIntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+                [1, 0, 1, 0, 32],
+            ),
+            (ClosedIntegerType::address(48).unwrap(), [1, 1, 1, 0, 48]),
+        ] {
+            let mut actual = DomainDigestEncoder::new(b"closed-width-wire-test\0");
+            encode_scalar(&mut actual, ClosedScalarType::Integer(integer));
+            let mut legacy = DomainDigestEncoder::new(b"closed-width-wire-test\0");
+            legacy.raw(&bytes);
+            assert_eq!(actual.finish(), legacy.finish());
+        }
     }
 }
