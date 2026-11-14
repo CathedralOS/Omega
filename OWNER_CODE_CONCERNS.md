@@ -178,13 +178,6 @@ framework or a list of features that remain unimplemented.
 - Cost: implicit entry selection and source custody can disagree when name order differs from child order; consolidate their exact entry relationship rather than restoring the deleted selectors.
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### Default ISA preparation rebuilds the register-constraint catalog it just made
-- Category: re-deriving
-- Where: `omega-rust/omega/compilation/backend/instruction-set-architectures/isa-x86_64/src/register_model.rs` and `.../isa-aarch64/src/register_model.rs` (constraint validators); `backend/register-environment/src/lib.rs` (`build_baseline_target_register_environment`)
-- Saw: default preparation builds a target-owned register-constraint catalog and passes it to a validator that builds the canonical catalog again to compare it. Canonical comparison also serves separately supplied catalogs
-- Cost: ordinary compilation repeats construction and comparison of its own target data. That establishes conformance to the same builder, not an independent check of that builder's ISA description; supplied-catalog comparison still needs its boundary owner
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
 ### Native lowering accepts module bytes without artifact-bound host producer trust
 - Category: a verdict with nothing behind it
 - Where: `00_terminal-psi-to-abstract-operations/src/artifact_admission.rs` (`lower_artifact`), `abstract-operations/verified-input/src/lib.rs` (`VerifiedPsiOptimizationInput::lowered`), and `01_abstract-operations-to-abstract-operations/src/verified_unit.rs` (`source_checked_obligation_facts`)

@@ -9,14 +9,14 @@ declared keys.
 
 #[cfg(test)]
 use isa_aarch64::{AARCH64_AAPCS64_CALL, AARCH64_DARWIN_CALL};
-use isa_aarch64::{aarch64_physical_register_model, aarch64_register_constraint_catalog};
+use isa_aarch64::{aarch64_physical_register_model, prepare_aarch64_register_constraint_catalog};
 #[cfg(test)]
 use isa_x86_64::{X86_64_MICROSOFT_CALL, X86_64_SYSTEM_V_CALL};
-use isa_x86_64::{x86_64_physical_register_model, x86_64_register_constraint_catalog};
+use isa_x86_64::{prepare_x86_64_register_constraint_catalog, x86_64_physical_register_model};
 #[cfg(test)]
 use register_model::RegisterConstraintKey;
 use register_model::{
-    PhysicalRegisterModel, RegisterConstraintCatalog, RegisterReservationProfile,
+    PhysicalRegisterModel, PreparedRegisterConstraintCatalog, RegisterReservationProfile,
     ValidatedPhysicalRegisterModel,
 };
 use selected_instructions::SelectedConstraintKeys;
@@ -29,13 +29,15 @@ pub(super) fn target_physical_register_model(target: NativeTarget) -> PhysicalRe
     }
 }
 
-pub(super) fn target_constraint_catalog(
+pub(super) fn prepared_target_constraint_catalog(
     target: NativeTarget,
     physical: &ValidatedPhysicalRegisterModel,
-) -> RegisterConstraintCatalog {
+) -> Result<PreparedRegisterConstraintCatalog, super::TargetRegisterEnvironmentValidationError> {
     match target.architecture {
-        Architecture::X86_64 => x86_64_register_constraint_catalog(physical),
-        Architecture::Aarch64 => aarch64_register_constraint_catalog(physical),
+        Architecture::X86_64 => prepare_x86_64_register_constraint_catalog(physical)
+            .map_err(super::TargetRegisterEnvironmentValidationError::X86_64),
+        Architecture::Aarch64 => prepare_aarch64_register_constraint_catalog(physical)
+            .map_err(super::TargetRegisterEnvironmentValidationError::Aarch64),
     }
 }
 

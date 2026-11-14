@@ -199,11 +199,11 @@ mod constraint_catalog {
     };
     use register_model::complement;
     use register_model::{
-        PreservationConvention, RegisterClassId, RegisterConstraintCatalog,
-        RegisterConstraintCatalogValidationError, RegisterConstraintId, RegisterConstraintKey,
-        RegisterInstructionConstraint, RegisterOperandAccess as Access, RegisterOperandConstraint,
-        RegisterUnitId, ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
-        sorted_units, validate_register_constraint_catalog,
+        PreparedRegisterConstraintCatalog, PreservationConvention, RegisterClassId,
+        RegisterConstraintCatalog, RegisterConstraintCatalogValidationError, RegisterConstraintId,
+        RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandAccess as Access,
+        RegisterOperandConstraint, RegisterUnitId, ValidatedPhysicalRegisterModel, sorted_units,
+        validate_register_constraint_catalog,
     };
     use target::Architecture;
 
@@ -1363,11 +1363,9 @@ mod constraint_catalog {
         "x86-64 register constraint catalog"
     );
 
-    pub fn validate_x86_64_register_constraint_catalog(
-        catalog: RegisterConstraintCatalog,
+    fn check_x86_64_catalog_model(
         model: &ValidatedPhysicalRegisterModel,
-    ) -> Result<ValidatedRegisterConstraintCatalog, X86_64RegisterConstraintCatalogValidationError>
-    {
+    ) -> Result<(), X86_64RegisterConstraintCatalogValidationError> {
         if model.model().architecture != Architecture::X86_64 {
             return Err(
                 X86_64RegisterConstraintCatalogValidationError::PhysicalModelArchitectureMismatch,
@@ -1376,6 +1374,35 @@ mod constraint_catalog {
         if model.identity() != canonical_x86_64_physical_register_model_identity() {
             return Err(X86_64RegisterConstraintCatalogValidationError::NonCanonicalPhysicalModel);
         }
+        Ok(())
+    }
+
+    pub fn prepare_x86_64_register_constraint_catalog(
+        model: &ValidatedPhysicalRegisterModel,
+    ) -> Result<PreparedRegisterConstraintCatalog, X86_64RegisterConstraintCatalogValidationError>
+    {
+        check_x86_64_catalog_model(model)?;
+        Ok(canonical_x86_64_register_constraint_catalog().clone())
+    }
+
+    fn canonical_x86_64_register_constraint_catalog() -> &'static PreparedRegisterConstraintCatalog
+    {
+        static CANONICAL: std::sync::OnceLock<PreparedRegisterConstraintCatalog> =
+            std::sync::OnceLock::new();
+        CANONICAL.get_or_init(|| {
+            register_model::produce_register_constraint_catalog(
+                validated_x86_64_physical_register_model(),
+                x86_64_register_constraint_catalog,
+            )
+        })
+    }
+
+    pub fn validate_x86_64_register_constraint_catalog(
+        catalog: RegisterConstraintCatalog,
+        model: &ValidatedPhysicalRegisterModel,
+    ) -> Result<PreparedRegisterConstraintCatalog, X86_64RegisterConstraintCatalogValidationError>
+    {
+        check_x86_64_catalog_model(model)?;
         let validated = validate_register_constraint_catalog(catalog, model)
             .map_err(X86_64RegisterConstraintCatalogValidationError::Structural)?;
         let canonical = x86_64_register_constraint_catalog_for(model);
@@ -1414,12 +1441,8 @@ mod constraint_catalog {
     pub(crate) fn x86_64_register_constraint_catalog_for(
         model: &ValidatedPhysicalRegisterModel,
     ) -> std::borrow::Cow<'static, RegisterConstraintCatalog> {
-        static CANONICAL: std::sync::OnceLock<RegisterConstraintCatalog> =
-            std::sync::OnceLock::new();
         if model.identity() == canonical_x86_64_physical_register_model_identity() {
-            std::borrow::Cow::Borrowed(CANONICAL.get_or_init(|| {
-                x86_64_register_constraint_catalog(validated_x86_64_physical_register_model())
-            }))
+            std::borrow::Cow::Borrowed(canonical_x86_64_register_constraint_catalog().catalog())
         } else {
             std::borrow::Cow::Owned(x86_64_register_constraint_catalog(model))
         }
@@ -3628,8 +3651,8 @@ pub use call_keys::{
 };
 pub(crate) use constraint_catalog::x86_64_register_constraint_catalog_for;
 pub use constraint_catalog::{
-    X86_64RegisterConstraintCatalogValidationError, validate_x86_64_register_constraint_catalog,
-    x86_64_register_constraint_catalog,
+    X86_64RegisterConstraintCatalogValidationError, prepare_x86_64_register_constraint_catalog,
+    validate_x86_64_register_constraint_catalog, x86_64_register_constraint_catalog,
 };
 pub use float_scalar_calls::{x86_64_float_scalar_call_keys, x86_64_float_scalar_return_keys};
 pub use indirect_results::x86_64_indirect_aggregate_call_keys;

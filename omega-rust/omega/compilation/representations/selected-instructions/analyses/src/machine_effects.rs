@@ -39,7 +39,7 @@ mod catalog {
 
     use isa_aarch64::aarch64_machine_effect_catalog;
     use isa_x86_64::x86_64_machine_effect_catalog;
-    use register_model::ValidatedRegisterConstraintCatalog;
+    use register_model::PreparedRegisterConstraintCatalog;
     use selected_instructions::{PreparedMachineEffectCatalog, canonical_machine_effect_catalog};
     use target::NativeTarget;
 
@@ -47,7 +47,7 @@ mod catalog {
 
     pub(super) fn prepared_catalog(
         target: NativeTarget,
-        constraints: &ValidatedRegisterConstraintCatalog,
+        constraints: &PreparedRegisterConstraintCatalog,
     ) -> Result<Arc<PreparedMachineEffectCatalog>, MachineEffectStageError> {
         // The ISA owner establishes its own output. Foreign-catalog validation is
         // a separate boundary, not a second construction during ordinary compilation.
@@ -84,8 +84,8 @@ mod facts {
     mod compute {
         use crate::SelectedProgramView;
         use register_model::{
-            TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
-            ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
+            PreparedRegisterConstraintCatalog, TargetRegisterEnvironmentConstraintKeys,
+            TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
             ValidatedRegisterReservationProfile, target_register_environment_identity,
         };
         use selected_instructions::{
@@ -106,7 +106,7 @@ mod facts {
             selected: &S,
             register_environment: TargetRegisterEnvironmentIdentity,
             physical: &ValidatedPhysicalRegisterModel,
-            constraints: &ValidatedRegisterConstraintCatalog,
+            constraints: &PreparedRegisterConstraintCatalog,
             reservations: &ValidatedRegisterReservationProfile,
             selected_keys: &TargetRegisterEnvironmentConstraintKeys,
             catalog: &PreparedMachineEffectCatalog,
@@ -190,7 +190,7 @@ mod facts {
 
         fn validate_catalog_roots(
             target: target::NativeTarget,
-            constraints: &ValidatedRegisterConstraintCatalog,
+            constraints: &PreparedRegisterConstraintCatalog,
             selected_keys: &TargetRegisterEnvironmentConstraintKeys,
             catalog: &PreparedMachineEffectCatalog,
         ) -> Result<(), MachineEffectError> {
@@ -331,7 +331,7 @@ mod facts {
             function: &SelectedFunction,
             instruction: &SelectedInstruction,
             physical: &ValidatedPhysicalRegisterModel,
-            constraints: &ValidatedRegisterConstraintCatalog,
+            constraints: &PreparedRegisterConstraintCatalog,
             declarations_by_key: &std::collections::BTreeMap<
                 (MachineSemanticKind, register_model::RegisterConstraintKey),
                 Option<&MachineEffectDeclaration>,
@@ -726,8 +726,8 @@ mod facts {
         use std::borrow::Cow;
 
         use register_model::{
-            RegisterInstructionConstraint, ValidatedPhysicalRegisterModel,
-            ValidatedRegisterConstraintCatalog,
+            PreparedRegisterConstraintCatalog, RegisterInstructionConstraint,
+            ValidatedPhysicalRegisterModel,
         };
         use selected_instructions::{
             MachineEffectDeclaration, SelectedFunction, SelectedInstruction,
@@ -740,7 +740,7 @@ mod facts {
             function: &SelectedFunction,
             instruction: &SelectedInstruction,
             physical: &ValidatedPhysicalRegisterModel,
-            catalog: &'catalog ValidatedRegisterConstraintCatalog,
+            catalog: &'catalog PreparedRegisterConstraintCatalog,
         ) -> Result<Cow<'catalog, RegisterInstructionConstraint>, MachineEffectError> {
             let invalid = || MachineEffectError::ConstraintEffectMismatch {
                 instruction: instruction.id,
@@ -852,8 +852,8 @@ mod facts {
 
     use crate::SelectedProgramView;
     use register_model::{
-        TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
-        ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
+        PreparedRegisterConstraintCatalog, TargetRegisterEnvironmentConstraintKeys,
+        TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
         ValidatedRegisterReservationProfile,
     };
     use selected_instructions::PreparedMachineEffectCatalog;
@@ -867,7 +867,7 @@ mod facts {
         selected: &S,
         register_environment: TargetRegisterEnvironmentIdentity,
         physical: &ValidatedPhysicalRegisterModel,
-        constraints: &ValidatedRegisterConstraintCatalog,
+        constraints: &PreparedRegisterConstraintCatalog,
         reservations: &ValidatedRegisterReservationProfile,
         selected_keys: &TargetRegisterEnvironmentConstraintKeys,
         catalog: &PreparedMachineEffectCatalog,
@@ -982,7 +982,7 @@ use register_environment::ValidatedTargetRegisterEnvironment;
 
 pub fn prepared_machine_effect_catalog(
     target: target::NativeTarget,
-    constraints: &register_model::ValidatedRegisterConstraintCatalog,
+    constraints: &register_model::PreparedRegisterConstraintCatalog,
 ) -> Result<
     std::sync::Arc<selected_instructions::PreparedMachineEffectCatalog>,
     MachineEffectStageError,

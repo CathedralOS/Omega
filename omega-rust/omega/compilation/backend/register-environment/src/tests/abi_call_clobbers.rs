@@ -28,9 +28,8 @@ use isa_x86_64::{
     x86_64_preservation_convention_for_target,
 };
 use register_model::{
-    PhysicalRegisterModel, PreservationConvention, RegisterConstraintKey,
-    RegisterInstructionConstraint, RegisterUnitId, RegisterView,
-    ValidatedRegisterConstraintCatalog,
+    PhysicalRegisterModel, PreparedRegisterConstraintCatalog, PreservationConvention,
+    RegisterConstraintKey, RegisterInstructionConstraint, RegisterUnitId, RegisterView,
 };
 use selected_instructions::{
     MachineAlternative, MachineAlternativeApplicability, MachineEffectCatalog,
@@ -198,7 +197,7 @@ fn units_for_names(model: &PhysicalRegisterModel, names: &[&str]) -> Vec<Registe
 
 fn validated_effects(
     case: ScalarAbiCase,
-    constraints: &ValidatedRegisterConstraintCatalog,
+    constraints: &PreparedRegisterConstraintCatalog,
 ) -> PreparedMachineEffectCatalog {
     match case.target.architecture {
         Architecture::X86_64 => validate_x86_64_machine_effect_catalog(
@@ -218,7 +217,7 @@ fn validated_effects(
 
 fn produced_effects(
     case: ScalarAbiCase,
-    constraints: &ValidatedRegisterConstraintCatalog,
+    constraints: &PreparedRegisterConstraintCatalog,
 ) -> MachineEffectCatalog {
     match case.target.architecture {
         Architecture::X86_64 => x86_64_machine_effect_catalog(case.target, constraints).unwrap(),
@@ -351,7 +350,7 @@ enum EffectRejection {
 
 fn validate_effects(
     case: ScalarAbiCase,
-    constraints: &ValidatedRegisterConstraintCatalog,
+    constraints: &PreparedRegisterConstraintCatalog,
     catalog: MachineEffectCatalog,
 ) -> Result<PreparedMachineEffectCatalog, EffectRejection> {
     match case.target.architecture {

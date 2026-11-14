@@ -498,7 +498,7 @@ pub(crate) mod byte_view_homes {
 pub(crate) mod constraints {
     use crate::selection::model::SelectedInstructionError;
     use register_model::{
-        RegisterConstraintKey, RegisterInstructionConstraint, ValidatedRegisterConstraintCatalog,
+        PreparedRegisterConstraintCatalog, RegisterConstraintKey, RegisterInstructionConstraint,
     };
     use selected_instructions::{
         SelectedConstraintKeys, SelectedFixedInputConstraint, SelectedInstruction,
@@ -512,7 +512,7 @@ pub(crate) mod constraints {
         key: RegisterConstraintKey,
         registers: &[VirtualRegisterId],
         provenance: SelectedInstructionProvenance,
-        catalog: &ValidatedRegisterConstraintCatalog,
+        catalog: &PreparedRegisterConstraintCatalog,
     ) -> Result<SelectedInstruction, SelectedInstructionError> {
         let row = row(catalog, key)?;
         instruction_from_row(id, kind, registers, provenance, row)
@@ -556,7 +556,7 @@ pub(crate) mod constraints {
 
     pub(crate) fn require_key_rows(
         keys: &SelectedConstraintKeys,
-        catalog: &ValidatedRegisterConstraintCatalog,
+        catalog: &PreparedRegisterConstraintCatalog,
     ) -> Result<(), SelectedInstructionError> {
         for key in [
             keys.materialize_i64,
@@ -576,7 +576,7 @@ pub(crate) mod constraints {
     }
 
     pub(crate) fn row(
-        catalog: &ValidatedRegisterConstraintCatalog,
+        catalog: &PreparedRegisterConstraintCatalog,
         key: RegisterConstraintKey,
     ) -> Result<&RegisterInstructionConstraint, SelectedInstructionError> {
         catalog
@@ -743,7 +743,7 @@ pub(crate) use crate::selection_inputs::established_view_input;
 pub(crate) mod extent_copy {
     use crate::SelectedInstructionError;
     use register_model::{
-        RegisterConstraintKey, RegisterOperandAccess, ValidatedRegisterConstraintCatalog,
+        PreparedRegisterConstraintCatalog, RegisterConstraintKey, RegisterOperandAccess,
     };
     use selected_instructions::{
         SelectedInstructionId, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
@@ -768,7 +768,7 @@ pub(crate) mod extent_copy {
         instruction: SelectedInstructionId,
         inputs: [VirtualRegisterId; 3],
         key: RegisterConstraintKey,
-        catalog: &ValidatedRegisterConstraintCatalog,
+        catalog: &PreparedRegisterConstraintCatalog,
         registers: &mut Vec<VirtualRegister>,
     ) -> Result<[VirtualRegisterId; 5], SelectedInstructionError> {
         let row = super::constraints::row(catalog, key)?;

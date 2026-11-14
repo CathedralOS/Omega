@@ -156,8 +156,8 @@ pub use register_model::{
     AARCH64_SUBTRACT_I64, AARCH64_SUBTRACT_I64_IMMEDIATE, AARCH64_ZERO_BYTES,
     Aarch64RegisterConstraintCatalogValidationError, aarch64_fixed_register_view,
     aarch64_physical_register_model, aarch64_preservation_convention_for_target,
-    aarch64_register_constraint_catalog, validate_aarch64_register_constraint_catalog,
-    validated_aarch64_physical_register_model,
+    aarch64_register_constraint_catalog, prepare_aarch64_register_constraint_catalog,
+    validate_aarch64_register_constraint_catalog, validated_aarch64_physical_register_model,
 };
 pub use register_model::{
     AARCH64_ADDRESS_OFFSET, AARCH64_BYTE_LITERAL_IMAGE_ADDRESS,

@@ -294,20 +294,32 @@ impl RegisterConstraintCatalog {
     }
 }
 
+/// Immutable constraints retained with their physical-model and catalog identities.
+/// A trusted producer or a supplied-catalog validator establishes the table.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedRegisterConstraintCatalog {
+pub struct PreparedRegisterConstraintCatalog {
     architecture: Architecture,
-    catalog: RegisterConstraintCatalog,
+    catalog: std::sync::Arc<RegisterConstraintCatalog>,
     physical: PhysicalRegisterModelIdentity,
     identity: RegisterConstraintCatalogIdentity,
 }
 
-impl ValidatedRegisterConstraintCatalog {
+impl PreparedRegisterConstraintCatalog {
+    fn retain(catalog: RegisterConstraintCatalog, model: &ValidatedPhysicalRegisterModel) -> Self {
+        let identity = identities::register_constraint_catalog_identity(model.identity(), &catalog);
+        Self {
+            architecture: catalog.architecture,
+            catalog: std::sync::Arc::new(catalog),
+            physical: model.identity(),
+            identity,
+        }
+    }
+
     pub const fn architecture(&self) -> Architecture {
         self.architecture
     }
 
-    pub const fn catalog(&self) -> &RegisterConstraintCatalog {
+    pub fn catalog(&self) -> &RegisterConstraintCatalog {
         &self.catalog
     }
 
@@ -326,6 +338,15 @@ impl ValidatedRegisterConstraintCatalog {
     pub const fn physical_identity(&self) -> PhysicalRegisterModelIdentity {
         self.physical
     }
+}
+
+/// Retains the trusted ISA builder's output without replaying or rebuilding it.
+/// Supplied catalogs must instead use `validate_register_constraint_catalog`.
+pub fn produce_register_constraint_catalog(
+    model: &ValidatedPhysicalRegisterModel,
+    build: impl FnOnce(&ValidatedPhysicalRegisterModel) -> RegisterConstraintCatalog,
+) -> PreparedRegisterConstraintCatalog {
+    PreparedRegisterConstraintCatalog::retain(build(model), model)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -389,7 +410,7 @@ impl std::error::Error for RegisterConstraintCatalogValidationError {}
 pub fn validate_register_constraint_catalog(
     catalog: RegisterConstraintCatalog,
     model: &ValidatedPhysicalRegisterModel,
-) -> Result<ValidatedRegisterConstraintCatalog, RegisterConstraintCatalogValidationError> {
+) -> Result<PreparedRegisterConstraintCatalog, RegisterConstraintCatalogValidationError> {
     let physical = model.model();
     if catalog.architecture != physical.architecture {
         return Err(RegisterConstraintCatalogValidationError::ArchitectureMismatch);
@@ -503,13 +524,7 @@ pub fn validate_register_constraint_catalog(
         }
     }
 
-    let identity = identities::register_constraint_catalog_identity(model.identity(), &catalog);
-    Ok(ValidatedRegisterConstraintCatalog {
-        architecture: catalog.architecture,
-        catalog,
-        physical: model.identity(),
-        identity,
-    })
+    Ok(PreparedRegisterConstraintCatalog::retain(catalog, model))
 }
 
 fn validate_required_constraint_inventory(

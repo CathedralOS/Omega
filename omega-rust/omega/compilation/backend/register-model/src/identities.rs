@@ -9,9 +9,9 @@ environments (`TargetRegisterEnvironmentIdentity`).
 use target::{Architecture, NativeTarget, ObjectFormat};
 
 use crate::{
-    PhysicalRegisterModel, PreservationConvention, RegisterConstraintCatalog,
-    RegisterInstructionConstraint, RegisterReservationProfile, RegisterUnitId, RegisterUnitKind,
-    RegisterWriteSemantics, ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
+    PhysicalRegisterModel, PreparedRegisterConstraintCatalog, PreservationConvention,
+    RegisterConstraintCatalog, RegisterInstructionConstraint, RegisterReservationProfile,
+    RegisterUnitId, RegisterUnitKind, RegisterWriteSemantics, ValidatedPhysicalRegisterModel,
     ValidatedRegisterReservationProfile, encode_constraint_key,
 };
 
@@ -152,7 +152,7 @@ pub(crate) fn register_reservation_profile_identity(
 pub fn infrastructure_environment_agrees(
     target: NativeTarget,
     physical: &ValidatedPhysicalRegisterModel,
-    constraints: &ValidatedRegisterConstraintCatalog,
+    constraints: &PreparedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
     selected_keys: &crate::TargetRegisterEnvironmentConstraintKeys,
     register_environment: TargetRegisterEnvironmentIdentity,
@@ -172,7 +172,7 @@ pub fn infrastructure_environment_agrees(
 pub fn target_register_environment_identity(
     target: NativeTarget,
     physical: &ValidatedPhysicalRegisterModel,
-    constraints: &ValidatedRegisterConstraintCatalog,
+    constraints: &PreparedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
     selected_keys: &crate::TargetRegisterEnvironmentConstraintKeys,
 ) -> TargetRegisterEnvironmentIdentity {
