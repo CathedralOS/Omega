@@ -701,9 +701,12 @@ impl Carried<'_> {
 /// the specialization's own, so a wrong one yields a proof the kernel
 /// refuses.
 ///
-/// Returns one verdict per obligation that takes a certificate, in table
-/// order. Nothing here is trusted: a carried proof that does not fit is
-/// refused by the kernel, as `Unproved(KernelRefused)`.
+/// Returns only conditional mathematical evidence per obligation, not an
+/// accepted compilation or proof of a selected implementation's identity.
+/// `judge_compilation` independently judges every actual conformance witness
+/// emitted by source preparation; carrying cannot replace that admission.
+/// A proof with no matching premise refuses before kernel entry, and every
+/// reconstructed candidate still reaches the consumer's actual kernel goal.
 pub fn reverify_specialization(
     generic: &Elaboration,
     found: &Discharge,
@@ -1410,10 +1413,6 @@ impl Carry<'_> {
                     .map(|row| row.justification);
                 if let Some(Justification::CalleeGuarantee { invocation, .. }) = justification {
                     if let Some(index) = self.call_assumption(invocation, concluded, target) {
-                        if let Some(selection) = self.selection(invocation)? {
-                            let witness = self.witness(selection, concerns)?;
-                            self.complete_refinement(&witness, concerns)?;
-                        }
                         return Ok(Cited::Index(index));
                     }
                     if let Some(selection) = self.selection(invocation)? {
@@ -1562,30 +1561,6 @@ impl Carry<'_> {
         concerns: Construct,
     ) -> Checked<ProofNode> {
         let selection = self.selection(invocation)?;
-        if let Some(selection) = selection {
-            let witness = self.witness(selection, concerns)?;
-            let called = terminal_check_tables::row(
-                &witness.tables.invocations,
-                witness.invocation,
-                self.specialization,
-                concerns,
-            )?;
-            // A public input proof cannot repair a member that asks more.
-            // These are the independently discharged refinement obligations,
-            // not facts inferred from the selected body's identity.
-            if called.requirements.iter().any(|obligation| {
-                !matches!(
-                    witness.verdicts.get(*obligation),
-                    Some(Ok(Discharged::Certificate(_)))
-                )
-            }) {
-                return Err(self.refuse(
-                    RefusalReason::Unproved(UnprovedCause::NoDerivation),
-                    concerns,
-                    "the selected member's input contract has no refinement proof",
-                ));
-            }
-        }
         let called = terminal_check_tables::row(
             &self.template.invocations,
             invocation,
@@ -1686,25 +1661,6 @@ impl Carry<'_> {
         })
     }
 
-    // A cited public promise cannot hide another failed refinement axis.
-    // Input arithmetic may be proved independently; using the selected
-    // requirement's guarantees needs the whole independently checked witness.
-    fn complete_refinement(&self, witness: &Witness<'_>, concerns: Construct) -> Checked<()> {
-        if witness
-            .tables
-            .obligations
-            .iter()
-            .any(|(obligation, _)| !matches!(witness.verdicts.get(obligation), Some(Ok(_))))
-        {
-            return Err(self.refuse(
-                RefusalReason::Unproved(UnprovedCause::NoDerivation),
-                concerns,
-                "the selected requirement has no complete refinement proof",
-            ));
-        }
-        Ok(())
-    }
-
     fn requirement_guarantee(
         &self,
         selection: &Selection<'_>,
@@ -1714,7 +1670,6 @@ impl Carry<'_> {
         concerns: Construct,
     ) -> Checked<ProofNode> {
         let witness = self.witness(selection, concerns)?;
-        self.complete_refinement(&witness, concerns)?;
         self.matching_proof(
             witness.verdicts,
             witness

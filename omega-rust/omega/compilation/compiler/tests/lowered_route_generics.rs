@@ -92,6 +92,126 @@ fn a_bound_only_the_selected_implementations_give_is_refused_generically() {
     );
 }
 
+/// Conditional caller proofs do not admit a selected implementation. Source
+/// preparation must retain the actual member's witness, and the full driver
+/// must refuse that witness even if a public caller's arithmetic is provable.
+#[test]
+fn a_failed_actual_refinement_is_kept_by_the_whole_source_driver() {
+    use terminal_check_tables::UnprovedCause;
+    use terminal_check_tables::compilation::TerminalCompilation;
+    use terminal_check_tables::obligations::ObligationKind;
+    use terminal_psi_to_terminal_psi::RouteVerdict;
+
+    let _guard = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let original = std::fs::read_to_string(repository(
+        "tests/fixtures/run/generics/implementation_parameter_contract/main.omg",
+    ))
+    .unwrap();
+    let mut source = original.clone();
+    for (from, to) in [
+        ("requires value <= 12", "requires value <= 10"),
+        ("ensures result <= 17", "ensures result <= 25"),
+        ("value + 5", "value + 15"),
+    ] {
+        assert_eq!(source.matches(from).count(), 1, "exact Shift declaration");
+        source = source.replace(from, to);
+    }
+    assert_ne!(source, original);
+    let frontier = unbuilt_frontier::staged_frontier("failed_actual_refinement", &source);
+    let prepared = match typed_trees_to_terminal_psi::prepare_compilation(
+        &frontier.typed,
+        typed_trees_to_terminal_psi::Compilation {
+            entries: &frontier.entries,
+            subjects: &[frontier.subject],
+            purpose: source::DependencyScope::Product,
+            selected: &frontier.selected,
+            bindings: &frontier.bindings,
+            supplies: &[],
+        },
+        terminal_codec::TerminalPublication::Portable,
+    )
+    .program
+    {
+        TerminalCompilation::Prepared(prepared) => prepared,
+        stopped => panic!("the actual source must reach full compilation preparation: {stopped:?}"),
+    };
+    assert_eq!(prepared.forms.len(), 1);
+    assert_eq!(prepared.witnesses.len(), 2);
+    assert_eq!(prepared.selection_witnesses.len(), 2);
+    let closure = prepared.closure.as_ref().unwrap();
+    let first = semantic_vocabulary::MachineId::new(1).unwrap();
+    let second = semantic_vocabulary::MachineId::new(2).unwrap();
+    for (selection, witness) in &prepared.selection_witnesses {
+        let selected = &closure.selections[*selection];
+        let witness = prepared.witnesses[*witness].as_ref().unwrap();
+        assert_eq!(witness.machines.get(first), Some(&selected.requirement));
+        assert_eq!(
+            witness.value_arguments.get(first),
+            Some(&selected.value_arguments)
+        );
+        let implementation = closure
+            .machines
+            .get(selected.implementation)
+            .expect("the selection has an actual source implementation");
+        assert_eq!(
+            witness
+                .machines
+                .get(second)
+                .expect("the witness has an actual source body"),
+            implementation,
+            "the actual selected member, never another matching requirement witness"
+        );
+    }
+
+    let verdicts =
+        terminal_psi_to_terminal_psi::judge_compilation(TerminalCompilation::Prepared(prepared));
+    assert_eq!(
+        verdicts.len(),
+        4,
+        "closure, generic form and both actual witnesses"
+    );
+    let mut accepted = 0;
+    let mut rejected = 0;
+    for verdict in &verdicts[2..] {
+        match verdict {
+            Ok(RouteVerdict::Accepted(_)) => accepted += 1,
+            Ok(RouteVerdict::Rejected {
+                formations,
+                unproved,
+                unestablished,
+                conflicts,
+                exceeded,
+            }) => {
+                assert!(
+                    formations.is_empty()
+                        && unestablished.is_empty()
+                        && conflicts.is_empty()
+                        && exceeded.is_empty()
+                );
+                assert!(unproved.iter().any(|refusal| {
+                    matches!(refusal.kind, ObligationKind::NormalGuarantee { .. })
+                        && refusal.cause == UnprovedCause::NoDerivation
+                }));
+                assert!(unproved.iter().all(|refusal| matches!(
+                    (refusal.kind, refusal.cause),
+                    (
+                        ObligationKind::NormalGuarantee { .. },
+                        UnprovedCause::NoDerivation
+                    ) | (
+                        ObligationKind::PublishedGuarantee { .. },
+                        UnprovedCause::ReturnDoesNotEstablish
+                    )
+                )));
+                rejected += 1;
+            }
+            other => panic!("the actual witness must be judged, not omitted: {other:?}"),
+        }
+    }
+    assert_eq!((accepted, rejected), (1, 1));
+}
+
 /// A value parameter, with an implementation parameter beside it:
 /// `Selected::value<const Units: u64>` applied at `7`, and
 /// `selected<Implementation satisfies Bounded>` applied at `Selected`.

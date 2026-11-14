@@ -6269,32 +6269,43 @@ mod generic_bodies {
     }
 
     #[test]
-    fn a_public_call_keeps_its_judgments_and_still_requires_refinement() {
-        // The ordinary routed entry advertises Step's <=20 result, while
-        // its body is checked independently under Shift's stronger <=17.
-        let routed = member(10, 20, shift().statements);
-        let (consumer, verdicts, started) = carried(21, routed, shift());
-        assert_eq!(started, 0);
-        assert_eq!(verdicts.len(), 3);
-        for (obligation, verdict) in &verdicts {
-            assert_kernel_checked(&consumer, 1, *obligation, verdict.as_ref().unwrap());
+    fn public_call_certificates_do_not_admit_a_crossed_implementation_witness() {
+        // These callers all advertise Step's <=20 postcondition. Conditional
+        // arithmetic proofs can use it, even when offered an unrelated or
+        // failed refinement. That evidence is not implementation admission.
+        for (routed, offered) in [
+            (member(10, 20, shift().statements), shift()),
+            (member(10, 20, wide().statements), shift()),
+            (member(10, 20, wide().statements), wide()),
+        ] {
+            let (consumer, verdicts, started) = carried(21, routed, offered);
+            assert_eq!(started, 0);
+            assert_eq!(verdicts.len(), 3);
+            for (obligation, verdict) in &verdicts {
+                assert_kernel_checked(&consumer, 1, *obligation, verdict.as_ref().unwrap());
+            }
         }
 
-        // A matching advertised fact does not make Wide refine Step.
-        // Its failed refinement must still prevent carrying both proofs
-        // that depend on the public postcondition.
-        let routed = member(10, 20, wide().statements);
-        let (_, verdicts, started) = carried(21, routed, wide());
-        assert_eq!(started, 0);
-        let refused = verdicts
-            .iter()
-            .filter_map(|(_, verdict)| verdict.as_ref().err())
-            .map(|refusal| refusal.reason)
-            .collect::<Vec<_>>();
-        assert_eq!(
-            refused,
-            [RefusalReason::Unproved(UnprovedCause::NoDerivation); 2]
-        );
+        // The actual Wide refinement remains a separate refused judgment:
+        // its <=25 body promise does not establish the public <=20 result.
+        let (actual, _) = run(vec![witness(), wide()]);
+        let RouteVerdict::Rejected { unproved, .. } = judge(Ok(actual)).unwrap() else {
+            panic!("conditional caller proofs admitted the actual invalid refinement")
+        };
+        assert!(unproved.iter().any(|refusal| {
+            matches!(refusal.kind, ObligationKind::NormalGuarantee { .. })
+                && refusal.cause == UnprovedCause::NoDerivation
+        }));
+        assert!(unproved.iter().all(|refusal| matches!(
+            (refusal.kind, refusal.cause),
+            (
+                ObligationKind::NormalGuarantee { .. },
+                UnprovedCause::NoDerivation
+            ) | (
+                ObligationKind::PublishedGuarantee { .. },
+                UnprovedCause::ReturnDoesNotEstablish
+            )
+        )));
     }
 
     /// Discharges `advance(bound)` specialized to `implementation` as one
