@@ -34,40 +34,68 @@ reduction modulo `2^N`, which no term states.
 
 use proof_admission::{PrimitiveJudgment, ProofRule, compare_integer_math_terms, decide_primitive};
 use semantic_vocabulary::{
-    IntegerMathTerm, IntegerType, IntegerValue, Proposition, ScalarTerm, ScalarType,
+    IntegerMathTerm, IntegerType, IntegerValue, Proposition, ScalarTerm, ScalarType, ValueId,
 };
 
 use super::{Direction, ProofNode, Prover, Unproven, flip, node, primitive};
 
 /// Whether `term` names a parameter width: a value of a parameter-width
-/// carrier, or a power of two whose exponent is open.
-pub(super) fn mentions_parameter_width(term: &IntegerMathTerm) -> bool {
+/// carrier, or `2^N`/`2^(N-1)` for a width binder `N` (`width`). A shift of
+/// another value by an open count is an ordinary shift, not a width.
+pub(super) fn mentions_parameter_width(
+    term: &IntegerMathTerm,
+    width: &dyn Fn(ValueId) -> bool,
+) -> bool {
     match term {
         IntegerMathTerm::MathValue { source_type, .. } => source_type.bits().is_none(),
         IntegerMathTerm::Embed(term) => term
             .scalar_type()
             .as_integer()
             .is_some_and(|integer| integer.bits().is_none()),
-        IntegerMathTerm::ShiftLeft { count, .. } if !closed(count) => true,
+        IntegerMathTerm::ShiftLeft { value, count }
+            if **value == IntegerMathTerm::literal(IntegerValue::Unsigned(1))
+                && width_exponent(count).is_some_and(width) =>
+        {
+            true
+        }
         IntegerMathTerm::IntegerLiteral(_) => false,
-        _ => term.operands().into_iter().any(mentions_parameter_width),
+        _ => term
+            .operands()
+            .into_iter()
+            .any(|operand| mentions_parameter_width(operand, width)),
+    }
+}
+
+/// The binder `N` of an exponent `N` or `N - 1`.
+fn width_exponent(count: &IntegerMathTerm) -> Option<ValueId> {
+    let binder = |term: &IntegerMathTerm| match term {
+        IntegerMathTerm::MathValue { source_type, value }
+            if *source_type == IntegerType::width_binder() =>
+        {
+            Some(*value)
+        }
+        _ => None,
+    };
+    match count {
+        IntegerMathTerm::Subtract(width, one)
+            if **one == IntegerMathTerm::literal(IntegerValue::Unsigned(1)) =>
+        {
+            binder(width)
+        }
+        count => binder(count),
     }
 }
 
 /// Whether the goal `left <= right` has the form this module proves: one
 /// side a value, a literal or the sum of two of them, the other an
 /// endpoint, and a parameter width named somewhere.
-pub(super) fn covered(left: &IntegerMathTerm, right: &IntegerMathTerm) -> bool {
-    (mentions_parameter_width(left) || mentions_parameter_width(right))
+pub(super) fn covered(
+    left: &IntegerMathTerm,
+    right: &IntegerMathTerm,
+    width: &dyn Fn(ValueId) -> bool,
+) -> bool {
+    (mentions_parameter_width(left, width) || mentions_parameter_width(right, width))
         && (operands(left).is_some() || operands(right).is_some())
-}
-
-fn closed(term: &IntegerMathTerm) -> bool {
-    match term {
-        IntegerMathTerm::IntegerLiteral(_) => true,
-        IntegerMathTerm::MathValue { .. } | IntegerMathTerm::Embed(_) => false,
-        _ => term.operands().into_iter().all(closed),
-    }
 }
 
 /// The operands of a sum the goal bounds: one leaf, or two added.
@@ -130,7 +158,7 @@ fn ends(proof: &ProofNode) -> Option<(&IntegerMathTerm, &IntegerMathTerm)> {
 fn exponents(term: &IntegerMathTerm, found: &mut Vec<IntegerMathTerm>) {
     match term {
         IntegerMathTerm::ShiftLeft { value, count }
-            if !closed(count)
+            if width_exponent(count).is_some()
                 && **value == IntegerMathTerm::literal(IntegerValue::Unsigned(1)) =>
         {
             if !found.contains(count) {
@@ -146,6 +174,15 @@ fn exponents(term: &IntegerMathTerm, found: &mut Vec<IntegerMathTerm>) {
 }
 
 impl Prover<'_> {
+    /// Whether `value` is the width binder of a value's carrier here.
+    pub(super) fn is_width(&self, value: ValueId) -> bool {
+        self.values.iter().any(|(_, row)| {
+            matches!(row.scalar_type, ScalarType::Integer(integer)
+                if matches!(integer.width(), semantic_vocabulary::IntegerWidth::Parameter(parameter)
+                    if parameter.value == value))
+        })
+    }
+
     /// `left <= right` where a parameter width is named.
     pub(super) fn width_goal(
         &mut self,
