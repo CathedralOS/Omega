@@ -7420,15 +7420,6 @@ pub(crate) mod nodes {
         node: &OptimizationNode,
         source: Option<&crate::native_geometry::NativePlan<'_>>,
     ) -> Result<(OperationId, Option<ValueId>), NodeRejection> {
-        // Instruction discovery also classifies independent raw metadata.
-        // Actual source validation retains its catalog here; a miss never
-        // falls back to independently closing the same spelled type.
-        let closed = |scalar| match source {
-            Some(source) => source.closed_scalar(scalar),
-            None => semantic_vocabulary::ClosedScalarType::try_from(scalar).ok(),
-        };
-        let scalar_shape =
-            |scalar| closed(scalar).and_then(calling_conventions::ValueShape::for_closed_scalar);
         if let AbstractOperation::ActivateTaskRegister {
             psi_operation,
             result,
@@ -7534,12 +7525,22 @@ pub(crate) mod nodes {
         {
             Ok((*psi_operation, result.scalar().map(|result| result.value)))
         } else {
-            scalar_instruction(node).map(|(operation, result)| (operation, Some(result)))
+            scalar_instruction(node, source).map(|(operation, result)| (operation, Some(result)))
         }
     }
     fn scalar_instruction(
         node: &OptimizationNode,
+        source: Option<&crate::native_geometry::NativePlan<'_>>,
     ) -> Result<(OperationId, ValueId), NodeRejection> {
+        // Instruction discovery also classifies independent raw metadata.
+        // Actual source validation retains its catalog here; a miss never
+        // falls back to independently closing the same spelled type.
+        let closed = |scalar| match source {
+            Some(source) => source.closed_scalar(scalar),
+            None => semantic_vocabulary::ClosedScalarType::try_from(scalar).ok(),
+        };
+        let scalar_shape =
+            |scalar| closed(scalar).and_then(calling_conventions::ValueShape::for_closed_scalar);
         match &node.operation {
             AbstractOperation::SelectImplementation {
                 psi_operation,
@@ -8447,9 +8448,10 @@ pub(crate) mod nodes {
                     ..
                 } => {
                     if arithmetic.policy() != IntegerOverflowPolicy::Exact
-                        && (!integer_arithmetic_admitted(*arithmetic, *scalar_type)
-                            || function_inputs.value_type(*left)
-                                != Some(ScalarType::Integer(*scalar_type))
+                        && (!plan.closed_integer(*scalar_type).is_some_and(|integer| {
+                            integer_arithmetic_admitted(*arithmetic, integer)
+                        }) || function_inputs.value_type(*left)
+                            != Some(ScalarType::Integer(*scalar_type))
                             || function_inputs.value_type(*right)
                                 != Some(ScalarType::Integer(*scalar_type)))
                     {
