@@ -306,9 +306,11 @@ impl LogicalSourceInventory {
             ))]
         })?;
         result.by_path = (0..count).collect();
-        result
-            .by_path
-            .sort_by(|left, right| result.units[*left as usize].path.cmp(&result.units[*right as usize].path));
+        result.by_path.sort_by(|left, right| {
+            result.units[*left as usize]
+                .path
+                .cmp(&result.units[*right as usize].path)
+        });
         Ok(result)
     }
 
@@ -443,6 +445,29 @@ mod tests {
                 .unwrap()
                 .contains(&capture_root().join("renamed.omg"))
         );
+    }
+
+    // Discovery's parse of each eligible unit stays with its owner's
+    // inventory, so admission can adopt it by path. Build files and paths
+    // outside the inventory have none and are parsed by admission itself.
+    #[test]
+    fn discovery_retains_each_unit_parse_for_admission() {
+        let filesystem = captured(&[
+            ("odd.omg", "public data Record {}"),
+            ("renamed.omg", "module api; public data Export {}"),
+            ("build.omg", "not product source syntax"),
+        ]);
+        let mut discovery = Vec::<RegisteredPackageRoot>::new();
+        discovery
+            .select(&capture_root(), &["api".into()], &filesystem)
+            .unwrap();
+        let retained = retained_unit(&discovery, &capture_root().join("renamed.omg"))
+            .expect("discovery retained the unit it parsed");
+        assert_eq!(&*retained.source, "module api; public data Export {}");
+        assert_eq!(retained.root_items().len(), 2);
+        assert!(retained_unit(&discovery, &capture_root().join("odd.omg")).is_some());
+        assert!(retained_unit(&discovery, &capture_root().join("build.omg")).is_none());
+        assert!(retained_unit(&discovery, Path::new("/elsewhere/odd.omg")).is_none());
     }
 
     /// What a Build source's import acquires in its own package. The first

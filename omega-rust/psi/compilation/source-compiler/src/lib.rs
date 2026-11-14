@@ -251,8 +251,8 @@ pub(crate) mod source_parsing {
     }
 
     use crate::{PsiCompilationObserver, PsiCompilationStage};
-    use diagnostics::Diagnostic;
     use arena::Arena;
+    use diagnostics::Diagnostic;
     use source::{DependencyScope, LoadedSource, LoadedSources, SourceContents, SourceFileSystem};
     use std::path::PathBuf;
     use syntax_trees::{ParsedSource, ParsedSources, ParsedUnit, SyntaxTrees};
@@ -359,9 +359,9 @@ pub(crate) mod source_parsing {
                         import_root_range: unit.import_root_range.clone(),
                         scope: source.scope,
                     },
-                    None => fresh.next().ok_or_else(|| {
-                        vec![Diagnostic::error("parser lost an admitted source")]
-                    })?,
+                    None => fresh
+                        .next()
+                        .ok_or_else(|| vec![Diagnostic::error("parser lost an admitted source")])?,
                 });
             }
             let batch = sources.insert_many(ordered);
@@ -444,7 +444,9 @@ pub(crate) mod source_parsing {
                 .unwrap();
             }
             for (index, (path, text)) in sources.iter().enumerate().rev() {
-                let admitted = || -> LoadedSources { [loaded(1000 + index, path, text)].into_iter().collect() };
+                let admitted = || -> LoadedSources {
+                    [loaded(1000 + index, path, text)].into_iter().collect()
+                };
                 let expected = SourceInput(admitted())
                     .append(&mut fresh, &mut UnmeasuredProduction)
                     .unwrap();
@@ -460,7 +462,7 @@ pub(crate) mod source_parsing {
                 assert_eq!(actual, expected, "{}", path.display());
             }
             assert_eq!(adopted, fresh);
-            assert_eq!(adopted.page_count(), sources.len() + 1);
+            assert_eq!(adopted.page_count(), fresh.page_count());
         }
 
         // A retained parse of different bytes is never adopted: the file

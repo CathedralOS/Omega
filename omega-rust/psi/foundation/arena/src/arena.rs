@@ -737,7 +737,7 @@ impl<T> Arena<T> {
     /// each row so the caller can move the handles it stores with it. An
     /// arena whose slots were freed or reused keeps per-slot generations that
     /// no single move can rewrite, so it is refused.
-    pub fn rebase_fresh_generation(
+    pub fn relocate_fresh_generation(
         &mut self,
         generation: u32,
         visit: impl FnMut(&mut T),

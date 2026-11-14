@@ -37,7 +37,8 @@ pub mod type_system {
             PartialEq,
             Eq,
             Default,
-            syntax_trees_derive::PlainSyntaxEquivalent, syntax_trees_derive::SyntaxRebase,
+            syntax_trees_derive::PlainSyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
             compiler_storage::Record,
         )]
         pub struct TypeAliasApplicationOrigin {
@@ -53,7 +54,8 @@ pub mod type_system {
             PartialEq,
             Eq,
             Default,
-            syntax_trees_derive::PlainSyntaxEquivalent, syntax_trees_derive::SyntaxRebase,
+            syntax_trees_derive::PlainSyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
             compiler_storage::Record,
         )]
         struct SuppliedOperandOwner {
@@ -67,7 +69,8 @@ pub mod type_system {
             PartialEq,
             Eq,
             Default,
-            syntax_trees_derive::PlainSyntaxEquivalent, syntax_trees_derive::SyntaxRebase,
+            syntax_trees_derive::PlainSyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
             compiler_storage::Record,
         )]
         struct PendingConstArgument {
@@ -81,7 +84,8 @@ pub mod type_system {
             PartialEq,
             Eq,
             Default,
-            syntax_trees_derive::PlainSyntaxEquivalent, syntax_trees_derive::SyntaxRebase,
+            syntax_trees_derive::PlainSyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
             compiler_storage::Record,
         )]
         pub struct ConstArgumentOrigin {
@@ -97,7 +101,8 @@ pub mod type_system {
             PartialEq,
             Eq,
             Default,
-            syntax_trees_derive::PlainSyntaxEquivalent, syntax_trees_derive::SyntaxRebase,
+            syntax_trees_derive::PlainSyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
             compiler_storage::Record,
         )]
         struct RetainedConstArgumentNormalization {
@@ -105,7 +110,15 @@ pub mod type_system {
             normalization: ConstArgumentNormalization,
         }
 
-        #[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record, syntax_trees_derive::SyntaxRebase)]
+        #[derive(
+            Debug,
+            Clone,
+            PartialEq,
+            Eq,
+            Default,
+            compiler_storage::Record,
+            syntax_trees_derive::SyntaxRelocate,
+        )]
         pub struct ConstArgumentNormalization {
             pub authored_expression: ExpressionHandle,
             pub materialized_expression: ExpressionHandle,
@@ -121,7 +134,8 @@ pub mod type_system {
             PartialEq,
             Eq,
             Default,
-            syntax_trees_derive::PlainSyntaxEquivalent, syntax_trees_derive::SyntaxRebase,
+            syntax_trees_derive::PlainSyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
             compiler_storage::Record,
         )]
         struct GenericApplicationOrigin {
@@ -773,7 +787,12 @@ pub mod type_system {
         }
 
         #[derive(
-            Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, syntax_trees_derive::SyntaxRebase, compiler_storage::Record,
+            Debug,
+            Clone,
+            Default,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
         )]
         pub enum TypeReferenceNode {
             Reference {
@@ -819,7 +838,13 @@ pub mod type_system {
             }
         }
 
-        #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, syntax_trees_derive::SyntaxRebase, compiler_storage::Record)]
+        #[derive(
+            Debug,
+            Clone,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
+        )]
         pub enum FixedArrayLength {
             Literal(usize),
             ConstParameter(Identifier),
@@ -866,7 +891,13 @@ pub mod type_system {
             }
         }
 
-        #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, syntax_trees_derive::SyntaxRebase, compiler_storage::Record)]
+        #[derive(
+            Debug,
+            Clone,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
+        )]
         pub enum TypeConstraintNode {
             Named(Identifier),
 
@@ -875,7 +906,12 @@ pub mod type_system {
         }
 
         #[derive(
-            Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, syntax_trees_derive::SyntaxRebase, compiler_storage::Record,
+            Debug,
+            Clone,
+            Default,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
         )]
         pub struct DomainConstraint {
             pub name: Identifier,
@@ -1719,7 +1755,13 @@ pub mod values {
             }
         }
 
-        #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, syntax_trees_derive::SyntaxRebase, compiler_storage::Record)]
+        #[derive(
+            Debug,
+            Clone,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
+        )]
         pub enum ExpressionNode {
             Match(TableMatchExpression),
             SavedSubject(TableSavedSubject),
@@ -1756,7 +1798,8 @@ pub mod values {
             Copy,
             PartialEq,
             Eq,
-            syntax_trees_derive::PlainSyntaxEquivalent, syntax_trees_derive::SyntaxRebase,
+            syntax_trees_derive::PlainSyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
             compiler_storage::Record,
         )]
         pub struct TableBorrowExpression {
@@ -1770,7 +1813,8 @@ pub mod values {
             Copy,
             PartialEq,
             Eq,
-            syntax_trees_derive::PlainSyntaxEquivalent, syntax_trees_derive::SyntaxRebase,
+            syntax_trees_derive::PlainSyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
             compiler_storage::Record,
         )]
         pub struct TableAtomicExpression {
@@ -1792,7 +1836,8 @@ pub mod values {
             Copy,
             PartialEq,
             Eq,
-            syntax_trees_derive::PlainSyntaxEquivalent, syntax_trees_derive::SyntaxRebase,
+            syntax_trees_derive::PlainSyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
             compiler_storage::Record,
         )]
         pub struct TableBinaryExpression {
@@ -1810,7 +1855,8 @@ pub mod values {
             Copy,
             PartialEq,
             Eq,
-            syntax_trees_derive::PlainSyntaxEquivalent, syntax_trees_derive::SyntaxRebase,
+            syntax_trees_derive::PlainSyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
             compiler_storage::Record,
         )]
         pub struct TableUnaryExpression {
@@ -1824,7 +1870,8 @@ pub mod values {
             Copy,
             PartialEq,
             Eq,
-            syntax_trees_derive::PlainSyntaxEquivalent, syntax_trees_derive::SyntaxRebase,
+            syntax_trees_derive::PlainSyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
             compiler_storage::Record,
         )]
         pub struct TableCastExpression {
@@ -1843,7 +1890,8 @@ pub mod values {
             Copy,
             PartialEq,
             Eq,
-            syntax_trees_derive::PlainSyntaxEquivalent, syntax_trees_derive::SyntaxRebase,
+            syntax_trees_derive::PlainSyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
             compiler_storage::Record,
         )]
         pub struct TableIndexedExpression {
@@ -1857,7 +1905,8 @@ pub mod values {
             Copy,
             PartialEq,
             Eq,
-            syntax_trees_derive::PlainSyntaxEquivalent, syntax_trees_derive::SyntaxRebase,
+            syntax_trees_derive::PlainSyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
             compiler_storage::Record,
         )]
         pub struct TableRangeExpression {
@@ -1872,7 +1921,8 @@ pub mod values {
             Copy,
             PartialEq,
             Eq,
-            syntax_trees_derive::PlainSyntaxEquivalent, syntax_trees_derive::SyntaxRebase,
+            syntax_trees_derive::PlainSyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
             compiler_storage::Record,
         )]
         pub struct TableMembershipExpression {
@@ -1880,7 +1930,13 @@ pub mod values {
             pub domain: HandleSpan<Identifier>,
         }
 
-        #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, syntax_trees_derive::SyntaxRebase, compiler_storage::Record)]
+        #[derive(
+            Debug,
+            Clone,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
+        )]
         pub struct TableMemberExpression {
             pub receiver: ExpressionHandle,
             pub access_source_span: SourceSpan,
@@ -1888,7 +1944,13 @@ pub mod values {
             pub case_variant: Option<Identifier>,
         }
 
-        #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, syntax_trees_derive::SyntaxRebase, compiler_storage::Record)]
+        #[derive(
+            Debug,
+            Clone,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
+        )]
         pub struct TableCallExpression {
             pub receiver: ExpressionHandle,
             pub target: Identifier,
@@ -1900,7 +1962,12 @@ pub mod values {
         }
 
         #[derive(
-            Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, syntax_trees_derive::SyntaxRebase, compiler_storage::Record,
+            Debug,
+            Clone,
+            Default,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
         )]
         pub struct StaticMachineArgument {
             pub type_reference: crate::types::TypeReferenceHandle,
@@ -1910,20 +1977,38 @@ pub mod values {
             pub evidence_projection: Option<EvidenceProjection>,
         }
 
-        #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, syntax_trees_derive::SyntaxRebase, compiler_storage::Record)]
+        #[derive(
+            Debug,
+            Clone,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
+        )]
         pub struct StaticSymbolApplication {
             pub member: Handle<StaticMachineArgument>,
             pub lifetime_arguments: Box<[Identifier]>,
             pub arguments: Box<[StaticMachineArgument]>,
         }
 
-        #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, syntax_trees_derive::SyntaxRebase, compiler_storage::Record)]
+        #[derive(
+            Debug,
+            Clone,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
+        )]
         pub struct EvidenceProjection {
             pub term: Identifier,
             pub member: Identifier,
         }
 
-        #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, syntax_trees_derive::SyntaxRebase, compiler_storage::Record)]
+        #[derive(
+            Debug,
+            Clone,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
+        )]
         pub struct TableStructLiteral {
             pub application_type: crate::types::TypeReferenceHandle,
             pub constructor_name: Identifier,
@@ -1940,7 +2025,13 @@ pub mod values {
             }
         }
 
-        #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, syntax_trees_derive::SyntaxRebase, compiler_storage::Record)]
+        #[derive(
+            Debug,
+            Clone,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
+        )]
         pub struct TableStructLiteralField {
             pub name: Identifier,
             pub value: ExpressionHandle,
@@ -1955,7 +2046,15 @@ pub mod values {
             }
         }
 
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record, syntax_trees_derive::SyntaxRebase)]
+        #[derive(
+            Debug,
+            Clone,
+            Copy,
+            PartialEq,
+            Eq,
+            compiler_storage::Record,
+            syntax_trees_derive::SyntaxRelocate,
+        )]
         pub enum BinaryOperator {
             Add,
             And,
@@ -1977,7 +2076,15 @@ pub mod values {
             Subtract,
         }
 
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record, syntax_trees_derive::SyntaxRebase)]
+        #[derive(
+            Debug,
+            Clone,
+            Copy,
+            PartialEq,
+            Eq,
+            compiler_storage::Record,
+            syntax_trees_derive::SyntaxRelocate,
+        )]
         pub enum UnaryOperator {
             BitwiseNot,
             LogicalNot,
@@ -1990,7 +2097,8 @@ pub mod values {
             Default,
             PartialEq,
             Eq,
-            syntax_trees_derive::PlainSyntaxEquivalent, syntax_trees_derive::SyntaxRebase,
+            syntax_trees_derive::PlainSyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
             compiler_storage::Record,
         )]
         pub struct TableMatchExpression {
@@ -2006,7 +2114,8 @@ pub mod values {
             Default,
             PartialEq,
             Eq,
-            syntax_trees_derive::PlainSyntaxEquivalent, syntax_trees_derive::SyntaxRebase,
+            syntax_trees_derive::PlainSyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
             compiler_storage::Record,
         )]
         pub enum SubjectCapturePurpose {
@@ -2022,7 +2131,8 @@ pub mod values {
             Default,
             PartialEq,
             Eq,
-            syntax_trees_derive::PlainSyntaxEquivalent, syntax_trees_derive::SyntaxRebase,
+            syntax_trees_derive::PlainSyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
             compiler_storage::Record,
         )]
         pub struct MatchSubjectCapture {
@@ -2037,7 +2147,8 @@ pub mod values {
             Default,
             PartialEq,
             Eq,
-            syntax_trees_derive::PlainSyntaxEquivalent, syntax_trees_derive::SyntaxRebase,
+            syntax_trees_derive::PlainSyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
             compiler_storage::Record,
         )]
         pub struct TableSavedSubject {
@@ -2053,7 +2164,8 @@ pub mod values {
             Default,
             PartialEq,
             Eq,
-            syntax_trees_derive::PlainSyntaxEquivalent, syntax_trees_derive::SyntaxRebase,
+            syntax_trees_derive::PlainSyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
             compiler_storage::Record,
         )]
         pub struct TableMatchArm {
@@ -2062,7 +2174,16 @@ pub mod values {
             pub source_span: SourceSpan,
         }
 
-        #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record, syntax_trees_derive::SyntaxRebase)]
+        #[derive(
+            Debug,
+            Clone,
+            Copy,
+            Default,
+            PartialEq,
+            Eq,
+            compiler_storage::Record,
+            syntax_trees_derive::SyntaxRelocate,
+        )]
         pub enum MatchPattern {
             Value(ExpressionHandle),
             Destructure(TableDestructurePattern),
@@ -2070,7 +2191,16 @@ pub mod values {
             Wildcard,
         }
 
-        #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record, syntax_trees_derive::SyntaxRebase)]
+        #[derive(
+            Debug,
+            Clone,
+            Copy,
+            Default,
+            PartialEq,
+            Eq,
+            compiler_storage::Record,
+            syntax_trees_derive::SyntaxRelocate,
+        )]
         pub struct TableDestructurePattern {
             pub application_type: crate::types::TypeReferenceHandle,
             pub head: ExpressionHandle,
@@ -2081,7 +2211,12 @@ pub mod values {
         }
 
         #[derive(
-            Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, syntax_trees_derive::SyntaxRebase, compiler_storage::Record,
+            Debug,
+            Clone,
+            Default,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
         )]
         pub struct TableMatchField {
             pub component: language_core::PatternComponent,
@@ -2090,7 +2225,12 @@ pub mod values {
         }
 
         #[derive(
-            Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, syntax_trees_derive::SyntaxRebase, compiler_storage::Record,
+            Debug,
+            Clone,
+            Default,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
         )]
         pub enum MatchFieldAction {
             Bind(Identifier),
@@ -2111,9 +2251,9 @@ pub mod values {
         }
 
         // Retained text handles are page-independent; see `Identifier`.
-        impl crate::SyntaxRebase for FloatSpelling {
-            fn rebase(&mut self, rebase: &crate::PageRebase) {
-                crate::SyntaxRebase::rebase(&mut self.source_span, rebase);
+        impl crate::SyntaxRelocate for FloatSpelling {
+            fn relocate(&mut self, relocation: &crate::PageRelocation) {
+                crate::SyntaxRelocate::relocate(&mut self.source_span, relocation);
             }
         }
 

@@ -17,7 +17,8 @@ pub mod control_flow {
             Clone,
             PartialEq,
             Eq,
-            syntax_trees_derive::PlainSyntaxEquivalent, syntax_trees_derive::SyntaxRebase,
+            syntax_trees_derive::PlainSyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
             compiler_storage::Record,
         )]
         pub struct AssemblyControlFlow {
@@ -39,7 +40,12 @@ pub mod control_flow {
         }
 
         #[derive(
-            Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, syntax_trees_derive::SyntaxRebase, compiler_storage::Record,
+            Debug,
+            Clone,
+            Default,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
         )]
         pub struct AssemblyBlock {
             pub label: Identifier,
@@ -50,7 +56,12 @@ pub mod control_flow {
         }
 
         #[derive(
-            Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, syntax_trees_derive::SyntaxRebase, compiler_storage::Record,
+            Debug,
+            Clone,
+            Default,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
         )]
         pub enum AssemblyExit {
             #[default]
@@ -135,7 +146,13 @@ pub mod control_flow {
 
         pub type StatementHandle = Handle<StatementNode>;
 
-        #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, syntax_trees_derive::SyntaxRebase, compiler_storage::Record)]
+        #[derive(
+            Debug,
+            Clone,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
+        )]
         pub struct RootBinding {
             pub receiver: ExpressionHandle,
             pub slot: Box<[Identifier]>,
@@ -320,7 +337,13 @@ pub mod control_flow {
             }
         }
 
-        #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, syntax_trees_derive::SyntaxRebase, compiler_storage::Record)]
+        #[derive(
+            Debug,
+            Clone,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
+        )]
         pub enum StatementNode {
             Assembly(Handle<AssemblyControlFlow>),
             RootBinding(RootBinding),
@@ -333,20 +356,37 @@ pub mod control_flow {
             Transition(TableTransition),
         }
 
-        #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, syntax_trees_derive::SyntaxRebase, compiler_storage::Record)]
+        #[derive(
+            Debug,
+            Clone,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
+        )]
         pub struct TableProofOutputBindingStatement {
             pub bindings: Box<[TableProofOutputSelector]>,
             pub call: ExpressionHandle,
         }
 
-        #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, syntax_trees_derive::SyntaxRebase, compiler_storage::Record)]
+        #[derive(
+            Debug,
+            Clone,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
+        )]
         pub struct TableProofOutputSelector {
             pub output_field: Identifier,
             pub binding: Identifier,
         }
 
         #[derive(
-            Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, syntax_trees_derive::SyntaxRebase, compiler_storage::Record,
+            Debug,
+            Clone,
+            Default,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
         )]
         pub struct TableOutcomeProofSelector {
             pub output_field: Identifier,
@@ -359,7 +399,8 @@ pub mod control_flow {
             Copy,
             PartialEq,
             Eq,
-            syntax_trees_derive::PlainSyntaxEquivalent, syntax_trees_derive::SyntaxRebase,
+            syntax_trees_derive::PlainSyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
             compiler_storage::Record,
         )]
         pub struct TableAssemblyFact {
@@ -367,7 +408,15 @@ pub mod control_flow {
             pub expression: ExpressionHandle,
         }
 
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record, syntax_trees_derive::SyntaxRebase)]
+        #[derive(
+            Debug,
+            Clone,
+            Copy,
+            PartialEq,
+            Eq,
+            compiler_storage::Record,
+            syntax_trees_derive::SyntaxRelocate,
+        )]
         pub enum AssemblyFactKind {
             Requires,
             Ensures,
@@ -385,7 +434,8 @@ pub mod control_flow {
             Copy,
             PartialEq,
             Eq,
-            syntax_trees_derive::PlainSyntaxEquivalent, syntax_trees_derive::SyntaxRebase,
+            syntax_trees_derive::PlainSyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
             compiler_storage::Record,
         )]
         pub struct TableAssignment {
@@ -394,7 +444,12 @@ pub mod control_flow {
         }
 
         #[derive(
-            Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, syntax_trees_derive::SyntaxRebase, compiler_storage::Record,
+            Debug,
+            Clone,
+            Default,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
         )]
         pub struct TableCall {
             pub receiver: HandleSpan<Identifier>,
@@ -408,7 +463,12 @@ pub mod control_flow {
         }
 
         #[derive(
-            Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, syntax_trees_derive::SyntaxRebase, compiler_storage::Record,
+            Debug,
+            Clone,
+            Default,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
         )]
         pub struct TableLocalData {
             pub role: language_core::LocalBindingRole,
@@ -430,7 +490,8 @@ pub mod control_flow {
             Default,
             PartialEq,
             Eq,
-            syntax_trees_derive::PlainSyntaxEquivalent, syntax_trees_derive::SyntaxRebase,
+            syntax_trees_derive::PlainSyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
             compiler_storage::Record,
         )]
         pub struct TransitionPattern {
@@ -446,7 +507,8 @@ pub mod control_flow {
             Copy,
             PartialEq,
             Eq,
-            syntax_trees_derive::PlainSyntaxEquivalent, syntax_trees_derive::SyntaxRebase,
+            syntax_trees_derive::PlainSyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
             compiler_storage::Record,
         )]
         pub struct TableTransition {
@@ -483,21 +545,43 @@ pub mod control_flow {
             }
         }
 
-        #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record, syntax_trees_derive::SyntaxRebase)]
+        #[derive(
+            Debug,
+            Clone,
+            Copy,
+            Default,
+            PartialEq,
+            Eq,
+            compiler_storage::Record,
+            syntax_trees_derive::SyntaxRelocate,
+        )]
         pub enum TransitionExit {
             #[default]
             Ordinary,
             Crash(crate::item::CrashCause),
         }
 
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record, syntax_trees_derive::SyntaxRebase)]
+        #[derive(
+            Debug,
+            Clone,
+            Copy,
+            PartialEq,
+            Eq,
+            compiler_storage::Record,
+            syntax_trees_derive::SyntaxRelocate,
+        )]
         pub enum TransitionGuardNode {
             Always,
             When(ExpressionHandle),
         }
 
         #[derive(
-            Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, syntax_trees_derive::SyntaxRebase, compiler_storage::Record,
+            Debug,
+            Clone,
+            Default,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
         )]
         pub enum TransitionTargetNode {
             Named {
@@ -599,9 +683,9 @@ pub mod names {
 
         // Retained text handles name process-wide text generations, not the
         // syntax page, so only the identifier's source span moves.
-        impl crate::SyntaxRebase for Identifier {
-            fn rebase(&mut self, rebase: &crate::PageRebase) {
-                crate::SyntaxRebase::rebase(&mut self.source_span, rebase);
+        impl crate::SyntaxRelocate for Identifier {
+            fn relocate(&mut self, relocation: &crate::PageRelocation) {
+                crate::SyntaxRelocate::relocate(&mut self.source_span, relocation);
             }
         }
 

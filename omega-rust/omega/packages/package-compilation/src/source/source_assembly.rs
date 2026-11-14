@@ -834,8 +834,7 @@ impl ImmutableSourceParseCheckpoint {
         storage.syntax_trees = SyntaxTrees::new(primary);
         storage.source_roots = Default::default();
         storage.resolved_imports.clear();
-        let parsed =
-            parse_admitted(storage, loaded, timings)?;
+        let parsed = parse_admitted(storage, loaded, timings)?;
         let (discovered, mut requests) = match package_inputs {
             Some(inputs) => discover_package_imports(
                 &parsed,

@@ -234,7 +234,7 @@ impl<T: Default> PagedArenaSet<T> {
     /// Moves a set holding one never-rewritten page to `generation`, so a
     /// page produced in one forest can be adopted by another without copying
     /// its rows. `visit` moves the handles each row stores.
-    pub fn rebase_single_page(
+    pub fn relocate_single_page(
         &mut self,
         generation: u32,
         visit: impl FnMut(&mut T),
@@ -242,7 +242,8 @@ impl<T: Default> PagedArenaSet<T> {
         if !self.additional_pages.is_empty() {
             return Err("only a single-page arena set can move generation");
         }
-        self.first_page.rebase_fresh_generation(generation, visit)?;
+        self.first_page
+            .relocate_fresh_generation(generation, visit)?;
         self.first_generation = generation;
         self.current_generation = generation;
         Ok(())

@@ -198,9 +198,9 @@ instead of being parsed again. Discovery parses each captured file into its own
 standalone page under private coordinates; admission assigns the file its
 checked source identity and a fresh page in the receiving forest. Every handle
 the page stores names the page by generation and every span names the source,
-so `SyntaxRebase` moves both before the receiving forest adopts the page.
+so `SyntaxRelocate` moves both before the receiving forest adopts the page.
 */
-pub(crate) mod rebase {
+pub(crate) mod relocation {
     use arena::{Handle, HandleSpan};
     use source::{SourceId, SourceSpan};
     use std::sync::Arc;
@@ -208,84 +208,84 @@ pub(crate) mod rebase {
     /// The private coordinates of a standalone unit page and the admitted
     /// coordinates it moves to.
     #[derive(Debug, Clone, Copy)]
-    pub struct PageRebase {
+    pub struct PageRelocation {
         pub(crate) from_generation: u32,
         pub(crate) generation: u32,
         pub(crate) from_source: SourceId,
         pub(crate) source: SourceId,
     }
 
-    pub trait SyntaxRebase {
-        fn rebase(&mut self, rebase: &PageRebase);
+    pub trait SyntaxRelocate {
+        fn relocate(&mut self, relocation: &PageRelocation);
     }
 
-    impl<T> SyntaxRebase for Handle<T> {
-        fn rebase(&mut self, rebase: &PageRebase) {
-            if self.generation() == rebase.from_generation {
-                *self = Handle::from_parts(self.arena_index(), rebase.generation);
+    impl<T> SyntaxRelocate for Handle<T> {
+        fn relocate(&mut self, relocation: &PageRelocation) {
+            if self.generation() == relocation.from_generation {
+                *self = Handle::from_parts(self.arena_index(), relocation.generation);
             }
         }
     }
-    impl<T> SyntaxRebase for HandleSpan<T> {
-        fn rebase(&mut self, rebase: &PageRebase) {
+    impl<T> SyntaxRelocate for HandleSpan<T> {
+        fn relocate(&mut self, relocation: &PageRelocation) {
             let mut start = self.start();
-            start.rebase(rebase);
+            start.relocate(relocation);
             *self = HandleSpan::from_parts_or_empty(start, self.count());
         }
     }
-    impl SyntaxRebase for SourceId {
-        fn rebase(&mut self, rebase: &PageRebase) {
-            if *self == rebase.from_source {
-                *self = rebase.source;
+    impl SyntaxRelocate for SourceId {
+        fn relocate(&mut self, relocation: &PageRelocation) {
+            if *self == relocation.from_source {
+                *self = relocation.source;
             }
         }
     }
-    impl SyntaxRebase for SourceSpan {
-        fn rebase(&mut self, rebase: &PageRebase) {
-            self.source_id.rebase(rebase);
+    impl SyntaxRelocate for SourceSpan {
+        fn relocate(&mut self, relocation: &PageRelocation) {
+            self.source_id.relocate(relocation);
         }
     }
-    impl<T: SyntaxRebase> SyntaxRebase for Vec<T> {
-        fn rebase(&mut self, rebase: &PageRebase) {
-            self.as_mut_slice().rebase(rebase);
+    impl<T: SyntaxRelocate> SyntaxRelocate for Vec<T> {
+        fn relocate(&mut self, relocation: &PageRelocation) {
+            self.as_mut_slice().relocate(relocation);
         }
     }
-    impl<T: SyntaxRebase> SyntaxRebase for [T] {
-        fn rebase(&mut self, rebase: &PageRebase) {
-            self.iter_mut().for_each(|value| value.rebase(rebase));
+    impl<T: SyntaxRelocate> SyntaxRelocate for [T] {
+        fn relocate(&mut self, relocation: &PageRelocation) {
+            self.iter_mut().for_each(|value| value.relocate(relocation));
         }
     }
-    impl<T: SyntaxRebase, const N: usize> SyntaxRebase for [T; N] {
-        fn rebase(&mut self, rebase: &PageRebase) {
-            self.as_mut_slice().rebase(rebase);
+    impl<T: SyntaxRelocate, const N: usize> SyntaxRelocate for [T; N] {
+        fn relocate(&mut self, relocation: &PageRelocation) {
+            self.as_mut_slice().relocate(relocation);
         }
     }
-    impl<T: SyntaxRebase> SyntaxRebase for Option<T> {
-        fn rebase(&mut self, rebase: &PageRebase) {
+    impl<T: SyntaxRelocate> SyntaxRelocate for Option<T> {
+        fn relocate(&mut self, relocation: &PageRelocation) {
             if let Some(value) = self {
-                value.rebase(rebase);
+                value.relocate(relocation);
             }
         }
     }
-    impl<T: SyntaxRebase + ?Sized> SyntaxRebase for Box<T> {
-        fn rebase(&mut self, rebase: &PageRebase) {
-            (**self).rebase(rebase);
+    impl<T: SyntaxRelocate + ?Sized> SyntaxRelocate for Box<T> {
+        fn relocate(&mut self, relocation: &PageRelocation) {
+            (**self).relocate(relocation);
         }
     }
-    impl<T: SyntaxRebase + Clone> SyntaxRebase for Arc<T> {
-        fn rebase(&mut self, rebase: &PageRebase) {
-            Arc::make_mut(self).rebase(rebase);
+    impl<T: SyntaxRelocate + Clone> SyntaxRelocate for Arc<T> {
+        fn relocate(&mut self, relocation: &PageRelocation) {
+            Arc::make_mut(self).relocate(relocation);
         }
     }
-    impl<A: SyntaxRebase, B: SyntaxRebase> SyntaxRebase for (A, B) {
-        fn rebase(&mut self, rebase: &PageRebase) {
-            self.0.rebase(rebase);
-            self.1.rebase(rebase);
+    impl<A: SyntaxRelocate, B: SyntaxRelocate> SyntaxRelocate for (A, B) {
+        fn relocate(&mut self, relocation: &PageRelocation) {
+            self.0.relocate(relocation);
+            self.1.relocate(relocation);
         }
     }
     macro_rules! coordinate_free {
-        ($($kind:ty),* $(,)?) => { $(impl SyntaxRebase for $kind {
-            fn rebase(&mut self, _: &PageRebase) {}
+        ($($kind:ty),* $(,)?) => { $(impl SyntaxRelocate for $kind {
+            fn relocate(&mut self, _: &PageRelocation) {}
         })* };
     }
     coordinate_free!(
@@ -320,7 +320,7 @@ pub(crate) mod rebase {
         language_core::Multiplicity,
     );
 }
-pub use rebase::{PageRebase, SyntaxRebase};
+pub use relocation::{PageRelocation, SyntaxRelocate};
 
 mod copies;
 pub(crate) use copies::item_copies;
@@ -384,14 +384,14 @@ pub(crate) mod paged_roster {
                 $( self.$nested.begin_page(generation); )*
             }
 
-            pub(crate) fn rebase_page(
+            pub(crate) fn relocate_page(
                 &mut self,
-                rebase: &crate::PageRebase,
+                relocation: &crate::PageRelocation,
             ) -> Result<(), &'static str> {
-                $( self.$field.rebase_single_page(rebase.generation, |row| {
-                    crate::SyntaxRebase::rebase(row, rebase)
+                $( self.$field.relocate_single_page(relocation.generation, |row| {
+                    crate::SyntaxRelocate::relocate(row, relocation)
                 })?; )*
-                $( self.$nested.rebase_page(rebase)?; )*
+                $( self.$nested.relocate_page(relocation)?; )*
                 Ok(())
             }
         }
@@ -1990,8 +1990,8 @@ impl SyntaxTrees {
             .ok_or("syntax page identity overflow")?;
         let mut page = unit.syntax.clone();
         let mut root_items = unit.root_items.clone();
-        let rebase = page.rebase_unit(source_id, generation)?;
-        root_items.rebase(&rebase);
+        let relocation = page.relocate_unit(source_id, generation)?;
+        root_items.relocate(&relocation);
         self.adopt_page(page);
         Ok(root_items)
     }
@@ -2000,29 +2000,29 @@ impl SyntaxTrees {
     /// coordinates, to the admitted `source_id` and to `generation`, a page
     /// the receiving forest has not used. A forest with more than one page,
     /// or whose rows were rewritten after parsing, is refused.
-    fn rebase_unit(
+    fn relocate_unit(
         &mut self,
         source_id: SourceId,
         generation: u32,
-    ) -> Result<PageRebase, &'static str> {
+    ) -> Result<PageRelocation, &'static str> {
         if self.page_count() != 1 {
-            return Err("only a standalone unit page can be rebased");
+            return Err("only a standalone unit page can be relocated");
         }
-        let rebase = PageRebase {
+        let relocation = PageRelocation {
             from_generation: self.items.first_generation(),
             generation,
             from_source: self.source_id,
             source: source_id,
         };
-        self.tables.items.rebase_page(&rebase)?;
-        self.tables.expressions.rebase_page(&rebase)?;
-        self.tables.statements.rebase_page(&rebase)?;
-        self.tables.type_references.rebase_page(&rebase)?;
-        self.roots.items.rebase(&rebase);
-        self.roots.constant_extent_probes.rebase(&rebase);
-        self.roots.mathematical_definitions.rebase(&rebase);
+        self.tables.items.relocate_page(&relocation)?;
+        self.tables.expressions.relocate_page(&relocation)?;
+        self.tables.statements.relocate_page(&relocation)?;
+        self.tables.type_references.relocate_page(&relocation)?;
+        self.roots.items.relocate(&relocation);
+        self.roots.constant_extent_probes.relocate(&relocation);
+        self.roots.mathematical_definitions.relocate(&relocation);
         self.source_id = source_id;
-        Ok(rebase)
+        Ok(relocation)
     }
 
     pub fn page_count(&self) -> usize {
