@@ -1,0 +1,3 @@
+The source-owned arrival contract establishes each bound continuation's written precondition before invocation. Linux and macOS bind a literal true contract; Windows binds the same empty body through another machine with a true comparison. Run `omega run --both main.omg`; native and Psi must exit 0.
+
+This is a focused LOWERED-FORM-CHECKER witness for installed arrival preconditions. The active reject twin changes only `launch` from `requires true` to `requires false`; the unrequested-target twin changes only `other` from `0u32 == 0u32` to `0u32 == 1u32`. Neither introduces a caller guard. The complete source-owned Core arrival premises remain in checking; the logical proof supplies no backing or installation authority. Broader parent acceptance stays on TASKS.md.

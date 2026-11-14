@@ -1,0 +1,4 @@
+// Expected checking rejection: launch has an unestablished precondition.
+// The arrival establishes each bound continuation's written precondition before invocation.
+machine launch() requires false { }
+machine other() requires 0u32 == 0u32 { }

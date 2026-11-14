@@ -1,0 +1,1 @@
+This reject twin changes only the bound continuation's precondition from its positive counterpart in `run/calls/installed_entry_contract_exit`. The compiler must reject the call of `other` for `0 == 1` before execution. The Linux-requested governance control checks every executed binding, including the Windows row.

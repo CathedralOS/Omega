@@ -1,0 +1,4 @@
+// Expected exit: 0.
+// The arrival establishes each bound continuation's written precondition before invocation.
+machine launch() requires true { }
+machine other() requires 0u32 == 0u32 { }
