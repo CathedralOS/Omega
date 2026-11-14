@@ -60,10 +60,12 @@ fn judged(text: &str) -> super::RouteVerdict {
     super::judge(elaborated(text)).unwrap()
 }
 
-fn elaborated(text: &str) -> terminal_check_tables::Checked<structure_elaboration::Elaboration> {
+fn elaborated(
+    text: &str,
+) -> terminal_check_tables::Checked<terminal_check_tables::program::Elaboration> {
     let program = typed(text);
     let entry = super::boundary_calls::entry(&program);
-    structure_elaboration::elaborate_closure(&program, entry)
+    typed_trees_to_terminal_psi::elaborate_closure(&program, entry)
 }
 
 #[test]
