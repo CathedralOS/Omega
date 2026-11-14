@@ -96,8 +96,10 @@ fn covered(goal: &Proposition, fixed: &dyn Fn(ValueId) -> bool) -> bool {
         }
         // A comparison of two closed terms is the kernel's to evaluate
         // (`Prover::closed`), whatever its relation.
-        Proposition::IntegerMathEqual(left, right)
-        | Proposition::IntegerMathLessThan(left, right) => {
+        Proposition::IntegerMathEqual(left, right) => {
+            left == right || (closed_mathematical(left, fixed) && closed_mathematical(right, fixed))
+        }
+        Proposition::IntegerMathLessThan(left, right) => {
             closed_mathematical(left, fixed) && closed_mathematical(right, fixed)
         }
         Proposition::IntegerMathLessOrEqual(left, right) => {
@@ -258,6 +260,7 @@ pub(crate) struct Prover<'a> {
     /// subject `v` is a Boolean value, or whose definition is a literal, with
     /// its proof.
     equations: Vec<(Proposition, ProofNode)>,
+    definitions: IdTable<ValueId, Option<usize>>,
     /// `[upper, lower]` per value, indexed by `ValueId - 1`.
     bounds: Vec<[Slot; 2]>,
     /// Whether relations between values are searched (off only to measure
@@ -390,8 +393,11 @@ impl<'a> Prover<'a> {
     ) -> Self {
         #[cfg(test)]
         SEARCHES.with(|searches| searches.set(searches.get() + 1));
-        let crate::known::Known { facts, equations } =
-            crate::known::Known::new(context, assumptions, axioms, values);
+        let crate::known::Known {
+            facts,
+            equations,
+            definitions,
+        } = crate::known::Known::new(context, assumptions, axioms, values);
         Self {
             context,
             assumptions,
@@ -399,6 +405,7 @@ impl<'a> Prover<'a> {
             values,
             facts,
             equations,
+            definitions,
             bounds: (0..values.len())
                 .map(|_| [Slot::Unknown, Slot::Unknown])
                 .collect(),
@@ -416,11 +423,12 @@ impl<'a> Prover<'a> {
         if self.equations.is_empty() {
             return None;
         }
+        let inputs = self.transport_inputs(goal);
         let denotation = |proposition: &Proposition| {
             check_value_equality_denotation(
                 self.context,
                 proposition,
-                self.equations.iter().map(|(equation, _)| equation),
+                inputs.iter().map(|&index| &self.equations[index].0),
             )
             .ok()
         };
@@ -430,25 +438,44 @@ impl<'a> Prover<'a> {
         } else if let Some(fact) = self.facts.iter().find(|fact| fact.proposition == target) {
             fact.proof.clone()
         } else {
+            // Exact result equations can expose identical open mathematical
+            // terms, such as embed(sum) == embed(a) + embed(b). Reflexivity
+            // proves that equality; the existing transport rule still checks
+            // every cited equation and the exact original goal independently.
             // The denotation leaves mathematical arithmetic as written
             // (fact_validity.md: "Open integer relations, mathematical
             // arithmetic, IEEE relations, and storage observations remain
             // unchanged"), so a mathematical comparison whose values are
             // all fixed to literals arrives here closed and not yet
             // decided. The kernel evaluates it.
-            self.closed(target)?
+            self.reflexive_mathematical(target.clone())
+                .or_else(|| self.closed(target))?
         };
         Some(node(
             goal.clone(),
             ProofRule::ValueEqualityTransport {
                 premise: Box::new(premise),
-                equalities: self
-                    .equations
+                equalities: inputs
                     .iter()
-                    .map(|(_, proof)| proof.clone())
+                    .map(|&index| self.equations[index].1.clone())
                     .collect(),
             },
         ))
+    }
+
+    /// Reuse normalization's exact definition closure. Unrelated arithmetic
+    /// must not consume this goal's transport budget or duplicate proof trees.
+    fn transport_inputs(&self, proposition: &Proposition) -> Vec<usize> {
+        let mut inputs = Vec::new();
+        crate::known::Known::transport_inputs(
+            &self.equations,
+            proposition,
+            &self.definitions,
+            &mut Vec::new(),
+            &mut inputs,
+            &mut Vec::new(),
+        );
+        inputs
     }
 
     /// Whether the rules cover `goal`'s form (`covered`) at this prover's
@@ -474,6 +501,19 @@ impl<'a> Prover<'a> {
         )
         .ok()
         .map(|()| primitive(proposition, PrimitiveJudgment::ClosedIntegerRelation))
+    }
+
+    fn reflexive_mathematical(&self, proposition: Proposition) -> Option<ProofNode> {
+        if !matches!(proposition, Proposition::IntegerMathEqual(..)) {
+            return None;
+        }
+        decide_primitive(
+            self.context,
+            &proposition,
+            PrimitiveJudgment::ReflexiveEquality,
+        )
+        .ok()
+        .map(|()| primitive(proposition, PrimitiveJudgment::ReflexiveEquality))
     }
 
     /// The tightest literal bounds this prover can prove on an integer
@@ -664,10 +704,11 @@ impl<'a> Prover<'a> {
                     premise: Box::new(fact.proposition.clone()),
                     conclusion: Box::new(Proposition::Falsehood),
                 };
+                let inputs = self.transport_inputs(&negation);
                 let closed = check_value_equality_denotation(
                     self.context,
                     &negation,
-                    self.equations.iter().map(|(equation, _)| equation),
+                    inputs.iter().map(|&index| &self.equations[index].0),
                 )
                 .ok()?;
                 let proof = self.closed(closed)?;
@@ -675,10 +716,9 @@ impl<'a> Prover<'a> {
                     negation,
                     ProofRule::ValueEqualityTransport {
                         premise: Box::new(proof),
-                        equalities: self
-                            .equations
+                        equalities: inputs
                             .iter()
-                            .map(|(_, proof)| proof.clone())
+                            .map(|&index| self.equations[index].1.clone())
                             .collect(),
                     },
                 );
@@ -961,13 +1001,15 @@ impl<'a> Prover<'a> {
                 }
                 self.arithmetic(left, right)
             }
-            // Between mathematical integers only the order `<=` has bound
-            // rules. An equality or a strict order holds here when its two
-            // sides are closed, which the kernel evaluates; over values
-            // fixed to literals `by_transport` reaches the same evaluation.
-            Proposition::IntegerMathEqual(..) | Proposition::IntegerMathLessThan(..) => self
+            Proposition::IntegerMathEqual(..) => self
+                .reflexive_mathematical(goal.clone())
+                .or_else(|| self.closed(goal.clone()))
+                .ok_or("non-reflexive mathematical equality over open terms"),
+            // Strict mathematical order is evaluated only for closed terms;
+            // values fixed to literals reach the same rule by transport.
+            Proposition::IntegerMathLessThan(..) => self
                 .closed(goal.clone())
-                .ok_or("mathematical equality or strict order over open terms"),
+                .ok_or("mathematical strict order over open terms"),
             Proposition::Atom(_)
             | Proposition::IeeeFloatComparison { .. }
             | Proposition::ScalarIeeeFloatComparison { .. }

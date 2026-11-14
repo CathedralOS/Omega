@@ -29,6 +29,9 @@ pub(crate) struct Fact {
 pub(crate) struct Known {
     pub(crate) facts: Vec<Fact>,
     pub(crate) equations: Vec<(Proposition, ProofNode)>,
+    /// The first checked definition of each value, retained from normalization
+    /// so proof transport selects the same reachable equation family.
+    pub(crate) definitions: IdTable<ValueId, Option<usize>>,
 }
 
 fn flatten(
@@ -114,23 +117,34 @@ impl Known {
                         // the available axiom ties this exact immutable value
                         // to its formal or producing call. Join scope is
                         // checked separately against the owning root.
-                        ScalarTerm::Value { id, .. }
-                            if fact.axiom.is_some()
-                                && matches!(
-                                    values.get(*id).map(|row| row.origin),
-                                    Some(ValueOrigin::InitialContent { .. })
-                                ) =>
-                        {
-                            true
+                        ScalarTerm::Value { id, .. } => {
+                            subject.scalar_type() == ScalarType::Boolean
+                                || (fact.axiom.is_some()
+                                    && matches!(
+                                        values.get(*id).map(|row| row.origin),
+                                        Some(ValueOrigin::InitialContent { .. })
+                                    ))
                         }
-                        _ => subject.scalar_type() == ScalarType::Boolean,
+                        // Actual integer operation equations retain their
+                        // selected meaning. The kernel's transport lifts exact
+                        // arithmetic and leaves policy arithmetic embedded;
+                        // neither becomes an unchecked mathematical rewrite.
+                        _ => {
+                            subject.scalar_type() == ScalarType::Boolean
+                                || (fact.axiom.is_some()
+                                    && matches!(subject.scalar_type(), ScalarType::Integer(_)))
+                        }
                     }
                 }
                 _ => false,
             })
             .map(|fact| (fact.proposition.clone(), fact.proof.clone()))
             .collect();
-        let mut result = Self { facts, equations };
+        let mut result = Self {
+            facts,
+            equations,
+            definitions: IdTable::default(),
+        };
         let mut defined = values.map(|_, _| None);
         for (index, (equation, _)) in result.equations.iter().enumerate() {
             if let Proposition::Equal(ScalarTerm::Value { id, .. }, _) = equation
@@ -143,6 +157,7 @@ impl Known {
             let _ = result.add_literal(index, &mut defined);
         }
         result.normalize(context, &mut defined);
+        result.definitions = defined;
         result
     }
 
@@ -171,8 +186,8 @@ impl Known {
     /// Cite the first definition of each value the predicate actually uses,
     /// following definitions transitively. Including every earlier derived
     /// equality would duplicate unrelated proof trees at every new step.
-    fn transport_inputs(
-        &self,
+    pub(crate) fn transport_inputs(
+        equations: &[(Proposition, ProofNode)],
         proposition: &Proposition,
         defined: &IdTable<ValueId, Option<usize>>,
         used: &mut Vec<bool>,
@@ -184,7 +199,7 @@ impl Known {
         for index in inputs.drain(..) {
             used[index] = false;
         }
-        used.resize(self.equations.len(), false);
+        used.resize(equations.len(), false);
         proposition.visit_value_ids(|value| pending.push(value));
         while let Some(value) = pending.pop() {
             let Some(Some(index)) = defined.get(value) else {
@@ -194,7 +209,7 @@ impl Known {
                 continue;
             }
             inputs.push(*index);
-            if let Proposition::Equal(_, definition) = &self.equations[*index].0 {
+            if let Proposition::Equal(_, definition) = &equations[*index].0 {
                 definition.visit_value_ids(|value| {
                     pending.push(value);
                     true
@@ -204,7 +219,7 @@ impl Known {
         inputs.sort_unstable();
         // The transport rule requires an equality even for a closed premise.
         // Its first original equality suffices; it supplies no new fact.
-        if inputs.is_empty() && !self.equations.is_empty() {
+        if inputs.is_empty() && !equations.is_empty() {
             used[0] = true;
             inputs.push(0);
         }
@@ -233,7 +248,8 @@ impl Known {
         while let Some(index) = pending.pop_front() {
             queued[index] = false;
             let fact = &self.facts[index];
-            self.transport_inputs(
+            Self::transport_inputs(
+                &self.equations,
                 &fact.proposition,
                 defined,
                 &mut used_equations,
