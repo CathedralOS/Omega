@@ -286,11 +286,14 @@ fn an_owned_payload_store_requires_its_exact_selected_case() {
     let Ok(RouteVerdict::Rejected { unestablished, .. }) = verdict else {
         panic!("a different selected case cannot receive the payload: {verdict:?}");
     };
-    assert!(
-        unestablished
-            .iter()
-            .any(|failure| failure.detail == NO_CASE)
-    );
+    // A member's source span names its selector. Pin it inside this exact
+    // assignment target, independently of the later payload read.
+    let target = "choice.item";
+    let start = source.find(&format!("{target} =")).unwrap();
+    let end = start + target.len();
+    assert!(unestablished.iter().any(|failure| failure.detail == NO_CASE
+        && matches!(&failure.site, Some(SourceOrigin::Authored(span))
+            if start <= span.span.start && span.span.end <= end)));
 }
 
 #[test]
@@ -322,9 +325,12 @@ fn a_payload_store_cannot_use_case_membership_invalidated_by_its_replacement() {
     let Ok(RouteVerdict::Rejected { unestablished, .. }) = verdict else {
         panic!("the RHS cannot remove the case of the captured destination: {verdict:?}");
     };
-    assert!(
-        unestablished
-            .iter()
-            .any(|failure| failure.detail == NO_CASE)
-    );
+    // A member's source span names its selector. Pin it inside this exact
+    // assignment target, independently of the later payload read.
+    let target = "holder.choice.item";
+    let start = changed.find(&format!("{target} =")).unwrap();
+    let end = start + target.len();
+    assert!(unestablished.iter().any(|failure| failure.detail == NO_CASE
+        && matches!(&failure.site, Some(SourceOrigin::Authored(span))
+            if start <= span.span.start && span.span.end <= end)));
 }
