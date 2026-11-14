@@ -527,17 +527,27 @@ fn application(
             // a value argument is part of the application's identity. It is
             // stated by the parameter's type and the literal's canonical
             // spelling, with its kind, so `7` given to a `u8` and to a `u64`
-            // parameter, or a value and a type, never commit alike.
+            // parameter, or a value and a type, never commit alike. A
+            // Boolean is stated the same way, by `true` or `false`: its
+            // parameter's type is `bool`, which no integer literal lands in.
             StaticMachineBindingValue::Const(type_reference) => {
-                let literal = argument
-                    .const_literal
-                    .as_ref()
-                    .ok_or("an application's value argument is not a literal")?;
                 let carrier = typed
                     .type_identity_text(typed.package_qualified_type_identity(*type_reference))
                     .filter(|text| !text.is_empty())
                     .ok_or("an application's value parameter type has no identity")?;
-                ("value", carrier, literal.canonical_spelling().as_str()).hash(&mut commitment);
+                let is_bool = typed.primitive_type_reference(*type_reference)
+                    == Some(typed_trees::types::PrimitiveType::Bool);
+                match (&argument.const_literal, argument.closed_boolean()) {
+                    (Some(literal), None) if !is_bool => {
+                        ("value", carrier, literal.canonical_spelling().as_str())
+                            .hash(&mut commitment);
+                    }
+                    (None, Some(value)) if is_bool => {
+                        ("value", carrier, if value { "true" } else { "false" })
+                            .hash(&mut commitment);
+                    }
+                    _ => return Err("an application's value argument is not a literal"),
+                }
             }
             StaticMachineBindingValue::RuntimeValue { .. }
             | StaticMachineBindingValue::Machine(_) => {
@@ -875,7 +885,7 @@ fn semantic_identity(
 
 /// The exact-owner identity of `symbol`: its package's, or its toolchain
 /// source's. A declaration neither owns has no portable identity.
-fn nominal(
+pub(crate) fn nominal(
     typed: &TypedTrees,
     sources: &[(source::SourceId, [u8; 32])],
     symbol: SymbolHandle,

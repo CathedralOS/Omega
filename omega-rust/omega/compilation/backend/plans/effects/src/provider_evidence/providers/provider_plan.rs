@@ -89,6 +89,11 @@ pub struct ProviderPlan {
     pub provider_type: String,
     pub provider_application: ProviderIdentityId,
     pub provider_type_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
+    /// Exact selecting declaration and row-aligned external declarations.
+    /// These retain selection custody, not a different ABI meaning: the
+    /// semantic plan digest excludes them; the selected-closure digest binds them.
+    pub provider_declaration: Option<String>,
+    pub row_numeric_realizations: Vec<Option<String>>,
     pub target: String,
     pub schema: ServiceSchema,
     pub identities: ProviderIdentityTable,
@@ -150,6 +155,8 @@ impl PartialEq for ProviderPlan {
             && self.identity_text(self.provider_application)
                 == other.identity_text(other.provider_application)
             && self.provider_type_package_identity == other.provider_type_package_identity
+            && self.provider_declaration == other.provider_declaration
+            && self.row_numeric_realizations == other.row_numeric_realizations
             && self.target == other.target
             && self.schema == other.schema
             && self.rows.len() == other.rows.len()
@@ -537,6 +544,18 @@ impl ProviderPlan {
 
     pub fn validate_candidate_against_schema(&self) -> Vec<String> {
         let mut errors = Vec::new();
+        if self
+            .provider_declaration
+            .as_ref()
+            .is_some_and(String::is_empty)
+        {
+            errors.push("selected provider has an empty selecting declaration".to_owned());
+        }
+        if !self.row_numeric_realizations.is_empty()
+            && self.row_numeric_realizations.len() != self.rows.len()
+        {
+            errors.push("selected provider has incomplete external row declarations".to_owned());
+        }
         if let Err(reason) = self.schema.validate_receiver_applications() {
             errors.push(format!(
                 "plan `{}` has an invalid applied receiver roster: {reason}",

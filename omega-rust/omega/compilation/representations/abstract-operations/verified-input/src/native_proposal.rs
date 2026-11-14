@@ -9,11 +9,9 @@ use diagnostics::Diagnostic;
 pub struct TerminalNativeProviders {
     pub direct_boundary_leaves: Vec<backend_plan::DirectBoundaryLeaf>,
     pub selection: effects::SelectedProviderPlanFacts,
-    pub declarations: Vec<backend_plan::TerminalTargetProviderPlan>,
     pub checked_adapters: Vec<provider_admission::SelectedProviderAdapter>,
     pub external_bindings: Vec<calling_conventions::ExternalBindingRow>,
     pub intrinsic_executions: Vec<Vec<Option<effects::CompilerIntrinsicExecutionIdentity>>>,
-    pub numeric_realizations: Vec<Vec<Option<String>>>,
     pub x86_scalar_fma: Option<target::AdmittedX86ScalarFmaProvider>,
 }
 
@@ -174,7 +172,6 @@ mod proposal {
     pub struct TerminalNativeProposalRequest<'input> {
         pub evaluated_binding_identities: &'input terminal_psi::TerminalIdentityTable,
         pub direct_boundary_leaves: Vec<&'input backend_plan::DirectBoundaryLeaf>,
-        pub provider_declarations: &'input [backend_plan::TerminalTargetProviderPlan],
         pub target_profile: Option<target::TargetProfile>,
         pub family_realizations: &'input [SelectedFamilyRealizationSource],
         pub boundaries: crate::BoundaryApplicationSettlement<'input>,
@@ -318,7 +315,6 @@ mod proposal {
         );
         let selected = backend_plan::close_checked_provider_specializations(
             request.boundaries.selected_provider_plans.clone(),
-            request.provider_declarations,
             terminal_module,
         )
         .map_err(|message| vec![Diagnostic::error(message)])?;
@@ -331,15 +327,12 @@ mod proposal {
             target_profile,
         )?;
         let checked_adapters =
-            provider_admission::provider_admission::retain_selected_provider_adapters(
-                &selected,
-                request.provider_declarations,
-            )
-            .map_err(|message| vec![Diagnostic::error(message)])?;
+            provider_admission::provider_admission::retain_selected_provider_adapters(&selected)
+                .map_err(|message| vec![Diagnostic::error(message)])?;
         provider_admission::provider_admission::validate_external_provider_owners(
             &terminal_module.external_providers,
             &terminal_module.identities,
-            request.provider_declarations,
+            selected.plans(),
         )
         .map_err(|message| vec![Diagnostic::error(message)])?;
         if selected.plans().len() != request.boundaries.selected_provider_provenance.len() {
@@ -347,44 +340,24 @@ mod proposal {
                 "native proposal lost selected intrinsic plan custody",
             )]);
         }
-        let (intrinsic_executions, numeric_realizations): (Vec<_>, Vec<_>) = selected
-        .plans()
-        .iter()
-        .zip(&request.boundaries.selected_provider_provenance)
-        .map(|(plan, retained)| {
-            if plan != retained.plan
-                || plan.rows.len() != retained.row_executions.len()
-                || plan.rows.len() != retained.row_numeric_realizations.len()
-            {
-                return Err(vec![Diagnostic::error(
-                    "native proposal has mismatched intrinsic row custody",
-                )]);
-            }
-            let mut declarations = request
-                .provider_declarations
-                .iter()
-                .filter(|declaration| declaration.plan == *plan);
-            let (Some(declaration), None) = (declarations.next(), declarations.next()) else {
-                return Err(vec![Diagnostic::error(
-                    "native intrinsic provenance has no unique whole-plan declaration custody",
-                )]);
-            };
-            if declaration.row_numeric_realizations.as_slice() != retained.row_numeric_realizations
-            {
-                return Err(vec![Diagnostic::error(
-                    "native intrinsic provenance substituted its selected external declarations",
-                )]);
-            }
-            Ok((
-                // Supplied meanings must survive until selected execution
-                // checks them against the canonical external declaration.
-                retained.row_executions.to_vec(),
-                retained.row_numeric_realizations.to_vec(),
-            ))
-        })
-        .collect::<Result<Vec<_>, _>>()?
-        .into_iter()
-        .unzip();
+        let intrinsic_executions = selected
+            .plans()
+            .iter()
+            .zip(&request.boundaries.selected_provider_provenance)
+            .map(|(plan, retained)| {
+                if plan != retained.plan
+                    || plan.rows.len() != retained.row_executions.len()
+                    || plan.rows.len() != plan.row_numeric_realizations.len()
+                {
+                    return Err(vec![Diagnostic::error(
+                        "native proposal has mismatched intrinsic row custody",
+                    )]);
+                }
+                // The plan owns external declaration custody; only reviewed
+                // execution meanings are additional provenance.
+                Ok(retained.row_executions.to_vec())
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         let callback_placements = crate::settle_native_callback_placements(
             terminal_module,
             Some(&targets),
@@ -455,11 +428,9 @@ mod proposal {
                     &request.direct_boundary_leaves,
                 )?,
                 selection: selected,
-                declarations: request.provider_declarations.to_vec(),
                 checked_adapters,
                 external_bindings: external_binding_rows,
                 intrinsic_executions,
-                numeric_realizations,
                 x86_scalar_fma: request.x86_scalar_fma_provider,
             },
             occurrences: TerminalNativeOccurrences {

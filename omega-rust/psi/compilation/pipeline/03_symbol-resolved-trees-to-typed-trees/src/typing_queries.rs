@@ -4,11 +4,12 @@ They establish no contract, value inhabitation, or body judgment. A missing
 required type is unavailable rather than reconstructed with the retired checker.
 */
 use diagnostics::Diagnostic;
+use numerics::arithmetic::ArithmeticDomain;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::{
     TypedTrees,
     data::DataField,
-    expression::{ExpressionHandle, TableNamePath, TableStructLiteral},
+    expression::{ExpressionHandle, ExpressionNode, TableNamePath, TableStructLiteral},
     signature::StateParameter,
     types::{TypeReferenceHandle, TypeReferenceNode},
 };
@@ -197,6 +198,9 @@ pub(crate) fn declared_callable_value_type(
     // is a value query, not a writable-place query or admission of an `old`
     // subject: the lowered reader still checks its input identity and phase.
     let table = &program.expression_table;
+    if !table.expression_is_valid(target) {
+        return Err(crate::unavailable_judgment("declared value expression"));
+    }
     // A suffixed literal fixes its own carrier. Reading a receiving type here
     // could re-land it in a different carrier or silently drop its policy.
     let literal = if table.expression_is_valid(target) {
@@ -449,7 +453,7 @@ fn declared_field_type(
 }
 
 use typed_trees::deferred_refusals::DeferredRequest;
-use typed_trees::{expression::ExpressionNode, types::PrimitiveType};
+use typed_trees::types::PrimitiveType;
 pub(crate) fn land_owned_fixed_byte_literal(
     program: &mut TypedTrees,
     value: ExpressionHandle,
@@ -919,15 +923,11 @@ fn unbound_value_name(program: &TypedTrees, expression: ExpressionHandle) -> Opt
     .then_some(name)
 }
 
-/// The bare names a call compiler-recognizes by its spelling alone: no
-/// declaration carries them, and typing gives each its meaning
-/// (`expression_lowering`, `statement_lowering`).
-const COMPILER_CALL_SPELLINGS: [&str; 2] = ["address_of", "code_layout"];
-
 /// Of the bare names `written` that calls resolution left unbound, those
 /// nothing in the program has: no declaration, parameter, local, state or
-/// builtin of any kind, in this source or any library, carries the name, and
-/// it is no compiler operation's spelling. Such a call is an error in every
+/// builtin of any kind, in this source or any library, carries the name.
+/// Compiler operations have installed declarations too; a bare spelling needs
+/// no exemption from this check. Such a call is an error in every
 /// program (`DeferredRequest::UndeclaredCallName`). A name something has
 /// may name it validly where resolution does not follow yet (a local
 /// holding a callable, an ambiguous import), so it stays a request.
@@ -936,11 +936,184 @@ fn undeclared_call_names<'a>(
     written: impl Iterator<Item = &'a str>,
 ) -> Vec<&'a str> {
     // A call with no written name was made by the compiler, not the author.
-    program.names_nothing_has(
-        written
-            .filter(|name| !COMPILER_CALL_SPELLINGS.contains(name))
-            .collect(),
-    )
+    program.names_nothing_has(written.collect())
+}
+
+/*
+    The declared type of an operand, for the forms whose type is written in a
+    declaration or follows from one: a place (a parameter, an annotated local,
+    a field or element of one), a cast, and builtin arithmetic over plain
+    operands. `None` is "typing does not read this form", never "no domains":
+    the caller defers the run. The callable-value query also retains the
+    compiler's `old` projection. Exact call returns are read below; matches
+    and unannotated locals are not read here. The checker of the lowered form
+    types every expression and re-checks each entry against the operand it finds.
+*/
+pub(crate) fn declared_expression_type(
+    program: &TypedTrees,
+    owner: SymbolHandle,
+    expression: ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    DeclaredExpressionTypes::default().get(program, owner, expression)
+}
+
+/// Scratch for one immutable typing frontier. Reuse it across operator sites so
+/// nested operand trees are read once per actual owner, not once per parent.
+#[derive(Default)]
+pub(crate) struct DeclaredExpressionTypes {
+    rows: std::collections::HashMap<
+        (SymbolHandle, ExpressionHandle),
+        Option<TypeReferenceHandle>,
+        symbols::BuildSymbolHasher,
+    >,
+}
+
+impl DeclaredExpressionTypes {
+    pub(crate) fn get(
+        &mut self,
+        program: &TypedTrees,
+        owner: SymbolHandle,
+        expression: ExpressionHandle,
+    ) -> Option<TypeReferenceHandle> {
+        let key = (owner, expression);
+        if let Some(result) = self.rows.get(&key) {
+            return *result;
+        }
+        // A malformed cyclic expression yields no type; it cannot recurse into
+        // invented operand information. Storage grows only with queried pairs.
+        self.rows.insert(key, None);
+        let result = self.read(program, owner, expression);
+        self.rows.insert(key, result);
+        result
+    }
+
+    fn read(
+        &mut self,
+        program: &TypedTrees,
+        owner: SymbolHandle,
+        expression: ExpressionHandle,
+    ) -> Option<TypeReferenceHandle> {
+        let table = &program.expression_table;
+        if !table.expression_is_valid(expression) {
+            return None;
+        }
+        if let ExpressionNode::Call(call) = table.expression(expression)
+            && call.selects_only_nominal_route()
+            && !call.receiver.is_valid()
+            && call.machine_arguments.is_empty()
+            && call.evidence_arguments.is_empty()
+            && program
+                .symbols
+                .symbols()
+                .nodes()
+                .is_valid(call.target_symbol)
+            && program
+                .symbols
+                .builtin_function_for_symbol(call.target_symbol)
+                != Some(symbols::BuiltinFunction::ContentOld)
+        {
+            let result = program
+                .state_by_symbol(call.target_symbol)
+                .map(|state| state.return_type)
+                .or_else(|| {
+                    program
+                        .machine_by_symbol(call.target_symbol)
+                        .and_then(|machine| {
+                            program
+                                .machine_states(machine)
+                                .first()
+                                .map(|state| state.return_type)
+                        })
+                })
+                .or_else(|| {
+                    program
+                        .trait_machine_signature(call.target_symbol)
+                        .map(|(_, signature)| signature.return_type)
+                })?;
+            return program
+                .type_reference_table
+                .contains_type_reference(result)
+                .then_some(result);
+        }
+        match table.expression(expression) {
+            ExpressionNode::Integer(_)
+            | ExpressionNode::Boolean(_)
+            | ExpressionNode::Name(_)
+            | ExpressionNode::Member(_)
+            | ExpressionNode::Indexed(_)
+            | ExpressionNode::Call(_) => {
+                declared_callable_value_type(program, owner, expression).ok()
+            }
+            // An accounted entry and a settled cast carry their result. A plain
+            // carrier cast results in the carrier it names.
+            ExpressionNode::Cast(cast) if cast.result_type.is_valid() => Some(cast.result_type),
+            ExpressionNode::Cast(cast)
+                if cast.form == language_core::CastForm::Value
+                    && cast.domain == ArithmeticDomain::Exact
+                    && cast.semantic_domain.is_empty()
+                    && cast.target_type.is_valid() =>
+            {
+                Some(cast.target_type)
+            }
+            // Selection supplies the exact declared return type before an enclosing
+            // cast is accounted. No contract or membership evidence is inferred.
+            ExpressionNode::Binary(binary) if binary.operator.is_arithmetic() => {
+                let mut operands = Vec::with_capacity(2);
+                for operand in [binary.left, binary.right] {
+                    operands.push(
+                        if typed_trees::closed_numeric::has_anonymous_numeric_results(
+                            program, operand,
+                        ) {
+                            None
+                        } else {
+                            Some(self.get(program, owner, operand)?)
+                        },
+                    );
+                }
+                if binary.policy == ArithmeticDomain::Exact
+                    && let Some(spelling) =
+                        typed_trees::operator::binary_operator_spelling(binary.operator)
+                    && let Some(target) = crate::operator_calls::selection_for_operands(
+                        program,
+                        spelling,
+                        &operands,
+                        table.source_span(expression),
+                    )
+                    .ok()
+                    .flatten()
+                {
+                    return program
+                        .machine_by_symbol(target)
+                        .and_then(|machine| program.machine_states(machine).first())
+                        .map(|state| state.return_type)
+                        .filter(|reference| {
+                            program
+                                .type_reference_table
+                                .contains_type_reference(*reference)
+                        });
+                }
+                // Only unqualified builtin arithmetic can inherit its carrier.
+                // A suffixed policy operation returns the same bare carrier; its
+                // validity and arithmetic policy remain the checker's obligations.
+                let mut result = None;
+                for reference in operands.iter().flatten() {
+                    let TypeReferenceNode::Named { symbol, .. } =
+                        program.type_reference_table.type_reference(*reference)
+                    else {
+                        return None;
+                    };
+                    if program.symbols.get(*symbol).kind != SymbolKind::BuiltinType
+                        || result.is_some_and(|earlier| earlier != *symbol)
+                    {
+                        return None;
+                    }
+                    result = Some(*symbol);
+                }
+                result.and_then(|_| operands.into_iter().flatten().next())
+            }
+            _ => None,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1399,15 +1572,15 @@ mod tests {
             deferred(&program).unwrap(),
             vec![(holder, DeferredRequest::UndeclaredCallName)]
         );
-        // A compiler operation's spelling has no declaration either, and is
-        // no unknown name.
+        // A spelling alone grants no compiler meaning. This synthetic table
+        // has no installed declaration for the query, so it still names nothing.
         let ExpressionNode::Call(node) = program.expression_table.expression_mut(unbound) else {
             panic!("call expression")
         };
         node.target = typed_trees::name::Identifier::generated("address_of");
         assert_eq!(
             deferred(&program).unwrap(),
-            vec![(holder, DeferredRequest::UnresolvedCallTarget)]
+            vec![(holder, DeferredRequest::UndeclaredCallName)]
         );
         // Unbound, but something is named `run`: resolution may not follow
         // it yet, so the call stays a request.

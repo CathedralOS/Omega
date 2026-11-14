@@ -247,6 +247,22 @@ impl Program<'_> {
         ))
     }
 
+    /// Whether a value of this type is a readable borrowed byte view with no
+    /// domain: domains.md, "Operands": "Builtin operators and comparisons
+    /// ... accept unqualified operands only."
+    pub(super) fn is_plain_readable_bytes(
+        &self,
+        machine: MachineId,
+        value: Option<ValueType>,
+    ) -> Checked<bool> {
+        match value {
+            Some(ValueType::Record(row, Qualification::NONE, _)) => {
+                self.is_readable_byte_view(machine, row)
+            }
+            _ => Ok(false),
+        }
+    }
+
     /// `view[index]`: one byte of a borrowed byte view. The index is a
     /// `u64` (byte_views.md, `ByteSequenceRead`: "`u64` index and length"),
     /// and whether it lies inside the view is the checker's judgment, not
@@ -282,35 +298,12 @@ impl Program<'_> {
         })
     }
 
-    pub(super) fn byte_subslice(
-        &mut self,
+    pub(super) fn byte_range_selection(
+        &self,
         machine: MachineId,
-        slots: &[super::Slot],
-        base: Expression,
-        range: &typed_trees::expression::TableRangeExpression,
         handle: typed_trees::expression::ExpressionHandle,
-        source: SourceOrigin,
-    ) -> Checked<Expression> {
-        let unavailable =
-            |detail| refuse(machine, Construct::Machine, Unserved::Expression(detail));
-        let Some(ValueType::Record(row, _, regions)) = base.result else {
-            return Err(unavailable("range without its byte descriptor"));
-        };
-        if base
-            .result
-            .is_some_and(|value| !value.qualification().domains.is_empty())
-        {
-            return Err(unavailable(
-                "range of qualified bytes without its selected operand type",
-            ));
-        }
-        if !matches!(self.data_type(machine, row)?.shape,
-            StorageShape::ByteSequence(carrier) if carrier.is_shared_readable_view())
-        {
-            return Err(unavailable(
-                "range of mutable backing without its persistent shared loan",
-            ));
-        }
+        row: semantic_vocabulary::StructuralTypeId,
+    ) -> Checked<()> {
         let count = semantic_vocabulary::ScalarType::Integer(
             semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
                 .expect("u64 is valid"),
@@ -345,8 +338,49 @@ impl Program<'_> {
                 &operands,
             )
         {
-            return Err(unavailable("range with a selected user operator"));
+            return Err(refuse(
+                machine,
+                Construct::Machine,
+                Unserved::Expression("range with a selected user operator"),
+            ));
         }
+        Ok(())
+    }
+
+    pub(super) fn byte_subslice(
+        &mut self,
+        machine: MachineId,
+        slots: &[super::Slot],
+        base: Expression,
+        range: &typed_trees::expression::TableRangeExpression,
+        handle: typed_trees::expression::ExpressionHandle,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        let unavailable =
+            |detail| refuse(machine, Construct::Machine, Unserved::Expression(detail));
+        let Some(ValueType::Record(row, _, regions)) = base.result else {
+            return Err(unavailable("range without its byte descriptor"));
+        };
+        if base
+            .result
+            .is_some_and(|value| !value.qualification().domains.is_empty())
+        {
+            return Err(unavailable(
+                "range of qualified bytes without its selected operand type",
+            ));
+        }
+        if !matches!(self.data_type(machine, row)?.shape,
+            StorageShape::ByteSequence(carrier) if carrier.is_shared_readable_view())
+        {
+            return Err(unavailable(
+                "range of mutable backing without its persistent shared loan",
+            ));
+        }
+        let count = semantic_vocabulary::ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .expect("u64 is valid"),
+        );
+        self.byte_range_selection(machine, handle, row)?;
         let mut endpoint = |handle: typed_trees::expression::ExpressionHandle| -> Checked<Option<Box<Expression>>> {
             if !handle.is_valid() { return Ok(None); }
             let value = self.expression(machine, slots, handle, Some(ValueType::plain(count)))?;
@@ -558,6 +592,23 @@ impl Program<'_> {
                 if self.data_type(machine, row)?.shape == StorageShape::ByteSequence(carrier) =>
             {
                 (row, regions)
+            }
+            // data_and_literals.md, "Quoted bytes": "A quoted literal
+            // contains bytes, has ordinary shared byte-view type `&[u8]`".
+            // A scalar is never that type, so the literal is wrong for a
+            // scalar place in every program. A record destination (another
+            // view, a view under a domain) stays a refusal.
+            Some(ValueType::Scalar(scalar, _)) => {
+                return Err(crate::reject(
+                    machine,
+                    source,
+                    format!(
+                        "this quoted literal is a shared view of bytes, `&[u8]`, and the place \
+                         it is supplied to holds a `{}`: a quoted literal has the byte-view \
+                         type and no other",
+                        super::rejections::scalar_named(scalar)
+                    ),
+                ));
             }
             Some(_) => {
                 return Err(refuse(

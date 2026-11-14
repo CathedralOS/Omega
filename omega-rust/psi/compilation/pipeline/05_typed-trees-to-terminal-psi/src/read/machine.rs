@@ -921,9 +921,11 @@ impl<'t> Program<'t> {
         if machine.generic_data_template.is_valid() {
             return unserved("generic data template");
         }
-        if machine.spelling.is_some() {
-            return unserved("operator spelling");
-        }
+        // A token spelling associates this ordinary declaration with a source
+        // operator occurrence. Typing prepares its unique closed selection as
+        // a call, retaining the authored choice and ordered operands. The
+        // spelling contributes no receiver or checking evidence: read this
+        // complete machine's signature, contracts and body by the same path.
         // An unselected target family is also a boundary. Report the missing
         // target decision before the generic boundary-body refusal.
         if machine.target.is_some()
@@ -1224,7 +1226,8 @@ impl<'t> Program<'t> {
     /// binders and const requirements": a `const Count: u32` binds a value
     /// that "must be statically known within the compiled specialization",
     /// so the unspecialized body knows only its carrier and what the
-    /// `requires` say of it. Only an integer carrier is served.
+    /// `requires` say of it. An integer carrier and `bool` are served: each
+    /// is an ordinary scalar formal of that type with no definition.
     fn value_binders(&self, id: MachineId, machine: &Machine) -> Checked<Vec<ValueBinder>> {
         let mut binders = Vec::new();
         for parameter in self.typed.machine_type_parameters(machine) {
@@ -1240,11 +1243,15 @@ impl<'t> Program<'t> {
                 ));
             }
             let scalar_type = self.scalar_type(id, type_reference)?;
-            if !matches!(scalar_type, semantic_vocabulary::ScalarType::Integer(_)) {
+            if !matches!(
+                scalar_type,
+                semantic_vocabulary::ScalarType::Integer(_)
+                    | semantic_vocabulary::ScalarType::Boolean
+            ) {
                 return Err(refuse(
                     id,
                     Construct::Machine,
-                    Unserved::Parameter("value parameter that is not an integer"),
+                    Unserved::Parameter("value parameter that is not an integer or a Boolean"),
                 ));
             }
             binders.push(ValueBinder {
@@ -1976,22 +1983,18 @@ impl<'t> Program<'t> {
                         if self.fact_restates_formal_domain(formals, fact) {
                             continue;
                         }
-                        let expression = self.fact(id, fact)?;
-                        if self.states_nothing(id, expression)? {
-                            continue;
+                        if let Some((clause, text)) = self.contract_clause(id, &required, fact)? {
+                            requires.push(clause);
+                            requires_text.push(text);
                         }
-                        requires.push(self.clause(id, &required, expression)?);
-                        requires_text.push(self.clause_text(&slots, expression));
                     }
                 }
                 SignatureContractKind::Ensures => {
                     for fact in facts {
-                        let expression = self.fact(id, fact)?;
-                        if self.states_nothing(id, expression)? {
-                            continue;
+                        if let Some((clause, text)) = self.contract_clause(id, &exit, fact)? {
+                            ensures.push(clause);
+                            ensures_text.push(text);
                         }
-                        ensures.push(self.clause(id, &exit, expression)?);
-                        ensures_text.push(self.clause_text(&slots, expression));
                     }
                 }
                 SignatureContractKind::EnsuresForResultCase { .. } => {
@@ -2575,7 +2578,10 @@ impl<'t> Program<'t> {
                 }
                 StatementNode::Expression(expression) => {
                     let expected = if last { signature.result } else { None };
-                    let expression = self.expression(id, &slots, *expression, expected)?;
+                    let mut expression = self.expression(id, &slots, *expression, expected)?;
+                    // The expression is the whole statement, or the machine's
+                    // terminal expression: both are suspension positions.
+                    crate::operational::boundary(&mut expression);
                     match (last, signature.result) {
                         (true, Some(result)) => {
                             if !self.agrees(expression.result, result) {
@@ -2953,6 +2959,7 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         }
         ExpressionKind::Field { base, .. }
         | ExpressionKind::Payload { base, .. }
+        | ExpressionKind::ArrayView { base, .. }
         | ExpressionKind::CollectionMeasure { base, .. } => {
             spans(base, binder, out);
         }
@@ -3137,6 +3144,7 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
         }
         ExpressionKind::Field { base, .. }
         | ExpressionKind::Payload { base, .. }
+        | ExpressionKind::ArrayView { base, .. }
         | ExpressionKind::CollectionMeasure { base, .. } => {
             expression_slot_uses(base, uses);
         }

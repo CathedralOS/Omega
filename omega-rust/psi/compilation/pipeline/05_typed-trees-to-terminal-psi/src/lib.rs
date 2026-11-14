@@ -54,6 +54,7 @@ pub use publication::{DesignatedOperands, SourceCorrespondence};
 mod canonical;
 mod components;
 mod declare;
+mod inhabitation;
 mod lower;
 
 mod operational;
@@ -62,6 +63,7 @@ mod policy;
 mod proof_scope;
 mod read;
 mod reference_results;
+mod suspension;
 
 // One compilation's forms read the same frozen owner and its immutable
 // capture index. Sharing this scratch never transfers source or proof authority.
@@ -572,7 +574,17 @@ fn elaborate_witness_call(
         source,
     };
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
-    bodies.push(Body {
+    bodies.push(callable_refinement_body(&required, call));
+    finish_reading(program, Some(entry), bodies).map(|prepared| prepared.program)
+}
+
+/// A callable refines its requirement by making this call under the
+/// requirement's inputs and proving its normal completion afterward. Both
+/// ordinary and projected witnesses use the canonical call/return operations;
+/// the callee's guarantees become available only after that call completes.
+pub(crate) fn callable_refinement_body(required: &body::Signature, call: Expression) -> Body {
+    let source = call.source;
+    Body {
         slots: required.parameters.clone(),
         statements: vec![match required.result {
             Some(_) => Statement::Arm {
@@ -582,8 +594,7 @@ fn elaborate_witness_call(
             },
             None => Statement::Evaluate(call),
         }],
-    });
-    finish_reading(program, Some(entry), bodies).map(|prepared| prepared.program)
+    }
 }
 
 fn elaborate_form(
@@ -658,6 +669,8 @@ fn finish_reading<'source>(
                 &mut elaboration.module,
             )
         })
+        // Last, over the finished operations and published contracts.
+        .and_then(|()| suspension::publish_crossings(&mut elaboration.module))
         .map_err(|reason| {
             refuse(
                 diagnostic,
@@ -666,6 +679,7 @@ fn finish_reading<'source>(
             )
         })?;
     source.records = program.source_record_correspondence(diagnostic)?;
+    source.readiness = program.publish_readiness(diagnostic, &mut elaboration.module)?;
     for selected in &mut program.selections {
         if let Some(required) = selected.required_contract {
             selected.required_contract =
@@ -785,18 +799,10 @@ fn lower_generic_for<'source>(
     let local_results = declarations
         .map(|source| source.local_result_bodies(entry))
         .transpose()?;
-    let outcomes = outcome::outcomes(bodies, signatures, requirements, local_results.as_deref())?;
     let mut module = match entry {
         Some(entry) => TerminalModule::for_entry(entry),
         None => TerminalModule::declarations(),
     };
-    // Declaration checking publishes no executable arrival or root reach.
-    if let Some(entry) = entry {
-        module.root_service_reach.concrete =
-            terminal_check_tables::row(&outcomes, entry, entry, Construct::Machine)?
-                .service_reach
-                .clone();
-    }
     // Terminal Psi declares each record type once for the module, with the
     // interned identity its declaration form requires. A module with no
     // record declares none and keeps the empty identity table.
@@ -809,6 +815,20 @@ fn lower_generic_for<'source>(
         }
     };
     let declared = lower::places::declare(diagnostic, records, bodies, signatures, identities)?;
+    let outcomes = outcome::outcomes(
+        bodies,
+        signatures,
+        requirements,
+        local_results.as_deref(),
+        &declared.records.inhabitation,
+    )?;
+    // Declaration checking publishes no executable arrival or root reach.
+    if let Some(entry) = entry {
+        module.root_service_reach.concrete =
+            terminal_check_tables::row(&outcomes, entry, entry, Construct::Machine)?
+                .service_reach
+                .clone();
+    }
     module.identities = declared.identities;
     module.structural_types = declared.structural_types;
     module.native_layouts = declared.native_layouts;

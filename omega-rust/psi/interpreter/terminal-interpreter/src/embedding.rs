@@ -1193,22 +1193,134 @@ pub(crate) mod instance {
         }
 
         #[cfg(test)]
-        mod architecture {
-            #[test]
-            fn result_and_entry_observations_share_the_typed_storage_reader() {
-                let source = include_str!("embedding.rs")
-                    .split("pub(crate) mod storage_observation")
-                    .nth(1)
+        mod tests {
+            use super::*;
+            use crate::embedding::program::TerminalProgram;
+            use crate::engine::calls::frames::tests::empty_program;
+            use crate::{TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue};
+            use semantic_vocabulary::{EdgeId, ScalarType, StructuralFieldId, StructuralTypeId};
+            use terminal_psi::{
+                BoundaryParameterKind, StructuralMultiplicity, StructuralParameterDeclaration,
+                StructuralResultDeclaration, StructuralTypeDeclaration, TerminalMachineResult,
+                Terminator,
+            };
+
+            fn instance(
+                value: TerminalScalarValue,
+            ) -> Result<TerminalInstance<'static, 'static>, TerminalInterpretError> {
+                let mut program = empty_program();
+                let module = std::sync::Arc::get_mut(&mut program)
                     .unwrap()
-                    .split("#[cfg(test)]")
-                    .next()
-                    .unwrap();
-                assert_eq!(source.matches("contents::select(").count(), 1);
-                assert_eq!(source.matches("contents::capture(").count(), 1);
-                assert_eq!(source.matches("observe_leaf(execution,").count(), 2);
-                assert!(!source.contains("TypedTrees"));
-                assert!(!source.contains("CheckedTrees"));
-                assert!(!source.contains("StructuralValue::minted"));
+                    .fixture_module_mut();
+                let structural_type = StructuralTypeId::new(1).unwrap();
+                let place = PlaceId::new(1).unwrap();
+                let mut identities = module.identities.clone().into_builder();
+                module.structural_types.push(StructuralTypeDeclaration {
+                    id: structural_type,
+                    identity: identities.intern("borrowed Boolean"),
+                    quotient_carrier: None,
+                    owns_linear_claim: false,
+                    copyable: true,
+                    no_code_affine_cleanup: true,
+                    descriptor_cleanup: false,
+                    shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
+                    scalar_restriction: None,
+                    requires: Vec::new(),
+                });
+                module.identities = identities.build();
+                let machine = &mut module.machines[0];
+                machine.parameter_order = vec![BoundaryParameterKind::Structural];
+                machine.structural_parameters = vec![StructuralParameterDeclaration {
+                    place,
+                    position: 0,
+                    structural_type,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    access: StructuralAccess::SharedBorrow,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    additional_input_qualifications: Vec::new(),
+                }];
+                machine.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+                    place,
+                    structural_type,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    reference_sources: Vec::new(),
+                });
+                machine.blocks[0].terminator = Terminator::ReturnStructural {
+                    edge: EdgeId::new(1).unwrap(),
+                    source: place,
+                    returned_claims: Vec::new(),
+                    cleanup_actions: Vec::new(),
+                };
+                let execution = TerminalExecution::start_with_program(
+                    program.clone(),
+                    &[],
+                    crate::TerminalStructuralInputs {
+                        arguments: &[TerminalStructuralValue::minted(
+                            42,
+                            structural_type,
+                            Vec::new(),
+                        )],
+                        primitive_values: &[crate::TerminalStructuralPrimitiveValue {
+                            argument_index: 0,
+                            value,
+                        }],
+                        ..Default::default()
+                    },
+                    None,
+                    None,
+                )?;
+                Ok(TerminalInstance::new(
+                    TerminalProgram { program },
+                    execution,
+                    Vec::new(),
+                ))
+            }
+
+            #[test]
+            fn entry_and_result_observe_typed_storage_and_reject_unknown_coordinates() {
+                for value in [false, true] {
+                    let mut instance = instance(TerminalScalarValue::Boolean(value)).unwrap();
+                    assert_eq!(
+                        instance.observe_borrowed_entry(0, &[]).unwrap_err(),
+                        TerminalStorageObservationError::NormalReturnRequired
+                    );
+                    assert_eq!(
+                        instance.observe_result(&[]).unwrap_err(),
+                        TerminalStorageObservationError::NormalReturnRequired
+                    );
+                    assert!(matches!(
+                        instance
+                            .invoke(&mut psi_work::WorkMeter::with_budget(100))
+                            .unwrap(),
+                        TerminalExecutionStatus::Complete(TerminalExecutionResult::Structural(_))
+                    ));
+                    let expected = TerminalStorageObservationValue::Storage(
+                        crate::TerminalStorageContents::Scalar {
+                            value: TerminalScalarValue::Boolean(value),
+                            stored_scalar: ScalarType::Boolean,
+                        },
+                    );
+                    assert_eq!(instance.observe_borrowed_entry(0, &[]).unwrap(), expected);
+                    assert_eq!(instance.observe_result(&[]).unwrap(), expected);
+                    let unknown = [Path::Field(StructuralFieldId::new(99).unwrap())];
+                    assert_eq!(
+                        instance.observe_borrowed_entry(0, &unknown).unwrap_err(),
+                        TerminalStorageObservationError::UnknownPath
+                    );
+                    assert_eq!(
+                        instance.observe_result(&unknown).unwrap_err(),
+                        TerminalStorageObservationError::UnknownPath
+                    );
+                    assert_eq!(
+                        instance.observe_borrowed_entry(1, &[]).unwrap_err(),
+                        TerminalStorageObservationError::NotBorrowedEntryArgument {
+                            argument_index: 1
+                        }
+                    );
+                }
             }
         }
     }
@@ -2420,9 +2532,31 @@ pub(crate) mod program {
         pub structural_parameters: &'program [terminal_psi::StructuralParameterDeclaration],
         access_view_inputs: &'program [terminal_psi::TerminalAccessViewInput],
         pub result: &'program terminal_psi::TerminalMachineResult,
+        requires: &'program [semantic_vocabulary::Proposition],
     }
 
     impl TerminalProgramEntry<'_> {
+        /// Whether the entry's published `requires` clauses hold with nothing
+        /// known about its arguments. A host that invokes an entry is its
+        /// caller and owes every clause; a host that establishes no facts
+        /// about what it passes can owe only clauses that are closed and
+        /// true. `Some(true)` when every clause is, `Some(false)` when one is
+        /// closed and false, and `None` when one depends on an argument.
+        pub fn unconditional_precondition(&self) -> Result<Option<bool>, String> {
+            let mut integers = proof_admission::ClosedIntegerEvaluator::default();
+            let mut undecided = false;
+            for clause in self.requires {
+                match proof_admission::closed_guard(clause, &mut integers)
+                    .map_err(|error| format!("entry precondition evaluation: {error:?}"))?
+                {
+                    Some(true) => {}
+                    Some(false) => return Ok(Some(false)),
+                    None => undecided = true,
+                }
+            }
+            Ok((!undecided).then_some(true))
+        }
+
         pub fn access_view_inputs(
             &self,
         ) -> impl Iterator<Item = &terminal_psi::TerminalAccessViewInput> {
@@ -2470,6 +2604,7 @@ pub(crate) mod program {
                 structural_parameters: &machine.structural_parameters,
                 access_view_inputs: &self.program.catalogs.access_view_inputs,
                 result: &machine.result,
+                requires: &machine.contract.requires,
             })
         }
 

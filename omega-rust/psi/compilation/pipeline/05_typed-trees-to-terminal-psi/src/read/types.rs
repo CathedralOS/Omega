@@ -27,38 +27,38 @@ fn integer(carrier: FixedInteger, machine: MachineId) -> Checked<ScalarType> {
 
 /// The scalar type of a builtin atom, by its compiler-installed slot.
 pub(super) fn atom_type(atom: BuiltinTypeAtom, machine: MachineId) -> Checked<ScalarType> {
-    match atom {
-        BuiltinTypeAtom::Bool => Ok(ScalarType::Boolean),
-        BuiltinTypeAtom::Integer(carrier) => integer(carrier, machine),
-        BuiltinTypeAtom::Address => {
-            Err(refuse(machine, Construct::Machine, Unserved::Type("addr")))
-        }
-        BuiltinTypeAtom::F32 | BuiltinTypeAtom::F64 => {
-            Err(refuse(machine, Construct::Machine, Unserved::Type("float")))
-        }
-        BuiltinTypeAtom::Slice => Err(refuse(machine, Construct::Machine, Unserved::Type("slice"))),
-        BuiltinTypeAtom::SyscallResult => Err(refuse(
+    let Some(primitive) = symbols::PrimitiveType::from_builtin_atom(atom) else {
+        let kind = match atom {
+            BuiltinTypeAtom::Slice => "slice",
+            BuiltinTypeAtom::SyscallResult => "syscall result",
+            BuiltinTypeAtom::Terminal | BuiltinTypeAtom::Never => "terminal or never",
+            BuiltinTypeAtom::UInt | BuiltinTypeAtom::Int => "anonymous integer",
+            BuiltinTypeAtom::AtomicBool
+            | BuiltinTypeAtom::AtomicU32
+            | BuiltinTypeAtom::AtomicU64 => "atomic",
+            _ => "non-scalar builtin",
+        };
+        return Err(refuse(machine, Construct::Machine, Unserved::Type(kind)));
+    };
+    match primitive {
+        symbols::PrimitiveType::Bool => Ok(ScalarType::Boolean),
+        symbols::PrimitiveType::Integer(carrier) => integer(carrier, machine),
+        // Address data has a scalar representation, but grants no storage or
+        // access authority. Its operations retain their separate admission.
+        symbols::PrimitiveType::Addr => Ok(ScalarType::Integer(
+            IntegerType::supported_address_representation(),
+        )),
+        symbols::PrimitiveType::F32 => Ok(ScalarType::IeeeFloat(
+            semantic_vocabulary::IeeeFloatFormat::Binary32,
+        )),
+        symbols::PrimitiveType::F64 => Ok(ScalarType::IeeeFloat(
+            semantic_vocabulary::IeeeFloatFormat::Binary64,
+        )),
+        symbols::PrimitiveType::Selector => Err(refuse(
             machine,
             Construct::Machine,
-            Unserved::Type("syscall result"),
+            Unserved::Type("selector"),
         )),
-        BuiltinTypeAtom::Terminal | BuiltinTypeAtom::Never => Err(refuse(
-            machine,
-            Construct::Machine,
-            Unserved::Type("terminal or never"),
-        )),
-        BuiltinTypeAtom::UInt | BuiltinTypeAtom::Int => Err(refuse(
-            machine,
-            Construct::Machine,
-            Unserved::Type("anonymous integer"),
-        )),
-        BuiltinTypeAtom::AtomicBool | BuiltinTypeAtom::AtomicU32 | BuiltinTypeAtom::AtomicU64 => {
-            Err(refuse(
-                machine,
-                Construct::Machine,
-                Unserved::Type("atomic"),
-            ))
-        }
     }
 }
 

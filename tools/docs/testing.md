@@ -546,7 +546,9 @@ Windows MSVC host builds select Rust's bundled LLD linker through
 managed dependency path with LNK1104 while opening the same file through its
 209-character checkout alias; LLD linked and ran a focused probe using that
 exact long input path. This avoids shortening crate names, relocating caches or
-installing a separate linker. The MSVC ABI and SDK/runtime libraries are still
+installing a separate linker: the configuration names `rust-lld`, the copy every
+rustup toolchain ships, because the flavor alone makes rustc look for a program
+named `lld` on `PATH`. The MSVC ABI and SDK/runtime libraries are still
 used. The setting changes Rust host builds, not Omega's native code emission.
 
 Managed setup (`tools/agent_setup.sh`, including `--mbx-only`) keeps the shared

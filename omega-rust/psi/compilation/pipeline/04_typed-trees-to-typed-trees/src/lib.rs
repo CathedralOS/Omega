@@ -2,7 +2,8 @@
 //! returns them prepared for the checker. `preparation.rs` is the stage: one
 //! entrance and the ordered list of passes every program runs. `passes/`
 //! holds one module per pass; `product/` holds the Product operand
-//! entrances, which still refuse.
+//! entrances: a slot or provider applied to static arguments is formed, a
+//! requirement applied to them is still refused.
 
 #![forbid(unsafe_code)]
 
@@ -15,5 +16,5 @@ pub use preparation::{
 };
 pub use product::{
     PreparedProductRequirement, prepare_product_operand_application,
-    prepare_product_requirement_operand,
+    prepare_product_requirement_operand, prepare_retained_product_application,
 };

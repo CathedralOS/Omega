@@ -195,6 +195,30 @@ impl Program<'_> {
         }
     }
 
+    /// Read one authored callable predicate at the observation its contract
+    /// chooses. Both ordinary and projected refinement signatures use this
+    /// owner; naming a logical membership never introduces its own evidence.
+    pub(super) fn contract_clause(
+        &self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        fact: &ProofFact,
+    ) -> Checked<Option<(Proposition, ClauseText)>> {
+        if let Some(logical) = scope.logical
+            && let ProofFact::Membership(membership) = fact
+        {
+            return logical.membership_clause(self, scope, membership).map(Some);
+        }
+        let expression = self.fact(id, fact)?;
+        if self.states_nothing(id, expression)? {
+            return Ok(None);
+        }
+        Ok(Some((
+            self.clause(id, scope, expression)?,
+            self.clause_text(scope.slots, expression),
+        )))
+    }
+
     pub(super) fn clause(
         &self,
         id: MachineId,
@@ -441,6 +465,16 @@ impl Program<'_> {
 
     fn clause_operand_type(&self, id: MachineId, value_type: ValueType) -> Checked<ScalarType> {
         match value_type {
+            // structural_predicates.md, "Equality expansion": "IEEE leaves
+            // retain the exact format and IEEE comparison kind: NaN is not
+            // reflexive and signed zeros compare equal. Do not replace them
+            // with mathematical equality." A clause comparison here is the
+            // mathematical one, so a float operand has no reader yet.
+            ValueType::Scalar(ScalarType::IeeeFloat(_), _) => Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("comparison of floats in a clause"),
+            )),
             ValueType::Scalar(scalar, qualification) if qualification.domains.is_empty() => {
                 Ok(scalar)
             }
@@ -731,6 +765,11 @@ impl Program<'_> {
             ));
         }
         let argument = self.old_argument(id, call)?;
+        if let Some(logical) = scope.logical
+            && let Some((term, scalar)) = logical.old_term(self.typed, argument)?
+        {
+            return Ok((term, ValueType::plain(scalar)));
+        }
         let inputs = ClauseScope {
             result: ResultTerm::Absent("result has no callable-entry value"),
             formal_fields: true,
@@ -1034,11 +1073,18 @@ impl Program<'_> {
                 } else {
                     literal.value_u64()
                 };
+                // A mathematical integer has no carrier, so a literal past
+                // 64 bits is as much a literal as a small one: `addr::Bound`
+                // of a 64-bit address is 18446744073709551616.
                 let literal = magnitude
-                    .and_then(|magnitude| mathematical_literal(literal.is_negative(), magnitude));
+                    .and_then(|magnitude| mathematical_literal(literal.is_negative(), magnitude))
+                    .or_else(|| {
+                        let wide = literal.decimal_value_i128()?;
+                        IntegerMathLiteral::new(wide < 0, wide.unsigned_abs()).ok()
+                    });
                 match literal {
                     Some(literal) => Ok(IntegerMathTerm::IntegerLiteral(literal)),
-                    None => unserved("mathematical literal beyond 64 bits"),
+                    None => unserved("mathematical literal beyond 127 bits"),
                 }
             }
             ExpressionNode::Integer(_) => {
@@ -1104,6 +1150,25 @@ impl Program<'_> {
                 Ok(operation(Box::new(left), Box::new(right)))
             }
             ExpressionNode::Cast(_) => unserved("cast in a mathematical term"),
+            // counts_and_addresses.md: valid geometry proves `embed(base) +
+            // embed(length) <= addr::Bound` "in unbounded proof integers".
+            // The bound is one past the largest address. Here an address is
+            // the one carrier the lowered form gives `addr`
+            // (`read/types.rs`), so the bound is that carrier's. A clause
+            // judged against a binding's own address model is read by
+            // `logical_mathematical_term` instead.
+            ExpressionNode::Name(_) | ExpressionNode::Member(_)
+                if self.address_bound(expression) =>
+            {
+                let address =
+                    semantic_vocabulary::ClosedIntegerType::supported_address_representation();
+                match 1_u128.checked_shl(u32::from(address.bits())) {
+                    Some(bound) => Ok(IntegerMathTerm::literal(
+                        semantic_vocabulary::IntegerValue::Unsigned(bound),
+                    )),
+                    None => unserved("address bound outside mathematical literal support"),
+                }
+            }
             ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
                 unserved("runtime value in a mathematical term without embed")
             }

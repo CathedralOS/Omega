@@ -147,7 +147,7 @@ impl Program<'_> {
         let returned = self.region_tuple(found.regions());
         declared.len() == returned.len()
             && declared.iter().zip(returned).any(|(declared, returned)| {
-                match (self.resolved(*declared), self.resolved(*returned)) {
+                match (self.resolved(*declared), self.named_ceiling(*returned)) {
                     (Region::Parameter(declared), Region::Parameter(returned)) => {
                         declared.declaration == returned.declaration
                             && declared.ordinal != returned.ordinal
@@ -189,7 +189,7 @@ impl Program<'_> {
 }
 
 /// The resolved scalar carrier, without domains or physical storage choices.
-fn scalar_named(scalar: ScalarType) -> String {
+pub(super) fn scalar_named(scalar: ScalarType) -> String {
     match scalar {
         ScalarType::Boolean => "bool".to_owned(),
         ScalarType::Integer(integer) if integer.is_address() => "addr".to_owned(),
@@ -286,6 +286,26 @@ mod tests {
                 }
             }
         }
+        // A definite family mismatch still names an open integer carrier
+        // without inventing its width or changing its parameter identity.
+        let open_integer = ScalarType::Integer(IntegerType::parameterized(
+            IntegerSign::Unsigned,
+            semantic_vocabulary::WidthParameter {
+                owner: MachineId::new(1).unwrap(),
+                value: semantic_vocabulary::ValueId::new(1).unwrap(),
+            },
+        ));
+        let refusal = program.mistyped(
+            MachineId::new(1).unwrap(),
+            SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent),
+            Destination::Result,
+            Some(ValueType::plain(ScalarType::Boolean)),
+            Some(ValueType::plain(open_integer)),
+            "test mismatch",
+        );
+        assert_eq!(refusal.reason, RefusalReason::Violation(None));
+        assert!(refusal.detail.contains("`u<width parameter>`"));
+        assert!(refusal.detail.contains("`bool`"));
     }
 
     #[test]

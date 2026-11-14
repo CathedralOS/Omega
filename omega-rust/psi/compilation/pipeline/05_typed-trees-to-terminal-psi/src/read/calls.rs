@@ -912,7 +912,7 @@ impl<'t> Program<'t> {
         }
         let source_value = self.local_type(id, source_type)?;
         let view_value = self.local_type(id, view_type)?;
-        if !self.agrees(Some(source_value), view_value) {
+        if !self.same_type(Some(source_value), view_value) {
             return Err(unavailable(
                 "a different qualified view needs evaluated policy, layout and backing correspondence",
             ));
@@ -939,7 +939,7 @@ impl<'t> Program<'t> {
     /// one: the Build host hands the reference to no other callee. Publication
     /// joins native bindings to their checked structural locator carrier.
     fn designate(
-        &self,
+        &mut self,
         id: MachineId,
         selection: arena::Handle<typed_trees::expression::BuildSelectionRequest>,
         read: &mut Expression,
@@ -955,9 +955,8 @@ impl<'t> Program<'t> {
         };
         let ExpressionKind::Call {
             callee: semantic_vocabulary::TargetMachineCallable::Boundary(boundary),
-            designated,
             ..
-        } = &mut read.kind
+        } = &read.kind
         else {
             return unserved("Build selection on a call that is no boundary operation");
         };
@@ -975,19 +974,59 @@ impl<'t> Program<'t> {
         if !protocol {
             return unserved("Build selection outside the toolchain's selection protocol");
         }
-        match request {
-            // Its host row names the requirement's application and the
-            // boundaries that application covers.
-            BuildSelectionRequest::ProviderReadiness(_) => {
-                return unserved("Build provider readiness needs its requirement application");
-            }
+        // Provider readiness names a boundary trait application. Its host
+        // row states that application and the boundaries it covers, so the
+        // application is retained as the same service row a call of one of
+        // its requirements uses (provider_selection.md, "Build provider
+        // readiness"). The route declares boundaries only of traits with no
+        // parameters (`boundary`), so an applied requirement stays refused.
+        let readiness = match request {
+            BuildSelectionRequest::ProviderReadiness(readiness) => Some(readiness.requirement),
             BuildSelectionRequest::Entry(_)
             | BuildSelectionRequest::Declaration(_)
-            | BuildSelectionRequest::Exclusion(_) => {}
-        }
+            | BuildSelectionRequest::Exclusion(_) => None,
+        };
+        let readiness = match readiness {
+            Some(requirement) => {
+                let typed = self.typed;
+                let lexical_owner = *self.symbols.get(id).ok_or_else(|| {
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Call("Build provider readiness without its selecting machine"),
+                    )
+                })?;
+                let scope = typed
+                    .build_provider_requirement_scope(requirement, lexical_owner)
+                    .map_err(|reason| refuse(id, Construct::Machine, Unserved::Call(reason)))?;
+                if !typed.trait_type_parameters(scope.declaration).is_empty()
+                    || !scope.declaration.lifetime_parameters.is_empty()
+                {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Call(
+                            "Build provider readiness for a requirement applied to arguments",
+                        ),
+                    ));
+                }
+                let service = self.service(id, scope)?;
+                self.awaits(service);
+                Some(service)
+            }
+            None => None,
+        };
+        let ExpressionKind::Call { designated, .. } = &mut read.kind else {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Call("Build selection on a call that is no boundary operation"),
+            ));
+        };
         *designated = Some(crate::body::DesignatedOperands {
             request: selection,
             selecting: id,
+            readiness,
         });
         Ok(())
     }
@@ -1863,6 +1902,41 @@ impl<'t> Program<'t> {
         lent_storage_is_untouched(id, &read, &self.captures, |place| {
             place.result.is_some_and(|held| self.is_borrowed_view(held))
         })?;
+        // An exclusive loan written for a shared formal is lowered as the
+        // shared loan the callee receives (`lent`). ownership.md, "Borrows
+        // and aliases": "exclusive loans must not overlap incompatibly", so
+        // the root it lends is lent by no other argument of this call; the
+        // lowered shared loans alone would not show that overlap.
+        for (position, (argument, (_, _, borrowed))) in arguments.iter().zip(&formals).enumerate() {
+            let exclusive_for_shared = borrowed
+                .as_ref()
+                .is_some_and(|formal| formal.access == ReferenceAccess::Shared)
+                && matches!(self.node(id, *argument)?,
+                    ExpressionNode::Borrow(borrow) if borrow.access == ReferenceAccess::Mutable);
+            let Some(Expression {
+                kind: ExpressionKind::Borrow { place, .. },
+                ..
+            }) = read.get(position).filter(|_| exclusive_for_shared)
+            else {
+                continue;
+            };
+            let root = root_slot(id, place, &self.captures)?;
+            for (other, lent) in read.iter().enumerate() {
+                if other != position
+                    && let ExpressionKind::Borrow { place, .. } = &lent.kind
+                    && root.is_some()
+                    && root_slot(id, place, &self.captures)? == root
+                {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Call(
+                            "exclusive loan for a shared formal beside another loan of its storage",
+                        ),
+                    ));
+                }
+            }
+        }
         if let SourceOrigin::Authored(span) = source
             && let Some(names) = self.names.get_mut(id)
         {
@@ -1879,12 +1953,31 @@ impl<'t> Program<'t> {
         }
         for ((declared, _, borrowed), actual) in formals.iter().zip(&read) {
             let formal = self.substitute(*declared, &bound);
-            let array_view = borrowed
-                .as_ref()
-                .is_some_and(|borrowed| borrowed.referent == crate::body::BorrowedReferent::Slice)
-                && matches!(actual.kind, ExpressionKind::Borrow { .. })
-                && self.borrowed_byte_array_matches(actual.result, formal);
-            if !self.agrees(actual.result, formal) && !array_view {
+            let agrees = if borrowed.is_some() {
+                self.same_type(actual.result, formal)
+            } else {
+                self.agrees(actual.result, formal)
+            };
+            if !agrees {
+                if borrowed.as_ref().is_some_and(|borrowed| {
+                    borrowed.referent == crate::body::BorrowedReferent::Slice
+                }) && let ExpressionKind::Borrow { access, place, .. } = &actual.kind
+                    && self.byte_array_element(place.result).is_some()
+                    && self.is_borrowed_view(formal)
+                {
+                    let borrow = if *access == ReferenceAccess::Mutable {
+                        "&mut array[..]"
+                    } else {
+                        "&array[..]"
+                    };
+                    return Err(crate::reject(
+                        id,
+                        place.source,
+                        format!(
+                            "a reference to a fixed array is not a byte view; use `{borrow}` to borrow an explicit view of the array"
+                        ),
+                    ));
+                }
                 // The typed trees give a borrow no span of its own; the
                 // place it lends is the authored argument.
                 let at = match (&actual.kind, actual.source) {
@@ -1923,11 +2016,8 @@ impl<'t> Program<'t> {
                 .is_some_and(|result| self.names_any(result, &[*parameter]))
                 && !bound.iter().any(|(known, _)| known == parameter);
             if chosen_by_caller {
-                self.region_variables.push(None);
-                bound.push((
-                    *parameter,
-                    super::regions::Region::Variable((self.region_variables.len() - 1) as u32),
-                ));
+                let chosen = self.fresh_region();
+                bound.push((*parameter, chosen));
             }
         }
         let result = declared_result.map(|result| self.substitute(result, &bound));
@@ -2000,6 +2090,23 @@ impl<'t> Program<'t> {
     ) -> Checked<(Expression, String)> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         let source = SourceOrigin::of(self.typed.expression_table.source_span(argument));
+        if formal.referent == crate::body::BorrowedReferent::Slice
+            && let Some(view) = self.array_view(id, slots, argument, expected, source)?
+        {
+            return Ok((
+                Expression {
+                    call_context: None,
+                    result: view.result,
+                    kind: ExpressionKind::Borrow {
+                        access: formal.access,
+                        place: Box::new(view),
+                        home: None,
+                    },
+                    source,
+                },
+                self.typed.expression_table.display_name(argument),
+            ));
+        }
         let node = self.node(id, argument)?;
         if matches!(node, ExpressionNode::String(_)) && formal.access != ReferenceAccess::Shared {
             return unserved("byte literal cannot lend mutable storage");
@@ -2026,28 +2133,6 @@ impl<'t> Program<'t> {
                 false,
             ),
         };
-        // An existing view already carries its backing; an owned array still
-        // needs an explicit loan. Test the actual value, not the expected view.
-        if formal.access == ReferenceAccess::Shared
-            && !explicit
-            && place
-                .result
-                .is_some_and(|actual| self.is_borrowed_view(actual))
-        {
-            return Ok((
-                Expression {
-                    call_context: None,
-                    result: place.result,
-                    kind: ExpressionKind::Borrow {
-                        access: ReferenceAccess::Shared,
-                        place: Box::new(place),
-                        home: None,
-                    },
-                    source,
-                },
-                self.typed.expression_table.display_name(argument),
-            ));
-        }
         // ownership.md, "Borrows and aliases": `&T` grants "Shared
         // observation under its loan contract", and "A callee cannot grant
         // writable access that the caller's place lacks." So an argument
@@ -2069,8 +2154,40 @@ impl<'t> Program<'t> {
                  place lacks",
             ));
         }
-        if access != formal.access {
+        // loans.md, "Reborrow lineage and access": a Mutable parent may
+        // form a Shared child, "Freeze mutation until the complete shared
+        // cohort ends; restore once." So `&mut place` given to a `&T`
+        // parameter is the exclusive loan the program wrote, lent on for
+        // observation: the place must admit that exclusive loan (every
+        // check below is made at the written access), and the callee
+        // receives the formal's access. No other difference has a row.
+        let attenuated = explicit
+            && access == ReferenceAccess::Mutable
+            && formal.access == ReferenceAccess::Shared;
+        if access != formal.access && !attenuated {
             return unserved("borrow whose access differs from its formal's");
+        }
+        // An existing view already carries its backing; an owned array still
+        // needs an explicit loan. Test the actual value, not the expected view.
+        if formal.referent == crate::body::BorrowedReferent::Slice
+            && !explicit
+            && place
+                .result
+                .is_some_and(|actual| self.is_borrowed_view(actual))
+        {
+            return Ok((
+                Expression {
+                    call_context: None,
+                    result: place.result,
+                    kind: ExpressionKind::Borrow {
+                        access: formal.access,
+                        place: Box::new(place),
+                        home: None,
+                    },
+                    source,
+                },
+                self.typed.expression_table.display_name(argument),
+            ));
         }
         if let Some(value_type) = place.result
             && let Some((referent, _)) = self.reference_referent(id, value_type)?
@@ -2082,7 +2199,7 @@ impl<'t> Program<'t> {
                 result: Some(referent),
             };
         }
-        let crossed = self.reference_place_access(id, &place, access)?;
+        let crossed = self.reference_place_access(id, slots, &place, access)?;
         let slot = root_slot(id, &place, &self.captures)?;
         if !crossed {
             let Some(slot) = slot else {
@@ -2134,7 +2251,7 @@ impl<'t> Program<'t> {
                 call_context: None,
                 result: place.result,
                 kind: ExpressionKind::Borrow {
-                    access,
+                    access: formal.access,
                     place: Box::new(place),
                     home,
                 },
@@ -2251,6 +2368,7 @@ fn mentions<'a>(
         | ExpressionKind::Requalify(operand)
         | ExpressionKind::Establish { operand, .. }
         | ExpressionKind::Field { base: operand, .. }
+        | ExpressionKind::ArrayView { base: operand, .. }
         | ExpressionKind::CollectionMeasure { base: operand, .. }
         | ExpressionKind::Payload { base: operand, .. }
         | ExpressionKind::IsCase {

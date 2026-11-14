@@ -3,8 +3,8 @@ Closed compiler-intrinsic inventory and authority-disposition classification.
 
 `committed_policy_mechanisms` enumerates the exact `CLOSED_POLICY_ROW_COUNT`
 non-parameterized compiler-intrinsic coordinates committed into the policy
-table, using `BuiltinFunction::COUNT` directly so catalog additions do not
-require a duplicate count edit here.
+table, deriving the runtime builtin count from the catalog so source-only
+declarations do not acquire provider authority or require a second roster.
 
 `classify_compiler_intrinsic` assigns each intrinsic's host-authority classes:
 static interrupt installation and privileged register/descriptor operations
@@ -25,7 +25,17 @@ use symbols::BuiltinFunction;
 
 use super::UnclassifiedTerminalMechanism;
 
-pub(super) const CLOSED_POLICY_ROW_COUNT: u32 = 46 + BuiltinFunction::COUNT as u32;
+pub(super) const CLOSED_POLICY_ROW_COUNT: u32 = {
+    let mut count = 46;
+    let mut ordinal = 0;
+    while ordinal < BuiltinFunction::COUNT {
+        if !BuiltinFunction::ALL[ordinal].0.is_source_special_form() {
+            count += 1;
+        }
+        ordinal += 1;
+    }
+    count
+};
 const FLOAT_FORMATS: [FloatFormat; 2] = [FloatFormat::F32, FloatFormat::F64];
 
 pub(super) fn committed_policy_mechanisms() -> &'static [CompilerIntrinsicExecutionIdentity] {
@@ -77,6 +87,9 @@ pub(super) fn closed_policy_mechanisms() -> Vec<CompilerIntrinsicExecutionIdenti
     mechanisms.extend(
         BuiltinFunction::ALL
             .into_iter()
+            // Source queries select their own lowering/evidence route. Installing
+            // their declarations must not also admit runtime intrinsic providers.
+            .filter(|(function, _)| !function.is_source_special_form())
             .map(|(function, _)| CompilerIntrinsicExecutionIdentity::BuiltinFunction(function)),
     );
     for operation in CompilerPrimitiveFloatBinaryOperation::ALL {
@@ -243,6 +256,10 @@ fn classify_builtin_function(function: BuiltinFunction) -> TerminalAuthorityDisp
         | BuiltinFunction::ContentOld
         | BuiltinFunction::ContentSeparate
         | BuiltinFunction::IntegerEmbed
+        | BuiltinFunction::AddressOf
+        | BuiltinFunction::CodeLayout
+        | BuiltinFunction::QuotientLift
+        | BuiltinFunction::QuotientDefine
         | BuiltinFunction::FloatAddTowardZeroF32
         | BuiltinFunction::FloatAddTowardZeroF64
         | BuiltinFunction::FloatAddTowardPositiveF32

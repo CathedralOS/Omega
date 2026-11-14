@@ -140,6 +140,26 @@ impl TerminalBuildHost {
         if !entry.scalar_parameters.is_empty() {
             return Err("Build activation has unexpected scalar parameters".into());
         }
+        // The evaluator is the build entry's caller, so it owes the entry's
+        // `requires` clauses before it runs anything. It hands the entry a
+        // Build it promises nothing about, so the only clauses it can owe
+        // are ones true of the evaluator itself, such as its address width
+        // (`requires addr::Bound == 18446744073709551616`).
+        match entry.unconditional_precondition()? {
+            Some(true) => {}
+            Some(false) => {
+                return Err(
+                    "the build entry's `requires` does not hold for this build evaluator".into(),
+                );
+            }
+            None => {
+                return Err(
+                    "not supported yet: a build entry `requires` clause over its arguments; \
+                     the evaluator establishes nothing about the Build it passes"
+                        .into(),
+                );
+            }
+        }
         let original = TerminalStructuralValue::minted(1, parameter.structural_type, Vec::new());
         let requests = TerminalBuildRequestHost::new(
             artifact,

@@ -5924,12 +5924,12 @@ pub(crate) mod selected_operands {
             use numerics::literals::{IntegerLiteral, IntegerRadix};
             match self.type_reference_table.type_reference(reference) {
                 types::TypeReferenceNode::ConstExpression(value) => {
-                    let expression::ExpressionNode::Integer(literal) =
-                        self.expression_table.expression(*value)
-                    else {
-                        return None;
-                    };
-                    Some(literal.clone())
+                    match self.expression_table.expression(*value) {
+                        expression::ExpressionNode::Integer(literal) => Some(literal.clone()),
+                        // A calculation over literals is the literal of its
+                        // value (`const_integer::closed_literal`).
+                        _ => crate::const_integer::closed_literal(&self.expression_table, *value),
+                    }
                 }
                 types::TypeReferenceNode::Named { symbol, name } if !symbol.is_valid() => {
                     let mut spelling = name.as_str();

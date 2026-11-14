@@ -404,6 +404,37 @@ impl SelectedProviderPlanFacts {
         encoder.len(self.plans.len());
         for plan in &self.plans {
             encoder.bytes(plan.identity_digest().as_bytes());
+            // Equal provider values may have different selecting owners.
+            // Bind the retained custody here without changing the ABI plan's
+            // semantic identity or its row/report coordinates.
+            encoder.bool(plan.provider_declaration.is_some());
+            if let Some(owner) = &plan.provider_declaration {
+                encoder.string(owner);
+            }
+            encoder.len(plan.row_numeric_realizations.len());
+            let mut rows = plan
+                .rows
+                .iter()
+                .zip(&plan.row_numeric_realizations)
+                .collect::<Vec<_>>();
+            rows.sort_by(|(left, _), (right, _)| {
+                left.method
+                    .cmp(&right.method)
+                    .then_with(|| {
+                        plan.identity_text(left.requirement_identity)
+                            .cmp(plan.identity_text(right.requirement_identity))
+                    })
+                    .then_with(|| {
+                        left.requirement_lifetime_partition
+                            .cmp(&right.requirement_lifetime_partition)
+                    })
+            });
+            for (_, realization) in rows {
+                encoder.bool(realization.is_some());
+                if let Some(realization) = realization {
+                    encoder.string(realization);
+                }
+            }
         }
         encoder.len(self.assumed_bindings.len());
         for row in &self.assumed_bindings {
@@ -1293,7 +1324,7 @@ impl DigestFeed for SelectedProviderClosureDigestEncoder {
 impl SelectedProviderClosureDigestEncoder {
     fn new() -> Self {
         Self(DomainDigestEncoder::new(
-            b"omega.selected-provider-closure.sha256.v3\0",
+            b"omega.selected-provider-closure.sha256.v4\0",
         ))
     }
 
