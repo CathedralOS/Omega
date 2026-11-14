@@ -140,12 +140,53 @@ pub(super) fn source_application(
                     "record application has a foreign binder or argument",
                 ));
             }
-            if !matches!(parameter.kind, TypeParameterKind::Type)
-                || parameter.bounds != typed_trees::data::DataProperties::default()
-            {
+            if parameter.bounds != typed_trees::data::DataProperties::default() {
                 return Err(unavailable(
-                    "record application with constrained or non-type parameters",
+                    "record application with constrained parameters",
                 ));
+            }
+            match parameter.kind {
+                TypeParameterKind::Type => {}
+                TypeParameterKind::Const { type_reference } => {
+                    let TypeReferenceNode::Named { symbol, .. } =
+                        typed.type_reference_table.type_reference(type_reference)
+                    else {
+                        return Err(unavailable(
+                            "record const argument needs its complete carrier obligations",
+                        ));
+                    };
+                    let Some(symbols::BuiltinTypeAtom::Integer(carrier)) =
+                        typed.symbols.builtin_type_atom(*symbol)
+                    else {
+                        return Err(unavailable(
+                            "record const argument with a noninteger carrier",
+                        ));
+                    };
+                    let literal = typed
+                        .static_const_literal_from_type_reference(*argument)
+                        .ok_or_else(|| {
+                            unavailable("record const argument is not a closed integer")
+                        })?;
+                    let value = literal
+                        .value_i64()
+                        .map(i128::from)
+                        .or_else(|| literal.value_u64().map(i128::from));
+                    let expected = numerics::literals::LandedIntegerType::Fixed(carrier);
+                    if value.is_none_or(|value| !expected.admits_i128(value))
+                        || literal
+                            .landing()
+                            .is_some_and(|landing| landing.landed_type != expected)
+                    {
+                        return Err(unavailable(
+                            "record const argument does not inhabit its declared carrier",
+                        ));
+                    }
+                }
+                _ => {
+                    return Err(unavailable(
+                        "record application with unsupported parameter kinds",
+                    ));
+                }
             }
             if !typed_trees::domain::index_argument_is_closed(typed, *argument) {
                 return Err(unavailable(

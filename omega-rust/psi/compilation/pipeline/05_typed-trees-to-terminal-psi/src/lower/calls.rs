@@ -219,6 +219,7 @@ impl Lowering<'_> {
             | ExpressionKind::IsCase { .. }
             | ExpressionKind::Match { .. }
             | ExpressionKind::Field { .. }
+            | ExpressionKind::CollectionMeasure { .. }
             | ExpressionKind::Strict { .. }
             | ExpressionKind::Not(_)
             | ExpressionKind::BitwiseNot(_)

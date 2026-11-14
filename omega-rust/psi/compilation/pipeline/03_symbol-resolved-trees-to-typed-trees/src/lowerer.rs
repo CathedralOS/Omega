@@ -1755,6 +1755,7 @@ pub(crate) fn close_typed_cohort(
     )?;
     normalize_membership_selections(lowerer.source_trees, &mut lowerer.typed_trees)?;
     crate::contracts::proof_facts::intern_proof_membership_instances(&mut lowerer.typed_trees)?;
+    crate::constructor_applications::prepare(&mut lowerer.typed_trees, cohort.typed_expressions)?;
     lowerer
         .typed_trees
         .prepare_data_application_views(cohort.typed_type_references)

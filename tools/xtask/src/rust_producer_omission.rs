@@ -162,7 +162,7 @@ fn audit(manifests: &[PathBuf], steps: &[PathBuf], root: &Path) -> Result<Value,
 fn execute(args: &[String]) -> Result<bool, String> {
     let mut manifests = Vec::new();
     let mut steps = Vec::new();
-    let mut root = crate::repo_root();
+    let mut root = None;
     let mut record_path = None;
     let mut expected = "omitted";
     let mut arguments = args.iter();
@@ -173,7 +173,7 @@ fn execute(args: &[String]) -> Result<bool, String> {
         match option.as_str() {
             "--manifest" => manifests.push(PathBuf::from(value)),
             "--steps" => steps.push(PathBuf::from(value)),
-            "--root" => root = PathBuf::from(value),
+            "--root" => root = Some(PathBuf::from(value)),
             "--record" => record_path = Some(PathBuf::from(value)),
             "--require" if matches!(value.as_str(), "omitted" | "present") => expected = value,
             _ => return Err(format!("unknown option or value: {option} {value}")),
@@ -182,6 +182,10 @@ fn execute(args: &[String]) -> Result<bool, String> {
     if manifests.is_empty() && steps.is_empty() {
         return Err("nothing to audit: supply --manifest or --steps".into());
     }
+    let root = match root {
+        Some(root) => root,
+        None => crate::repository::current()?,
+    };
     let record = audit(&manifests, &steps, &root)?;
     if let Some(path) = record_path {
         if let Some(parent) = path

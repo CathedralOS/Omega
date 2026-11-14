@@ -76,8 +76,8 @@ pub use terminal_check_tables::compilation::{
 };
 pub use verdict::{
     AcceptedClosure, CompilationRefusal, ConflictingUse, ConsumptionSite, ExceededReach,
-    PublicationError, RoutePublication, RouteVerdict, UnestablishedUse, UnprovedObligation, judge,
-    judge_compilation,
+    PublicationError, RoutePublication, RouteVerdict, RuleViolation, UnestablishedUse,
+    UnprovedObligation, judge, judge_compilation,
 };
 
 #[cfg(test)]
@@ -1443,6 +1443,15 @@ impl Bindings for ErasedTerms<'_> {
         scalar_type: ScalarType,
     ) -> Result<ScalarTerm, Unbound> {
         self.runtime.field(root, path, scalar_type)
+    }
+
+    fn extent(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        scalar_type: semantic_vocabulary::IntegerType,
+    ) -> Result<ScalarTerm, Unbound> {
+        self.runtime.extent(root, path, scalar_type)
     }
 
     fn case(

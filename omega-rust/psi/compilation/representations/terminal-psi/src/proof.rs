@@ -179,9 +179,30 @@ pub(crate) mod contracts {
         StructuralCaseId, StructuralTypeId,
     };
 
+    /// One declaration's signature and published obligations. Keeping them
+    /// together lets a requirement retain its contract without inventing a body.
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct MachineContract {
         pub id: ContractId,
+        pub declaration: Option<crate::CheckedMachineDeclaration>,
+        pub parameters: Vec<crate::ValueDeclaration>,
+        pub parameter_order: Vec<crate::BoundaryParameterKind>,
+        pub structural_parameters: Vec<crate::StructuralParameterDeclaration>,
+        pub result: crate::TerminalMachineResult,
+        pub entry_claims: Vec<crate::EntryClaim>,
+        // Omitted reach and crash clauses can leave requirements open;
+        // an explicit empty clause promises none. Entries follow their own
+        // rule: omitted requirement invokes means the empty semantic ceiling.
+        pub declared_service_reach: Option<Vec<semantic_vocabulary::ServiceId>>,
+        pub declared_synchronous_entries: Option<Vec<semantic_vocabulary::ServiceId>>,
+        pub declared_crash_routes: Option<Vec<CrashRouteBucket>>,
+        pub closed_reach_application: Option<crate::ClosedReachApplication>,
+        pub published_service_ceiling: Vec<semantic_vocabulary::ServiceId>,
+        /// Exact published synchronous entries, strictly increasing. Empty
+        /// enters nothing; a boundary's parents are not added implicitly.
+        pub published_synchronous_entries: Vec<semantic_vocabulary::ServiceId>,
+        pub termination: semantic_vocabulary::Termination,
+        pub content_entry_claims: Vec<crate::ContentEntryClaim>,
         pub crash_routes: Vec<CrashRouteBucket>,
         pub erased_scalar_formals: Vec<crate::ValueDeclaration>,
         pub erased_proof_formals: Vec<crate::ErasedProofFormal>,
@@ -192,9 +213,55 @@ pub(crate) mod contracts {
     }
 
     impl MachineContract {
+        pub fn validate_parameter_order(&self) -> Result<(), &'static str> {
+            let scalar_count = self
+                .parameter_order
+                .iter()
+                .filter(|kind| **kind == crate::BoundaryParameterKind::Scalar)
+                .count();
+            let structural_count = self.parameter_order.len() - scalar_count;
+            if scalar_count != self.parameters.len()
+                || structural_count != self.structural_parameters.len()
+            {
+                return Err("machine runtime parameter order does not cover its signature");
+            }
+            Ok(())
+        }
+
+        pub fn runtime_parameter_formals(&self) -> Result<Vec<u32>, &'static str> {
+            self.validate_parameter_order()?;
+            let positions =
+                |kind| {
+                    self.parameter_order.iter().enumerate().filter_map(
+                        move |(position, candidate)| (*candidate == kind).then_some(position),
+                    )
+                };
+            positions(crate::BoundaryParameterKind::Scalar)
+                .chain(positions(crate::BoundaryParameterKind::Structural))
+                .map(|position| {
+                    u32::try_from(position)
+                        .map_err(|_| "machine runtime formal ordinal cannot be represented")
+                })
+                .collect()
+        }
+
         pub fn empty(id: ContractId) -> Self {
             Self {
                 id,
+                declaration: None,
+                parameters: Vec::new(),
+                parameter_order: Vec::new(),
+                structural_parameters: Vec::new(),
+                result: crate::TerminalMachineResult::Unit,
+                entry_claims: Vec::new(),
+                declared_service_reach: None,
+                declared_synchronous_entries: None,
+                declared_crash_routes: None,
+                closed_reach_application: None,
+                published_service_ceiling: Vec::new(),
+                published_synchronous_entries: Vec::new(),
+                termination: semantic_vocabulary::Termination::NoGuarantee,
+                content_entry_claims: Vec::new(),
                 crash_routes: Vec::new(),
                 erased_scalar_formals: Vec::new(),
                 erased_proof_formals: Vec::new(),

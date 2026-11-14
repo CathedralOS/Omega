@@ -76,6 +76,18 @@ fn refused_with(name: &str, machines: &str, expected: &str) {
     );
 }
 
+/// The twin is rejected as a wrong program: the message states `expected`
+/// and does not say the checker lacks support for it.
+fn rejected_with(name: &str, machines: &str, expected: &str) {
+    let refusals = refusals(name, machines);
+    assert!(
+        refusals
+            .iter()
+            .any(|refusal| refusal.contains(expected) && !refusal.contains("not supported")),
+        "{name}: {refusals:#?}"
+    );
+}
+
 /// The control: the shared Build script is accepted and runs, so every
 /// refusal below belongs to the machine its twin adds.
 #[test]
@@ -85,8 +97,8 @@ fn a_build_script_that_only_uses_the_build_it_was_lent_runs() {
 /// Every field written out, the seal as a literal. A literal constructs the
 /// bare `BuildSeal`, which is not a `BuildSeal in Issued`.
 #[test]
-fn constructing_a_build_is_not_accepted() {
-    refused_with(
+fn constructing_a_build_is_rejected() {
+    rejected_with(
         "constructed",
         "machine wrong() {
     let optimizations: Optimizations;
@@ -108,7 +120,8 @@ fn constructing_a_build_is_not_accepted() {
     };
 }
 ",
-        "typing record literal field type",
+        "this value's type carries no domain and the field it initializes declares \
+         `BuildSeal::Issued`",
     );
 }
 
@@ -149,25 +162,27 @@ fn taking_the_seal_out_of_the_lent_build_is_not_accepted() {
 }
 
 #[test]
-fn replacing_the_seal_is_not_accepted() {
-    refused_with(
+fn replacing_the_seal_is_rejected() {
+    rejected_with(
         "replaced",
         "machine wrong(builder: &mut Build) {\n    builder.seal = BuildSeal { };\n}\n",
-        "replacement of a value governed by an access policy",
+        "this value's type carries no domain and the place it is assigned to declares \
+         `BuildSeal::Issued`",
     );
 }
 
 /// A machine that takes the plain carrier would be free to look inside it.
 #[test]
-fn lending_the_seal_as_its_plain_carrier_is_not_accepted() {
-    refused_with(
+fn lending_the_seal_as_its_plain_carrier_is_rejected() {
+    rejected_with(
         "lent",
         "machine peek(seal: &BuildSeal) { }
 machine wrong(builder: &Build) {
     peek(&builder.seal)
 }
 ",
-        "typing argument types",
+        "this value's type carries `BuildSeal::Issued` and the parameter it is passed for \
+         declares no domain",
     );
 }
 

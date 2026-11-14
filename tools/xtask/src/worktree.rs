@@ -634,7 +634,7 @@ fn next_free_slot_index(items: &[WorktreeInfo], wt_base: &Path) -> usize {
 
 pub fn run(args: &[String]) -> Result<(), u8> {
     let sub = args.first().map(String::as_str).unwrap_or("status");
-    let current = repo_root();
+    let current = repo_root()?;
     let main_root = primary_root(&current);
     let wt_base = main_root.join(".agents/worktree");
     let current_name = current

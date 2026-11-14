@@ -3393,6 +3393,21 @@ pub mod expression {
                 })
         }
 
+        /// Fill an inferred argument tuple without losing the application's
+        /// retained source selections and supplying scope.
+        pub fn set_static_machine_application_arguments(
+            &mut self,
+            application: StaticMachineApplicationHandle,
+            arguments: &[StaticMachineArgument],
+        ) {
+            let arguments = self
+                .static_machine_arguments
+                .insert_many(arguments.iter().cloned());
+            self.static_machine_applications
+                .get_mut(application)
+                .arguments = arguments;
+        }
+
         pub fn static_machine_applications(
             &self,
         ) -> impl Iterator<Item = (StaticMachineApplicationHandle, &StaticMachineApplication)>

@@ -4970,6 +4970,7 @@ wire_record! {
         suspension_call_plans: List<SuspensionPlan>,
         scalar_block_invariants: List<scalar_block_invariant_wire::Invariant>,
         operation_crash_contracts: List<operation_crash_contract_wire::Contract>,
+        declaration_contracts: List<super::contract_wire::Contract>,
         machines: List<Machine>,
         target_machine_families: List<TargetFamily>,
         target_layout_applications: List<target_layout_wire::Application>,

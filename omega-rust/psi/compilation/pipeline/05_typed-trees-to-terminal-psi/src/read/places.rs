@@ -272,8 +272,19 @@ impl Program<'_> {
             // A closed metadata row is not argument admission. Each supplied
             // type must itself be a type this same checked route can serve.
             if let Some(application) = &application {
-                for (_, argument) in &application.substitutions {
-                    self.value_type(id, *argument)?;
+                let template = typed
+                    .unique_data_definition_by_symbol(symbol)
+                    .ok_or_else(|| unserved("applied data lost its template"))?;
+                for (parameter, argument) in typed
+                    .data_type_parameters(template)
+                    .iter()
+                    .zip(&application.substitutions)
+                {
+                    if matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type) {
+                        self.value_type(id, argument.1)?;
+                    }
+                    // source_application checks each const against its carrier;
+                    // a const is not itself a runtime value type to read here.
                 }
             }
             self.declared_members(id, members)
@@ -739,6 +750,11 @@ impl Program<'_> {
         member: &TableMemberExpression,
         source: SourceOrigin,
     ) -> Checked<Expression> {
+        if let typed_trees::expression::MemberSelection::CollectionMeasure(measure) =
+            member.selection
+        {
+            return self.collection_measure(id, slots, member.receiver, measure, source);
+        }
         if !member.selection.field_symbol().is_valid() {
             return Err(refuse(
                 id,
@@ -918,7 +934,14 @@ impl Program<'_> {
             let field_type = declared[position];
             let operand = self.expression(id, slots, field.value, Some(field_type))?;
             if !self.agrees(operand.result, field_type) {
-                return Err(typing("record literal field type"));
+                return Err(self.mistyped(
+                    id,
+                    operand.source,
+                    super::rejections::Destination::Field,
+                    Some(field_type),
+                    operand.result,
+                    "record literal field type",
+                ));
             }
             fields.push((position, operand));
         }

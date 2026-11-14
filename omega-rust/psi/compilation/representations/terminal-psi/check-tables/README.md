@@ -26,7 +26,7 @@ lookup is one index.
 | `values` | `ValueId` | One evaluated scalar: its type and its single origin. A write never changes it. |
 | `knowledge` | `KnowledgeId` | A proposition over value identities, the point it is available from, its one justification and its premises. It never becomes false. |
 | `propositions` | `PropositionId` | The proposition each knowledge row states. Machine-local, minted by `push`: Terminal Psi keeps contract propositions inline and has no proposition table. |
-| `places` | `ExactPlaceId` | A root place, or a parent place plus one typed segment (field, case, fixed index, runtime index named by its captured selector value), with its sorted children and the writes to it. |
+| `places` | `ExactPlaceId` | A root place, or a parent place plus one typed segment (field, case, fixed index, runtime index named by its captured selector value, descriptor extent metadata), with its sorted children and the writes to it. |
 | `roots` | `PlaceId` | The `ExactPlaceId` of each root place. |
 | `writes` | `WriteId` | The forward write log: a value, unknown contents, or a hole. |
 | `obligations` | `ObligationId` | Claims, loans, windows and debts (conserved across edges) and proof questions (discharged at one site). |
@@ -61,15 +61,29 @@ module's named proposition declarations.
   order). Elaboration fills each as it pushes rows. A lane that needs another lookup stops and
   reports it, as it would for a new table; it never adds a map.
 
+## Descriptor extent observations
+
+`Segment::Extent` projects the current `u64` extent beneath an exact borrowed
+byte descriptor. It uses the existing place interning and reaching-write walk;
+descriptor replacement and overlapping mutable calls invalidate its prior
+reaching contents. A count already read is an immutable scalar snapshot.
+[Byte views](../../../../../../wiki/spec/terminal-psi/byte_views.md#values-and-observations)
+requires an observation of that exact descriptor, and input requirements name
+its `ViewExtent`. An observed formal's extent uses `EntryContent` like a scalar
+field. A fresh read is equated to that entry snapshot only when the actual
+write history still supplies it. The projection stays within the descriptor's
+custody and introduces no physical field, backing or ownership obligation.
+
 ## What a lane may add
 
-A construct-family lane changes this crate in one place (a closed
-`RefusalReason` variant, cited the same way, is the one further addition a
-lane has made):
+A construct-family lane adds proof questions through the existing obligation kinds:
 
 - **An obligation kind:** a variant of `obligations::ObligationKind`, whose doc
   comment quotes the specification sentence that creates it, and a row in the
   table below.
+
+Closed refusal reasons and typed metadata projections extend their existing
+enumerations with the same specification citation, as `Extent` does above.
 
 A justification (`values::Justification`) is neither. A lane does not add or
 reuse one for a second meaning: a new reason a knowledge row can hold is a

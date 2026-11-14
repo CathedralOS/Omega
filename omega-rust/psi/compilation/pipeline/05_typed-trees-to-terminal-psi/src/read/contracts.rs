@@ -542,6 +542,51 @@ impl Program<'_> {
                     scalar_type,
                 ))
             }
+            ExpressionNode::Member(member)
+                if matches!(
+                    member.selection,
+                    typed_trees::expression::MemberSelection::CollectionMeasure(
+                        typed_trees::expression::CollectionMeasure::Length
+                    )
+                ) =>
+            {
+                if !scope.formal_fields || scope.subject.is_some() {
+                    return unserved("extent outside an input requirement");
+                }
+                let Some((root, path, receiver)) = self.projected(id, scope, member.receiver)?
+                else {
+                    return unserved("extent without an exact formal descriptor");
+                };
+                let Some(record) = self.opened(id, Some(receiver), Access::Read)? else {
+                    return unserved("extent of non-collection storage");
+                };
+                if !matches!(
+                    self.data_type(id, record)?.shape,
+                    crate::StorageShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView {
+                            access: Some(
+                                terminal_psi::StructuralAccess::SharedBorrow
+                                    | terminal_psi::StructuralAccess::MutableBorrow
+                            ),
+                        }
+                    )
+                ) {
+                    return unserved("extent without its descriptor operation");
+                }
+                let scalar_type = semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    64,
+                )
+                .expect("u64 is valid");
+                Ok((
+                    ScalarTerm::ViewExtent {
+                        root,
+                        path,
+                        scalar_type,
+                    },
+                    ScalarType::Integer(scalar_type),
+                ))
+            }
             // `self.value`, `self.from.x`: a field of the value a data
             // clause is about.
             ExpressionNode::Member(_) if scope.subject.is_some() => {
@@ -590,9 +635,13 @@ impl Program<'_> {
                 // "An arithmetic operation whose selected meaning can
                 // transfer control cannot form a proof term. It is not
                 // silently read as Exact or mathematical arithmetic."
-                crate::policy::Suffix::Trapping => unserved(
-                    "Trapping policy operator in a clause, where an operation that can crash forms no term",
-                ),
+                crate::policy::Suffix::Trapping => Err(crate::reject(
+                    id,
+                    crate::SourceOrigin::of(self.typed.expression_table.source_span(expression)),
+                    "a trapping operator (`+!`, `-!`, `*!`) in a contract clause: an operation \
+                     that can crash forms no proof term, and it is not read as exact or \
+                     mathematical arithmetic",
+                )),
                 crate::policy::Suffix::Total(policy) => {
                     self.suffixed_term(id, scope, binary, policy, expected)
                 }

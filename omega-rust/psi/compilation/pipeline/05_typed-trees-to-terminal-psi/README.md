@@ -763,8 +763,9 @@ that still resolves to a constant is refused as `expression const`.
   minted with it, unique in the module. A literal's field and a member are
   matched to the declaration by the field symbol stage 02 recorded
   (`TableStructLiteralField::field_symbol`,
-  `TableMemberExpression::member_symbol`); one without a symbol is refused as
-  a spelling.
+  `TableMemberExpression::selection`'s `Field` variant); an unresolved member
+  is refused as a spelling. A selected collection observation carries its
+  operation instead of a field symbol.
 - **Cases** are a position among the declaration's cases and a
   `StructuralCaseId` minted with it, unique in the module. A case literal, a
   pattern head and the right operand of a case test are matched to the
@@ -999,6 +1000,20 @@ machine, like every identity here.
 **Projections.** `r.a` is the row `(r, Segment::Field(a))`, found by binary
 search of the parent's sorted `children` and pushed only when absent, so a
 path is one `ExactPlaceId` however often it is used.
+
+`Segment::Extent` names a byte descriptor's current extent metadata through
+the same interning. A selected `CollectionMeasure::Length` evaluates its actual
+base and emits `ByteSequenceLength` on that descriptor and path. Input
+requirements name its `ViewExtent`; the checker binds that to the formal's
+entry snapshot and follows descriptor stores and mutable calls before
+equating any fresh observation to it. Saved scalar values retain their
+original meaning. Whole descriptor reads and copies name the same entry
+metadata through the ordinary leaf mechanism; only formal roots receive
+entry values. See [byte observations](../../../../../wiki/spec/terminal-psi/byte_views.md#values-and-observations).
+Fixed-array measurement, range/index lowering and call requirements needing
+extent substitution still require their own served operations. Source storage
+cycles remain refused; the storage checker's backedge control tests its actual
+CFG walk without claiming source-loop acceptance.
 
 **Writes.** Each row says what one operation stored and where, at
 `ProgramPoint::AfterOperation` of that operation. Lowering never asks what a

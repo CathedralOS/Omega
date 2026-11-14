@@ -158,6 +158,17 @@ pub enum RefusalReason {
     /// An identity is past the end of the table it was looked up in. This
     /// catches only out-of-range identities; see `row`.
     ForeignIdentity,
+    /// The program breaks a rule of the language that is judged on the
+    /// source form, before any construct is lowered: a value whose type
+    /// carries other domains than its destination declares, a cast that adds
+    /// a domain outside the domain's establishment routes. It is a compile
+    /// error of the program and is published as a rejection, never as "not
+    /// supported". `detail` states the rule; the span is where the program
+    /// breaks it, absent only when the authored node carries none. A step
+    /// gives this reason only where the specification defines the error for
+    /// every program of that form: a form the step merely cannot judge is
+    /// `Unsupported`.
+    Violation(Option<source::SourceSpan>),
 }
 
 /// Why an obligation's evidence did not check. Closed like `RefusalReason`:

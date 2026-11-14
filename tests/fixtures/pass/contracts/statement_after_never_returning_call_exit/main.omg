@@ -1,0 +1,11 @@
+// Compiles with one warning. `stop` crashes on its only path, so a call of
+// it never returns and the two statements after the call are unreachable:
+// they are accepted, never execute, and are reported once, at the first.
+machine stop() crashes Trap {
+    crash Trap;
+}
+machine main() crashes Trap {
+    stop();
+    let unused: u32 = 7;
+    let other: u32 = unused + 1;
+}
