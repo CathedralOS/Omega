@@ -13,3 +13,13 @@
 // canonical requirement preserves the terminal outcome and the exact i32
 // status; it does not grant the caller exit authority.
 public data ProcessExitNativeProvider { }
+
+// The selected implementation owns the complete ProcessExit map, as
+// `NativeConsole` does for Console: provider selection names a named
+// implementation, never a data type. The native leaf keeps its exact target
+// identity and the implementation forwards to it with an ordinary call.
+public NativeProcessExit satisfies ProcessExit {
+    machine exit_process(return_code: i32) reaches ProcessExit {
+        ProcessExitNativeProvider::exit_process(return_code);
+    }
+}
