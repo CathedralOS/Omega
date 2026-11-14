@@ -1,17 +1,17 @@
 /*
-We lower pre-layout selected-form encoding (`SelectedFormEncoding`) into a function-relative resolved machine layout (`StagedOptimizedResolvedSelectedFormLayout`) for Omega stage 08 (`selected-form-encoding-to-resolved-layout`). Starting from the selected instruction plan, the post-allocation machine plan, the validated physical register model, and the pre-layout encoding rows, `stage_optimized_resolved_selected_form_layout` derives a canonical fallthrough block order for each function, computes exact block and instruction byte offsets, resolves deferred branch and jump encodings against those offsets (widening AArch64 conditional branches that exceed the signed 19-bit word reach into an inverted skip plus an unconditional branch), and verifies that internal-machine call, foreign-call, and image-address fixup placeholders remain canonically bounded inside their row spans. Every staged layout is then replayed through `validate_optimized_resolved_selected_form_layout` before we publish it.
+We lower pre-layout selected-form encoding (`SelectedFormEncoding`) into a function-relative resolved machine layout (`StagedOptimizedResolvedSelectedFormLayout`) for Omega stage 08 (`selected-form-encoding-to-resolved-layout`). The producer derives canonical fallthrough order, exact byte offsets, branch encodings and bounded fixup placeholders. AArch64 conditional branches beyond the signed 19-bit word reach widen to an inverted skip plus an unconditional branch. The result retains those computed rows without replaying its own output; explicit validation and retained-artifact readers use `validate_optimized_resolved_selected_form_layout` separately.
 */
 
 /*
-Branch displacements and block-relative offsets cannot be fixed while instructions are encoded in isolation during stage 07, because conditional fallthrough chains determine block adjacency and AArch64 out-of-range conditional branches grow by four bytes when widened, shifting every subsequent block and instruction offset in the function. By separating function-relative layout into its own stage with an independent validator that re-derives block order, monotone branch widening, byte offsets, target-decoded branch footprints, and content identity from scratch, we establish a verified baseline layout before optional x86-64 short-branch relaxation runs in stage 09.
+Branch displacements depend on block adjacency, and widening a branch shifts later offsets. The producer therefore owns layout as one operation before optional x86-64 relaxation in stage 09. A separate validator re-derives block order, widening, byte spans and content identity when requested; it is not part of ordinary stage construction.
 */
 
 /*
 - Entrypoints:
-  - `stage_optimized_resolved_selected_form_layout`: computes function-relative block and instruction layout and admits the result through independent validation.
+  - `stage_optimized_resolved_selected_form_layout`: computes and retains function-relative block and instruction layout.
   - `validate_optimized_resolved_selected_form_layout`: replays root custody, layout policy selection, canonical block ordering, monotone branch widening, target branch decoding, fixup bounds, and layout identity.
 - Custody:
-  - `StagedOptimizedResolvedSelectedFormLayout`: holds the validated `Arc<ResolvedMachineLayout>` and exposes its upstream identities, layout policy, and per-function resolved rows.
+  - `StagedOptimizedResolvedSelectedFormLayout`: holds the producer's immutable `Arc<ResolvedMachineLayout>` and exposes upstream identities, layout policy, and per-function resolved rows.
   - `OptimizedResolvedSelectedFormLayoutError`: enumerates root mismatches, unsupported function shapes, missing or duplicate instructions, branch fallthrough or size mismatches, and target encoding failures.
 - Support modules:
   - `ordinary`: selects the function layout policy, orders blocks along mandatory conditional fallthrough chains, converges AArch64 branch widening, and resolves per-row bytes and branch evidence.
@@ -87,8 +87,7 @@ pub fn stage_optimized_resolved_selected_form_layout(
     physical: &ValidatedPhysicalRegisterModel,
     pre_layout: &SelectedFormEncoding,
 ) -> Result<StagedOptimizedResolvedSelectedFormLayout, OptimizedResolvedSelectedFormLayoutError> {
-    let artifact = compute(selected, machine, physical, pre_layout)?;
-    admit_resolved_machine_layout(selected, machine, physical, pre_layout, artifact.program)
+    compute(selected, machine, physical, pre_layout)
 }
 
 pub fn validate_optimized_resolved_selected_form_layout(
@@ -101,21 +100,9 @@ pub fn validate_optimized_resolved_selected_form_layout(
     validation::validate(selected, machine, physical, pre_layout, artifact)
 }
 
-pub(crate) fn admit_resolved_machine_layout(
-    selected: CurrentSelectedProgram<'_>,
-    machine: &PostAllocationMachinePlan,
-    physical: &ValidatedPhysicalRegisterModel,
-    pre_layout: &SelectedFormEncoding,
-    program: Arc<ResolvedMachineLayout>,
-) -> Result<StagedOptimizedResolvedSelectedFormLayout, OptimizedResolvedSelectedFormLayoutError> {
-    let artifact = StagedOptimizedResolvedSelectedFormLayout { program };
-    validation::validate(selected, machine, physical, pre_layout, &artifact)?;
-    Ok(artifact)
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StagedOptimizedResolvedSelectedFormLayout {
-    program: Arc<ResolvedMachineLayout>, // Validated function-relative machine layout artifact.
+    program: Arc<ResolvedMachineLayout>, // Producer-owned function-relative machine layout.
 }
 
 impl StagedOptimizedResolvedSelectedFormLayout {
