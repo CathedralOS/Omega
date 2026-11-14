@@ -133,20 +133,54 @@ fn judged(
     (accepted, defaults, roster)
 }
 
-/// Target preparation for `program` as a product runs it: the demand of the
-/// accepted module, the chosen supplies, and the judgment of each chosen
-/// provider as a root of the same compilation.
-fn supplied_target(supplied: &str, program: &str) -> Result<compiler::SuppliedTarget, String> {
-    let (accepted, defaults, roster) = judged(supplied, program);
-    compiler::prepare_supplied_target(compiler::TargetSupplySource {
+/// What a product of one target reads after its source is checked.
+#[derive(Debug)]
+struct Supplied {
+    supply: PreparedTargetSupply,
+    roster: compilation_products::ProductRoster,
+    /// The second judgment, when a target chose a provider the Product's
+    /// own roster did not name.
+    accepted: Option<Arc<AcceptedTerminalSource>>,
+}
+
+/// Target preparation for `program` as a product runs it: every provider a
+/// target chooses is judged as a root of the Product's one module, and the
+/// demand of `TARGET` is walked through the providers it chooses.
+fn supplied_target(supplied: &str, program: &str) -> Result<Supplied, String> {
+    supplied_on(supplied, program, TARGET, |_| {})
+}
+
+/// The same for `target`, after `key` has keyed the harvested defaults to
+/// targets: the sources of these tests declare untargeted defaults only.
+fn supplied_on(
+    supplied: &str,
+    program: &str,
+    target: &str,
+    key: impl FnOnce(&mut Vec<TargetProviderDefaults>),
+) -> Result<Supplied, String> {
+    let (accepted, mut defaults, roster) = judged(supplied, program);
+    key(&mut defaults);
+    let product = compiler::judge_supplied_product(compiler::ProductSupplySource {
         program: accepted.source(),
         roster: &roster,
         accepted: &accepted,
         build: &[],
         defaults: &defaults,
-        target: Some(TARGET),
     })
-    .map_err(first)
+    .map_err(first)?;
+    let supply = compiler::prepare_supplied_target(compiler::TargetSupplySource {
+        roster: &product.roster,
+        accepted: product.accepted.as_deref().unwrap_or(&accepted),
+        build: &[],
+        defaults: &defaults,
+        target: Some(target),
+    })
+    .map_err(first)?;
+    Ok(Supplied {
+        supply,
+        roster: product.roster,
+        accepted: product.accepted,
+    })
 }
 
 /// A provider machine for `Service::go` under each data type, and a second
@@ -215,6 +249,87 @@ fn a_chosen_provider_that_does_not_refine_its_requirement_stops_the_program() {
     );
 }
 
+/// Two targets choose different providers for one requirement, and each
+/// provider calls a raw requirement of its own operating system. Both
+/// providers are judged in the Product's one module, which therefore
+/// declares both raw requirements.
+const PER_TARGET: &str = "public boundary trait LinuxRaw {\n    machine call() reaches none crashes none;\n}\npublic boundary trait WindowsRaw {\n    machine call() reaches none crashes none;\n}\ndata Leaf {}\nmachine Native::go() satisfies Service::go reaches LinuxRaw crashes none {\n    LinuxRaw::call();\n}\nmachine Other::go() satisfies Service::go reaches WindowsRaw crashes none {\n    WindowsRaw::call();\n}\nmachine Leaf::call() satisfies LinuxRaw::call reaches none crashes none {\n}\nmachine Leaf::provider_defaults(defaults: &mut Leaf) {\n    Leaf::select_provider<LinuxRaw, Leaf>(defaults);\n}\n";
+const REACHES_BOTH_OS: &str = "public boundary trait Service {\n    machine go() reaches LinuxRaw, WindowsRaw crashes none;\n}\ndata Native {}\ndata Other {}\n";
+
+/// Keys `Native` and the raw Linux leaf to Linux and `Other` to Windows.
+fn key_per_target(defaults: &mut Vec<TargetProviderDefaults>) {
+    let untargeted = std::mem::take(defaults);
+    for selection in untargeted.into_iter().flat_map(|row| row.selections) {
+        let target = match selection.provider_type.authored_path.as_str() {
+            "Other" => "windows_x86_64",
+            _ => "linux_x86_64",
+        };
+        defaults.push(TargetProviderDefaults {
+            target: Some(target.to_owned()),
+            machines: Vec::new(),
+            selections: vec![selection],
+        });
+    }
+}
+
+/// A target is asked only for what its entries reach through the providers
+/// it chose. Linux chooses `Native`, whose raw requirement has a provider,
+/// so Linux settles two requirements and is not asked for the Windows
+/// provider's raw requirement, although the one module declares it. The
+/// twin is Windows: it chooses `Other`, whose raw requirement nobody
+/// supplies, and is refused by that requirement's name and no other.
+#[test]
+fn a_target_demands_what_its_own_chosen_providers_reach() {
+    let declarations = format!("{REACHES_BOTH_OS}{NATIVE_DEFAULT}{OTHER_DEFAULT}{PER_TARGET}");
+    let linux = supplied_on(&declarations, REACHES, "linux_x86_64", key_per_target)
+        .expect("every requirement Linux reaches has a provider");
+    let module = linux.accepted.expect("the chosen providers were judged");
+    assert_eq!(
+        module.module().boundary_machines.len(),
+        3,
+        "the one module declares both targets' raw requirements"
+    );
+    assert_eq!(linux.roster.supplies.len(), 3, "both targets' providers");
+    let mut demanded = linux
+        .supply
+        .requirements()
+        .iter()
+        .map(|requirement| requirement.reached.name.as_str())
+        .collect::<Vec<_>>();
+    demanded.sort_unstable();
+    assert_eq!(demanded, ["LinuxRaw::call", "Service::go"]);
+    assert!(linux.supply.settle().is_ok());
+
+    let windows = supplied_on(&declarations, REACHES, "windows_x86_64", key_per_target)
+        .expect("preparation reports the demand; settlement rejects it");
+    assert_eq!(
+        windows.supply.settle().map_err(first).unwrap_err(),
+        "boundary requirement `WindowsRaw::call` has no provider on target `windows_x86_64`: the Build selects none and the target package declares no default"
+    );
+}
+
+/// The walk continues only into a provider the module holds. Read from the
+/// first judgment, which holds no provider, a requirement whose provider
+/// was chosen is refused by name instead of being settled over a provider
+/// nobody judged.
+#[test]
+fn a_chosen_provider_the_module_does_not_hold_is_refused() {
+    let (accepted, defaults, roster) =
+        judged(&format!("{SLOT}{NATIVE_DEFAULT}{NATIVE_BODY}"), REACHES);
+    assert_eq!(
+        compiler::prepare_supplied_target(compiler::TargetSupplySource {
+            roster: &roster,
+            accepted: &accepted,
+            build: &[],
+            defaults: &defaults,
+            target: Some(TARGET),
+        })
+        .map_err(first)
+        .unwrap_err(),
+        "no product route yet: target preparation for `linux_x86_64`: `Service::go` is supplied by `Native`, which the accepted module does not hold as a judged provider"
+    );
+}
+
 fn prepare(
     accepted: &AcceptedTerminalSource,
     build: &[ProviderSelection],
@@ -229,20 +344,23 @@ fn prepare_for_target(
     defaults: &[TargetProviderDefaults],
     target: Option<&str>,
 ) -> Result<PreparedTargetSupply, String> {
-    let reached = accepted
-        .boundary_requirements_reached()
-        .expect("reached requirements rejoin their declarations")
+    let declared = accepted
+        .boundary_requirements_declared()
+        .expect("declared requirements rejoin their declarations")
         .into_iter()
-        .map(|reached| ReachedBoundaryRequirement {
-            boundary: reached.boundary,
-            requirement: reached.requirement,
-            slot: reached.slot,
-            name: reached.name,
+        .map(|declared| ReachedBoundaryRequirement {
+            boundary: declared.boundary,
+            requirement: declared.requirement,
+            slot: declared.slot,
+            name: declared.name,
         })
         .collect::<Vec<_>>();
+    let roots = accepted.entry().into_iter().collect::<Vec<_>>();
     PreparedTargetSupply::prepare(TargetSupplyRequest {
         module: accepted.module(),
-        reached: &reached,
+        declared: &declared,
+        roots: &roots,
+        judged: &[],
         build,
         defaults,
         target,

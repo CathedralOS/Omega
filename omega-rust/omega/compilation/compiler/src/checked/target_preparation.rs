@@ -1,17 +1,19 @@
 // Target preparation asks what one target must supply for this Product, and
 // the answer comes from the Product's accepted Terminal module: the boundary
-// requirements its entry reaches, paired with the provider selections the
-// Build made and the defaults the target package retains
-// (`provider_planning::target_supply`). A module that reaches none prepares
-// an empty supply; a module that demands a plan this route cannot form yet is
-// refused by the name of what it demands. Typed declarations alone decide
-// nothing here.
+// requirements its entries reach through the providers that target chooses,
+// paired with the provider selections the Build made and the defaults the
+// target package retains (`provider_planning::target_supply`). The module is
+// the Product's one module, already judged with the providers every target
+// chooses (`judge_supplied_product`, run when the source is checked). A
+// target that reaches none prepares an empty supply; a module that demands a
+// plan this route cannot form yet is refused by the name of what it demands.
+// Typed declarations alone decide nothing here.
 
 use compilation_products::CheckedProductSource;
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
 use provider_planning::target_supply::{
-    PreparedTargetSupply, ReachedBoundaryRequirement, TargetSupplyRequest,
+    JudgedProvider, PreparedTargetSupply, ReachedBoundaryRequirement, TargetSupplyRequest,
 };
 
 pub(crate) struct PreparedProductTarget {
@@ -45,27 +47,171 @@ pub(crate) fn selected_supplies(
     }
 }
 
-/// What one target must supply, with every chosen provider judged.
+/// What a Product's accepted module is extended from: the frozen source and
+/// the first judgment, with the supplies the Build and the target packages
+/// declare.
+pub struct ProductSupplySource<'a> {
+    /// The frozen source the first judgment accepted.
+    pub program: &'a std::sync::Arc<typed_trees::FrozenTypedTrees>,
+    /// The roster of that judgment and its accepted module.
+    pub roster: &'a compilation_products::ProductRoster,
+    pub accepted: &'a psi_compiler::AcceptedTerminalSource,
+    /// The evaluated Build's provider selections and the target packages'
+    /// defaults.
+    pub build: &'a [build_time_evaluation::provider_declarations::ProviderSelection],
+    pub defaults: &'a [build_time_evaluation::provider_declarations::TargetProviderDefaults],
+}
+
+/// The Product's roster with every chosen provider, and its judgment.
 #[derive(Debug)]
-pub struct SuppliedTarget {
-    /// The demand of the last judged module and the supplies declared for
-    /// it; settlement chooses from it.
-    pub supply: PreparedTargetSupply,
-    /// The roster the last judgment accepted: the Product's own, extended
-    /// by each chosen supply.
+pub struct SuppliedProduct {
+    /// The Product's own roster, extended by each supply a target chose.
     pub roster: compilation_products::ProductRoster,
-    /// The judgment of that roster when settlement chose a provider the
+    /// The judgment of that roster when a target chose a provider the
     /// Product's own roster did not name; `None` when the first judgment
-    /// already covers every chosen supply.
+    /// already holds every chosen provider.
     pub accepted: Option<std::sync::Arc<psi_compiler::AcceptedTerminalSource>>,
+}
+
+/// What the demand walk of any target reads from one accepted module.
+struct ModuleDemand {
+    declared: Vec<ReachedBoundaryRequirement>,
+    roots: Vec<semantic_vocabulary::MachineId>,
+    judged: Vec<JudgedProvider>,
+}
+
+impl ModuleDemand {
+    fn read(
+        accepted: &psi_compiler::AcceptedTerminalSource,
+        roster: &compilation_products::ProductRoster,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let declared = accepted
+            .boundary_requirements_declared()
+            .map_err(|error| vec![error])?
+            .into_iter()
+            .map(|declared| ReachedBoundaryRequirement {
+                boundary: declared.boundary,
+                requirement: declared.requirement,
+                slot: declared.slot,
+                name: declared.name,
+            })
+            .collect();
+        // Every entry the Build binds is a root of every target's walk. The
+        // Build binds an entry per target, so a program that binds different
+        // entries to different targets is asked on each for what any of
+        // them reaches, until the entry of one target is selected here.
+        let roots = roster
+            .entries
+            .iter()
+            .map(|entry| {
+                accepted.machine_of(*entry).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "no product route yet: the accepted module does not hold a program entry the Build binds",
+                    )]
+                })
+            })
+            .collect::<Result<_, _>>()?;
+        let judged = accepted
+            .supplied_requirements()
+            .iter()
+            .map(|supplied| JudgedProvider {
+                provider: supplied.provider,
+                requirement: supplied.requirement,
+                machine: supplied.machine,
+            })
+            .collect();
+        Ok(Self {
+            declared,
+            roots,
+            judged,
+        })
+    }
+
+    fn prepare(
+        &self,
+        accepted: &psi_compiler::AcceptedTerminalSource,
+        build: &[build_time_evaluation::provider_declarations::ProviderSelection],
+        defaults: &[build_time_evaluation::provider_declarations::TargetProviderDefaults],
+        target: Option<&str>,
+    ) -> Result<PreparedTargetSupply, Vec<Diagnostic>> {
+        PreparedTargetSupply::prepare(TargetSupplyRequest {
+            module: accepted.module(),
+            declared: &self.declared,
+            roots: &self.roots,
+            judged: &self.judged,
+            build,
+            defaults,
+            target,
+        })
+    }
+}
+
+/// Has every provider a target chooses judged in the Product's one module.
+///
+/// The Product has one target-neutral Terminal module, so it holds the
+/// providers chosen for every target of the catalog, not one target's
+/// (provider_selection.md: "Psi checks every supplied implementation
+/// independently of target selection"). Each target's demand is walked from
+/// the Product's entries through the providers that target chooses
+/// (`provider_planning::target_supply`); each chosen provider joins the
+/// roster of the same compilation, where the lowered-form checker judges its
+/// machines as roots and proves that each refines the requirement it
+/// supplies. A provider may itself reach a boundary requirement, so the
+/// roster is judged again until no target chooses anything new; it only
+/// grows, and it is bounded by the selections the Build and the target
+/// packages declare. A program that reaches no requirement is not judged a
+/// second time.
+///
+/// A target whose demand cannot be prepared, or a requirement no supply can
+/// be chosen for, adds nothing here and stops nothing: that is a finding
+/// about that target, reported when a product of that target is prepared
+/// (`prepare_supplied_target`). A chosen provider the checker does not
+/// accept stops the Product on every target, because its source is part of
+/// the one module.
+pub fn judge_supplied_product(
+    source: ProductSupplySource<'_>,
+) -> Result<SuppliedProduct, Vec<Diagnostic>> {
+    let mut roster = source.roster.clone();
+    let mut supplied: Option<std::sync::Arc<psi_compiler::AcceptedTerminalSource>> = None;
+    loop {
+        let accepted = supplied.as_deref().unwrap_or(source.accepted);
+        let demand = ModuleDemand::read(accepted, &roster)?;
+        let before = roster.supplies.len();
+        for profile in target::TargetProfile::ALL {
+            let Ok(supply) = demand.prepare(
+                accepted,
+                source.build,
+                source.defaults,
+                Some(profile.target_name()),
+            ) else {
+                continue;
+            };
+            for chosen in supply
+                .requirements()
+                .iter()
+                .filter_map(|requirement| requirement.chosen())
+                .flat_map(|supply| selected_supplies(&supply.selection))
+            {
+                if !roster.supplies.contains(&chosen) {
+                    roster.supplies.push(chosen);
+                }
+            }
+        }
+        if roster.supplies.len() == before {
+            return Ok(SuppliedProduct {
+                roster,
+                accepted: supplied,
+            });
+        }
+        supplied = Some(roster.judge(std::sync::Arc::clone(source.program))?);
+    }
 }
 
 /// What a product of one target reads from its checked source to prepare
 /// that target's supply.
 pub struct TargetSupplySource<'a> {
-    /// The frozen source the first judgment accepted.
-    pub program: &'a std::sync::Arc<typed_trees::FrozenTypedTrees>,
-    /// The roster of that judgment and its accepted module.
+    /// The Product's supplied roster and its accepted module
+    /// (`judge_supplied_product`).
     pub roster: &'a compilation_products::ProductRoster,
     pub accepted: &'a psi_compiler::AcceptedTerminalSource,
     /// The evaluated Build's provider selections and the target packages'
@@ -76,65 +222,40 @@ pub struct TargetSupplySource<'a> {
     pub target: Option<&'a str>,
 }
 
-/// Prepares what one target must supply and has every chosen provider
-/// judged.
+/// Prepares what one target must supply: the requirements its entries reach
+/// through the providers it chooses, each with the supplies declared for it.
 ///
-/// The demand is read from the accepted module. Settlement chooses one
-/// supply per reached requirement, and each chosen provider then joins the
-/// roster of the same compilation, where the lowered-form checker judges its
-/// machines as roots and proves that each refines the requirement it
-/// supplies. A provider may itself reach a boundary requirement, so the
-/// roster is judged again until settlement chooses nothing new; it only
-/// grows, and it is bounded by the selections the Build and the target
-/// packages declare. A program that reaches no requirement is not judged a
-/// second time.
-///
-/// The module judged with the chosen providers decides the verdict and the
-/// demand. It is not yet what a product publishes: the shared Terminal
-/// publication stays the first judgment's module until provider plans are
-/// formed from the supplied one.
+/// Nothing is judged here. A requirement whose chosen provider the accepted
+/// module does not hold is refused by name: the walk could not continue
+/// through that provider, so what it reaches is unknown, and a product made
+/// from the module would call a provider nobody judged.
 pub fn prepare_supplied_target(
     source: TargetSupplySource<'_>,
-) -> Result<SuppliedTarget, Vec<Diagnostic>> {
-    let mut roster = source.roster.clone();
-    let mut supplied: Option<std::sync::Arc<psi_compiler::AcceptedTerminalSource>> = None;
-    loop {
-        let accepted = supplied.as_deref().unwrap_or(source.accepted);
-        let reached = accepted
-            .boundary_requirements_reached()
-            .map_err(|error| vec![error])?
-            .into_iter()
-            .map(|reached| ReachedBoundaryRequirement {
-                boundary: reached.boundary,
-                requirement: reached.requirement,
-                slot: reached.slot,
-                name: reached.name,
-            })
-            .collect::<Vec<_>>();
-        let supply = PreparedTargetSupply::prepare(TargetSupplyRequest {
-            module: accepted.module(),
-            reached: &reached,
-            build: source.build,
-            defaults: source.defaults,
-            target: source.target,
-        })?;
-        let before = roster.supplies.len();
-        for requirement in supply.clone().settle()?.requirements() {
-            for chosen in selected_supplies(&requirement.supply.selection) {
-                if !roster.supplies.contains(&chosen) {
-                    roster.supplies.push(chosen);
-                }
-            }
-        }
-        if roster.supplies.len() == before {
-            return Ok(SuppliedTarget {
-                supply,
-                roster,
-                accepted: supplied,
-            });
-        }
-        supplied = Some(roster.judge(std::sync::Arc::clone(source.program))?);
+) -> Result<PreparedTargetSupply, Vec<Diagnostic>> {
+    let supply = ModuleDemand::read(source.accepted, source.roster)?.prepare(
+        source.accepted,
+        source.build,
+        source.defaults,
+        source.target,
+    )?;
+    let unjudged = supply
+        .requirements()
+        .iter()
+        .filter(|requirement| requirement.realization.is_none())
+        .filter_map(|requirement| {
+            let chosen = requirement.chosen()?;
+            Some(Diagnostic::error(format!(
+                "no product route yet: target preparation for `{}`: `{}` is supplied by `{}`, which the accepted module does not hold as a judged provider",
+                source.target.unwrap_or("<unscoped>"),
+                requirement.reached.name,
+                chosen.selection.provider_type.authored_path,
+            )))
+        })
+        .collect::<Vec<_>>();
+    if !unjudged.is_empty() {
+        return Err(unjudged);
     }
+    Ok(supply)
 }
 
 impl PreparedProductTarget {
@@ -147,8 +268,7 @@ impl PreparedProductTarget {
             .terminal_publication
             .require_source_owner(&source.program)
             .map_err(|error| vec![error])?;
-        let supplied = prepare_supplied_target(TargetSupplySource {
-            program: &source.program,
+        let supply = prepare_supplied_target(TargetSupplySource {
             roster: source.terminal_publication.roster()?,
             accepted: source.terminal_publication.accepted()?,
             build: &source.computed_build_config.config.provider_selections,
@@ -165,9 +285,6 @@ impl PreparedProductTarget {
             }
             diagnostics
         })?;
-        Ok(Self {
-            profile,
-            supply: supplied.supply,
-        })
+        Ok(Self { profile, supply })
     }
 }

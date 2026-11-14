@@ -134,7 +134,8 @@ pub struct Supply {
 }
 
 pub use terminal_check_tables::program::{
-    ConformanceWitness, Elaboration, MachineSources, Selected, SourceOrigin, Unpositioned,
+    ConformanceWitness, Elaboration, MachineSources, Selected, SourceOrigin, SuppliedRequirement,
+    Unpositioned,
 };
 
 /// What the subset does not serve, named for the refusal. Closed: a new
@@ -517,6 +518,7 @@ fn finish_reading(
     elaboration.value_arguments = program.value_arguments;
     elaboration.generic_templates = program.generic_templates;
     elaboration.conformance_witnesses = program.conformance_witnesses;
+    elaboration.supplied = program.supplied;
     Ok(PreparedProgram {
         program: elaboration,
         source,
@@ -781,6 +783,7 @@ fn lower_generic_for(
             value_arguments: IdTable::default(),
             generic_templates: Vec::new(),
             conformance_witnesses: Vec::new(),
+            supplied: Vec::new(),
             undeclared: Vec::new(),
         },
     })

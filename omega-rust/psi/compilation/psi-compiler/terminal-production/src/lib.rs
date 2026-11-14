@@ -11,8 +11,9 @@ The obsolete checked-source production request interfaces have been removed.
 #![forbid(unsafe_code)]
 
 mod accepted;
-pub use accepted::{AcceptedTerminalSource, ReachedBoundaryRequirement};
+pub use accepted::{AcceptedTerminalSource, DeclaredBoundaryRequirement};
 pub use typed_trees_to_terminal_psi::Compilation as TerminalSourceCompilation;
+pub use typed_trees_to_terminal_psi::SuppliedRequirement as TerminalSuppliedRequirement;
 pub use typed_trees_to_terminal_psi::Supply as TerminalSourceSupply;
 
 mod build_bindings;

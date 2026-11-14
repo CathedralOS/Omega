@@ -75,6 +75,16 @@ pub struct MachineSources {
     pub memberships: Vec<(BlockId, String)>,
 }
 
+/// One requirement a chosen provider supplies and the machine of the module
+/// that realizes it. `provider` and `requirement` are declarations of the
+/// judged source, compared by identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SuppliedRequirement {
+    pub provider: SymbolHandle,
+    pub requirement: SymbolHandle,
+    pub machine: MachineId,
+}
+
 /// The result of elaborating everything one compilation is responsible for:
 /// its entries, what its Build selected, every declaration of its subject,
 /// and every machine those call.
@@ -164,6 +174,14 @@ pub struct Elaboration {
     /// refines the requirement is a statement of its own
     /// (`elaborate_witness`). Empty outside `elaborate`.
     pub conformance_witnesses: Vec<ConformanceWitness>,
+    /// The machine of this module each chosen provider gives each
+    /// requirement of the slot it supplies (`Compilation::supplies`), in
+    /// supply order. One module holds the providers chosen for every
+    /// target, so two rows may name one requirement under different
+    /// providers; a consumer follows a requirement into the machine of the
+    /// provider it settled on, never into "the" provider of the requirement.
+    /// Empty outside `elaborate`.
+    pub supplied: Vec<SuppliedRequirement>,
     /// The machines of a compilation's module that were given no declaration
     /// identity, each with the reason (`declare`). A module that lists one is
     /// judged like any other and is never published. Empty outside
