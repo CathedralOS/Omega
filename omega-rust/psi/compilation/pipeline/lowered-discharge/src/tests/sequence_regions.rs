@@ -48,10 +48,12 @@ fn sequence_calls_keep_outer_and_element_regions_on_one_erased_row() {
         "right: &'right [Cell<'right>]",
         "right: &'left [Cell<'right>]",
     );
-    let result = judge_build(&changed);
-    let Err(crate::CompilationRefusal::Elaboration(refusal)) = result else {
-        panic!("{result:?}")
+    let refusal = match judge_build(&changed) {
+        Err(crate::CompilationRefusal::Elaboration(refusal))
+        | Ok(RouteVerdict::FallBack(refusal)) => refusal,
+        other => panic!("{other:?}"),
     };
+    assert_eq!(refusal.reason, RefusalReason::Unsupported);
     assert!(
         refusal
             .detail
