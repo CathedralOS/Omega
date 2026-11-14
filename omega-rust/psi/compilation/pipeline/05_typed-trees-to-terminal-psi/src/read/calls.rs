@@ -1902,6 +1902,41 @@ impl<'t> Program<'t> {
         lent_storage_is_untouched(id, &read, &self.captures, |place| {
             place.result.is_some_and(|held| self.is_borrowed_view(held))
         })?;
+        // An exclusive loan written for a shared formal is lowered as the
+        // shared loan the callee receives (`lent`). ownership.md, "Borrows
+        // and aliases": "exclusive loans must not overlap incompatibly", so
+        // the root it lends is lent by no other argument of this call; the
+        // lowered shared loans alone would not show that overlap.
+        for (position, (argument, (_, _, borrowed))) in arguments.iter().zip(&formals).enumerate() {
+            let exclusive_for_shared = borrowed
+                .as_ref()
+                .is_some_and(|formal| formal.access == ReferenceAccess::Shared)
+                && matches!(self.node(id, *argument)?,
+                    ExpressionNode::Borrow(borrow) if borrow.access == ReferenceAccess::Mutable);
+            let Some(Expression {
+                kind: ExpressionKind::Borrow { place, .. },
+                ..
+            }) = read.get(position).filter(|_| exclusive_for_shared)
+            else {
+                continue;
+            };
+            let root = root_slot(id, place, &self.captures)?;
+            for (other, lent) in read.iter().enumerate() {
+                if other != position
+                    && let ExpressionKind::Borrow { place, .. } = &lent.kind
+                    && root.is_some()
+                    && root_slot(id, place, &self.captures)? == root
+                {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Call(
+                            "exclusive loan for a shared formal beside another loan of its storage",
+                        ),
+                    ));
+                }
+            }
+        }
         if let SourceOrigin::Authored(span) = source
             && let Some(names) = self.names.get_mut(id)
         {
@@ -2122,7 +2157,17 @@ impl<'t> Program<'t> {
                  place lacks",
             ));
         }
-        if access != formal.access {
+        // loans.md, "Reborrow lineage and access": a Mutable parent may
+        // form a Shared child, "Freeze mutation until the complete shared
+        // cohort ends; restore once." So `&mut place` given to a `&T`
+        // parameter is the exclusive loan the program wrote, lent on for
+        // observation: the place must admit that exclusive loan (every
+        // check below is made at the written access), and the callee
+        // receives the formal's access. No other difference has a row.
+        let attenuated = explicit
+            && access == ReferenceAccess::Mutable
+            && formal.access == ReferenceAccess::Shared;
+        if access != formal.access && !attenuated {
             return unserved("borrow whose access differs from its formal's");
         }
         // An existing view already carries its backing; an owned array still
@@ -2209,7 +2254,7 @@ impl<'t> Program<'t> {
                 call_context: None,
                 result: place.result,
                 kind: ExpressionKind::Borrow {
-                    access,
+                    access: formal.access,
                     place: Box::new(place),
                     home,
                 },
