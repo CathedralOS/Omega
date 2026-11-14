@@ -229,7 +229,7 @@ pub(super) fn admit_c_word_record<const FIELD_COUNT: usize>(
 
 fn word_class(scalar: ScalarType) -> Result<BoundaryValueClass, TerminalRuntimeError> {
     match scalar {
-        ScalarType::Integer(integer) if integer.bits() == 64 && !integer.is_address() => {
+        ScalarType::Integer(integer) if integer.bits() == Some(64) && !integer.is_address() => {
             Ok(BoundaryValueClass::Integer)
         }
         ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => Ok(BoundaryValueClass::Float),
@@ -260,6 +260,21 @@ fn has_c_scalar_storage(
 mod tests {
     use super::*;
     use semantic_vocabulary::{AuthoredFieldStorage, IntegerSign, IntegerType};
+
+    #[test]
+    fn c_word_class_requires_a_known_non_address_width() {
+        let fixed = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap());
+        assert!(word_class(fixed).is_ok());
+        assert!(word_class(ScalarType::Integer(IntegerType::address(64).unwrap())).is_err());
+        let parameter = ScalarType::Integer(IntegerType::parameterized(
+            IntegerSign::Signed,
+            semantic_vocabulary::WidthParameter {
+                owner: semantic_vocabulary::MachineId::new(1).unwrap(),
+                value: semantic_vocabulary::ValueId::new(1).unwrap(),
+            },
+        ));
+        assert!(word_class(parameter).is_err());
+    }
 
     #[test]
     fn c_record_admission_retains_signed_codec_not_only_equal_width() {
