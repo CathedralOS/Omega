@@ -53,6 +53,9 @@ pub enum TerminalCompilation {
 #[derive(Debug)]
 pub struct PreparedCompilation {
     pub closure: Checked<Elaboration>,
+    /// Proof-only calls from each installed source arrival to its continuation.
+    /// These never become executable or publishable closures.
+    pub arrivals: Vec<Checked<CallableArrivalWitness>>,
     pub forms: Vec<GenericForms>,
     pub witnesses: Vec<Checked<Elaboration>>,
     /// Exact generated machine to template correspondence, fixed by preparation.
@@ -69,4 +72,39 @@ pub struct GenericForms {
     pub forms: Checked<Vec<Elaboration>>,
     /// Positions in the complete form roster. Missing correspondence stays unknown.
     pub applies: Option<Vec<usize>>,
+}
+
+/// A source-authenticated formal and its exact installed-argument projection.
+#[derive(Debug)]
+pub struct CallableInputOrigin {
+    pub occurrence: symbols::ParameterOccurrence,
+    pub projected_from: usize,
+}
+
+/// The source meaning of a nominal atom, beyond its local proposition number.
+/// Applied domains are not approximated by this unapplied declaration receipt.
+#[derive(Debug)]
+pub struct NominalPremiseOrigin {
+    pub atom: semantic_vocabulary::PropositionId,
+    pub occurrence: symbols::ParameterOccurrence,
+    pub path: symbols::SymbolPath,
+    pub domain: symbols::RetainedDeclaration,
+}
+
+/// An ordinary symbolic call under the complete installed source premises.
+/// Hidden inputs remain in this proof telescope, independently of executable
+/// parameter projection. The member arena belongs only to these source paths.
+#[derive(Debug)]
+pub struct CallableArrivalWitness {
+    /// Diagnostic label; the retained declarations and model own identity.
+    pub slot: String,
+    pub semantic_schema: symbols::RetainedDeclaration,
+    pub requirement: symbols::RetainedDeclaration,
+    pub implementation: symbols::RetainedDeclaration,
+    pub elaboration: Elaboration,
+    pub required_inputs: Vec<CallableInputOrigin>,
+    pub supplied_inputs: Vec<CallableInputOrigin>,
+    pub nominal_premises: Vec<NominalPremiseOrigin>,
+    pub members: arena::Arena<symbols::SymbolHandle>,
+    pub address_model: Option<semantic_vocabulary::ScalarAddressModel>,
 }

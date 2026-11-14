@@ -60,6 +60,7 @@ pub(super) struct ClauseScope<'s> {
     /// Whether a comparison in this clause may be between mathematical
     /// integers (`embed(a) + embed(b) <= 99`).
     pub(super) mathematical: MathematicalTerms,
+    pub(super) logical: Option<super::logical::LogicalScope<'s>>,
 }
 
 /// Whether a clause may compare mathematical integers. A machine's
@@ -200,6 +201,19 @@ impl Program<'_> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
         if !expression.is_valid() {
             return unserved("missing clause expression");
+        }
+        match typed.expression_table.expression(expression) {
+            ExpressionNode::Boolean(value) => {
+                return Ok(if *value {
+                    Proposition::Truth
+                } else {
+                    Proposition::Falsehood
+                });
+            }
+            ExpressionNode::Call(call) if self.is_mathematical_term(expression) => {
+                return self.mathematical_clause(id, scope, call);
+            }
+            _ => {}
         }
         let ExpressionNode::Binary(binary) = typed.expression_table.expression(expression) else {
             return unserved("clause that is not a comparison or conjunction");
@@ -451,6 +465,11 @@ impl Program<'_> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
         if !expression.is_valid() {
             return unserved("missing term");
+        }
+        if let Some(logical) = &scope.logical {
+            if let Some((term, scalar)) = logical.term(typed, expression)? {
+                return Ok((term, ValueType::Scalar(scalar, Qualification::NONE)));
+            }
         }
         match typed.expression_table.expression(expression) {
             ExpressionNode::Name(path) if path.static_application.is_valid() => {
@@ -794,6 +813,9 @@ impl Program<'_> {
     /// integers. An `embed` inside a call's or a cast's operand does not; that
     /// operand is the call's or the cast's to read.
     fn mathematical(&self, expression: ExpressionHandle) -> bool {
+        if self.is_mathematical_term(expression) {
+            return true;
+        }
         let table = &self.typed.expression_table;
         let mut pending = vec![expression];
         while let Some(expression) = pending.pop() {
@@ -882,6 +904,9 @@ impl Program<'_> {
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
     ) -> Checked<IntegerMathTerm> {
+        if scope.logical.is_some() {
+            return self.logical_mathematical_term(id, scope, expression);
+        }
         let typed = self.typed;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
         if !expression.is_valid() {

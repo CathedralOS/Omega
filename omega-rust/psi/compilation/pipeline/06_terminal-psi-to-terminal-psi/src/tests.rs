@@ -6235,6 +6235,7 @@ mod generic_bodies {
         specializations.push(Some(template));
         specializations.push(None);
         TerminalCompilation::Prepared(PreparedCompilation {
+            arrivals: Vec::new(),
             closure: Ok(closure),
             forms: vec![GenericForms {
                 template,

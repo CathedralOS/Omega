@@ -34,7 +34,9 @@ mod casts;
 mod constant_values;
 mod contracts;
 mod expressions;
+pub(crate) mod logical;
 mod machine;
+mod mathematics;
 mod places;
 mod predicates;
 mod reflection;
@@ -679,6 +681,7 @@ mod tests {
         let exit = ClauseScope {
             subject: None,
             formal_fields: false,
+            logical: None,
             mathematical: MathematicalTerms::Served,
             slots: &[],
             values: &[],
@@ -798,6 +801,7 @@ mod tests {
         let scope = |slots, formal_fields| ClauseScope {
             subject: None,
             formal_fields,
+            logical: None,
             mathematical: MathematicalTerms::Served,
             slots,
             values: &values,
@@ -1097,6 +1101,7 @@ mod tests {
         let scope = ClauseScope {
             subject: None,
             formal_fields: false,
+            logical: None,
             mathematical: MathematicalTerms::Served,
             slots: &slots,
             values: &values,
@@ -1581,6 +1586,7 @@ mod tests {
         let scope = |mathematical| ClauseScope {
             subject: None,
             formal_fields: true,
+            logical: None,
             mathematical,
             slots: &slots,
             values: &values,

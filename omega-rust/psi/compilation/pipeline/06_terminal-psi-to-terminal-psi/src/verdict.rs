@@ -1193,6 +1193,28 @@ pub fn judge_compilation(
         }
         TerminalCompilation::Prepared(prepared) => prepared,
     };
+    match crate::callable_arrivals::check(prepared.arrivals) {
+        Ok(unproved) if unproved.is_empty() => {}
+        Ok(unproved) => {
+            let verdict = if unproved
+                .iter()
+                .all(|failure| failure.cause == UnprovedCause::NoRuleForGoalForm)
+            {
+                RouteVerdict::Incomplete(unproved)
+            } else {
+                RouteVerdict::Rejected {
+                    formations: Vec::new(),
+                    violations: Vec::new(),
+                    unproved,
+                    unestablished: Vec::new(),
+                    conflicts: Vec::new(),
+                    exceeded: Vec::new(),
+                }
+            };
+            return vec![Ok(verdict)];
+        }
+        Err(refused) => return vec![judge(Err(refused)).map_err(CompilationRefusal::Elaboration)],
+    }
     let forms = examine_generic_forms(prepared.forms);
     // A selection borrows the same discharge that later decides its witness's
     // verdict. Several selections may name one witness; none owns a second

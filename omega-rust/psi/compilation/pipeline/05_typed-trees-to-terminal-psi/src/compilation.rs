@@ -40,6 +40,51 @@ pub fn prepare_compilation(
             };
         }
     }
+    let arrivals = compilation
+        .bindings
+        .iter()
+        .map(|binding| {
+            let requirement = binding
+                .requirement
+                .rejoin(
+                    &typed.symbols,
+                    typed.traits().iter().flat_map(|owner| {
+                        typed
+                            .trait_machine_signatures(owner)
+                            .iter()
+                            .map(|row| row.symbol)
+                    }),
+                )
+                .map_err(|detail| terminal_check_tables::Refusal {
+                    reason: terminal_check_tables::RefusalReason::ForeignIdentity,
+                    machine: semantic_vocabulary::MachineId::new(1)
+                        .expect("nonzero diagnostic identity"),
+                    concerns: terminal_check_tables::Construct::Machine,
+                    detail,
+                })?;
+            let (_, required) = typed.trait_machine_signature(requirement).ok_or_else(|| {
+                crate::refuse(
+                    semantic_vocabulary::MachineId::new(1).expect("nonzero diagnostic identity"),
+                    terminal_check_tables::Construct::Machine,
+                    crate::Unserved::Contract("bound arrival lost its exact source signature"),
+                )
+            })?;
+            let source = binding.source_span.map_or(
+                crate::SourceOrigin::Unpositioned(crate::Unpositioned::ConformanceWitness),
+                crate::SourceOrigin::Authored,
+            );
+            let mut witness = crate::read::logical::projected_arrival(
+                typed,
+                required,
+                binding.implementation,
+                &binding.visible_parameters,
+                binding.address_model.as_ref(),
+                source,
+            )?;
+            witness.slot = binding.slot.clone();
+            Ok(witness)
+        })
+        .collect();
     let (mut closure, source) = match crate::elaborate_source_for(typed, compilation, publication) {
         Ok(prepared) => (Ok(prepared.program), prepared.source),
         Err(refusal) => (Err(refusal), Default::default()),
@@ -117,6 +162,7 @@ pub fn prepare_compilation(
         source,
         program: TerminalCompilation::Prepared(PreparedCompilation {
             closure,
+            arrivals,
             forms,
             witnesses,
             specializations,

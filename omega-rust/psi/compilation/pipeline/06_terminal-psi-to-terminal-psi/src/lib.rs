@@ -52,6 +52,7 @@ on (`arrivals`). Kinds outside those five are refused as `Unsupported`.
 */
 
 mod arrivals;
+mod callable_arrivals;
 mod ceilings;
 mod crashes;
 mod describe;

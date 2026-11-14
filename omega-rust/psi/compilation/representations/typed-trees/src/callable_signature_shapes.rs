@@ -26,13 +26,12 @@ pub struct BoundCallableShape {
     pub semantic_schema: RetainedDeclaration,
     pub requirement: RetainedDeclaration,
     pub visible_parameters: Vec<ParameterOccurrence>,
+    /// The selected binding's exact mathematical address interpretation.
+    pub address_model: Option<CallableAddressModel>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ParameterOccurrence {
-    pub ordinal: usize,
-    pub symbol: SymbolHandle,
-}
+pub use semantic_vocabulary::ScalarAddressModel as CallableAddressModel;
+pub use symbols::ParameterOccurrence;
 
 #[derive(Clone, Copy)]
 pub struct CallableSignatureShape<'a> {

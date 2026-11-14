@@ -386,6 +386,7 @@ impl Program<'_> {
             owner: SymbolHandle::invalid(),
             result: ResultTerm::Absent("result in a data clause"),
             formal_fields: false,
+            logical: None,
             mathematical: MathematicalTerms::Refused("mathematical comparison in a data requires"),
             subject: Some(DataSubject {
                 value_type: ValueType::record(record),

@@ -1487,20 +1487,13 @@ pub(crate) mod closure {
         AdmittedProviderSelections, AdmittedTargetLayouts, AdmittedTargetMachineSelections,
     };
     use numerics::bignum::BigInt;
-    use semantic_vocabulary::IntegerType;
     use terminal_codec::TerminalArtifactView;
     use terminal_psi::{
         ScalarCompletionCondition, ScalarConditionSubject, ScalarRangeCondition,
         TerminalPsiIdentity,
     };
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct ScalarAddressModel {
-        pub target: String,
-        pub carrier: IntegerType,
-        pub semantics_version: u32,
-        pub commitment: [u8; 32],
-    }
+    pub use semantic_vocabulary::ScalarAddressModel;
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct ScalarScopeInputs {

@@ -1455,3 +1455,13 @@ pub enum Termination {
     Terminates,
     NoGuarantee,
 }
+
+/// The exact target's mathematical interpretation of address inputs. This
+/// describes proof values; it supplies no native storage or access authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScalarAddressModel {
+    pub target: String,
+    pub carrier: IntegerType,
+    pub semantics_version: u32,
+    pub commitment: [u8; 32],
+}
