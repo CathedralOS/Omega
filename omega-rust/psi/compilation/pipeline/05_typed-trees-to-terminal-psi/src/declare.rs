@@ -677,16 +677,8 @@ fn requirement_application(
     ),
     &'static str,
 > {
-    use typed_trees::static_applications::StaticMachineBindingValue;
-    let (owner, template) = typed
-        .trait_machine_signature(closed.template)
-        .filter(|(owner, _)| owner.symbol == closed.declaring_trait)
-        .ok_or("a closed requirement's requirement has no typed-tree declaration")?;
-    let callable = typed.trait_requirement_callable_identity_text(owner, template);
-    if callable.is_empty() {
-        return Err("a closed requirement's requirement has no callable identity");
-    }
-    // Stated as a boundary's own semantic declaration is (`boundary`).
+    let application = RequirementApplicationSource::read(typed, closed)?;
+    // Keep the existing invocation-local owner when this is a private call.
     let semantic = match invocation_local(typed, closed.template, identities)? {
         Some(identity) => identity,
         None => identities.intern(
@@ -695,57 +687,113 @@ fn requirement_application(
                 .map_err(|_| "a closed requirement's requirement has no hermetic identity")?,
         ),
     };
-    let bindings = typed
-        .expression_table
-        .static_machine_application_bindings(closed.application);
-    if bindings.is_empty() || bindings.len() != closed.portable_local_arguments.len() {
-        return Err("a closed requirement binds other than one argument per parameter");
-    }
-    let mut commitment = Commitment(DomainDigestEncoder::new(APPLICATION_DOMAIN));
-    callable.hash(&mut commitment);
-    let mut arguments = Vec::with_capacity(bindings.len());
-    for (binding, identity) in bindings.iter().zip(closed.portable_local_arguments) {
-        let text = typed
-            .type_identity_text(*identity)
-            .filter(|text| !text.is_empty())
-            .ok_or("a closed requirement's argument has no identity")?;
-        match &binding.value {
-            StaticMachineBindingValue::Type(_) => {
-                text.hash(&mut commitment);
-                arguments.push(terminal_psi::ClosedReachArgument::Type(
-                    identities.intern(&text),
-                ));
-            }
-            StaticMachineBindingValue::Const(_) => {
-                ("value", text.as_str()).hash(&mut commitment);
-                arguments.push(terminal_psi::ClosedReachArgument::Const(
-                    identities.intern(&text),
-                ));
-            }
-            StaticMachineBindingValue::Conformance(_)
-            | StaticMachineBindingValue::RuntimeValue { .. }
-            | StaticMachineBindingValue::Machine(_) => {
-                return Err(
-                    "a closed requirement's application binds something other than a type or a value",
-                );
-            }
-        }
-    }
+    let arguments = application.publish_arguments(identities);
+    let template = nominal(typed, sources, closed.template, identities)?;
     Ok((
-        terminal_psi::CheckedMachineSpecialization {
-            capture: None,
-            template: NominalDeclarationIdentity::new(nominal(
-                typed,
-                sources,
-                closed.template,
-                identities,
-            )?),
-            template_callable: identities.intern(&callable),
-            template_semantic_declaration: semantic,
-            commitment: commitment.0.finish(),
-        },
+        application.publish_specialization(template, semantic, identities),
         arguments,
     ))
+}
+
+#[derive(Debug, Clone)]
+enum RequirementArgumentSource {
+    Type(String),
+    Const(String),
+}
+
+/// Normalize an application once while its typed source is available. The
+/// publishing route interns these same identities into its own module table.
+#[derive(Debug, Clone)]
+struct RequirementApplicationSource {
+    callable: String,
+    arguments: Vec<RequirementArgumentSource>,
+    commitment: [u8; 32],
+}
+
+impl RequirementApplicationSource {
+    fn read(
+        typed: &TypedTrees,
+        closed: &typed_trees::ClosedRequirementApplication<'_>,
+    ) -> Result<Self, &'static str> {
+        use typed_trees::static_applications::StaticMachineBindingValue;
+        let (owner, template) = typed
+            .trait_machine_signature(closed.template)
+            .filter(|(owner, _)| owner.symbol == closed.declaring_trait)
+            .ok_or("a closed requirement's requirement has no typed-tree declaration")?;
+        let callable = typed.trait_requirement_callable_identity_text(owner, template);
+        if callable.is_empty() {
+            return Err("a closed requirement's requirement has no callable identity");
+        }
+        let bindings = typed
+            .expression_table
+            .static_machine_application_bindings(closed.application);
+        if bindings.is_empty() || bindings.len() != closed.portable_local_arguments.len() {
+            return Err("a closed requirement binds other than one argument per parameter");
+        }
+        let mut commitment = Commitment(DomainDigestEncoder::new(APPLICATION_DOMAIN));
+        callable.hash(&mut commitment);
+        let mut arguments = Vec::with_capacity(bindings.len());
+        for (binding, identity) in bindings.iter().zip(closed.portable_local_arguments) {
+            let text = typed
+                .type_identity_text(*identity)
+                .filter(|text| !text.is_empty())
+                .ok_or("a closed requirement's argument has no identity")?;
+            match &binding.value {
+                StaticMachineBindingValue::Type(_) => {
+                    text.hash(&mut commitment);
+                    arguments.push(RequirementArgumentSource::Type(text));
+                }
+                StaticMachineBindingValue::Const(_) => {
+                    ("value", text.as_str()).hash(&mut commitment);
+                    arguments.push(RequirementArgumentSource::Const(text));
+                }
+                StaticMachineBindingValue::Conformance(_)
+                | StaticMachineBindingValue::RuntimeValue { .. }
+                | StaticMachineBindingValue::Machine(_) => {
+                    return Err(
+                        "a closed requirement's application binds something other than a type or a value",
+                    );
+                }
+            }
+        }
+        Ok(Self {
+            callable,
+            arguments,
+            commitment: commitment.0.finish(),
+        })
+    }
+
+    fn publish_arguments(
+        &self,
+        identities: &mut TerminalIdentityTableBuilder,
+    ) -> Vec<terminal_psi::ClosedReachArgument> {
+        self.arguments
+            .iter()
+            .map(|argument| match argument {
+                RequirementArgumentSource::Type(text) => {
+                    terminal_psi::ClosedReachArgument::Type(identities.intern(text))
+                }
+                RequirementArgumentSource::Const(text) => {
+                    terminal_psi::ClosedReachArgument::Const(identities.intern(text))
+                }
+            })
+            .collect()
+    }
+
+    fn publish_specialization(
+        &self,
+        template: terminal_psi::TerminalIdentityIndex,
+        semantic: terminal_psi::TerminalIdentityIndex,
+        identities: &mut TerminalIdentityTableBuilder,
+    ) -> terminal_psi::CheckedMachineSpecialization {
+        terminal_psi::CheckedMachineSpecialization {
+            capture: None,
+            template: NominalDeclarationIdentity::new(template),
+            template_callable: identities.intern(&self.callable),
+            template_semantic_declaration: semantic,
+            commitment: self.commitment,
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -945,6 +993,25 @@ pub(crate) struct BoundaryDeclarationSource {
     result_type: String,
     may_suspend: bool,
     may_block: bool,
+    application: Option<BoundaryApplicationSource>,
+}
+
+#[derive(Debug, Clone)]
+struct BoundaryApplicationSource {
+    template: String,
+    semantic: String,
+    application: RequirementApplicationSource,
+}
+
+impl BoundaryDeclarationSource {
+    pub(crate) fn method_arguments(
+        &self,
+        identities: &mut TerminalIdentityTableBuilder,
+    ) -> Vec<terminal_psi::ClosedReachArgument> {
+        self.application.as_ref().map_or_else(Vec::new, |source| {
+            source.application.publish_arguments(identities)
+        })
+    }
 }
 
 pub(crate) fn boundary_source(
@@ -996,6 +1063,20 @@ pub(crate) fn boundary_source(
         result_type: type_text(signature.return_type)?,
         may_suspend: signature.suspends,
         may_block: signature.blocks,
+        application: typed
+            .closed_requirement_application(signature.symbol)
+            .map(|closed| -> Result<_, &'static str> {
+                Ok(BoundaryApplicationSource {
+                    template: nominal_text(closed.template)?,
+                    semantic: typed
+                        .normalized_hermetic_symbol_identity(closed.template)
+                        .map_err(
+                            |_| "a closed requirement's requirement has no hermetic identity",
+                        )?,
+                    application: RequirementApplicationSource::read(typed, &closed)?,
+                })
+            })
+            .transpose()?,
     })
 }
 
@@ -1017,6 +1098,13 @@ pub(crate) fn boundary_declaration(
     }
     proof.crash_routes.hash(&mut commitment);
     signature.termination.hash(&mut commitment);
+    let specialization = source.application.as_ref().map(|source| {
+        let template = identities.intern(&source.template);
+        let semantic = identities.intern(&source.semantic);
+        source
+            .application
+            .publish_specialization(template, semantic, identities)
+    });
     CheckedMachineDeclaration {
         machine: NominalDeclarationIdentity::new(identities.intern(&source.machine)),
         state: NominalDeclarationIdentity::new(identities.intern(&source.state)),
@@ -1031,7 +1119,7 @@ pub(crate) fn boundary_declaration(
         contract: commitment.0.finish(),
         published_may_suspend: source.may_suspend,
         published_may_block: source.may_block,
-        specialization: None,
+        specialization,
     }
 }
 

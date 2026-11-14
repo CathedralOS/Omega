@@ -128,7 +128,7 @@ impl BoundaryNamespace {
             .map_err(refusal)?;
             module.boundary_machines.push(BoundaryMachineDeclaration {
                 id,
-                declaration: Some(CheckedBoundaryCallable { source: declaration, execution: CheckedBoundaryExecution::Provider, method_arguments: Vec::new() }),
+                declaration: Some(CheckedBoundaryCallable { source: declaration, execution: CheckedBoundaryExecution::Provider, method_arguments: source.declaration.method_arguments(&mut identities) }),
                 numeric_intrinsic: None,
                 role: BoundaryDeclarationRole::Callable,
                 kind: source.kind,
