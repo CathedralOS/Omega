@@ -695,6 +695,7 @@ fn an_original_returned_reference_keeps_its_backing_and_excludes_its_parent() {
         typed_trees_to_terminal_psi::elaborate_for(
             &typed,
             typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[],
                 purpose: source::DependencyScope::Product,
