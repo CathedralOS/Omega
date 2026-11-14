@@ -124,7 +124,6 @@ pub use references::reference_storage_geometry::{
     reference_storage_region, reference_storage_size, schema_field_layout_source,
     validate_storage_destination_intervals,
 };
-pub use scalars::scalar_demand;
 pub use scalars::scalar_ordering;
 pub use structural::inline_carriers::{
     InlineCarrierError, inline_carrier_declaration, inline_field_presentation,
@@ -134,8 +133,7 @@ pub(crate) mod semantic_rows {
 
     use crate::scalars::scalar_leaf_schema::goal_free_scalar_leaf;
     use crate::{
-        GoalFreeScalarLeafSchema, ScalarLeafCrashPolicy, ScalarLeafDenotation,
-        ScalarLeafFrontierPolicy, ScalarLeafGoalShape, ScalarLeafOperandShape,
+        GoalFreeScalarLeafSchema, ScalarLeafDenotation, ScalarLeafOperandShape,
         ScalarLeafResultShape,
     };
     use semantic_vocabulary::{IntegerType, PropositionError, ScalarType, ValueId};
@@ -444,17 +442,6 @@ pub(crate) mod semantic_rows {
         )
     }
 
-    pub fn is_unconditionally_total_scalar(operation: &OperationKind) -> bool {
-        matches!(operation, OperationKind::IeeeFloatConstant { .. })
-            || operation_semantic_row(operation).is_ok_and(|row| {
-                row.goal_free_scalar_leaf().is_some_and(|schema| {
-                    schema.goal() == ScalarLeafGoalShape::None
-                        && schema.crash() == ScalarLeafCrashPolicy::Never
-                        && schema.frontier() == ScalarLeafFrontierPolicy::PreserveLocal
-                })
-            })
-    }
-
     pub(crate) fn exactly_one_row_for_tag<R>(
         rows: &[R],
         tag: OperationSemanticTag,
@@ -598,7 +585,7 @@ pub use scalars::scalar_leaf_semantics::{
 pub use scalars::scalar_representation_view::{ScalarRepresentationViewPair, ScalarViewValue};
 pub use semantic_rows::{
     OperationSemanticCustody, OperationSemanticError, OperationSemanticRow, OperationSemanticTag,
-    exact_operation_semantic_row_in, is_unconditionally_total_scalar, operation_semantic_row,
+    exact_operation_semantic_row_in, operation_semantic_row,
 };
 pub use storage::arrival_storage::{
     StorageNames, arrival_parameter, borrowed_storage_parameter,
