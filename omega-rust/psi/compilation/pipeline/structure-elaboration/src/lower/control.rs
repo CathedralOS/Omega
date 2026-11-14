@@ -233,6 +233,14 @@ impl Lowering<'_> {
                 *self.slot_mut(*slot)? = Some(bound);
                 Ok(())
             }
+            Statement::CaptureReference { slot, original } => {
+                let bound = *self.slot_mut(*original)?;
+                if !matches!(bound, Some(Bound::Record(_) | Bound::Home(_))) {
+                    return Err(self.internal("a reference capture has no storage"));
+                }
+                *self.slot_mut(*slot)? = bound;
+                Ok(())
+            }
             Statement::Witness { slot, term } => {
                 let witness = self.witness(term)?;
                 *self.slot_mut(*slot)? = Some(Bound::Erased(witness));

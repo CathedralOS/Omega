@@ -619,6 +619,9 @@ pub enum Statement {
     /// the statements of a body lie on one spine and a slot has one binding
     /// at each of them.
     Bind { slot: usize, value: Expression },
+    /// Capture an existing reference binding without reading or copying its
+    /// referent. Both slots retain the same storage and access authority.
+    CaptureReference { slot: usize, original: usize },
     /// `let x [erased]: T = term;`: the slot names `term` and nothing is
     /// evaluated. contracts.md, "Explicit erased bindings": the binding "may
     /// supply proof computation or static authorization; it cannot determine

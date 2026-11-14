@@ -163,8 +163,10 @@ fn statements(statements: &[Statement], sites: &mut Vec<CallSite>) {
                 expression(destination, sites);
                 expression(value, sites);
             }
-            // An erased term is a literal or a binding: it calls nothing.
-            Statement::Declare { .. } | Statement::Witness { .. } => {}
+            // Declarations, erased terms and reference captures call nothing.
+            Statement::Declare { .. }
+            | Statement::Witness { .. }
+            | Statement::CaptureReference { .. } => {}
             Statement::Dispatch {
                 subject,
                 arms,
@@ -333,9 +335,10 @@ fn uses_storage(body: &Body, signature: &Signature) -> bool {
             Statement::Bind { value, .. } | Statement::Evaluate(value) => stored(value),
             // Refused on a cycle by its own name, as an erased binding.
             Statement::Witness { .. } => false,
-            Statement::Declare { .. } | Statement::Store { .. } | Statement::Dispatch { .. } => {
-                true
-            }
+            Statement::CaptureReference { .. }
+            | Statement::Declare { .. }
+            | Statement::Store { .. }
+            | Statement::Dispatch { .. } => true,
             Statement::Arm { guard, target, .. } => {
                 guard.as_ref().is_some_and(stored) || arm(target)
             }
