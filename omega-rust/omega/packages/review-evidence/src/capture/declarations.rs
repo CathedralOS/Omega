@@ -344,7 +344,7 @@ impl<'a> PackageReviewInput<'a> {
         let typed = self.typed();
         let table = &typed.expression_table;
         let retained = table.constructed_value_type_reference(expression);
-        if retained.is_valid() && typed.contains_type_reference(retained) {
+        if retained.is_valid() && typed.type_reference_table.contains_type_reference(retained) {
             return Ok(Some(retained));
         }
         let (atom, policy) = match table.expression(expression) {
