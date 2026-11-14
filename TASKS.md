@@ -163,6 +163,12 @@ Write each item so any agent can start from it alone: current state, files and e
   - Duplicate participating shapes are checked across the owning package's whole declaration set.
   Acceptance: one operator accepted in the domain's module and the same operator accepted in the package's root file, both resolving `a + b`; a declaration in another package that imports the domain rejects at its declaration; an ambiguous home rejects; one duplicate shape split across two modules of the owning package rejects; an operator calling a helper ordinarily accessible from its own file accepts; an operator using a name available only through an import in the domain's source file rejects; an operator establishing a restricted domain without an authorized route rejects; an external consumer that sees a public domain cannot invoke its non-public operator.
 
+- **ARRAY-ELEMENT-VIEWS.** Implement [views of a fixed array](wiki/spec/language/expressions.md#views-of-a-fixed-array) and migrate the programs that assumed a conversion.
+  - The checker keeps refusing `&array` and `&mut array` where `&[T]` or `&mut [T]` is expected, and its diagnostic names the fix, `&array[..]` or `&mut array[..]`, instead of only `typing argument types`.
+  - Full-range formation on a fixed array establishes `len == N` for the lowered-form checker.
+  - Migrate the Build prelude's `BuildSource::read` callers, `Console::read_line` callers in `source/library`, and the sample and fixture programs that pass a borrowed `[u8; N]` for a view; guide and spec examples already use the range form.
+  Acceptance: shared and mutable `[..]` views of a `[u8; 38]` reach `&[u8]` and `&mut [u8]` at a call, a `let`, a field and a return, and `len == 38` discharges the callee's `requires buffer.len > 0`; `&bytes` and `&mut bytes` reject at each of those positions with the fix-it; a bare `bytes[..]` passed to `&mut [u8]` rejects; a `[u8; 0]` view is empty and forms no element reference; a mutable view under a shared ancestor rejects; `length(&bytes[..])` infers `T = u8`. The migrated Builds run with native/Psi agreement.
+
 - **TYPED-STATIC-PARAMETERS.** Implement and migrate to [typed static parameters](wiki/drafts/designs/typed_static_parameters.md).
 
 - **ACTIVATION-STORAGE-PLANS.** Implement [storage plans](wiki/drafts/designs/activation_storage_plans.md).
