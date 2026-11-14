@@ -1310,6 +1310,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
     };
     let mut records = IdTable::default();
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("Point"),
         shape: structure_elaboration::StorageShape::Record(vec![
@@ -1319,6 +1320,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
         requires: Vec::new(),
     });
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("Line"),
         shape: structure_elaboration::StorageShape::Record(vec![
@@ -1567,6 +1569,7 @@ fn a_value_transferred_on_one_path_is_not_owned_after_the_join() {
 fn an_affine_empty_case_cannot_be_moved_twice() {
     let mut records = IdTable::default();
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: false,
         identity: "EmptyCase".into(),
         shape: structure_elaboration::StorageShape::Sum(vec![structure_elaboration::CaseType {
@@ -2977,6 +2980,7 @@ fn every_use_of_storage_has_exactly_one_verdict() {
     // `Gated { v } requires 1 <= v` beside `Point` and `Line`.
     let mut types = records();
     types.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("Gated"),
         shape: structure_elaboration::StorageShape::Record(vec![RecordField {
@@ -3128,6 +3132,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
     let scalar = ValueType::plain(u32_type());
     let mut records = IdTable::default();
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("Point"),
         shape: structure_elaboration::StorageShape::Record(vec![
@@ -3137,6 +3142,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
         requires: Vec::new(),
     });
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("Shape"),
         shape: structure_elaboration::StorageShape::Sum(vec![
@@ -3152,6 +3158,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
         requires: Vec::new(),
     });
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("Holder"),
         shape: structure_elaboration::StorageShape::Record(vec![field(7, "shape", shape())]),
@@ -3779,6 +3786,7 @@ fn constrained() -> IdTable<StructuralTypeId, RecordType> {
         value_type,
     };
     let record = |spelled: &str, fields, requires| RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: spelled.to_owned(),
         shape: structure_elaboration::StorageShape::Record(fields),
@@ -3807,6 +3815,7 @@ fn constrained() -> IdTable<StructuralTypeId, RecordType> {
         )],
     ));
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("ByteRead"),
         shape: structure_elaboration::StorageShape::Sum(vec![
@@ -5307,18 +5316,21 @@ fn windowed() -> IdTable<StructuralTypeId, RecordType> {
     let at_least_one = |raw| Proposition::LessOrEqual(number(1), field_of_self(raw));
     let mut records = constrained();
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("Both"),
         shape: structure_elaboration::StorageShape::Record(vec![field(10, "a"), field(11, "b")]),
         requires: vec![at_least_one(10), at_least_one(11)],
     });
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("Half"),
         shape: structure_elaboration::StorageShape::Record(vec![field(12, "a"), field(13, "b")]),
         requires: vec![at_least_one(12)],
     });
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("Limits"),
         shape: structure_elaboration::StorageShape::Record(vec![field(14, "a"), field(15, "b")]),
