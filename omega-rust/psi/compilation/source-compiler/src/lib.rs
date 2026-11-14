@@ -426,7 +426,7 @@ pub(crate) mod source_parsing {
                 sources
                     .iter()
                     .enumerate()
-                    .map(|(index, (path, text))| loaded(index, path, text))
+                    .map(|(index, (path, text))| loaded(usize::MAX - index, path, text))
                     .collect(),
             )
             .into_parsed_units(&mut UnmeasuredProduction)
@@ -470,7 +470,7 @@ pub(crate) mod source_parsing {
             let path = std::path::Path::new("unit.omg");
             let old: Arc<str> = Arc::from("data Old {}");
             let new: Arc<str> = Arc::from("data New { value: u8 }");
-            let units = SourceInput([loaded(0, path, &old)].into_iter().collect())
+            let units = SourceInput([loaded(usize::MAX, path, &old)].into_iter().collect())
                 .into_parsed_units(&mut UnmeasuredProduction)
                 .unwrap();
             let mut fresh = SyntaxTrees::new(SourceId(3));

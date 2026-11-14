@@ -233,7 +233,10 @@ impl LogicalSourceInventory {
                 filesystem
                     .read_to_string(path)
                     .map(|source| LoadedSource {
-                        source_id: SourceId(index),
+                        // Private IDs count down from the top so they never
+                        // equal the default ID a parser leaves on spans that
+                        // name no source; adoption moves only this unit's ID.
+                        source_id: SourceId(usize::MAX - index),
                         path: path.clone(),
                         source,
                         origin: None,
