@@ -95,10 +95,14 @@ impl ProductRepresentationInput<'_> {
 pub struct SourcePreparationRequest<'request> {
     pub program: typed_trees::TypedTrees,
     pub admission: SourceAdmission<'request>,
+    /// The exact entries, subjects, bindings and supplies later judged.
+    pub compilation: crate::TerminalSourceCompilation<'request>,
+    pub accounting: build_time_evaluation::SourceCompletionAccounting,
 }
 
 pub struct FrozenSource {
     pub program: Arc<typed_trees::FrozenTypedTrees>,
+    pub accounting: build_time_evaluation::SourceCompletionAccounting,
 }
 
 impl SourcePreparationRequest<'_> {
@@ -119,9 +123,17 @@ impl SourcePreparationRequest<'_> {
         build_time_evaluation::evaluate_fixed_layout_applications(
             &mut program,
             self.admission.layout_scopes,
-            self.admission.layout_selection_authority,
+            self.admission.layout_selection_authority.clone(),
         )?;
         constant_entries::retain_evaluation_entries(&mut program)?;
+        let mut accounting = self.accounting;
+        accounting.append(build_time_evaluation::evaluate_constant_initializers(
+            &mut program,
+            self.compilation,
+            self.admission.layout_selection_authority,
+        )?);
+        build_time_evaluation::validate_constant_evaluations(&program, &accounting)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
         let mut preparation = typed_trees_to_typed_trees::PreparationRequest::settled()
             .with_wire_compatibility_demands(self.admission.wire_demands);
         if let Some(authority) = self.admission.asm_authority {
@@ -130,6 +142,7 @@ impl SourcePreparationRequest<'_> {
         let (program, _) = typed_trees_to_typed_trees::prepare_typed_trees(program, &preparation)?;
         Ok(FrozenSource {
             program: Arc::new(program),
+            accounting,
         })
     }
 }
@@ -142,6 +155,15 @@ mod tests {
     fn preparation_returns_source_without_a_checked_product() {
         let prepared = SourcePreparationRequest {
             program: typed_trees::TypedTrees::default(),
+            accounting: Default::default(),
+            compilation: crate::TerminalSourceCompilation {
+                entries: &[],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
             admission: SourceAdmission::default(),
         }
         .prepare()
@@ -154,6 +176,15 @@ mod tests {
         let roots = [symbols::SymbolHandle::invalid()];
         let result = SourcePreparationRequest {
             program: typed_trees::TypedTrees::default(),
+            accounting: Default::default(),
+            compilation: crate::TerminalSourceCompilation {
+                entries: &[],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
             admission: SourceAdmission {
                 external_roots: &roots,
                 ..SourceAdmission::default()
@@ -228,6 +259,15 @@ mod tests {
         ] {
             let result = SourcePreparationRequest {
                 program: typed_trees::TypedTrees::default(),
+                accounting: Default::default(),
+                compilation: crate::TerminalSourceCompilation {
+                    entries: &[],
+                    subjects: &[],
+                    purpose: source::DependencyScope::Product,
+                    selected: &[],
+                    bindings: &[],
+                    supplies: &[],
+                },
                 admission: SourceAdmission {
                     representations,
                     ..SourceAdmission::default()
@@ -268,6 +308,15 @@ mod tests {
         }];
         SourcePreparationRequest {
             program: typed_trees::TypedTrees::default(),
+            accounting: Default::default(),
+            compilation: crate::TerminalSourceCompilation {
+                entries: &[],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
             admission: SourceAdmission {
                 representations: ProductRepresentationInput {
                     activation: Some(symbols::SymbolHandle::invalid()),

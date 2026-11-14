@@ -108,6 +108,7 @@ pub(in crate::checked) fn typed_frontier_without_build(
     let PreparedProductSource {
         typed,
         computed_build_config,
+        source_completion_accounting,
         ..
     } = complete_prepared_build(
         compilation_products::PreparedBuild {
@@ -119,6 +120,7 @@ pub(in crate::checked) fn typed_frontier_without_build(
     )?;
     Ok(frozen_frontier(
         typed,
+        source_completion_accounting,
         &computed_build_config.config,
         package_inputs.map(|inputs| inputs.root()),
     )?)
@@ -130,6 +132,7 @@ pub(in crate::checked) fn typed_frontier_without_build(
 /// graph, when it gave one.
 fn frozen_frontier(
     typed: typed_trees::TypedTrees,
+    accounting: build_time_evaluation::SourceCompletionAccounting,
     build: &compilation_products::BuildConfig,
     root_package: Option<semantic_vocabulary::PackageKeyIdentity>,
 ) -> Result<TypedFrontier, Vec<Diagnostic>> {
@@ -166,6 +169,15 @@ fn frozen_frontier(
     // checker projection or an interrupted source-checking request.
     let prepared = psi_compiler::SourcePreparationRequest {
         program: typed,
+        accounting,
+        compilation: psi_compiler::TerminalSourceCompilation {
+            entries: &entries,
+            subjects: &[subject],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &bindings,
+            supplies: &[],
+        },
         admission: psi_compiler::SourceAdmission {
             external_roots: &[],
             layout_scopes: &layout_scopes,
@@ -184,6 +196,7 @@ fn frozen_frontier(
     .prepare()?;
     Ok(TypedFrontier {
         typed: prepared.program.as_ref().clone(),
+        source_completion_accounting: prepared.accounting,
         entries,
         subject,
         selected: Vec::new(),

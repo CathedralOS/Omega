@@ -1641,7 +1641,10 @@ fn declaration_symbol_dependencies(
         }
     }
 
-    let mut declarations = Declarations { derived, ..Default::default() };
+    let mut declarations = Declarations {
+        derived,
+        ..Default::default()
+    };
     visit_program(program, &mut declarations);
     declarations.finish();
     declarations.rows

@@ -108,21 +108,32 @@ pub(crate) fn prepare_admitted_build(
     // (`wiki/spec/build/validation_subjects.md`, "Orchestration").
     let subject = (!dependency_activation).then(|| packages.map(PackageCompilationInputs::root));
     let accepted = timings.record_result(BUILD_SOURCE_JUDGMENT, || {
+        let compilation = psi_compiler::TerminalSourceCompilation {
+            entries: &[entry],
+            subjects: subject.as_slice(),
+            purpose: source::DependencyScope::Build,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        };
         let source = psi_compiler::SourcePreparationRequest {
             program: typed.clone(),
+            accounting: Default::default(),
             admission: psi_compiler::SourceAdmission::default(),
+            compilation,
         }
         .prepare()?;
+        // This admission has no settlement owner for newly evaluated source
+        // constants yet. Preserve the explicit boundary rather than dropping
+        // invocation charges when a Build requests such work.
+        if !source.accounting.receipts().is_empty() {
+            return Err(vec![Diagnostic::error(
+                "no product route yet: Build constant invocation accounting settlement",
+            )]);
+        }
         psi_compiler::AcceptedTerminalSource::judge(
             source.program,
-            psi_compiler::TerminalSourceCompilation {
-                entries: &[entry],
-                subjects: subject.as_slice(),
-                purpose: source::DependencyScope::Build,
-                selected: &[],
-                bindings: &[],
-                supplies: &[],
-            },
+            compilation,
             terminal_codec::TerminalPublication::Invocation,
         )
     })?;

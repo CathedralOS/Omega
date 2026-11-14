@@ -454,8 +454,9 @@ impl PreCheckEvaluation {
         // Inventory all remaining source work before retaining an invocation
         // owner. Later refusal recording must not mutate its request metadata.
         defer_source_jobs(typed)?;
-        let accounting =
-            crate::source_jobs::evaluate_constant_initializers(typed, self.authority.clone())?;
+        // A source frontier has no compilation demand. Retain constant
+        // requests until SourcePreparationRequest receives the real roster.
+        let accounting = crate::SourceCompletionAccounting::default();
         self.evaluate(typed)?;
         Ok(crate::RecordedPreCheck {
             pending: None,
@@ -495,9 +496,6 @@ impl PreCheckEvaluation {
             return Err(vec![Diagnostic::error(
                 "source normalization authority has not been rejoined",
             )]);
-        }
-        if crate::source_jobs::has_pending_constants(typed) {
-            return Err(unsupported("constant requests require recorded evaluation"));
         }
         defer_source_jobs(typed)
     }

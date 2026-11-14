@@ -109,14 +109,6 @@ pub(crate) fn check_product_source(
         declarations: None,
     };
 
-    let source = timings.record_result(SOURCE_PREPARATION, || {
-        psi_compiler::SourcePreparationRequest {
-            program: typed,
-            admission: source_admission,
-        }
-        .prepare()
-    })?;
-    let program = source.program;
     let subject = package_inputs.map(PackageCompilationInputs::root);
     let roster = compilation_products::ProductRoster {
         entries: external_roots,
@@ -125,10 +117,24 @@ pub(crate) fn check_product_source(
         bindings,
         supplies,
     };
+    let source = timings.record_result(SOURCE_PREPARATION, || {
+        psi_compiler::SourcePreparationRequest {
+            program: typed,
+            admission: source_admission,
+            compilation: roster.compilation(),
+            accounting: source_completion_accounting,
+        }
+        .prepare()
+    })?;
+    let source_completion_accounting = source.accounting;
+    let program = source.program;
+    build_time_evaluation::validate_constant_evaluations(&program, &source_completion_accounting)
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let judged = roster.judge(Arc::clone(&program));
     if let Some(frontier) = frontier {
         *frontier = Some(super::typed_frontier::TypedFrontier {
             typed: program.as_ref().clone(),
+            source_completion_accounting: source_completion_accounting.clone(),
             entries: roster.entries.clone(),
             subject,
             selected: roster.selected.clone(),

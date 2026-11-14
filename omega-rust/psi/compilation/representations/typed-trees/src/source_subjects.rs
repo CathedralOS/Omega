@@ -16,7 +16,9 @@ pub fn contains(
     if !program.symbols.symbols().nodes().is_valid(symbol) {
         return Err("declaration has no current source symbol");
     }
-    let file = program.symbols.symbol_provenance_source_span(symbol)
+    let file = program
+        .symbols
+        .symbol_provenance_source_span(symbol)
         .and_then(|span| program.symbols.source_file(span))
         .ok_or("declaration without a source file")?;
     Ok(program.symbols.symbol_source_is_selected(symbol)
