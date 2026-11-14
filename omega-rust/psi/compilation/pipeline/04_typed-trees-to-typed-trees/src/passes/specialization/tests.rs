@@ -1117,3 +1117,81 @@ fn an_already_bound_tuple_keeps_even_an_unused_parameter() {
         Err(super::Stop::Unserved)
     ));
 }
+
+#[test]
+fn copied_headers_retain_written_empty_and_nonempty_reach_rows() {
+    let Source {
+        mut program,
+        forward,
+        relay,
+        ..
+    } = source();
+    let service =
+        program
+            .symbols
+            .insert_generated_root_from(forward.machine, SymbolKind::Trait, "Service");
+    for (owner, targets) in [
+        (relay.machine, Vec::new()),
+        (
+            forward.machine,
+            vec![typed_trees::signature::AuthoredServiceReachTarget {
+                service,
+                source_span: Default::default(),
+            }],
+        ),
+    ] {
+        program
+            .authored_service_reach_rows
+            .push(typed_trees::signature::AuthoredServiceReachRow {
+                owner,
+                keyword_source_spans: vec![Default::default()],
+                targets,
+                installation_bound: false,
+            });
+    }
+    prepare(&mut program).unwrap();
+    for template in [relay.machine, forward.machine] {
+        let original = program
+            .authored_service_reach_rows_for(template)
+            .next()
+            .unwrap();
+        let mut count = 0;
+        for row in program
+            .machine_specializations
+            .iter()
+            .filter(|row| row.template == template)
+        {
+            let copied = program
+                .authored_service_reach_rows_for(row.instance)
+                .collect::<Vec<_>>();
+            assert_eq!(copied.len(), 1);
+            let mut expected = original.clone();
+            expected.owner = row.instance;
+            assert_eq!(copied[0], &expected);
+            count += 1;
+        }
+        assert!(count > 0);
+    }
+}
+
+#[test]
+fn an_installation_bound_reach_row_remains_unserved_before_copying() {
+    let Source {
+        mut program,
+        relay,
+        main,
+        ..
+    } = source();
+    program
+        .authored_service_reach_rows
+        .push(typed_trees::signature::AuthoredServiceReachRow {
+            owner: relay.machine,
+            keyword_source_spans: vec![Default::default()],
+            targets: Vec::new(),
+            installation_bound: true,
+        });
+    let count = program.machines().len();
+    prepare(&mut program).unwrap();
+    assert_eq!(program.machines().len(), count);
+    assert!(program.deferred_refusal(main).is_some());
+}

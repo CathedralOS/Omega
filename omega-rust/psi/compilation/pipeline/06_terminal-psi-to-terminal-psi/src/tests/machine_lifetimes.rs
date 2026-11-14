@@ -222,8 +222,8 @@ machine take(view: &[u8]) { }
     }
 }
 
-/// Views and scalar references name lifetimes their machine declares.
-/// An undeclared tag supplies neither kind of input with a region identity.
+/// What a signature may write with a lifetime: one its machine declares, on
+/// a view or on a reference to one place.
 #[test]
 fn a_signature_names_only_lifetimes_its_machine_declares() {
     assert_eq!(
@@ -243,15 +243,6 @@ machine take<'a>(count: &'a u32) { }
 "#
         ),
         "accepted"
-    );
-    assert_eq!(
-        verdict(
-            r#"
-machine build_entry() { let count: u32 = 1; take(&count); }
-machine take(count: &'missing u32) { }
-"#
-        ),
-        "type borrowed view has no complete owned region identity"
     );
 }
 

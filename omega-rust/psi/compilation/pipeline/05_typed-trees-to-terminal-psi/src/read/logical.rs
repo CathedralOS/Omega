@@ -1027,6 +1027,9 @@ impl Inputs {
         };
         Ok((
             Signature {
+                // This pure snapshot call proves preconditions only. The
+                // executable closure retains its own operational admission.
+                operational: crate::body::OperationalCeilings::default(),
                 parameters: inputs
                     .leaves
                     .iter()
@@ -1054,6 +1057,7 @@ pub(crate) fn projected_arrival(
     projection: &[ParameterOccurrence],
     model: Option<&CallableAddressModel>,
     source: SourceOrigin,
+    captures: crate::NamedCaptures,
 ) -> Checked<CallableArrivalWitness> {
     let entry = MachineId::new(1).expect("nonzero identity");
     let callee = MachineId::new(2).expect("nonzero identity");
@@ -1179,7 +1183,7 @@ pub(crate) fn projected_arrival(
             domain,
         });
     }
-    let program = Program::new(typed, false);
+    let program = Program::with_captures(typed, false, captures);
     let required_contracts: Vec<_> = typed.state_signature_contracts(required).iter().collect();
     if required_contracts.iter().any(|contract| {
         matches!(
@@ -1260,6 +1264,7 @@ pub(crate) fn projected_arrival(
             ));
         }
         arguments.push(Expression {
+            call_context: None,
             kind: ExpressionKind::Slot(position),
             result: Some(ValueType::Scalar(leaf.scalar, Qualification::NONE)),
             source,
@@ -1272,6 +1277,7 @@ pub(crate) fn projected_arrival(
     bodies.push(Body {
         slots: entry_signature.parameters.clone(),
         statements: vec![Statement::Evaluate(Expression {
+            call_context: None,
             kind: ExpressionKind::Call {
                 callee: callee.into(),
                 arguments,

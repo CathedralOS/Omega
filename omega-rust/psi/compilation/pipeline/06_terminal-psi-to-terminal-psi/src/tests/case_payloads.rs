@@ -185,7 +185,10 @@ machine route() -> u32 {{
         )),
         NO_CASE
     );
-    // Permission alone writes nothing: this empty callee preserves the case.
+    // An exclusive loan of the sum lets its holder replace the case, and
+    // what a helper may have written is the write frame it publishes
+    // (dependent_values.md, "Mutation frames"). This helper writes nothing,
+    // so the case it was lent still stands after the call.
     assert_eq!(verdict(&scalar("replace(&mut held);")), "accepted");
 }
 

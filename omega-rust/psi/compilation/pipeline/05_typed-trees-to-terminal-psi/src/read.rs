@@ -64,6 +64,7 @@ pub(crate) struct Program<'t> {
     pub publication: terminal_codec::TerminalPublication,
     pub declaration_metadata: Vec<SymbolHandle>,
     typed: &'t TypedTrees,
+    named_captures: crate::NamedCaptures,
     /// Irreversible storage-description phase, entered after the body closure.
     descriptor_storage: bool,
     /// The typed-tree machine of each discovered `MachineId`.
@@ -132,6 +133,7 @@ pub(crate) struct Program<'t> {
     /// `Elaboration::value_parameters` and `Elaboration::value_arguments`,
     /// pushed with each machine's signature.
     pub value_parameters: IdTable<MachineId, usize>,
+    pub generic_binders: Vec<SymbolHandle>,
     pub value_arguments: IdTable<MachineId, Vec<semantic_vocabulary::ScalarTerm>>,
     /// Every record type a formal, local, result, field or literal named, in
     /// discovery order; a nested record is discovered before its owner.
@@ -242,11 +244,21 @@ impl<'t> Program<'t> {
         Ok(())
     }
 
+    #[cfg(test)]
     pub fn new(typed: &'t TypedTrees, rigid: bool) -> Self {
+        Self::with_captures(typed, rigid, crate::named_captures(typed))
+    }
+
+    pub fn with_captures(
+        typed: &'t TypedTrees,
+        rigid: bool,
+        captures: crate::NamedCaptures,
+    ) -> Self {
         Self {
             publication: terminal_codec::TerminalPublication::Portable,
             declaration_metadata: Vec::new(),
             typed,
+            named_captures: captures,
             descriptor_storage: false,
             symbols: IdTable::default(),
             signatures: IdTable::default(),
@@ -272,6 +284,7 @@ impl<'t> Program<'t> {
             alternative: None,
             static_truths: Vec::new(),
             value_parameters: IdTable::default(),
+            generic_binders: Vec::new(),
             value_arguments: IdTable::default(),
             records: IdTable::default(),
             record_sources: IdTable::default(),
@@ -415,6 +428,19 @@ mod tests {
             .filter(|(found, expected)| found != expected)
             .collect();
         assert!(wrong.is_empty(), "{wrong:?}");
+    }
+
+    /// The record type the hand-built slots below name as type 1. A slot's
+    /// type is looked up before a place is read (a reference is written
+    /// through, not replaced), so the type must be a row of the program.
+    fn plain_record() -> RecordType {
+        RecordType {
+            owns_linear_claim: false,
+            copyable: false,
+            identity: String::from("point"),
+            shape: crate::StorageShape::Record(Vec::new()),
+            requires: Vec::new(),
+        }
     }
 
     fn unit_machines() -> (TypedTrees, [SymbolHandle; 2]) {
@@ -681,9 +707,9 @@ mod tests {
         let u32_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
         let result = ValueId::new(2).unwrap();
         let exit = ClauseScope {
+            logical: None,
             subject: None,
             formal_fields: false,
-            logical: None,
             mathematical: MathematicalTerms::Served,
             slots: &[],
             values: &[],
@@ -802,9 +828,9 @@ mod tests {
         let (mutable, immutable) = ([slot(true)], [slot(false)]);
         let values = [Some(value)];
         let scope = |slots, formal_fields| ClauseScope {
+            logical: None,
             subject: None,
             formal_fields,
-            logical: None,
             mathematical: MathematicalTerms::Served,
             slots,
             values: &values,
@@ -958,6 +984,7 @@ mod tests {
         let slots = [slot()];
         let values = [Some(value)];
         let scope = ClauseScope {
+            logical: None,
             slots: &slots,
             values: &values,
             bound: &[],
@@ -966,7 +993,6 @@ mod tests {
             subject: None,
             formal_fields: false,
             mathematical: MathematicalTerms::Served,
-            logical: None,
         };
         let mut program = Program::new(&typed, false);
         let input = (
@@ -1317,6 +1343,7 @@ mod tests {
     /// each refused by name, as is a named constant.
     #[test]
     fn each_place_statement_outside_the_slice_is_refused_by_name() {
+        use semantic_vocabulary::StructuralTypeId;
         use typed_trees::expression::TableMemberExpression;
         use typed_trees::name::Identifier;
         use typed_trees::statement::{TableAssignment, TableLocalData};
@@ -1360,23 +1387,17 @@ mod tests {
                     case_variant: None,
                 }));
         let value = typed.expression_table.insert(ExpressionNode::Boolean(true));
-        let mut program = Program::new(&typed, false);
-        let record = program.records.push(crate::RecordType {
-            owns_linear_claim: false,
-            copyable: false,
-            identity: "Record".into(),
-            shape: crate::StorageShape::Record(Vec::new()),
-            requires: Vec::new(),
-        });
         let slots = [Slot {
             symbol: local,
-            value_type: ValueType::record(record),
+            value_type: ValueType::record(StructuralTypeId::new(1).unwrap()),
             assignable: true,
             homed: false,
             erased: false,
             borrowed: None,
             borrowed_regions: crate::body::Regions::NONE,
         }];
+        let mut program = Program::new(&typed, false);
+        program.records.push(plain_record());
         let mut assigned = |target| {
             program
                 .assignment(machine(), &slots, &TableAssignment { target, value })
@@ -1392,7 +1413,7 @@ mod tests {
         // A binding that is not `mut` is neither replaced nor stored into.
         let frozen = [Slot {
             symbol: local,
-            value_type: ValueType::record(record),
+            value_type: ValueType::record(StructuralTypeId::new(1).unwrap()),
             assignable: false,
             homed: false,
             erased: false,
@@ -1467,9 +1488,9 @@ mod tests {
             None,
         );
         let scope = ClauseScope {
+            logical: None,
             subject: None,
             formal_fields: false,
-            logical: None,
             mathematical: MathematicalTerms::Served,
             slots: &slots,
             values: &values,
@@ -1500,7 +1521,7 @@ mod tests {
     /// the rows are spelled.
     #[test]
     fn a_record_pattern_is_covered_by_field_symbols_never_by_spellings() {
-        use semantic_vocabulary::StructuralFieldId;
+        use semantic_vocabulary::StructuralTypeId;
         use typed_trees::expression::{MatchFieldAction, TableMatchField};
         use typed_trees::name::Identifier;
         use typed_trees::statement::TableLocalData;
@@ -1564,36 +1585,17 @@ mod tests {
             row(b, "b", true),
             row(other, "c", false),
         ]);
-        let mut program = Program::new(&typed, false);
-        // A place's type and source symbols occupy separate rosters. This
-        // hand-built input must provide both, as the source reader does.
-        let record = program.records.push(crate::RecordType {
-            owns_linear_claim: false,
-            copyable: false,
-            identity: "Point".into(),
-            shape: crate::StorageShape::Record(
-                ["a", "b"]
-                    .into_iter()
-                    .enumerate()
-                    .map(|(index, name)| crate::RecordField {
-                        id: StructuralFieldId::new(index as u64 + 1).unwrap(),
-                        identity: name.into(),
-                        value_type: ValueType::plain(ScalarType::Boolean),
-                        byte_predicates: Default::default(),
-                    })
-                    .collect(),
-            ),
-            requires: Vec::new(),
-        });
         let slots = [Slot {
             symbol: local,
-            value_type: ValueType::record(record),
+            value_type: ValueType::record(StructuralTypeId::new(1).unwrap()),
             assignable: false,
             homed: false,
             erased: false,
             borrowed: None,
             borrowed_regions: crate::body::Regions::NONE,
         }];
+        let mut program = Program::new(&typed, false);
+        program.records.push(plain_record());
         program.record_sources.push(places::RecordSource {
             declaration: point,
             application: None,
@@ -1975,9 +1977,9 @@ mod tests {
         let slots = [slot(rest), slot(count)];
         let values = [ValueId::new(1), ValueId::new(2)];
         let scope = |mathematical| ClauseScope {
+            logical: None,
             subject: None,
             formal_fields: true,
-            logical: None,
             mathematical,
             slots: &slots,
             values: &values,

@@ -725,6 +725,9 @@ pub(crate) mod machines {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct TerminalMachine {
+        /// Formation facts for calls whose source markers must survive lowering.
+        /// Sorted by site; these do not select a callee or create a pause.
+        pub call_formations: Vec<crate::CallFormation>,
         pub assembly_target_requirement: crate::RegisterTargetApplicability,
         pub id: MachineId,
         pub attachment: Option<StructuralTypeId>,

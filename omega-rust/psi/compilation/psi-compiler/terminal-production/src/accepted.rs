@@ -473,6 +473,7 @@ mod tests {
         });
         let mut signatures = IdTable::default();
         signatures.push(Signature {
+            operational: Default::default(),
             parameters: Vec::new(),
             erased: Vec::new(),
             borrowed: Vec::new(),
