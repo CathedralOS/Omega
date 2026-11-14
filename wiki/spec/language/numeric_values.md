@@ -176,6 +176,9 @@ are exactly the same type, not convertible wrappers. Bare `u` and `i` retain
 their separate unbounded meaning; omitting the width never requests inference.
 Zero widths and runtime width arguments reject. One-bit carriers are admitted:
 `u1` contains zero and one; `i1` contains minus one and zero. Neither is `bool`.
+These spellings name types only. A value binding such as a local `i1` may
+share one without changing it, under
+[builtin type names](modules.md#builtin-type-names).
 
 The unsigned range is `0 <= value < 2^N`; the signed range is
 `-2^(N-1) <= value < 2^(N-1)`, with N-bit two's-complement interpretation for
