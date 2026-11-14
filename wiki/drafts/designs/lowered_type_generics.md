@@ -1,7 +1,12 @@
 # Type and value parameters on the lowered form
 
-Design proposal, 2026-11-11. Nothing here is built or run, and no fixture
-outcome is claimed. It answers the part of condition 3 of
+Design proposal, 2026-11-11. Steps 1–3 of [the order](#recommendation-and-order)
+are built in stage 06's
+[generic-body experiment](../../../omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/README.md#generic-bodies-experiment),
+which no production path calls: an opaque `T` value is a rigid check-table row
+(`ValueRow::rigid`) declared in the lowered form with the stand-in
+`RigidType::DECLARED_AS`. The status below says where that differs from the
+text. It answers the part of condition 3 of
 [the gate](check_on_lowered_form.md#the-gate) that
 [its first result](check_on_lowered_form.md#condition-3-first-result) left open:
 a generic body over a type parameter `T` cannot be checked once on the lowered
@@ -16,7 +21,7 @@ which would leave generic bodies unchecked at the alternatives nobody uses.
 (`advance<Selected satisfies Step>`) once and carried its certificates into two
 specializations. It found three things the lowered form cannot hold for a type
 parameter
-([lowered-discharge README](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md#what-the-lowered-form-does-not-carry)):
+([terminal-psi-to-terminal-psi README](../../../omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/README.md#what-the-lowered-form-does-not-carry)):
 
 - a value row holds a concrete `ScalarType` (`Boolean`, `Integer(sign,
   width)`, `IeeeFloat(format)`), and a place a declared `StructuralTypeId`;
@@ -72,7 +77,7 @@ contract guards the conjuncts after it. So the generic form with a
 check-only terminator is not needed and not built. Each listed type is
 checked, used or not, and each generated machine takes the certificates of
 the alternative whose body it is
-([lowered-discharge README](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md#finite-families)).
+([terminal-psi-to-terminal-psi README](../../../omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/README.md#finite-families)).
 
 ## What the specification asks
 
@@ -250,8 +255,8 @@ kernel additions serve it:
 - closed type equations decide by canonical type identity, from the one
   normalizer that owns it ([static type equality](../../spec/language/generics.md#static-type-equality)).
 
-Whether a conjunct of a contract is typed under the equation beside it, as
-`min`'s `ensures` needs, is not stated for contracts (question 2 below).
+A type equation in a contract guards the conjuncts after it, as `min`'s
+`ensures` needs ([static type equality](../../spec/language/generics.md#static-type-equality)).
 
 ## What a carried certificate looks like when the type changes
 
@@ -336,41 +341,19 @@ It is not what the specification asks:
   "without re-searching under a consumer's smaller discovery budget" rules
   out.
 
-Consequence for the gate: condition 3 cannot pass as written ("checked once as
-written, against its declared requirements and with its parameters left
-abstract"), and condition 1 would need a generics carve-out. Both are the
-owner's to rewrite; this record does not.
-
 A middle form is possible for finite families only: check each declared
 alternative as a concrete specialization, independent of consumers. That meets
 S1 for the listed types at the cost of the whole body per alternative (eight
-for `core::integer`), cannot serve an opaque `T`, and whether it counts as
-"checked once" is the owner's reading (question 3).
+for `core::integer`) and cannot serve an opaque `T`. The owner ruled that it
+satisfies the rule for a finite family
+([static type equality](../../spec/language/generics.md#static-type-equality)).
 
-## Questions the owner has ruled
+## Rulings
 
-Each was a language or gate question; the lowered-form representation itself
-is delegated ([OWNER_QUESTIONS.md](../../../OWNER_QUESTIONS.md), Psi
-representation paragraph). All three decisions are ruled:
-`type-family-operation-outside-arm`, `contract-conjunct-under-type-equation`
-and `finite-family-generic-check`. The rulings are stated in
+The three language questions this record raised (an operation on `T` outside
+an arm, a contract conjunct under a type equation, and whether checking each
+listed alternative satisfies a finite family) are ruled in
 [static type equality](../../spec/language/generics.md#static-type-equality).
-
-1. **Operations on `T` outside an arm.** In a finite family, may a body apply
-   an operator to a value of type `T` outside a branch that establishes one
-   equation (`a + b` under `requires T == u32 || T == u64`)? S2 grants typing
-   inside a branch only. If it is allowed, checking every alternative needs a
-   per-alternative operation in the generic form, which this design does not
-   have; no corpus program was found doing it.
-2. **Contract conjuncts under a type equation.** Is `result == 0u8` in `(T ==
-   u8 && result == 0u8)` typed under the equation beside it, and in `min<u32>`
-   is that disjunct vacuous or ill-typed? `core::integer` and
-   `pass/core/integer_query_public_refinement_exit` rely on the first reading;
-   `data_and_literals.md` uses the same shape in a data `requires`
-   (`Command<T>`). No sentence states it for `ensures`.
-3. **Condition 3 for a finite family.** Does checking each declared
-   alternative concretely, without a rigid form, meet "checked once as
-   written ... with its parameters left abstract"?
 
 ## Recommendation and order
 
@@ -378,8 +361,7 @@ Carry type parameters on the lowered form: value parameters as undefined
 formals, opaque types as a rigid sort with sort-free rules, finite families as
 rigid outside and concrete inside each arm; carry certificates by sort
 substitution, equation folding and arm selection, re-decided by the kernel.
-Do not check only specializations: it fails S1, S5 and S6 and makes condition
-3 unpassable as written.
+Do not check only specializations: it fails S1, S5 and S6.
 
 Order, smallest change first, each with its pass and fail twin and `omega run
 --both`:
@@ -390,16 +372,14 @@ Order, smallest change first, each with its pass and fail twin and `omega run
    and the rule premise.
 3. Finite family in `generic_effective_result_comparison_exit` and
    `specialized_normal_call_wrong_type_contract`: arms, the fold, and then
-   `core::integer::min` now that question 2 is ruled.
+   `core::integer::min`.
 
 ## Method
 
 Read on `main` at `a9779875f`: `check_on_lowered_form.md` (the gate and its
-open questions), the `#2378` description, the lowered-discharge and
-structure-elaboration READMEs, `ScalarType` (`semantic-vocabulary/src/scalar_terms.rs`)
+open questions), the `#2378` description, the terminal-psi-to-terminal-psi and
+typed-trees-to-terminal-psi READMEs, `ScalarType` (`semantic-vocabulary/src/scalar_terms.rs`)
 and `PropositionContext` (`semantic-vocabulary/src/proposition.rs`), the
-cited spec sections, and the witness fixtures and their rows in
-`tests/omega/corpus_outcomes.txt`, where each is `checked` (pass) or
-`rejected expected` (fail) on the current pipeline. The lowered route was not
-run on any of them; whether stage 04 folds a type-equation branch in a
+cited spec sections, and the witness fixtures. The lowered route was not run on
+any of them; whether stage 04 folds a type-equation branch in a
 generated specialization was not checked.

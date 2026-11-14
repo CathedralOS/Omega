@@ -20,15 +20,15 @@ addition for an arbitrary `i32` field.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| Local | [program](local/main.omg) | [missing standing predicate](local/invalid/main.omg) |
-| Field | [program](field/main.omg) | [missing standing predicate](field/invalid/main.omg) |
-| Parameter | [program](parameter/main.omg) | [missing standing predicate](parameter/invalid/main.omg) |
-| Call result | [program](call_result/main.omg) | [missing standing predicate](call_result/invalid/main.omg) |
-| Match join | [program](match_join/main.omg) | [missing standing predicate](match_join/invalid/main.omg) |
-| Const name | [program](const_name/main.omg) | [missing standing predicate](const_name/invalid/main.omg) |
-| Nested machine | [program](other_state/main.omg) | [missing standing predicate](other_state/invalid/main.omg) |
-| Other machine | [program](other_machine/main.omg) | [missing standing predicate](other_machine/invalid/main.omg) |
-| Target body | [program](target_body/main.omg) | [missing standing predicate](target_body/invalid/main.omg) |
+| Local | [program](local/main.omg) | [missing standing predicate](invalid_local/main.omg) |
+| Field | [program](field/main.omg) | [missing standing predicate](invalid_field/main.omg) |
+| Parameter | [program](parameter/main.omg) | [missing standing predicate](invalid_parameter/main.omg) |
+| Call result | [program](call_result/main.omg) | [missing standing predicate](invalid_call_result/main.omg) |
+| Match join | [program](match_join/main.omg) | [missing standing predicate](invalid_match_join/main.omg) |
+| Const name | [program](const_name/main.omg) | [missing standing predicate](invalid_const_name/main.omg) |
+| Nested machine | [program](other_state/main.omg) | [missing standing predicate](invalid_other_state/main.omg) |
+| Other machine | [program](other_machine/main.omg) | [missing standing predicate](invalid_other_machine/main.omg) |
+| Target body | [program](target_body/main.omg) | [missing standing predicate](invalid_target_body/main.omg) |
 
 The [root program](main.omg) retains explicit `Main` storage, its field read and
 `hits` write, with a [root reject](invalid/main.omg). Its entry helper performs

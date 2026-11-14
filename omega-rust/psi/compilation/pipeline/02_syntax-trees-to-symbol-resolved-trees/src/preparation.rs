@@ -136,6 +136,15 @@ pub(crate) mod declaration_selection {
             self.retained.as_deref()
         }
 
+        /*
+            Early declaration consumers share the prepared namespace's visibility
+            and import identities. These handles belong to this header table;
+            consumers rejoin declarations before publishing resolved symbols.
+        */
+        pub(crate) fn header_symbols(&self) -> &SymbolTable {
+            &self.symbols
+        }
+
         pub(crate) fn shared_retained_base(
             &self,
         ) -> Option<Arc<symbol_resolved_trees::SymbolResolvedTrees>> {
@@ -766,61 +775,6 @@ pub(crate) mod declaration_selection {
                     )
                 })?;
             self.data_declaration_among(syntax, roots, name, selected)
-        }
-
-        /*
-            The selected data declaration's name span. A declaration the cohort no
-            longer parses may still be selected through the retained predecessor's
-            forest: the same span and name identify the same declaration, and the
-            ordinary package-visibility rule still applies to it. `roots`, when
-            supplied, indexes `syntax` once for many lookups.
-        */
-        fn data_span_among(
-            &self,
-            syntax: &SyntaxTrees,
-            roots: Option<&RootDeclarations<'_>>,
-            retained: Option<&SyntaxTrees>,
-            name: &Identifier,
-        ) -> Result<source::SourceSpan, String> {
-            let error = match self.data_among(syntax, roots, name) {
-                Ok(data) => return Ok(data.name.source_span()),
-                Err(error) => error,
-            };
-            let Some(retained) = retained else {
-                return Err(error);
-            };
-            let selected = self
-                .symbols
-                .find_top_level_by_name_and_kinds_from_source(
-                    name.as_str(syntax),
-                    &[SymbolKind::Data],
-                    name.source_span(),
-                )
-                .ok_or_else(|| error.clone())?;
-            let span = self
-                .symbols
-                .symbol_source_span(selected)
-                .ok_or_else(|| error.clone())?;
-            let selected_name = self.symbols.name(selected);
-            let mut matches = retained.root_items().filter_map(|item| match item {
-                Item::Data(data)
-                    if data.name.source_span() == span
-                        && data.name.as_str(retained) == selected_name =>
-                {
-                    Some(data.is_public)
-                }
-                _ => None,
-            });
-            let (Some(is_public), None) = (matches.next(), matches.next()) else {
-                return Err(error);
-            };
-            if !is_public && !self.symbols.same_source_package(name.source_span(), span) {
-                return Err(format!(
-                    "canonical declaration `{}` is private in another package",
-                    name.as_str(syntax)
-                ));
-            }
-            Ok(span)
         }
 
         /*
@@ -1783,52 +1737,6 @@ pub(crate) mod declaration_selection {
     }
 
     /*
-        Nominal header selections for pre-resolution consumers. Transient symbols
-        stay private; each result rejoins the exact original declaration by source
-        custody. This operation supplies no type, placement or execution authority.
-    */
-    pub fn select_data_declarations(
-        syntax: &SyntaxTrees,
-        sources: Option<Arc<SourceMap>>,
-        bindings: Vec<SourceScopedTopLevelBinding>,
-        references: &[Identifier],
-        retained_base: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
-    ) -> Result<Vec<Result<source::SourceSpan, String>>, Vec<Diagnostic>> {
-        select_data_declarations_with_retained(
-            syntax,
-            None,
-            sources,
-            bindings,
-            references,
-            retained_base,
-        )
-    }
-
-    /*
-        Like [`select_data_declarations`], but a declaration that ordinary selection
-        resolves into the retained predecessor's parsed forest (a unit this cohort
-        imports without parsing again, such as `core::layout`) is accepted by its
-        exact span and name instead of being reported as lost custody. The forest
-        supplies no authority: selection still ran through the receiving namespace.
-    */
-    pub fn select_data_declarations_with_retained(
-        syntax: &SyntaxTrees,
-        retained: Option<&SyntaxTrees>,
-        sources: Option<Arc<SourceMap>>,
-        bindings: Vec<SourceScopedTopLevelBinding>,
-        references: &[Identifier],
-        retained_base: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
-    ) -> Result<Vec<Result<source::SourceSpan, String>>, Vec<Diagnostic>> {
-        let selection =
-            ConstantSelection::with_retained_base(syntax, sources, bindings, retained_base)?;
-        let roots = RootDeclarations::of(syntax);
-        Ok(references
-            .iter()
-            .map(|reference| selection.data_span_among(syntax, Some(&roots), retained, reference))
-            .collect())
-    }
-
-    /*
         Root data and conformance declarations of one borrowed forest, ordered by
         their name span. The borrow keeps the forest unchanged while the index
         lives; ties keep root order.
@@ -1940,6 +1848,8 @@ pub(crate) mod declaration_selection {
 mod callable_types;
 #[path = "preparation_generic_data.rs"]
 pub(crate) mod generic_data;
+#[path = "preparation_integer_widths.rs"]
+pub(crate) mod integer_widths;
 #[path = "preparation_machine_equations.rs"]
 pub(crate) mod machine_equations;
 pub(crate) mod module_normalization {
@@ -5580,6 +5490,7 @@ pub(crate) fn prepare(
     if constants == crate::resolution::lowerer::ConstResolutionMode::Complete {
         generic_data::fold_closed_scalar_initializers(&mut syntax, &constant_selection)?;
     }
+    integer_widths::normalize(&mut syntax, &constant_selection)?;
     validate_with_const_resolution_mode(&syntax, &constant_selection, constants)?;
     synthesize_trait_defaults_after_module_validation(&mut syntax, &constant_selection)?;
     Ok(Prepared {

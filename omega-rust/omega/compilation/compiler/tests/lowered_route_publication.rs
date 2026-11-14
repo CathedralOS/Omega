@@ -3,23 +3,22 @@
 //! certificates into native lowering, and run its authored Psi result. A root
 //! with the same name from another owner must refuse.
 //!
-//! `wiki/drafts/designs/check_on_lowered_form.md`, "Route one", requires the
-//! discharged certificates to stay beside the accepted module until Omega 00
-//! attaches their fingerprints to the operations they justify.
-#[path = "support/fixture_package_inputs.rs"]
-mod fixture_package_inputs;
-
-use fixture_package_inputs::{
-    FixtureFrontierCheck, check_fixture_keeping_typed_frontier, discover_fixture,
-    fixture_build_snapshot, produce_fixture, repo_root, review_fixture,
-};
-use lowered_discharge::{RouteVerdict, judge};
+//! Each machine of the published module states the declaration identity of
+//! the source machine it lowers, so the Build's selected entry is found on it
+//! the way the program-entry receipt finds it on the product check's
+//! program.
+//!
+//! The default compile takes this path for the application: when the route
+//! accepts a compilation and its module publishes, the Terminal product is
+//! that artifact and its seals stay beside it for Omega 00. An executable
+//! child requests its calling declarations before publication and receives a
+//! new judgment over the same source and full roster.
 use psi_work::WorkMeter;
-use structure_elaboration::{Compilation, elaborate};
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
     TerminalStructuralInputs,
 };
+use terminal_psi_to_terminal_psi::RoutePublication;
 
 // Fixture compilation shares process-wide counters; run one at a time.
 static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -34,72 +33,70 @@ impl TerminalEffectHandler for NoEffects {
     }
 }
 
-fn accepted(
+fn published_fixture(
     fixture: &str,
 ) -> (
-    Box<lowered_discharge::AcceptedClosure>,
+    RoutePublication,
     terminal_psi::PreparedNominalRoot,
     [u8; 32],
-    Box<compiler::CheckedCompilation>,
+    compiler::CheckedCompilation,
 ) {
     let main = repo_root().join(fixture).join("main.omg");
     let checked = std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
-            check_fixture_keeping_typed_frontier(&main, "linux_x86_64")
+            orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&main, Some("linux_x86_64")),
+            )
+            .result
+            .unwrap_or_else(|failure| {
+                panic!(
+                    "{fixture}: the program must check: {:?}",
+                    failure.into_diagnostics()
+                )
+            })
         })
         .expect("compiler worker")
         .join()
         .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
     });
-    let (frontier, checked) = match checked {
-        FixtureFrontierCheck::Accepted { frontier, checked } => (frontier, checked),
-        _ => panic!("{fixture}: the program must check"),
-    };
-    assert!(
-        lowered_discharge::check_bound_callable_shapes(&frontier.typed, &frontier.bindings)
-            .expect("entry shape identities resolve")
-            .is_empty(),
-        "publication requires the bound continuation shapes as well as body proofs"
+    let accepted = checked
+        .terminal_publication()
+        .accepted()
+        .expect("the product retains the actual accepted source");
+    let publication = accepted
+        .closure()
+        .publish()
+        .expect("the accepted module publishes");
+    let (signature, application) = compiler::prepare_program_entry(&checked)
+        .expect("the Build-selected entry has a real producer");
+    let receipt = application
+        .receipt
+        .expect("entry preparation")
+        .expect("the executable entry has a receipt");
+    assert_eq!(
+        receipt.terminal_psi_identity(),
+        publication.artifact.manifest().semantic()
     );
-    match judge(elaborate(
-        &frontier.typed,
-        Compilation {
-            entries: &frontier.entries,
-            subjects: &[frontier.subject],
-            purpose: source::DependencyScope::Product,
-            selected: &frontier.selected,
-            calling: frontier.calling.borrow(&frontier.typed).selection(),
-            providers: frontier.provider_selections(),
-            bindings: &frontier.bindings,
-        },
-    )) {
-        Ok(RouteVerdict::Accepted(closure)) => {
-            let selected = checked
-                .selected_program_entry()
-                .unwrap_or_else(|diagnostics| {
-                    panic!("{fixture}: selected entry: {diagnostics:#?}")
-                });
-            let root = selected
-                .nominal_root()
-                .expect("checked entry has a nominal root");
-            let signature = selected.source_signature().identity().bytes();
-            (closure, root, signature, checked)
-        }
-        other => panic!("{fixture}: the route must accept: {other:?}"),
-    }
+    let root = terminal_psi::PreparedNominalRoot::new(
+        signature.declaration(),
+        "diagnostic name is not selection authority",
+        None,
+    )
+    .expect("the selected entry has an exact source owner");
+    (publication, root, signature.identity().bytes(), checked)
 }
 
 #[test]
 fn an_accepted_program_is_published_from_the_routes_module_and_runs() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
-    let (closure, root, signature, _) =
-        accepted("tests/fixtures/run/calls/scalar_contract_route_exit");
-    let publication = closure.publish().expect("the accepted module publishes");
+    let (publication, root, signature, checked) =
+        published_fixture("tests/fixtures/run/calls/scalar_contract_route_exit");
 
     // The artifact holds exactly the module the route checked.
     assert_eq!(
         publication.artifact.semantic_module(),
-        &closure.elaboration.module
+        checked.terminal_publication().accepted().unwrap().module()
     );
 
     // The ordinary product receipt selects the route's module by exact owner,
@@ -184,24 +181,56 @@ fn an_accepted_program_is_published_from_the_routes_module_and_runs() {
     );
 }
 
-/// The ordinary compile retains the accepted module and its exact proof seals,
-/// so native lowering receives the same operations the kernel judged.
+/// The executable product uses its own fully judged descriptor request over
+/// the same source and complete roster. Its artifact and evidence must equal
+/// that accepted module's publication, rather than reusing the earlier Check
+/// artifact, which has no calling metadata.
 #[test]
 fn the_default_compile_builds_the_application_from_the_routes_module() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let fixture = "tests/fixtures/run/calls/scalar_contract_route_exit";
-    let (closure, _, _, _) = accepted(fixture);
-    let publication = closure.publish().expect("the accepted module publishes");
+    let (check_publication, _, _, checked) = published_fixture(fixture);
+    let (signature, _) = compiler::prepare_program_entry(&checked).unwrap();
+    let accepted = checked.terminal_publication().accepted().unwrap();
+    let boundary = package_compilation::selected_program_entry_boundary(
+        accepted.source(),
+        signature.target_slot(),
+        None,
+        checked.sources().exact_toolchain_sources(),
+    )
+    .expect("the selected target's authenticated entry declaration");
+    let mut roster = checked.terminal_publication().roster().unwrap().clone();
+    roster.declaration_metadata.push(boundary);
+    let executable = compilation_products::ProductTerminalPublication::judge(
+        std::sync::Arc::clone(accepted.source()),
+        roster,
+        checked.terminal_publication().optimizations().clone(),
+    )
+    .expect("all original scope is judged with the executable descriptors");
+    let executable = executable.accepted().unwrap();
+    assert!(std::sync::Arc::ptr_eq(
+        accepted.source(),
+        executable.source()
+    ));
+    let publication = executable.closure().publish().unwrap();
+    assert!(
+        !publication
+            .artifact
+            .semantic_module()
+            .calling_abi_signatures
+            .is_empty()
+    );
+    assert_ne!(
+        check_publication.artifact.manifest().semantic(),
+        publication.artifact.manifest().semantic()
+    );
     let product = default_product(fixture);
 
     assert_eq!(
         product.artifact().manifest().semantic(),
         publication.artifact.manifest().semantic()
     );
-    assert_eq!(
-        product.artifact().semantic_module(),
-        &closure.elaboration.module
-    );
+    assert_eq!(product.artifact().semantic_module(), executable.module());
     let evidence = product
         .evidence()
         .expect("the route's seals travel beside its artifact");
@@ -215,37 +244,23 @@ fn the_default_compile_builds_the_application_from_the_routes_module() {
 
 /// The Terminal product the default compile builds for `fixture`.
 fn default_product(fixture: &str) -> terminal_psi_to_abstract_operations::RetainedTerminalArtifact {
-    let target = "linux_x86_64";
     let main = repo_root().join(fixture).join("main.omg");
     std::thread::scope(|scope| {
-        compiler::checked::spawn_compile_worker(
-            scope,
-            || -> Result<_, Vec<diagnostics::Diagnostic>> {
-                let discovered = discover_fixture(
-                    &main,
-                    package_compilation::BuildExecutionInputs {
-                        snapshot: fixture_build_snapshot(&main)?,
-                        ..Default::default()
-                    },
-                )?;
-                let profile = target::TargetProfile::from_omega_target_name(Some(target))
-                    .map_err(|error| vec![error])?;
-                let mut prepared = review_fixture(
-                    discovered,
-                    &[profile],
-                    compiler::CompilationProduct::Terminal(Default::default()),
-                )?;
-                produce_fixture(&mut prepared, Some(target))?
-                    .into_report()
-                    .map_err(compiler::CompilationProductError::into_diagnostics)?
-                    .into_retained_terminal_artifact()
-                    .ok_or_else(|| {
-                        vec![diagnostics::Diagnostic::error(
-                            "the Terminal product retained no artifact",
-                        )]
-                    })
-            },
-        )
+        compiler::checked::spawn_compile_worker(scope, || {
+            orchestration::produce_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&main, Some("linux_x86_64")),
+                compiler::CompilationProduct::Terminal(Default::default()),
+            )
+            .and_then(compiler::CompilationOutput::into_report)
+            .map_err(compiler::CompilationProductError::into_diagnostics)?
+            .into_retained_terminal_artifact()
+            .ok_or_else(|| {
+                vec![diagnostics::Diagnostic::error(
+                    "the Terminal product retained no artifact",
+                )]
+            })
+        })
         .expect("compiler worker")
         .join()
         .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
@@ -253,15 +268,21 @@ fn default_product(fixture: &str) -> terminal_psi_to_abstract_operations::Retain
     .unwrap_or_else(|diagnostics| panic!("{fixture} must reach Terminal Psi: {diagnostics:#?}"))
 }
 
-/// Rechecking the same source preserves each machine's declaration, contract,
-/// and effects. The entry selected by Build must resolve exactly once in the
-/// independently published module and return Unit.
+fn repo_root() -> &'static std::path::Path {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(4)
+        .expect("compiler crate is nested four levels under the repository")
+}
+
+/// Every source machine keeps its exact declaration and nonempty contract
+/// commitment when the actual accepted module is published. Entry selection
+/// uses those canonical identities rather than a display name.
 #[test]
 fn the_published_module_states_each_machines_declaration_identity() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let fixture = "tests/fixtures/run/calls/scalar_contract_route_exit";
-    let (closure, _, _, checked) = accepted(fixture);
-    let publication = closure.publish().expect("the accepted module publishes");
+    let (publication, _, _, checked) = published_fixture(fixture);
     let published = publication.artifact.semantic_module();
     // The compilation's accepted source is the code published for the
     // compilation's other readers.

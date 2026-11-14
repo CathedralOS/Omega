@@ -19,7 +19,6 @@ version = "0.1.0"
 dependencies = [
  "abstract-operations",
  "abstract-operations-to-abstract-operations",
- "lowered-discharge",
  "optimization",
  "optimization-core",
  "optimization-unit",
@@ -28,16 +27,12 @@ dependencies = [
  "provider-admission",
  "psi-work",
  "semantic-vocabulary",
- "source-files-to-tokens",
- "structure-elaboration",
- "symbol-resolved-trees-to-typed-trees",
- "syntax-trees-to-symbol-resolved-trees",
  "terminal-codec",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
+ "terminal-psi-to-terminal-psi",
  "terminal-semantics",
- "tokens-to-syntax-trees",
- "typed-trees-to-typed-trees",
+ "typed-trees-to-terminal-psi",
  "verified-optimization-input",
 ]
 
@@ -82,10 +77,6 @@ version = "0.1.0"
 dependencies = [
  "sample-runner",
 ]
-
-[[package]]
-name = "allocation-observation"
-version = "0.1.0"
 
 [[package]]
 name = "ambient-authority"
@@ -437,7 +428,6 @@ dependencies = [
  "layout",
  "layout-plans",
  "libc",
- "lowered-discharge",
  "machine-code",
  "machine-emission",
  "mimalloc",
@@ -455,6 +445,7 @@ dependencies = [
  "package-manager",
  "package-source",
  "platform-custody",
+ "program-entry-plan",
  "proof-admission",
  "provider-planning",
  "provider-selection",
@@ -467,7 +458,6 @@ dependencies = [
  "semantic-vocabulary",
  "source",
  "source-files-to-tokens",
- "structure-elaboration",
  "symbol-resolved-trees-to-typed-trees",
  "symbols",
  "syntax-trees-to-symbol-resolved-trees",
@@ -480,11 +470,13 @@ dependencies = [
  "terminal-interpreter",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
+ "terminal-psi-to-terminal-psi",
  "terminal-runtime",
  "terminal-semantics",
  "tokens-to-syntax-trees",
  "trust-model",
  "typed-trees",
+ "typed-trees-to-terminal-psi",
 ]
 
 [[package]]
@@ -631,18 +623,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "executable-installation"
-version = "0.1.0"
-dependencies = [
- "extents",
- "layout-plans",
- "optimization-core",
- "post-handoff-writer-plan",
- "semantic-vocabulary",
- "target",
-]
-
-[[package]]
 name = "extents"
 version = "0.1.0"
 dependencies = [
@@ -759,7 +739,6 @@ dependencies = [
  "calling-conventions",
  "compiler",
  "diagnostics",
- "executable-installation",
  "extents",
  "function-identity",
  "iced-x86",
@@ -1084,30 +1063,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
 
 [[package]]
-name = "lowered-discharge"
-version = "0.1.0"
-dependencies = [
- "diagnostics",
- "language-core",
- "language-semantics",
- "optimization",
- "proof-admission",
- "semantic-vocabulary",
- "source",
- "source-files-to-tokens",
- "structure-elaboration",
- "symbol-resolved-trees-to-typed-trees",
- "symbols",
- "syntax-trees-to-symbol-resolved-trees",
- "terminal-check-tables",
- "terminal-codec",
- "terminal-psi",
- "terminal-semantics",
- "tokens-to-syntax-trees",
- "typed-trees",
-]
-
-[[package]]
 name = "machine-code"
 version = "0.1.0"
 dependencies = [
@@ -1244,12 +1199,14 @@ version = "0.1.0"
 dependencies = [
  "abstract-operations-to-abstract-operations",
  "abstract-operations-to-target-operations",
+ "arena",
  "backend-plan",
  "boundary-applications",
  "calling-conventions",
  "component-description",
  "diagnostics",
  "effects",
+ "function-identity",
  "image-emission",
  "installation-evidence",
  "machine-code",
@@ -1394,7 +1351,6 @@ dependencies = [
 name = "omega-bench"
 version = "0.1.0"
 dependencies = [
- "allocation-observation",
  "bounded-process",
  "libc",
  "serde",
@@ -1658,30 +1614,11 @@ dependencies = [
  "calling-conventions",
  "diagnostics",
  "effects",
- "executable-installation",
- "function-identity",
- "isa-aarch64",
- "isa-x86_64",
- "language-semantics",
- "layout-plans",
  "optimization-core",
- "post-handoff-writer-plan",
  "semantic-vocabulary",
  "source-audit",
  "target",
  "terminal-psi",
- "terminal-semantics",
-]
-
-[[package]]
-name = "proof"
-version = "0.1.0"
-dependencies = [
- "arena",
- "language-semantics",
- "proof-admission",
- "syntax-trees",
- "typed-trees",
 ]
 
 [[package]]
@@ -1818,22 +1755,24 @@ version = "0.1.0"
 dependencies = [
  "compiler-storage",
  "diagnostics",
+ "language-core",
  "language-semantics",
- "lowered-discharge",
  "optimization",
  "semantic-vocabulary",
  "source",
  "source-files-to-tokens",
- "structure-elaboration",
  "symbol-resolved-trees-to-typed-trees",
  "symbols",
  "syntax-trees-to-symbol-resolved-trees",
  "terminal-codec",
  "terminal-installation",
  "terminal-psi",
+ "terminal-psi-to-terminal-psi",
  "terminal-semantics",
  "tokens-to-syntax-trees",
  "typed-trees",
+ "typed-trees-to-terminal-psi",
+ "typed-trees-to-typed-trees",
 ]
 
 [[package]]
@@ -2141,6 +2080,7 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "compiler-storage",
+ "numerics",
  "optimization",
 ]
 
@@ -2267,25 +2207,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "structure-elaboration"
-version = "0.1.0"
-dependencies = [
- "arena",
- "language-core",
- "language-semantics",
- "numerics",
- "optimization",
- "semantic-vocabulary",
- "source",
- "symbols",
- "terminal-check-tables",
- "terminal-codec",
- "terminal-psi",
- "terminal-semantics",
- "typed-trees",
-]
-
-[[package]]
 name = "symbol-resolved-trees"
 version = "0.1.0"
 dependencies = [
@@ -2310,9 +2231,11 @@ dependencies = [
  "language-semantics",
  "numerics",
  "source",
+ "source-files-to-tokens",
  "symbol-resolved-trees",
  "symbols",
  "syntax-trees-to-symbol-resolved-trees",
+ "tokens-to-syntax-trees",
  "typed-trees",
 ]
 
@@ -2323,6 +2246,7 @@ dependencies = [
  "arena",
  "compiler-storage",
  "language-core",
+ "numerics",
  "semantic-vocabulary",
  "source",
 ]
@@ -2457,8 +2381,12 @@ dependencies = [
 name = "terminal-check-tables"
 version = "0.1.0"
 dependencies = [
+ "diagnostics",
  "language-core",
  "semantic-vocabulary",
+ "source",
+ "symbols",
+ "terminal-psi",
 ]
 
 [[package]]
@@ -2552,7 +2480,6 @@ dependencies = [
  "language-core",
  "language-semantics",
  "layout-plans",
- "lowered-discharge",
  "numerics",
  "optimization-core",
  "optimization-unit",
@@ -2565,7 +2492,6 @@ dependencies = [
  "runtime-abi",
  "semantic-vocabulary",
  "source",
- "structure-elaboration",
  "symbols",
  "target",
  "target-operations",
@@ -2573,8 +2499,37 @@ dependencies = [
  "terminal-codec",
  "terminal-installation",
  "terminal-psi",
+ "terminal-psi-to-terminal-psi",
  "terminal-semantics",
+ "typed-trees-to-terminal-psi",
  "verified-optimization-input",
+]
+
+[[package]]
+name = "terminal-psi-to-terminal-psi"
+version = "0.1.0"
+dependencies = [
+ "diagnostics",
+ "language-core",
+ "language-semantics",
+ "optimization",
+ "proof-admission",
+ "psi-work",
+ "semantic-vocabulary",
+ "source",
+ "source-files-to-tokens",
+ "symbol-resolved-trees-to-typed-trees",
+ "symbols",
+ "syntax-trees-to-symbol-resolved-trees",
+ "terminal-check-tables",
+ "terminal-codec",
+ "terminal-interpreter",
+ "terminal-psi",
+ "terminal-semantics",
+ "tokens-to-syntax-trees",
+ "typed-trees",
+ "typed-trees-to-terminal-psi",
+ "typed-trees-to-typed-trees",
 ]
 
 [[package]]
@@ -2713,6 +2668,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "typed-trees-to-terminal-psi"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "language-core",
+ "language-semantics",
+ "numerics",
+ "optimization",
+ "semantic-vocabulary",
+ "source",
+ "symbols",
+ "terminal-check-tables",
+ "terminal-codec",
+ "terminal-psi",
+ "terminal-semantics",
+ "typed-trees",
+]
+
+[[package]]
 name = "typed-trees-to-typed-trees"
 version = "0.1.0"
 dependencies = [
@@ -2721,6 +2695,7 @@ dependencies = [
  "diagnostics",
  "language-core",
  "language-semantics",
+ "numerics",
  "source",
  "symbols",
  "typed-trees",
@@ -2995,8 +2970,10 @@ name = "xtask"
 version = "0.1.0"
 dependencies = [
  "bounded-process",
+ "libc",
  "serde",
  "serde_json",
+ "sha2",
  "shlex",
  "toml",
 ]

@@ -5,10 +5,11 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-lowered-discharge = { path = "../../pipeline/lowered-discharge" }
-structure-elaboration = { path = "../../pipeline/structure-elaboration" }
+terminal-psi-to-terminal-psi = { path = "../../pipeline/06_terminal-psi-to-terminal-psi" }
+typed-trees-to-terminal-psi = { path = "../../pipeline/05_typed-trees-to-terminal-psi" }
 compiler-storage = { path = "../../../foundation/compiler-storage" }
 language-semantics = { path = "../../../foundation/language-semantics" }
+language-core = { path = "../../../foundation/language-core" }
 typed-trees = { path = "../../representations/typed-trees" }
 terminal-psi = { path = "../../representations/terminal-psi" }
 terminal-semantics = { path = "../../representations/terminal-psi/semantics" }
@@ -25,3 +26,4 @@ source-files-to-tokens = { path = "../../pipeline/00_source-files-to-tokens" }
 tokens-to-syntax-trees = { path = "../../pipeline/01_tokens-to-syntax-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../../pipeline/02_syntax-trees-to-symbol-resolved-trees" }
 symbol-resolved-trees-to-typed-trees = { path = "../../pipeline/03_symbol-resolved-trees-to-typed-trees" }
+typed-trees-to-typed-trees = { path = "../../pipeline/04_typed-trees-to-typed-trees" }

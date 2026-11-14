@@ -50,6 +50,8 @@ pub struct LegalizedOperationPlan {
     pub optimization_unit: OptimizationUnitIdentity,
     pub work_schedule: WorkScheduleIdentity,
     pub target: NativeTarget,
+    /// Retained deployment, included in identity independently of native geometry.
+    pub profile: Option<target::TargetProfile>,
     pub entry: MachineId,
     pub scalar_functions: Vec<LegalizedScalarFunction>, // Ordinary ordered scalar and Unit graphs with explicit ABI transport.
 }
@@ -92,14 +94,14 @@ pub use calls::{
 
 pub mod control_flow;
 pub use control_flow::{
-    LegalizedDescriptorOrigin, LegalizedNormalizedForeignCall, LegalizedRuntimeIndexOperand,
-    LegalizedScalarArgument, LegalizedScalarBlock, LegalizedScalarCall, LegalizedScalarComparison,
-    LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
-    LegalizedScalarParameter, LegalizedScalarReturn, LegalizedScalarReturnValue,
-    LegalizedScalarSuccessor, LegalizedScalarTerminator, LegalizedStructuralBinding,
-    LegalizedStructuralCasePayload, LegalizedStructuralCaseSource,
-    LegalizedStructuralCaseSuccessor, LegalizedValueDefinition, SaturatingCarrier,
-    SaturatingOperation, TrappingForm, TrappingOperation,
+    LegalizedCasePointerSlot, LegalizedDescriptorOrigin, LegalizedNormalizedForeignCall,
+    LegalizedRuntimeIndexOperand, LegalizedScalarArgument, LegalizedScalarBlock,
+    LegalizedScalarCall, LegalizedScalarComparison, LegalizedScalarFunction,
+    LegalizedScalarInstruction, LegalizedScalarInstructionKind, LegalizedScalarParameter,
+    LegalizedScalarReturn, LegalizedScalarReturnValue, LegalizedScalarSuccessor,
+    LegalizedScalarTerminator, LegalizedStructuralBinding, LegalizedStructuralCasePayload,
+    LegalizedStructuralCaseSource, LegalizedStructuralCaseSuccessor, LegalizedValueDefinition,
+    SaturatingCarrier, SaturatingOperation, TrappingForm, TrappingOperation,
 };
 
 pub mod identity;

@@ -16,9 +16,9 @@ pub(crate) use crate::selection::construction::scalar_graph::call_arguments::{
 };
 #[allow(unused_imports)]
 pub(crate) use crate::selection::construction::scalar_graph::{
-    Builder, IntegerSign, LegalizedScalarFunction, LegalizedScalarInstructionKind, ScalarType,
-    SelectedBlockId, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance,
-    ValueLocation, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+    Builder, IntegerSign, LegalizedScalarInstructionKind, ScalarType, SelectedBlockId,
+    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance, ValueLocation,
+    VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
 #[allow(unused_imports)]
 pub(crate) use crate::selection::element_view_homes::ElementViewHomes;
@@ -41,9 +41,7 @@ pub(crate) use semantic_vocabulary::{
 pub(crate) use terminal_psi::StructuralAccess;
 
 pub(crate) mod block_views {
-    use super::{
-        Builder, LegalizedScalarFunction, SelectedInstructionProvenance, SelectedMemoryAccessRole,
-    };
+    use super::{Builder, SelectedInstructionProvenance, SelectedMemoryAccessRole};
     use crate::SelectedInstructionError;
     use crate::selection::construction::scalar_graph::structural::transport_register;
     use selected_instructions::{
@@ -51,7 +49,7 @@ pub(crate) mod block_views {
     };
 
     pub(crate) fn block_entry(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         block: &legalized_operations::LegalizedScalarBlock,
         builder: &mut Builder<'_>,
     ) -> Result<(), SelectedInstructionError> {
@@ -117,9 +115,9 @@ pub(crate) mod block_views {
 }
 pub(crate) mod entry {
     use super::{
-        Builder, IndirectPointerLocation, IntegerSign, IntegerType, LegalizedScalarFunction,
-        PlaceId, ScalarType, SelectedInstructionProvenance, StructuralAccess, ValueLocation,
-        VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+        Builder, IndirectPointerLocation, IntegerSign, IntegerType, PlaceId, ScalarType,
+        SelectedInstructionProvenance, StructuralAccess, ValueLocation, VirtualRegister,
+        VirtualRegisterId, VirtualRegisterOrigin,
     };
     use crate::SelectedInstructionError;
     use crate::selection::aggregate_result_input::{
@@ -133,7 +131,7 @@ pub(crate) mod entry {
 
     pub(crate) fn entry(
         function: usize,
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         environment: &register_environment::ValidatedTargetRegisterEnvironment,
         builder: &mut Builder<'_>,
     ) -> Result<(), SelectedInstructionError> {
@@ -141,7 +139,7 @@ pub(crate) mod entry {
             return Ok(());
         };
         let parameters = parameter_views(signature);
-        if !accepts_graph(&source.call_plan, &parameters, &signature.structural_types) {
+        if !accepts_graph(&source.call_plan, &parameters, source.geometry()) {
             return Err(SelectedInstructionError::unsupported_shape(function));
         }
         for (parameter_index, parameter) in signature.parameters.iter().enumerate() {
@@ -326,7 +324,7 @@ pub(crate) mod entry {
     }
 
     fn retain_owned_home(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         parameter: &legalized_operations::LegalizedCallUnitParameter,
         builder: &mut Builder<'_>,
     ) -> Result<(), SelectedInstructionError> {
@@ -406,7 +404,7 @@ pub(crate) mod entry {
 
     fn store_home_range(
         builder: &mut Builder<'_>,
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         place: semantic_vocabulary::PlaceId,
         home: VirtualRegisterId,
         offset: u32,
@@ -443,15 +441,14 @@ pub(crate) use block_views::block_entry;
 pub(crate) use entry::entry;
 pub(crate) mod atomic_outcome {
     use super::{
-        Builder, LegalizedScalarFunction, LegalizedScalarInstruction,
-        LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
-        SelectedMemoryAccessRole, VirtualRegisterId, invalid, memory, provenance,
-        transport_register,
+        Builder, LegalizedScalarInstruction, LegalizedScalarInstructionKind, ScalarType,
+        SelectedInstructionKind, SelectedMemoryAccessRole, VirtualRegisterId, invalid, memory,
+        provenance, transport_register,
     };
     use crate::SelectedInstructionError;
 
     pub(crate) fn establish(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         row: &LegalizedScalarInstruction,
         builder: &mut Builder<'_>,
         observed: VirtualRegisterId,
@@ -616,8 +613,8 @@ pub(crate) mod descriptor_operands {
         cross_references, footprint, projection_base, projection_origin, scale,
     };
     use super::{
-        Builder, LegalizedScalarFunction, SelectedMemoryAccessRole, VirtualRegisterId, invalid,
-        memory, place_pointer, provenance, transport_register,
+        Builder, SelectedMemoryAccessRole, VirtualRegisterId, invalid, memory, place_pointer,
+        provenance, transport_register,
     };
     use crate::SelectedInstructionError;
     use crate::structural_inputs::structural_reference_input::{
@@ -627,25 +624,24 @@ pub(crate) mod descriptor_operands {
     use terminal_psi::{StructuralArgument, StructuralTypeShape};
 
     pub(crate) fn source_geometry(
-        function: &LegalizedScalarFunction,
+        function: &crate::native_geometry::NativeFunction<'_>,
         source: &StructuralArgument,
     ) -> Option<(ReferenceSourceGeometry, StructuralTypeShape)> {
-        let signature = function.structural.as_ref()?;
+        function.structural.as_ref()?;
         let root = crate::selection::reference_input::root_type(function, source.place)?;
         let geometry =
-            geometry::descriptor_source_geometry(root, &source.path, &signature.structural_types)?;
+            geometry::descriptor_source_geometry(root, &source.path, function.geometry())?;
         if !geometry.readable || source.access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
             return None;
         }
-        let shape =
-            terminal_psi::find_structural_type(&signature.structural_types, geometry.selected)?
-                .shape
-                .clone();
+        let shape = terminal_psi::find_structural_type(function.geometry(), geometry.selected)?
+            .shape
+            .clone();
         Some((geometry, shape))
     }
 
     pub(crate) fn completed_view_words(
-        function: &LegalizedScalarFunction,
+        function: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &impl crate::selection::construction::scalar_graph::call_arguments::InvocationArgumentSource,
         source: &StructuralArgument,
@@ -678,7 +674,7 @@ pub(crate) mod descriptor_operands {
     }
 
     pub(crate) fn backing(
-        function: &LegalizedScalarFunction,
+        function: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &impl crate::selection::construction::scalar_graph::call_arguments::InvocationArgumentSource,
         source: &StructuralArgument,
@@ -760,7 +756,7 @@ pub(crate) mod descriptor_operands {
     }
 
     pub(crate) fn element_stride(
-        function: &LegalizedScalarFunction,
+        function: &crate::native_geometry::NativeFunction<'_>,
         source: &StructuralArgument,
     ) -> Option<u32> {
         let (_, StructuralTypeShape::ElementView { element, .. }) =
@@ -768,13 +764,13 @@ pub(crate) mod descriptor_operands {
         else {
             return None;
         };
-        let signature = function.structural.as_ref()?;
-        let shape = geometry::shape(element, &signature.structural_types)?;
+        function.structural.as_ref()?;
+        let shape = geometry::shape(element, function.geometry())?;
         geometry::align(shape.byte_size, shape.alignment).filter(|stride| *stride != 0)
     }
 
     fn stored_address(
-        function: &LegalizedScalarFunction,
+        function: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &impl crate::selection::construction::scalar_graph::call_arguments::InvocationArgumentSource,
         source: &StructuralArgument,
@@ -812,7 +808,7 @@ pub(crate) mod descriptor_operands {
     }
 
     pub(crate) fn view_words(
-        function: &LegalizedScalarFunction,
+        function: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &impl crate::selection::construction::scalar_graph::call_arguments::InvocationArgumentSource,
         source: &StructuralArgument,
@@ -881,10 +877,7 @@ pub(crate) use crate::selection_interrupts::interrupt_installation_calls;
 pub(crate) use crate::selection_interrupts::interrupt_installation_guards;
 pub(crate) mod leaf_copy {
     use super::runtime_address::{cross_references, footprint, projection_origin, scale};
-    use super::{
-        Builder, LegalizedScalarFunction, LegalizedScalarInstruction,
-        LegalizedScalarInstructionKind,
-    };
+    use super::{Builder, LegalizedScalarInstruction, LegalizedScalarInstructionKind};
     use crate::SelectedInstructionError;
     use crate::selection::aggregate_result_input::{block_home, inline_argument_fragments};
     use crate::selection::construction::scalar_graph::structural::invalid;
@@ -897,7 +890,7 @@ pub(crate) mod leaf_copy {
     use selected_instructions::VirtualRegisterId;
 
     pub(crate) fn copy(
-        function: &LegalizedScalarFunction,
+        function: &crate::native_geometry::NativeFunction<'_>,
         row: &LegalizedScalarInstruction,
         builder: &mut Builder<'_>,
     ) -> Result<(), SelectedInstructionError> {
@@ -932,25 +925,20 @@ pub(crate) mod leaf_copy {
             .map(|(_, pointer)| *pointer);
         let geometry = match path {
             abstract_operations::StructuralCopyPath::Ordinary(path) if !path.is_empty() => {
-                let signature = function.structural.as_ref().ok_or(invalid())?;
+                function.structural.as_ref().ok_or(invalid())?;
                 let root = crate::selection::reference_input::root_type(function, *source)
                     .ok_or(invalid())?;
                 Some(
-                    leaf_copy_geometry(
-                        root,
-                        path,
-                        result.structural_type,
-                        &signature.structural_types,
-                    )
-                    .filter(|geometry| geometry.readable)
-                    .ok_or(invalid())?,
+                    leaf_copy_geometry(root, path, result.structural_type, function.geometry())
+                        .filter(|geometry| geometry.readable)
+                        .ok_or(invalid())?,
                 )
             }
             abstract_operations::StructuralCopyPath::Case(path) => {
-                let signature = function.structural.as_ref().ok_or(invalid())?;
+                function.structural.as_ref().ok_or(invalid())?;
                 let root = crate::selection::reference_input::root_type(function, *source)
                     .ok_or(invalid())?;
-                Some(case_projection(root, path, &signature.structural_types).ok_or(invalid())?)
+                Some(case_projection(root, path, function.geometry()).ok_or(invalid())?)
             }
             _ => None,
         };
@@ -1007,7 +995,7 @@ pub(crate) mod leaf_copy {
     }
 
     pub(crate) fn reseat(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         row: &LegalizedScalarInstruction,
         builder: &mut Builder<'_>,
     ) -> Result<(), SelectedInstructionError> {
@@ -1057,11 +1045,8 @@ pub(crate) mod leaf_copy {
                 .extend(row.work.iter().cloned());
             return Ok(());
         }
-        let types = &source
-            .structural
-            .as_ref()
-            .ok_or(invalid())?
-            .structural_types;
+        source.structural.as_ref().ok_or(invalid())?;
+        let types = source.geometry();
         let projection = terminal_semantics::structural_window_projection(
             types.iter(),
             destination.structural_type(),
@@ -1135,7 +1120,7 @@ pub(crate) mod leaf_copy {
 
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn copy_operand(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         row: &LegalizedScalarInstruction,
         builder: &mut Builder<'_>,
         argument: &terminal_psi::StructuralArgument,
@@ -1185,18 +1170,17 @@ pub(crate) mod leaf_copy {
     }
 
     pub(crate) fn project_operand<'indices>(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         row: &LegalizedScalarInstruction,
         builder: &mut Builder<'_>,
         argument: &terminal_psi::StructuralArgument,
         indices: &'indices [legalized_operations::LegalizedRuntimeIndexOperand],
     ) -> Result<ProjectedOperand<'indices>, SelectedInstructionError> {
-        let signature = source.structural.as_ref().ok_or_else(invalid)?;
+        source.structural.as_ref().ok_or_else(invalid)?;
         let root = crate::selection::reference_input::root_type(source, argument.place)
             .ok_or_else(invalid)?;
-        let geometry =
-            reference_formation_geometry(root, &argument.path, &signature.structural_types)
-                .ok_or_else(invalid)?;
+        let geometry = reference_formation_geometry(root, &argument.path, source.geometry())
+            .ok_or_else(invalid)?;
         if !geometry.readable
             || !crate::structural_inputs::runtime_indices_match(indices, &geometry.elements)
         {
@@ -1270,7 +1254,7 @@ pub(crate) mod leaf_copy {
 
     #[allow(clippy::too_many_arguments)]
     fn copy_from_fragments(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         row: &LegalizedScalarInstruction,
         place: &semantic_vocabulary::PlaceId,
         destination: CopyEnd<'_>,
@@ -1644,7 +1628,7 @@ pub(crate) mod local_storage {
 pub(crate) use crate::selection_interrupts::static_interrupts;
 
 pub(crate) fn establish_atomic_outcome(
-    source: &LegalizedScalarFunction,
+    source: &crate::native_geometry::NativeFunction<'_>,
     row: &LegalizedScalarInstruction,
     builder: &mut Builder<'_>,
     observed: VirtualRegisterId,
@@ -1655,15 +1639,14 @@ pub(crate) fn establish_atomic_outcome(
 }
 pub(crate) mod activation_storage {
     use super::{
-        Builder, LegalizedScalarFunction, LegalizedScalarInstruction,
-        LegalizedScalarInstructionKind, SelectedInstructionKind, SelectedMemoryAccessRole, memory,
-        provenance, transport_register,
+        Builder, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
+        SelectedInstructionKind, SelectedMemoryAccessRole, memory, provenance, transport_register,
     };
     use crate::SelectedInstructionError;
     use semantic_vocabulary::IntegerValue;
 
     pub(crate) fn emit(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &LegalizedScalarInstruction,
     ) -> Result<(), SelectedInstructionError> {
@@ -1693,11 +1676,8 @@ pub(crate) mod activation_storage {
         else {
             return Err(invalid());
         };
-        let declarations = &source
-            .structural
-            .as_ref()
-            .ok_or_else(invalid)?
-            .structural_types;
+        source.structural.as_ref().ok_or_else(invalid)?;
+        let declarations = source.geometry();
         let declaration = declarations
             .iter()
             .find(|ty| ty.id == result.structural_type)
@@ -1911,7 +1891,7 @@ pub(crate) mod native_code_layout {
     use crate::SelectedInstructionError;
 
     pub(crate) fn establish(
-        source: &legalized_operations::LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &LegalizedScalarInstruction,
     ) -> Result<(), SelectedInstructionError> {
@@ -1963,8 +1943,8 @@ pub(crate) use local_storage::{byte_field_argument, fixed_array_argument};
 pub(crate) mod case_membership {
     use super::runtime_address::{cross_references, projection_origin, scale};
     use super::{
-        Builder, LegalizedScalarFunction, LegalizedScalarInstruction,
-        LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind, VirtualRegisterId,
+        Builder, LegalizedScalarInstruction, LegalizedScalarInstructionKind, ScalarType,
+        SelectedInstructionKind, VirtualRegisterId,
     };
     use crate::SelectedInstructionError;
     use crate::selection::construction::scalar_graph::IntegerValue;
@@ -1973,46 +1953,31 @@ pub(crate) mod case_membership {
     use crate::selection::construction::scalar_graph::structural::transport_register;
 
     pub(crate) fn observe(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &LegalizedScalarInstruction,
     ) -> Result<VirtualRegisterId, SelectedInstructionError> {
         let LegalizedScalarInstructionKind::StructuralCaseMembership {
             source: place,
             path,
-            case,
             case_tag,
             tag_byte_offset,
             indices,
+            pointer_slots,
+            ..
         } = &row.kind
         else {
             return Err(invalid());
         };
         let result = row.result.ok_or_else(|| invalid())?;
-        let Some((expected_tag, expected_offset, geometry)) =
-            crate::selection::aggregate_result_input::membership_layout(
-                source, *place, path, *case,
-            )
-        else {
-            return Err(invalid());
-        };
-        if result.scalar_type != ScalarType::Boolean
-            || (expected_tag, expected_offset) != (*case_tag, *tag_byte_offset)
-            || !crate::structural_inputs::runtime_indices_match(indices, &geometry.elements)
-        {
+        if result.scalar_type != ScalarType::Boolean {
             return Err(invalid());
         }
         let place = *place;
         let tag = transport_register(builder, place, *tag_byte_offset)?;
         let provenance = operation_provenance(row, vec![result.value]);
-        let (pointer, pointer_slots) = projection_origin(
-            source,
-            builder,
-            row,
-            place,
-            *tag_byte_offset,
-            &geometry.pointer_slots,
-        )?;
+        let (pointer, pointer_slots) =
+            projection_origin(source, builder, row, place, *tag_byte_offset, pointer_slots)?;
         if let Some(pointer) = pointer {
             let (pointer, leaf_index) =
                 cross_references(builder, row, place, pointer, indices, pointer_slots)?;
@@ -2080,14 +2045,14 @@ pub(crate) mod case_membership {
 pub(crate) mod descriptor_tables {
     use super::primitive_locals::borrowed_storage_address;
     use super::{
-        Builder, LegalizedScalarFunction, LegalizedScalarInstruction,
-        LegalizedScalarInstructionKind, SelectedInstructionKind, SelectedMemoryAccessRole, invalid,
-        memory, provenance, transport_register,
+        Builder, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
+        SelectedInstructionKind, SelectedMemoryAccessRole, invalid, memory, provenance,
+        transport_register,
     };
     use crate::SelectedInstructionError;
 
     pub(crate) fn emit(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &LegalizedScalarInstruction,
     ) -> Result<bool, SelectedInstructionError> {
@@ -2283,9 +2248,8 @@ pub(crate) mod primitive_locals {
         cross_references, footprint, projection_origin, scalar_reference, scale,
     };
     use super::{
-        Builder, IntegerSign, LegalizedScalarFunction, LegalizedScalarInstruction,
-        LegalizedScalarInstructionKind, ScalarType, SelectedMemoryAccessRole, VirtualRegisterId,
-        memory,
+        Builder, IntegerSign, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
+        ScalarType, SelectedMemoryAccessRole, VirtualRegisterId, memory,
     };
     use crate::SelectedInstructionError;
     use crate::selection::construction::scalar_graph::structural::invalid;
@@ -2298,7 +2262,7 @@ pub(crate) mod primitive_locals {
     use selected_instructions::LocalStorageSlotId;
 
     pub(crate) fn write(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         row: &LegalizedScalarInstruction,
         builder: &mut Builder<'_>,
     ) -> Result<(), SelectedInstructionError> {
@@ -2373,7 +2337,7 @@ pub(crate) mod primitive_locals {
         Ok(())
     }
     pub(crate) fn read(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &LegalizedScalarInstruction,
     ) -> Result<VirtualRegisterId, SelectedInstructionError> {
@@ -2506,7 +2470,7 @@ pub(crate) mod primitive_locals {
     }
 
     pub(crate) fn address(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &LegalizedScalarInstruction,
     ) -> Result<VirtualRegisterId, SelectedInstructionError> {
@@ -2522,7 +2486,7 @@ pub(crate) mod primitive_locals {
     }
 
     fn projected_address(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &LegalizedScalarInstruction,
     ) -> Result<VirtualRegisterId, SelectedInstructionError> {
@@ -2540,20 +2504,20 @@ pub(crate) mod primitive_locals {
     }
 
     pub(crate) fn borrowed_storage_address(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &LegalizedScalarInstruction,
         argument: &terminal_psi::StructuralArgument,
         indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
     ) -> Result<(VirtualRegisterId, u32), SelectedInstructionError> {
-        let signature = source.structural.as_ref().ok_or_else(invalid)?;
+        source.structural.as_ref().ok_or_else(invalid)?;
         let root = crate::selection::reference_input::root_type(source, argument.place)
             .ok_or_else(invalid)?;
         let geometry =
             crate::structural_inputs::structural_reference_input::storage_address_geometry(
                 root,
                 &argument.path,
-                &signature.structural_types,
+                source.geometry(),
             )
             .ok_or_else(invalid)?;
         if !crate::structural_inputs::runtime_indices_match(indices, &geometry.elements) {
@@ -2572,7 +2536,7 @@ pub(crate) mod primitive_locals {
     }
 
     fn resolve_projected_address(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &LegalizedScalarInstruction,
         place: semantic_vocabulary::PlaceId,
@@ -2601,7 +2565,7 @@ pub(crate) mod primitive_locals {
     }
 
     pub(crate) fn global_descriptor_table(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &LegalizedScalarInstruction,
     ) -> Result<bool, SelectedInstructionError> {
@@ -2647,8 +2611,8 @@ pub(crate) use case_membership::observe;
 pub(crate) use descriptor_tables::emit as descriptor_tables;
 pub(crate) mod indirect_results {
     use super::{
-        Builder, LegalizedScalarFunction, LegalizedScalarInstruction, PlaceId,
-        SelectedInstructionKind, SelectedInstructionProvenance, VirtualRegisterId,
+        Builder, LegalizedScalarInstruction, PlaceId, SelectedInstructionKind,
+        SelectedInstructionProvenance, VirtualRegisterId,
     };
     use crate::SelectedInstructionError;
     use crate::selection::aggregate_result_input::{call_completion, indirect_result};
@@ -2658,7 +2622,7 @@ pub(crate) mod indirect_results {
     use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 
     pub(crate) fn entry(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         environment: &register_environment::ValidatedTargetRegisterEnvironment,
         builder: &mut Builder<'_>,
     ) -> Result<(), SelectedInstructionError> {
@@ -2675,7 +2639,7 @@ pub(crate) mod indirect_results {
         }
         let signature = source.structural.as_ref().ok_or_else(|| invalid())?;
         let result = signature.result.as_ref().ok_or_else(|| invalid())?;
-        if crate::structural_inputs::shape(result.structural_type, &signature.structural_types)
+        if crate::structural_inputs::shape(result.structural_type, source.geometry())
             != Some(placement.shape)
         {
             return Err(invalid());
@@ -2692,7 +2656,7 @@ pub(crate) mod indirect_results {
     }
 
     pub(crate) fn prepare_call(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         row: &LegalizedScalarInstruction,
         builder: &mut Builder<'_>,
     ) -> Result<Option<VirtualRegisterId>, SelectedInstructionError> {
@@ -2728,7 +2692,7 @@ pub(crate) mod indirect_results {
     }
 
     pub(crate) fn finish_call(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         row: &LegalizedScalarInstruction,
         builder: &mut Builder<'_>,
     ) -> Result<(), SelectedInstructionError> {
@@ -2744,7 +2708,7 @@ pub(crate) mod indirect_results {
     }
 
     pub(crate) fn returned(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         block: &legalized_operations::LegalizedScalarBlock,
         returned: &legalized_operations::LegalizedScalarReturn,
         place: PlaceId,
@@ -2831,9 +2795,8 @@ pub(crate) mod indirect_results {
 pub(crate) mod record {
     use super::encoded_scalar::{backing_address, constant_codec};
     use super::{
-        Builder, LegalizedScalarFunction, LegalizedScalarInstruction,
-        LegalizedScalarInstructionKind, PlaceId, SelectedInstructionProvenance,
-        SelectedMemoryAccessRole, VirtualRegisterId, memory,
+        Builder, LegalizedScalarInstruction, LegalizedScalarInstructionKind, PlaceId,
+        SelectedInstructionProvenance, SelectedMemoryAccessRole, VirtualRegisterId, memory,
     };
     use crate::SelectedInstructionError;
     use crate::selection::construction::scalar_graph::structural::invalid;
@@ -2845,7 +2808,7 @@ pub(crate) mod record {
         scalar_field_codec, scalar_field_fragments,
     };
     pub(crate) fn establish(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         row: &LegalizedScalarInstruction,
         builder: &mut Builder<'_>,
     ) -> Result<(), SelectedInstructionError> {
@@ -2919,7 +2882,7 @@ pub(crate) mod record {
     }
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn write_fields(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         row: &LegalizedScalarInstruction,
         builder: &mut Builder<'_>,
         destination: PlaceId,
@@ -2948,11 +2911,8 @@ pub(crate) mod record {
                     if Some(scalar) != expected_scalar {
                         return Err(invalid());
                     }
-                    let declarations = &source
-                        .structural
-                        .as_ref()
-                        .ok_or_else(invalid)?
-                        .structural_types;
+                    source.structural.as_ref().ok_or_else(invalid)?;
+                    let declarations = source.geometry();
                     if let Some(fragments) =
                         scalar_field_fragments(parent, &[], initializer.field, declarations)
                     {
@@ -3078,7 +3038,7 @@ pub(crate) mod record {
 
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn write_structural_operand(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         row: &LegalizedScalarInstruction,
         builder: &mut Builder<'_>,
         destination: PlaceId,
@@ -3106,14 +3066,14 @@ pub(crate) mod record {
 pub(crate) mod reference {
     use super::runtime_address::{cross_references, footprint, projection_origin, scale};
     use super::{
-        Builder, LegalizedScalarFunction, LegalizedScalarInstruction,
-        LegalizedScalarInstructionKind, SelectedMemoryAccessRole, invalid, memory, place_pointer,
-        provenance, transport_at_byte_offset, transport_register,
+        Builder, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
+        SelectedMemoryAccessRole, invalid, memory, place_pointer, provenance,
+        transport_at_byte_offset, transport_register,
     };
     use crate::SelectedInstructionError;
 
     pub(crate) fn establish(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         row: &LegalizedScalarInstruction,
         builder: &mut Builder<'_>,
     ) -> Result<(), SelectedInstructionError> {
@@ -3382,16 +3342,16 @@ pub(crate) mod reference {
 pub(crate) use local_storage::descriptor as stage_descriptor;
 pub(crate) mod ieee_float_classify {
     use super::{
-        Builder, LegalizedScalarFunction, LegalizedScalarInstruction,
-        LegalizedScalarInstructionKind, SelectedInstructionKind, SelectedMemoryAccessRole, invalid,
-        local_storage, memory, provenance, transport_register,
+        Builder, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
+        SelectedInstructionKind, SelectedMemoryAccessRole, invalid, local_storage, memory,
+        provenance, transport_register,
     };
     use crate::SelectedInstructionError;
     use selected_instructions::{IeeeFloatArithmeticForm, LocalStorageSlotId, MachineSemanticKind};
     use target_operations::IeeeFloatArithmeticOperation;
 
     pub(crate) fn establish(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &LegalizedScalarInstruction,
     ) -> Result<(), SelectedInstructionError> {
@@ -3405,9 +3365,9 @@ pub(crate) mod ieee_float_classify {
         else {
             return Err(invalid());
         };
-        let signature = source.structural.as_ref().ok_or_else(invalid)?;
+        source.structural.as_ref().ok_or_else(invalid)?;
         let declaration =
-            terminal_psi::find_structural_type(&signature.structural_types, result.structural_type)
+            terminal_psi::find_structural_type(source.geometry(), result.structural_type)
                 .ok_or_else(invalid)?;
         if !result.is_unrestricted_plain()
             || !result.qualification_establishments.is_empty()
@@ -3473,15 +3433,15 @@ pub(crate) mod ieee_float_classify {
 }
 pub(crate) mod scalar_array {
     use super::{
-        Builder, LegalizedScalarFunction, LegalizedScalarInstruction,
-        SelectedInstructionProvenance, SelectedMemoryAccessRole, memory,
+        Builder, LegalizedScalarInstruction, SelectedInstructionProvenance,
+        SelectedMemoryAccessRole, memory,
     };
     use crate::SelectedInstructionError;
     use crate::selection::construction::scalar_graph::structural::local_storage;
     use crate::selection::construction::scalar_graph::structural::provenance;
 
     pub(crate) fn establish(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         row: &LegalizedScalarInstruction,
         builder: &mut Builder<'_>,
     ) -> Result<(), SelectedInstructionError> {
@@ -3538,9 +3498,8 @@ pub(crate) mod scalar_array {
 }
 pub(crate) mod scalar_case {
     use super::{
-        Builder, LegalizedScalarFunction, LegalizedScalarInstruction,
-        LegalizedScalarInstructionKind, SelectedInstructionProvenance, SelectedMemoryAccessRole,
-        VirtualRegisterId, memory,
+        Builder, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
+        SelectedInstructionProvenance, SelectedMemoryAccessRole, VirtualRegisterId, memory,
     };
     use crate::SelectedInstructionError;
     use crate::selection::construction::scalar_graph::structural::invalid;
@@ -3549,7 +3508,7 @@ pub(crate) mod scalar_case {
     use crate::selection::construction::scalar_graph::{IntegerValue, ValueId};
 
     pub(crate) fn establish(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         row: &LegalizedScalarInstruction,
         builder: &mut Builder<'_>,
     ) -> Result<(), SelectedInstructionError> {
@@ -3621,13 +3580,11 @@ pub(crate) mod scalar_case {
 pub(crate) mod structural_array {
     use super::Builder;
     use super::record;
-    use super::{
-        LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
-    };
+    use super::{LegalizedScalarInstruction, LegalizedScalarInstructionKind};
     use crate::SelectedInstructionError;
 
     pub(crate) fn establish(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         row: &LegalizedScalarInstruction,
         builder: &mut Builder<'_>,
     ) -> Result<(), SelectedInstructionError> {
@@ -3660,11 +3617,11 @@ pub(crate) mod structural_array {
     }
 }
 pub(crate) mod structural_local {
-    use super::{Builder, LegalizedScalarFunction, LegalizedScalarInstruction};
+    use super::{Builder, LegalizedScalarInstruction};
     use crate::SelectedInstructionError;
 
     pub(crate) fn establish(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         row: &LegalizedScalarInstruction,
         builder: &mut Builder<'_>,
     ) -> Result<(), SelectedInstructionError> {
@@ -3726,8 +3683,7 @@ pub(crate) mod zero_fill {
 }
 pub(crate) mod zeroed {
     use super::{
-        Builder, LegalizedScalarFunction, LegalizedScalarInstruction, SelectedMemoryAccessRole,
-        memory, transport_register,
+        Builder, LegalizedScalarInstruction, SelectedMemoryAccessRole, memory, transport_register,
     };
     use crate::SelectedInstructionError;
     use crate::selection::construction::scalar_graph::structural::local_storage;
@@ -3736,7 +3692,7 @@ pub(crate) mod zeroed {
     use semantic_vocabulary::{IntegerValue, PlaceId};
 
     pub(crate) fn establish(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         row: &LegalizedScalarInstruction,
         builder: &mut Builder<'_>,
     ) -> Result<(), SelectedInstructionError> {
@@ -4395,7 +4351,7 @@ pub(crate) mod runtime_address {
     use semantic_vocabulary::{IntegerValue, PlaceId, ValueId};
 
     pub(crate) fn projection_base(
-        source: &super::LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &impl crate::selection::construction::scalar_graph::call_arguments::InvocationArgumentSource,
         place: PlaceId,
@@ -4431,19 +4387,56 @@ pub(crate) mod runtime_address {
         Ok(Some(base))
     }
 
-    pub(crate) fn projection_origin<'slots>(
-        source: &super::LegalizedScalarFunction,
+    pub(crate) trait PreparedPointerChase {
+        fn byte_offset(&self) -> u32;
+        fn index_range(&self) -> Option<std::ops::Range<usize>>;
+        fn scalar_descriptor(&self) -> bool;
+    }
+
+    impl PreparedPointerChase for PointerSlot {
+        fn byte_offset(&self) -> u32 {
+            self.byte_offset
+        }
+
+        fn index_range(&self) -> Option<std::ops::Range<usize>> {
+            Some(self.indices.clone())
+        }
+
+        fn scalar_descriptor(&self) -> bool {
+            self.scalar_descriptor
+        }
+    }
+
+    impl PreparedPointerChase for target_operations::TargetCasePointerSlot {
+        fn byte_offset(&self) -> u32 {
+            self.byte_offset
+        }
+
+        fn index_range(&self) -> Option<std::ops::Range<usize>> {
+            Some(usize::try_from(self.index_start).ok()?..usize::try_from(self.index_end).ok()?)
+        }
+
+        fn scalar_descriptor(&self) -> bool {
+            self.scalar_descriptor
+        }
+    }
+
+    pub(crate) fn projection_origin<'slots, Slot: PreparedPointerChase>(
+        source: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &impl crate::selection::construction::scalar_graph::call_arguments::InvocationArgumentSource,
         place: PlaceId,
         byte_offset: u32,
-        mut slots: &'slots [PointerSlot],
-    ) -> Result<(Option<VirtualRegisterId>, &'slots [PointerSlot]), SelectedInstructionError> {
+        mut slots: &'slots [Slot],
+    ) -> Result<(Option<VirtualRegisterId>, &'slots [Slot]), SelectedInstructionError> {
         let root_view =
             view_type(source, place).is_some() || element_view_type(source, place).is_some();
         let pointer = if root_view {
             if let Some(first) = slots.first() {
-                if first.byte_offset != 0 || first.indices != (0..0) || first.scalar_descriptor {
+                if first.byte_offset() != 0
+                    || first.index_range() != Some(0..0)
+                    || first.scalar_descriptor()
+                {
                     return Err(invalid());
                 }
                 slots = &slots[1..];
@@ -4625,13 +4618,13 @@ pub(crate) mod runtime_address {
         Ok(())
     }
 
-    pub(crate) fn cross_references(
+    pub(crate) fn cross_references<Slot: PreparedPointerChase>(
         builder: &mut Builder<'_>,
         row: &impl crate::selection::construction::scalar_graph::call_arguments::InvocationArgumentSource,
         place: PlaceId,
         pointer: VirtualRegisterId,
         indices: &[LegalizedRuntimeIndexOperand],
-        pointer_slots: &[PointerSlot],
+        pointer_slots: &[Slot],
     ) -> Result<(VirtualRegisterId, usize), SelectedInstructionError> {
         cross_references_at_site(
             builder,
@@ -4646,26 +4639,27 @@ pub(crate) mod runtime_address {
         )
     }
 
-    pub(crate) fn cross_references_at_site(
+    pub(crate) fn cross_references_at_site<Slot: PreparedPointerChase>(
         builder: &mut Builder<'_>,
         provenance: SelectedInstructionProvenance,
         origin: selected_instructions::SelectedMemoryAccessOrigin,
         place: PlaceId,
         mut pointer: VirtualRegisterId,
         indices: &[LegalizedRuntimeIndexOperand],
-        pointer_slots: &[PointerSlot],
+        pointer_slots: &[Slot],
     ) -> Result<(VirtualRegisterId, usize), SelectedInstructionError> {
         let mut leaf_index = 0;
         for slot in pointer_slots {
-            if slot.scalar_descriptor {
+            if slot.scalar_descriptor() {
                 return Err(invalid());
             }
-            let slot_indices = indices.get(slot.indices.clone()).ok_or(invalid())?;
+            let range = slot.index_range().ok_or(invalid())?;
+            let slot_indices = indices.get(range.clone()).ok_or(invalid())?;
             let address = scale_at_site(
                 builder,
                 provenance.clone(),
                 place,
-                slot.byte_offset,
+                slot.byte_offset(),
                 pointer,
                 slot_indices,
             )?;
@@ -4673,7 +4667,7 @@ pub(crate) mod runtime_address {
                 builder,
                 place,
                 address,
-                slot.byte_offset,
+                slot.byte_offset(),
                 8,
                 provenance.clone(),
             )?;
@@ -4681,21 +4675,21 @@ pub(crate) mod runtime_address {
                 builder,
                 origin,
                 place,
-                slot.byte_offset,
+                slot.byte_offset(),
                 8,
                 slot_indices,
                 Written::None,
             )?;
-            let loaded = super::transport_register(builder, place, slot.byte_offset)?;
+            let loaded = super::transport_register(builder, place, slot.byte_offset())?;
             builder.emit_load64(displacement, address, loaded, provenance.clone())?;
             pointer = loaded;
-            leaf_index = slot.indices.end;
+            leaf_index = range.end;
         }
         Ok((pointer, leaf_index))
     }
 
     pub(crate) fn scalar_reference(
-        source: &super::LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &impl crate::selection::construction::scalar_graph::call_arguments::InvocationArgumentSource,
         place: PlaceId,
@@ -4757,10 +4751,7 @@ pub(crate) mod runtime_address {
     }
 }
 pub(crate) mod scalar_store {
-    use super::{
-        Builder, LegalizedScalarFunction, LegalizedScalarInstruction,
-        LegalizedScalarInstructionKind,
-    };
+    use super::{Builder, LegalizedScalarInstruction, LegalizedScalarInstructionKind};
     use crate::SelectedInstructionError;
     use crate::selection::construction::scalar_graph::structural::invalid;
     use crate::selection::construction::scalar_graph::structural::operation_provenance;
@@ -4771,7 +4762,7 @@ pub(crate) mod scalar_store {
     };
 
     pub(crate) fn emit(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         row: &LegalizedScalarInstruction,
         builder: &mut Builder<'_>,
     ) -> Result<(), SelectedInstructionError> {
@@ -4793,7 +4784,7 @@ pub(crate) mod scalar_store {
                 byte_size,
                 indices,
             } => {
-                let signature = source.structural.as_ref().ok_or_else(|| invalid())?;
+                source.structural.as_ref().ok_or_else(|| invalid())?;
                 let reference = crate::selection::reference_input::store_destination(
                     source,
                     destination,
@@ -4805,7 +4796,7 @@ pub(crate) mod scalar_store {
                     path,
                     *field,
                     value.scalar_type,
-                    &signature.structural_types,
+                    source.geometry(),
                 )
                 .ok_or_else(|| invalid())?;
                 if (geometry.byte_offset, geometry.byte_size) != (*byte_offset, *byte_size)
@@ -4833,14 +4824,10 @@ pub(crate) mod scalar_store {
                 byte_size,
                 indices,
             } => {
-                let signature = source.structural.as_ref().ok_or_else(|| invalid())?;
-                let geometry = primitive_store(
-                    destination,
-                    path,
-                    value.scalar_type,
-                    &signature.structural_types,
-                )
-                .ok_or_else(|| invalid())?;
+                source.structural.as_ref().ok_or_else(|| invalid())?;
+                let geometry =
+                    primitive_store(destination, path, value.scalar_type, source.geometry())
+                        .ok_or_else(|| invalid())?;
                 if (geometry.byte_offset, geometry.byte_size)
                     != (*byte_offset, u32::from(*byte_size))
                     || !runtime_indices_match(indices, &geometry.elements)
@@ -4933,11 +4920,8 @@ pub(crate) mod scalar_store {
             pointer,
             leaf_indices,
         )?;
-        let declarations = &source
-            .structural
-            .as_ref()
-            .ok_or_else(|| invalid())?
-            .structural_types;
+        source.structural.as_ref().ok_or_else(|| invalid())?;
+        let declarations = source.geometry();
         if let LegalizedScalarInstructionKind::StructuralScalarFieldStore { path, field, .. } =
             &row.kind
             && let Some(fragments) =
@@ -5038,7 +5022,7 @@ pub(crate) mod scalar_store {
 }
 pub(crate) mod subslice {
     use super::{
-        Builder, IntegerSign, IntegerType, LegalizedScalarFunction, LegalizedScalarInstruction,
+        Builder, IntegerSign, IntegerType, LegalizedScalarInstruction,
         LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
         SelectedInstructionProvenance, obligation_provenance,
     };
@@ -5048,7 +5032,7 @@ pub(crate) mod subslice {
     use crate::selection::construction::scalar_graph::structural::transport_register;
 
     pub(crate) fn create(
-        function: &LegalizedScalarFunction,
+        function: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &LegalizedScalarInstruction,
     ) -> Result<(), SelectedInstructionError> {
@@ -5350,7 +5334,7 @@ pub(crate) fn place_pointer_at_site(
 }
 
 pub(crate) fn view_element_pointer(
-    source: &LegalizedScalarFunction,
+    source: &crate::native_geometry::NativeFunction<'_>,
     builder: &mut Builder<'_>,
     row: &impl crate::selection::construction::scalar_graph::call_arguments::InvocationArgumentSource,
     place: PlaceId,
@@ -5379,7 +5363,7 @@ macro_rules! dispatch_kind {
 
 pub(crate) fn operation(
     function: usize,
-    source: &LegalizedScalarFunction,
+    source: &crate::native_geometry::NativeFunction<'_>,
     block: SelectedBlockId,
     block_start: usize,
     row: &LegalizedScalarInstruction,
@@ -5728,7 +5712,7 @@ pub(crate) fn transport_at_byte_offset(
 }
 
 pub(crate) fn storage_address(
-    source: &LegalizedScalarFunction,
+    source: &crate::native_geometry::NativeFunction<'_>,
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {

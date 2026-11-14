@@ -20,15 +20,15 @@ the resulting unestablished guarantee.
 
 | Place | Positive | Invalid control |
 | --- | --- | --- |
-| Local | [source](local/main.omg) | [source](local/invalid/main.omg) |
-| Field | [source](field/main.omg) | [source](field/invalid/main.omg) |
-| Parameter | [source](parameter/main.omg) | [source](parameter/invalid/main.omg) |
-| Call result | [source](call_result/main.omg) | [source](call_result/invalid/main.omg) |
-| Match join | [source](match_join/main.omg) | [source](match_join/invalid/main.omg) |
-| Const name | [source](const_name/main.omg) | [source](const_name/invalid/main.omg) |
-| Nested machine | [source](other_state/main.omg) | [source](other_state/invalid/main.omg) |
-| Another machine | [source](other_machine/main.omg) | [source](other_machine/invalid/main.omg) |
-| Selected implementation | [source](target_body/main.omg) | [source](target_body/invalid/main.omg) |
+| Local | [source](local/main.omg) | [source](invalid_local/main.omg) |
+| Field | [source](field/main.omg) | [source](invalid_field/main.omg) |
+| Parameter | [source](parameter/main.omg) | [source](invalid_parameter/main.omg) |
+| Call result | [source](call_result/main.omg) | [source](invalid_call_result/main.omg) |
+| Match join | [source](match_join/main.omg) | [source](invalid_match_join/main.omg) |
+| Const name | [source](const_name/main.omg) | [source](invalid_const_name/main.omg) |
+| Nested machine | [source](other_state/main.omg) | [source](invalid_other_state/main.omg) |
+| Another machine | [source](other_machine/main.omg) | [source](invalid_other_machine/main.omg) |
+| Selected implementation | [source](target_body/main.omg) | [source](invalid_target_body/main.omg) |
 
 Every twin changes only Choice's left bound from 60 to 61. The selected callee
 still requires `left <= 60 || right <= 60`. The expected refusal names either

@@ -6,7 +6,7 @@ then none; filtering an empty result stays empty. Nonzero-offset backing retains
 both surrounding sentinels. Expected native and Terminal exit: 0.
 
 ```sh
-omega update --project samples/cli/collections/repeated_partition_scan --target macos_arm64 --offline --dangerously-accept-all
+omega packages update --project samples/cli/collections/repeated_partition_scan --target macos_arm64 --offline --dangerously-accept-all
 omega run --both samples/cli/collections/repeated_partition_scan/main.omg
 ```
 

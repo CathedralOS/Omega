@@ -32,7 +32,7 @@ The board item asked to compare the two custody shapes before selecting:
   receipt whose support bytes exist only as emitter outputs. Its sole saving
   is that the compiler needs no sealed-input extension.
 - **Byte-only materialization** (selected) authors each runtime member once
-  as ordinary Gamma, packs it through the generic `source_closure.py`
+  as ordinary Gamma, packs it through the generic `mbx xtask source-closure`
   manifest mechanism - ordered identities, exact lengths, per-member digests,
   inventory equality, atomic destination - and carries the packed section in
   the sealed input. The compiler validates member extents and byte sums

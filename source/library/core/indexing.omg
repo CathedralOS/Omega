@@ -1,0 +1,25 @@
+module indexing;
+
+// The sealed compiler supplies these operations. Their ordinary contracts
+// govern every application; descriptor construction supplies no bounds proof.
+public machine [] read<'backing, Element [copy]>(
+    items: &'backing [Element], index: u64
+) -> Element
+reaches none
+requires index < items.len
+crashes none;
+
+public machine [..] range<'backing, Element>(
+    items: &'backing [Element], start: u64, end: u64
+) -> &'backing [Element]
+reaches none
+requires start <= end && end <= items.len
+ensures result.len == end - start
+crashes none;
+
+public machine view<'backing, Element, const Extent: u64>(
+    items: &'backing [Element; Extent]
+) -> &'backing [Element]
+reaches none
+ensures result.len == Extent
+crashes none;

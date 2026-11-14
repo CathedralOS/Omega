@@ -848,6 +848,10 @@ pub(crate) fn physical_evidence_gap_identity(
         b"omega.native-physical-evidence-gap.sha256.v1\0",
     );
     match subject {
+        NativePhysicalEvidenceGapSubject::UncoveredPrivateFunction { function } => {
+            digest.byte(8);
+            hash_machine_function_identity(&mut digest, *function);
+        }
         NativePhysicalEvidenceGapSubject::ForeignCallSiteOwner { machine, owner } => {
             digest.byte(2);
             digest.raw(&machine.get().to_le_bytes());

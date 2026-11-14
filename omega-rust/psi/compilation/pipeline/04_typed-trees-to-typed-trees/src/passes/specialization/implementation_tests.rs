@@ -438,6 +438,13 @@ fn a_call_through_an_implementation_parameter_enters_the_selected_operation() {
     assert_eq!(dispatch.requirement, requirement);
     assert_eq!(dispatch.realization_machine, hold_apply);
     assert_eq!(dispatch.realization_state, hold_apply_state);
+    // Retained typed trees recover the same exact selection, without a second
+    // application or contract signature for the reader to rediscover.
+    let limits = compiler_storage::RecordLimits::default();
+    let encoded = compiler_storage::encode(dispatch, limits).unwrap();
+    let recovered: typed_trees::StaticRequirementDispatch =
+        compiler_storage::decode(&encoded, limits).unwrap();
+    assert_eq!(&recovered, dispatch);
     // The call still records what the author named: the parameter's requirement.
     assert_eq!(
         through.authored_call_binding.map(|named| named.selected),

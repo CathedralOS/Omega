@@ -1,12 +1,11 @@
 # BTreeMap/HashMap/BTreeSet/HashSet (Fx, Index) keyed by a semantic_id! type or
 # an arena Handle, per non-test file. Counts may only fall: dense IDs index
 # flat tables (AGENTS.md conventions).
-# Written by `python tools/check_rules.py --update-dense-id-maps`.
+# Written by `cargo xtask check-rules --update-dense-id-maps`.
 3 omega-rust/omega/compilation/backend/artifacts/component-description/src/component_description.rs
-22 omega-rust/omega/compilation/backend/calling-conventions/src/structural_shapes.rs
 1 omega-rust/omega/compilation/backend/calling-conventions/src/terminal_layout.rs
 2 omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments.rs
-17 omega-rust/omega/compilation/backend/images/image-emission/src/object_artifact.rs
+8 omega-rust/omega/compilation/backend/images/image-emission/src/object_artifact.rs
 1 omega-rust/omega/compilation/backend/runtime/installation-evidence/src/lib.rs
 4 omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/lowering.rs
 4 omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/lowering_scalars.rs
@@ -45,7 +44,7 @@
 20 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/candidates.rs
 128 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/current_ownership.rs
 9 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/descriptor_results.rs
-290 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation.rs
+284 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation.rs
 1 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/construction.rs
 2 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/graph.rs
 9 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/structural_places.rs
@@ -68,13 +67,13 @@
 1 omega-rust/psi/compilation/proof/admission/src/lib.rs
 2 omega-rust/psi/compilation/proof/admission/src/mathematical_core.rs
 6 omega-rust/psi/compilation/proof/admission/src/proof.rs
-9 omega-rust/psi/compilation/representations/terminal-psi/codec/src/foundation_validation.rs
+2 omega-rust/psi/compilation/representations/terminal-psi/codec/src/foundation_validation.rs
 1 omega-rust/psi/compilation/representations/terminal-psi/codec/src/term_wire.rs
 2 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/access.rs
 4 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/control_graph.rs
 14 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_replay.rs
 13 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors.rs
-9 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/scalars.rs
+3 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/scalars.rs
 19 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/storage.rs
 19 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/structural.rs
 9 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/substitution.rs
@@ -83,7 +82,7 @@
 1 omega-rust/psi/compilation/representations/typed-trees/src/lib.rs
 2 omega-rust/psi/compilation/representations/typed-trees/src/product_and_trait_declarations.rs
 25 omega-rust/psi/compilation/representations/typed-trees/src/references.rs
-4 omega-rust/psi/compilation/representations/typed-trees/src/type_system.rs
+1 omega-rust/psi/compilation/representations/typed-trees/src/type_system.rs
 2 omega-rust/psi/compilation/terminal-installation/src/evaluation_and_synchronous_calls.rs
 4 omega-rust/psi/compilation/terminal-installation/src/provider_and_target_installation.rs
 2 omega-rust/psi/foundation/semantic-vocabulary/src/proposition.rs

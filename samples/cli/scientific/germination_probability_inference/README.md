@@ -61,7 +61,7 @@ From the repository root with the documented toolchain setup and a compiler
 built from the qualified checkout:
 
 ```sh
-omega update --project samples/cli/independent/germination_probability_inference --target linux_x86_64
+omega packages update --project samples/cli/independent/germination_probability_inference --target linux_x86_64
 # Review exact pending authority decisions before resuming, when required.
 omega run --both --keep samples/cli/independent/germination_probability_inference/main.omg < samples/cli/independent/germination_probability_inference/input.txt
 python3 samples/cli/independent/germination_probability_inference/validation/validate.py --omega /absolute/path/to/omega --route all

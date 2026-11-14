@@ -34,7 +34,7 @@ is diagnostic output, not a successful quantification.
 From the repository root, with a compiler built from the qualification revision:
 
 ```
-omega update --project samples/cli/independent/qpcr_standard_curve --target linux_x86_64
+omega packages update --project samples/cli/independent/qpcr_standard_curve --target linux_x86_64
 omega run --both --keep samples/cli/independent/qpcr_standard_curve/main.omg < samples/cli/independent/qpcr_standard_curve/input.txt
 python samples/cli/independent/qpcr_standard_curve/validation/validate.py --omega /absolute/path/to/omega --route all
 ```

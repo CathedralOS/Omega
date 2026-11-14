@@ -1243,10 +1243,14 @@ pub(crate) mod primitive_store_memberships {
                         || structural.required_memberships != scalar.required_memberships
                         || !structural
                             .establishment_routes
+                            .as_deref()
+                            .unwrap_or_default()
                             .windows(2)
                             .all(|pair| pair[0] < pair[1])
                         || !scalar
                             .establishment_routes
+                            .as_deref()
+                            .unwrap_or_default()
                             .windows(2)
                             .all(|pair| pair[0] < pair[1])
                         || structural.establishment_routes != scalar.establishment_routes
@@ -1271,7 +1275,7 @@ pub(crate) mod primitive_store_memberships {
                             });
                             proposition
                         }
-                        None if scalar.establishment_routes.is_empty()
+                        None if scalar.establishment_routes.is_none()
                             && scalar.has_no_required_memberships() =>
                         {
                             Proposition::Truth
@@ -1315,7 +1319,7 @@ pub(crate) mod primitive_store_memberships {
         };
         if !domain.complete_predicate_theory
             || !domain.has_no_required_memberships()
-            || !domain.establishment_routes.is_empty()
+            || domain.establishment_routes.is_some()
             || domain.content_projection.is_some()
             || domain.byte_predicate.is_some()
         {
@@ -1561,7 +1565,7 @@ pub(crate) mod primitive_store_memberships {
             set.domains.as_slice()
         };
         required.into_iter().all(|required| {
-            required.establishment_routes.is_empty()
+            required.establishment_routes.is_none()
                 || scalar_domain_matches(
                     types.clone(),
                     domains.clone(),
@@ -2955,7 +2959,7 @@ pub mod descriptor_results {
             for domain in domains {
                 if domain.carrier != contract.carrier
                     || domain.content_projection.is_some()
-                    || !domain.establishment_routes.is_empty()
+                    || domain.establishment_routes.is_some()
                     || contract.qualifications.contains(&domain.id)
                 {
                     continue;
@@ -3532,7 +3536,7 @@ pub mod descriptor_results {
                 for domain in domains.iter().filter(|domain| {
                     domain.carrier == carrier
                         && domain.content_projection.is_none()
-                        && domain.establishment_routes.is_empty()
+                        && domain.establishment_routes.is_none()
                 }) {
                     let (supplied, _) = terminal_psi::StructuralPathQualification::select(
                         &contract.qualifications,
@@ -6574,7 +6578,7 @@ pub mod descriptor_results {
                 || domains.iter().any(|domain| {
                     domain.carrier == contract.carrier
                         && domain.content_projection.is_none()
-                        && domain.establishment_routes.is_empty()
+                        && domain.establishment_routes.is_none()
                         && !contract.qualifications.contains(&domain.id)
                         && introduction_predicate(types, domains, domain, &contract.qualifications)
                             .is_some()
@@ -6592,7 +6596,7 @@ pub mod descriptor_results {
             for domain in domains {
                 if domain.carrier != contract.carrier
                     || domain.content_projection.is_some()
-                    || !domain.establishment_routes.is_empty()
+                    || domain.establishment_routes.is_some()
                     || contract.qualifications.contains(&domain.id)
                 {
                     continue;
@@ -7030,8 +7034,7 @@ pub mod descriptor_results {
             let subject = domain.predicate.as_ref()?.subject;
             let mut clauses = Vec::new();
             for missing in domain.missing_membership_requirements(domains, supplied)? {
-                if missing.content_projection.is_some() || !missing.establishment_routes.is_empty()
-                {
+                if missing.content_projection.is_some() || missing.establishment_routes.is_some() {
                     return None;
                 }
                 let predicate = missing.predicate.as_ref()?;
@@ -7200,7 +7203,7 @@ pub mod descriptor_results {
                     carrier,
                     content_projection: None,
                     byte_predicate: None,
-                    establishment_routes: Vec::new(),
+                    establishment_routes: None,
                 };
                 let empty = PayloadMembershipContract {
                     scalar_observations: Vec::new(),
@@ -9664,23 +9667,12 @@ pub mod descriptor_results {
                 TerminalMachine {
                     assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
                     id: MachineId::new(id).unwrap(),
-                    declaration: None,
                     attachment: None,
                     nominal_cleanup_subject: None,
-                    parameters: Vec::new(),
-                    parameter_order: Vec::new(),
-                    structural_parameters: Vec::new(),
                     ranked_scc: None,
-                    result: TerminalMachineResult::Unit,
                     structural_places: Vec::new(),
-                    entry_claims: Vec::new(),
                     block_entry_claims: Vec::new(),
                     loan_completions: Vec::new(),
-                    declared_service_reach: Vec::new(),
-                    closed_reach_application: None,
-                    published_synchronous_entries: Vec::new(),
-                    published_service_ceiling: Vec::new(),
-                    content_entry_claims: Vec::new(),
                     content_identity_reshuffles: Vec::new(),
                     content_partition_compositions: Vec::new(),
                     entry: block,
@@ -9692,7 +9684,20 @@ pub mod descriptor_results {
                             cleanup_actions: Vec::new(),
                         },
                     )],
-                    contract: terminal_psi::MachineContract::empty(ContractId::new(1).unwrap()),
+                    contract: terminal_psi::MachineContract {
+                        declaration: None,
+                        parameters: Vec::new(),
+                        parameter_order: Vec::new(),
+                        structural_parameters: Vec::new(),
+                        result: TerminalMachineResult::Unit,
+                        entry_claims: Vec::new(),
+                        declared_service_reach: None,
+                        closed_reach_application: None,
+                        published_synchronous_entries: Vec::new(),
+                        published_service_ceiling: Vec::new(),
+                        content_entry_claims: Vec::new(),
+                        ..terminal_psi::MachineContract::empty(ContractId::new(1).unwrap())
+                    },
                 }
             }
 

@@ -1,4 +1,4 @@
-use omega::language::core::float_operations;
+use omega::language::core::F64::from_i32;
 // Input is deliberately small and exact: C d q r\n then P +/-n\n, V +/-n\n
 // or M\n. Single digit fields bound resources and reject ambiguous parsing.
 machine digit(value: u8) -> bool {

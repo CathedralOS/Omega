@@ -11,15 +11,15 @@ The original [root](main.omg) is frozen unchanged. All positives bind the four h
 | Place | Project | Transport | Positive Witness | Reject Twin |
 | --- | --- | --- | --- | --- |
 | root | `.` | canonical root witness initializing `[i32 in Selected; 2] = [1, 38]` and observing `items[1] == 38` | [`main.omg`](main.omg) | - |
-| local | `local/` | initialized array bound to a local variable `items` before indexing `items[1]` | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) |
-| field | `field/` | initialized array stored in nominal struct field `Holder.items` before indexing | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) |
-| parameter | `parameter/` | initialized array passed as explicit function parameter `consume(items)` before indexing | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) |
-| call result | `call_result/` | initialized array returned as call result from helper machine `produce()` before indexing | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) |
-| match join | `match_join/` | both arms of match expression construct initialized `[i32 in Selected; 2]` and join before indexing | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) |
-| const name | `const_name/` | named constant `ITEMS: [i32 in Selected; 2] = [1, 38]` defines established array before indexing | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) |
-| a nested machine | `other_state/` | state transition arrival parameter `consume(items)` receives initialized array before indexing | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) |
-| another machine | `other_machine/` | forwarding machine routes initialized array before indexing | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) |
-| another target body | `target_body/` | four hosted target bodies (`linux_x86_64`, `linux_arm64`, `macos_arm64`, `windows_x86_64`) construct and index array | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) |
+| local | `local/` | initialized array bound to a local variable `items` before indexing `items[1]` | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) |
+| field | `field/` | initialized array stored in nominal struct field `Holder.items` before indexing | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) |
+| parameter | `parameter/` | initialized array passed as explicit function parameter `consume(items)` before indexing | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) |
+| call result | `call_result/` | initialized array returned as call result from helper machine `produce()` before indexing | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) |
+| match join | `match_join/` | both arms of match expression construct initialized `[i32 in Selected; 2]` and join before indexing | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) |
+| const name | `const_name/` | named constant `ITEMS: [i32 in Selected; 2] = [1, 38]` defines established array before indexing | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) |
+| a nested machine | `other_state/` | state transition arrival parameter `consume(items)` receives initialized array before indexing | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) |
+| another machine | `other_machine/` | forwarding machine routes initialized array before indexing | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) |
+| another target body | `target_body/` | four hosted target bodies (`linux_x86_64`, `linux_arm64`, `macos_arm64`, `windows_x86_64`) construct and index array | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) |
 
 Every twin substitutes one authored `[1, 38]` initializer with `[1, 2]`. The match twin changes only the false arm; the target-body twin changes only Windows. Array length 2 and index 1 remain unchanged. Const formation rejects the false const-leaf domain; other twins reject array-element domain establishment. Derived call/arrival refusals can repeat that one missing membership. A missing import or unrelated lowering refusal does not count.
 
@@ -45,15 +45,15 @@ All 10 samples report `native exit 0` and `interp exit: 0`.
 Each place carries a fact-sensitive reject twin at `<place>/invalid/main.omg`. Check each twin with:
 
 ```sh
-omega --check samples/cli/facts/selected_scalar_initializer/local/invalid/main.omg
-omega --check samples/cli/facts/selected_scalar_initializer/field/invalid/main.omg
-omega --check samples/cli/facts/selected_scalar_initializer/parameter/invalid/main.omg
-omega --check samples/cli/facts/selected_scalar_initializer/call_result/invalid/main.omg
-omega --check samples/cli/facts/selected_scalar_initializer/match_join/invalid/main.omg
-omega --check samples/cli/facts/selected_scalar_initializer/const_name/invalid/main.omg
-omega --check samples/cli/facts/selected_scalar_initializer/other_state/invalid/main.omg
-omega --check samples/cli/facts/selected_scalar_initializer/other_machine/invalid/main.omg
-omega --check samples/cli/facts/selected_scalar_initializer/target_body/invalid/main.omg
+omega --check samples/cli/facts/selected_scalar_initializer/invalid_local/main.omg
+omega --check samples/cli/facts/selected_scalar_initializer/invalid_field/main.omg
+omega --check samples/cli/facts/selected_scalar_initializer/invalid_parameter/main.omg
+omega --check samples/cli/facts/selected_scalar_initializer/invalid_call_result/main.omg
+omega --check samples/cli/facts/selected_scalar_initializer/invalid_match_join/main.omg
+omega --check samples/cli/facts/selected_scalar_initializer/invalid_const_name/main.omg
+omega --check samples/cli/facts/selected_scalar_initializer/invalid_other_state/main.omg
+omega --check samples/cli/facts/selected_scalar_initializer/invalid_other_machine/main.omg
+omega --check samples/cli/facts/selected_scalar_initializer/invalid_target_body/main.omg
 ```
 
 Every twin rejects with:

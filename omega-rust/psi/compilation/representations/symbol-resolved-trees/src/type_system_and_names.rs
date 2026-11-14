@@ -896,19 +896,13 @@ pub mod type_system {
             }
         }
 
+        /* A fixed-width integer is its carrier; built-in names only spell it. */
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         pub enum PrimitiveType {
             Bool,
             F32,
             F64,
-            I8,
-            I16,
-            I32,
-            I64,
-            U8,
-            U16,
-            U32,
-            U64,
+            Integer(numerics::integer_carrier::FixedInteger),
             Addr,
         }
 
@@ -936,33 +930,19 @@ pub mod type_system {
                     "bool" => Some(Self::Bool),
                     "f32" => Some(Self::F32),
                     "f64" => Some(Self::F64),
-                    "i8" => Some(Self::I8),
-                    "i16" => Some(Self::I16),
-                    "i32" => Some(Self::I32),
-                    "i64" => Some(Self::I64),
-                    "u8" => Some(Self::U8),
-                    "u16" => Some(Self::U16),
-                    "u32" => Some(Self::U32),
-                    "u64" => Some(Self::U64),
                     "addr" => Some(Self::Addr),
-                    _ => None,
+                    name => numerics::integer_carrier::FixedInteger::from_decimal_spelling(name)
+                        .map(Self::Integer),
                 }
             }
 
-            pub fn name(self) -> &'static str {
+            pub fn name(self) -> String {
                 match self {
-                    Self::Bool => "bool",
-                    Self::F32 => "f32",
-                    Self::F64 => "f64",
-                    Self::I8 => "i8",
-                    Self::I16 => "i16",
-                    Self::I32 => "i32",
-                    Self::I64 => "i64",
-                    Self::U8 => "u8",
-                    Self::U16 => "u16",
-                    Self::U32 => "u32",
-                    Self::U64 => "u64",
-                    Self::Addr => "addr",
+                    Self::Bool => "bool".to_owned(),
+                    Self::F32 => "f32".to_owned(),
+                    Self::F64 => "f64".to_owned(),
+                    Self::Integer(carrier) => carrier.to_string(),
+                    Self::Addr => "addr".to_owned(),
                 }
             }
 
@@ -971,20 +951,7 @@ pub mod type_system {
             }
 
             pub fn accepts_range_constraint(self) -> bool {
-                matches!(
-                    self,
-                    Self::F32
-                        | Self::F64
-                        | Self::I8
-                        | Self::I16
-                        | Self::I32
-                        | Self::I64
-                        | Self::U8
-                        | Self::U16
-                        | Self::U32
-                        | Self::U64
-                        | Self::Addr
-                )
+                matches!(self, Self::F32 | Self::F64 | Self::Integer(_) | Self::Addr)
             }
 
             pub fn accepts_finite_constraint(self) -> bool {

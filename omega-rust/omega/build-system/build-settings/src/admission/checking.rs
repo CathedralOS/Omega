@@ -17,16 +17,19 @@ things it did now has one owner, and this file only sequences them:
    is not a Build declaration. The judged source is a frozen snapshot of the
    typed frontier taken here, prepared by the same owner that prepares
    Product source (`SourcePreparationRequest`), and it stays with the
-   accepted module. Build and Product use the same preparation path.
-2. Which packages' declarations the Build may select. `admit_build_program`
-   produces this accepted source once and admits its source-selection companion
-   against that exact invocation, using separate Build and Product package
-   views. Structural validity and package permission remain separate judgments.
-3. Constants and provider plans. This admission evaluates no constant, so it
-   discharges none: the Product's pending work stays whole, and a Build
-   program that reads an unevaluated constant is refused by the checker. It
-   selects no provider plan; `BuildProviderPlans::admit` holds the published
-   module's actual demand against that empty selection before anything runs.
+   accepted module. The Build gets no private way past that preparation:
+   while it serves no program, no Build program reaches the checker.
+2. Which packages' declarations the Build may select. That is decided on the
+   accepted module, whose declarations carry their package custody, by
+   Terminal installation before execution. The provider preparation retains
+   the package authority and admits the actual invocation closure against it;
+   host effects remain a separate admission, not a pure-evaluation exemption.
+3. Constants and provider plans. Source preparation evaluates demanded Build
+   constants through their accepted invocations. Their charges still need a
+   settlement owner across the Build activation, so new invocation records
+   reach an explicit refusal below. The original Product pending work stays
+   whole. No provider plan is selected here; `BuildProviderPlans::admit` holds
+   the published module's actual demand against that selection before it runs.
 */
 
 use artifacts::compile_timings::StageMeta;
@@ -48,49 +51,86 @@ own targets.
 
 The admission states what it owes (`BuildConstants`): whether it folded a
 constant under Build's provider plans, and which constants the module it
-accepted names, read from that module. When it folded nothing and the module
-names no constant, no evaluation of the Build program exists to repeat and
-the settlement is complete. Otherwise the rejoined slice needs the evaluator
-that owns pending constant work (`build_time_evaluation::PreCheckEvaluation`),
-which serves no job yet, so the settlement is refused naming the constants.
-That evaluator replaces the refusal: it receives the rejoined frontier, the
-Build entry there and the package inputs the Build was admitted under.
+accepted names, each with its declaration and the value the judged source
+recorded for it.
+
+A constant the admission read at a recorded value owes no evaluation: no
+stage ran anything to produce it, so there is nothing to repeat. It is
+settled when the rejoined frontier holds that same declaration at that same
+recorded value, which is checked here on the frontier itself and never
+assumed from how either frontier was typed. Then the Product has no pending
+work for it and reads what Build read.
+
+Everything else needs its own evaluation request on this rejoined frontier
+and is refused naming the constant: a fold under provider plans, a constant
+the frontier no longer declares or has not evaluated, and one whose value
+there differs. Computed values from another Build context cannot supply that
+request's receipt. The rejoin needs the actual frontier, its Build entry and
+the package inputs under which that new request is admitted.
 */
 pub fn settle_rejoined_build_slice(
     constants: &compilation_products::BuildConstants,
-    _rejoined: psi_compiler::BuildSourceInput<'_>,
+    rejoined: psi_compiler::BuildSourceInput<'_>,
     _entry: symbols::SymbolHandle,
     _packages: Option<&PackageCompilationInputs>,
     _dependency_activation: bool,
     _execution_profile: Option<target::TargetProfile>,
 ) -> Result<(), Vec<Diagnostic>> {
-    if !constants.folded_under_providers && constants.read.is_empty() {
-        return Ok(());
-    }
+    let typed = &*rejoined.typed;
     let mut refusals = constants
         .read
         .iter()
-        .map(|name| {
+        .filter(|read| !holds_recorded_value(typed, read))
+        .map(|read| {
             Diagnostic::error(format!(
-                "no product route yet: the Build program reads constant `{name}`, and settling \
-                 it on a Product frontier typed after Build ran requires the constant evaluator"
+                "no product route yet: the Build program reads constant `{}`, and settling \
+                 it on a Product frontier typed after Build ran requires the constant evaluator",
+                read.name
             ))
         })
         .collect::<Vec<_>>();
-    if refusals.is_empty() {
+    if constants.folded_under_providers && refusals.is_empty() {
         refusals.push(Diagnostic::error(
             "no product route yet: Build admission folded a constant under its provider plans, \
              and settling it on a Product frontier typed after Build ran requires the constant \
              evaluator",
         ));
     }
-    Err(refusals)
+    if refusals.is_empty() {
+        Ok(())
+    } else {
+        Err(refusals)
+    }
+}
+
+/// Whether `typed` declares the constant Build read, at the value Build
+/// read. A constant no stage had evaluated when Build read it has no value
+/// to hold the frontier to.
+fn holds_recorded_value(
+    typed: &typed_trees::TypedTrees,
+    read: &psi_compiler::ConstantRead,
+) -> bool {
+    let (Some(declaration), Some(value)) = (&read.declaration, &read.value) else {
+        return false;
+    };
+    declaration
+        .rejoin(
+            &typed.symbols,
+            typed
+                .const_declarations()
+                .iter()
+                .map(|constant| constant.symbol),
+        )
+        .ok()
+        .and_then(|constant| typed.const_declaration_by_symbol(constant))
+        .is_some_and(|constant| constant.evaluated_value.as_ref() == Some(value))
 }
 
 pub(crate) fn prepare_admitted_build(
     typed: &typed_trees::TypedTrees,
     entry: symbols::SymbolHandle,
     packages: Option<&PackageCompilationInputs>,
+    anonymous_source: Option<&package_compilation::AnonymousSourceCapture>,
     dependency_activation: bool,
     timings: &mut artifacts::compile_timings::CompileTimings,
 ) -> Result<
@@ -99,21 +139,23 @@ pub(crate) fn prepare_admitted_build(
         super::provider_execution::BuildProviderPlans,
         compilation_products::BuildConstants,
     ),
-    Vec<Diagnostic>,
+    compilation_products::CompileFailure,
 > {
-    // A dependency's Build executed for its consumer checks what its entry
-    // reaches and never promotes the dependency to a subject
-    // (`wiki/spec/build/validation_subjects.md`, "Orchestration").
-    let subject = (!dependency_activation).then(|| packages.map(PackageCompilationInputs::root));
-    let accepted = timings.record_result(BUILD_SOURCE_JUDGMENT, || {
-        let source = psi_compiler::SourcePreparationRequest {
-            program: typed.clone(),
-            admission: psi_compiler::SourceAdmission::default(),
+    let mut accounting = build_time_evaluation::SourceCompletionAccounting::default();
+    let result = (|| -> Result<_, Vec<Diagnostic>> {
+        if packages.is_some() && anonymous_source.is_some() {
+            return Err(vec![Diagnostic::error(
+                "Build scope cannot combine anonymous source custody with supplied package inputs",
+            )]);
         }
-        .prepare()?;
-        psi_compiler::AcceptedTerminalSource::judge(
-            source.program,
-            psi_compiler::TerminalSourceCompilation {
+        // A dependency's Build executed for its consumer checks what its entry
+        // reaches and never promotes the dependency to a subject
+        // (`wiki/spec/build/validation_subjects.md`, "Orchestration").
+        let subject =
+            (!dependency_activation).then(|| packages.map(PackageCompilationInputs::root));
+        let accepted = timings.record_result(BUILD_SOURCE_JUDGMENT, || {
+            let compilation = psi_compiler::TerminalSourceCompilation {
+                declaration_metadata: &[],
                 entries: &[entry],
                 subjects: subject.as_slice(),
                 purpose: source::DependencyScope::Build,
@@ -121,22 +163,61 @@ pub(crate) fn prepare_admitted_build(
                 calling: None,
                 providers: None,
                 bindings: &[],
-            },
-            terminal_codec::TerminalPublication::Invocation,
-        )
-    })?;
-    // Nothing is folded here (point 3 above), and the names come from the
-    // accepted module, so a later frontier can tell there is nothing to
-    // settle without assuming how this admission was reached.
-    let constants = compilation_products::BuildConstants {
-        folded_under_providers: false,
-        read: accepted.constants_read(),
-    };
-    Ok((
-        Arc::new(accepted),
-        super::provider_execution::BuildProviderPlans::default(),
-        constants,
-    ))
+                supplies: &[],
+            };
+            let source = psi_compiler::SourcePreparationRequest {
+                program: typed.clone(),
+                accounting: Default::default(),
+                admission: psi_compiler::SourceAdmission {
+                    invocation_sources: anonymous_source.map(|capture| {
+                        Arc::new(capture.clone())
+                            as Arc<dyn build_time_evaluation::InvocationSourceConsent>
+                    }),
+                    ..Default::default()
+                },
+                compilation,
+            }
+            .prepare();
+            let source = match source {
+                Ok(source) => {
+                    accounting = source.accounting;
+                    source.program
+                }
+                Err(failure) => {
+                    accounting = failure.accounting;
+                    return Err(failure.diagnostics);
+                }
+            };
+            // This admission has no settlement owner for newly evaluated source
+            // constants yet. Preserve the explicit boundary rather than dropping
+            // invocation charges when a Build requests such work.
+            if !accounting.receipts().is_empty() {
+                return Err(vec![Diagnostic::error(
+                    "no product route yet: Build constant invocation accounting settlement",
+                )]);
+            }
+            psi_compiler::AcceptedTerminalSource::judge(
+                source,
+                compilation,
+                terminal_codec::TerminalPublication::Invocation,
+            )
+        })?;
+        // Only admissions without invocation records pass the guard above.
+        // Names and recorded values come from that accepted module rather
+        // than an assumption about how a later frontier was typed.
+        let constants = compilation_products::BuildConstants {
+            folded_under_providers: false,
+            read: accepted.constants_read(),
+        };
+        Ok((
+            Arc::new(accepted),
+            super::provider_execution::BuildProviderPlans::for_packages(packages),
+            constants,
+        ))
+    })();
+    result.map_err(|diagnostics| {
+        compilation_products::CompileFailure::source_completion(diagnostics, accounting)
+    })
 }
 
 #[cfg(test)]
@@ -173,13 +254,25 @@ mod tests {
         assert_eq!(settle(&BuildConstants::default()), Ok(()));
     }
 
-    /// The twin: the accepted module names constants. Settling them needs
+    fn read(name: &str, value: Option<&str>) -> psi_compiler::ConstantRead {
+        psi_compiler::ConstantRead {
+            name: name.to_owned(),
+            declaration: None,
+            value: value.map(|value| value.to_owned().into()),
+        }
+    }
+
+    /// The twin: the accepted module names constants the later frontier
+    /// does not declare, one of them never evaluated. Settling them needs
     /// the evaluator, so each is refused by name.
     #[test]
-    fn a_build_that_reads_constants_is_refused_naming_each() {
+    fn a_build_that_reads_constants_the_frontier_lacks_is_refused_naming_each() {
         let refusals = settle(&BuildConstants {
             folded_under_providers: false,
-            read: vec!["LIMIT".into(), "linux_x86_64".into()],
+            read: vec![
+                read("LIMIT", None),
+                read("linux_x86_64", Some("integer8:1")),
+            ],
         })
         .unwrap_err();
         assert_eq!(refusals.len(), 2);

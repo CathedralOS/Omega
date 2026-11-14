@@ -518,7 +518,9 @@ windows provide no exemption.
 
 No general satisfiability decision or witness search is required. Proved
 uninhabitedness may support a warning or explain a failed use, but is not itself
-a declaration error. An unproved membership obligation rejects that attempted
+a declaration error. A predicate written as literally `false`, as on core
+[`Never`](data_and_literals.md#the-uninhabited-type-never), states intended
+emptiness and draws no such warning. An unproved membership obligation rejects that attempted
 establishment; it need not diagnose whether the domain is uninhabited or the
 proof automation is insufficient. Failure of one candidate or of proof search
 does not prove that every candidate fails. Stronger proof automation must not
@@ -759,6 +761,12 @@ machine farther(left: i32 in Km, right: i32 in Km) -> bool {
     (left as -Km) > (right as -Km)
 }
 ```
+
+[Core policy-domain operators](numeric_values.md#policy-domains) explicitly
+declare mixed qualified/plain parameter types in both orders. A plain variable
+matches those signatures just as a plain literal does; neither gains a domain
+at the call site. This is ordinary exact matching, not a general conversion
+rule for mismatched qualifications or carriers.
 
 In a domain's own `requires`, `self` is the value in the underlying carrier
 without the domain being defined, so `self > 0` in `Positive` is a builtin

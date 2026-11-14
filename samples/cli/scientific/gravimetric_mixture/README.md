@@ -11,20 +11,20 @@ From the repository root, set `OMEGA_LIBRARY_ROOT` to this checkout's
 `source/library` and use a compiler built from the recorded base:
 
 ```sh
-omega update --project samples/cli/independent/gravimetric_mixture --target linux_x86_64
+omega packages update --project samples/cli/independent/gravimetric_mixture --target linux_x86_64
 # Review the generated build/package-manager/review-linux_x86_64.txt decisions; accept the std dependency
 # and its ordinary entry/provider grants, then:
-omega update --resume --project samples/cli/independent/gravimetric_mixture
+omega packages update --resume --project samples/cli/independent/gravimetric_mixture
 omega --check samples/cli/independent/gravimetric_mixture/main.omg
 omega run --both --keep samples/cli/independent/gravimetric_mixture/main.omg \
   < samples/cli/independent/gravimetric_mixture/data/nominal.txt
 python3 samples/cli/independent/gravimetric_mixture/validate.py --omega /absolute/path/to/omega
 ```
 
-The invalid source is a separate complete project with its own entry and build
+The ../invalid_gravimetric_mixture source is a separate complete project with its own entry and build
 metadata. Prepare its std dependency the same way, then check
-`invalid/main.omg`; it must reject the negative value assigned to `Nonnegative`.
-The validator checks that rejection separately from invalid runtime inputs.
+`../invalid_gravimetric_mixture/main.omg`; it must reject the negative value assigned to `Nonnegative`.
+The validator checks that rejection separately from ../invalid_gravimetric_mixture runtime inputs.
 
 ## Input and output
 
@@ -74,10 +74,10 @@ the expanded interval rejects. Equal masses isolate common-tare cancellation:
 shared variance 1/3200 versus independent 1/640. Milligram readings check unit
 conversion and uncertainty scaling. Other variants cover off-target composition,
 large/maximum readings, a zero component, the exact mass threshold, near-zero
-and zero totals, negative correction, malformed records, and invalid units/model.
+and zero totals, negative correction, malformed records, and ../invalid_gravimetric_mixture units/model.
 
 `validate.py` checks all 20 frozen fixtures and independent reference values.
-`verify_domain.omg` additionally checks 13 domain cases (including invalid mass
+`verify_domain.omg` additionally checks 13 domain cases (including ../invalid_gravimetric_mixture mass
 controls) during Omega execution against all frozen numeric metrics. Its
 bounded comparisons use the same fixed display tolerances; status 0 requires all
 comparisons to hold. `render_domain_checks.py` reproducibly renders this

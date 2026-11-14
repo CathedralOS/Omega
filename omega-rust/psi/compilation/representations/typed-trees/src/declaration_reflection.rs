@@ -94,7 +94,9 @@ pub mod reflection {
                 matches!(
                     typed.core_vocabulary(declaration.symbol),
                     Some(CoreVocabulary::Reflection(
-                        ReflectionDeclaration::Schema | ReflectionDeclaration::Callable
+                        ReflectionDeclaration::Schema
+                            | ReflectionDeclaration::Callable
+                            | ReflectionDeclaration::Field
                     ))
                 )
             }) {

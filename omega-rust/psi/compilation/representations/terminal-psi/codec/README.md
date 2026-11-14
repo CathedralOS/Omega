@@ -44,8 +44,8 @@ Do not infer one section's identity from another section's current version.
 Current markers live with their owners: semantic format in [semantic_module.rs](src/semantic_module.rs),
 vocabulary in [VocabularyMarker](../src/identity.rs),
 [canonical_artifact.rs](src/canonical_artifact.rs), and manifest in
-[sections.rs](src/sections.rs). The image-emission owner
-maintains the separate [installation format](../../../../../omega/compilation/backend/images/image-emission/src/installation_record.rs).
+[sections.rs](src/sections.rs). Installation section commitments remain distinct
+from semantic identity and do not grant receiver-side installation authority.
 The [module wire decoder](src/module_wire.rs) owns
 incompatible-marker rejection. Source-lowering tests check semantic
 round trips without duplicating a transient wire-version number.

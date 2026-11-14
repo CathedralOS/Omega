@@ -506,7 +506,7 @@ pub(crate) mod target_layouts {
             }
             Ok(TargetLayoutGeometry {
                 artifact,
-                layouts: self,
+                layouts: Some(self),
             })
         }
     }
@@ -514,15 +514,25 @@ pub(crate) mod target_layouts {
     #[derive(Clone, Copy)]
     pub struct TargetLayoutGeometry<'a> {
         artifact: terminal_codec::TerminalExecutionView<'a>,
-        layouts: &'a AdmittedTargetLayouts,
+        layouts: Option<&'a AdmittedTargetLayouts>,
     }
     impl<'a> TargetLayoutGeometry<'a> {
+        /// Borrow portable geometry only; unresolved target layouts remain unresolved.
+        pub fn unscoped(artifact: terminal_codec::TerminalExecutionView<'a>) -> Self {
+            Self {
+                artifact,
+                layouts: None,
+            }
+        }
         pub fn declaration(&self, id: StructuralTypeId) -> Option<&'a StructuralTypeDeclaration> {
             self.layouts
-                .records
-                .binary_search_by_key(&id, |row| row.id)
-                .ok()
-                .map(|position| &self.layouts.records[position])
+                .and_then(|layouts| {
+                    layouts
+                        .records
+                        .binary_search_by_key(&id, |row| row.id)
+                        .ok()
+                        .map(|position| &layouts.records[position])
+                })
                 .or_else(|| self.artifact.module().structural_type(id))
         }
         pub fn declarations(
@@ -763,7 +773,10 @@ pub(crate) mod target_layouts {
     }
 }
 
-pub use compiler_evaluation::{AdmittedCompilerEvaluation, admit_compiler_evaluation};
+pub use compiler_evaluation::{
+    AdmittedCompilerEvaluation, InvocationSourceSelection, admit_compiler_evaluation,
+    admit_compiler_evaluation_with_source_consent, admit_declaration_selections,
+};
 pub use component_provider::{AdmittedComponentProvider, admit_component_provider};
 pub use entry_values::{
     TerminalAccessViewEstablishment, TerminalScalarValue, TerminalStructuralValue,

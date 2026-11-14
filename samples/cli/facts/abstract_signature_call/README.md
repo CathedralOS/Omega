@@ -28,14 +28,14 @@ transport of the premise subject and its read changes.
 
 | Place | Positive | Reject twin | Transport |
 | --- | --- | --- | --- |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | the premise subject is an entry local and the caller reads the record locally |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | the premise subject is stored in a record field |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | the premise subject arrives as an explicit parameter |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | a call result supplies the premise subject |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield the premise subject |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | a named constant is the premise subject |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the premise subject and reads the record there |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine supplies the premise subject |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | the premise subject is an entry local and the caller reads the record locally |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | the premise subject is stored in a record field |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | the premise subject arrives as an explicit parameter |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | a call result supplies the premise subject |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | both match arms yield the premise subject |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | a named constant is the premise subject |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | a successor machine receives the premise subject and reads the record there |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | a forwarding machine supplies the premise subject |
 | another selected target implementation | [`other_target/main.omg`](other_target/main.omg) | [`other_target/invalid/main.omg`](other_target/invalid/main.omg) | an ordinary named `SelectedObserveBody` implementation, selected by one Build row per hosted target, uses the subject and reads the record |
 
 The row has no root `main.omg`; `local` is its canonical local witness. The
@@ -466,14 +466,14 @@ to a structurally false fact and proof checking fails closed:
 
 | Place | Twin | Pinned diagnostic |
 | --- | --- | --- |
-| local | [`local/invalid/main.omg`](local/invalid/main.omg) | `machine `main` state `entry` value call to `apply` violates required fact `premise(kept)`: the instantiated fact is structurally false` |
-| field | [`field/invalid/main.omg`](field/invalid/main.omg) | same fragment from `main` |
-| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | same fragment from `observe` |
-| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | same fragment from `main` |
-| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | same fragment from `main` |
-| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | same fragment from `main` |
-| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | same fragment from `main` state `check` |
-| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | same fragment from `observe` |
+| local | [`invalid_local/main.omg`](invalid_local/main.omg) | `machine `main` state `entry` value call to `apply` violates required fact `premise(kept)`: the instantiated fact is structurally false` |
+| field | [`invalid_field/main.omg`](invalid_field/main.omg) | same fragment from `main` |
+| parameter | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | same fragment from `observe` |
+| call result | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | same fragment from `main` |
+| match join | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | same fragment from `main` |
+| const name | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | same fragment from `main` |
+| a nested machine | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | same fragment from `main` state `check` |
+| another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | same fragment from `observe` |
 | another selected target implementation | [`other_target/invalid/main.omg`](other_target/invalid/main.omg) | same fragment from `observe` |
 
 Every twin also emits the companion diagnostic from the specialized application

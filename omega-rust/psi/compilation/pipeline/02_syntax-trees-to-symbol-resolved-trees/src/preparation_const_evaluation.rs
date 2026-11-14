@@ -1,7 +1,5 @@
 /* Exact source-constant evaluation used by declaration retention and synthesis. */
 
-use super::{ConstDefinition, Diagnostic, HashMap, Identifier, SyntaxTrees};
-
 mod anonymous {
     /* Exact anonymous values, independent of their eventual const landing. */
 
@@ -196,7 +194,7 @@ mod anonymous {
         binary node. Operator spellings resolve by operand carrier
         (wiki/spec/language/numeric_values.md), so a node whose operands are both
         wholly anonymous selects no declaration: it is exact builtin arithmetic or
-        comparison, the rule checked-tree operator selection also applies.
+        comparison.
     */
     pub(super) fn has_builtin_const_operator(
         syntax: &SyntaxTrees,
@@ -402,9 +400,9 @@ mod anonymous {
 mod arguments {
     /* Constant evaluation: arguments. */
     use super::super::{
-        BinaryOperator, CanonicalConstValue, ConstDefinition, Diagnostic, ExpressionHandle,
-        ExpressionNode, HashMap, HashSet, Identifier, SyntaxTrees, TypeParameterKind,
-        TypeReferenceHandle, TypeReferenceNode,
+        BinaryOperator, CanonicalConstValue, Diagnostic, ExpressionHandle, ExpressionNode, HashMap,
+        HashSet, Identifier, SyntaxTrees, TypeParameterKind, TypeReferenceHandle,
+        TypeReferenceNode,
     };
     use crate::preparation::generic_data::eligibility::base_is_fully_monomorphizable;
     use crate::tables::syntax_items;
@@ -416,7 +414,6 @@ mod arguments {
     use crate::preparation::generic_data::discovery::ClosedApplication;
 
     use super::anonymous::evaluate_anonymous_integer_argument;
-    use super::module_constant_selection_gate;
     use crate::preparation::generic_data::canonicalize_monomorphizable_argument_handles;
     use crate::preparation::generic_data::closed_argument_identity;
     use crate::preparation::generic_data::const_evaluation::validate_anonymous_remainder;
@@ -441,8 +438,6 @@ mod arguments {
     pub(in crate::preparation::generic_data) fn prepare_closed_application(
         syntax: &mut SyntaxTrees,
         generic_data: &HashMap<syntax_trees::item::ItemHandle, GenericData>,
-        const_definitions: &HashMap<String, ConstDefinition>,
-        const_values: &HashMap<String, i128>,
         selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
         type_reference: TypeReferenceHandle,
         warnings: &mut Vec<Diagnostic>,
@@ -572,27 +567,6 @@ mod arguments {
                         );
                         continue;
                     }
-                    module_constant_selection_gate(syntax, &name, const_values, const_definitions)?;
-                    if let Some(value) = const_values.get(name.as_str(syntax)) {
-                        syntax.tables.type_references.replace_type_reference(
-                            *argument,
-                            TypeReferenceNode::Named(Identifier::generated(value.to_string())),
-                        );
-                        continue;
-                    }
-                    let Some(definition) = const_definitions.get(name.as_str(syntax)) else {
-                        continue;
-                    };
-                    let value = super::values::canonicalize_selected_const_definition_in_application(syntax, definition, parameter_type, None, &application_scope)
-                    .map_err(|reason| {
-                        Diagnostic::error(format!(
-                            "const argument for `{base}::{parameter_name}` is invalid at this index site: {reason}"
-                        ))
-                    })?;
-                    syntax.tables.type_references.replace_type_reference(
-                        *argument,
-                        TypeReferenceNode::Named(Identifier::generated(value.atom())),
-                    );
                 }
                 TypeReferenceNode::ConstExpression(expression) => {
                     if matches!(
@@ -641,7 +615,7 @@ mod arguments {
                     let value = evaluate_const_argument_expression(
                     syntax,
                     expression,
-                    const_values,
+                    selection,
                     &HashMap::new(),
                     &HashSet::new(),
                     const_integer_type(syntax, parameter_type),
@@ -654,7 +628,7 @@ mod arguments {
                     )).with_source_span(syntax.expressions.source_span(expression))
                 })?;
                     if let Some(integer_type) = const_integer_type(syntax, parameter_type) {
-                        validate_syntax_integer_range(integer_type.name(), value)
+                        validate_syntax_integer_range(&integer_type.name(), value)
                             .map_err(Diagnostic::error)?;
                     }
                     syntax.tables.type_references.replace_type_reference(
@@ -673,7 +647,6 @@ mod arguments {
                 base_info,
                 &base_name,
                 &argument_handles,
-                const_values,
                 selection,
                 warnings,
             )?;
@@ -771,14 +744,14 @@ mod arguments {
                 else {
                     return false;
                 };
-                let (minimum, maximum) = integer_type.bounds();
-                value >= minimum && value <= maximum
+                integer_type.admits_i128(value)
             })
     }
 
     /*
         Evaluate the symbolic integer subset retained in a const-generic argument.
-        Names resolve to literal scoped const declarations collected above.
+        Names use the source-scoped declaration selection shared with resolution;
+        unrelated private constants never contribute a value.
         Anonymous arithmetic retains rational intermediates until its integer
         landing. Already-typed arithmetic keeps the current signed/unsigned 64-bit
         envelope. Shifts and bitwise operations use the matched const parameter's
@@ -787,7 +760,7 @@ mod arguments {
     pub(in crate::preparation::generic_data) fn evaluate_const_argument_expression(
         syntax: &SyntaxTrees,
         expression: ExpressionHandle,
-        const_values: &HashMap<String, i128>,
+        selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
         parameter_values: &HashMap<String, i128>,
         symbolic_parameters: &HashSet<String>,
         integer_type: Option<LandedIntegerType>,
@@ -813,19 +786,40 @@ mod arguments {
                 } else if symbolic_parameters.contains(&name) {
                     Ok(EvaluatedConst::Symbolic(name))
                 } else {
-                    crate::preparation::generic_data::module_constants::reject_module_constant_selection(
-                    syntax,
-                    &name,
-                    members
-                        .first()
-                        .map(|member| member.source_span())
-                        .unwrap_or_default(),
-                )?;
-                    const_values
-                        .get(&name)
-                        .copied()
-                        .map(EvaluatedConst::Concrete)
-                        .ok_or_else(|| format!("`{name}` is not a scoped integer const"))
+                    let selection = selection
+                        .ok_or_else(|| format!("`{name}` has no constant selection context"))?;
+                    let first = members.first().ok_or("constant name has no source")?;
+                    let mut span = first.source_span();
+                    span.span.end = members
+                        .last()
+                        .ok_or("constant name has no source")?
+                        .source_span()
+                        .span
+                        .end;
+                    let identifier = Identifier::new(&name, span);
+                    let definition = selection
+                        .select(syntax, &identifier)
+                        .map_err(|diagnostic| diagnostic.message)?
+                        .ok_or_else(|| format!("`{name}` is not a scoped integer const"))?;
+                    let value = super::values::canonicalize_selected_declaration_value(
+                        syntax,
+                        &definition,
+                        Some(selection),
+                    )?;
+                    match value.decode_encoding() {
+                        Some(DecodedCanonicalConstValue::Integer { type_name, value }) => {
+                            if let Some(expected) = integer_type
+                                && type_name != expected.name()
+                            {
+                                return Err(format!(
+                                    "constant `{name}` has carrier `{type_name}`, expected `{}`",
+                                    expected.name(),
+                                ));
+                            }
+                            Ok(EvaluatedConst::Concrete(value))
+                        }
+                        _ => Err(format!("`{name}` is not an integer const")),
+                    }
                 }
             }
             ExpressionNode::Binary(binary) => {
@@ -838,7 +832,7 @@ mod arguments {
                 let left = evaluate_const_argument_expression(
                     syntax,
                     binary.left,
-                    const_values,
+                    selection,
                     parameter_values,
                     symbolic_parameters,
                     integer_type,
@@ -847,7 +841,7 @@ mod arguments {
                 let right = evaluate_const_argument_expression(
                     syntax,
                     binary.right,
-                    const_values,
+                    selection,
                     parameter_values,
                     symbolic_parameters,
                     integer_type,
@@ -971,8 +965,7 @@ mod arguments {
         integer_type: LandedIntegerType,
         value: i128,
     ) -> Result<(), String> {
-        let (minimum, maximum) = integer_type.bounds();
-        if value < minimum || value > maximum {
+        if !integer_type.admits_i128(value) {
             return Err(format!(
                 "integer value `{value}` is outside the declared `{}` range",
                 integer_type.name()
@@ -1016,9 +1009,18 @@ mod arguments {
                 "shifts and bitwise operators require a declared integer const type".to_string(),
             );
         };
+        /*
+            These operators are folded in a host integer here, which holds
+            the word and its modulus only up to 64 bits.
+        */
+        if integer_type.bit_width() > 64 {
+            return Err(format!(
+                "const shifts and bitwise operators are not yet evaluated at the `{}` width",
+                integer_type.name()
+            ));
+        }
         let modulus = 1i128 << integer_type.bit_width();
-        let (minimum, maximum) = integer_type.bounds();
-        if left < minimum || left > maximum {
+        if !integer_type.admits_i128(left) {
             return Err(format!(
                 "left operand `{left}` is outside the declared `{}` range",
                 integer_type.name()
@@ -1029,7 +1031,7 @@ mod arguments {
             BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight => {
                 let amount = u32::try_from(right)
                     .ok()
-                    .filter(|amount| *amount < integer_type.bit_width())
+                    .filter(|amount| u64::from(*amount) < integer_type.bit_width())
                     .ok_or_else(|| {
                         format!(
                             "shift count must be non-negative and below the declared `{}` width",
@@ -1045,7 +1047,7 @@ mod arguments {
                         integer_type.name()
                     )
                 })?;
-                if shifted < minimum || shifted > maximum {
+                if !integer_type.admits_i128(shifted) {
                     return Err(format!(
                         "left shift exceeds the declared `{}` range",
                         integer_type.name()
@@ -1054,7 +1056,7 @@ mod arguments {
                 Ok(shifted)
             }
             BinaryOperator::BitwiseAnd | BinaryOperator::BitwiseOr | BinaryOperator::BitwiseXor => {
-                if right < minimum || right > maximum {
+                if !integer_type.admits_i128(right) {
                     return Err(format!(
                         "right operand `{right}` is outside the declared `{}` range",
                         integer_type.name()
@@ -1121,7 +1123,7 @@ mod domains {
     use crate::preparation::generic_data::collect_data_type_reference_positions;
     use crate::preparation::generic_data::const_integer_type;
     use crate::preparation::generic_data::evaluate_const_argument_expression;
-    use crate::preparation::generic_data::module_constants::module_path;
+    use crate::preparation::generic_data::source_modules::module_path;
     use crate::preparation::generic_data::syntax_type_identity;
     use crate::preparation::generic_data::validate_const_index_type;
     use crate::preparation::generic_data::validate_syntax_integer_range;
@@ -1195,7 +1197,6 @@ mod domains {
     */
     pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
         syntax: &mut SyntaxTrees,
-        const_values: &HashMap<String, i128>,
         selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
         warnings: &mut Vec<Diagnostic>,
         work: &super::super::work_domain::SynthesisWork<'_>,
@@ -1407,7 +1408,6 @@ mod domains {
                 &name,
                 family,
                 arguments,
-                const_values,
                 selection,
                 &concrete_data_positions,
                 warnings,
@@ -1421,7 +1421,6 @@ mod domains {
         family_name: &str,
         family: &ClosedDomainFamily,
         arguments: Vec<TypeReferenceHandle>,
-        const_values: &HashMap<String, i128>,
         selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
         concrete_data_positions: &[TypeReferenceHandle],
         warnings: &mut Vec<Diagnostic>,
@@ -1527,7 +1526,7 @@ mod domains {
                     let value = evaluate_const_argument_expression(
                     syntax,
                     expression,
-                    const_values,
+                    selection,
                     &HashMap::new(),
                     &HashSet::new(),
                     const_integer_type(syntax, *parameter_type),
@@ -1924,8 +1923,8 @@ mod facts {
     use crate::preparation::generic_data::evaluate_const_fact_binary;
     use crate::preparation::generic_data::integer_literal_value;
     use crate::preparation::generic_data::{
-        ConstFactValue, ConstScalarSpelling, ConstScalarValue, canonicalize_const_definition,
-        domain_index_parameters, syntax_type_identity,
+        ConstFactValue, ConstScalarSpelling, ConstScalarValue, domain_index_parameters,
+        syntax_type_identity,
     };
 
     use super::anonymous::{
@@ -1933,12 +1932,9 @@ mod facts {
         has_builtin_const_operator,
     };
     use super::arguments::validate_declared_integer;
-    use super::qualified_const_name;
     use super::values::CanonicalConstNode;
     use super::values::canonicalize_selected_declaration_value;
-    use crate::preparation::generic_data::module_constants::lexical_integer_const_values;
-    use crate::preparation::generic_data::module_constants::module_path;
-    use crate::preparation::generic_data::module_constants::reject_module_constant_selection;
+    use crate::preparation::generic_data::source_modules::module_path;
     use language_core::CarryPermission;
     use language_core::CarryPolicy;
     use language_core::Multiplicity;
@@ -1956,7 +1952,6 @@ mod facts {
     pub(crate) fn evaluate_const_fact_expression(
         syntax: &SyntaxTrees,
         expression: ExpressionHandle,
-        const_values: &HashMap<String, i128>,
         parameter_values: &HashMap<String, impl Copy + Into<ConstScalarValue>>,
         selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
         warnings: &mut Vec<Diagnostic>,
@@ -1964,7 +1959,6 @@ mod facts {
         evaluate_const_fact_expression_at(
             syntax,
             expression,
-            const_values,
             parameter_values,
             selection,
             None,
@@ -1979,7 +1973,6 @@ mod facts {
     fn evaluate_const_fact_expression_at(
         syntax: &SyntaxTrees,
         expression: ExpressionHandle,
-        const_values: &HashMap<String, i128>,
         parameter_values: &HashMap<String, impl Copy + Into<ConstScalarValue>>,
         selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
         subject: Option<ConstFactSubject<'_>>,
@@ -1990,7 +1983,6 @@ mod facts {
                 evaluate_const_fact_expression_at(
                     syntax,
                     $expression,
-                    const_values,
                     parameter_values,
                     selection,
                     subject,
@@ -2071,39 +2063,7 @@ mod facts {
                     return Ok(ConstScalarValue::from_canonical(&value)
                         .map(ConstScalarValue::into_fact_value));
                 }
-                reject_module_constant_selection(
-                    syntax,
-                    &name,
-                    members
-                        .first()
-                        .map(|member| member.source_span())
-                        .unwrap_or_default(),
-                )?;
-                let Some(value) = const_values.get(&name).copied() else {
-                    return Ok(None);
-                };
-                let mut definitions = syntax.root_items().filter_map(|item| match item {
-                    Item::Const(definition) if qualified_const_name(syntax, definition) == name => {
-                        Some(definition)
-                    }
-                    _ => None,
-                });
-                let Some(definition) = definitions.next() else {
-                    return Ok(None);
-                };
-                if definitions.next().is_some() {
-                    return Ok(None);
-                }
-                let Some(integer_type) =
-                    super::arguments::const_integer_type(syntax, definition.type_reference)
-                else {
-                    return Ok(None);
-                };
-                validate_declared_integer(integer_type, value)?;
-                Ok(Some(ConstFactValue::DeclaredInteger {
-                    value,
-                    integer_type,
-                }))
+                Ok(None)
             }
             ExpressionNode::Member(member) => {
                 let Some(fields) = subject.and_then(ConstFactSubject::fields) else {
@@ -2198,7 +2158,6 @@ mod facts {
     pub(crate) fn evaluate_const_membership_fact(
         syntax: &SyntaxTrees,
         membership: &syntax_trees::item::ProofMembershipFact,
-        const_values: &HashMap<String, i128>,
         parameter_values: &HashMap<String, i128>,
         parameter_type_names: &HashMap<String, String>,
         selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
@@ -2236,7 +2195,6 @@ mod facts {
             &domain_path,
             parameter_type,
             ConstSubjectBinding::Scalar(ConstScalarValue::Integer(value)),
-            const_values,
             &mut Vec::new(),
             members
                 .first()
@@ -2469,7 +2427,6 @@ mod facts {
         {
             return Ok(());
         }
-        let const_values = lexical_integer_const_values(syntax);
         let mut parameter_values = HashMap::<String, ConstScalarValue>::new();
         let mut warnings = Vec::new();
         for parameter in syntax.items.type_parameters(definition.type_parameters) {
@@ -2489,7 +2446,6 @@ mod facts {
                 parameter.name.as_str(syntax),
                 type_reference,
                 *argument,
-                &const_values,
                 &parameter_values,
                 syntax.items.type_parameters(definition.type_parameters),
                 selection,
@@ -2532,7 +2488,6 @@ mod facts {
                 let proved = evaluate_selected_const_fact(
                     syntax,
                     fact,
-                    &const_values,
                     &parameter_values,
                     syntax.items.type_parameters(definition.type_parameters),
                     subject,
@@ -2568,7 +2523,6 @@ mod facts {
     fn evaluate_selected_const_fact(
         syntax: &SyntaxTrees,
         fact: &ProofFact,
-        const_values: &HashMap<String, i128>,
         parameter_values: &HashMap<String, ConstScalarValue>,
         parameters: &[syntax_trees::item::TypeParameter],
         subject: Option<ConstFactSubject<'_>>,
@@ -2583,7 +2537,6 @@ mod facts {
                 return evaluate_const_domain_expression(
                     syntax,
                     *expression,
-                    const_values,
                     parameter_values,
                     subject,
                     carrier,
@@ -2596,7 +2549,6 @@ mod facts {
         let Some(nested_value) = evaluate_const_fact_expression_at(
             syntax,
             membership.value,
-            const_values,
             parameter_values,
             selection,
             subject,
@@ -2610,6 +2562,7 @@ mod facts {
         else {
             return Ok(None);
         };
+        let nested_carrier = nested_carrier.as_ref();
         let members = syntax.items.identifier_path_members(membership.domain);
         let path = members.joined_path_in(syntax);
         let reference = members
@@ -2622,7 +2575,6 @@ mod facts {
                 &path,
                 nested_carrier,
                 ConstSubjectBinding::Scalar(nested_value),
-                const_values,
                 visiting,
                 reference,
                 selection,
@@ -2635,7 +2587,6 @@ mod facts {
                 membership.domain_arguments,
                 nested_carrier,
                 ConstSubjectBinding::Scalar(nested_value),
-                const_values,
                 parameter_values,
                 parameters,
                 visiting,
@@ -2677,7 +2628,6 @@ mod facts {
         domain: &syntax_trees::types::DomainConstraint,
         carrier: &str,
         subject_binding: ConstSubjectBinding<'_>,
-        const_values: &HashMap<String, i128>,
         selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
         warnings: &mut Vec<Diagnostic>,
     ) -> Result<Option<DomainFactProof>, String> {
@@ -2687,7 +2637,6 @@ mod facts {
                 domain.name.as_str(syntax),
                 carrier,
                 subject_binding,
-                const_values,
                 &mut Vec::new(),
                 domain.name.source_span(),
                 selection,
@@ -2700,7 +2649,6 @@ mod facts {
                 domain.arguments,
                 carrier,
                 subject_binding,
-                const_values,
                 &HashMap::new(),
                 &[],
                 &mut Vec::new(),
@@ -2716,7 +2664,6 @@ mod facts {
         authored: &str,
         carrier: &str,
         subject_binding: ConstSubjectBinding<'_>,
-        const_values: &HashMap<String, i128>,
         visiting: &mut Vec<(source::SourceSpan, String)>,
         reference: source::SourceSpan,
         selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
@@ -2765,7 +2712,6 @@ mod facts {
             domain_key,
             carrier,
             subject_binding,
-            const_values,
             &HashMap::new(),
             visiting,
             selection,
@@ -2846,7 +2792,6 @@ mod facts {
         domain_key: String,
         carrier: &str,
         subject_binding: ConstSubjectBinding<'_>,
-        const_values: &HashMap<String, i128>,
         parameter_values: &HashMap<String, ConstScalarValue>,
         visiting: &mut Vec<(source::SourceSpan, String)>,
         selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
@@ -2916,7 +2861,6 @@ mod facts {
                         &path,
                         carrier,
                         subject_binding,
-                        const_values,
                         visiting,
                         first.source_span(),
                         selection,
@@ -2932,7 +2876,6 @@ mod facts {
                 let holds = evaluate_selected_const_fact(
                     syntax,
                     fact,
-                    const_values,
                     parameter_values,
                     syntax.items.type_parameters(domain.type_parameters),
                     subject,
@@ -2971,22 +2914,28 @@ mod facts {
         value: ConstFactValue,
         carrier: &'a str,
         warnings: &mut Vec<Diagnostic>,
-    ) -> Result<Option<(&'a str, ConstScalarValue)>, String> {
+    ) -> Result<Option<(std::borrow::Cow<'a, str>, ConstScalarValue)>, String> {
         match value {
-            ConstFactValue::Boolean(value) => Ok(Some(("bool", ConstScalarValue::Boolean(value)))),
+            ConstFactValue::Boolean(value) => Ok(Some((
+                std::borrow::Cow::Borrowed("bool"),
+                ConstScalarValue::Boolean(value),
+            ))),
             ConstFactValue::DeclaredInteger {
                 value,
                 integer_type,
             } => Ok(Some((
-                integer_type.name(),
+                std::borrow::Cow::Owned(integer_type.name()),
                 ConstScalarValue::DeclaredInteger {
                     value,
                     integer_type,
                 },
             ))),
-            value => Ok(value
-                .into_integer(syntax, warnings)?
-                .map(|value| (carrier, ConstScalarValue::Integer(value)))),
+            value => Ok(value.into_integer(syntax, warnings)?.map(|value| {
+                (
+                    std::borrow::Cow::Borrowed(carrier),
+                    ConstScalarValue::Integer(value),
+                )
+            })),
         }
     }
 
@@ -3013,7 +2962,6 @@ mod facts {
         argument_span: HandleSpan<TypeReferenceHandle>,
         carrier: &str,
         subject_binding: ConstSubjectBinding<'_>,
-        const_values: &HashMap<String, i128>,
         argument_values: &HashMap<String, ConstScalarValue>,
         argument_parameters: &[syntax_trees::item::TypeParameter],
         visiting: &mut Vec<(source::SourceSpan, String)>,
@@ -3081,7 +3029,6 @@ mod facts {
                 parameter.name.as_str(syntax),
                 parameter_type,
                 *argument,
-                const_values,
                 argument_values,
                 argument_parameters,
                 selection,
@@ -3140,7 +3087,6 @@ mod facts {
             domain_key,
             carrier,
             subject_binding,
-            const_values,
             &parameter_values,
             visiting,
             selection,
@@ -3164,7 +3110,6 @@ mod facts {
         parameter_name: &str,
         parameter_type: TypeReferenceHandle,
         argument: TypeReferenceHandle,
-        const_values: &HashMap<String, i128>,
         argument_values: &HashMap<String, ConstScalarValue>,
         argument_parameters: &[syntax_trees::item::TypeParameter],
         selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
@@ -3246,40 +3191,7 @@ mod facts {
                     })?;
                     return Ok(ConstScalarValue::from_canonical(&value));
                 }
-                if let Some(value) = const_values.get(name.as_str(syntax)) {
-                    reject_module_constant_selection(
-                        syntax,
-                        name.as_str(syntax),
-                        name.source_span(),
-                    )?;
-                    return Ok(Some(ConstScalarValue::Integer(*value)));
-                }
-                let mut definitions = syntax.root_items().filter_map(|item| match item {
-                    Item::Const(definition)
-                        if !crate::preparation::generic_data::module_constants::is_module_constant(
-                            syntax, definition,
-                        )
-                            && qualified_const_name(syntax, definition) == name.as_str(syntax) =>
-                    {
-                        Some(definition)
-                    }
-                    _ => None,
-                });
-                let Some(definition) = definitions.next() else {
-                    return Ok(None);
-                };
-                if definitions.next().is_some() {
-                    return Ok(None);
-                }
-                reject_module_constant_selection(syntax, name.as_str(syntax), name.source_span())?;
-                let value = canonicalize_const_definition(syntax, definition, parameter_type).map_err(
-                |reason| {
-                    format!(
-                        "index argument for `{family_name}::{parameter_name}` is invalid: {reason}"
-                    )
-                },
-            )?;
-                Ok(ConstScalarValue::from_canonical(&value))
+                Ok(None)
             }
             TypeReferenceNode::ConstExpression(expression) => {
                 if syntax.const_expression_contains_name(*expression)
@@ -3293,7 +3205,7 @@ mod facts {
                 let value = crate::preparation::generic_data::evaluate_const_argument_expression(
                     syntax,
                     *expression,
-                    const_values,
+                    selection,
                     &HashMap::new(),
                     &HashSet::new(),
                     integer_type,
@@ -3327,7 +3239,6 @@ mod facts {
         constraint: &TypeConstraintNode,
         carrier: &str,
         subject_binding: ConstSubjectBinding<'_>,
-        const_values: &HashMap<String, i128>,
         selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
         warnings: &mut Vec<Diagnostic>,
         subject_label: &str,
@@ -3340,7 +3251,6 @@ mod facts {
             domain,
             carrier,
             subject_binding,
-            const_values,
             selection,
             warnings,
         )?;
@@ -3434,7 +3344,6 @@ mod facts {
             }
             _ => return Err(CONSTRAINED_CONST_FENCE.to_owned()),
         };
-        let const_values = lexical_integer_const_values(syntax);
         let mut warnings = Vec::new();
         for constraint in constraints {
             prove_const_domain_constraint(
@@ -3442,7 +3351,6 @@ mod facts {
                 constraint,
                 &carrier,
                 subject_binding,
-                &const_values,
                 selection,
                 &mut warnings,
                 "the const leaf value",
@@ -3593,7 +3501,6 @@ mod facts {
     fn evaluate_const_domain_expression(
         syntax: &SyntaxTrees,
         expression: ExpressionHandle,
-        const_values: &HashMap<String, i128>,
         parameter_values: &HashMap<String, ConstScalarValue>,
         subject: Option<ConstFactSubject<'_>>,
         carrier: &str,
@@ -3610,7 +3517,6 @@ mod facts {
                 let Some(value) = evaluate_const_fact_expression_at(
                     syntax,
                     membership.value,
-                    const_values,
                     parameter_values,
                     selection,
                     subject,
@@ -3624,6 +3530,7 @@ mod facts {
                 else {
                     return Ok(None);
                 };
+                let nested_carrier = nested_carrier.as_ref();
                 let members = syntax_expressions(syntax).identifier_path_members(membership.domain);
                 let path = members.joined_path_in(syntax);
                 evaluate_named_const_domain(
@@ -3631,7 +3538,6 @@ mod facts {
                     &path,
                     nested_carrier,
                     ConstSubjectBinding::Scalar(value),
-                    const_values,
                     visiting,
                     members
                         .first()
@@ -3656,7 +3562,6 @@ mod facts {
                 let Some(left) = evaluate_const_domain_expression(
                     syntax,
                     binary.left,
-                    const_values,
                     parameter_values,
                     subject,
                     carrier,
@@ -3670,7 +3575,6 @@ mod facts {
                 let Some(right) = evaluate_const_domain_expression(
                     syntax,
                     binary.right,
-                    const_values,
                     parameter_values,
                     subject,
                     carrier,
@@ -3697,7 +3601,6 @@ mod facts {
             _ => evaluate_const_fact_expression_at(
                 syntax,
                 expression,
-                const_values,
                 parameter_values,
                 selection,
                 subject,
@@ -4180,7 +4083,7 @@ mod templates {
     */
     pub(in crate::preparation::generic_data) fn normalize_generic_template_const_expressions(
         syntax: &mut SyntaxTrees,
-        const_values: &HashMap<String, i128>,
+        selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
         warnings: &mut Vec<Diagnostic>,
         declarations: &[syntax_trees::item::ItemHandle],
     ) -> Result<(), Diagnostic> {
@@ -4220,7 +4123,7 @@ mod templates {
                 normalize_template_type_reference(
                 syntax,
                 field,
-                const_values,
+                selection,
                 &symbolic_parameters,
                 warnings,
             )
@@ -4237,7 +4140,7 @@ mod templates {
     pub(in crate::preparation::generic_data) fn normalize_template_type_reference(
         syntax: &mut SyntaxTrees,
         type_reference: TypeReferenceHandle,
-        const_values: &HashMap<String, i128>,
+        selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
         symbolic_parameters: &HashSet<String>,
         warnings: &mut Vec<Diagnostic>,
     ) -> Result<(), String> {
@@ -4252,26 +4155,21 @@ mod templates {
                 );
                 let scopes = (0..inputs.scope_count())
                     .map(|scope| {
-                        let constants = const_values
-                            .iter()
-                            .filter(|(name, _)| !inputs.hides_value(scope, name))
-                            .map(|(name, value)| (name.clone(), *value))
-                            .collect::<HashMap<_, _>>();
                         let mut symbolic = symbolic_parameters
                             .iter()
                             .filter(|name| !inputs.hides_value(scope, name))
                             .cloned()
                             .collect::<HashSet<_>>();
                         symbolic.extend(inputs.bound_values(scope));
-                        (constants, symbolic)
+                        symbolic
                     })
                     .collect::<Vec<_>>();
                 for &(scope, reference) in &inputs.types {
                     normalize_template_type_reference(
                         syntax,
                         reference,
-                        &scopes[scope].0,
-                        &scopes[scope].1,
+                        selection,
+                        &scopes[scope],
                         warnings,
                     )?;
                 }
@@ -4288,8 +4186,8 @@ mod templates {
                         normalize_template_type_reference(
                             syntax,
                             reference,
-                            &scopes[scope].0,
-                            &scopes[scope].1,
+                            selection,
+                            &scopes[scope],
                             warnings,
                         )?;
                     }
@@ -4299,14 +4197,14 @@ mod templates {
             TypeReferenceNode::Reference { referee, .. } => normalize_template_type_reference(
                 syntax,
                 referee,
-                const_values,
+                selection,
                 symbolic_parameters,
                 warnings,
             ),
             TypeReferenceNode::Constrained { base_type, .. } => normalize_template_type_reference(
                 syntax,
                 base_type,
-                const_values,
+                selection,
                 symbolic_parameters,
                 warnings,
             ),
@@ -4314,7 +4212,7 @@ mod templates {
             | TypeReferenceNode::Slice { element_type } => normalize_template_type_reference(
                 syntax,
                 element_type,
-                const_values,
+                selection,
                 symbolic_parameters,
                 warnings,
             ),
@@ -4335,7 +4233,7 @@ mod templates {
                         let placeholder = evaluate_const_argument_expression(
                             syntax,
                             expression,
-                            const_values,
+                            selection,
                             &HashMap::new(),
                             symbolic_parameters,
                             integer_types.get(index).copied().flatten(),
@@ -4353,7 +4251,7 @@ mod templates {
                         normalize_template_type_reference(
                             syntax,
                             argument,
-                            const_values,
+                            selection,
                             symbolic_parameters,
                             warnings,
                         )?;
@@ -4365,7 +4263,7 @@ mod templates {
                 let placeholder = evaluate_const_argument_expression(
                     syntax,
                     expression,
-                    const_values,
+                    selection,
                     &HashMap::new(),
                     symbolic_parameters,
                     None,
@@ -4892,14 +4790,6 @@ mod values {
             encoded.push_str(piece);
         }
         encoded
-    }
-
-    pub(in crate::preparation::generic_data) fn canonicalize_const_definition(
-        syntax: &SyntaxTrees,
-        definition: &ConstDefinition,
-        parameter_type: TypeReferenceHandle,
-    ) -> Result<CanonicalConstValue, String> {
-        canonicalize_selected_const_definition(syntax, definition, parameter_type, None)
     }
 
     pub(in crate::preparation) fn canonicalize_selected_const_definition(
@@ -5742,7 +5632,7 @@ mod values {
                     carrier = *base_type;
                 }
                 if !matches!(syntax.type_references.type_reference(carrier), TypeReferenceNode::Named(name)
-                if matches!(selection.builtin_type(syntax, name), Some(symbols::BuiltinTypeAtom::I8 | symbols::BuiltinTypeAtom::I16 | symbols::BuiltinTypeAtom::I32 | symbols::BuiltinTypeAtom::I64 | symbols::BuiltinTypeAtom::U8 | symbols::BuiltinTypeAtom::U16 | symbols::BuiltinTypeAtom::U32 | symbols::BuiltinTypeAtom::U64)))
+                if matches!(selection.builtin_type(syntax, name), Some(symbols::BuiltinTypeAtom::Integer(_))))
                 {
                     return Err("array extent constant must have an integer carrier".to_owned());
                 }
@@ -6593,8 +6483,7 @@ mod values {
         let Some(integer_type) = LandedIntegerType::from_name(type_name) else {
             return Err(format!("`{type_name}` is not an integer const type"));
         };
-        let (minimum, maximum) = integer_type.bounds();
-        if value < minimum || value > maximum {
+        if !integer_type.admits_i128(value) {
             Err(format!("const value `{value}` does not fit `{type_name}`"))
         } else {
             Ok(())
@@ -6708,7 +6597,6 @@ mod values {
     }
 }
 
-use crate::preparation::generic_data::module_constants::reject_module_constant_selection;
 pub(super) use arguments::{
     EvaluatedConst, const_integer_type, evaluate_const_argument_expression,
     generic_const_integer_types, prepare_closed_application,
@@ -6737,29 +6625,9 @@ pub(super) use templates::{
 pub(in crate::preparation) use values::canonicalize_selected_const_definition;
 pub(crate) use values::closed_fixed_array_length;
 pub(super) use values::{
-    ConstPredicateAdmission, canonicalize_const_definition, canonicalize_const_expression,
+    ConstPredicateAdmission, canonicalize_const_expression,
     canonicalize_selected_declaration_value,
     canonicalize_selected_declaration_value_with_admission, canonicalize_selected_index_expression,
     checked_fact_integer, const_integer_in_envelope, syntax_type_identity,
     validate_const_index_type, validate_syntax_integer_range,
 };
-
-/*
-    A `name` selection that names a module-scoped const value or const
-    declaration is rejected up front — the shared module-constant gate both
-    evaluation walkers apply before their own normalization.
-*/
-fn module_constant_selection_gate(
-    syntax: &SyntaxTrees,
-    name: &Identifier,
-    const_values: &HashMap<String, i128>,
-    const_definitions: &HashMap<String, ConstDefinition>,
-) -> Result<(), Diagnostic> {
-    if const_values.contains_key(name.as_str(syntax))
-        || const_definitions.contains_key(name.as_str(syntax))
-    {
-        reject_module_constant_selection(syntax, name.as_str(syntax), name.source_span())
-            .map_err(|reason| Diagnostic::error(reason).with_source_span(name.source_span()))?;
-    }
-    Ok(())
-}

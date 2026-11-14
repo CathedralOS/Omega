@@ -160,10 +160,11 @@ pub(crate) fn produce(
         }
     }
     // Every reference the reader carried must have reached a selection call.
-    let carried: usize = elaboration
-        .sources
+    let carried: usize = accepted
+        .correspondence()
+        .designated
         .iter()
-        .map(|(_, sources)| sources.designated.len())
+        .map(|(_, rows)| rows.len())
         .sum();
     if carried != designated {
         return Err(refused(
@@ -192,12 +193,12 @@ fn binding(
         "exclude" => TerminalBuildBindingOperation::Exclude,
         other => return Err(unknown(SELECTION_PROTOCOL, other)),
     };
-    let designated = elaboration
-        .sources
+    let designated = accepted
+        .correspondence()
+        .designated
         .get(call.site.machine)
         .and_then(|sources| {
             sources
-                .designated
                 .iter()
                 .find(|(operation, _)| *operation == call.site.operation)
         })
@@ -440,7 +441,7 @@ fn native_locator(
         Arc<TerminalBuildValueShape>,
     >,
 ) -> Result<TerminalBuildNativeLocator, Diagnostic> {
-    let publication = &source.closure().elaboration;
+    let publication = source.correspondence();
     let declaration = module
         .boundary_machines
         .iter()
@@ -457,7 +458,7 @@ fn native_locator(
         ));
     }
     let mut records = publication
-        .source_records
+        .records
         .iter()
         .filter(|record| record.record == parameter.structural_type);
     let record = records

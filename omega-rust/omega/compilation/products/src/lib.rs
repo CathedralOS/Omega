@@ -51,7 +51,10 @@ pub use provider_instances::SelectedProviderSource;
 pub mod publication;
 mod terminal_publication;
 mod test_products;
-pub use terminal_publication::ProductTerminalPublication;
+pub use terminal_publication::{
+    ProductRoster, ProductTerminalPublication, SourceCallingContext, SourceCallingInputs,
+    SourceNormalizationInputs, SourceProgramEntryInput,
+};
 pub use test_products::{
     PendingTestProduct, TestFilesystem, TestRootIdentity, TestRosterEntry, TestRosterStatus,
 };
@@ -104,3 +107,6 @@ pub use terminal_psi_to_abstract_operations::{
     TerminalIntegerComparisonOccurrenceProposal, TerminalNativeBoundaryApplications,
     TerminalNativeOccurrences, TerminalNativeProviders, TerminalNativeRealizationProposal,
 };
+
+// The actual invocation records retained by source and failure reports.
+pub use build_time_evaluation::SourceCompletionAccounting;

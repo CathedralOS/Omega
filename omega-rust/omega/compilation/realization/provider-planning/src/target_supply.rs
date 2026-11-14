@@ -14,3 +14,10 @@ pub use plan_realization::{
 pub use realized_supply::{
     ProviderPlanRealizationInput, RealizedTargetSupply, TargetSupplyRealizationInput,
 };
+
+mod source_choices;
+pub use source_choices::{
+    DemandedRequirement, JudgedProvider, PreparedTargetSupply, ProviderSupply,
+    ReachedBoundaryRequirement, SettledRequirement, SettledTargetSupply, SupplyAuthority,
+    TargetSupplyRequest,
+};

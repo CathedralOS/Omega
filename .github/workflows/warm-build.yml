@@ -3,8 +3,11 @@ name: Warm build
 # Publish main's compiler build so Claude Code cloud sessions start with a
 # built compiler instead of compiling it for 11 minutes on their 4-CPU
 # containers. Each job reproduces a session: Ubuntu 24.04, root, the checkout at
-# /home/user/Omega, tools installed by tools/agent_setup.sh. tools/warm_build.sh
-# explains the two slots and why the environment has to match.
+# /workspace/Omega, tools installed by tools/agent_setup.sh. tools/warm_build.sh
+# explains the two slots and why the environment has to match. The path matters
+# most: Cargo stores absolute paths for files a crate reads from outside its
+# package, so a build made anywhere else recompiles every workspace crate. The
+# manifest records the path, and a session refuses a build made elsewhere.
 
 on:
   push:
@@ -47,17 +50,17 @@ jobs:
       - name: Check out the commit at the session path
         run: |
           git config --global --add safe.directory '*'
-          git clone -q --filter=blob:none "https://github.com/${{ github.repository }}" /home/user/Omega
-          git -C /home/user/Omega checkout -q --detach "${{ github.sha }}"
+          git clone -q --filter=blob:none "https://github.com/${{ github.repository }}" /workspace/Omega
+          git -C /workspace/Omega checkout -q --detach "${{ github.sha }}"
           if [ "$SLOT" = worker ]; then
-            git -C /home/user/Omega worktree add -q --detach .agents/worktree/worker-1 "${{ github.sha }}"
-            echo "BUILD_DIR=/home/user/Omega/.agents/worktree/worker-1" >> "$GITHUB_ENV"
+            git -C /workspace/Omega worktree add -q --detach .agents/worktree/worker-1 "${{ github.sha }}"
+            echo "BUILD_DIR=/workspace/Omega/.agents/worktree/worker-1" >> "$GITHUB_ENV"
           else
-            echo "BUILD_DIR=/home/user/Omega" >> "$GITHUB_ENV"
+            echo "BUILD_DIR=/workspace/Omega" >> "$GITHUB_ENV"
           fi
       - name: Set up the host as a session does
         # From the checkout, so rustup resolves the pinned toolchain for every step.
-        run: cd /home/user/Omega && bash tools/agent_setup.sh
+        run: cd /workspace/Omega && bash tools/agent_setup.sh
       - name: Build the compiler
         run: |
           cd "$BUILD_DIR"

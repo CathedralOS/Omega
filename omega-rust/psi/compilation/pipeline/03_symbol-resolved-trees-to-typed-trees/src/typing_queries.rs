@@ -8,7 +8,7 @@ use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::{
     TypedTrees,
     data::DataField,
-    expression::{ExpressionHandle, TableStructLiteral},
+    expression::{ExpressionHandle, TableNamePath, TableStructLiteral},
     signature::StateParameter,
     types::{TypeReferenceHandle, TypeReferenceNode},
 };
@@ -179,6 +179,124 @@ pub(crate) fn declared_place_type(
     state: &typed_trees::state::State,
     target: ExpressionHandle,
 ) -> Result<TypeReferenceHandle, Diagnostic> {
+    declared_projection_type(program, target, |path| {
+        if path.reserved_result_of.is_valid() {
+            return Err(crate::unavailable_judgment(
+                "reserved result is not storage",
+            ));
+        }
+        let binder = path
+            .resolved_symbol()
+            .ok_or_else(|| crate::unavailable_judgment("assignment storage binder"))?;
+        program
+            .declared_binding_type_by_symbol(state, binder)
+            .ok_or_else(|| crate::unavailable_judgment("unique assignment storage declaration"))
+    })
+}
+
+/// Read the declared type of a value in its exact callable context. A
+/// contract's reserved result is a value of its declared return type, never
+/// writable storage or a name resolved again by spelling.
+pub(crate) fn declared_callable_value_type(
+    program: &TypedTrees,
+    owner: SymbolHandle,
+    target: ExpressionHandle,
+) -> Result<TypeReferenceHandle, Diagnostic> {
+    if !program.symbols.symbols().nodes().is_valid(owner) {
+        return Err(crate::unavailable_judgment("contract value owner"));
+    }
+    let states = program
+        .machine_by_symbol(owner)
+        .map(|machine| program.machine_states(machine));
+    let state = program.state_by_symbol(owner);
+    let signature = program
+        .trait_machine_signature(owner)
+        .map(|(_, signature)| signature);
+    if states.is_none() && state.is_none() && signature.is_none() {
+        return Err(crate::unavailable_judgment("contract callable declaration"));
+    }
+    declared_projection_type(program, target, |path| {
+        if path.static_application.is_valid() {
+            return Err(crate::unavailable_judgment("applied contract value"));
+        }
+        let reference = if path.reserved_result_of.is_valid() {
+            if path.resolved_symbol().is_some()
+                || program
+                    .expression_table
+                    .name_path_members(path.members)
+                    .len()
+                    != 1
+                || program
+                    .expression_table
+                    .name_path_member_symbols(path.member_symbols)
+                    .iter()
+                    .any(|symbol| symbol.is_valid())
+            {
+                return Err(crate::unavailable_judgment("reserved result identity"));
+            }
+            let result_owner = path.reserved_result_of;
+            let mut results = states
+                .into_iter()
+                .flatten()
+                .chain(state)
+                .filter(|state| state.symbol == result_owner)
+                .map(|state| state.return_type)
+                .chain(
+                    signature
+                        .filter(|signature| signature.symbol == result_owner)
+                        .map(|signature| signature.return_type),
+                );
+            let reference = results
+                .next()
+                .ok_or_else(|| crate::unavailable_judgment("result of another callable"))?;
+            if results.next().is_some() {
+                return Err(crate::unavailable_judgment(
+                    "ambiguous contract result owner",
+                ));
+            }
+            reference
+        } else {
+            let binder = path
+                .resolved_symbol()
+                .ok_or_else(|| crate::unavailable_judgment("contract value binder"))?;
+            if !program.symbols.symbols().nodes().is_valid(binder) {
+                return Err(crate::unavailable_judgment("contract value binder"));
+            }
+            let mut declarations = states
+                .into_iter()
+                .flatten()
+                .chain(state)
+                .filter_map(|state| program.declared_binding_type_by_symbol(state, binder))
+                .chain(signature.into_iter().flat_map(|signature| {
+                    program
+                        .state_signature_parameters(signature)
+                        .iter()
+                        .filter(move |parameter| parameter.symbol == binder)
+                        .map(|parameter| parameter.type_reference)
+                }));
+            let reference = declarations
+                .next()
+                .ok_or_else(|| crate::unavailable_judgment("contract value declaration"))?;
+            if declarations.next().is_some() {
+                return Err(crate::unavailable_judgment(
+                    "ambiguous contract value declaration",
+                ));
+            }
+            reference
+        };
+        program
+            .type_reference_table
+            .contains_type_reference(reference)
+            .then_some(reference)
+            .ok_or_else(|| crate::unavailable_judgment("contract value declared type"))
+    })
+}
+
+fn declared_projection_type(
+    program: &TypedTrees,
+    target: ExpressionHandle,
+    mut root_type: impl FnMut(&TableNamePath) -> Result<TypeReferenceHandle, Diagnostic>,
+) -> Result<TypeReferenceHandle, Diagnostic> {
     let table = &program.expression_table;
     let mut spine = Vec::new();
     let mut cursor = target;
@@ -192,27 +310,21 @@ pub(crate) fn declared_place_type(
             ExpressionNode::Name(path) => {
                 let names = table.name_path_members(path.members);
                 let selected = table.name_path_member_symbols(path.member_symbols);
-                let binder = path
-                    .resolved_symbol()
-                    .ok_or_else(|| crate::unavailable_judgment("assignment storage binder"))?;
                 if names.is_empty() || (!selected.is_empty() && selected.len() != names.len()) {
                     return Err(crate::unavailable_judgment(
                         "assignment storage path roster",
                     ));
                 }
-                if selected
-                    .first()
-                    .is_some_and(|symbol| symbol.is_valid() && *symbol != binder)
+                if let Some(binder) = path.resolved_symbol()
+                    && selected
+                        .first()
+                        .is_some_and(|symbol| symbol.is_valid() && *symbol != binder)
                 {
                     return Err(crate::unavailable_judgment(
                         "assignment storage binder identity",
                     ));
                 }
-                let mut reference = program
-                    .declared_binding_type_by_symbol(state, binder)
-                    .ok_or_else(|| {
-                        crate::unavailable_judgment("unique assignment storage declaration")
-                    })?;
+                let mut reference = root_type(path)?;
                 for (position, name) in names.iter().enumerate().skip(1) {
                     reference = declared_field_type(
                         program,
@@ -228,7 +340,7 @@ pub(crate) fn declared_place_type(
                                 program,
                                 reference,
                                 member.member.as_str(),
-                                member.member_symbol,
+                                member.selection.field_symbol(),
                             )?
                         }
                         ExpressionNode::Indexed(_) => collection_element_type(program, reference)?,
@@ -451,7 +563,7 @@ pub(crate) fn scoped_expression_type_reference(
                             .data_constructor_field(
                                 receiver,
                                 definition.symbol,
-                                member.member_symbol,
+                                member.selection.field_symbol(),
                             )
                             .map(|field| field.type_reference)
                     })
@@ -647,6 +759,37 @@ impl<'program> DeclaredCallTargets<'program> {
             )
     }
 
+    /// The public requirement is the authored target; the named map owns
+    /// its separate body demand. Close only a unique owned row with its real
+    /// entry state, leaving open maps and reference selections unresolved.
+    fn owned_named_call(&self, target: SymbolHandle, receiver: CallReceiver) -> bool {
+        let CallReceiver::Named(namespace) = receiver else {
+            return false;
+        };
+        let Ok(Some((owner, row, _))) = self.program.named_conformance_member(namespace, target)
+        else {
+            return false;
+        };
+        if !row.source.owns_realization() {
+            return false;
+        }
+        let Some((actual_owner, actual_row)) = self
+            .program
+            .owned_conformance_realization(row.realization_machine)
+        else {
+            return false;
+        };
+        let Some(machine) = self.program.machine_by_symbol(row.realization_machine) else {
+            return false;
+        };
+        let [entry] = self.program.machine_states(machine) else {
+            return false;
+        };
+        actual_owner.symbol == owner.symbol
+            && actual_row == row
+            && entry.symbol == row.realization_state
+    }
+
     /// What a call typing did not bind still asks of a later pass, or `None`
     /// for a call of a declared target.
     fn unserved(&self, target: SymbolHandle, receiver: CallReceiver) -> Option<DeferredRequest> {
@@ -670,12 +813,16 @@ impl<'program> DeclaredCallTargets<'program> {
     }
 }
 
-/// Records every call typing left without a declared target on the
-/// declaration that holds it (`typed_trees::deferred_refusals`).
+/// Closes exact named operation choices before recording calls typing left
+/// without a declared target on their owning declaration. Selection closure
+/// identifies a public requirement; it grants no body or contract judgment.
 ///
 /// Typing sees the program with every bundled library and does not know what
-/// an entry reaches, so such a call is not an error of the program: it is a
-/// request of the declaration, raised by whoever demands that declaration. A
+/// an entry reaches, so such a call is not refused here: it is a row of the
+/// declaration, raised by whoever demands that declaration. A call of a bare
+/// name nothing in the program has is an error in every program and its row
+/// says so (`DeferredRequest::UndeclaredCallName`); any other is a request no
+/// pass serves yet. A
 /// terminal call is examined for the machines of this cohort only, as before.
 /// A request in an expression no declaration owns has no reader to raise it
 /// and still refuses here.
@@ -686,7 +833,11 @@ pub(crate) fn defer_unbound_calls(
 ) -> Result<(), Diagnostic> {
     use typed_trees::statement::TransitionTargetNode;
     let mut in_expressions = Vec::new();
+    // Each row keeps the call's bare written name while it may still be
+    // found to name nothing at all (`undeclared_call_names`).
     let mut in_declarations = Vec::new();
+    let mut closed_selections = Vec::new();
+    let rows: Vec<(SymbolHandle, DeferredRequest, source::SourceSpan)>;
     {
         let program = &*program;
         let targets = DeclaredCallTargets::new(program);
@@ -710,7 +861,24 @@ pub(crate) fn defer_unbound_calls(
                 CallReceiver::Value
             };
             if let Some(request) = targets.unserved(call.target_symbol, receiver) {
-                in_expressions.push((handle, request));
+                // A compiler operation the call was recognized as, or a
+                // selection bound some other way, is not a bare name.
+                let bare = (matches!(receiver, CallReceiver::Absent)
+                    && !call.static_machine_parameter.is_valid()
+                    && call.static_requirement_dispatch.is_none()
+                    && call.authored_call_binding.is_none()
+                    && call.quotient_operation.is_none()
+                    && call.private_layout_operation.is_none()
+                    && call.installed_interrupt_operation.is_none()
+                    && call.layout_query.is_none()
+                    && call.native_code_layout.is_none())
+                .then_some(call.target.as_str());
+                in_expressions.push((handle, request, bare));
+            }
+            if targets.owned_named_call(call.target_symbol, receiver)
+                && let Some(occurrence) = call.authored_call_selection
+            {
+                closed_selections.push((occurrence, call.target_symbol));
             }
         }
         for (ordinal, machine) in program.machines().iter().enumerate() {
@@ -751,7 +919,16 @@ pub(crate) fn defer_unbound_calls(
                             CallReceiver::Named(call.receiver_symbol)
                         };
                         if let Some(request) = targets.unserved(call.target_symbol, receiver) {
-                            in_declarations.push((machine.symbol, request, call.source_span));
+                            let bare = (matches!(receiver, CallReceiver::Absent)
+                                && call.installed_interrupt_operation.is_none()
+                                && !call.static_machine_parameter.is_valid())
+                            .then_some(call.target.as_str());
+                            in_declarations.push((machine.symbol, request, call.source_span, bare));
+                        }
+                        if targets.owned_named_call(call.target_symbol, receiver)
+                            && let Some(occurrence) = call.authored_call_selection
+                        {
+                            closed_selections.push((occurrence, call.target_symbol));
                         }
                     }
                     let Some(transition) = statement.as_transition() else {
@@ -762,7 +939,10 @@ pub(crate) fn defer_unbound_calls(
                     }
                     for target in transition.targets() {
                         let TransitionTargetNode::Named {
-                            path, source_span, ..
+                            path,
+                            source_span,
+                            static_machine_parameter,
+                            ..
                         } = program.statement_table.transition_target(target)
                         else {
                             continue;
@@ -777,7 +957,17 @@ pub(crate) fn defer_unbound_calls(
                             CallReceiver::Absent
                         };
                         if let Some(request) = targets.unserved(path.symbol, receiver) {
-                            in_declarations.push((machine.symbol, request, *source_span));
+                            let bare = match program.statement_table.name_path_members(path.members)
+                            {
+                                [name]
+                                    if matches!(receiver, CallReceiver::Absent)
+                                        && !static_machine_parameter.is_valid() =>
+                                {
+                                    Some(name.as_str())
+                                }
+                                _ => None,
+                            };
+                            in_declarations.push((machine.symbol, request, *source_span, bare));
                         }
                     }
                 }
@@ -785,14 +975,14 @@ pub(crate) fn defer_unbound_calls(
         }
         if !in_expressions.is_empty() {
             let owners = typed_trees::references::collect_program_operand_owners(program);
-            for (handle, request) in in_expressions {
+            for (handle, request, bare) in in_expressions {
                 let source_span = program.expression_table.source_span(handle);
                 let before = in_declarations.len();
                 in_declarations.extend(
                     owners
                         .expression_owners(handle)
                         .filter(|owner| owner.is_valid())
-                        .map(|owner| (owner, request, source_span)),
+                        .map(|owner| (owner, request, source_span, bare)),
                 );
                 if in_declarations.len() == before {
                     return Err(Diagnostic::error(format!(
@@ -803,11 +993,117 @@ pub(crate) fn defer_unbound_calls(
                 }
             }
         }
+        let undeclared = undeclared_call_names(
+            program,
+            in_declarations
+                .iter()
+                .filter(|row| row.1 == DeferredRequest::UnresolvedCallTarget)
+                .filter_map(|row| row.3),
+        );
+        rows = in_declarations
+            .into_iter()
+            .map(|(declaration, request, source_span, bare)| {
+                let undeclared = request == DeferredRequest::UnresolvedCallTarget
+                    && bare.is_some_and(|name| undeclared.binary_search(&name).is_ok());
+                let request = if undeclared {
+                    DeferredRequest::UndeclaredCallName
+                } else {
+                    request
+                };
+                (declaration, request, source_span)
+            })
+            .collect();
     }
-    for (declaration, request, source_span) in in_declarations {
+    if !closed_selections.is_empty() {
+        use typed_trees::{
+            AuthoredDeclarationSelectionKind as Kind,
+            AuthoredDeclarationSelectionLateBinding as Binding,
+            AuthoredDeclarationSelectionTarget as Target,
+        };
+        for (occurrence, target) in closed_selections {
+            let selection = program
+                .authored_declaration_selections()
+                .get(occurrence)
+                .ok_or_else(|| {
+                    Diagnostic::error("named operation call lost its authored selection")
+                })?;
+            let span = selection.source_span();
+            if selection.kind() != Kind::Call {
+                return Err(
+                    Diagnostic::error("named operation call has a non-call selection")
+                        .with_source_span(span),
+                );
+            }
+            match selection.target() {
+                Target::Resolved(actual) if actual.selected_symbol() == target => continue,
+                Target::LateBound(Binding::CheckedCall) => {}
+                _ => {
+                    return Err(Diagnostic::error(
+                        "named operation call has contradictory selection custody",
+                    )
+                    .with_source_span(span));
+                }
+            }
+            program
+                .finalize_late_bound_authored_declaration_selection(
+                    occurrence,
+                    Binding::CheckedCall,
+                    target,
+                )
+                .map_err(|error| {
+                    Diagnostic::error(format!(
+                        "named operation call lost its closed choice: {error:?}"
+                    ))
+                    .with_source_span(span)
+                })?;
+        }
+    }
+    for (declaration, request, source_span) in rows {
         program.record_deferred_refusal(declaration, request, source_span);
     }
     Ok(())
+}
+
+/// The bare names a call compiler-recognizes by its spelling alone: no
+/// declaration carries them, and typing gives each its meaning
+/// (`expression_lowering`, `statement_lowering`).
+const COMPILER_CALL_SPELLINGS: [&str; 2] = ["address_of", "code_layout"];
+
+/// Of the bare names `written` that calls resolution left unbound, those
+/// nothing in the program has: no declaration, parameter, local, state or
+/// builtin of any kind, in this source or any library, carries the name, and
+/// it is no compiler operation's spelling. Such a call is an error in every
+/// program (`DeferredRequest::UndeclaredCallName`). A name something has
+/// may name it validly where resolution does not follow yet (a local
+/// holding a callable, an ambiguous import), so it stays a request.
+fn undeclared_call_names<'a>(
+    program: &TypedTrees,
+    written: impl Iterator<Item = &'a str>,
+) -> Vec<&'a str> {
+    // A call with no written name was made by the compiler, not the author.
+    let mut names = written
+        .filter(|name| !name.is_empty() && !COMPILER_CALL_SPELLINGS.contains(name))
+        .collect::<Vec<_>>();
+    names.sort_unstable();
+    names.dedup();
+    if names.is_empty() {
+        return names;
+    }
+    let mut named = vec![false; names.len()];
+    for (symbol, _) in program.symbols.symbols().nodes().iter() {
+        // A declaration may keep its qualified spelling as its name
+        // (`machine kit::work`); a call writes the last segment.
+        let name = program.symbols.name(symbol);
+        let leaf = name.rsplit("::").next().unwrap_or(name);
+        if let Ok(position) = names.binary_search(&leaf) {
+            named[position] = true;
+        }
+    }
+    names
+        .into_iter()
+        .zip(named)
+        .filter_map(|(name, named)| (!named).then_some(name))
+        .collect()
 }
 
 #[cfg(test)]
@@ -974,7 +1270,9 @@ mod tests {
                     .expression_table
                     .insert(ExpressionNode::Member(TableMemberExpression {
                         receiver,
-                        member_symbol: row_members.handle_at(1),
+                        selection: typed_trees::expression::MemberSelection::Field(
+                            row_members.handle_at(1),
+                        ),
                         member: Identifier::generated("items"),
                         case_variant: None,
                     }));
@@ -1014,7 +1312,7 @@ mod tests {
         else {
             panic!("member")
         };
-        member.member_symbol = foreign_field;
+        member.selection = typed_trees::expression::MemberSelection::Field(foreign_field);
         assert!(
             declared_place_type(
                 &program,
@@ -1129,7 +1427,7 @@ mod tests {
         else {
             panic!("member")
         };
-        member.member_symbol = symbol;
+        member.selection = typed_trees::expression::MemberSelection::Field(symbol);
     }
 
     use super::*;
@@ -1254,11 +1552,33 @@ mod tests {
             deferred(&program).unwrap(),
             vec![(holder, DeferredRequest::ReceiverCallSelection)]
         );
-        // The same call with no receiver is a name that resolves to nothing.
+        // The same call with no receiver is a name that resolves to nothing,
+        // and nothing in the program is named `call`: an error wherever it
+        // is written.
         let ExpressionNode::Call(node) = program.expression_table.expression_mut(unbound) else {
             panic!("call expression")
         };
         node.receiver = Default::default();
+        assert_eq!(
+            deferred(&program).unwrap(),
+            vec![(holder, DeferredRequest::UndeclaredCallName)]
+        );
+        // A compiler operation's spelling has no declaration either, and is
+        // no unknown name.
+        let ExpressionNode::Call(node) = program.expression_table.expression_mut(unbound) else {
+            panic!("call expression")
+        };
+        node.target = typed_trees::name::Identifier::generated("address_of");
+        assert_eq!(
+            deferred(&program).unwrap(),
+            vec![(holder, DeferredRequest::UnresolvedCallTarget)]
+        );
+        // Unbound, but something is named `run`: resolution may not follow
+        // it yet, so the call stays a request.
+        let ExpressionNode::Call(node) = program.expression_table.expression_mut(unbound) else {
+            panic!("call expression")
+        };
+        node.target = typed_trees::name::Identifier::generated("run");
         assert_eq!(
             deferred(&program).unwrap(),
             vec![(holder, DeferredRequest::UnresolvedCallTarget)]

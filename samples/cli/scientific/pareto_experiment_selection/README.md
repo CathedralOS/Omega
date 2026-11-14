@@ -59,7 +59,7 @@ Runtime-invalid fixtures challenge count, missing fields, overflow, digit count,
 lexical form, negative values, zero identities/provenance/duration, duplicate IDs,
 risk range and trailing garbage.
 
-`invalid_source/` is a separate complete intended-invalid source project. It
+`../invalid_pareto_experiment_selection_source/` is a separate complete intended-invalid source project. It
 attempts exact unsigned `0 - 1`; validation requires its proof rejection,
 independently of all runtime-invalid tests.
 
@@ -70,9 +70,9 @@ its library explicitly. Package review is the ordinary documented update route:
 
 ```sh
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
-omega update --project samples/cli/independent/pareto_experiment_selection --target linux_x86_64
+omega packages update --project samples/cli/independent/pareto_experiment_selection --target linux_x86_64
 # Read the pending review, accept the reviewed decisions, then:
-omega update --resume --project samples/cli/independent/pareto_experiment_selection
+omega packages update --resume --project samples/cli/independent/pareto_experiment_selection
 omega --check samples/cli/independent/pareto_experiment_selection/main.omg
 omega run --keep samples/cli/independent/pareto_experiment_selection/main.omg < samples/cli/independent/pareto_experiment_selection/data/baseline.stdin
 omega run --both --keep samples/cli/independent/pareto_experiment_selection/main.omg < samples/cli/independent/pareto_experiment_selection/data/reordered.stdin

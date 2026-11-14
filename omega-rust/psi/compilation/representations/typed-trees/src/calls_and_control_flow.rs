@@ -141,8 +141,8 @@ pub mod calls {
             let (declaration, signature) = if let Some(dispatch) = &call.static_requirement_dispatch
             {
                 let declaration = program.trait_definition_by_symbol(dispatch.declaring_trait)?;
-                let signature = program
-                    .trait_machine_signature_by_symbol(declaration, dispatch.contract_symbol())?;
+                let signature =
+                    program.trait_machine_signature_by_symbol(declaration, dispatch.requirement)?;
                 (declaration, signature)
             } else {
                 program.trait_machine_signature(call.target_symbol)?
@@ -556,23 +556,16 @@ pub mod calls {
     }
     pub mod finite_family {
         use crate::TypedTrees;
-        use crate::escape;
         use crate::expression::BinaryOperator;
         use crate::expression::ExpressionNode::Binary;
         use crate::expression::ExpressionNode::Name;
         use crate::signature::StateSignature;
         use crate::types;
-
-        #[derive(Debug, Clone, PartialEq, Eq)]
-        pub struct FamilyValue {
-            pub identity: String,
-            pub display: String,
-        }
+        use language_semantics::const_value::FiniteScalarValue;
 
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub struct FamilyTuple {
-            pub identities: Box<[String]>,
-            pub display: Box<[String]>,
+            pub values: Box<[FiniteScalarValue]>,
         }
 
         #[derive(Debug, Clone, PartialEq, Eq)]
@@ -702,7 +695,7 @@ pub mod calls {
             ) -> FamilyProbe {
                 let mut tuples = Vec::new();
                 for alternative in self.binary_chain_leaves(root, BinaryOperator::Or) {
-                    let mut assignments: Vec<Option<FamilyValue>> = vec![None; binders.len()];
+                    let mut assignments: Vec<Option<FiniteScalarValue>> = vec![None; binders.len()];
                     for conjunct in self.binary_chain_leaves(alternative, BinaryOperator::And) {
                         let Some((binder_index, value)) =
                             self.equality_assignment(owner, binders, conjunct)
@@ -733,12 +726,19 @@ pub mod calls {
                         .map(|value| value.expect("complete alternative tuple"))
                         .collect::<Vec<_>>();
                     tuples.push(FamilyTuple {
-                        identities: tuple.iter().map(|value| value.identity.clone()).collect(),
-                        display: tuple.iter().map(|value| value.display.clone()).collect(),
+                        values: tuple.into_boxed_slice(),
                     });
                 }
-                tuples.sort_by(|left, right| left.identities.cmp(&right.identities));
-                tuples.dedup_by(|left, right| left.identities == right.identities);
+                // Preserve the published roster ordering while keeping the
+                // scalar values, rather than reparsing keys for later checks.
+                tuples.sort_by_cached_key(|tuple| {
+                    tuple
+                        .values
+                        .iter()
+                        .map(|value| value.canonical_identity())
+                        .collect::<Vec<_>>()
+                });
+                tuples.dedup_by(|left, right| left.values == right.values);
                 FamilyProbe::Finite {
                     arity: binders.len(),
                     tuples,
@@ -769,7 +769,7 @@ pub mod calls {
                 owner: symbols::SymbolHandle,
                 binders: &[&crate::data::TypeParameter],
                 expression: crate::expression::ExpressionHandle,
-            ) -> Option<(usize, FamilyValue)> {
+            ) -> Option<(usize, FiniteScalarValue)> {
                 let Binary(binary) = self.expression_table.expression(expression) else {
                     return None;
                 };
@@ -791,7 +791,7 @@ pub mod calls {
                     | crate::data::TypeParameterKind::Value { type_reference } => *type_reference,
                     _ => return None,
                 };
-                self.value_fits_carrier(carrier, &value.identity)
+                self.value_fits_carrier(carrier, value)
                     .then_some((binder, value))
             }
 
@@ -818,26 +818,18 @@ pub mod calls {
                 &self,
                 owner: symbols::SymbolHandle,
                 expression: crate::expression::ExpressionHandle,
-            ) -> Option<FamilyValue> {
+            ) -> Option<FiniteScalarValue> {
                 match self.expression_table.expression(expression) {
                     crate::expression::ExpressionNode::Integer(literal) => {
                         let value = literal
                             .value_i64()
                             .map(i128::from)
                             .or_else(|| literal.value_u64().map(i128::from))?;
-                        Some(FamilyValue {
-                            identity: integer_const_identity(value),
-                            display: value.to_string(),
-                        })
+                        Some(FiniteScalarValue::Integer(value))
                     }
-                    crate::expression::ExpressionNode::Boolean(value) => Some(FamilyValue {
-                        identity: canonical_const_identity(
-                            "bool",
-                            &language_semantics::const_value::CanonicalConstValue::boolean(*value)
-                                .encoding,
-                        ),
-                        display: value.to_string(),
-                    }),
+                    crate::expression::ExpressionNode::Boolean(value) => {
+                        Some(FiniteScalarValue::Boolean(*value))
+                    }
                     Name(path) => {
                         let members = self.expression_table.name_path_members(path.members);
                         let [member] = members else { return None };
@@ -859,28 +851,7 @@ pub mod calls {
                             declaration.evaluated_value.as_ref()?.encoding()?.to_owned(),
                             member.as_str(),
                         );
-                        match value.decode_encoding()? {
-                    language_semantics::const_value::DecodedCanonicalConstValue::Integer {
-                        value,
-                        ..
-                    } => Some(FamilyValue {
-                        identity: integer_const_identity(value),
-                        display: value.to_string(),
-                    }),
-                    language_semantics::const_value::DecodedCanonicalConstValue::Boolean(value) => {
-                        Some(FamilyValue {
-                            identity: canonical_const_identity(
-                                "bool",
-                                &language_semantics::const_value::CanonicalConstValue::boolean(
-                                    value,
-                                )
-                                .encoding,
-                            ),
-                            display: value.to_string(),
-                        })
-                    }
-                    _ => None,
-                }
+                        FiniteScalarValue::from_decoded(&value.decode_encoding()?)
                     }
                     _ => None,
                 }
@@ -889,47 +860,17 @@ pub mod calls {
             fn value_fits_carrier(
                 &self,
                 carrier: types::TypeReferenceHandle,
-                identity: &str,
+                value: FiniteScalarValue,
             ) -> bool {
                 let Some(primitive) = self.primitive_type_reference(carrier) else {
                     return false;
                 };
-                if let Some(value) = identity
-                    .strip_prefix("named(integer-const(")
-                    .and_then(|inner| inner.strip_suffix("))"))
-                    .and_then(|inner| inner.parse::<i128>().ok())
-                {
-                    return primitive_integer_range(primitive)
-                        .is_some_and(|(low, high)| low <= value && value <= high);
+                match value {
+                    FiniteScalarValue::Integer(value) => primitive
+                        .integer_bounds()
+                        .is_some_and(|(low, high)| low <= value && value <= high),
+                    FiniteScalarValue::Boolean(_) => primitive == types::PrimitiveType::Bool,
                 }
-                primitive == types::PrimitiveType::Bool
-            }
-        }
-
-        pub fn integer_const_identity(value: i128) -> String {
-            format!("named(integer-const({value}))")
-        }
-
-        pub fn canonical_const_identity(type_name: &str, encoding: &str) -> String {
-            format!(
-                "named(canonical-const(type({}),encoding({})))",
-                escape(type_name),
-                escape(encoding)
-            )
-        }
-
-        fn primitive_integer_range(primitive: types::PrimitiveType) -> Option<(i128, i128)> {
-            use types::PrimitiveType::*;
-            match primitive {
-                Bool | F32 | F64 | Selector => None,
-                I8 => Some((i128::from(i8::MIN), i128::from(i8::MAX))),
-                I16 => Some((i128::from(i16::MIN), i128::from(i16::MAX))),
-                I32 => Some((i128::from(i32::MIN), i128::from(i32::MAX))),
-                I64 => Some((i128::from(i64::MIN), i128::from(i64::MAX))),
-                U8 => Some((0, i128::from(u8::MAX))),
-                U16 => Some((0, i128::from(u16::MAX))),
-                U32 => Some((0, i128::from(u32::MAX))),
-                U64 | Addr => Some((0, i128::from(u64::MAX))),
             }
         }
     }
@@ -2793,17 +2734,12 @@ pub mod control_flow {
                                 let receiver = self.statement_table.name_path_members.insert_many(
                                     source.name_path_members(call.receiver).iter().cloned(),
                                 );
-                                let (
-                                    arguments,
-                                    captures,
-                                    authored_machine_application,
-                                    static_requirement_dispatch,
-                                ) = self.expression_table.copy_call_operands_from(
-                                    &source_tables.expression_table,
-                                    source.expression_handles(call.arguments),
-                                    call.authored_machine_application,
-                                    call.static_requirement_dispatch.clone(),
-                                );
+                                let (arguments, captures, authored_machine_application) =
+                                    self.expression_table.copy_call_operands_from(
+                                        &source_tables.expression_table,
+                                        source.expression_handles(call.arguments),
+                                        call.authored_machine_application,
+                                    );
                                 let arguments = self.statement_table.insert_expression_handles(
                                     self.expression_table.expression_handles(arguments).to_vec(),
                                 );
@@ -2856,7 +2792,9 @@ pub mod control_flow {
                                     target_symbol: call.target_symbol,
                                     receiver,
                                     target: call.target.clone(),
-                                    static_requirement_dispatch,
+                                    static_requirement_dispatch: call
+                                        .static_requirement_dispatch
+                                        .clone(),
                                     machine_arguments: call
                                         .machine_arguments
                                         .iter()
@@ -3043,9 +2981,8 @@ pub mod control_flow {
                                         );
                                         origin
                                     });
-                                self.expression_table.remap_call_static_applications(
+                                self.expression_table.remap_static_application(
                                     call.authored_machine_application,
-                                    call.static_requirement_dispatch.as_ref(),
                                     symbols,
                                 );
                                 for argument in self

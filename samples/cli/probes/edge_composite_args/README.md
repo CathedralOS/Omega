@@ -11,5 +11,5 @@ Compile-checked only (no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/edge_composite_args/main.omg
-mbx run -p omega -- update --project samples/cli/probes/edge_composite_args
+mbx run -p omega -- packages update --project samples/cli/probes/edge_composite_args
 ```

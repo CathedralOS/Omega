@@ -12,10 +12,12 @@ pub(super) fn prepare(
     checked: &CheckedCompilation,
     produced: ProducedTerminalProduct,
     selections: &OptimizationSelections,
+    request: Option<&compilation_products::NativeProductRequest>,
 ) -> Result<
     (
         compilation_products::RetainedTerminalArtifact,
         native_compiler::TerminalAuthorityPermissionPolicy,
+        Option<Vec<u8>>,
     ),
     Vec<Diagnostic>,
 > {
@@ -96,7 +98,9 @@ pub(super) fn prepare(
     }
     roots.sort_unstable();
     roots.dedup();
-    let mut provider_proposal = produced.proposal;
+    let mut provider_proposal = produced.proposal.ok_or_else(|| {
+        refuse("executable application requires an explicit deployment target".into())
+    })?;
     provider_proposal.application_roots = Some(roots);
     let plans = entry
         .calling_plans()
@@ -124,14 +128,7 @@ pub(super) fn prepare(
             .terminal_authority_permission_identities()
             .clone(),
     )?;
-    let terminal = native_compiler::TerminalApplication {
-        artifact: Arc::clone(artifact),
-        receipt,
-        provider_proposals: vec![provider_proposal],
-        physical_entry_adapter: entry.physical_adapter().is_some(),
-        evidence: program.evidence().cloned(),
-    }
-    .prepare(native_compiler::TerminalNativeProposalRequest {
+    let native = native_compiler::TerminalNativeProposalRequest {
         evaluated_binding_identities: realization.evaluated_binding_identities(),
         direct_boundary_leaves: realization.direct_boundary_leaves().iter().collect(),
         provider_declarations: &declarations,
@@ -143,14 +140,17 @@ pub(super) fn prepare(
             calling_applications: realization.calling_applications().to_vec(),
         },
         native_target: Some(profile.native_target()),
-        program_entry: Some(native_compiler::NativeProgramEntrySettlement::new(
-            entry.source_signature(),
-            Some((
-                &plans.semantic_calling_application,
-                &plans.physical_calling_application,
-                &plans.storage_entry,
-            )),
-        )),
+        program_entry: Some(
+            native_compiler::NativeProgramEntrySettlement::new(
+                entry.source_signature(),
+                Some((
+                    &plans.semantic_calling_application,
+                    &plans.physical_calling_application,
+                    &plans.storage_entry,
+                )),
+            )
+            .with_checked_entry(&receipt),
+        ),
         application: checked.native_application_metadata(),
         optimizations: selections.project_post_terminal(),
         external_bindings: realization.external_bindings(),
@@ -168,8 +168,32 @@ pub(super) fn prepare(
             .x86_deployment_claim
             .admit_for(Some(profile))
             .map_err(refuse)?,
-    })?;
-    Ok((terminal, permissions))
+    };
+    let proposals = vec![provider_proposal];
+    let physical_entry_adapter = entry.physical_adapter().is_some();
+    let retained_inputs = request
+        .filter(|request| request.retain_native_inputs)
+        .map(|request| {
+            native_compiler::retain_native_derivation_inputs(
+                &receipt,
+                physical_entry_adapter,
+                &proposals,
+                &native,
+                &permissions,
+                &request.installation_assumptions,
+            )
+            .map_err(refuse)
+        })
+        .transpose()?;
+    let terminal = native_compiler::TerminalApplication {
+        artifact: Arc::clone(artifact),
+        receipt: receipt.clone(),
+        provider_proposals: proposals,
+        physical_entry_adapter,
+        evidence: program.evidence().cloned(),
+    }
+    .prepare(native)?;
+    Ok((terminal, permissions, retained_inputs))
 }
 
 fn checked_provider_calls(

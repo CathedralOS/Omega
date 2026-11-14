@@ -4,8 +4,6 @@ operator and boundary occurrence roster from an optimized abstract operation
 plan and Terminal boundary-application coverage.
 */
 
-use std::collections::{BTreeMap, BTreeSet};
-
 use abstract_operations::{AbstractOperation, AbstractOperationPlan};
 use boundary_applications::TerminalBoundaryApplicationCoverage;
 use optimization_core::{
@@ -80,31 +78,40 @@ fn derive_optimized_scope(
         return Err("optimized physical scope is detached from its validated Terminal identity");
     }
 
-    let mut d29_operations = BTreeSet::new();
+    let mut d29_operations = Vec::with_capacity(d29_references.len());
     for reference in d29_references {
         if reference.terminal != authority.terminal {
             return Err("optimized physical scope contains a detached D29 reference");
         }
-        if !d29_operations.insert(reference.operation) {
-            return Err("optimized physical scope contains duplicate D29 references");
-        }
+        d29_operations.push(reference.operation);
+    }
+    d29_operations.sort_unstable();
+    if d29_operations.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err("optimized physical scope contains duplicate D29 references");
     }
 
-    let mut final_operations = BTreeMap::new();
+    // Ordinary operation numbers belong to their machine. D29 demands have a
+    // stricter module-wide unique-source contract, established by Terminal
+    // admission; keep that constraint when deriving surviving occurrences.
+    let mut final_operations = Vec::new();
+    let mut surviving_d29 = vec![false; d29_operations.len()];
     for function in &final_plan.functions {
-        for (operation_ordinal, operation) in function.operations.iter().enumerate() {
+        for operation in &function.operations {
             let Some(psi_operation) = operation.psi_operation() else {
                 continue;
             };
-            if final_operations
-                .insert(psi_operation, (function.machine, operation_ordinal))
-                .is_some()
-            {
-                return Err(
-                    "optimized physical scope contains duplicate final operation identities",
-                );
+            final_operations.push((function.machine, psi_operation));
+            if let Ok(ordinal) = d29_operations.binary_search(&psi_operation) {
+                if surviving_d29[ordinal] {
+                    return Err("optimized physical scope repeats a surviving D29 operation");
+                }
+                surviving_d29[ordinal] = true;
             }
         }
+    }
+    final_operations.sort_unstable();
+    if final_operations.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err("optimized physical scope contains duplicate final operation identities");
     }
 
     let mut operator_occurrences = Vec::new();
@@ -112,7 +119,7 @@ fn derive_optimized_scope(
     for function in &final_plan.functions {
         for (operation_ordinal, operation) in function.operations.iter().enumerate() {
             if let Some(psi_operation) = operation.psi_operation()
-                && d29_operations.contains(&psi_operation)
+                && d29_operations.binary_search(&psi_operation).is_ok()
             {
                 let identity = optimized_operator_occurrence_identity(
                     authority,
@@ -416,6 +423,76 @@ mod tests {
             changed.projection().operator_occurrences()[0].identity(),
         );
         assert_ne!(baseline.identity(), changed.identity());
+    }
+
+    #[test]
+    fn optimized_projection_scopes_ordinary_operation_numbers_to_their_machine() {
+        let psi = terminal(1);
+        let mut plan = final_plan(psi);
+        let mut second = plan.functions[0].clone();
+        second.machine = MachineId::new(2).unwrap();
+        plan.functions.push(second);
+        let scope = derive_optimized_scope(authority(psi), &plan, &[], [7; 32])
+            .expect("distinct machines may reuse ordinary operation numbers");
+        let boundaries = scope.projection().boundary_occurrences();
+        assert_eq!(boundaries.len(), 2);
+        assert_eq!(boundaries[0].operation(), boundaries[1].operation());
+        assert_ne!(boundaries[0].machine(), boundaries[1].machine());
+        assert_ne!(boundaries[0].identity(), boundaries[1].identity());
+    }
+
+    #[test]
+    fn optimized_projection_rejects_duplicate_operations_in_one_machine() {
+        let psi = terminal(1);
+        let mut plan = final_plan(psi);
+        let duplicate = plan.functions[0].operations[0].clone();
+        plan.functions[0].operations.push(duplicate);
+        assert_eq!(
+            derive_optimized_scope(authority(psi), &plan, &[], [7; 32]).unwrap_err(),
+            "optimized physical scope contains duplicate final operation identities",
+        );
+    }
+
+    #[test]
+    fn optimized_projection_retains_unique_d29_source_among_machine_local_operations() {
+        let psi = terminal(1);
+        let mut plan = final_plan(psi);
+        let mut second = plan.functions[0].clone();
+        second.machine = MachineId::new(2).unwrap();
+        let AbstractOperation::IntegerConstant { psi_operation, .. } = &mut second.operations[0]
+        else {
+            panic!("constant fixture");
+        };
+        *psi_operation = operation(12);
+        plan.functions.push(second);
+        let references = [D29ReferenceCoordinate {
+            terminal: psi,
+            operation: operation(12),
+        }];
+        let scope = derive_optimized_scope(authority(psi), &plan, &references, [7; 32])
+            .expect("unique D29 source survives alongside reused ordinary numbers");
+        let operators = scope.projection().operator_occurrences();
+        assert_eq!(operators.len(), 1);
+        assert_eq!(operators[0].machine(), MachineId::new(2).unwrap());
+        assert_eq!(operators[0].operation(), operation(12));
+        assert_eq!(operators[0].operation_ordinal(), 0);
+    }
+
+    #[test]
+    fn optimized_projection_rejects_ambiguous_d29_sources_across_machines() {
+        let psi = terminal(1);
+        let mut plan = final_plan(psi);
+        let mut second = plan.functions[0].clone();
+        second.machine = MachineId::new(2).unwrap();
+        plan.functions.push(second);
+        let references = [D29ReferenceCoordinate {
+            terminal: psi,
+            operation: operation(10),
+        }];
+        assert_eq!(
+            derive_optimized_scope(authority(psi), &plan, &references, [7; 32]).unwrap_err(),
+            "optimized physical scope repeats a surviving D29 operation",
+        );
     }
 
     #[test]

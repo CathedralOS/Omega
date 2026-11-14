@@ -10,14 +10,12 @@ use optimization_unit::PsiOptimizationUnit;
 use target_operations::TargetOperationPlan;
 pub(crate) mod custody {
     use crate::{LegalizationError, LegalizationError as Error};
-    use abstract_operations::AbstractOperationPlan;
-    use optimization_unit::PsiOptimizationUnit;
     use target_operations::TargetOperationPlan;
 
     pub(crate) fn validate_source_custody(
         target: &TargetOperationPlan,
-        abstract_plan: &AbstractOperationPlan,
-        unit: &PsiOptimizationUnit,
+        abstract_plan: &crate::native_geometry::NativePlan<'_>,
+        unit: &crate::native_geometry::NativeUnit<'_>,
     ) -> Result<(), LegalizationError> {
         if target.psi != abstract_plan.psi
             || target.psi != unit.psi
@@ -32,7 +30,7 @@ pub(crate) mod custody {
     }
 }
 pub(crate) mod ordinary_roster {
-    use super::{AbstractOperationPlan, PsiOptimizationUnit, TargetOperationPlan};
+    use super::TargetOperationPlan;
     use crate::LegalizationError as Error;
     use crate::LegalizationError;
     use crate::legalization::source::SourceFunctionRosters;
@@ -40,8 +38,8 @@ pub(crate) mod ordinary_roster {
     pub(crate) fn derive_remaining(
         rosters: &mut SourceFunctionRosters,
         target: &TargetOperationPlan,
-        abstract_plan: &AbstractOperationPlan,
-        unit: &PsiOptimizationUnit,
+        abstract_plan: &crate::native_geometry::NativePlan<'_>,
+        unit: &crate::native_geometry::NativeUnit<'_>,
     ) -> Result<(), LegalizationError> {
         let call_descriptor_graph = std::cell::OnceCell::new();
         let mut call_descriptor_origins =
@@ -70,8 +68,8 @@ pub(crate) mod ordinary_roster {
     fn derive_one<'a, 'g>(
         target_function: &target_operations::TargetFunction,
         target: &'a TargetOperationPlan,
-        abstract_plan: &'a AbstractOperationPlan,
-        unit: &'a PsiOptimizationUnit,
+        abstract_plan: &'a crate::native_geometry::NativePlan<'a>,
+        unit: &'a crate::native_geometry::NativeUnit<'a>,
         current_operation: &mut Option<semantic_vocabulary::OperationId>,
         call_descriptor_origins: &mut crate::legalization::scalar_graph_input::byte_views::CallDescriptorOrigins<'a, 'g>,
     ) -> Result<legalized_operations::LegalizedScalarFunction, LegalizationError>
@@ -108,28 +106,24 @@ pub(crate) mod ordinary_roster {
 pub(crate) mod scalar_graph {
     use crate::legalization::scalar_graph_input;
     use crate::{LegalizationError, LegalizationError as Error};
-    use abstract_operations::AbstractOperationPlan;
     use legalized_operations::{
         LegalizedScalarBlock, LegalizedScalarFunction, LegalizedScalarParameter,
     };
-    use optimization_unit::PsiOptimizationUnit;
     use target_operations::TargetOperationPlan;
     pub(crate) mod instruction {
-        use super::{AbstractOperationPlan, Error, PsiOptimizationUnit, TargetOperationPlan};
+        use super::{Error, TargetOperationPlan};
         use crate::legalization::runtime_indices::{collection_view, projection, reference_source};
         use crate::structural_inputs::structural_reference_input::reference_source_geometry;
         use abstract_operations::AbstractOperation;
         use legalized_operations::{
             LegalizedScalarInstruction, LegalizedScalarInstructionKind, LegalizedValueDefinition,
         };
-        use scalar_graph_input::aggregate_results::{home_layout, sum_layout};
+        use scalar_graph_input::aggregate_results::home_layout;
         use scalar_graph_input::structural_fields::{
             byte_index_operands, view_slot_index_operands,
         };
         pub(crate) mod call_instructions {
-            use super::super::{
-                AbstractOperationPlan, Error, PsiOptimizationUnit, TargetOperationPlan,
-            };
+            use super::super::{Error, TargetOperationPlan};
             use crate::LegalizationError;
             use crate::legalization::scalar_graph_input;
             use abstract_operations::AbstractOperation;
@@ -141,7 +135,7 @@ pub(crate) mod scalar_graph {
 
             pub(crate) fn project_call<'a, 'g>(
                 optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &'a PsiOptimizationUnit,
+                unit: &'a crate::native_geometry::NativeUnit<'a>,
                 targeted: &target_operations::TargetUnitOperation,
                 call_descriptor_origins: &mut scalar_graph_input::byte_views::CallDescriptorOrigins<
                     'a,
@@ -182,7 +176,7 @@ pub(crate) mod scalar_graph {
                             *psi_operation,
                             argument.root_structural_type,
                             &argument.path,
-                            &unit.structural_types,
+                            unit.geometry(),
                         )?,
                         semantic: terminal_psi::StructuralArgument {
                             place: argument.place,
@@ -278,8 +272,8 @@ pub(crate) mod scalar_graph {
                 node: &optimization_unit::OptimizationNode,
                 optimized: &optimization_unit::PsiOptimizationFunction,
                 native: &TargetOperationPlan,
-                plan: &AbstractOperationPlan,
-                unit: &PsiOptimizationUnit,
+                plan: &crate::native_geometry::NativePlan<'_>,
+                unit: &crate::native_geometry::NativeUnit<'_>,
                 operation: OperationId,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let AbstractOperation::BoundaryCall { boundary, .. } = &node.operation else {
@@ -325,7 +319,7 @@ pub(crate) mod scalar_graph {
                                     operation,
                                     argument.root_structural_type,
                                     &argument.path,
-                                    &plan.structural_types,
+                                    plan.geometry(),
                                 )
                             })
                             .collect::<Result<Vec<_>, _>>()?,
@@ -338,7 +332,7 @@ pub(crate) mod scalar_graph {
             }
         }
         pub(crate) mod scalar_instructions {
-            use super::super::{Error, PsiOptimizationUnit};
+            use super::super::Error;
             use crate::LegalizationError;
             use crate::legalization::accepted_fact;
             use crate::legalization::facts;
@@ -357,7 +351,7 @@ pub(crate) mod scalar_graph {
             pub(crate) fn project_integer_exact_cast(
                 node: &optimization_unit::OptimizationNode,
                 optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &PsiOptimizationUnit,
+                unit: &crate::native_geometry::NativeUnit<'_>,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let AbstractOperation::IntegerExactCast {
                     psi_operation,
@@ -397,7 +391,7 @@ pub(crate) mod scalar_graph {
             pub(crate) fn project_integer_arithmetic(
                 node: IntegerArithmeticNode,
                 optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &PsiOptimizationUnit,
+                unit: &crate::native_geometry::NativeUnit<'_>,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 use IntegerArithmeticOperator as Operator;
                 use IntegerOverflowPolicy as Policy;
@@ -516,7 +510,7 @@ pub(crate) mod scalar_graph {
             fn project_saturating_integer_division(
                 node: IntegerArithmeticNode,
                 optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &PsiOptimizationUnit,
+                unit: &crate::native_geometry::NativeUnit<'_>,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let IntegerArithmeticNode {
                     psi_operation,
@@ -559,7 +553,7 @@ pub(crate) mod scalar_graph {
 
             fn accepted_nonzero_divisor_fact(
                 optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &PsiOptimizationUnit,
+                unit: &crate::native_geometry::NativeUnit<'_>,
                 psi_operation: semantic_vocabulary::OperationId,
                 obligation: semantic_vocabulary::ObligationId,
             ) -> Result<optimization_core::AcceptedObligationFactIdentity, LegalizationError>
@@ -577,7 +571,7 @@ pub(crate) mod scalar_graph {
             fn project_wrapping_integer_division(
                 node: IntegerArithmeticNode,
                 optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &PsiOptimizationUnit,
+                unit: &crate::native_geometry::NativeUnit<'_>,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let IntegerArithmeticNode {
                     psi_operation,
@@ -629,7 +623,7 @@ pub(crate) mod scalar_graph {
             pub(crate) fn project_shift(
                 node: &optimization_unit::OptimizationNode,
                 optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &PsiOptimizationUnit,
+                unit: &crate::native_geometry::NativeUnit<'_>,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let AbstractOperation::IntegerShift {
                     psi_operation,
@@ -691,7 +685,7 @@ pub(crate) mod scalar_graph {
             fn project_exact_integer_arithmetic(
                 node: IntegerArithmeticNode,
                 optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &PsiOptimizationUnit,
+                unit: &crate::native_geometry::NativeUnit<'_>,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let IntegerArithmeticNode {
                     psi_operation,
@@ -766,7 +760,7 @@ pub(crate) mod scalar_graph {
             }
         }
         pub(crate) mod storage_instructions {
-            use super::super::{AbstractOperationPlan, Error, PsiOptimizationUnit};
+            use super::super::Error;
             use crate::LegalizationError;
             use crate::legalization::accepted_fact;
             use crate::legalization::scalar_graph_input;
@@ -776,9 +770,7 @@ pub(crate) mod scalar_graph {
             };
             use abstract_operations::AbstractOperation;
             use legalized_operations::LegalizedScalarInstructionKind;
-            use scalar_graph_input::structural_case::{
-                membership_layout, source_result, structural_transport_layout,
-            };
+            use scalar_graph_input::structural_case::structural_transport_layout;
             use semantic_vocabulary::ScalarType;
 
             macro_rules! o {
@@ -792,8 +784,9 @@ pub(crate) mod scalar_graph {
             pub(crate) fn project_structural_case_membership(
                 node: &optimization_unit::OptimizationNode,
                 optimized: &optimization_unit::PsiOptimizationFunction,
-                plan: &AbstractOperationPlan,
-                unit: &PsiOptimizationUnit,
+                plan: &crate::native_geometry::NativePlan<'_>,
+                unit: &crate::native_geometry::NativeUnit<'_>,
+                targeted: &target_operations::TargetUnitOperation,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let AbstractOperation::StructuralCaseMembership {
                     psi_operation,
@@ -805,33 +798,76 @@ pub(crate) mod scalar_graph {
                 else {
                     unreachable!("dispatched project_structural_case_membership")
                 };
-                if result.scalar_type != ScalarType::Boolean {
+                let target_operations::TargetUnitOperation::StructuralCaseMembership {
+                    source: stored_source,
+                    path: stored_path,
+                    case: stored_case,
+                    case_tag,
+                    tag_byte_offset,
+                    indices: stored_indices,
+                    pointer_slots,
+                    ..
+                } = targeted
+                else {
+                    return Err(Error::custody());
+                };
+                if result.scalar_type != ScalarType::Boolean
+                    || stored_source != source
+                    || stored_path != path
+                    || stored_case != case
+                {
                     return Err(Error::custody());
                 }
-                let (case_tag, tag_byte_offset, elements) = membership_layout(
-                    optimized,
-                    *source,
-                    path,
-                    *case,
-                    plan,
-                    source_result(optimized, *source),
-                )?;
-                let indices = o!(optimized => unit => *psi_operation => &elements)?;
+                // Extent and obligation live on the runtime-index operand, not
+                // on the retained chase. A path with no runtime index has an
+                // empty operand list, so this does not walk the type.
+                let indices = if path.iter().any(|segment| {
+                    matches!(
+                        segment,
+                        terminal_psi::StructuralPathSegment::RuntimeIndex { .. }
+                    )
+                }) {
+                    let elements = scalar_graph_input::structural_case::membership_address(
+                        optimized, *source, path, plan,
+                    )?;
+                    o!(optimized => unit => *psi_operation => &elements)?
+                } else {
+                    Vec::new()
+                };
+                if stored_indices.len() != indices.len()
+                    || stored_indices
+                        .iter()
+                        .zip(&indices)
+                        .any(|(stored, resolved)| {
+                            stored.stride != resolved.stride
+                                || stored.operand.source_value() != resolved.operand.value
+                        })
+                    || pointer_slots.iter().any(|slot| {
+                        slot.scalar_descriptor
+                            || slot.index_start > slot.index_end
+                            || usize::try_from(slot.index_end)
+                                .ok()
+                                .is_none_or(|end| end > indices.len())
+                    })
+                {
+                    return Err(Error::custody());
+                }
                 Ok(LegalizedScalarInstructionKind::StructuralCaseMembership {
                     source: *source,
                     path: path.clone(),
                     case: *case,
-                    case_tag,
-                    tag_byte_offset,
+                    case_tag: *case_tag,
+                    tag_byte_offset: *tag_byte_offset,
                     indices,
+                    pointer_slots: pointer_slots.clone(),
                 })
             }
 
             pub(crate) fn project_structural_leaf_copy(
                 node: &optimization_unit::OptimizationNode,
                 optimized: &optimization_unit::PsiOptimizationFunction,
-                plan: &AbstractOperationPlan,
-                unit: &PsiOptimizationUnit,
+                plan: &crate::native_geometry::NativePlan<'_>,
+                unit: &crate::native_geometry::NativeUnit<'_>,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let owned_path;
                 let (psi_operation, result, source, path) = match &node.operation {
@@ -869,7 +905,7 @@ pub(crate) mod scalar_graph {
                             .find(|row| row.id == *boundary)
                             .ok_or(Error::custody())?;
                         let contract = terminal_semantics::empty_run_release_contract(
-                            plan.structural_types.as_slice(),
+                            plan.geometry(),
                             declaration,
                         )
                         .map_err(|_| Error::custody())?;
@@ -911,8 +947,8 @@ pub(crate) mod scalar_graph {
             pub(crate) fn project_borrowed_window(
                 node: &optimization_unit::OptimizationNode,
                 optimized: &optimization_unit::PsiOptimizationFunction,
-                plan: &AbstractOperationPlan,
-                unit: &PsiOptimizationUnit,
+                plan: &crate::native_geometry::NativePlan<'_>,
+                unit: &crate::native_geometry::NativeUnit<'_>,
                 targeted: &target_operations::TargetUnitOperation,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 match (&node.operation, targeted) {
@@ -946,7 +982,7 @@ pub(crate) mod scalar_graph {
                                 *psi_operation,
                                 source.structural_type(),
                                 selected,
-                                &plan.structural_types,
+                                plan.geometry(),
                             )?,
                         })
                     }
@@ -964,9 +1000,8 @@ pub(crate) mod scalar_graph {
                         let value_type =
                             scalar_graph_input::primitive_locals::read_root_type(optimized, *value)
                                 .ok_or(Error::custody())?;
-                        let shape =
-                            crate::structural_inputs::shape(value_type, &plan.structural_types)
-                                .ok_or(Error::custody())?;
+                        let shape = crate::structural_inputs::shape(value_type, plan.geometry())
+                            .ok_or(Error::custody())?;
                         Ok(LegalizedScalarInstructionKind::StoreStructuralField {
                             destination: destination.clone(),
                             path: path.clone(),
@@ -980,7 +1015,7 @@ pub(crate) mod scalar_graph {
                                 *psi_operation,
                                 destination.structural_type(),
                                 path,
-                                &plan.structural_types,
+                                plan.geometry(),
                             )?,
                         })
                     }
@@ -991,7 +1026,7 @@ pub(crate) mod scalar_graph {
             pub(crate) fn project_primitive_scalar_read(
                 node: &optimization_unit::OptimizationNode,
                 optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &PsiOptimizationUnit,
+                unit: &crate::native_geometry::NativeUnit<'_>,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let AbstractOperation::PrimitiveScalarRead {
                     psi_operation,
@@ -1012,7 +1047,7 @@ pub(crate) mod scalar_graph {
                         root_type,
                         path,
                         result.scalar_type,
-                        &unit.structural_types,
+                        unit.geometry(),
                     )
                     .ok_or(Error::custody())?;
                     o!(optimized => unit => *psi_operation => &geometry.elements)?
@@ -1027,7 +1062,7 @@ pub(crate) mod scalar_graph {
             pub(crate) fn project_write_only_primitive_store(
                 node: &optimization_unit::OptimizationNode,
                 optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &PsiOptimizationUnit,
+                unit: &crate::native_geometry::NativeUnit<'_>,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let AbstractOperation::WriteOnlyPrimitiveStore {
                     psi_operation,
@@ -1040,7 +1075,7 @@ pub(crate) mod scalar_graph {
                     unreachable!("dispatched project_write_only_primitive_store")
                 };
                 let geometry =
-                    primitive_store(destination, path, value.scalar_type, &unit.structural_types)
+                    primitive_store(destination, path, value.scalar_type, unit.geometry())
                         .ok_or(Error::custody())?;
                 Ok(LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
                     destination: destination.clone(),
@@ -1055,7 +1090,7 @@ pub(crate) mod scalar_graph {
             pub(crate) fn project_structural_scalar_field_store(
                 node: &optimization_unit::OptimizationNode,
                 optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &PsiOptimizationUnit,
+                unit: &crate::native_geometry::NativeUnit<'_>,
                 targeted: &target_operations::TargetUnitOperation,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let AbstractOperation::StructuralScalarFieldStore {
@@ -1082,7 +1117,7 @@ pub(crate) mod scalar_graph {
                         path,
                         *field,
                         value.scalar_type,
-                        &unit.structural_types,
+                        unit.geometry(),
                     )
                     .ok_or(Error::custody())?;
                 Ok(LegalizedScalarInstructionKind::StructuralScalarFieldStore {
@@ -1098,7 +1133,7 @@ pub(crate) mod scalar_graph {
 
             fn view_indices(
                 optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &PsiOptimizationUnit,
+                unit: &crate::native_geometry::NativeUnit<'_>,
                 psi_operation: semantic_vocabulary::OperationId,
                 view: &terminal_psi::StructuralArgument,
             ) -> Result<Vec<legalized_operations::LegalizedRuntimeIndexOperand>, LegalizationError>
@@ -1106,7 +1141,7 @@ pub(crate) mod scalar_graph {
                 o!(optimized => unit => psi_operation => &scalar_graph_input::element_views::descriptor_geometry(
                         optimized,
                         view,
-                        &unit.structural_types,
+                        unit.geometry(),
                     )
                     .ok_or(LegalizationError::custody())?
                     .elements)
@@ -1115,7 +1150,7 @@ pub(crate) mod scalar_graph {
             pub(crate) fn project_subslice(
                 node: &optimization_unit::OptimizationNode,
                 optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &PsiOptimizationUnit,
+                unit: &crate::native_geometry::NativeUnit<'_>,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let (AbstractOperation::ByteSequenceSubslice {
                     psi_operation,
@@ -1172,7 +1207,7 @@ pub(crate) mod scalar_graph {
             pub(crate) fn project_structural_byte_sequence_field_byte_store(
                 node: &optimization_unit::OptimizationNode,
                 optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &PsiOptimizationUnit,
+                unit: &crate::native_geometry::NativeUnit<'_>,
                 targeted: &target_operations::TargetUnitOperation,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let AbstractOperation::StructuralByteSequenceFieldByteStore {
@@ -1210,7 +1245,7 @@ pub(crate) mod scalar_graph {
             pub(crate) fn project_structural_byte_sequence_field_read(
                 node: &optimization_unit::OptimizationNode,
                 optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &PsiOptimizationUnit,
+                unit: &crate::native_geometry::NativeUnit<'_>,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let AbstractOperation::StructuralByteSequenceFieldRead {
                     psi_operation,
@@ -1226,7 +1261,7 @@ pub(crate) mod scalar_graph {
                 let source = crate::legalization::scalar_graph_input::structural_fields::byte_read(
                     optimized,
                     &node.operation,
-                    &unit.structural_types,
+                    unit.geometry(),
                 )
                 .ok_or(Error::custody())?;
                 Ok(
@@ -1251,7 +1286,7 @@ pub(crate) mod scalar_graph {
             pub(crate) fn project_structural_byte_sequence_field_store(
                 node: &optimization_unit::OptimizationNode,
                 optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &PsiOptimizationUnit,
+                unit: &crate::native_geometry::NativeUnit<'_>,
                 targeted: &target_operations::TargetUnitOperation,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let AbstractOperation::StructuralByteSequenceFieldStore {
@@ -1287,7 +1322,7 @@ pub(crate) mod scalar_graph {
             pub(crate) fn project_byte_sequence_write(
                 node: &optimization_unit::OptimizationNode,
                 optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &PsiOptimizationUnit,
+                unit: &crate::native_geometry::NativeUnit<'_>,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let AbstractOperation::ByteSequenceWrite {
                     psi_operation,
@@ -1313,7 +1348,7 @@ pub(crate) mod scalar_graph {
             pub(crate) fn project_byte_sequence_read(
                 node: &optimization_unit::OptimizationNode,
                 optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &PsiOptimizationUnit,
+                unit: &crate::native_geometry::NativeUnit<'_>,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let AbstractOperation::ByteSequenceRead {
                     psi_operation,
@@ -1338,7 +1373,7 @@ pub(crate) mod scalar_graph {
             pub(crate) fn project_element_view_write(
                 node: &optimization_unit::OptimizationNode,
                 optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &PsiOptimizationUnit,
+                unit: &crate::native_geometry::NativeUnit<'_>,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let AbstractOperation::ElementViewWrite {
                     path,
@@ -1367,7 +1402,7 @@ pub(crate) mod scalar_graph {
             pub(crate) fn project_element_view_read(
                 node: &optimization_unit::OptimizationNode,
                 optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &PsiOptimizationUnit,
+                unit: &crate::native_geometry::NativeUnit<'_>,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let AbstractOperation::ElementViewRead {
                     psi_operation,
@@ -1393,14 +1428,14 @@ pub(crate) mod scalar_graph {
                         let element = scalar_graph_input::byte_views::element_type(
                             optimized,
                             *source,
-                            &unit.structural_types,
+                            unit.geometry(),
                         )
                         .ok_or(Error::custody())?;
                         let (_, _, elements) = element_leaf_projection(
                             element,
                             path,
                             result.scalar_type,
-                            &unit.structural_types,
+                            unit.geometry(),
                         )
                         .ok_or(Error::custody())?;
                         o!(optimized => unit => *psi_operation => &elements)?
@@ -1411,7 +1446,7 @@ pub(crate) mod scalar_graph {
             pub(crate) fn project_byte_sequence_concatenation(
                 node: &optimization_unit::OptimizationNode,
                 optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &PsiOptimizationUnit,
+                unit: &crate::native_geometry::NativeUnit<'_>,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let AbstractOperation::EstablishByteSequenceConcatenation {
                     psi_operation,
@@ -1442,7 +1477,7 @@ pub(crate) mod scalar_graph {
             pub(crate) fn project_byte_sequence_store(
                 node: &optimization_unit::OptimizationNode,
                 optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &PsiOptimizationUnit,
+                unit: &crate::native_geometry::NativeUnit<'_>,
                 targeted: &target_operations::TargetUnitOperation,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let AbstractOperation::ByteSequenceStore {
@@ -1471,7 +1506,7 @@ pub(crate) mod scalar_graph {
             pub(crate) fn project_storage_address(
                 node: &optimization_unit::OptimizationNode,
                 optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &PsiOptimizationUnit,
+                unit: &crate::native_geometry::NativeUnit<'_>,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let AbstractOperation::StorageAddress {
                     psi_operation,
@@ -1488,8 +1523,8 @@ pub(crate) mod scalar_graph {
                 }
                 let root = scalar_graph_input::primitive_locals::read_root_type(optimized, *source)
                     .ok_or(Error::custody())?;
-                let geometry = storage_address_geometry(root, path, &unit.structural_types)
-                    .ok_or(Error::custody())?;
+                let geometry =
+                    storage_address_geometry(root, path, unit.geometry()).ok_or(Error::custody())?;
                 let indices = o!(optimized => unit => *psi_operation => &geometry.elements)?;
                 Ok(LegalizedScalarInstructionKind::StorageAddress {
                     source: *source,
@@ -1501,7 +1536,7 @@ pub(crate) mod scalar_graph {
             pub(crate) fn project_global_descriptor_table(
                 node: &optimization_unit::OptimizationNode,
                 optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &PsiOptimizationUnit,
+                unit: &crate::native_geometry::NativeUnit<'_>,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let AbstractOperation::GlobalDescriptorTable {
                     psi_operation,
@@ -1515,7 +1550,7 @@ pub(crate) mod scalar_graph {
                 let root =
                     scalar_graph_input::primitive_locals::read_root_type(optimized, source.place)
                         .ok_or(Error::custody())?;
-                let geometry = storage_address_geometry(root, &source.path, &unit.structural_types)
+                let geometry = storage_address_geometry(root, &source.path, unit.geometry())
                     .ok_or(Error::custody())?;
                 let indices = o!(optimized => unit => *psi_operation => &geometry.elements)?;
                 Ok(LegalizedScalarInstructionKind::GlobalDescriptorTable {
@@ -1532,12 +1567,19 @@ pub(crate) mod scalar_graph {
         use crate::legalization::accepted_fact;
         use crate::legalization::scalar_graph_input;
         use semantic_vocabulary::IntegerValue;
+
+        fn stored_sum_layout(
+            home: &target_operations::TargetStructuralHomeRequirement,
+        ) -> Result<calling_conventions::ConventionalSumLayout, Error> {
+            home.layout.sum().cloned().ok_or(Error::custody())
+        }
+
         pub(crate) fn project<'a, 'g>(
             node: &optimization_unit::OptimizationNode,
             optimized: &optimization_unit::PsiOptimizationFunction,
             native: &'a TargetOperationPlan,
-            plan: &'a AbstractOperationPlan,
-            unit: &'a PsiOptimizationUnit,
+            plan: &'a crate::native_geometry::NativePlan<'a>,
+            unit: &'a crate::native_geometry::NativeUnit<'a>,
             targeted: &target_operations::TargetUnitOperation,
             call_descriptor_origins: &mut scalar_graph_input::byte_views::CallDescriptorOrigins<
                 'a,
@@ -1581,7 +1623,7 @@ pub(crate) mod scalar_graph {
                             operation,
                             root,
                             &argument.path,
-                            &unit.structural_types,
+                            unit.geometry(),
                         )
                     })
                     .collect::<Result<Vec<_>, _>>()?
@@ -1599,7 +1641,7 @@ pub(crate) mod scalar_graph {
                             operation,
                             call.argument.root_structural_type,
                             &call.argument.path,
-                            &unit.structural_types,
+                            unit.geometry(),
                         )?;
                         Ok(legalized_operations::LegalizedScalarCall {
                             source: target_operations::NativeCallOrigin::Authored,
@@ -1647,7 +1689,7 @@ pub(crate) mod scalar_graph {
                     operation,
                     root,
                     &token.path,
-                    &unit.structural_types,
+                    unit.geometry(),
                 )?;
                 let result = result_home
                     .as_ref()
@@ -1685,7 +1727,7 @@ pub(crate) mod scalar_graph {
                         operation,
                         root,
                         &argument.path,
-                        &unit.structural_types,
+                        unit.geometry(),
                     )?);
                 }
                 LegalizedScalarInstructionKind::AccessLifecycle {
@@ -1722,12 +1764,8 @@ pub(crate) mod scalar_graph {
                         .map(|(_, result)| result.structural_type)
                     })
                     .ok_or(Error::custody())?;
-                let geometry = reference_source_geometry(
-                    root,
-                    &location.path,
-                    unit.structural_types.as_slice(),
-                )
-                .ok_or(Error::custody())?;
+                let geometry = reference_source_geometry(root, &location.path, unit.geometry())
+                    .ok_or(Error::custody())?;
                 let indices = crate::legalization::runtime_indices::operands(
                     optimized,
                     unit,
@@ -1786,7 +1824,7 @@ pub(crate) mod scalar_graph {
                         let access = scalar_graph_input::atomic_access::access(
                             event,
                             optimized,
-                            &unit.structural_types,
+                            unit.geometry(),
                         )
                         .ok_or(Error::custody())?;
                         LegalizedScalarInstructionKind::AtomicAccess {
@@ -1935,15 +1973,24 @@ pub(crate) mod scalar_graph {
                         established_case,
                         rejected_case,
                         ..
-                    } => LegalizedScalarInstructionKind::EstablishActivationClaim {
-                        result: result.clone(),
-                        bound: *bound,
-                        committed: *committed,
-                        backing_type: *backing_type,
-                        established_case: *established_case,
-                        rejected_case: *rejected_case,
-                        layout: sum_layout(result, plan)?,
-                    },
+                    } => {
+                        let target_operations::TargetUnitOperation::EstablishActivationClaim {
+                            result_home,
+                            ..
+                        } = targeted
+                        else {
+                            return Err(Error::custody());
+                        };
+                        LegalizedScalarInstructionKind::EstablishActivationClaim {
+                            result: result.clone(),
+                            bound: *bound,
+                            committed: *committed,
+                            backing_type: *backing_type,
+                            established_case: *established_case,
+                            rejected_case: *rejected_case,
+                            layout: stored_sum_layout(result_home)?,
+                        }
+                    }
                     AbstractOperation::ReleaseActivationClaim { source, claim, .. } => {
                         LegalizedScalarInstructionKind::ReleaseActivationClaim {
                             source: source.clone(),
@@ -1959,16 +2006,25 @@ pub(crate) mod scalar_graph {
                         covered_case,
                         rejected_case,
                         ..
-                    } => LegalizedScalarInstructionKind::SplitActivationClaim {
-                        result: result.clone(),
-                        source: source.clone(),
-                        claim: *claim,
-                        bound_at: *bound_at,
-                        committed_at: *committed_at,
-                        covered_case: *covered_case,
-                        rejected_case: *rejected_case,
-                        layout: sum_layout(result, plan)?,
-                    },
+                    } => {
+                        let target_operations::TargetUnitOperation::SplitActivationClaim {
+                            result_home,
+                            ..
+                        } = targeted
+                        else {
+                            return Err(Error::custody());
+                        };
+                        LegalizedScalarInstructionKind::SplitActivationClaim {
+                            result: result.clone(),
+                            source: source.clone(),
+                            claim: *claim,
+                            bound_at: *bound_at,
+                            committed_at: *committed_at,
+                            covered_case: *covered_case,
+                            rejected_case: *rejected_case,
+                            layout: stored_sum_layout(result_home)?,
+                        }
+                    }
                     AbstractOperation::MergeActivationClaim {
                         result,
                         lower,
@@ -1978,16 +2034,25 @@ pub(crate) mod scalar_graph {
                         covered_case,
                         rejected_case,
                         ..
-                    } => LegalizedScalarInstructionKind::MergeActivationClaim {
-                        result: result.clone(),
-                        lower: lower.clone(),
-                        upper: upper.clone(),
-                        lower_claim: *lower_claim,
-                        upper_claim: *upper_claim,
-                        covered_case: *covered_case,
-                        rejected_case: *rejected_case,
-                        layout: sum_layout(result, plan)?,
-                    },
+                    } => {
+                        let target_operations::TargetUnitOperation::MergeActivationClaim {
+                            result_home,
+                            ..
+                        } = targeted
+                        else {
+                            return Err(Error::custody());
+                        };
+                        LegalizedScalarInstructionKind::MergeActivationClaim {
+                            result: result.clone(),
+                            lower: lower.clone(),
+                            upper: upper.clone(),
+                            lower_claim: *lower_claim,
+                            upper_claim: *upper_claim,
+                            covered_case: *covered_case,
+                            rejected_case: *rejected_case,
+                            layout: stored_sum_layout(result_home)?,
+                        }
+                    }
                     AbstractOperation::EstablishNativeCodeLayout {
                         result, machine, ..
                     } => LegalizedScalarInstructionKind::EstablishNativeCodeLayout {
@@ -2014,12 +2079,21 @@ pub(crate) mod scalar_graph {
                         result_case,
                         fields,
                         ..
-                    } => LegalizedScalarInstructionKind::EstablishCase {
-                        result: result.clone(),
-                        result_case: *result_case,
-                        fields: fields.clone(),
-                        layout: sum_layout(result, plan)?,
-                    },
+                    } => {
+                        let target_operations::TargetUnitOperation::EstablishCase {
+                            result_home,
+                            ..
+                        } = targeted
+                        else {
+                            return Err(Error::custody());
+                        };
+                        LegalizedScalarInstructionKind::EstablishCase {
+                            result: result.clone(),
+                            result_case: *result_case,
+                            fields: fields.clone(),
+                            layout: stored_sum_layout(result_home)?,
+                        }
+                    }
                     AbstractOperation::EstablishPrimitiveLocal { result, value, .. } => {
                         LegalizedScalarInstructionKind::EstablishPrimitiveLocal {
                             result: result.clone(),
@@ -2036,7 +2110,7 @@ pub(crate) mod scalar_graph {
                     },
                     AbstractOperation::StructuralCaseMembership { .. } => {
                         storage_instructions::project_structural_case_membership(
-                            node, optimized, plan, unit,
+                            node, optimized, plan, unit, targeted,
                         )?
                     }
                     AbstractOperation::StructuralLeafCopy { .. }
@@ -2084,7 +2158,7 @@ pub(crate) mod scalar_graph {
                                 *psi_operation,
                                 root,
                                 &argument.path,
-                                &unit.structural_types,
+                                unit.geometry(),
                             )?;
                         }
                         LegalizedScalarInstructionKind::ActivateTaskRegister {
@@ -2123,7 +2197,7 @@ pub(crate) mod scalar_graph {
                                 *psi_operation,
                                 root,
                                 &argument.path,
-                                &unit.structural_types,
+                                unit.geometry(),
                             )?;
                         }
                         LegalizedScalarInstructionKind::ReloadSegmentDescriptors {
@@ -2342,7 +2416,7 @@ pub(crate) mod scalar_graph {
                         if let Some(length) = scalar_graph_input::element_views::fixed_byte_length(
                             optimized,
                             source,
-                            &unit.structural_types,
+                            unit.geometry(),
                         ) {
                             LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(
                                 u128::from(length),
@@ -2352,7 +2426,7 @@ pub(crate) mod scalar_graph {
                             crate::legalization::scalar_graph_input::element_views::byte_length_geometry(
                                 optimized,
                                 source,
-                                &unit.structural_types,
+                                unit.geometry(),
                             )
                             .ok_or(LegalizationError::custody())?;
                             LegalizedScalarInstructionKind::ByteSequenceLength {
@@ -2381,7 +2455,7 @@ pub(crate) mod scalar_graph {
                             crate::legalization::scalar_graph_input::element_views::length_geometry(
                                 optimized,
                                 source,
-                                &unit.structural_types,
+                                unit.geometry(),
                             )
                             .ok_or(LegalizationError::custody())?;
                         LegalizedScalarInstructionKind::ElementViewLength {
@@ -2515,7 +2589,7 @@ pub(crate) mod scalar_graph {
         }
     }
     pub(crate) mod structural_case {
-        use super::{AbstractOperationPlan, Error, scalar_graph_input};
+        use super::{Error, scalar_graph_input};
         use crate::LegalizationError;
         use abstract_operations::AbstractOperation;
         use legalized_operations::{
@@ -2526,8 +2600,9 @@ pub(crate) mod scalar_graph {
         pub(crate) fn project(
             node: &optimization_unit::OptimizationNode,
             function: &optimization_unit::PsiOptimizationFunction,
-            plan: &AbstractOperationPlan,
-            unit: &optimization_unit::PsiOptimizationUnit,
+            plan: &crate::native_geometry::NativePlan<'_>,
+            unit: &crate::native_geometry::NativeUnit<'_>,
+            targeted: &target_operations::TargetControlTerminator,
         ) -> Result<LegalizedScalarTerminator, LegalizationError> {
             let AbstractOperation::StructuralCase {
                 source,
@@ -2537,51 +2612,79 @@ pub(crate) mod scalar_graph {
             else {
                 return Err(Error::custody());
             };
-            let (selected, byte_offset, root_shape, layout) =
-                scalar_graph_input::structural_case::dispatch_projection(
-                    function, *source, path, plan,
-                )?;
-            let source = scalar_graph_input::structural_case::case_source(function, *source)?;
-            let declaration = plan.structural_type(selected).ok_or(Error::custody())?;
-            let declared: &[terminal_psi::StructuralCaseDeclaration] = match &declaration.shape {
-                terminal_psi::StructuralTypeShape::Sum { cases }
-                | terminal_psi::StructuralTypeShape::Mixed { cases, .. } => cases,
-                _ => return Err(Error::custody()),
+            let target_operations::TargetControlTerminator::StructuralCase {
+                source: stored_source,
+                path: stored_path,
+                byte_offset,
+                layout,
+                pointer_slots,
+                region_byte_size,
+                cases: stored_cases,
+            } = targeted
+            else {
+                return Err(Error::custody());
             };
-            if cases.len() != declared.len()
-                || cases.len() != node.successors.len()
+            if stored_source.place() != *source || stored_path != path {
+                return Err(Error::custody());
+            }
+            let byte_offset = *byte_offset;
+            if pointer_slots
+                .iter()
+                .any(|slot| slot.scalar_descriptor || slot.index_start != slot.index_end)
+                || byte_offset
+                    .checked_add(layout.shape.byte_size)
+                    .is_none_or(|end| end > *region_byte_size)
+            {
+                return Err(Error::custody());
+            }
+            let root_shape = stored_source.layout().shape();
+            let layout = layout.clone();
+            let source = scalar_graph_input::structural_case::case_source(function, *source)?;
+            if cases.len() != node.successors.len()
                 || cases.len() != layout.cases.len()
+                || cases.len() != stored_cases.len()
             {
                 return Err(Error::custody());
             }
             let mut successors = Vec::with_capacity(cases.len());
-            for (case_position, ((case, edge), declared)) in
-                cases.iter().zip(&node.successors).zip(declared).enumerate()
+            for (case_position, ((case, edge), stored)) in cases
+                .iter()
+                .zip(&node.successors)
+                .zip(stored_cases)
+                .enumerate()
             {
                 let destination = function.block(case.target).ok_or(Error::custody())?;
-                let fields = declared
-                    .fields
-                    .iter()
-                    .filter(|field| !field.relevance.is_erased())
-                    .collect::<Vec<_>>();
-                if case.payloads.len() != destination.parameters.len()
-                    || fields.len() != layout.cases[case_position].fields.len()
+                let case_tag = i32::try_from(case_position).map_err(|_| Error::custody())?;
+                if stored.psi_edge != case.psi_edge
+                    || stored.target != case.target
+                    || stored.case != case.case
+                    || stored.case_tag != case_tag
+                    || stored.payloads.len() != case.payloads.len()
+                    || case.payloads.len() != destination.parameters.len()
+                    || stored.structural_bindings != case.structural_bindings
+                    || stored.cleanup_actions != case.cleanup_actions
                 {
                     return Err(Error::custody());
                 }
                 let mut payloads = Vec::with_capacity(case.payloads.len());
-                for (payload, parameter) in case.payloads.iter().zip(&destination.parameters) {
-                    let field_position = fields
-                        .iter()
-                        .position(|field| field.id == payload.field)
-                        .ok_or(Error::custody())?;
+                for ((payload, parameter), stored_payload) in case
+                    .payloads
+                    .iter()
+                    .zip(&destination.parameters)
+                    .zip(&stored.payloads)
+                {
+                    if stored_payload.field != payload.field
+                        || stored_payload.parameter.block != case.target
+                        || stored_payload.parameter.value != payload.parameter
+                        || stored_payload.parameter.value != parameter.value
+                        || stored_payload.parameter.scalar_type != payload.scalar_type
+                        || stored_payload.parameter.scalar_type != parameter.scalar_type
+                    {
+                        return Err(Error::custody());
+                    }
                     payloads.push(LegalizedStructuralCasePayload {
                         field: payload.field,
-                        field_byte_offset: byte_offset
-                            .checked_add(
-                                layout.cases[case_position].fields[field_position].byte_offset,
-                            )
-                            .ok_or(Error::custody())?,
+                        field_byte_offset: stored_payload.field_byte_offset,
                         parameter: LegalizedValueDefinition {
                             value: parameter.value,
                             scalar_type: parameter.scalar_type,
@@ -2593,7 +2696,7 @@ pub(crate) mod scalar_graph {
                     edge: case.psi_edge,
                     target: case.target,
                     case: case.case,
-                    case_tag: i32::try_from(case_position).map_err(|_| Error::custody())?,
+                    case_tag,
                     payloads,
                     structural_bindings: super::terminator::successor(edge, function, plan, unit)?
                         .structural_bindings,
@@ -2608,6 +2711,8 @@ pub(crate) mod scalar_graph {
                 root_shape,
                 byte_offset,
                 layout,
+                pointer_slots: pointer_slots.clone(),
+                region_byte_size: *region_byte_size,
                 cases: successors,
                 effect: node.effect,
                 ownership: node.ownership.clone(),
@@ -2615,7 +2720,7 @@ pub(crate) mod scalar_graph {
         }
     }
     pub(crate) mod terminator {
-        use super::{AbstractOperationPlan, Error};
+        use super::Error;
         use crate::LegalizationError;
         use crate::legalization::scalar_graph_input;
         use abstract_operations::AbstractOperation;
@@ -2626,9 +2731,10 @@ pub(crate) mod scalar_graph {
         pub(crate) fn project(
             node: &optimization_unit::OptimizationNode,
             function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
-            plan: &AbstractOperationPlan,
+            plan: &crate::native_geometry::NativePlan<'_>,
             native: &target_operations::TargetOperationPlan,
-            unit: &optimization_unit::PsiOptimizationUnit,
+            unit: &crate::native_geometry::NativeUnit<'_>,
+            targeted: &target_operations::TargetControlTerminator,
         ) -> Result<LegalizedScalarTerminator, LegalizationError> {
             let function = function_inputs.function();
             let cleanup_calls = scalar_graph_input::cleanup_calls::expected(
@@ -2728,7 +2834,7 @@ pub(crate) mod scalar_graph {
                                 optimization_unit::PsiProvenance::Edge(*psi_edge),
                                 argument.root_structural_type,
                                 &argument.path,
-                                &unit.structural_types,
+                                unit.geometry(),
                             )?,
                             semantic: semantic.clone(),
                             target: argument.clone(),
@@ -2824,7 +2930,7 @@ pub(crate) mod scalar_graph {
                     let value = if scalar_graph_input::byte_views::descriptor_return(
                         function,
                         *source,
-                        &plan.structural_types,
+                        plan.geometry(),
                     ) {
                         LegalizedScalarReturnValue::SharedDescriptor { place: *source }
                     } else if function.structural_parameter(*source).is_some() {
@@ -2845,7 +2951,7 @@ pub(crate) mod scalar_graph {
                     }))
                 }
                 AbstractOperation::StructuralCase { .. } => {
-                    super::structural_case::project(node, function, plan, unit)
+                    super::structural_case::project(node, function, plan, unit, targeted)
                 }
                 AbstractOperation::ReturnUnit { psi_edge, .. } => {
                     Ok(LegalizedScalarTerminator::Return(LegalizedScalarReturn {
@@ -2942,15 +3048,15 @@ pub(crate) mod scalar_graph {
         pub(crate) fn successor(
             edge: &optimization_unit::OptimizationEdge,
             function: &optimization_unit::PsiOptimizationFunction,
-            plan: &AbstractOperationPlan,
-            unit: &optimization_unit::PsiOptimizationUnit,
+            plan: &crate::native_geometry::NativePlan<'_>,
+            unit: &crate::native_geometry::NativeUnit<'_>,
         ) -> Result<LegalizedScalarSuccessor, LegalizationError> {
             let structural_bindings = edge.structural_bindings.iter().map(|binding| {
                 let indices = if binding.argument.path.iter().any(|segment| segment.runtime_index().is_some()) {
                     let root = scalar_graph_input::primitive_locals::read_root_type(function, binding.argument.place)
                         .ok_or(Error::custody())?;
                     let geometry = crate::structural_inputs::structural_reference_input::reference_formation_geometry(
-                        root, &binding.argument.path, &plan.structural_types,
+                        root, &binding.argument.path, plan.geometry(),
                     ).ok_or(Error::custody())?;
                     crate::legalization::runtime_indices::operands(
                         function, unit, optimization_unit::PsiProvenance::Edge(edge.psi_edge), &geometry.elements,
@@ -2968,13 +3074,14 @@ pub(crate) mod scalar_graph {
             })
         }
     }
+
     pub(crate) fn derive<'a, 'g>(
         target: &target_operations::TargetFunction,
         abstracted: &abstract_operations::AbstractFunction,
         optimized: &optimization_unit::PsiOptimizationFunction,
         native: &'a TargetOperationPlan,
-        plan: &'a AbstractOperationPlan,
-        unit: &'a PsiOptimizationUnit,
+        plan: &'a crate::native_geometry::NativePlan<'a>,
+        unit: &'a crate::native_geometry::NativeUnit<'a>,
         current_operation: &mut Option<semantic_vocabulary::OperationId>,
         call_descriptor_origins: &mut scalar_graph_input::byte_views::CallDescriptorOrigins<'a, 'g>,
     ) -> Result<LegalizedScalarFunction, LegalizationError>
@@ -3044,7 +3151,14 @@ pub(crate) mod scalar_graph {
                     parameters: block.parameters.clone(),
                     structural_parameters: block.structural_parameters.clone(),
                     instructions,
-                    terminator: terminator::project(last, &function_inputs, plan, native, unit)?,
+                    terminator: terminator::project(
+                        last,
+                        &function_inputs,
+                        plan,
+                        native,
+                        unit,
+                        &targeted.terminator,
+                    )?,
                 })
             })
             .collect::<Result<Vec<_>, LegalizationError>>()?;
@@ -3079,6 +3193,13 @@ pub(crate) fn derive_source_function_rosters(
     abstract_plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<SourceFunctionRosters, LegalizationError> {
+    let plan_geometry =
+        crate::native_geometry::NativeGeometry::new(&abstract_plan.structural_types)
+            .map_err(|_| LegalizationError::custody())?;
+    let unit_geometry = crate::native_geometry::NativeGeometry::new(&unit.structural_types)
+        .map_err(|_| LegalizationError::custody())?;
+    let abstract_plan = &crate::native_geometry::NativeInput::new(abstract_plan, &plan_geometry);
+    let unit = &crate::native_geometry::NativeInput::new(unit, &unit_geometry);
     validate_source_custody(target, abstract_plan, unit)?;
     crate::legalization::scalar_graph_input::normalized_foreign::validate_native_callback_roster(
         target,

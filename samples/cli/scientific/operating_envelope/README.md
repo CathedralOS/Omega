@@ -15,9 +15,9 @@ omega run --both --keep samples/cli/independent/operating_envelope/main.omg < sa
 python3 samples/cli/independent/operating_envelope/validate.py --omega /absolute/path/to/omega
 ```
 
-First prepare the ordinary std dependency with `omega update --project
+First prepare the ordinary std dependency with `omega packages update --project
 samples/cli/independent/operating_envelope`, inspect its review and explicitly
-accept the required decisions, then `omega update --resume --project ...`.
+accept the required decisions, then `omega packages update --resume --project ...`.
 No candidate or in-progress numerical library is required.
 
 Input is one newline-terminated line containing signed decimal integers:
@@ -63,7 +63,7 @@ output. Validation logs and their executable hashes live under `build/validation
 Ten valid fixtures cover analytic rectangles, triangles, scaled normals,
 a diamond, eight active edges, redundant constraints, inconsistency,
 micro-unit boundary separation and window truncation. Twelve invalid
-runtime inputs exercise parser/admission limits. `intended_invalid/` is a
+runtime inputs exercise parser/admission limits. `../invalid_operating_envelope_intended/` is a
 separate complete application requiring -1 to inhabit a positive radius
 type; check must reject it independently of the runtime-invalid cases.
 

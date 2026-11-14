@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+mod operation_metadata;
+
 /*
 We provide independent semantic and rewrite validation for the Psi optimization
 unit representation. We neither lower Terminal Psi nor sequence optimization

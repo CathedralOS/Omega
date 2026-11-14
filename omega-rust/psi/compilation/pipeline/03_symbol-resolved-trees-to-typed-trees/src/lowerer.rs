@@ -181,17 +181,31 @@ pub(crate) mod progress {
         let witness = machine.termination_plan.implementation_witness.as_ref()?;
         if witness.ranking_view != RankingViewId::NULL
             || !witness.view_path.is_empty()
-            || witness.subjects.len() != 1
             || !witness.view_arguments.is_empty()
         {
             return None;
         }
         let custody = program.ranking_expression_custody_for(machine.symbol)?;
-        let [subject] = custody.subjects.as_slice() else {
-            return None;
+        let subject = match custody.subjects.as_slice() {
+            [_, _] => return Some(RankingViewId::NAT_BOUNDED_DISTANCE),
+            [subject] => *subject,
+            _ => return None,
         };
+        // Only the selected builtin length observation is nat-like. A field
+        // named `len` does not acquire a ranking theory from that spelling.
+        // All defaults are settled here, after typed subject custody exists;
+        // resolution retains authored views without a competing recognizer.
+        if let Some(member) = program.expression_table.member_node(subject)
+            && member.case_variant.is_none()
+            && member.selection
+                == typed::expression::MemberSelection::CollectionMeasure(
+                    language_semantics::declaration_selection::CollectionMeasure::Length,
+                )
+        {
+            return Some(RankingViewId::NAT_DESCENDING);
+        }
         let typed::expression::ExpressionNode::Name(path) =
-            program.expression_table.expression(*subject)
+            program.expression_table.expression(subject)
         else {
             return None;
         };
@@ -217,8 +231,14 @@ pub(crate) mod progress {
                     _ => None,
                 }
             })?;
-        for _ in 0..128 {
-            match program.type_reference_table.type_reference(reference) {
+        let types = &program.type_reference_table;
+        // The table bounds malformed cycles without imposing an arbitrary
+        // nesting limit on valid reference/qualification shells.
+        for _ in 0..types.type_reference_count() {
+            if !types.contains_type_reference(reference) {
+                return None;
+            }
+            match types.type_reference(reference) {
                 TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
                 TypeReferenceNode::Reference { referee, .. } => reference = *referee,
                 TypeReferenceNode::Slice { .. } | TypeReferenceNode::FixedArray { .. } => {
@@ -227,12 +247,7 @@ pub(crate) mod progress {
                 TypeReferenceNode::Named { symbol, .. }
                     if matches!(
                         symbols.builtin_type_atom(*symbol),
-                        Some(
-                            symbols::BuiltinTypeAtom::U8
-                                | symbols::BuiltinTypeAtom::U16
-                                | symbols::BuiltinTypeAtom::U32
-                                | symbols::BuiltinTypeAtom::U64
-                        )
+                        Some(symbols::BuiltinTypeAtom::Integer(carrier)) if !carrier.is_signed()
                     ) =>
                 {
                     return Some(RankingViewId::NAT_DESCENDING);
@@ -376,9 +391,10 @@ pub(crate) mod progress {
             typed::expression::ExpressionNode::Member(member) => {
                 let mut subject = subject_path(program, member.receiver, parameters)?;
                 let symbol = member
-                    .member_symbol
+                    .selection
+                    .field_symbol()
                     .is_valid()
-                    .then_some(member.member_symbol)
+                    .then_some(member.selection.field_symbol())
                     .or_else(|| {
                         resolve_subject_member_symbol(
                             program,
@@ -514,7 +530,6 @@ pub(crate) mod seeded_continuation {
     use symbol_resolved_trees::SymbolResolvedTrees;
     use symbol_resolved_trees::machine::MachineBodyStatus;
     use symbols::{SourceScopedTopLevelBinding, SymbolHandle};
-    use syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier;
     use typed_trees::TypedTrees;
 
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -542,33 +557,29 @@ pub(crate) mod seeded_continuation {
 
         pub fn activate_body_completion(
             mut self,
-            frontier: DeferredResolvedFrontier,
-            sources: Arc<SourceMap>,
-            bindings: Vec<SourceScopedTopLevelBinding>,
-        ) -> Result<(Self, DeferredResolvedFrontier), Vec<Diagnostic>> {
-            let frontier = self
-                .join_prepared_allocations(frontier)?
-                .activate_sources(sources, bindings)?;
-            self.resolved = frontier.shared_trees();
+            activation: symbol_resolved_trees::continuations::ResolvedSourceActivation,
+        ) -> Result<Self, Vec<Diagnostic>> {
+            let (predecessor, successor) = activation.into_parts();
+            if predecessor != self.resolved {
+                return Err(vec![Diagnostic::error(
+                    "source activation does not match the exact retained resolved predecessor",
+                )]);
+            }
+            self.resolved = successor;
             Arc::make_mut(&mut self.typed).symbols = self.resolved.symbols.clone();
-            Ok((self, frontier))
+            Ok(self)
         }
 
-        pub fn append_deferred(
+        pub fn append_resolved(
             self,
-            extension: syntax_trees_to_symbol_resolved_trees::DeferredResolvedExtension,
-        ) -> Result<(Self, DeferredResolvedFrontier), Vec<Diagnostic>> {
-            let (source, frontier) = extension
-                .rebase_for_typed_continuation(self.typed.authored_declaration_selections())?;
-            // A source diagnostic found while typing the extension belongs to
-            // the author as written; only a retained-base mismatch is internal.
-            let typed = lower_seeded_extension(source, self).map_err(|reason| match reason {
+            source: symbol_resolved_trees::continuations::RebasedSeededSymbolResolvedTrees,
+        ) -> Result<Self, Vec<Diagnostic>> {
+            lower_seeded_extension(source, self).map_err(|reason| match reason {
                 SeededContinuationError::Lowering(diagnostic) => vec![diagnostic],
                 reason => vec![Diagnostic::error(format!(
                     "authored declaration typing could not extend its retained source: {reason:?}"
                 ))],
-            })?;
-            Ok((typed, frontier))
+            })
         }
 
         /// Narrow this retained typing to the program written in `sources`'
@@ -654,37 +665,16 @@ pub(crate) mod seeded_continuation {
             })
         }
 
-        pub fn join_prepared_allocations(
-            &mut self,
-            frontier: DeferredResolvedFrontier,
-        ) -> Result<DeferredResolvedFrontier, Vec<Diagnostic>> {
-            let frontier = frontier.with_prepared_allocations(
-                &self.resolved,
-                &self.typed.symbols,
-                &self.typed.semantic_domains,
-                &self.typed.service_reach_rows,
-            )?;
-            self.resolved = frontier.shared_trees();
-            Ok(frontier)
-        }
-
         pub fn complete_bodies(
             self,
-            source: syntax_trees_to_symbol_resolved_trees::ResolvedBodyCompletion,
-        ) -> Result<(Self, DeferredResolvedFrontier), Vec<Diagnostic>> {
-            let source = source
-            .rebase_authored_selections_for_typed_completion(
-                self.typed.authored_declaration_selections(),
-            )
-            .map_err(|(_, error)| vec![Diagnostic::error(format!(
-                "authored-body completion could not join its retained typed selection ledger: {error:?}"
-            ))])?;
+            source: symbol_resolved_trees::continuations::RebasedResolvedBodyCompletion,
+        ) -> Result<Self, Vec<Diagnostic>> {
             lower_body_completion(source, self).map_err(|error| vec![error])
         }
 
         pub fn lower_extension(
             self,
-            source: syntax_trees_to_symbol_resolved_trees::SeededSymbolResolvedTrees,
+            source: symbol_resolved_trees::continuations::SeededSymbolResolvedTrees,
         ) -> Result<Self, Vec<Diagnostic>> {
             let rebased = source
             .rebase_authored_selections_for_typed_continuation(
@@ -706,39 +696,27 @@ pub(crate) mod seeded_continuation {
             })
         }
 
+        pub fn prepare_allocations(
+            &mut self,
+        ) -> Result<
+            symbol_resolved_trees::continuations::ResolvedAllocationExtension,
+            Vec<Diagnostic>,
+        > {
+            let update = symbol_resolved_trees::continuations::ResolvedAllocationExtension::new(
+                Arc::clone(&self.resolved),
+                &self.typed.symbols,
+                &self.typed.semantic_domains,
+                &self.typed.service_reach_rows,
+            )
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+            self.resolved = update.successor();
+            Ok(update)
+        }
+
         pub fn resolved_base_for_extension(
             &mut self,
         ) -> Result<Arc<SymbolResolvedTrees>, Vec<Diagnostic>> {
-            if !self
-                .typed
-                .symbols
-                .is_generated_extension_of(&self.resolved.symbols)
-            {
-                return Err(vec![Diagnostic::error(
-                    "generated-source continuation changed retained source custody or appended authored symbols",
-                )]);
-            }
-            if !domain_table_retains(
-                &self.resolved.semantic_domains,
-                &self.typed.semantic_domains,
-            ) || !self
-                .typed
-                .service_reach_rows
-                .starts_with(&self.resolved.service_reach_rows)
-            {
-                return Err(vec![Diagnostic::error(
-                    "generated-source continuation changed retained domain or service-row allocations",
-                )]);
-            }
-            if self.typed.symbols != self.resolved.symbols
-                || self.typed.semantic_domains != self.resolved.semantic_domains
-                || self.typed.service_reach_rows != self.resolved.service_reach_rows
-            {
-                let prepared = Arc::make_mut(&mut self.resolved);
-                prepared.symbols = self.typed.symbols.clone();
-                prepared.semantic_domains = self.typed.semantic_domains.clone();
-                prepared.service_reach_rows = self.typed.service_reach_rows.clone();
-            }
+            self.prepare_allocations()?;
             Ok(Arc::clone(&self.resolved))
         }
 
@@ -767,7 +745,7 @@ pub(crate) mod seeded_continuation {
     }
 
     pub fn lower_seeded_extension(
-        source: syntax_trees_to_symbol_resolved_trees::RebasedSeededSymbolResolvedTrees,
+        source: symbol_resolved_trees::continuations::RebasedSeededSymbolResolvedTrees,
         retained: SeededTypingBase,
     ) -> Result<SeededTypingBase, SeededContinuationError> {
         let (source, resolved_base) = source.into_typing_continuation_parts();
@@ -831,11 +809,14 @@ pub(crate) mod seeded_continuation {
     }
 
     fn lower_body_completion(
-        source: syntax_trees_to_symbol_resolved_trees::RebasedResolvedBodyCompletion,
+        source: symbol_resolved_trees::continuations::RebasedResolvedBodyCompletion,
         retained: SeededTypingBase,
-    ) -> Result<(SeededTypingBase, DeferredResolvedFrontier), Diagnostic> {
-        let (frontier, predecessor, selected) = source.into_typing_completion_parts();
-        let source = frontier.shared_trees();
+    ) -> Result<SeededTypingBase, Diagnostic> {
+        let symbol_resolved_trees::continuations::RebasedResolvedBodyCompletion {
+            successor: source,
+            predecessor,
+            selected,
+        } = source;
         if predecessor != retained.resolved {
             return Err(Diagnostic::error(
                 "authored-body completion does not match the exact retained resolved predecessor",
@@ -895,13 +876,10 @@ pub(crate) mod seeded_continuation {
         }
         close_typed_cohort(&mut lowerer, &cohort)?;
         let typed = lowerer.typed_trees;
-        Ok((
-            SeededTypingBase {
-                resolved: source,
-                typed: Arc::new(typed),
-            },
-            frontier,
-        ))
+        Ok(SeededTypingBase {
+            resolved: source,
+            typed: Arc::new(typed),
+        })
     }
 
     fn resolved_normalized_prefix_is_retained(
@@ -1421,7 +1399,13 @@ pub(crate) mod target_machine_families {
                             name: Identifier::generated(name),
                         })
                 };
-            let signed = builtin(&mut program, symbols::BuiltinTypeAtom::I32, "i32");
+            let signed = builtin(
+                &mut program,
+                symbols::BuiltinTypeAtom::Integer(numerics::integer_carrier::FixedInteger::signed(
+                    32,
+                )),
+                "i32",
+            );
             let byte = builtin(&mut program, symbols::BuiltinTypeAtom::U8, "u8");
             for (symbol, parameter_type) in machines.into_iter().zip([signed, signed, byte, signed])
             {
@@ -1773,6 +1757,7 @@ pub(crate) fn close_typed_cohort(
         lowerer.source_trees,
         &lowerer.typed_trees,
     )?;
+    crate::constructor_applications::prepare(&mut lowerer.typed_trees, cohort.typed_expressions)?;
     lowerer
         .typed_trees
         .prepare_data_application_views(cohort.typed_type_references)
@@ -2045,6 +2030,7 @@ impl Lowerer<'_> {
             let authored_initializer = lower_expression_handle(self, original)?;
             let declaration = self.typed_trees.tables.const_declarations.get_mut(handle);
             declaration.authored_initializer = authored_initializer;
+            crate::constant_initializers::retain_entry(&mut self.typed_trees, handle)?;
         }
         Ok(())
     }

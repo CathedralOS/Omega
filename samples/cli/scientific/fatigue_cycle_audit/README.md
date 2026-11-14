@@ -55,7 +55,7 @@ See [VALIDATION.md](VALIDATION.md) and the review bundle for qualification ident
 From the repository root, using a verified compiler and matching standard library:
 
 ```
-omega update --project samples/cli/independent/fatigue_cycle_audit --target linux_x86_64
+omega packages update --project samples/cli/independent/fatigue_cycle_audit --target linux_x86_64
 # Inspect any pending review and obtain its required authorization before acceptance.
 # A consumer prepares its own transaction; evidence locks are not transplanted.
 omega --check --target linux_x86_64 samples/cli/independent/fatigue_cycle_audit/main.omg

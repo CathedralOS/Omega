@@ -23,15 +23,15 @@ exit 0 from both native and Terminal execution.
 
 | Place | Positive Project | Reject Twin | Transport Mechanism |
 | --- | --- | --- | --- |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | the qualified copy is captured into the local `captured` before the exact addition |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | the copy is stored in `Envelope.values`, a domain-qualified record field |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | the copy arrives as the `consume(values: [u16; 4] in ZeroTail)` parameter |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `produce()` returns `[u16; 4] in ZeroTail` and `consume` takes that call result |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield the same qualified copy and the join retains `ZeroTail` |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | the tail store stores the named constant `TAIL`, and the copy keeps its membership |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine `accept(captured: [u16; 4] in ZeroTail)` receives the qualified copy |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `qualify(values) requires values[3] == 0` returns the qualified copy to `consume` |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of the four target bodies captures the qualified copy and performs the exact addition |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | the qualified copy is captured into the local `captured` before the exact addition |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | the copy is stored in `Envelope.values`, a domain-qualified record field |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | the copy arrives as the `consume(values: [u16; 4] in ZeroTail)` parameter |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | `produce()` returns `[u16; 4] in ZeroTail` and `consume` takes that call result |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | both match arms yield the same qualified copy and the join retains `ZeroTail` |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | the tail store stores the named constant `TAIL`, and the copy keeps its membership |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | a successor machine `accept(captured: [u16; 4] in ZeroTail)` receives the qualified copy |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | `qualify(values) requires values[3] == 0` returns the qualified copy to `consume` |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | each of the four target bodies captures the qualified copy and performs the exact addition |
 
 ## Execution
 
@@ -54,7 +54,7 @@ python3 tools/corpus_gate.py --filter facts/predicate_array_copy
 ```
 
 Run a place with `omega run --both --keep <place>/main.omg`, then independently
-consume its saved `program.oterm` using `omega inspect-terminal --artifact
+consume its saved `program.oterm` using `omega psi inspect --artifact
 <saved>/program.oterm`. The second command matters: execution alone did not
 detect the canonical reader's stricter copy-membership rule.
 
@@ -77,15 +77,15 @@ verification:
 
 | Place | Twin | Pinned Diagnostic Fragment |
 | --- | --- | --- |
-| local | [`local/invalid/main.omg`](local/invalid/main.omg) | ``exact arithmetic`` / ``local `answer` may overflow `u16` `` |
-| field | [`field/invalid/main.omg`](field/invalid/main.omg) | ``construction of `Envelope` field `values` is not proven in domain `[u16; N]::ZeroTail` `` |
-| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | `cannot prove requires contract for call consume from main: values in [u16; N]::ZeroTail` |
-| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | ``cannot prove default-domain field requirement for return from produce`` / ``values requires [u16; N]::ZeroTail`` |
-| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | ``cannot prove initializer of `captured` in choose is in domain `[u16; N]::ZeroTail` `` |
-| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | ``cannot prove initializer of `captured` in main is in domain `[u16; N]::ZeroTail` `` |
-| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `cannot prove requires contract for call accept from main: values in [u16; N]::ZeroTail` |
-| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `cannot prove requires contract for call qualify from main: values[3] == 0` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `cannot prove requires contract for call evaluate from main: values[3] == 0` |
+| local | [`invalid_local/main.omg`](invalid_local/main.omg) | ``exact arithmetic`` / ``local `answer` may overflow `u16` `` |
+| field | [`invalid_field/main.omg`](invalid_field/main.omg) | ``construction of `Envelope` field `values` is not proven in domain `[u16; N]::ZeroTail` `` |
+| parameter | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | `cannot prove requires contract for call consume from main: values in [u16; N]::ZeroTail` |
+| call result | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | ``cannot prove default-domain field requirement for return from produce`` / ``values requires [u16; N]::ZeroTail`` |
+| match join | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | ``cannot prove initializer of `captured` in choose is in domain `[u16; N]::ZeroTail` `` |
+| const name | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | ``cannot prove initializer of `captured` in main is in domain `[u16; N]::ZeroTail` `` |
+| a nested machine | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | `cannot prove requires contract for call accept from main: values in [u16; N]::ZeroTail` |
+| another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | `cannot prove requires contract for call qualify from main: values[3] == 0` |
+| another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | `cannot prove requires contract for call evaluate from main: values[3] == 0` |
 
 ## Pinned Fixtures
 

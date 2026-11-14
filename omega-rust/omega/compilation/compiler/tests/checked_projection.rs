@@ -7,7 +7,7 @@
 mod fixture_package_inputs;
 
 use fixture_package_inputs::{
-    FixtureFrontierCheck, check_fixture_keeping_typed_frontier, repo_root,
+    FixtureProductCheck, check_fixture_keeping_typed_frontier, repo_root,
 };
 use typed_trees::machine::MachinePurpose;
 
@@ -40,10 +40,10 @@ fn projected(fixture: &str) -> Projected {
         .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
     });
     let frontier = match check {
-        FixtureFrontierCheck::Accepted { frontier, .. }
-        | FixtureFrontierCheck::Rejected { frontier, .. }
-        | FixtureFrontierCheck::ReviewRefused { frontier, .. } => frontier,
-        FixtureFrontierCheck::StoppedBeforeTypedFrontier(diagnostics) => {
+        FixtureProductCheck::Accepted { frontier, .. }
+        | FixtureProductCheck::Rejected { frontier, .. }
+        | FixtureProductCheck::ReviewRefused { frontier, .. } => frontier,
+        FixtureProductCheck::StoppedBeforeTypedFrontier(diagnostics) => {
             panic!("`{fixture}` must reach the checker: {diagnostics:?}")
         }
     };

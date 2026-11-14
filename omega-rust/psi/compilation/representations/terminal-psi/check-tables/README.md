@@ -8,6 +8,13 @@ path string to find a fact. The crate is types only: no elaboration, no
 checking, no prover. The decision it serves is
 [check on the lowered form](../../../../../../wiki/drafts/designs/check_on_lowered_form.md).
 
+[`program`](src/program.rs) owns the complete unsealed module and its checking
+rows. [`compilation`](src/compilation.rs) groups that root with every demanded
+generic form and conformance witness, using retained identities rather than
+callbacks to source preparation. [`names`](src/names.rs) and source spans are
+diagnostic correspondence only. Typed source records and Build operands stay
+with the producer/driver publication envelope, outside this source-free crate.
+
 ## What each table holds
 
 All tables are `IdTable`s: flat `Vec`s indexed by identity. Elaboration mints
@@ -16,32 +23,23 @@ lookup is one index.
 
 | Table | Indexed by | Holds |
 | --- | --- | --- |
-| `values` | `ValueId` | One evaluated scalar: its type, its single origin, and for a callable selector the machines it may select. A write never changes it. |
+| `values` | `ValueId` | One evaluated scalar: its type and its single origin. A write never changes it. |
 | `knowledge` | `KnowledgeId` | A proposition over value identities, the point it is available from, its one justification and its premises. It never becomes false. |
 | `propositions` | `PropositionId` | The proposition each knowledge row states. Machine-local, minted by `push`: Terminal Psi keeps contract propositions inline and has no proposition table. |
-| `places` | `ExactPlaceId` | A root place, or a parent place plus one typed segment (field, case, fixed index, runtime index named by its captured selector value), with its sorted children and the writes to it. |
+| `places` | `ExactPlaceId` | A root place, or a parent place plus one typed segment (field, case, fixed index, runtime index named by its captured selector value, descriptor extent metadata), with its sorted children and the writes to it. |
 | `roots` | `PlaceId` | The `ExactPlaceId` of each root place. |
-| `writes` | `WriteId` | The forward write log: a value, an installed reference, unknown contents, or a hole. |
-| `referent_sets`, `selection_sets` | `ReferentSetId`, `SelectionSetId` | May-sets: the places an installed reference may denote, the machines a selector may select. Join is union; `Unknown` means everything. |
+| `writes` | `WriteId` | The forward write log: a value, unknown contents, or a hole. |
 | `obligations` | `ObligationId` | Claims, loans, windows and debts (conserved across edges) and proof questions (discharged at one site). |
 | `edges` | `EdgeId` | Source, destination, and the fate of every conserved obligation crossing the edge. |
 | `invocations` | `InvocationId` | The one entry operation of ordinary and terminal calls: callee, ordered actuals, one requirement obligation per callee clause. |
-| `summaries` (module) | `MachineId` | A callee's published contract, one term per axis: reach, invokes, suspension, blocking, crash routes, termination. Its `requires` and `ensures` are the callee's `MachineContract` in the lowered module, by clause position. |
 
 `ValueId`, `EdgeId`, `ObligationId`, `MachineId`, `BlockId`, `OperationId` and
 root `PlaceId` are the lowered form's own identities, so the checker and the
 emitted product name the same things. `ExactPlaceId`, `KnowledgeId`,
-`WriteId`, `ReferentSetId`, `SelectionSetId` and `InvocationId` belong to this
-crate because the lowered form has no identity for those concepts (its
+`WriteId` and `InvocationId` belong to this crate because the lowered form has no identity for those concepts (its
 `PlaceId` names roots only). `PropositionId` is reused from the vocabulary, but
 here it is machine-local and indexes `MachineTables::propositions`, not the
 module's named proposition declarations.
-
-References and callables are keyed differently because the lowered form holds
-them differently. A reference is a structural place, so the places it may
-denote are installed by the write that stores it (`Content::Reference`). A
-callable selector is a scalar value, so what it may select is a column of its
-value row.
 
 ## Rules every lane relies on
 
@@ -49,8 +47,8 @@ value row.
   with no machine tag. `row()` refuses an identity past the end of a table, but
   an in-range identity from another machine resolves to the wrong row with no
   error. So every checking API takes exactly one `MachineTables` and only
-  identities read from it. Crossing machines goes through an `InvocationRow`
-  and the callee's `Summary`, which hold `MachineId`s and clause positions.
+  identities read from it. Crossing machines goes through an `InvocationRow`,
+  which holds a `MachineId` and clause positions.
 - **Equal place identities mean the same place; unequal ones do not mean
   disjoint places.** A root overlaps every projection beneath it, and
   `FixedIndex(3)` and `RuntimeIndex { selector }` with a selector known to be 3
@@ -59,21 +57,33 @@ value row.
   unequal identities as disjoint.
 - **Lookups are derived columns, not maps.** A root by `PlaceId`
   (`MachineTables::roots`), a child by segment (`PlaceRow::children`, sorted,
-  binary search), the writes to a place (`PlaceRow::writes`, in program
-  order), and a selector's selection set (`ValueRow::selects`). Elaboration
-  fills each as it pushes rows. A lane that needs another lookup stops and
+  binary search), and the writes to a place (`PlaceRow::writes`, in program
+  order). Elaboration fills each as it pushes rows. A lane that needs another lookup stops and
   reports it, as it would for a new table; it never adds a map.
+
+## Descriptor extent observations
+
+`Segment::Extent` projects the current `u64` extent beneath an exact borrowed
+byte descriptor. It uses the existing place interning and reaching-write walk;
+descriptor replacement and overlapping mutable calls invalidate its prior
+reaching contents. A count already read is an immutable scalar snapshot.
+[Byte views](../../../../../../wiki/spec/terminal-psi/byte_views.md#values-and-observations)
+requires an observation of that exact descriptor, and input requirements name
+its `ViewExtent`. An observed formal's extent uses `EntryContent` like a scalar
+field. A fresh read is equated to that entry snapshot only when the actual
+write history still supplies it. The projection stays within the descriptor's
+custody and introduces no physical field, backing or ownership obligation.
 
 ## What a lane may add
 
-A construct-family lane changes this crate in exactly two places (a closed
-`RefusalReason` variant, cited the same way, is the one further addition a
-lane has made):
+A construct-family lane adds proof questions through the existing obligation kinds:
 
 - **An obligation kind:** a variant of `obligations::ObligationKind`, whose doc
   comment quotes the specification sentence that creates it, and a row in the
   table below.
-- **A summary term:** a field of `edges::Summary`, cited the same way.
+
+Closed refusal reasons and typed metadata projections extend their existing
+enumerations with the same specification citation, as `Extent` does above.
 
 A justification (`values::Justification`) is neither. A lane does not add or
 reuse one for a second meaning: a new reason a knowledge row can hold is a
@@ -129,7 +139,7 @@ being added here.
 - **That a sum holds a case on an edge.** A `StructuralCase` terminator has
   no Boolean value, and knowledge names values only, so the case selected on
   one of its edges is not a knowledge row. It lives in the structural payload
-  judgment of `lowered-discharge`. What such an edge *binds* is over values
+  judgment of `terminal-psi-to-terminal-psi`. What such an edge *binds* is over values
   (each payload parameter equals the value its payload leaf holds) and is a
   knowledge row justified as `Justification::DispatchBinding`.
 - **A domain debt on a data type's `requires`.** `ObligationKind::DomainDebt`
@@ -137,7 +147,7 @@ being added here.
   such identity (its clauses ride in `Elaboration::domains`, by type and
   position). An invariant window on one is therefore the opening write's
   `DataDomain` row, followed to its consumption points by
-  `lowered-discharge`, and not a conserved row here.
+  `terminal-psi-to-terminal-psi`, and not a conserved row here.
 
 - **What a call supplies for an erased formal.** `Actual` is a value or a
   place. The argument for an `[erased]` scalar formal is a term that nothing
@@ -200,28 +210,12 @@ being added here.
   (`wiki/drafts/designs/places_foundation_lane.md`, "One route, no second
   carrier"): knowledge never names a place. A storage observation enters as the value its
   read produced, and what the read equals is one more equation between values,
-  derived from the stores the lowered operations make (`lowered-discharge`,
+  derived from the stores the lowered operations make (`terminal-psi-to-terminal-psi`,
   `places.rs`), which the write log must restate. No lane uses
   a structural `Proposition` variant in a knowledge row; a contract clause
   that could only be stated as one is refused.
 - **Contract propositions have no table.** Terminal Psi keeps a machine's
   `requires` and `ensures` inline in its `MachineContract`; its only
-  `PropositionId` table is named proposition declarations. `Summary`
-  therefore names no proposition: a callee clause is its machine and
-  position. Knowledge rows index this crate's own machine-local
-  `propositions` table. `CrashRoute::guards` still assumes a module
-  proposition table.
-  A body-derived result relation has no `MachineContract` slot; the lane
-  that publishes `SummaryBasis::BodyDerived` decides where it lives.
-- **No carry term in `Summary`.** The design record lists carry as a summary
-  axis, but the specification defines carry on values, claims and suspension
-  crossings, not as a callee's published term. The sentences found:
-  [carry](../../../../../../wiki/spec/resources/carry.md) "Ordinary data
-  composes its live fields and explicit type-wide policy using the most
-  restrictive demand on each axis" and "A machine that may retain
-  CPU/thread-restricted values requires its runtime to establish the
-  corresponding preservation"; [calls and outcomes](../../../../../../wiki/spec/terminal-psi/calls_and_outcomes.md#suspension)
-  "Terminal retains provider-independent carry demand" and a suspension plan
-  "retains each value/place, type, storage role, structural access, exact live
-  claims, and carry requirements". None says what a callee publishes. The
-  suspension lane adds the term with its citation, or asks the owner.
+  `PropositionId` table is named proposition declarations. A callee clause
+  is its machine and position. Knowledge rows index this crate's own
+  machine-local `propositions` table.

@@ -25,7 +25,8 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
-use omega::language::core::numeric_conversion;
+use omega::language::core::widen_i16_to_i32;
+use omega::language::core::widen_u8_to_i32;
 
 data Readings [copy] {
     flags: u8;

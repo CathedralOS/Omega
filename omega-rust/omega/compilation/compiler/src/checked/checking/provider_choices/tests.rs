@@ -105,24 +105,28 @@ fn prepare(
     build: &[ProviderSelection],
     defaults: Vec<TargetProviderDefaults>,
 ) -> Result<PreparedProviderChoices, String> {
-    prepare_with_source_defaults(&fixture.source, &[profile()], build, &[], defaults).map_err(first)
+    prepare_with_source_defaults(&fixture.source, &[profile()], build, &[], &defaults)
+        .map_err(first)
 }
 
 fn judge(fixture: &Fixture, choices: &PreparedProviderChoices) -> AcceptedTerminalSource {
     AcceptedTerminalSource::judge(
         Arc::clone(&fixture.source),
         TerminalSourceCompilation {
+            declaration_metadata: &[],
+            supplies: &[],
+
             entries: &[fixture.entry],
             subjects: &[Some(package())],
             purpose: source::DependencyScope::Product,
             selected: &choices.declaration_roots,
-            calling: Some(structure_elaboration::CallingPolicySelections {
+            calling: Some(typed_trees_to_terminal_psi::CallingPolicySelections {
                 source: &fixture.source,
                 applications: &choices.calling_applications,
                 entries: &[],
             }),
             providers: Some(
-                structure_elaboration::provider_selections::ProviderSelections {
+                typed_trees_to_terminal_psi::provider_selections::ProviderSelections {
                     source: &fixture.source,
                     choices: &choices.selections,
                 },
@@ -216,10 +220,12 @@ fn a_module_that_reaches_nothing_checks_against_its_settled_execution() {
     assert_eq!(execution.target_profile(), Some(profile()));
     assert!(execution.plans().plans().is_empty());
     let artifact = produced(&accepted);
-    let proposal = execution.provider_proposal(
-        artifact.view(),
-        optimization_core::OptimizationSelections::default().identity(),
-    );
+    let proposal = execution
+        .provider_proposal(
+            artifact.view(),
+            optimization_core::OptimizationSelections::default().identity(),
+        )
+        .expect("the selected target has an actual provider proposal");
     assert_eq!(proposal.target, TARGET);
     assert_eq!(
         proposal
@@ -306,10 +312,12 @@ fn a_reached_requirement_settles_to_its_one_declared_default() {
     assert_eq!(candidates.len(), 1);
     assert_eq!(candidates[0].candidate_positions.len(), 1);
     let artifact = produced(&accepted);
-    let proposal = execution.provider_proposal(
-        artifact.view(),
-        optimization_core::OptimizationSelections::default().identity(),
-    );
+    let proposal = execution
+        .provider_proposal(
+            artifact.view(),
+            optimization_core::OptimizationSelections::default().identity(),
+        )
+        .expect("the selected target has an actual provider proposal");
     assert_eq!(check_conditions(&artifact, &proposal), Ok(()));
 }
 

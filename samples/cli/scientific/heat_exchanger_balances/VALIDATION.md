@@ -43,7 +43,7 @@ After authoring fixes, package preparation exited 3 with two source packages
 checked and pending review, rather than the original compiler diagnostics:
 
 ```
-omega update --project samples/cli/independent/heat_exchanger_balances --target linux_x86_64
+omega packages update --project samples/cli/independent/heat_exchanger_balances --target linux_x86_64
 ```
 
 The final source-check command after the reporting correction exited 1 solely

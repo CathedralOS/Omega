@@ -179,6 +179,17 @@ pub(crate) mod source_occurrences {
                     })
                     .collect::<Vec<_>>();
                 for (handle, owner, mut call) in statement_calls {
+                    if crate::reflection::construction::declaration_query_argument_role(
+                        self,
+                        crate::references::StaticArgumentCall::Statement(&call),
+                    ) == crate::references::StaticArgumentRole::DeclarationDescription
+                    {
+                        let arguments = self
+                            .statement_table
+                            .expression_handles(call.arguments)
+                            .to_vec();
+                        self.retain_description_operand_sources(&arguments, owner)?;
+                    }
                     let original_arguments = call.machine_arguments.clone();
                     self.retain_static_operand_sources(&mut call.machine_arguments, owner)?;
                     let declaration = (!call.static_machine_parameter.is_valid()
@@ -236,6 +247,17 @@ pub(crate) mod source_occurrences {
                 let Some(mut call) = self.expression_table.call_node(expression).cloned() else {
                     return Ok(());
                 };
+                if crate::reflection::construction::declaration_query_argument_role(
+                    self,
+                    crate::references::StaticArgumentCall::Expression(expression, &call),
+                ) == crate::references::StaticArgumentRole::DeclarationDescription
+                {
+                    let arguments = self
+                        .expression_table
+                        .expression_handles(call.arguments)
+                        .to_vec();
+                    self.retain_description_operand_sources(&arguments, owner)?;
+                }
                 let original_arguments = call.machine_arguments.clone();
                 self.retain_static_operand_sources(&mut call.machine_arguments, owner)?;
                 // An ordinary call still has a source application when its
@@ -307,6 +329,89 @@ pub(crate) mod source_occurrences {
                 };
                 call.authored_machine_application = application;
                 call.machine_arguments = arguments;
+                Ok(())
+            }
+
+            // A selected member keeps its supplying type as well as its member
+            // path. Capture that type here, before the ordinary data-application
+            // owner prepares substituted fields; a later reader cannot infer
+            // Cell<u32> from the shared declaration symbol Cell::value.
+            fn retain_description_operand_sources(
+                &mut self,
+                arguments: &[crate::expression::ExpressionHandle],
+                owner: SymbolHandle,
+            ) -> Result<(), &'static str> {
+                for expression in arguments {
+                    let Some(path) = self.expression_table.name_path_node(*expression) else {
+                        continue;
+                    };
+                    if !path.static_application.is_valid() {
+                        continue;
+                    }
+                    let mut next = path.static_application;
+                    let mut visited = Vec::new();
+                    while next.is_valid() {
+                        if visited.contains(&next) {
+                            return Err("declaration operand has a cyclic member path");
+                        }
+                        visited.push(next);
+                        let mut selected = self
+                            .expression_table
+                            .static_member(next)
+                            .cloned()
+                            .ok_or("declaration operand lost its retained member path")?;
+                        let member = selected
+                            .application
+                            .as_ref()
+                            .map_or_else(arena::Handle::invalid, |application| application.member);
+                        if member.is_valid()
+                            && self.symbols.symbols().nodes().is_valid(selected.symbol)
+                            && matches!(
+                                self.symbols.get(selected.symbol).kind,
+                                symbols::SymbolKind::Data | symbols::SymbolKind::TypeAlias
+                            )
+                        {
+                            let application = selected
+                                .application
+                                .as_mut()
+                                .expect("member has an application");
+                            application.member = arena::Handle::invalid();
+                            self.retain_static_operand_sources(&mut application.arguments, owner)?;
+                            if !selected.type_reference.is_valid() {
+                                selected.type_reference =
+                                    self.static_operand_type_reference_in_scope(&selected, owner)?;
+                            } else {
+                                if !self
+                                    .type_reference_table
+                                    .contains_type_reference(selected.type_reference)
+                                {
+                                    return Err("declaration operand has a stale supplying type");
+                                }
+                                if !self
+                                    .type_reference_table
+                                    .operand_lifetime_owner(selected.type_reference)
+                                    .is_valid()
+                                {
+                                    self.type_reference_table.retain_operand_lifetime_owner(
+                                        selected.type_reference,
+                                        owner,
+                                    )?;
+                                }
+                            }
+                            selected
+                                .application
+                                .as_mut()
+                                .expect("source application remains retained")
+                                .member = member;
+                            *self
+                                .expression_table
+                                .static_member_mut(next)
+                                .ok_or("declaration operand lost its prepared member path")? =
+                                selected;
+                        }
+                        next = member;
+                    }
+                }
                 Ok(())
             }
 
@@ -692,8 +797,7 @@ pub(crate) mod source_occurrences {
         #[test]
         fn authored_call_actuals_and_cast_targets_exclude_computed_expression_types() {
             use crate::expression::{
-                BinaryOperator, OpenIndexOperationSelection, StaticMachineArgument,
-                TableBinaryExpression, TableCastExpression,
+                BinaryOperator, StaticMachineArgument, TableBinaryExpression, TableCastExpression,
             };
             let mut symbols = symbols::SymbolTableBuilder::default();
             let owner = symbols.insert_root(
@@ -745,29 +849,6 @@ pub(crate) mod source_occurrences {
                         right: leaf,
                         operator: BinaryOperator::Add,
                     }));
-            program
-                .expression_table
-                .index_expression_authority_mut(binary)
-                .operation = Some(OpenIndexOperationSelection {
-                expression: binary,
-                spelling: language_core::OperatorSpelling::Add,
-                operator: SymbolHandle::invalid(),
-                operand_type: computed,
-                provider: SymbolHandle::invalid(),
-                application: Some(StaticMachineArgument {
-                    type_reference: computed,
-                    ..Default::default()
-                }),
-                algebra_trait: SymbolHandle::invalid(),
-                algebra_requirement: String::new(),
-                algebra_alias: None,
-                commutativity_licensed: false,
-                associativity_licensed: false,
-                distributes_over: Vec::new(),
-                law_evidence: Vec::new(),
-                left_identity_literal: String::new(),
-                right_identity_literal: String::new(),
-            });
             let cast = program
                 .expression_table
                 .insert(ExpressionNode::Cast(TableCastExpression {
@@ -1012,24 +1093,9 @@ pub enum StaticArgumentCall<'call> {
 
 impl<'call> StaticArgumentCall<'call> {
     pub fn applications(&self) -> impl Iterator<Item = StaticMachineApplicationHandle> + use<> {
-        let invocation = self.application();
-        let selection = self.selection_application();
-        [invocation, selection]
+        [self.application()]
             .into_iter()
-            .enumerate()
-            .filter_map(move |(index, application)| {
-                (application.is_valid() && (index == 0 || application != invocation))
-                    .then_some(application)
-            })
-    }
-
-    pub fn selection_application(&self) -> StaticMachineApplicationHandle {
-        match self {
-            Self::Expression(_, call) => call.static_requirement_dispatch.as_ref(),
-            Self::Statement(call) => call.static_requirement_dispatch.as_ref(),
-        }
-        .map(|dispatch| dispatch.selection_application)
-        .unwrap_or_default()
+            .filter(|application| application.is_valid())
     }
 
     pub fn application(&self) -> StaticMachineApplicationHandle {
@@ -1582,12 +1648,10 @@ impl TypedReferences for TypeOccurrences {
                 }
             }
         }
-        for handle in [call.application(), call.selection_application()] {
-            if handle.is_valid() {
-                let source = program.static_machine_application(handle);
-                if source.lexical_owner == self.owner {
-                    self.applications.insert(handle);
-                }
+        for handle in call.applications() {
+            let source = program.static_machine_application(handle);
+            if source.lexical_owner == self.owner {
+                self.applications.insert(handle);
             }
         }
         true
@@ -1769,11 +1833,28 @@ pub fn collect_selected_program_references(
 pub fn collect_declaration_symbol_dependencies(
     program: &TypedTrees,
 ) -> Vec<(SymbolHandle, Vec<SymbolHandle>)> {
+    declaration_symbol_dependencies(program, true)
+}
+
+/// Actual source computation dependencies omit derived receipt/provenance
+/// ownership edges. Those edges keep source custody alive but do not request
+/// evaluating the owner again.
+pub fn collect_computation_symbol_dependencies(
+    program: &TypedTrees,
+) -> Vec<(SymbolHandle, Vec<SymbolHandle>)> {
+    declaration_symbol_dependencies(program, false)
+}
+
+fn declaration_symbol_dependencies(
+    program: &TypedTrees,
+    derived: bool,
+) -> Vec<(SymbolHandle, Vec<SymbolHandle>)> {
     #[derive(Default)]
     struct Declarations {
         rows: Vec<(SymbolHandle, Vec<SymbolHandle>)>,
         owner: SymbolHandle,
         current: ReferenceCollector,
+        derived: bool,
     }
 
     impl Declarations {
@@ -1800,6 +1881,9 @@ pub fn collect_declaration_symbol_dependencies(
     }
 
     impl TypedReferences for Declarations {
+        fn derived_declaration_references(&self) -> bool {
+            self.derived
+        }
         fn declaration(&mut self, symbol: SymbolHandle) -> bool {
             self.finish();
             self.owner = symbol;
@@ -1827,10 +1911,24 @@ pub fn collect_declaration_symbol_dependencies(
         }
     }
 
-    let mut declarations = Declarations::default();
+    let mut declarations = Declarations {
+        derived,
+        ..Default::default()
+    };
     visit_program(program, &mut declarations);
     declarations.finish();
     declarations.rows
+}
+
+/// Prepare one expression's actual referenced family through the same source
+/// owner used for machine and program references.
+pub fn collect_expression_references(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> ProgramReferences {
+    let mut references = ReferenceCollector::default();
+    visit_expression(program, &mut references, expression);
+    finish_references(references)
 }
 
 pub fn collect_program_references_with_roles(
@@ -3215,33 +3313,6 @@ pub fn visit_expression(
     if authored.is_valid() && retained.type_expression(authored) {
         visit_expression(program, retained, authored);
     }
-    if retained.derived_declaration_references()
-        && let Some(operation) = program.expression_table.open_index_operation(expression)
-    {
-        visit_symbol(retained, operation.provider);
-        visit_symbol(retained, operation.operator);
-        visit_symbol(retained, operation.algebra_trait);
-        visit_type_reference(program, retained, operation.operand_type);
-        for requirement in &operation.distributes_over {
-            retained.declaration_description_dependency(*requirement);
-        }
-        for evidence in &operation.law_evidence {
-            for symbol in [
-                evidence.bound.binder,
-                evidence.bound.trait_symbol,
-                evidence.declaring_trait,
-                evidence.law,
-            ] {
-                retained.declaration_description_dependency(symbol);
-            }
-            for actual in &evidence.bound.arguments {
-                visit_type_reference(program, retained, *actual);
-            }
-        }
-        if let Some(application) = &operation.application {
-            visit_static_argument(program, retained, application);
-        }
-    }
     for occurrence in program
         .expression_table
         .authored_selection_occurrences(expression)
@@ -3307,7 +3378,13 @@ pub fn visit_expression(
         }
         ExpressionNode::Member(member) => {
             visit_expression(program, retained, member.receiver);
-            visit_symbol(retained, member.member_symbol);
+            match member.selection {
+                crate::expression::MemberSelection::Field(symbol) => visit_symbol(retained, symbol),
+                crate::expression::MemberSelection::Unresolved => {
+                    visit_symbol(retained, SymbolHandle::invalid())
+                }
+                crate::expression::MemberSelection::CollectionMeasure(_) => {}
+            }
         }
         ExpressionNode::Borrow(borrow) => {
             visit_expression(program, retained, borrow.target);
@@ -3421,25 +3498,13 @@ fn visit_described_argument(
 }
 
 fn visit_static_requirement_dispatch(
-    program: &TypedTrees,
     retained: &mut impl TypedReferences,
     dispatch: &crate::StaticRequirementDispatch,
-    invocation: StaticMachineApplicationHandle,
 ) {
     visit_symbol(retained, dispatch.realization_machine);
     visit_symbol(retained, dispatch.realization_state);
     visit_symbol(retained, dispatch.requirement);
-    visit_symbol(retained, dispatch.contract_signature);
     visit_symbol(retained, dispatch.declaring_trait);
-    let selected = dispatch.selection_application;
-    if selected.is_valid() && selected != invocation {
-        let application = program.static_machine_application(selected);
-        visit_symbol(retained, application.registration_operation);
-        for argument in program.static_machine_application_arguments(selected) {
-            visit_static_argument(program, retained, argument);
-        }
-        visit_static_machine_bindings(program, retained, selected);
-    }
 }
 
 fn visit_call_expression(
@@ -3500,12 +3565,7 @@ fn visit_call_expression(
         visit_type_reference(program, retained, request.requirement);
     }
     if let Some(dispatch) = &call.static_requirement_dispatch {
-        visit_static_requirement_dispatch(
-            program,
-            retained,
-            dispatch,
-            call.authored_machine_application,
-        );
+        visit_static_requirement_dispatch(retained, dispatch);
     }
     if retained.call_arguments(program, StaticArgumentCall::Expression(expression, call)) {
         for argument in StaticArgumentCall::Expression(expression, call).arguments(program) {
@@ -3613,12 +3673,7 @@ fn visit_statement(
                 );
             }
             if let Some(dispatch) = &call.static_requirement_dispatch {
-                visit_static_requirement_dispatch(
-                    program,
-                    retained,
-                    dispatch,
-                    call.authored_machine_application,
-                );
+                visit_static_requirement_dispatch(retained, dispatch);
             }
             if let Some(request) = &call.installed_interrupt_operation {
                 visit_symbol(retained, request.registrar_trait);

@@ -415,6 +415,5 @@ projections cannot recover narrower precision without new evidence. An
 unrepresentable origin or incomplete recursive summary uses the conservative
 ownership ceiling, never an empty write set. Frame inference grants no borrow
 authority and cannot preserve facts through unmodeled external writes.
-Current analysis bounds belong beside
-[checking](../../../omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/README.md),
+Current analysis bounds belong beside the lowered-form checker,
 not in the language's dependent-value limits.

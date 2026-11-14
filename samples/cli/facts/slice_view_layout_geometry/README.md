@@ -12,15 +12,15 @@ Every place performs the same operation: query the byte size (`size_of<&[u64]>()
 | Place | Positive Project | Reject Twin | Transport Mechanism |
 | --- | --- | --- | --- |
 | (root) | [`main.omg`](main.omg) | — | root slice view descriptor size and alignment queries and exact subtraction |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | the size and alignment queries are copied into locals before subtracting |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | an enclosing structural carrier record holds the size and alignment in fields before subtracting |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | helper machines receive the queried size and alignment directly as explicit parameters |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the size and alignment are returned from contracted helper call results before subtracting |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms evaluate the size and alignment queries and join before subtracting |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constants evaluate size_of and align_of before subtracting |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the size and alignment queries before subtracting |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an intermediate forwarding machine delegates the subtraction to the geometry query machine |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target bodies evaluates size_of and align_of and subtracts |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | the size and alignment queries are copied into locals before subtracting |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | an enclosing structural carrier record holds the size and alignment in fields before subtracting |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | helper machines receive the queried size and alignment directly as explicit parameters |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | the size and alignment are returned from contracted helper call results before subtracting |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | both match arms evaluate the size and alignment queries and join before subtracting |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | named constants evaluate size_of and align_of before subtracting |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | a successor machine receives the size and alignment queries before subtracting |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | an intermediate forwarding machine delegates the subtraction to the geometry query machine |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | each of four target bodies evaluates size_of and align_of and subtracts |
 
 Every positive place and the root `main.omg` probe binds `ProgramEntry` for
 `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`, carries an
@@ -59,15 +59,15 @@ omega --check samples/cli/facts/slice_view_layout_geometry/<place>/invalid/main.
 
 | Place | Reject Twin | Obligation Class | Authored Diagnostic Fragment |
 | --- | --- | --- | --- |
-| local | [`local/invalid/main.omg`](local/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `exact arithmetic may overflow` |
-| field | [`field/invalid/main.omg`](field/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `exact arithmetic may overflow` |
-| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `exact arithmetic may overflow` |
-| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `exact arithmetic may overflow` |
-| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `exact arithmetic may overflow` |
-| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `exact arithmetic may overflow` |
-| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `exact arithmetic may overflow` |
-| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `exact arithmetic may overflow` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `exact arithmetic may overflow` |
+| local | [`invalid_local/main.omg`](invalid_local/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `exact arithmetic may overflow` |
+| field | [`invalid_field/main.omg`](invalid_field/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `exact arithmetic may overflow` |
+| parameter | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `exact arithmetic may overflow` |
+| call result | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `exact arithmetic may overflow` |
+| match join | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `exact arithmetic may overflow` |
+| const name | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `exact arithmetic may overflow` |
+| a nested machine | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `exact arithmetic may overflow` |
+| another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `exact arithmetic may overflow` |
+| another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `exact arithmetic may overflow` |
 
 ### Acceptance Gate
 

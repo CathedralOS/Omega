@@ -43,9 +43,9 @@ selection, inverse or variance decision depends on floating arithmetic.
 From the repository root, with an optimized compiler of recorded provenance:
 
 ```
-omega update --project samples/cli/independent/d_optimal_calibration_design --target linux_x86_64
+omega packages update --project samples/cli/independent/d_optimal_calibration_design --target linux_x86_64
 # Inspect any pending review; accept only the authorized exact inventory, then resume.
-omega update --resume --project samples/cli/independent/d_optimal_calibration_design
+omega packages update --resume --project samples/cli/independent/d_optimal_calibration_design
 omega run --both --keep samples/cli/independent/d_optimal_calibration_design/main.omg < samples/cli/independent/d_optimal_calibration_design/input.txt
 python samples/cli/independent/d_optimal_calibration_design/validate.py --omega /absolute/path/to/omega
 ```

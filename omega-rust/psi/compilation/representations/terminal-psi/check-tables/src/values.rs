@@ -10,7 +10,7 @@ use semantic_vocabulary::{
     BlockId, EdgeId, EvidenceTermId, OperationId, PropositionId, ScalarType,
 };
 
-use crate::{ExactPlaceId, InvocationId, KnowledgeId, ProgramPoint, SelectionSetId};
+use crate::{ExactPlaceId, InvocationId, KnowledgeId, ProgramPoint};
 
 /// One evaluated scalar value, indexed by the lowered form's `ValueId`.
 ///
@@ -22,12 +22,6 @@ use crate::{ExactPlaceId, InvocationId, KnowledgeId, ProgramPoint, SelectionSetI
 pub struct ValueRow {
     pub scalar_type: ScalarType,
     pub origin: ValueOrigin,
-    /// For a callable selector, the machines it may select; the lowered form
-    /// makes selectors scalar values (see `may_sets`). Elaboration sets it
-    /// when it pushes the row, and it is `Some` for every value a
-    /// `Callee::Selected` names, `Unknown` when nothing narrower is known.
-    /// `None` only for values that are not selectors.
-    pub selects: Option<SelectionSetId>,
     /// Set for a value whose type is a type parameter that a generic check
     /// form leaves rigid (`machine same<T>(left: T, ..)`). The lowered form
     /// can declare a value only with a `ScalarType`, so such a value is
@@ -70,11 +64,11 @@ pub enum ValueOrigin {
     BlockParameter { block: BlockId, position: u32 },
     /// The result of an operation, including reads and call results.
     Operation(OperationId),
-    /// The content an initialized place holds at entry. fact_validity.md: "a
-    /// valid initialized ordinary storage place at entry may supply its exact
-    /// reaching value version; it need not have a store inside the current
-    /// body."
-    EntryContent { place: ExactPlaceId },
+    /// The first content a scalar leaf holds: at invocation entry for a
+    /// formal, or immediately after the declared call producing its root.
+    /// Later writes supply different identities through the storage log.
+    /// This logical name is not an executable scalar operand.
+    InitialContent { place: ExactPlaceId },
 }
 
 /// One piece of knowledge: a proposition over value identities, where it is

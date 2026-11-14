@@ -399,21 +399,7 @@ fn invocation_payment_is_atomic_with_local_attribution_and_shared_between_meters
 }
 
 #[test]
-fn invocation_ceiling_and_engine_identity_cannot_be_changed_by_the_meter() {
-    use evaluation_accounting::{
-        BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
-    };
-    let tree = BuildEvaluationSponsor::new(
-        BuildEvaluationSponsorLimits::new(8, 8, 2, 2, 8, 8, 8, 8).unwrap(),
-    );
-    let tree_invocation = tree
-        .begin_invocation(EvaluationMeasurementIdentity::CheckedTree, 8)
-        .unwrap();
-    assert!(matches!(
-        WorkMeter::with_invocation(tree_invocation, None),
-        Err(WorkMeterError::InvocationMeasurementMismatch)
-    ));
-    assert_eq!(tree.consumed_work_units(), 0);
+fn invocation_ceiling_cannot_be_changed_by_the_meter() {
     let sponsor = terminal_sponsor(8);
     let invocation = sponsor.begin_invocation(sponsor.measurement(), 1).unwrap();
     let mut meter = WorkMeter::with_invocation(invocation.clone(), None).unwrap();

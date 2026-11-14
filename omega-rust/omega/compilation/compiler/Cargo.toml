@@ -27,6 +27,7 @@ build-settings = { path = "../../build-system/build-settings" }
 build-output = { path = "../../packages/build-output" }
 package-compilation = { path = "../../packages/package-compilation" }
 provider-planning = { path = "../realization/provider-planning" }
+program-entry-plan = { path = "../backend/plans/program-entry-plan" }
 trust-model = { path = "../realization/trust-model" }
 boundary-applications = { path = "../backend/artifacts/boundary-applications" }
 calling-conventions = { path = "../backend/calling-conventions" }
@@ -42,12 +43,9 @@ artifacts = { path = "../../foundation/artifacts" }
 build-time-evaluation = { path = "../../../psi/compilation/build-time-evaluation" }
 target = { path = "../backend/target" }
 typed-trees = { path = "../../../psi/compilation/representations/typed-trees" }
-# The checker on the lowered form, which governs a compilation's verdict where
-# the owner's split gives it (src/checked/checking/lowered_route.rs).
-structure-elaboration = { path = "../../../psi/compilation/pipeline/structure-elaboration" }
-lowered-discharge = { path = "../../../psi/compilation/pipeline/lowered-discharge" }
 terminal-check-tables = { path = "../../../psi/compilation/representations/terminal-psi/check-tables" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
+terminal-semantics = { path = "../../../psi/compilation/representations/terminal-psi/semantics" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
 terminal-installation = { path = "../../../psi/compilation/terminal-installation" }
 target-operations = { path = "../representations/target-operations" }
@@ -59,6 +57,8 @@ native-artifact = { path = "../backend/artifacts/native-artifact" }
 optimization-core = { path = "../../foundation/optimization-core" }
 
 [dev-dependencies]
+typed-trees-to-terminal-psi = { path = "../../../psi/compilation/pipeline/05_typed-trees-to-terminal-psi" }
+terminal-psi-to-terminal-psi = { path = "../../../psi/compilation/pipeline/06_terminal-psi-to-terminal-psi" }
 abstract-operations = { path = "../representations/abstract-operations" }
 image = { path = "../backend/images/image" }
 isa-aarch64 = { path = "../backend/instruction-set-architectures/isa-aarch64" }
@@ -83,7 +83,6 @@ bounded-process = { path = "../../foundation/bounded-process" }
 orchestration = { path = "../../build-system/orchestration" }
 terminal-runtime = { path = "../../interpreter/terminal-runtime" }
 numerics = { path = "../../../psi/foundation/numerics" }
-terminal-semantics = { path = "../../../psi/compilation/representations/terminal-psi/semantics" }
 terminal-interpreter = { path = "../../../psi/interpreter/terminal-interpreter" }
 access-plans = { path = "../../../psi/foundation/access-plans" }
 extents = { path = "../../../psi/foundation/extents" }
@@ -97,9 +96,6 @@ source-files-to-tokens = { path = "../../../psi/compilation/pipeline/00_source-f
 tokens-to-syntax-trees = { path = "../../../psi/compilation/pipeline/01_tokens-to-syntax-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees" }
 symbol-resolved-trees-to-typed-trees = { path = "../../../psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees" }
-# The compiler's tests and comparison examples use the same lowered checker.
-# probe (examples/structure_elaboration_corpus.rs) and the side-by-side
-# comparison (examples/route_one_comparison.rs).
 
 [target.'cfg(unix)'.dev-dependencies]
 # Match the CLI's native dependency features. A libc feature mismatch travels
@@ -180,13 +176,8 @@ path = "tests/domain_qualified_types.rs"
 name = "lowered_route_subjects"
 path = "tests/lowered_route_subjects.rs"
 
-# A selected callable proves its public precondition for the actual input.
-[[test]]
-name = "runtime_callable_precondition"
-path = "tests/runtime_callable_precondition.rs"
-
-# Every source compilation uses the lowered-form checker's verdict; unsupported
-# source cannot obtain a different verdict from another checking path.
+# The default compile reports the lowered route's verdict where the owner's
+# split gives it, and the product check's everywhere else.
 [[test]]
 name = "lowered_route_governance"
 path = "tests/lowered_route_governance.rs"
@@ -196,6 +187,10 @@ path = "tests/lowered_route_governance.rs"
 [[test]]
 name = "lowered_route_publication"
 path = "tests/lowered_route_publication.rs"
+
+[[test]]
+name = "program_entry_product"
+path = "tests/program_entry_product.rs"
 
 # The lowered route's rejection messages contain each fixture's pinned
 # fragment.
@@ -215,6 +210,12 @@ path = "tests/lowered_route_generics.rs"
 name = "lowered_route_qualified"
 path = "tests/lowered_route_qualified.rs"
 
+# A value-position `match` on an integer or Boolean subject is judged on the
+# lowered form: each arm is checked knowing its test held.
+[[test]]
+name = "lowered_route_scalar_match"
+path = "tests/lowered_route_scalar_match.rs"
+
 [[test]]
 name = "package_review"
 path = "tests/package_review.rs"
@@ -233,3 +234,13 @@ path = "tests/filesystem_receiver.rs"
 [[test]]
 name = "lowered_route_ownership"
 path = "tests/lowered_route_ownership.rs"
+
+# A selected callable must prove its public precondition for the actual input.
+[[test]]
+name = "runtime_callable_precondition"
+path = "tests/runtime_callable_precondition.rs"
+
+# Source provider choice and recursive chosen-supply closure controls.
+[[test]]
+name = "target_supply"
+path = "tests/target_supply.rs"

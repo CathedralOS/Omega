@@ -4,7 +4,7 @@ Build and Terminal Psi execution glue for `omega run`.
 
 We request a single-target `ProjectProduct::Native` build through
 `orchestration::build` (either `NativeDestination::Retained` for native /
-`--both` runs, or `NativeDestination::RuntimeAdmission` for `--engine terminal`
+`--both` runs, or `NativeDestination::RuntimeAdmission` for `--engine psi`
 runs) and replay any supplied `reference_inputs` against the produced
 `CompileReport` before publication consumes the retained native payload.
 Consuming the exact `CompileReport` rather than re-checking source or

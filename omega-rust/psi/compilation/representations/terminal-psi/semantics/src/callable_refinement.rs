@@ -161,11 +161,7 @@ fn same_evidence_meaning(
 /// goals retain the complete logical input, normal, guarded and crash contract.
 /// A published signature, independently of whether it has an executable body.
 /// A boundary/native header carries no invented machine or evidence identity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CallableCrashPolicy {
-    Closed,
-    Open,
-}
+pub use semantic_vocabulary::CallableCrashPolicy;
 
 #[derive(Clone, Copy)]
 pub struct CallableContractView<'a> {

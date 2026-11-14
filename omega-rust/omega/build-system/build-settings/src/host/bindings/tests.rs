@@ -77,6 +77,7 @@ fn produce(build: &str) -> psi_compiler::ProducedTerminalProgram {
     let accepted = psi_compiler::AcceptedTerminalSource::judge(
         Arc::new(frozen),
         psi_compiler::TerminalSourceCompilation {
+            declaration_metadata: &[],
             entries: &[entry],
             subjects: &[Some(package)],
             purpose: source::DependencyScope::Build,
@@ -84,6 +85,7 @@ fn produce(build: &str) -> psi_compiler::ProducedTerminalProgram {
             calling: None,
             providers: None,
             bindings: &[],
+            supplies: &[],
         },
         terminal_codec::TerminalPublication::Invocation,
     )

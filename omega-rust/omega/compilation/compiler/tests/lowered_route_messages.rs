@@ -8,12 +8,12 @@
 //!
 //! Before these names were carried, every message read `unproved obligation:
 //! <kind>: <cause>`, and 1 of 292 measured `fail/` rejections contained its
-//! pinned fragment (`wiki/drafts/designs/route_one_diagnostics.md`).
+//! pinned fragment (`https://github.com/CathedralOS/Omega/blob/3b24dc9383e37416021ff19b350869a147c57432/wiki/drafts/designs/route_one_diagnostics.md`, removed since).
 #[path = "support/unbuilt_frontier.rs"]
 mod unbuilt_frontier;
 
-use lowered_discharge::{RouteVerdict, judge};
-use structure_elaboration::elaborate_closure;
+use terminal_psi_to_terminal_psi::{RouteVerdict, judge};
+use typed_trees_to_terminal_psi::elaborate_closure;
 use unbuilt_frontier::repository as repo_root_at;
 
 // Fixture compilation shares process-wide counters; run one at a time.
@@ -24,10 +24,18 @@ const REJECTIONS: &[(&str, &str)] = &[
     // A callee clause stated over the caller's actual. The actual is the
     // formal itself: a clause over an exclusive or or a mask is one the
     // route's rules cannot decide, which it reports as `Incomplete`, not as
-    // a rejection (`lowered-discharge`, `prove/reach`).
+    // a rejection (`terminal-psi-to-terminal-psi`, `prove/reach`).
     (
         "tests/fixtures/fail/arithmetic/signed_zero_does_not_prove_positive",
         "check",
+    ),
+    // The same, where the fixture pins the whole sentence: the fact the
+    // callee asked for in its own words, and the caller's state. The
+    // program's sum states a bound on each case's payload, so its `main`
+    // is judged only when that data `requires` is read.
+    (
+        "tests/fixtures/fail/facts/four_variant_enum_payload_bound_through_local_rejected",
+        "main",
     ),
     // A nested callee.
     (

@@ -26,7 +26,7 @@ them into physical execution evidence.
 #![forbid(unsafe_code)]
 
 use effects::{CompilerNumericType, CompilerPrimitiveIntegerComparisonOperation};
-use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
+use semantic_vocabulary::{IntegerType, ScalarType};
 
 pub(crate) use optimization_core::digest_encoder;
 
@@ -282,19 +282,10 @@ impl TerminalIntegerComparisonOccurrenceProposal {
     }
 
     fn scalar_type(&self) -> Option<ScalarType> {
-        use CompilerNumericType::*;
-        let (sign, bits) = match self.integer_type {
-            I8 => (IntegerSign::Signed, 8),
-            I16 => (IntegerSign::Signed, 16),
-            I32 => (IntegerSign::Signed, 32),
-            I64 => (IntegerSign::Signed, 64),
-            U8 => (IntegerSign::Unsigned, 8),
-            U16 => (IntegerSign::Unsigned, 16),
-            U32 => (IntegerSign::Unsigned, 32),
-            U64 => (IntegerSign::Unsigned, 64),
-            F32 | F64 => return None,
+        let CompilerNumericType::Integer(carrier) = self.integer_type else {
+            return None;
         };
-        IntegerType::new(sign, bits).ok().map(ScalarType::Integer)
+        IntegerType::from_fixed(carrier).map(ScalarType::Integer)
     }
 
     pub fn validate_roster(
@@ -462,22 +453,11 @@ mod comparison_tests {
                 assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
                 id: machine,
                 attachment: None,
-                declaration: None,
                 nominal_cleanup_subject: None,
-                parameters: vec![value(1, operand_type), value(2, operand_type)],
-                parameter_order: vec![terminal_psi::BoundaryParameterKind::Scalar; 2],
-                structural_parameters: Vec::new(),
                 ranked_scc: None,
-                result: TerminalMachineResult::Unit,
                 structural_places: Vec::new(),
-                entry_claims: Vec::new(),
                 block_entry_claims: Vec::new(),
                 loan_completions: Vec::new(),
-                declared_service_reach: Vec::new(),
-                closed_reach_application: None,
-                published_synchronous_entries: Vec::new(),
-                published_service_ceiling: Vec::new(),
-                content_entry_claims: Vec::new(),
                 content_identity_reshuffles: Vec::new(),
                 content_partition_compositions: Vec::new(),
                 entry: block,
@@ -499,7 +479,20 @@ mod comparison_tests {
                         cleanup_actions: Vec::new(),
                     },
                 }],
-                contract: terminal_psi::MachineContract::empty(ContractId::new(1).unwrap()),
+                contract: terminal_psi::MachineContract {
+                    declaration: None,
+                    parameters: vec![value(1, operand_type), value(2, operand_type)],
+                    parameter_order: vec![terminal_psi::BoundaryParameterKind::Scalar; 2],
+                    structural_parameters: Vec::new(),
+                    result: TerminalMachineResult::Unit,
+                    entry_claims: Vec::new(),
+                    declared_service_reach: None,
+                    closed_reach_application: None,
+                    published_synchronous_entries: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    content_entry_claims: Vec::new(),
+                    ..terminal_psi::MachineContract::empty(ContractId::new(1).unwrap())
+                },
             }],
             ..TerminalModule::for_entry(machine)
         }
@@ -580,7 +573,9 @@ mod comparison_tests {
             provider_plan_index: 0,
             provider_plan_commitment: plans[0].identity_digest(),
             comparison: Authored::NotEqual,
-            integer_type: CompilerNumericType::I64,
+            integer_type: CompilerNumericType::Integer(
+                numerics::integer_carrier::FixedInteger::signed(64),
+            ),
         };
         let execution_machines = [module.machines[0].id];
         assert_eq!(
@@ -627,7 +622,9 @@ mod comparison_tests {
             Err("Terminal integer comparison changed operand type or identity")
         );
         let wrong_type = IntegerOccurrence {
-            integer_type: CompilerNumericType::U64,
+            integer_type: CompilerNumericType::Integer(
+                numerics::integer_carrier::FixedInteger::unsigned(64),
+            ),
             ..occurrence
         };
         assert_eq!(
@@ -645,14 +642,18 @@ mod comparison_tests {
                 provider_plan_index: 0,
                 provider_plan_commitment: ProviderPlan::default().identity_digest(),
                 comparison,
-                integer_type: CompilerNumericType::I64,
+                integer_type: CompilerNumericType::Integer(
+                    numerics::integer_carrier::FixedInteger::signed(64),
+                ),
             };
             assert_eq!(
                 occurrence.execution_identity(),
                 Some(
                     CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison {
                         operation: comparison,
-                        integer_type: CompilerNumericType::I64,
+                        integer_type: CompilerNumericType::Integer(
+                            numerics::integer_carrier::FixedInteger::signed(64)
+                        ),
                     }
                 )
             );

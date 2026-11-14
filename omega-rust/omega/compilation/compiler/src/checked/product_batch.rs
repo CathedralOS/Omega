@@ -55,15 +55,17 @@ impl CompilationSession {
                 .built
                 .computed_build_config
                 .independent_components();
-            let checked = complete_prepared_build(prepared, Some(&inputs)).and_then(|source| {
-                check_product_source(
-                    source,
-                    Some(&inputs),
-                    &calling_targets,
-                    &rollback,
-                    frontier.as_deref_mut(),
-                )
-            });
+            let checked = complete_prepared_build(prepared, Some(&inputs))
+                .map_err(CompileFailure::from)
+                .and_then(|source| {
+                    check_product_source(
+                        source,
+                        Some(&inputs),
+                        &calling_targets,
+                        &rollback,
+                        frontier.as_deref_mut(),
+                    )
+                });
             match checked {
                 Ok(mut source) => {
                     match canonical_sources
@@ -121,7 +123,7 @@ impl CompilationSession {
                         first_position,
                         first_owner,
                         SelectedCompileOutcome {
-                            result: Err(CompileFailure::from(diagnostics.clone())),
+                            result: Err(diagnostics.clone()),
                             independent_components: discovery,
                             tests: Vec::new(),
                             test_notes: Vec::new(),
@@ -132,7 +134,7 @@ impl CompilationSession {
                             position,
                             owner,
                             SelectedCompileOutcome {
-                                result: Err(CompileFailure::from(diagnostics.clone())),
+                                result: Err(diagnostics.clone()),
                                 independent_components: member.build().independent_components(),
                                 tests: Vec::new(),
                                 test_notes: Vec::new(),

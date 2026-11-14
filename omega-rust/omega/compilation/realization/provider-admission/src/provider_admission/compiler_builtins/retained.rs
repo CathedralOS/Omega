@@ -513,12 +513,18 @@ mod tests {
 
     #[test]
     fn portable_numeric_meaning_cannot_authorize_or_replace_provider_custody() {
-        let meaning = NumericIntrinsic::from_canonical_encoding([0, 5, 1, 0]).unwrap();
+        let meaning = NumericIntrinsic::Builtin {
+            function: symbols::BuiltinFunction::FloatIsNan,
+            format: numerics::literals::FloatFormat::F64,
+        };
         let selected = CompilerIntrinsicExecutionIdentity::from(meaning);
         assert!(reconcile_numeric_meaning(Some(meaning), Some(selected)).is_ok());
         assert!(reconcile_numeric_meaning(Some(meaning), None).is_err());
         assert!(reconcile_numeric_meaning(None, Some(selected)).is_err());
-        let other = NumericIntrinsic::from_canonical_encoding([0, 6, 1, 0]).unwrap();
+        let other = NumericIntrinsic::Builtin {
+            function: symbols::BuiltinFunction::FloatIsFinite,
+            format: numerics::literals::FloatFormat::F64,
+        };
         assert!(reconcile_numeric_meaning(Some(other), Some(selected)).is_err());
         assert!(
             reconcile_numeric_meaning(

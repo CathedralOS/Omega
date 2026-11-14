@@ -1,7 +1,6 @@
 // Expected exit: 0
 // IEEE guards separate ordered bounds from NaN exclusion. Negative controls
 // pin that negated comparisons alone cannot establish a finite range.
-use omega::language::core::float_operations;
 
 data Reading { value: f64; observed: bool; }
 

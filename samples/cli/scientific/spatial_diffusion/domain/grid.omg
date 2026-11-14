@@ -1,5 +1,5 @@
 module domain::grid;
-use omega::language::core::float_operations;
+use omega::language::core::F64::from_u64;
 
 // Scalar observations are captured before forwarding exclusive grid loans;
 // argument evaluation is left to right, including internal jumps.

@@ -8,10 +8,10 @@ away from zero. The second slot's `ready` flag is then cleared and must not
 disturb its float payload.
 
 ```sh
-omega update --project samples/cli/numeric/zero_float_case_round --target linux_x86_64
+omega packages update --project samples/cli/numeric/zero_float_case_round --target linux_x86_64
 omega run samples/cli/numeric/zero_float_case_round/main.omg < /dev/null
 ```
 
 Expected exit 0. Expected output contains `zero float case rounds -1 and 1`.
 
-`invalid/` is rejected because index `2` is outside a length-2 `f64` array.
+`../invalid_zero_float_case_round/` is rejected because index `2` is outside a length-2 `f64` array.

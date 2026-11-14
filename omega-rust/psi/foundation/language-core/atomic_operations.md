@@ -29,8 +29,7 @@ The parser's arithmetic-shaped carrier is decoded once, by
 `validation::atomic_load_carrier`, `atomic_assignment_carrier`, or
 `atomic_once_carrier`, into the
 sealed operation, the accessed place, and the authored operands. Checking
-plans one `CheckedAtomicAccessPlan` per operation (typed-trees-to-checked-trees
-`execution/terminal_unit/atomic_operations.rs`): a writing carrier's result
+plans one `CheckedAtomicAccessPlan` per operation: a writing carrier's result
 placeholder reserves the dense binding the event binds to the observed prior,
 and each operand keeps its own `AtomicOperand` scalar row. Lowering emits
 the plan as one Terminal `AtomicAccess` at a complete rooted storage path.

@@ -1,5 +1,0 @@
-[package]
-name = "allocation-observation"
-edition.workspace = true
-license.workspace = true
-version.workspace = true

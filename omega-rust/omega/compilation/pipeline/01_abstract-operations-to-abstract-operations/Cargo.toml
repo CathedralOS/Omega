@@ -27,16 +27,11 @@ proof-admission = { path = "../../../../psi/compilation/proof/admission" }
 # Tests admit real Terminal artifacts through Omega 00
 # to build this stage's input; production code reads only the representation.
 terminal-psi-to-abstract-operations = { path = "../00_terminal-psi-to-abstract-operations" }
-lowered-discharge = { path = "../../../../psi/compilation/pipeline/lowered-discharge" }
-structure-elaboration = { path = "../../../../psi/compilation/pipeline/structure-elaboration" }
-typed-trees-to-typed-trees = { path = "../../../../psi/compilation/pipeline/04_typed-trees-to-typed-trees" }
+terminal-psi-to-terminal-psi = { path = "../../../../psi/compilation/pipeline/06_terminal-psi-to-terminal-psi" }
+typed-trees-to-terminal-psi = { path = "../../../../psi/compilation/pipeline/05_typed-trees-to-terminal-psi" }
 # Dev builds enable test-support so the test_support exports compile alongside
 # the unit tests.
 abstract-operations-to-abstract-operations = { path = ".", features = ["test-support"] }
-source-files-to-tokens = { path = "../../../../psi/compilation/pipeline/00_source-files-to-tokens" }
-symbol-resolved-trees-to-typed-trees = { path = "../../../../psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees" }
-syntax-trees-to-symbol-resolved-trees = { path = "../../../../psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees" }
-tokens-to-syntax-trees = { path = "../../../../psi/compilation/pipeline/01_tokens-to-syntax-trees" }
 
 [features]
 test-support = []

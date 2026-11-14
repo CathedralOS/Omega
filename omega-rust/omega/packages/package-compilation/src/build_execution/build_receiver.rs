@@ -82,8 +82,8 @@ impl BuildReceiver {
         {
             return Err("accepted Build entry lost its one mutable Build receiver".into());
         }
-        let mut records = elaboration
-            .source_records
+        let mut records = source
+            .source_records()
             .iter()
             .filter(|row| row.record == parameter.structural_type);
         let (Some(record), None) = (records.next(), records.next()) else {

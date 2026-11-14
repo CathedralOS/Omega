@@ -1,6 +1,5 @@
 // Expected exit: 0.
 // Repeat a floating scan without treating unordered comparisons as integer order.
-use omega::language::core::float_operations;
 
 data Reading [copy] { address: u64; previous: [u8; 8]; current: [u8; 8]; }
 trait Retain<T> { machine test(value: &T) -> bool; }

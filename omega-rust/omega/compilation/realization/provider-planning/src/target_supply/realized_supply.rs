@@ -45,7 +45,7 @@ struct PlanRealization {
 /// rows retain native execution information that is not an effect-plan field.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RealizedTargetSupply {
-    target: String,
+    target: Option<String>,
     plans: Arc<effects::SelectedProviderPlanFacts>,
     realizations: Vec<PlanRealization>,
     direct_boundary_leaves: Vec<DirectBoundaryLeaf>,
@@ -59,6 +59,44 @@ pub struct RealizedTargetSupply {
 }
 
 impl RealizedTargetSupply {
+    /// An unscoped check cannot choose a target's provider. Its actual roots
+    /// must reach no boundary before a no-demand realization can be retained.
+    pub fn unscoped(
+        module: &TerminalModule,
+        roots: &[semantic_vocabulary::MachineId],
+    ) -> Result<Self, String> {
+        for &root in roots {
+            if !terminal_semantics::callable_values::reached_boundary_calls(module, root, &[])?
+                .is_empty()
+            {
+                return Err("boundary requirements require an explicit deployment target".into());
+            }
+        }
+        Self::no_demand(None)
+    }
+
+    pub(super) fn no_demand(target: Option<&str>) -> Result<Self, String> {
+        if let Some(target) = target {
+            target::TargetProfile::from_canonical_target_name(target)
+                .map_err(|error| error.to_string())?;
+        }
+        Ok(Self {
+            target: target.map(str::to_owned),
+            plans: Arc::new(effects::SelectedProviderPlanFacts::from_selected_plans(
+                Vec::new(),
+            )?),
+            realizations: Vec::new(),
+            direct_boundary_leaves: Vec::new(),
+            family_realizations: Vec::new(),
+            calling_applications: Vec::new(),
+            external_bindings: Vec::new(),
+            evaluated_native_bindings: Vec::new(),
+            evaluated_binding_identities: Default::default(),
+            terminal_authority_permissions: Vec::new(),
+            terminal_authority_permission_identities: Default::default(),
+        })
+    }
+
     pub fn from_checked(
         module: &TerminalModule,
         mut input: TargetSupplyRealizationInput,
@@ -289,7 +327,7 @@ impl RealizedTargetSupply {
             &plans,
         )?;
         Ok(Self {
-            target: input.target,
+            target: Some(input.target),
             plans: Arc::new(plans),
             realizations,
             direct_boundary_leaves: input.direct_boundary_leaves,
@@ -304,8 +342,8 @@ impl RealizedTargetSupply {
         })
     }
 
-    pub fn target(&self) -> &str {
-        &self.target
+    pub fn target(&self) -> Option<&str> {
+        self.target.as_deref()
     }
     pub fn plans(&self) -> &effects::SelectedProviderPlanFacts {
         &self.plans

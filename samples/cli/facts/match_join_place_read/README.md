@@ -24,15 +24,15 @@ unsupported field claim.
 
 | Place | Positive Program | Reject Twin | Transport Mechanism |
 | --- | --- | --- | --- |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | the joined referents are two local `Pair` values |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | the joined places are record fields (`&holder.chosen` / `&holder.spare`) |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | the join runs inside `apply` on `&Pair` parameters |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the joined places are `make_pair(...)` call results |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | the `Pair` values themselves arrive from match joins |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | the distinguishing values are named constants `KEPT`/`UNSELECTED` |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine `pick` receives the referents and performs the join/read |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine `forward` supplies the referents to `apply` |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target-scoped `apply` bodies performs the join/read |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | the joined referents are two local `Pair` values |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | the joined places are record fields (`&holder.chosen` / `&holder.spare`) |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | the join runs inside `apply` on `&Pair` parameters |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | the joined places are `make_pair(...)` call results |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | the `Pair` values themselves arrive from match joins |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | the distinguishing values are named constants `KEPT`/`UNSELECTED` |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | a successor machine `pick` receives the referents and performs the join/read |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | a forwarding machine `forward` supplies the referents to `apply` |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | each of four target-scoped `apply` bodies performs the join/read |
 
 ## Execution
 
@@ -74,15 +74,15 @@ requirement fragment named in the twin's `expected.txt`:
 
 | Place | Twin | Pinned Diagnostic Fragment |
 | --- | --- | --- |
-| local | [`local/invalid/main.omg`](local/invalid/main.omg) | `cannot prove requires contract for call read_field` |
-| field | [`field/invalid/main.omg`](field/invalid/main.omg) | `cannot prove requires contract for call read_field` |
-| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | `cannot prove requires contract for call read_field` |
-| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `cannot prove requires contract for call read_field` |
-| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `cannot prove requires contract for call read_field` |
-| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `cannot prove requires contract for call read_field` |
-| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `cannot prove requires contract for call read_field` |
-| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `cannot prove requires contract for call read_field` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `cannot prove requires contract for call read_field` |
+| local | [`invalid_local/main.omg`](invalid_local/main.omg) | `cannot prove requires contract for call read_field` |
+| field | [`invalid_field/main.omg`](invalid_field/main.omg) | `cannot prove requires contract for call read_field` |
+| parameter | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | `cannot prove requires contract for call read_field` |
+| call result | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | `cannot prove requires contract for call read_field` |
+| match join | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | `cannot prove requires contract for call read_field` |
+| const name | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | `cannot prove requires contract for call read_field` |
+| a nested machine | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | `cannot prove requires contract for call read_field` |
+| another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | `cannot prove requires contract for call read_field` |
+| another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | `cannot prove requires contract for call read_field` |
 
 ## Pinned Fixtures
 

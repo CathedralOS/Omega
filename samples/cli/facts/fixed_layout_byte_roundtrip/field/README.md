@@ -5,7 +5,7 @@ consumption. The sparse 40-byte region, bound 42, payload fields, original
 seven-word arrays and all canaries match the parent fact. `main()` executes
 both payload 42 (must yield 1) and payload 41 (must yield 0), so missing or inverted
 guards trap. Each invocation checks its own source/destination canaries.
-The invalid twin changes only the decoder guard to `true` and must reject
+The ../invalid_field twin changes only the decoder guard to `true` and must reject
 `unestablished recast target`. [Run 41412055228](https://github.com/CathedralOS/Omega/actions/runs/41412055228)
 qualifies the canonical field pair and these ordinary samples on Linux x86_64:
 native 0, Terminal 0 and agreement for the positive; the intended refusal for

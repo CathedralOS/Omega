@@ -1069,7 +1069,7 @@ pub mod owned_structure {
     }
 }
 pub(crate) mod partial_affine {
-    use semantic_vocabulary::StructuralTypeId;
+    use semantic_vocabulary::{StructuralCaseId, StructuralTypeId};
     use std::collections::BTreeSet;
     use terminal_psi::{
         StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
@@ -1093,35 +1093,125 @@ pub(crate) mod partial_affine {
             && crate::runtime_structural_path_tip(types.iter(), root, path).is_some()
     }
 
+    /// Tests typed coverage of a receiving region, not allocation or access
+    /// authority. A live sibling or missing ancestor cannot be erased by a
+    /// store into this region. Callers retain their own home and loan checks.
+    pub fn structural_region_is_vacant(
+        types: &[StructuralTypeDeclaration],
+        root: StructuralTypeId,
+        missing: &BTreeSet<Vec<StructuralPathSegment>>,
+        region: &[StructuralPathSegment],
+        admitted_case: &dyn Fn(&[StructuralPathSegment], StructuralCaseId) -> bool,
+    ) -> bool {
+        let Some(selected) = crate::runtime_structural_path_tip(types.iter(), root, region) else {
+            return false;
+        };
+        if missing.iter().any(|absent| {
+            crate::structural_paths_may_overlap(absent, region) && !absent.starts_with(region)
+        }) {
+            return false;
+        }
+        if missing.contains(region) {
+            return true;
+        }
+        let children = missing
+            .iter()
+            .filter_map(|absent| absent.strip_prefix(region).map(<[_]>::to_vec))
+            .collect();
+        // The counting pass proves an empty typed complement before any
+        // output is allocated or untouched array elements are enumerated.
+        partition(types, selected.id, &children, None, 0, &|path, case| {
+            let mut selected = region.to_vec();
+            selected.extend_from_slice(path);
+            admitted_case(&selected, case)
+        })
+        .is_some_and(|residuals| residuals.is_empty())
+    }
+
     pub fn partial_affine_residuals(
         types: &[StructuralTypeDeclaration],
         root_type: StructuralTypeId,
         moved_paths: &BTreeSet<Vec<StructuralPathSegment>>,
         max_residuals: usize,
     ) -> Option<Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>> {
-        if moved_paths.is_empty()
-            || moved_paths
-                .iter()
-                .any(|path| !is_partial_affine_path(types, root_type, path))
-            || moved_paths.iter().enumerate().any(|(index, path)| {
-                moved_paths
+        partition(
+            types,
+            root_type,
+            moved_paths,
+            None,
+            max_residuals,
+            &|_, _| false,
+        )
+    }
+
+    /// Keeps only live residuals within the requested regions. Reconverging
+    /// arrivals use the successor's vacancies as regions and their own moves
+    /// as exclusions. The existing typed walk retains declaration order and
+    /// proves the output bound before enumerating array elements.
+    pub fn partial_affine_residuals_in_regions(
+        types: &[StructuralTypeDeclaration],
+        root_type: StructuralTypeId,
+        moved_paths: &BTreeSet<Vec<StructuralPathSegment>>,
+        regions: &BTreeSet<Vec<StructuralPathSegment>>,
+        max_residuals: usize,
+    ) -> Option<Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>> {
+        partition(
+            types,
+            root_type,
+            moved_paths,
+            Some(regions),
+            max_residuals,
+            &|_, _| false,
+        )
+    }
+
+    fn partition(
+        types: &[StructuralTypeDeclaration],
+        root_type: StructuralTypeId,
+        moved_paths: &BTreeSet<Vec<StructuralPathSegment>>,
+        regions: Option<&BTreeSet<Vec<StructuralPathSegment>>>,
+        max_residuals: usize,
+        admitted_case: &dyn Fn(&[StructuralPathSegment], StructuralCaseId) -> bool,
+    ) -> Option<Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>> {
+        find_structural_type(types, root_type)?;
+        let valid = |paths: &BTreeSet<Vec<StructuralPathSegment>>, allow_root| {
+            paths.iter().all(|path| {
+                allow_root && path.is_empty() || is_partial_affine_path(types, root_type, path)
+            }) && !paths.iter().enumerate().any(|(index, path)| {
+                paths
                     .iter()
                     .enumerate()
                     .any(|(other_index, other)| index != other_index && path.starts_with(other))
             })
+        };
+        if moved_paths.is_empty() && regions.is_none()
+            || !valid(moved_paths, regions.is_some())
+            || regions.is_some_and(|paths| !valid(paths, true))
         {
             return None;
         }
+        if moved_paths.iter().any(Vec::is_empty) || regions.is_some_and(BTreeSet::is_empty) {
+            return Some(Vec::new());
+        }
         let moved = moved_paths.iter().map(Vec::as_slice).collect::<Vec<_>>();
+        let regions = regions.map(|paths| paths.iter().map(Vec::as_slice).collect::<Vec<_>>());
+        let regions = regions
+            .as_deref()
+            .filter(|paths| !paths.iter().any(|path| path.is_empty()));
+        if moved.is_empty() && regions.is_none() {
+            return (max_residuals != 0).then(|| vec![(Vec::new(), root_type)]);
+        }
         let mut residuals = Vec::new();
         let count = visit(
             types,
             root_type,
             &moved,
+            regions,
             &mut Vec::new(),
             max_residuals,
             &mut residuals,
             false,
+            admitted_case,
         )?;
         if count > max_residuals {
             return None;
@@ -1131,10 +1221,12 @@ pub(crate) mod partial_affine {
             types,
             root_type,
             &moved,
+            regions,
             &mut Vec::new(),
             max_residuals,
             &mut residuals,
             true,
+            admitted_case,
         )?;
         (emitted == count && residuals.len() == count).then_some(residuals)
     }
@@ -1143,11 +1235,16 @@ pub(crate) mod partial_affine {
         types: &[StructuralTypeDeclaration],
         current: StructuralTypeId,
         moved: &[&[StructuralPathSegment]],
+        regions: Option<&[&[StructuralPathSegment]]>,
         prefix: &mut Vec<StructuralPathSegment>,
         max_residuals: usize,
         residuals: &mut Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>,
         emit: bool,
+        admitted_case: &dyn Fn(&[StructuralPathSegment], StructuralCaseId) -> bool,
     ) -> Option<usize> {
+        if regions.is_some_and(<[_]>::is_empty) {
+            return Some(0);
+        }
         let declaration = find_structural_type(types, current)?;
         let mut count = 0usize;
         match &declaration.shape {
@@ -1155,8 +1252,17 @@ pub(crate) mod partial_affine {
                 if fields.is_empty() {
                     return None;
                 }
-                count =
-                    fields_residuals(types, fields, moved, prefix, max_residuals, residuals, emit)?;
+                count = fields_residuals(
+                    types,
+                    fields,
+                    moved,
+                    regions,
+                    prefix,
+                    max_residuals,
+                    residuals,
+                    emit,
+                    admitted_case,
+                )?;
             }
             StructuralTypeShape::FixedArray {
                 element,
@@ -1171,22 +1277,48 @@ pub(crate) mod partial_affine {
                     .collect::<Option<Vec<_>>>()?;
                 touched.sort_unstable();
                 touched.dedup();
-                if !emit {
+                if !emit && regions.is_none() {
                     count = usize::try_from(*length).ok()?.checked_sub(touched.len())?;
                 }
-                let indexes = (0..if emit { *length } else { 0 })
+                let mut requested = if let Some(regions) = regions {
+                    regions
+                        .iter()
+                        .map(|path| match path.first()? {
+                            StructuralPathSegment::FixedIndex(index) if index < length => {
+                                Some(*index)
+                            }
+                            _ => None,
+                        })
+                        .collect::<Option<Vec<_>>>()?
+                } else {
+                    touched
+                };
+                requested.sort_unstable();
+                requested.dedup();
+                let indexes = (0..if emit && regions.is_none() {
+                    *length
+                } else {
+                    0
+                })
                     .rev()
-                    .chain(touched.into_iter().rev().filter(|_| !emit));
+                    .chain(
+                        requested
+                            .into_iter()
+                            .rev()
+                            .filter(|_| regions.is_some() || !emit),
+                    );
                 for index in indexes {
                     count = count.checked_add(child(
                         types,
                         *element,
                         StructuralPathSegment::FixedIndex(index),
                         moved,
+                        regions,
                         prefix,
                         max_residuals,
                         residuals,
                         emit,
+                        admitted_case,
                     )?)?;
                     if count > max_residuals {
                         return None;
@@ -1194,38 +1326,67 @@ pub(crate) mod partial_affine {
                 }
             }
             StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => {
-                let selected_case = moved.iter().find_map(|path| match path.first() {
-                    Some(StructuralPathSegment::Case(case)) => Some(*case),
-                    _ => None,
-                })?;
-                let selected = find_structural_case(cases, selected_case)?;
-                if moved.iter().any(|path| match path.first() {
-                    Some(StructuralPathSegment::Case(case)) => *case != selected_case,
-                    Some(StructuralPathSegment::Field(_)) => {
-                        declaration.shape.direct_fields().is_none()
+                // A common-field cleanup does not observe the case. Retain
+                // the payload namespace only when the receiving scope asks
+                // for it; a requested payload still needs actual membership.
+                let payload_regions = regions.map(|paths| {
+                    paths
+                        .iter()
+                        .copied()
+                        .filter(|path| matches!(path.first(), Some(StructuralPathSegment::Case(_))))
+                        .collect::<Vec<_>>()
+                });
+                if payload_regions
+                    .as_ref()
+                    .is_none_or(|paths| !paths.is_empty())
+                {
+                    let selected_case = moved
+                        .iter()
+                        .find_map(|path| match path.first() {
+                            Some(StructuralPathSegment::Case(case)) => Some(*case),
+                            _ => None,
+                        })
+                        .or_else(|| {
+                            let mut matching =
+                                cases.iter().filter(|case| admitted_case(prefix, case.id));
+                            let case = matching.next()?;
+                            matching.next().is_none().then_some(case.id)
+                        })?;
+                    let selected = find_structural_case(cases, selected_case)?;
+                    if moved.iter().any(|path| match path.first() {
+                        Some(StructuralPathSegment::Case(case)) => *case != selected_case,
+                        Some(StructuralPathSegment::Field(_)) => {
+                            declaration.shape.direct_fields().is_none()
+                        }
+                        _ => true,
+                    }) {
+                        return None;
                     }
-                    _ => true,
-                }) {
-                    return None;
+                    let payload_moves = moved
+                        .iter()
+                        .filter_map(|path| {
+                            matches!(path.first(), Some(StructuralPathSegment::Case(_)))
+                                .then_some(&path[1..])
+                        })
+                        .collect::<Vec<_>>();
+                    prefix.push(StructuralPathSegment::Case(selected_case));
+                    let case_regions = region_children(
+                        payload_regions.as_deref(),
+                        StructuralPathSegment::Case(selected_case),
+                    );
+                    count = fields_residuals(
+                        types,
+                        &selected.fields,
+                        &payload_moves,
+                        case_regions.as_deref(),
+                        prefix,
+                        max_residuals,
+                        residuals,
+                        emit,
+                        admitted_case,
+                    )?;
+                    prefix.pop();
                 }
-                let payload_moves = moved
-                    .iter()
-                    .filter_map(|path| {
-                        matches!(path.first(), Some(StructuralPathSegment::Case(_)))
-                            .then_some(&path[1..])
-                    })
-                    .collect::<Vec<_>>();
-                prefix.push(StructuralPathSegment::Case(selected_case));
-                count = fields_residuals(
-                    types,
-                    &selected.fields,
-                    &payload_moves,
-                    prefix,
-                    max_residuals,
-                    residuals,
-                    emit,
-                )?;
-                prefix.pop();
                 if let Some(common) = declaration.shape.direct_fields() {
                     let common_moves = moved
                         .iter()
@@ -1238,10 +1399,12 @@ pub(crate) mod partial_affine {
                         types,
                         common,
                         &common_moves,
+                        regions,
                         prefix,
                         max_residuals,
                         residuals,
                         emit,
+                        admitted_case,
                     )?)?;
                 }
             }
@@ -1254,13 +1417,23 @@ pub(crate) mod partial_affine {
         types: &[StructuralTypeDeclaration],
         fields: &[terminal_psi::StructuralFieldDeclaration],
         moved: &[&[StructuralPathSegment]],
+        regions: Option<&[&[StructuralPathSegment]]>,
         prefix: &mut Vec<StructuralPathSegment>,
         max_residuals: usize,
         residuals: &mut Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>,
         emit: bool,
+        admitted_case: &dyn Fn(&[StructuralPathSegment], StructuralCaseId) -> bool,
     ) -> Option<usize> {
         let mut count = 0_usize;
         for field in fields.iter().rev() {
+            // A scoped cleanup does not inspect presentation or erasure of
+            // sibling storage it was not asked to dispose.
+            if region_children(regions, StructuralPathSegment::Field(field.identity))
+                .as_ref()
+                .is_some_and(Vec::is_empty)
+            {
+                continue;
+            }
             if field.relevance.is_erased() {
                 return None;
             }
@@ -1278,14 +1451,30 @@ pub(crate) mod partial_affine {
                     child_type,
                     StructuralPathSegment::Field(field.identity),
                     moved,
+                    regions,
                     prefix,
                     max_residuals,
                     residuals,
                     emit,
+                    admitted_case,
                 )?)?;
             }
         }
         (count <= max_residuals).then_some(count)
+    }
+
+    fn region_children<'a>(
+        regions: Option<&[&'a [StructuralPathSegment]]>,
+        segment: StructuralPathSegment,
+    ) -> Option<Vec<&'a [StructuralPathSegment]>> {
+        let paths = regions?
+            .iter()
+            .filter_map(|path| {
+                let (head, tail) = path.split_first()?;
+                (*head == segment).then_some(tail)
+            })
+            .collect::<Vec<_>>();
+        (!paths.iter().any(|path| path.is_empty())).then_some(paths)
     }
 
     fn child(
@@ -1293,11 +1482,17 @@ pub(crate) mod partial_affine {
         child_type: StructuralTypeId,
         segment: StructuralPathSegment,
         moved: &[&[StructuralPathSegment]],
+        regions: Option<&[&[StructuralPathSegment]]>,
         prefix: &mut Vec<StructuralPathSegment>,
         max_residuals: usize,
         residuals: &mut Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>,
         emit: bool,
+        admitted_case: &dyn Fn(&[StructuralPathSegment], StructuralCaseId) -> bool,
     ) -> Option<usize> {
+        let regions = region_children(regions, segment.clone());
+        if regions.as_ref().is_some_and(Vec::is_empty) {
+            return Some(0);
+        }
         let descendants = moved
             .iter()
             .filter_map(|path| {
@@ -1306,7 +1501,7 @@ pub(crate) mod partial_affine {
             })
             .collect::<Vec<_>>();
         prefix.push(segment);
-        let count = if descendants.is_empty() {
+        let count = if descendants.is_empty() && regions.is_none() {
             if emit {
                 if residuals.len() == max_residuals {
                     return None;
@@ -1319,10 +1514,12 @@ pub(crate) mod partial_affine {
                 types,
                 child_type,
                 &descendants,
+                regions.as_deref(),
                 prefix,
                 max_residuals,
                 residuals,
                 emit,
+                admitted_case,
             )?
         } else if descendants.len() != 1 {
             return None;
@@ -1651,6 +1848,28 @@ pub(crate) mod primitive_place {
         Declared(StructuralTypeId),
         ScalarField(Scalar),
         ByteElement,
+    }
+
+    /// A scalar field is a stored leaf even without a synthetic structural
+    /// carrier row. Use the same primitive reader grammar as static paths;
+    /// callers still distinguish byte elements and enforce their own access.
+    pub fn runtime_read_projection_tip<'a>(
+        declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+        path: &[StructuralPathSegment],
+    ) -> Option<Position> {
+        match walk_primitive_projection(
+            declarations,
+            root,
+            path,
+            primitive_read_scalar_field,
+            |_| {},
+        )? {
+            ProjectionTip::Declared(declaration) => Some(Position::Declared(declaration.id)),
+            ProjectionTip::ScalarField(Some(scalar)) => Some(Position::ScalarField(scalar)),
+            ProjectionTip::ScalarField(None) => None,
+            ProjectionTip::ByteElement => Some(Position::ByteElement),
+        }
     }
 
     pub fn runtime_structural_path_tip<'a>(
@@ -5344,10 +5563,13 @@ pub(crate) mod zeroed_structural {
             field: semantic_vocabulary::StructuralFieldId,
             scalar_type: ScalarType,
         },
-        ByteSequenceField {
+        // The zero value of a readable descriptor is its established empty
+        // view. A typed descriptor and an inline byte field share this owner;
+        // neither creates an element or borrows unknown storage.
+        EmptyView {
             path: Vec<StructuralPathSegment>,
-            field: semantic_vocabulary::StructuralFieldId,
-            scalar_type: ScalarType,
+            field: Option<semantic_vocabulary::StructuralFieldId>,
+            carrier: StructuralFieldType,
         },
         CaseField {
             path: Vec<StructuralPathSegment>,
@@ -5396,7 +5618,7 @@ pub(crate) mod zeroed_structural {
         pub fn path(&self) -> &[StructuralPathSegment] {
             match self {
                 ZeroedStructuralLeaf::RecordField { path, .. }
-                | ZeroedStructuralLeaf::ByteSequenceField { path, .. }
+                | ZeroedStructuralLeaf::EmptyView { path, .. }
                 | ZeroedStructuralLeaf::CaseField { path, .. }
                 | ZeroedStructuralLeaf::ArrayScalar { path, .. }
                 | ZeroedStructuralLeaf::ByteArray { path, .. }
@@ -5462,6 +5684,20 @@ pub(crate) mod zeroed_structural {
                 StructuralTypeShape::PrimitiveScalar(_) => (&[][..], None),
                 StructuralTypeShape::AtomicCell(cell) => {
                     if !cell.is_supported() || !crate::scalar_field_accepts_zero(&(*cell).into()) {
+                        return false;
+                    }
+                    (&[][..], None)
+                }
+                StructuralTypeShape::ElementView {
+                    element,
+                    access: None | Some(terminal_psi::StructuralAccess::SharedBorrow),
+                } => {
+                    // Empty has no member value whose default domain needs
+                    // establishment. The element declaration must still exist.
+                    if !declarations
+                        .iter()
+                        .any(|declaration| declaration.id == *element)
+                    {
                         return false;
                     }
                     (&[][..], None)
@@ -5661,12 +5897,10 @@ pub(crate) mod zeroed_structural {
                         member_path.push(StructuralPathSegment::Field(field.identity));
                         pending.push((member, member_path));
                     } else if zeroed_byte_field(field) {
-                        leaves.push(ZeroedStructuralLeaf::ByteSequenceField {
+                        leaves.push(ZeroedStructuralLeaf::EmptyView {
                             path: path.clone(),
-                            field: field.id,
-                            scalar_type: ScalarType::Integer(
-                                IntegerType::new(IntegerSign::Unsigned, 64).ok()?,
-                            ),
+                            field: Some(field.id),
+                            carrier: field.field_type.clone(),
                         });
                     } else {
                         leaves.push(ZeroedStructuralLeaf::RecordField {
@@ -5685,6 +5919,13 @@ pub(crate) mod zeroed_structural {
                     leaves.push(ZeroedStructuralLeaf::ArrayScalar {
                         path,
                         scalar_type: cell.scalar_type(),
+                    });
+                }
+                StructuralTypeShape::ElementView { access: None | Some(terminal_psi::StructuralAccess::SharedBorrow), .. } => {
+                    leaves.push(ZeroedStructuralLeaf::EmptyView {
+                        path,
+                        field: None,
+                        carrier: StructuralFieldType::Structural(current),
                     });
                 }
                 StructuralTypeShape::PrimitiveScalar(scalar_type) => {
@@ -5805,7 +6046,7 @@ pub(crate) mod zeroed_structural {
             let Some(domain) = domains.clone().find(|domain| domain.id == row.domain) else { return false; };
             domain.carrier == carrier.id
                 && domain.content_projection.is_none()
-                && domain.establishment_routes.is_empty()
+                && domain.establishment_routes.is_none()
                 && domain.has_no_required_memberships()
                 && domain.byte_predicate.is_some_and(|predicate| match predicate {
                     terminal_psi::ByteSequencePredicate::ValidUtf8 | terminal_psi::ByteSequencePredicate::AsciiOnly => true,

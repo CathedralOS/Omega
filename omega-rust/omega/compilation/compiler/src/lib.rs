@@ -43,14 +43,14 @@ pub mod checked;
 
 pub use crate::checked::{
     CheckedCompilation, CheckedCompileRequest, CompilationSession, CompletedBuild,
-    CurrentCheckerVerdict, IndependentComponentDiscovery, IndependentComponentSelection,
-    OptimizationRollback, OptimizationRollbackInputError, PackageBuild, PackageBuildInvocation,
+    IndependentComponentDiscovery, IndependentComponentSelection, OptimizationRollback,
+    OptimizationRollbackInputError, PackageBuild, PackageBuildInvocation,
     PackageCompilationRequest, PackageCompileFailure, PackageProductOptions,
-    PackageProductSourceRequest, PackageSourceRequest, PreparedPackageProduct,
-    RestrictedBuildGrants, SourceBuildDeclaration, SourceCompilation, TypedFrontier,
-    TypedFrontierCheck, TypedFrontierRequest, checked_compilation_call_count,
-    preliminary_check_totals, settled_check_totals, source_assembly_invocation_count,
-    typed_frontier_reuse_count,
+    PackageProductSourceRequest, PackageSourceRequest, PreparedPackageProduct, ProductCheckOutcome,
+    ProductSupplySource, RestrictedBuildGrants, SourceBuildDeclaration, SourceCompilation,
+    SuppliedProduct, TargetSupplySource, TypedFrontier, TypedFrontierCheck, TypedFrontierRequest,
+    checked_compilation_call_count, judge_supplied_product, prepare_supplied_target,
+    settled_check_totals, source_assembly_invocation_count, typed_frontier_reuse_count,
 };
 pub use build_settings::BuildSnapshotRequest;
 pub use checked::checking::ProductQueries;
@@ -70,6 +70,7 @@ pub use product_execution::{
 pub use psi_compiler::ProducedTerminalProgram;
 pub use target::ExplicitTargetSet;
 pub use target_batch::PreparedCompilation;
+pub use terminal::prepare_program_entry;
 
 pub fn compiler_input_identity() -> Result<[u8; 32], String> {
     let library = package_compilation::toolchain_library::identity()?;

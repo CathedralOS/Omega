@@ -1,0 +1,1568 @@
+/*
+The route's verdict on one program: the one result a whole-compilation router
+takes from the lowered-form route, and the only way it should take one.
+
+`wiki/drafts/designs/check_on_lowered_form.md` ("Route one", Build): "An
+obligation the prover cannot discharge is a compile error for the program,
+never a slower guarded form." Omega 00 trusts every obligation of the module
+it is given and fills evidence only where a seal arrives, so a module with an
+undischarged obligation must never reach it: Omega 00 would accept that
+obligation with no evidence. `RouteVerdict` therefore has no variant for a
+partly proved closure. A closure is either accepted with every obligation
+discharged by the kernel and every use of storage established, rejected with
+one diagnostic per unproved obligation and per unestablished use, left
+incomplete because the prover has no rule for some goal's
+form, or refused whole because the route does not serve some construct in it
+(`RefusalReason::Unsupported`). The variant is still named `FallBack`, but
+nothing falls back since the owner's ruling of 2026-11-12: the router refuses
+the compilation with an error naming the construct, and no other checker
+judges it.
+
+The specification says the same: `wiki/spec/packages/review.md`, "Unproved
+source contracts reject in Psi checking"; `wiki/spec/build/configuration.md`,
+an unproved obligation "grants no equality, inequality, implementation
+selection or runtime fallback". A rejection names what was not proved and
+why, and never claims the obligation is false
+(`wiki/spec/build/compiler_request.md`, "Outcomes": "Failure to find a proof
+is not proof of falsehood"; `wiki/spec/terminal-psi/fact_validity.md`: "The
+false premise must be proved, not inferred from search failure"). The
+diagnostic is an ordinary `Reject` error; no new outcome tag or exit code.
+
+The two unproved outcomes, by the owner's ruling on
+`unproved-goal-form-outcome`: a goal whose form the prover has rules for but
+cannot establish from what the program states is `Reject`; a goal whose form
+it has no rule for is `Incomplete`, the outcome table's "unsupported valid
+case", with "no claim that the unproved conclusion is false"
+(`wiki/spec/build/compiler_request.md`, "Outcomes"). Neither publishes an
+artifact or a runtime fallback. `Reject` wins when both occur: the program
+fails a checking rule whatever the other obligations hold. `Incomplete` has
+no `Diagnostic` constructor here, because the closed `Incomplete` resource
+table has no provision for a proof goal form yet, and a plain error would
+publish it as `Reject`.
+
+`Unsupported` wins over `Unproved`: the route has not judged a closure it
+cannot lower whole, so it reports what it does not support rather than a
+partial list of failures. Either way the program is not accepted. Any other
+refusal is a defect of the route itself (an identity that does not resolve)
+and is returned as `Err`; a router must not accept the program on it.
+
+A use of storage that some path reaches with nothing established in it
+(`RefusalReason::Unestablished`) is a compile error of the same standing as an
+unproved obligation, but it is a structural judgment with no obligation row,
+so a rejection carries the two lists side by side. One such use makes the
+verdict `Rejected` even when every unproved obligation is merely incomplete:
+the program fails a checking rule whatever the prover could or could not do.
+
+A rule of the language that the source form breaks
+(`RefusalReason::Violation`: a value whose type carries other domains than its
+destination declares, a cast that adds a routed domain outside its routes) is
+found by the reader of the typed trees, which refuses the closure with it.
+`fall_back_or_defect` is the one place a refusal becomes a verdict, so that
+refusal is a rejection with its own list, `violations`, and the same standing
+as the others; only `RefusalReason::Unsupported` says "not supported yet".
+
+A loan that may not be formed (`RefusalReason::Conflict`: two loans of one
+call that may share storage with one of them exclusive, or an exclusive
+reborrow of storage held shared) has the same standing, and is listed beside
+the other two as a `ConflictingUse`.
+*/
+
+use diagnostics::Diagnostic;
+use semantic_vocabulary::{MachineId, ObligationId};
+use terminal_check_tables::obligations::ObligationKind;
+use terminal_check_tables::program::{Elaboration, SourceOrigin};
+use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason, UnprovedCause};
+use terminal_codec::ObligationEvidenceSeal;
+
+use crate::{Discharge, describe, refusal};
+
+/// What the route decided for one closure.
+#[derive(Debug)]
+pub enum RouteVerdict {
+    /// Every obligation of every machine was discharged with a certificate
+    /// the kernel accepted. `seals` are the operation obligations' evidence
+    /// for Omega 00.
+    Accepted(Box<AcceptedClosure>),
+    /// The program is rejected. `unproved` has one entry per obligation the
+    /// prover could not discharge, in machine and obligation order;
+    /// `unestablished` one per use of storage that some path reaches with
+    /// nothing established in it; `conflicts` one per loan that may not be
+    /// formed; `exceeded` one per call outside its caller's service reach;
+    /// `formations` one per invalid bound calling shape. At least one list
+    /// is not empty.
+    Rejected {
+        /// Calling-shape failures known before any body is elaborated.
+        formations: Vec<crate::CallableFormationFailure>,
+        /// One per rule of the language the program breaks as written,
+        /// found while its typed trees were read.
+        violations: Vec<RuleViolation>,
+        unproved: Vec<UnprovedObligation>,
+        unestablished: Vec<UnestablishedUse>,
+        /// One per loan that may not be formed where it is.
+        conflicts: Vec<ConflictingUse>,
+        /// One per call that reaches a service outside its caller's reach.
+        exceeded: Vec<ExceededReach>,
+    },
+    /// No obligation is unproved for want of a derivation, but the prover has
+    /// no rule for the form of at least one goal, so the route can judge the
+    /// program neither way. Every entry's cause is
+    /// `UnprovedCause::NoRuleForGoalForm`. Never empty.
+    Incomplete(Vec<UnprovedObligation>),
+    /// The route does not serve some construct or obligation of the closure,
+    /// so the whole closure is refused as not supported yet. The first such
+    /// refusal.
+    FallBack(Refusal),
+}
+
+/// A closure the route accepted.
+#[derive(Debug)]
+pub struct AcceptedClosure {
+    pub elaboration: Elaboration,
+    pub discharge: Discharge,
+    pub seals: Vec<ObligationEvidenceSeal>,
+}
+
+impl AcceptedClosure {
+    /// The advisory diagnostics of this accepted closure, in machine order.
+    /// An advisory is information about a program the route accepted: it is
+    /// no part of the verdict, and nothing is proved or pruned because of
+    /// it (`wiki/spec/language/state_contracts.md`, "Unreachable branches":
+    /// "This is an advisory diagnostic, not an inherent language error").
+    ///
+    /// Each statement after a call that never returns is one warning at the
+    /// first such statement, followed by one note at the call
+    /// (state_contracts.md, "Statements after a call that never returns").
+    pub fn advisories(&self) -> Vec<Diagnostic> {
+        let located = |diagnostic: Diagnostic, origin: SourceOrigin| match origin {
+            SourceOrigin::Authored(span) => diagnostic.with_source_span(span),
+            SourceOrigin::Unpositioned(_) => diagnostic,
+        };
+        let mut advisories = Vec::new();
+        for (machine, unreachable) in self.elaboration.unreachable_statements() {
+            let owner = describe::owner(self.elaboration.names.get(machine), unreachable.call);
+            advisories.push(located(
+                Diagnostic::warning(format!(
+                    "unreachable statement in {owner}: the call before it never returns, so this statement and every statement after it never execute"
+                )),
+                unreachable.statement,
+            ));
+            advisories.push(located(
+                Diagnostic::note("this call never returns"),
+                unreachable.call,
+            ));
+        }
+        // Each authored arm no arrival can take is one warning at its
+        // condition, naming the arm and the premises the condition
+        // contradicts (state_contracts.md, "Unreachable branches": "The
+        // diagnostic identifies the branch condition and the conflicting
+        // premises").
+        for (machine, branch) in self.elaboration.authored_branches() {
+            let Some(impossible) = self.discharge.machines.get(machine).and_then(|discharge| {
+                discharge
+                    .impossible
+                    .iter()
+                    .find(|arm| arm.block == branch.block)
+            }) else {
+                continue;
+            };
+            let names = self.elaboration.names.get(machine);
+            let arm = match (names, branch.arm) {
+                (Some(names), SourceOrigin::Authored(span)) => names
+                    .arms
+                    .iter()
+                    .find(|(at, _)| *at == span)
+                    .map(|(_, label)| format!("the `{label}` arm")),
+                _ => None,
+            }
+            .unwrap_or_else(|| String::from("an arm"));
+            let owner = describe::owner(names, branch.condition);
+            let premises: Vec<String> = impossible
+                .premises
+                .iter()
+                .map(|premise| describe::premise(&self.elaboration, machine, *premise))
+                .collect();
+            let reason = if premises.is_empty() {
+                String::from("its condition can never hold")
+            } else {
+                format!(
+                    "its condition contradicts the facts in force here: {}",
+                    premises.join(", ")
+                )
+            };
+            advisories.push(located(
+                Diagnostic::warning(format!(
+                    "unreachable branch: {arm} of a transition in {owner} can never run; {reason}"
+                )),
+                branch.condition,
+            ));
+        }
+        advisories
+    }
+}
+
+/// An accepted closure published as Terminal Psi: the canonical artifact of
+/// the module the route checked, and the evidence seals bound to that
+/// module's identity, which travel beside it in memory to Omega 00.
+#[derive(Debug)]
+pub struct RoutePublication<Artifact = terminal_codec::CanonicalTerminalArtifact> {
+    pub artifact: Artifact,
+    pub seals: terminal_codec::EvidenceSeals,
+}
+
+impl RoutePublication {
+    /// Uses the same nominal-entry receipt as every other Terminal producer.
+    /// A same-spelled machine from another owner cannot satisfy this root.
+    pub fn entry_receipt(
+        &self,
+        declaration: &terminal_psi::PreparedNominalRoot,
+        source_signature_identity: [u8; 32],
+    ) -> Result<
+        terminal_psi::CheckedProgramEntryTerminalReceipt,
+        terminal_codec::entry_receipt::ProgramEntryTerminalReceiptError,
+    > {
+        terminal_codec::entry_receipt::prepare_program_entry_receipt(
+            declaration,
+            source_signature_identity,
+            &self.artifact,
+        )
+    }
+}
+
+/// Why an accepted closure could not be published.
+#[derive(Debug)]
+pub enum PublicationError {
+    /// The module names a requirement that stands in for a body: a generic
+    /// check form, which is never encoded (generics.md, "Generic bodies use
+    /// the abstract requirement envelope").
+    GenericCheckForm,
+    /// A machine of the module has no declaration identity, for the reason
+    /// given (`Elaboration::undeclared`). product.md: "Source-produced
+    /// machine bodies retain a portable checked declaration identity".
+    Undeclared(MachineId, &'static str),
+    /// The module fails a structural check of Terminal semantics.
+    Semantic(String),
+    Artifact(terminal_codec::CanonicalTerminalArtifactError),
+    Seals(terminal_codec::CodecError),
+}
+
+impl AcceptedClosure {
+    /// Publishes the module the route checked, with no Psi optimization: the
+    /// artifact's execution record names the identity stage, so the module
+    /// the kernel judged is byte for byte the module that is encoded, and the
+    /// seals, bound to its identity, still name it. Canonical artifact admission
+    /// belongs to the codec; no intermediate source-side carrier is published.
+    pub fn publish(&self) -> Result<RoutePublication, PublicationError> {
+        self.validate_publication()?;
+        let module = self.elaboration.module.clone();
+        let identity =
+            terminal_codec::terminal_psi_identity(&module).map_err(PublicationError::Seals)?;
+        let record = terminal_codec::PsiOptimizationExecutionRecord::new(
+            optimization::PsiOptimizationSelections::default(),
+            identity,
+            identity,
+        )
+        .map_err(|error| PublicationError::Semantic(format!("{error:?}")))?;
+        let seals = terminal_codec::EvidenceSeals::for_module(&module, self.seals.clone())
+            .map_err(PublicationError::Seals)?;
+        let artifact = terminal_codec::CanonicalTerminalArtifact::from_parts(module, record, None)
+            .map_err(PublicationError::Artifact)?;
+        Ok(RoutePublication { artifact, seals })
+    }
+
+    /// Publishes the exact invocation-scoped module that was judged. The
+    /// activation scope must already have been supplied to elaboration.
+    pub fn publish_invocation(
+        &self,
+    ) -> Result<RoutePublication<terminal_codec::InvocationTerminalCode>, PublicationError> {
+        self.validate_publication()?;
+        let module = self.elaboration.module.clone();
+        let seals = terminal_codec::EvidenceSeals::for_module(&module, self.seals.clone())
+            .map_err(PublicationError::Seals)?;
+        let artifact =
+            terminal_codec::InvocationTerminalCode::new(module).map_err(PublicationError::Seals)?;
+        Ok(RoutePublication { artifact, seals })
+    }
+
+    fn validate_publication(&self) -> Result<(), PublicationError> {
+        if !self.elaboration.requirements.is_empty() {
+            return Err(PublicationError::GenericCheckForm);
+        }
+        if let Some((machine, reason)) = self.elaboration.undeclared.first() {
+            return Err(PublicationError::Undeclared(*machine, reason));
+        }
+        terminal_semantics::activation_storage::validate_module(&self.elaboration.module)
+            .map_err(|reason| PublicationError::Semantic(reason.to_owned()))?;
+        Ok(())
+    }
+}
+
+/// Reading a callable states its declaration but does not accept its
+/// body. Publish that status only for the same discharged machine and
+/// declaration this closure owns. This neither establishes its input
+/// premises nor admits a later invocation under them.
+fn accept_proof_callables(elaboration: &mut Elaboration, discharge: &Discharge) -> Checked<()> {
+    use terminal_check_tables::{Construct, RefusalReason};
+    use terminal_psi::{ProofCallableAssociation, ProofScopeDeclaration, TargetMachineCallable};
+
+    let bodies_source = &elaboration.module.machines;
+    let scope = &mut elaboration.module.scalar_applications.proof_scope;
+    let invalid = |machine, detail: &str| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            machine,
+            Construct::Machine,
+            detail,
+        )
+    };
+    let first = bodies_source
+        .first()
+        .map(|body| body.id)
+        .unwrap_or_else(|| MachineId::new(1).expect("1 is nonzero"));
+    let mut bodies = scope
+        .callables
+        .iter()
+        .filter_map(|(_, association)| match association {
+            ProofCallableAssociation::Callable {
+                declaration,
+                callable: TargetMachineCallable::Machine(machine),
+            } => Some((*declaration, *machine)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    bodies.sort_unstable_by_key(|(declaration, _)| *declaration);
+    if bodies.windows(2).any(|rows| rows[0].0 == rows[1].0) {
+        return Err(invalid(
+            first,
+            "proof callable has competing accepted body associations",
+        ));
+    }
+    let mut headers = scope
+        .callable_headers
+        .iter()
+        .map(|(_, header)| header.declaration)
+        .collect::<Vec<_>>();
+    headers.sort_unstable();
+    if headers.windows(2).any(|rows| rows[0] == rows[1]) {
+        return Err(invalid(
+            first,
+            "proof callable has competing declaration headers",
+        ));
+    }
+    for (declaration, _) in &bodies {
+        if headers.binary_search(declaration).is_err() {
+            return Err(invalid(
+                first,
+                "accepted proof body has no exact declaration header",
+            ));
+        }
+    }
+    for (_, header) in scope.callable_headers.iter() {
+        let Ok(position) =
+            bodies.binary_search_by_key(&header.declaration, |(declaration, _)| *declaration)
+        else {
+            if header.supplies_checked_body {
+                return Err(invalid(
+                    first,
+                    "proof callable claims an accepted body without this closure's machine association",
+                ));
+            }
+            continue;
+        };
+        let machine = bodies[position].1;
+        let accepted = usize::try_from(machine.get() - 1)
+            .ok()
+            .and_then(|position| bodies_source.get(position))
+            .filter(|body| body.id == machine)
+            .and_then(|body| body.declaration.as_ref())
+            .ok_or_else(|| invalid(first, "proof callable lost its accepted source declaration"))?;
+        if discharge.machines.get(machine).is_none() {
+            return Err(invalid(
+                first,
+                "proof callable has no discharged body in this closure",
+            ));
+        }
+        let position = header
+            .declaration
+            .0
+            .checked_sub(1)
+            .and_then(|position| usize::try_from(position).ok())
+            .ok_or_else(|| invalid(first, "proof callable has no declaration coordinate"))?;
+        if !matches!(scope.declarations.storage_slice().get(position), Some(ProofScopeDeclaration::Callable(saved)) if saved == accepted)
+            || header.callable.as_ref().ok() != Some(&accepted.callable)
+        {
+            return Err(invalid(
+                first,
+                "proof callable differs from this closure's accepted declaration",
+            ));
+        }
+    }
+    scope.callable_headers.for_each_mut(|_, header| {
+        if bodies
+            .binary_search_by_key(&header.declaration, |(declaration, _)| *declaration)
+            .is_ok()
+        {
+            header.supplies_checked_body = true;
+        }
+    });
+    Ok(())
+}
+
+/// One obligation the prover could not discharge.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnprovedObligation {
+    pub machine: MachineId,
+    pub obligation: ObligationId,
+    pub kind: ObligationKind,
+    /// Where the obligation arises in the source, from elaboration's own
+    /// source correspondence.
+    pub site: SourceOrigin,
+    pub cause: UnprovedCause,
+    /// The prover's or kernel's own account. Diagnostic text only.
+    pub detail: String,
+    /// What was not proved, in the deleted checker's words for the same
+    /// obligation (`describe`): for example "cannot prove requires contract
+    /// for call halve from run: count > 1". Diagnostic text only.
+    pub statement: String,
+    /// For a data type's clause that was not proved again where an open
+    /// invariant window is consumed: that consumption point. `site` is then
+    /// the write that opened the window.
+    /// `wiki/spec/language/dependent_values.md`: "An unclosed window rejects
+    /// with both the opening write or storage cast and the failing
+    /// consumption point."
+    pub consumed: Option<ConsumptionSite>,
+}
+
+/// `statement` ending with a period.
+fn closed_sentence(statement: &str) -> std::borrow::Cow<'_, str> {
+    if statement.ends_with('.') {
+        std::borrow::Cow::Borrowed(statement)
+    } else {
+        std::borrow::Cow::Owned(format!("{statement}."))
+    }
+}
+
+/// Where an open invariant window is consumed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ConsumptionSite {
+    /// The operation, edge or block that consumes the value.
+    pub at: Construct,
+    /// Where that construct arises in the source.
+    pub site: SourceOrigin,
+}
+
+impl UnprovedObligation {
+    /// The message: what was not proved, then why, in parentheses: the
+    /// cause and the prover's own note. For an unclosed window it says so,
+    /// and that the clause was left unproved by a prior write, never that it
+    /// is false.
+    pub fn message(&self) -> String {
+        match self.consumed {
+            // The statement is a sentence in the deleted checker's words and
+            // closes with its period, as that checker's message does, so a
+            // pinned fragment that ends the sentence matches either.
+            None => format!(
+                "{} ({}: {})",
+                closed_sentence(&self.statement),
+                self.cause.describe(),
+                self.detail
+            ),
+            Some(_) => format!(
+                "{} inside an open default-domain invariant window: a prior write left the clause \
+                 unproved and this use consumes the value before it is proved again ({}: {})",
+                self.statement,
+                self.cause.describe(),
+                self.detail
+            ),
+        }
+    }
+
+    /// The `Reject` diagnostic, for an entry of `RouteVerdict::Rejected`.
+    /// An entry of `Incomplete` must not be published through it: see the
+    /// module comment. For an unclosed window it is placed at the failing
+    /// consumption point, and `opening_diagnostic` names the write.
+    pub fn reject_diagnostic(&self) -> Diagnostic {
+        let diagnostic = Diagnostic::error(self.message());
+        match self
+            .consumed
+            .map_or(self.site, |consumed| consumed.site)
+            .span()
+        {
+            Some(span) => diagnostic.with_source_span(span),
+            None => diagnostic,
+        }
+    }
+
+    /// For an unclosed window, the second diagnostic of the rejection: the
+    /// write that opened it, at that write.
+    pub fn opening_diagnostic(&self) -> Option<Diagnostic> {
+        self.consumed?;
+        let diagnostic = Diagnostic::error(format!(
+            "this write opens the invariant window: it is not shown to keep {}",
+            describe_kind(self.kind)
+        ));
+        Some(match self.site.span() {
+            Some(span) => diagnostic.with_source_span(span),
+            None => diagnostic,
+        })
+    }
+}
+
+/// One use of storage that is not established on every path to it: the
+/// zeroed storage of a gated type, a payload of a case the sum does not
+/// hold, or a dispatch with no arm for a declared case.
+/// `wiki/spec/language/dependent_values.md`: "Otherwise the type is gated:
+/// construction or checked qualification must establish the domain before
+/// observation."
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnestablishedUse {
+    pub machine: MachineId,
+    /// The operation, edge or block that uses the storage.
+    pub at: Construct,
+    /// Where that construct arises in the source. `None` only when
+    /// elaboration itself refused the closure, so no source correspondence
+    /// exists to look the construct up in; a position is never guessed.
+    pub site: Option<SourceOrigin>,
+    /// The judgment's own account. Diagnostic text only.
+    pub detail: String,
+    /// When the use observes the zeroed storage of a gated type: where that
+    /// storage was declared, the write that opened its establishment debt.
+    pub declared: Option<SourceOrigin>,
+}
+
+impl UnestablishedUse {
+    /// The message, opening with a stable part corpus expectations can match.
+    pub fn message(&self) -> String {
+        format!("unestablished storage: {}", self.detail)
+    }
+
+    /// The `Reject` diagnostic.
+    pub fn reject_diagnostic(&self) -> Diagnostic {
+        let diagnostic = Diagnostic::error(self.message());
+        match self.site.and_then(SourceOrigin::span) {
+            Some(span) => diagnostic.with_source_span(span),
+            None => diagnostic,
+        }
+    }
+}
+
+/// One rule of the language the program breaks as written. The reader of the
+/// typed trees found it before any construct was lowered, so it has no
+/// obligation and no lowered construct: it is the source position and the
+/// rule. `wiki/spec/build/compiler_request.md`, "Outcomes": "Diagnostics
+/// distinguish failed source checking, invalid proof, unavailable evidence
+/// and receiving-policy refusal"; this is failed source checking.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RuleViolation {
+    pub machine: MachineId,
+    /// Where the program breaks the rule; `None` when the authored node
+    /// carries no span. A position is never guessed.
+    pub site: Option<source::SourceSpan>,
+    /// The rule and how the program breaks it. Diagnostic text only.
+    pub statement: String,
+}
+
+impl RuleViolation {
+    pub fn message(&self) -> String {
+        self.statement.clone()
+    }
+
+    /// The `Reject` diagnostic.
+    pub fn reject_diagnostic(&self) -> Diagnostic {
+        let diagnostic = Diagnostic::error(self.message());
+        match self.site {
+            Some(span) => diagnostic.with_source_span(span),
+            None => diagnostic,
+        }
+    }
+}
+
+/// One call outside a ceiling its caller publishes: it reaches a service
+/// outside the caller's service reach, or may enter a callback outside the
+/// caller's `invokes`. A compile error of the program with no certificate:
+/// effects.md, "A derived reach that exceeds its ceiling rejects at the call
+/// that contributes the excess. The diagnostic names that call, the
+/// identities its requirement declares, and the ceiling."
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExceededReach {
+    pub axis: crate::ceilings::Axis,
+    pub machine: MachineId,
+    /// The call operation or edge.
+    pub at: Construct,
+    pub site: Option<SourceOrigin>,
+    /// Diagnostic text only.
+    pub statement: String,
+}
+
+impl ExceededReach {
+    pub fn message(&self) -> String {
+        match self.axis {
+            crate::ceilings::Axis::Reach => format!("{} (service reach)", self.statement),
+            crate::ceilings::Axis::Entries => {
+                format!("{} (synchronous invocation)", self.statement)
+            }
+            crate::ceilings::Axis::Suspension => format!("{} (suspension)", self.statement),
+            crate::ceilings::Axis::Blocking => format!("{} (blocking)", self.statement),
+            crate::ceilings::Axis::Termination => format!("{} (termination)", self.statement),
+        }
+    }
+
+    /// The `Reject` diagnostic.
+    pub fn reject_diagnostic(&self) -> Diagnostic {
+        let diagnostic = Diagnostic::error(self.message());
+        match self.site.and_then(SourceOrigin::span) {
+            Some(span) => diagnostic.with_source_span(span),
+            None => diagnostic,
+        }
+    }
+}
+
+fn exceeded_reach(
+    elaboration: &Elaboration,
+    excess: crate::ceilings::Excess,
+) -> Checked<ExceededReach> {
+    let module = &elaboration.module;
+    let permissions = |row: &[crate::ceilings::Permission]| {
+        if row.is_empty() {
+            return "none".to_owned();
+        }
+        row.iter()
+            .map(|entry| match entry {
+                crate::ceilings::Permission::Entry(
+                    terminal_psi::TerminalCallableInvocation::Parameter(position),
+                ) => {
+                    format!("parameter {}", u64::from(*position) + 1)
+                }
+                crate::ceilings::Permission::Entry(
+                    terminal_psi::TerminalCallableInvocation::Service(service),
+                ) => module
+                    .services
+                    .iter()
+                    .find(|declaration| declaration.id == *service)
+                    .and_then(|declaration| module.identities.text(declaration.identity))
+                    .unwrap_or("an unnamed service")
+                    .to_owned(),
+                crate::ceilings::Permission::MaySuspend => "suspension".to_owned(),
+                crate::ceilings::Permission::MayBlock => "blocking".to_owned(),
+                crate::ceilings::Permission::MayDiverge => "nontermination".to_owned(),
+            })
+            .collect::<Vec<_>>()
+            .join(" + ")
+    };
+    let machine_name = |machine: MachineId| {
+        elaboration
+            .names
+            .get(machine)
+            .map(|names| names.machine.as_str())
+            .filter(|name| !name.is_empty())
+            .unwrap_or("a machine")
+    };
+    let callee = match excess.callee {
+        terminal_check_tables::edges::Callee::Declared(
+            semantic_vocabulary::TargetMachineCallable::Machine(callee),
+        ) => machine_name(callee).to_owned(),
+        terminal_check_tables::edges::Callee::Declared(
+            semantic_vocabulary::TargetMachineCallable::Boundary(callee),
+        ) => module
+            .boundary_machine(callee)
+            .and_then(|declaration| module.identities.text(declaration.identity))
+            .unwrap_or("a boundary requirement")
+            .to_owned(),
+        terminal_check_tables::edges::Callee::Selected { callable } => {
+            format!("evaluated callable value {}", callable.get())
+        }
+    };
+    let ceiling_description = match excess.axis {
+        crate::ceilings::Axis::Reach => format!("reaches `{}`", permissions(&excess.ceiling)),
+        crate::ceilings::Axis::Entries => format!("invokes `{}`", permissions(&excess.ceiling)),
+        crate::ceilings::Axis::Suspension => "permits no suspension".to_owned(),
+        crate::ceilings::Axis::Blocking => "permits no blocking".to_owned(),
+        crate::ceilings::Axis::Termination => "guarantees termination".to_owned(),
+    };
+    let site = match elaboration.sources.get(excess.machine) {
+        Some(sources) => Some(source_of(sources, excess.machine, excess.at)?),
+        None => None,
+    };
+    Ok(ExceededReach {
+        axis: excess.axis,
+        machine: excess.machine,
+        at: excess.at,
+        site,
+        statement: format!(
+            "machine `{}` {ceiling_description} but its call of `{callee}` contributes `{}`, which adds `{}`",
+            machine_name(excess.machine),
+            permissions(&excess.contributes),
+            permissions(&excess.outside),
+        ),
+    })
+}
+
+/// One loan that may not be formed where it is: a call that lends storage
+/// another of its arguments lends with an incompatible access, or an
+/// exclusive reborrow of storage held shared. A compile error of the program
+/// of the same standing as an unproved obligation; it is a resource judgment
+/// with no certificate (`places::loans`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConflictingUse {
+    pub machine: MachineId,
+    /// The `Loan` row that may not be formed.
+    pub loan: ObligationId,
+    pub conflict: crate::LoanConflict,
+    /// Where the call that forms it arises in the source.
+    pub site: SourceOrigin,
+    /// What the conflict is, in the deleted checker's words where it has
+    /// them. Diagnostic text only.
+    pub statement: String,
+}
+
+impl ConflictingUse {
+    pub fn message(&self) -> String {
+        format!("{} (conflicting loans)", self.statement)
+    }
+
+    /// The `Reject` diagnostic.
+    pub fn reject_diagnostic(&self) -> Diagnostic {
+        let diagnostic = Diagnostic::error(self.message());
+        match self.site.span() {
+            Some(span) => diagnostic.with_source_span(span),
+            None => diagnostic,
+        }
+    }
+}
+
+/// The statement of one conflict, in the deleted checker's words: "state
+/// `two` receives `y` as mutable more than once", where `two` is the
+/// callee as declared. The callee's name and the lent binding come from the
+/// reader's names; without them the statement names no binding.
+fn conflict_statement(
+    elaboration: &Elaboration,
+    machine: MachineId,
+    tables: &terminal_check_tables::MachineTables,
+    site: SourceOrigin,
+    conflict: &crate::ConflictingLoan,
+) -> String {
+    let callee = tables
+        .invocations
+        .get(conflict.invocation)
+        .and_then(|row| match row.callee {
+            terminal_check_tables::edges::Callee::Declared(
+                semantic_vocabulary::TargetMachineCallable::Machine(callee),
+            ) => Some(callee),
+            terminal_check_tables::edges::Callee::Selected { .. }
+            | terminal_check_tables::edges::Callee::Declared(
+                semantic_vocabulary::TargetMachineCallable::Boundary(_),
+            ) => None,
+        })
+        .and_then(|callee| elaboration.names.get(callee))
+        .map(|names| names.machine.clone())
+        .filter(|state| !state.is_empty());
+    let lender = site.span().and_then(|span| {
+        elaboration
+            .names
+            .get(machine)
+            .and_then(|names| names.lender(span, conflict.position))
+            .map(str::to_owned)
+    });
+    let how = match conflict.conflict {
+        crate::LoanConflict::TwiceExclusive => "as mutable more than once",
+        crate::LoanConflict::ExclusiveAndShared => "as both mutable and read-only",
+        crate::LoanConflict::ExclusiveOfShared => {
+            "as mutable through a shared reference, which grants no mutation"
+        }
+    };
+    match (callee, lender) {
+        (Some(state), Some(lender)) => format!("state `{state}` receives `{lender}` {how}"),
+        (Some(state), None) => format!("state `{state}` receives one place {how}"),
+        (None, Some(lender)) => format!("a call receives `{lender}` {how}"),
+        (None, None) => format!("a call receives one place {how}"),
+    }
+}
+
+/// The obligation kind as a diagnostic names it. Clause positions count from
+/// one, as the source does.
+fn describe_kind(kind: ObligationKind) -> String {
+    match kind {
+        ObligationKind::OperationSafety { .. } => String::from("operation safety"),
+        ObligationKind::CallRequirement { clause, .. } => {
+            format!(
+                "requires clause {} of the called machine",
+                u64::from(clause) + 1
+            )
+        }
+        ObligationKind::NormalGuarantee { clause, .. } => {
+            format!(
+                "ensures clause {} on a normal return",
+                u64::from(clause) + 1
+            )
+        }
+        ObligationKind::PublishedGuarantee { clause } => {
+            format!("ensures clause {}", u64::from(clause) + 1)
+        }
+        ObligationKind::DataDomain { clause, .. } => {
+            format!("requires clause {} of a data type", u64::from(clause) + 1)
+        }
+        ObligationKind::ArrivalInvariant { .. } => String::from("block invariant"),
+        ObligationKind::CrashCoverage { .. } => String::from("crash coverage"),
+        ObligationKind::WellFoundedness { .. } | ObligationKind::RankComparison { .. } => {
+            String::from("termination")
+        }
+        ObligationKind::Claim { .. }
+        | ObligationKind::Loan { .. }
+        | ObligationKind::RestorationWindow { .. }
+        | ObligationKind::DomainDebt { .. }
+        | ObligationKind::EstablishmentDebt { .. } => String::from("conserved obligation"),
+    }
+}
+
+/// Discharges an elaborated closure and returns the route's verdict on it.
+/// It takes elaboration's result as is, so an elaboration refused as
+/// `Unsupported` falls back like an undecided obligation does.
+pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
+    judge_owing(elaborated, AppliedContracts::Undecided)
+}
+
+/// Who decides the contract rows of the generic machines a generic check
+/// form applies (`Elaboration::applications`): `forward<T>` inside
+/// `relay<T>` is there as its contract with no body, so the form proves
+/// `forward`'s `requires` at the call and relies on its `ensures`.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum AppliedContracts {
+    /// Nobody this judgment knows of. Their rows keep the `Unsupported`
+    /// verdict the discharge gives every machine with no body, so the form
+    /// is undecided: a guarantee nothing proves is never read as held.
+    Undecided,
+    /// Each applied machine's own check form, judged in the same
+    /// compilation with its parameters rigid, so for every type the caller
+    /// can pass (`examine_generic_forms`). The rows are that form's
+    /// obligations and are not judged a second time here.
+    ///
+    /// A requirement the form calls through an implementation parameter is
+    /// there the same way, as its contract with no body. What makes its
+    /// `ensures` true is each implementation's refinement witness, and the
+    /// same compilation judges the witness of every row its subject declares
+    /// and of every row its closure selects (`judge_compilation`), so
+    /// the requirement's rows are left to them.
+    OwnCheckForms,
+}
+
+pub(crate) fn judge_owing(
+    elaborated: Checked<Elaboration>,
+    applied: AppliedContracts,
+) -> Checked<RouteVerdict> {
+    match examine(elaborated, &[]) {
+        Ok(examined) => conclude(examined, applied),
+        Err(decided) => decided,
+    }
+}
+
+/// A closure lowered and discharged, before its verdict is drawn.
+struct Examined {
+    elaboration: Elaboration,
+    discharged: Discharge,
+    /// Uses of owned storage after its value was transferred or consumed,
+    /// found by the affine check before anything is discharged.
+    affine_unestablished: Vec<UnestablishedUse>,
+}
+
+/// Runs the affine check and the discharge on one closure. `Err` holds the
+/// verdict when one is reached before every obligation has a verdict: an
+/// elaboration refused, a closure that still lists generic machines, or a
+/// discharge refused whole. `carried` are the machines of the closure stage
+/// 04 generated from a generic machine whose check form is already
+/// discharged (`discharge_carrying`).
+fn examine(
+    elaborated: Checked<Elaboration>,
+    carried: &[crate::Carried<'_>],
+) -> Result<Examined, Checked<RouteVerdict>> {
+    let mut elaboration = match elaborated {
+        Ok(elaboration) => elaboration,
+        Err(refused) => return Err(fall_back_or_defect(refused)),
+    };
+    // A compilation's generic machines are judged as their own check forms
+    // (`judge_compilation`). A closure that still lists them was judged
+    // without them, so it decides nothing.
+    if !elaboration.generic_templates.is_empty() {
+        let first = MachineId::new(1).expect("1 is nonzero");
+        return Err(Ok(RouteVerdict::FallBack(refusal(
+            RefusalReason::Unsupported,
+            first,
+            Construct::Machine,
+            "machine generic machines not judged as their own check forms",
+        ))));
+    }
+    // Likewise the rows of the subject's implementations, each judged as
+    // its own refinement witness.
+    if !elaboration.conformance_witnesses.is_empty() {
+        let first = MachineId::new(1).expect("1 is nonzero");
+        return Err(Ok(RouteVerdict::FallBack(refusal(
+            RefusalReason::Unsupported,
+            first,
+            Construct::Machine,
+            "implementation rows without their refinement witnesses",
+        ))));
+    }
+    let mut affine_unestablished = Vec::new();
+    for machine in &elaboration.module.machines {
+        let plan = match terminal_semantics::plain_affine::verify(
+            machine,
+            &elaboration.module.structural_types,
+        ) {
+            Ok(plan) => plan,
+            Err(error) => {
+                let concerns = match error.site() {
+                    Some(terminal_semantics::plain_affine::Site::Operation(at)) => {
+                        Construct::Operation(at)
+                    }
+                    Some(terminal_semantics::plain_affine::Site::Edge(at)) => Construct::Edge(at),
+                    None => Construct::Machine,
+                };
+                let (reason, detail) = match error {
+                    terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
+                        (RefusalReason::Unsupported, detail)
+                    }
+                    terminal_semantics::plain_affine::Error::Malformed { detail, .. } => {
+                        (RefusalReason::ForeignIdentity, detail)
+                    }
+                };
+                return Err(fall_back_or_defect(refusal(
+                    reason, machine.id, concerns, detail,
+                )));
+            }
+        };
+        let sources = elaboration.sources.get(machine.id).ok_or_else(|| {
+            Err(refusal(
+                RefusalReason::ForeignIdentity,
+                machine.id,
+                Construct::Machine,
+                "affine machine has no source correspondence",
+            ))
+        })?;
+        for unavailable in plan.unavailable {
+            let at = match unavailable.site {
+                terminal_semantics::plain_affine::Site::Operation(operation) => {
+                    Construct::Operation(operation)
+                }
+                terminal_semantics::plain_affine::Site::Edge(edge) => Construct::Edge(edge),
+            };
+            affine_unestablished.push(UnestablishedUse {
+                machine: machine.id,
+                at,
+                site: Some(source_of(sources, machine.id, at).map_err(Err)?),
+                detail: "owned storage is used after its value was transferred or consumed"
+                    .to_owned(),
+                declared: None,
+            });
+        }
+    }
+    match crate::discharge_carrying(&mut elaboration, carried, &mut Default::default()) {
+        Ok(discharged) => Ok(Examined {
+            elaboration,
+            discharged,
+            affine_unestablished,
+        }),
+        Err(refused) => Err(fall_back_or_defect(refused)),
+    }
+}
+
+/// The verdict on an examined closure.
+fn conclude(examined: Examined, applied: AppliedContracts) -> Checked<RouteVerdict> {
+    let Examined {
+        mut elaboration,
+        discharged,
+        affine_unestablished,
+    } = examined;
+    let mut unproved = Vec::new();
+    let mut unestablished = affine_unestablished;
+    let mut conflicts = Vec::new();
+    for (machine, result) in discharged.machines.iter() {
+        if applied == AppliedContracts::OwnCheckForms
+            && (elaboration.applications.contains(&machine)
+                || elaboration.requirements.contains(&machine))
+        {
+            continue;
+        }
+        let tables = terminal_check_tables::row(
+            &elaboration.tables.machines,
+            machine,
+            machine,
+            Construct::Machine,
+        )?;
+        let sources = elaboration.sources.get(machine).ok_or_else(|| {
+            refusal(
+                RefusalReason::ForeignIdentity,
+                machine,
+                Construct::Machine,
+                "machine has no source correspondence",
+            )
+        })?;
+        if result.verdicts.len() != tables.obligations.len() {
+            return Err(refusal(
+                RefusalReason::ForeignIdentity,
+                machine,
+                Construct::Machine,
+                "verdicts do not cover the machine's obligations one to one",
+            ));
+        }
+        for (obligation, verdict) in result.verdicts.iter() {
+            let Err(refused) = verdict else {
+                continue;
+            };
+            // A loan's conflict is listed with what it conflicts with, below.
+            if refused.reason == RefusalReason::Conflict
+                && result
+                    .conflicts
+                    .iter()
+                    .any(|conflict| conflict.loan == obligation)
+            {
+                continue;
+            }
+            let RefusalReason::Unproved(cause) = refused.reason else {
+                return fall_back_or_defect(refused.clone());
+            };
+            let concerns = Construct::Obligation(obligation);
+            let row =
+                terminal_check_tables::row(&tables.obligations, obligation, machine, concerns)?;
+            let site =
+                *terminal_check_tables::row(&sources.obligations, obligation, machine, concerns)?;
+            unproved.push(UnprovedObligation {
+                machine,
+                obligation,
+                kind: row.kind,
+                site,
+                cause,
+                detail: refused.detail.clone(),
+                statement: describe::unproved(&elaboration, machine, tables, row.kind, site),
+                consumed: None,
+            });
+        }
+        // An open window that a consumption point does not close, reported
+        // once, at the first consumption point in program order where the
+        // clause is not proved again: the specification's "the failing
+        // consumption point". Every later one has its own verdict in
+        // `MachineDischarge::windows` all the same. One a zero
+        // establishment opened is reported with its use, below.
+        let mut reported: Vec<ObligationId> = Vec::new();
+        for consumed in &result.windows {
+            let Err(refused) = &consumed.verdict else {
+                continue;
+            };
+            let cause = match refused.reason {
+                RefusalReason::Unproved(_) if reported.contains(&consumed.opened_by) => continue,
+                RefusalReason::Unproved(cause) => {
+                    reported.push(consumed.opened_by);
+                    cause
+                }
+                RefusalReason::Unestablished => continue,
+                RefusalReason::Unsupported
+                | RefusalReason::NotConserved
+                | RefusalReason::Conflict
+                | RefusalReason::Violation(_)
+                | RefusalReason::ForeignIdentity => return fall_back_or_defect(refused.clone()),
+            };
+            let concerns = Construct::Obligation(consumed.opened_by);
+            let row = terminal_check_tables::row(
+                &tables.obligations,
+                consumed.opened_by,
+                machine,
+                concerns,
+            )?;
+            let site = *terminal_check_tables::row(
+                &sources.obligations,
+                consumed.opened_by,
+                machine,
+                concerns,
+            )?;
+            unproved.push(UnprovedObligation {
+                machine,
+                obligation: consumed.opened_by,
+                kind: row.kind,
+                site,
+                cause,
+                detail: refused.detail.clone(),
+                statement: describe::unproved(&elaboration, machine, tables, row.kind, site),
+                consumed: Some(ConsumptionSite {
+                    at: consumed.at,
+                    site: source_of(sources, machine, consumed.at)?,
+                }),
+            });
+        }
+        for conflict in &result.conflicts {
+            let concerns = Construct::Obligation(conflict.loan);
+            let site = *terminal_check_tables::row(
+                &sources.obligations,
+                conflict.loan,
+                machine,
+                concerns,
+            )?;
+            conflicts.push(ConflictingUse {
+                machine,
+                loan: conflict.loan,
+                conflict: conflict.conflict,
+                site,
+                statement: conflict_statement(&elaboration, machine, tables, site, conflict),
+            });
+        }
+        for used in &result.uses {
+            let Err(refused) = &used.verdict else {
+                continue;
+            };
+            if refused.reason != RefusalReason::Unestablished {
+                return fall_back_or_defect(refused.clone());
+            }
+            let mut declared = None;
+            for consumed in &result.windows {
+                if consumed.at == used.at
+                    && matches!(&consumed.verdict, Err(open) if open.reason == RefusalReason::Unestablished)
+                {
+                    declared = Some(*terminal_check_tables::row(
+                        &sources.obligations,
+                        consumed.opened_by,
+                        machine,
+                        Construct::Obligation(consumed.opened_by),
+                    )?);
+                    break;
+                }
+            }
+            unestablished.push(UnestablishedUse {
+                machine,
+                at: used.at,
+                site: Some(source_of(sources, machine, used.at)?),
+                detail: refused.detail.clone(),
+                declared,
+            });
+        }
+    }
+    let exceeded = match crate::ceilings::judge(&elaboration) {
+        Ok(found) => found
+            .into_iter()
+            .map(|excess| exceeded_reach(&elaboration, excess))
+            .collect::<Checked<Vec<_>>>()?,
+        Err(refused) => return fall_back_or_defect(refused),
+    };
+    if !unestablished.is_empty() || !conflicts.is_empty() || !exceeded.is_empty() {
+        return Ok(RouteVerdict::Rejected {
+            formations: Vec::new(),
+            violations: Vec::new(),
+            unproved: without_restated_clauses(unproved),
+            unestablished,
+            conflicts,
+            exceeded,
+        });
+    }
+    if !unproved.is_empty() {
+        // Classified after restated clauses are dropped: a published clause
+        // fails as `ReturnDoesNotEstablish` even when its return's goal had
+        // no rule, and must not turn an `Incomplete` program into `Reject`.
+        let unproved = without_restated_clauses(unproved);
+        return Ok(
+            if unproved.iter().all(|entry| entry.cause.is_incomplete()) {
+                RouteVerdict::Incomplete(unproved)
+            } else {
+                RouteVerdict::Rejected {
+                    formations: Vec::new(),
+                    violations: Vec::new(),
+                    unproved,
+                    unestablished: Vec::new(),
+                    conflicts: Vec::new(),
+                    exceeded: Vec::new(),
+                }
+            },
+        );
+    }
+    if let Err(refused) = crate::external_providers::publish(&mut elaboration) {
+        return fall_back_or_defect(refused);
+    }
+    if let Err(refused) = crate::static_contracts::publish(&mut elaboration) {
+        return fall_back_or_defect(refused);
+    }
+    if let Err(refused) = accept_proof_callables(&mut elaboration, &discharged) {
+        return fall_back_or_defect(refused);
+    }
+    let seals = match discharged.operation_seals(&elaboration) {
+        Ok(seals) => seals,
+        Err(refused) => return fall_back_or_defect(refused),
+    };
+    Ok(RouteVerdict::Accepted(Box::new(AcceptedClosure {
+        elaboration,
+        discharge: discharged,
+        seals,
+    })))
+}
+
+/// A compilation refused before a verdict. Binding failures carry their own
+/// source identity because no Terminal machine exists at that point.
+#[derive(Debug)]
+pub enum CompilationRefusal {
+    Elaboration(Refusal),
+    Binding(crate::CallableFormationDefect),
+}
+
+/// Judges the complete prepared Terminal compilation without consulting typed
+/// source or invoking a preceding stage. Forms are discharged before reuse by
+/// their concrete instances; every demanded conformance still gets a verdict.
+pub fn judge_compilation(
+    input: terminal_check_tables::compilation::TerminalCompilation,
+) -> Vec<Result<RouteVerdict, CompilationRefusal>> {
+    use terminal_check_tables::compilation::TerminalCompilation;
+    let prepared = match input {
+        TerminalCompilation::FormationFailures(formations) => {
+            return vec![Ok(RouteVerdict::Rejected {
+                formations,
+                violations: Vec::new(),
+                unproved: Vec::new(),
+                unestablished: Vec::new(),
+                conflicts: Vec::new(),
+                exceeded: Vec::new(),
+            })];
+        }
+        TerminalCompilation::FormationDefect(defect) => {
+            return vec![Err(CompilationRefusal::Binding(defect))];
+        }
+        TerminalCompilation::Prepared(prepared) => prepared,
+    };
+    let forms = examine_generic_forms(prepared.forms);
+    // A selection borrows the same discharge that later decides its witness's
+    // verdict. Several selections may name one witness; none owns a second
+    // copy to prove independently.
+    let examined_witnesses: Vec<_> = prepared
+        .witnesses
+        .into_iter()
+        .map(|witness| examine(witness, &[]))
+        .collect();
+    let closure_verdict = match prepared.closure {
+        Ok(closure) => {
+            let witnesses = witnesses(
+                &closure,
+                &forms,
+                &prepared.specializations,
+                &prepared.selection_witnesses,
+                &examined_witnesses,
+            );
+            let carried = carried(&closure, &forms, &witnesses, &prepared.specializations);
+            match examine(Ok(closure), &carried) {
+                Ok(examined) => conclude(examined, AppliedContracts::Undecided),
+                Err(decided) => decided,
+            }
+        }
+        Err(refused) => judge(Err(refused)),
+    };
+    let mut verdicts = vec![closure_verdict.map_err(CompilationRefusal::Elaboration)];
+    verdicts.extend(forms.into_iter().map(|form| {
+        match form {
+            GenericForm::Decided(verdict) => verdict,
+            GenericForm::Examined { examined, .. } => {
+                conclude(examined, AppliedContracts::OwnCheckForms)
+            }
+        }
+        .map_err(CompilationRefusal::Elaboration)
+    }));
+    verdicts.extend(examined_witnesses.into_iter().map(|witness| {
+        match witness {
+            Ok(examined) => conclude(examined, AppliedContracts::Undecided),
+            Err(decided) => decided,
+        }
+        .map_err(CompilationRefusal::Elaboration)
+    }));
+    verdicts
+}
+
+/// One check form of a generic machine, in the order its verdict is listed.
+enum GenericForm {
+    /// Discharged, its verdict not yet drawn. `template` is the generic
+    /// machine it is the form of.
+    Examined {
+        template: symbols::SymbolHandle,
+        examined: Examined,
+    },
+    /// Its verdict, reached before a discharge: a form refused, or a
+    /// template on a call cycle.
+    Decided(Checked<RouteVerdict>),
+}
+
+/// The selection of the closure at `selection`, with its conformance
+/// witness and the witness's discharge: the proof that the selected
+/// implementation refines the requirement (`typed_trees_to_terminal_psi::
+/// elaborate_witness`).
+struct Witnessed<'a> {
+    selection: usize,
+    examined: &'a Examined,
+}
+
+/// The conformance witness of each selection a machine of `closure` makes
+/// when that machine was generated from a generic machine with a discharged
+/// form. A selection whose witness the route does not lower has none, and
+/// the obligations that would cite it are decided as in any closed machine.
+fn witnesses<'a>(
+    closure: &Elaboration,
+    forms: &[GenericForm],
+    specializations: &semantic_vocabulary::IdTable<MachineId, Option<symbols::SymbolHandle>>,
+    selections: &[(usize, usize)],
+    examined: &'a [Result<Examined, Checked<RouteVerdict>>],
+) -> Vec<Witnessed<'a>> {
+    let mut witnessed = Vec::with_capacity(selections.len());
+    for &(selection, witness) in selections {
+        let Some(selected) = closure.selections.get(selection) else {
+            continue;
+        };
+        if !specializations
+            .get(selected.caller)
+            .copied()
+            .flatten()
+            .is_some_and(|template| has_form(forms, template))
+        {
+            continue;
+        }
+        let Some(Ok(examined)) = examined.get(witness) else {
+            continue;
+        };
+        witnessed.push(Witnessed {
+            selection,
+            examined,
+        });
+    }
+    witnessed
+}
+
+fn has_form(forms: &[GenericForm], template: symbols::SymbolHandle) -> bool {
+    forms.iter().any(|form| {
+        matches!(form, GenericForm::Examined { template: declared, .. } if *declared == template)
+    })
+}
+
+/// Each machine of `closure` stage 04 generated from a generic machine with
+/// a discharged form, with the forms it may take its certificates from and,
+/// for each form, the selection made for each machine parameter that form
+/// names.
+fn carried<'a>(
+    closure: &Elaboration,
+    forms: &'a [GenericForm],
+    witnesses: &'a [Witnessed<'a>],
+    specializations: &semantic_vocabulary::IdTable<MachineId, Option<symbols::SymbolHandle>>,
+) -> Vec<crate::Carried<'a>> {
+    let mut carried = Vec::new();
+    for (specialization, _) in closure.machines.iter() {
+        let Some(Some(template)) = specializations.get(specialization) else {
+            continue;
+        };
+        let mut candidates = Vec::new();
+        for form in forms {
+            let GenericForm::Examined {
+                template: declared,
+                examined,
+            } = form
+            else {
+                continue;
+            };
+            if declared != template {
+                continue;
+            }
+            let generic = &examined.elaboration;
+            let mut selections = Vec::new();
+            for witnessed in witnesses {
+                let Some(selected) = closure.selections.get(witnessed.selection) else {
+                    continue;
+                };
+                if selected.caller != specialization {
+                    continue;
+                }
+                let requirement = generic.machines.iter().find(|(machine, symbol)| {
+                    **symbol == selected.requirement
+                        && generic.requirements.contains(machine)
+                        && generic.value_arguments.get(*machine) == Some(&selected.value_arguments)
+                });
+                if let Some((requirement, _)) = requirement {
+                    selections.push(crate::Selection {
+                        requirement,
+                        witness: &witnessed.examined.elaboration,
+                        refinement: &witnessed.examined.discharged,
+                    });
+                }
+            }
+            candidates.push(crate::CarriedForm {
+                generic,
+                found: &examined.discharged,
+                selections,
+            });
+        }
+        if !candidates.is_empty() {
+            carried.push(crate::Carried {
+                specialization,
+                forms: candidates,
+            });
+        }
+    }
+    carried
+}
+
+/// The check forms of `templates`, the subject's generic machines, and of
+/// every generic machine those forms apply, in the order they are met, each
+/// discharged and awaiting its verdict.
+///
+/// A generic body may call another generic machine at its own type
+/// parameters. That callee is in the caller's form as a contract with no
+/// body, and what makes its `ensures` true is the callee's own check form:
+/// generics.md, "Static type equality", "An unspecialized body checks every
+/// admitted alternative", so one form judged with the callee's parameters
+/// rigid proves the contract for every type a caller can name. The applied
+/// machine is therefore judged here whichever package declares it
+/// (validation_subjects.md: a passed check means "every declaration they
+/// depend on is valid"), and the caller's form leaves the callee's rows to
+/// it. When the callee's form is rejected or not served, that verdict is in
+/// the list and the compilation is rejected or undecided with it.
+///
+/// A machine that reaches itself through such calls is the exception. Each
+/// form on the cycle would take the next one's contract as given, and no
+/// form holds the cycle's bodies together, so nothing would judge the cycle:
+/// termination.md, "Calls and productive loops", asks that a runtime call
+/// cycle stand in tail position and that a `terminates` promise over it be
+/// ranked, and `typed_trees_to_terminal_psi` judges both only for a cycle among
+/// bodies it read. Such a template is refused by name as not supported yet,
+/// whatever contract it states: one with no `ensures` has no applied row
+/// left undecided, and would otherwise be accepted unjudged.
+fn examine_generic_forms(
+    forms: Vec<terminal_check_tables::compilation::GenericForms>,
+) -> Vec<GenericForm> {
+    let cyclic: Vec<_> = (0..forms.len())
+        .map(|position| reaches_itself(&forms, position))
+        .collect();
+    let mut examined = Vec::new();
+    for (form, cyclic) in forms.into_iter().zip(cyclic) {
+        let template = form.template;
+        if cyclic {
+            let first = MachineId::new(1).expect("1 is nonzero");
+            examined.push(GenericForm::Decided(Ok(RouteVerdict::FallBack(refusal(
+                RefusalReason::Unsupported,
+                first,
+                Construct::Machine,
+                &format!("generic machine `{}` on a call cycle", form.name),
+            )))));
+            continue;
+        }
+        match form.forms {
+            Ok(forms) => {
+                examined.extend(forms.into_iter().map(|form| match examine(Ok(form), &[]) {
+                    Ok(examined) => GenericForm::Examined { template, examined },
+                    Err(decided) => GenericForm::Decided(decided),
+                }))
+            }
+            Err(refused) => examined.push(GenericForm::Decided(judge(Err(refused)))),
+        }
+    }
+    examined
+}
+
+/// Unknown or cyclic generic dependencies cannot supply unchecked guarantees.
+fn reaches_itself(
+    forms: &[terminal_check_tables::compilation::GenericForms],
+    template: usize,
+) -> bool {
+    let mut seen = vec![false; forms.len()];
+    let mut pending = vec![template];
+    while let Some(current) = pending.pop() {
+        let Some(applied) = forms.get(current).and_then(|form| form.applies.as_ref()) else {
+            return true;
+        };
+        for next in applied {
+            if *next == template {
+                return true;
+            }
+            let Some(visited) = seen.get_mut(*next) else {
+                return true;
+            };
+            if !std::mem::replace(visited, true) {
+                pending.push(*next);
+            }
+        }
+    }
+    false
+}
+
+/// Where an operation, edge or block arises in the source, from
+/// elaboration's own correspondence; a position is never guessed.
+fn source_of(
+    sources: &terminal_check_tables::program::MachineSources,
+    machine: MachineId,
+    at: Construct,
+) -> Checked<SourceOrigin> {
+    let site = match at {
+        Construct::Operation(operation) => sources.operations.get(operation),
+        Construct::Edge(edge) => sources.edges.get(edge),
+        Construct::Block(block) => sources.blocks.get(block),
+        Construct::Machine
+        | Construct::Value(_)
+        | Construct::Place(_)
+        | Construct::Obligation(_)
+        | Construct::Invocation(_) => None,
+    };
+    site.copied().ok_or_else(|| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            machine,
+            at,
+            "a use of storage has no source correspondence",
+        )
+    })
+}
+
+fn fall_back_or_defect(refused: Refusal) -> Checked<RouteVerdict> {
+    match refused.reason {
+        RefusalReason::Unsupported => Ok(RouteVerdict::FallBack(refused)),
+        // Elaboration or discharge refused the closure outright because some
+        // storage is used unestablished: a rejection of the program, with no
+        // source correspondence to look its construct up in.
+        RefusalReason::Unestablished => Ok(RouteVerdict::Rejected {
+            formations: Vec::new(),
+            violations: Vec::new(),
+            unproved: Vec::new(),
+            unestablished: vec![UnestablishedUse {
+                machine: refused.machine,
+                at: refused.concerns,
+                site: None,
+                detail: refused.detail,
+                declared: None,
+            }],
+            conflicts: Vec::new(),
+            exceeded: Vec::new(),
+        }),
+        // A rule the source form breaks, whoever found it: the reader of
+        // the typed trees, before anything was lowered.
+        RefusalReason::Violation(site) => Ok(RouteVerdict::Rejected {
+            formations: Vec::new(),
+            violations: vec![RuleViolation {
+                machine: refused.machine,
+                site,
+                statement: refused.detail,
+            }],
+            unproved: Vec::new(),
+            unestablished: Vec::new(),
+            conflicts: Vec::new(),
+            exceeded: Vec::new(),
+        }),
+        RefusalReason::Unproved(_)
+        | RefusalReason::NotConserved
+        | RefusalReason::Conflict
+        | RefusalReason::ForeignIdentity => Err(refused),
+    }
+}
+
+/// A published `ensures` clause fails because a return's own guarantee
+/// failed, and that return is already reported with its own site. The
+/// clause is kept only when no return of it is reported.
+fn without_restated_clauses(unproved: Vec<UnprovedObligation>) -> Vec<UnprovedObligation> {
+    let restated = |candidate: &UnprovedObligation| {
+        matches!(candidate.kind, ObligationKind::PublishedGuarantee { .. })
+            && unproved.iter().any(|exit| {
+                exit.machine == candidate.machine
+                    && matches!(
+                        exit.kind,
+                        ObligationKind::NormalGuarantee { published, .. }
+                            if published == candidate.obligation
+                    )
+            })
+    };
+    let keep: Vec<bool> = unproved.iter().map(|entry| !restated(entry)).collect();
+    unproved
+        .into_iter()
+        .zip(keep)
+        .filter_map(|(entry, keep)| keep.then_some(entry))
+        .collect()
+}

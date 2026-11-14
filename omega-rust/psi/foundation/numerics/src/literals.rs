@@ -7,75 +7,69 @@ preserve their exact decimal spelling so every format read rounds once through
 `FloatSemantics` without double-rounding.
 */
 
+use crate::integer_carrier::FixedInteger;
 use std::borrow::Cow;
 use std::sync::Arc;
 
+/*
+    The carrier an integer literal lands in: a fixed-width integer of any
+    sign and width, or the pointer-width address, which holds the unsigned
+    64-bit range but is not an integer count.
+*/
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum LandedIntegerType {
-    I8,
-    I16,
-    I32,
-    I64,
-    U8,
-    U16,
-    U32,
-    U64,
-    Addr, // Pointer-width address (rides the 8-byte unsigned path).
+    Fixed(FixedInteger),
+    Addr,
 }
 
 impl LandedIntegerType {
+    pub const U8: Self = Self::Fixed(FixedInteger::U8);
+    pub const U64: Self = Self::Fixed(FixedInteger::U64);
+
     pub fn from_name(name: &str) -> Option<Self> {
-        Some(match name {
-            "i8" => Self::I8,
-            "i16" => Self::I16,
-            "i32" => Self::I32,
-            "i64" => Self::I64,
-            "u8" => Self::U8,
-            "u16" => Self::U16,
-            "u32" => Self::U32,
-            "u64" => Self::U64,
-            "addr" => Self::Addr,
-            _ => return None,
-        })
+        if name == "addr" {
+            return Some(Self::Addr);
+        }
+        FixedInteger::from_decimal_spelling(name).map(Self::Fixed)
     }
 
-    pub fn bounds(self) -> (i128, i128) {
+    /* The integer whose range and word operations the landed value has. */
+    pub fn value_carrier(self) -> FixedInteger {
         match self {
-            Self::I8 => (i128::from(i8::MIN), i128::from(i8::MAX)),
-            Self::I16 => (i128::from(i16::MIN), i128::from(i16::MAX)),
-            Self::I32 => (i128::from(i32::MIN), i128::from(i32::MAX)),
-            Self::I64 => (i128::from(i64::MIN), i128::from(i64::MAX)),
-            Self::U8 => (0, i128::from(u8::MAX)),
-            Self::U16 => (0, i128::from(u16::MAX)),
-            Self::U32 => (0, i128::from(u32::MAX)),
-            Self::U64 | Self::Addr => (0, i128::from(u64::MAX)),
+            Self::Fixed(carrier) => carrier,
+            Self::Addr => FixedInteger::U64,
         }
     }
 
-    pub fn bit_width(self) -> u32 {
-        match self {
-            Self::I8 | Self::U8 => 8,
-            Self::I16 | Self::U16 => 16,
-            Self::I32 | Self::U32 => 32,
-            Self::I64 | Self::U64 | Self::Addr => 64,
-        }
+    /* `None` when an endpoint exceeds a host integer; see `FixedInteger::bounds_i128`. */
+    pub fn bounds(self) -> Option<(i128, i128)> {
+        self.value_carrier().bounds_i128()
+    }
+
+    /* Membership of a host integer in the landed range, exact at every width. */
+    pub fn admits_i128(self, value: i128) -> bool {
+        self.value_carrier()
+            .admits(&crate::bignum::BigInt::from_i128(value))
+    }
+
+    pub fn bit_width(self) -> u64 {
+        self.value_carrier().width()
     }
 
     pub fn is_signed(self) -> bool {
-        matches!(self, Self::I8 | Self::I16 | Self::I32 | Self::I64)
+        matches!(self, Self::Fixed(carrier) if carrier.is_signed())
     }
 
-    pub fn name(self) -> &'static str {
+    pub fn name(self) -> String {
+        self.to_string()
+    }
+}
+
+impl std::fmt::Display for LandedIntegerType {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::I8 => "i8",
-            Self::I16 => "i16",
-            Self::I32 => "i32",
-            Self::I64 => "i64",
-            Self::U8 => "u8",
-            Self::U16 => "u16",
-            Self::U32 => "u32",
-            Self::U64 => "u64",
-            Self::Addr => "addr",
+            Self::Fixed(carrier) => carrier.fmt(formatter),
+            Self::Addr => formatter.write_str("addr"),
         }
     }
 }
@@ -691,7 +685,8 @@ fn split_radix(unsigned: &str) -> (u32, &str) {
 #[cfg(test)]
 mod tests {
     use super::{
-        FloatFormat, FloatLiteral, IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType,
+        FixedInteger, FloatFormat, FloatLiteral, IntegerLanding, IntegerLiteral, IntegerRadix,
+        LandedIntegerType,
     };
 
     #[test]
@@ -804,7 +799,7 @@ mod tests {
     #[test]
     fn landing_rides_clones_and_negation_but_not_equality() {
         let landing = IntegerLanding {
-            landed_type: LandedIntegerType::U32,
+            landed_type: LandedIntegerType::U64,
             domain: crate::arithmetic::ArithmeticDomain::Wrapping,
         };
         let anonymous = IntegerLiteral::from_value(5);
@@ -815,35 +810,34 @@ mod tests {
         assert_eq!(landed.negated().landing(), Some(landing));
         assert_eq!(landed.negated().value_i64(), Some(-5));
         assert_eq!(anonymous.landing(), None);
-        assert!(!LandedIntegerType::U32.is_signed());
-        assert_eq!(LandedIntegerType::U32.bit_width(), 32);
-        assert!(LandedIntegerType::I8.is_signed());
+        assert!(!LandedIntegerType::U64.is_signed());
+        assert_eq!(LandedIntegerType::U64.bit_width(), 64);
+        assert!(LandedIntegerType::Fixed(FixedInteger::signed(8)).is_signed());
     }
 
     #[test]
     fn integer_carrier_names_round_trip_and_bound_their_width() {
-        let carriers = [
-            LandedIntegerType::I8,
-            LandedIntegerType::I16,
-            LandedIntegerType::I32,
-            LandedIntegerType::I64,
-            LandedIntegerType::U8,
-            LandedIntegerType::U16,
-            LandedIntegerType::U32,
-            LandedIntegerType::U64,
-            LandedIntegerType::Addr,
-        ];
+        /* Every width is a name; the conventional ones are not special. */
+        let carriers = [1, 8, 13, 16, 32, 64, 65]
+            .into_iter()
+            .flat_map(|width| [FixedInteger::signed(width), FixedInteger::unsigned(width)])
+            .map(LandedIntegerType::Fixed)
+            .chain([LandedIntegerType::Addr]);
         for carrier in carriers {
-            assert_eq!(LandedIntegerType::from_name(carrier.name()), Some(carrier));
+            assert_eq!(LandedIntegerType::from_name(&carrier.name()), Some(carrier));
             let modulus = 1i128 << carrier.bit_width();
             let expected = if carrier.is_signed() {
                 (-(modulus >> 1), (modulus >> 1) - 1)
             } else {
                 (0, modulus - 1)
             };
-            assert_eq!(carrier.bounds(), expected);
+            assert_eq!(carrier.bounds(), Some(expected));
         }
-        for spelling in ["bool", "f32", "f64", "address", "usize", "U8", ""] {
+        assert_eq!(LandedIntegerType::Addr.name(), "addr");
+        assert!(!LandedIntegerType::Addr.is_signed());
+        for spelling in [
+            "bool", "f32", "f64", "address", "usize", "U8", "u0", "i08", "u", "",
+        ] {
             assert_eq!(LandedIntegerType::from_name(spelling), None);
         }
     }

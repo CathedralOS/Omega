@@ -86,8 +86,8 @@ mod demand {
                                 native_code_layouts: None,
                                 entry: Some(*entry),
                                 installation: Some(observations.providers()),
-                                target_machines: Some(observations.targets()),
-                                target_layouts: Some(observations.layouts()),
+                                target_machines: observations.targets(),
+                                target_layouts: observations.layouts(),
                                 host_imports: &[],
                                 x86_flags: None,
                                 memory_ordering: None,
@@ -125,7 +125,7 @@ mod demand {
                             return Err(format!(
                                 "scalar evaluation requires exact authored selection before evaluation; missing providers: [{}]; operations target `{}` cannot execute during constant evaluation: [{}]",
                                 names(&requirements.missing_providers),
-                                observations.targets().target(),
+                                observations.target().unwrap_or("<unscoped>"),
                                 names(&unrealized),
                             ));
                         }
@@ -275,11 +275,14 @@ mod demand {
 
 pub struct ScalarScopeEvaluation {
     pub application_roots: Option<Vec<terminal_psi::ProofDeclarationId>>,
-    pub targets: terminal_installation::AdmittedTargetMachineSelections,
+    /// No deployment means ordinary Psi evaluation, not host selection.
+    /// Layout facts must be absent as well; target-only operations then refuse
+    /// at their actual demand rather than suppressing pure conditions.
+    pub targets: Option<terminal_installation::AdmittedTargetMachineSelections>,
     pub providers: terminal_installation::AdmittedProviderSelections,
     pub address_model: Result<Option<terminal_installation::ScalarAddressModel>, String>,
     pub carrier_layout: Option<semantic_vocabulary::TargetCarrierLayout>,
-    pub layout_target: terminal_installation::LayoutTargetFacts,
+    pub layout_target: Option<terminal_installation::LayoutTargetFacts>,
     /// `None` leaves every bodyless import unavailable to evaluation.
     pub import_realizations: Option<Box<dyn TargetImportRealizations>>,
 }
@@ -314,19 +317,19 @@ pub trait AdmittedImportRealizations {
     ) -> Result<(), String>;
 }
 
-pub fn complete_scalar_applications(
+pub fn complete_scalar_applications<'scope>(
     artifact: &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
-    primary: &str,
+    primary: impl Into<Option<&'scope str>>,
     deployment_scopes: Option<&[String]>,
     requested: &[ScalarApplicationId],
     sponsor: Option<&evaluation_accounting::EvaluationInvocationAccount>,
     accounting: &mut crate::SourceCompletionAccounting,
-    mut select: impl FnMut(&str) -> Result<ScalarScopeEvaluation, String>,
+    mut select: impl FnMut(Option<&str>) -> Result<ScalarScopeEvaluation, String>,
 ) -> Result<terminal_installation::AdmittedScalarApplications, String> {
     let mut records = Vec::new();
     let result = complete_scopes(
         artifact,
-        primary,
+        primary.into(),
         deployment_scopes,
         requested,
         sponsor,
@@ -339,35 +342,39 @@ pub fn complete_scalar_applications(
 
 fn complete_scopes(
     artifact: &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
-    primary: &str,
+    primary: Option<&str>,
     deployment_scopes: Option<&[String]>,
     requested: &[ScalarApplicationId],
     sponsor: Option<&evaluation_accounting::EvaluationInvocationAccount>,
     records: &mut Vec<CanonicalScalarEvaluationReceipt>,
-    select: &mut impl FnMut(&str) -> Result<ScalarScopeEvaluation, String>,
+    select: &mut impl FnMut(Option<&str>) -> Result<ScalarScopeEvaluation, String>,
 ) -> Result<terminal_installation::AdmittedScalarApplications, String> {
     let mut closure = ScalarApplicationClosure::new(artifact.view(), primary);
     if let Some(scopes) = deployment_scopes {
         closure = closure.with_deployment_scopes(scopes);
     }
-    let scopes = closure.scopes().map(str::to_owned).collect::<Vec<_>>();
+    let scopes = closure
+        .scopes()
+        .map(|scope| scope.map(str::to_owned))
+        .collect::<Vec<_>>();
     for scope in scopes {
-        let selected = select(&scope)?;
-        if selected.targets.target() != scope {
+        let scope = scope.as_deref();
+        let selected = select(scope)?;
+        if selected.targets.as_ref().map(|targets| targets.target()) != scope {
             return Err("scalar evaluation selected a different authored scope".into());
         }
         let mut observations = ScalarApplicationObservations::new(
             artifact.view(),
-            &selected.targets,
+            selected.targets.as_ref(),
             &selected.providers,
-            &selected.layout_target,
+            selected.layout_target.as_ref(),
         )?
-        .with_target_carriers(selected.carrier_layout)
+        .with_target_carriers(selected.carrier_layout)?
         .with_application_roots(selected.application_roots.as_deref())?;
         let demand = if scope == primary { requested } else { &[] };
         let input = crate::evaluation_accounting::CanonicalScalarScope::capture(
             artifact,
-            &scope,
+            scope,
             &selected.providers,
             selected.carrier_layout,
         )?;
@@ -415,15 +422,15 @@ fn complete_scopes(
     closure.finish()
 }
 
-pub fn evaluate_scalar_applications<'artifact>(
+pub fn evaluate_scalar_applications<'artifact, 'scope>(
     observations: &mut ScalarApplicationObservations<'artifact>,
-    value_scope: &str,
+    value_scope: impl Into<Option<&'scope str>>,
     requested: &[ScalarApplicationId],
     meter: &mut WorkMeter,
 ) -> Result<ScalarConditionSelection<'artifact>, String> {
     evaluate_scope(
         observations,
-        value_scope,
+        value_scope.into(),
         requested,
         None,
         None,
@@ -440,7 +447,7 @@ pub fn evaluate_scalar_applications_with_address_model<'artifact>(
 ) -> Result<ScalarConditionSelection<'artifact>, String> {
     evaluate_scope(
         observations,
-        value_scope,
+        Some(value_scope),
         requested,
         address_model,
         None,
@@ -459,7 +466,7 @@ pub fn evaluate_scalar_applications_with_address_model<'artifact>(
 /// condition and the invocation refuses.
 #[derive(Clone, Copy)]
 pub struct InvocationTarget<'target> {
-    pub name: &'target str,
+    pub name: Option<&'target str>,
     pub layout_target: Option<&'target terminal_installation::LayoutTargetFacts>,
     pub carrier_layout: Option<semantic_vocabulary::TargetCarrierLayout>,
     pub address_model: Option<&'target terminal_installation::ScalarAddressModel>,
@@ -485,15 +492,18 @@ pub fn complete_invocation_scalar_applications<'artifact>(
     let facts = target
         .layout_target
         .ok_or("invocation target has no immutable layout catalogue")?;
+    let name = target
+        .name
+        .ok_or("scalar observations require an actual selected target")?;
     let mut closure =
-        ScalarApplicationClosure::for_invocation(artifact, target.name, &[declaration]);
+        ScalarApplicationClosure::for_invocation(artifact, Some(name), &[declaration]);
     let mut observations =
-        ScalarApplicationObservations::new(artifact, selected, providers, facts)?
-            .with_target_carriers(target.carrier_layout)
+        ScalarApplicationObservations::new(artifact, Some(selected), providers, Some(facts))?
+            .with_target_carriers(target.carrier_layout)?
             .with_invocation_roots(&[declaration])?;
     let conditions = evaluate_scope(
         &mut observations,
-        target.name,
+        Some(name),
         requested,
         target.address_model,
         None,
@@ -505,7 +515,7 @@ pub fn complete_invocation_scalar_applications<'artifact>(
 
 fn evaluate_scope<'artifact>(
     observations: &mut ScalarApplicationObservations<'artifact>,
-    value_scope: &str,
+    value_scope: Option<&str>,
     requested: &[ScalarApplicationId],
     address_model: Option<&terminal_installation::ScalarAddressModel>,
     import_realizations: Option<&dyn TargetImportRealizations>,
@@ -514,6 +524,16 @@ fn evaluate_scope<'artifact>(
         &terminal_installation::AdmittedScalarEntry<'_, 'artifact>,
     ) -> Result<EntryObservation, String>,
 ) -> Result<ScalarConditionSelection<'artifact>, String> {
+    if address_model.is_some_and(|model| {
+        Some(model.target.as_str()) != observations.target()
+            || !model.carrier.is_address()
+            || model.semantics_version == 0
+    }) {
+        return Err("scalar evaluation address model differs from its selected deployment".into());
+    }
+    if import_realizations.is_some() && observations.target().is_none() {
+        return Err("scalar import realizations require an explicit deployment selection".into());
+    }
     let program = TerminalProgram::borrow(observations.artifact());
     let mut conditions = observations.conditions(value_scope, requested)?;
     let mut jobs = demand::discover(
@@ -718,7 +738,7 @@ mod tests {
                         entry: Some(TargetMachineCallable::Machine(machine_id(entry))),
                         installation: Some(&providers),
                         target_machines: Some(&targets),
-                        target_layouts: Some(admission.primary().layouts()),
+                        target_layouts: admission.primary().layouts(),
                         host_imports: &[],
                         x86_flags: None,
                         memory_ordering: None,
@@ -836,7 +856,7 @@ mod tests {
             let mut closure = ScalarApplicationClosure::new(artifact.view(), "macos_arm64");
             assert_eq!(
                 closure.scopes().collect::<Vec<_>>(),
-                vec!["macos_arm64", "windows_x86_64"]
+                vec![Some("macos_arm64"), Some("windows_x86_64")]
             );
             closure
                 .close_scope(observations, conditions, Ok(None))
@@ -919,7 +939,7 @@ mod tests {
                     entry: Some(TargetMachineCallable::Machine(machine_id(3))),
                     installation: Some(&providers),
                     target_machines: Some(&targets),
-                    target_layouts: Some(admission.primary().layouts()),
+                    target_layouts: admission.primary().layouts(),
                     host_imports: &[],
                     x86_flags: None,
                     memory_ordering: None,
@@ -1041,7 +1061,7 @@ mod tests {
                             entry: Some(TargetMachineCallable::Machine(machine_id(2))),
                             installation: Some(&providers),
                             target_machines: Some(&targets),
-                            target_layouts: Some(admission.primary().layouts()),
+                            target_layouts: admission.primary().layouts(),
                             host_imports: &[],
                             x86_flags: None,
                             memory_ordering: None,
@@ -1106,6 +1126,36 @@ mod tests {
         }
 
         #[test]
+        fn unscoped_scalar_closure_retains_required_authored_scopes() {
+            let artifact = scoped_graph(41);
+            let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
+            let mut closure = ScalarApplicationClosure::new(artifact.view(), None);
+            assert_eq!(
+                closure.scopes().collect::<Vec<_>>(),
+                vec![None, Some("macos_arm64"), Some("windows_x86_64")]
+            );
+            let mut observations =
+                ScalarApplicationObservations::new(artifact.view(), None, &providers, None)
+                    .unwrap();
+            let conditions = evaluate_scalar_applications(
+                &mut observations,
+                None,
+                &[application(5)],
+                &mut WorkMeter::unbounded(),
+            )
+            .unwrap();
+            closure
+                .close_scope(observations, conditions, Ok(None))
+                .unwrap();
+            assert!(
+                closure
+                    .finish()
+                    .unwrap_err()
+                    .contains("unfinished authored scope")
+            );
+        }
+
+        #[test]
         fn scalar_closure_requires_supplemental_scopes_without_replacing_primary_values() {
             let artifact = scoped_graph(41);
             let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
@@ -1115,7 +1165,7 @@ mod tests {
                 let mut closure = ScalarApplicationClosure::new(artifact.view(), "macos_arm64");
                 assert_eq!(
                     closure.scopes().collect::<Vec<_>>(),
-                    vec!["macos_arm64", "windows_x86_64"]
+                    vec![Some("macos_arm64"), Some("windows_x86_64")]
                 );
                 let (observations, conditions) = evaluated(&artifact, &macos, &providers, 5);
                 closure
@@ -1138,8 +1188,8 @@ mod tests {
                     .unwrap();
                 let admission = closure.finish().unwrap();
                 assert_eq!(admission.values().value(application(5)), Some(integer(24)));
-                assert_eq!(admission.primary().targets(), &macos);
-                assert_eq!(admission.supplemental()[0].targets(), &windows);
+                assert_eq!(admission.primary().targets(), Some(&macos));
+                assert_eq!(admission.supplemental()[0].targets(), Some(&windows));
             }
         }
 
@@ -1241,6 +1291,304 @@ mod tests {
     fn machine_id(value: u64) -> MachineId {
         MachineId::new(value).unwrap()
     }
+
+    fn unscoped_constant(
+        expected: u64,
+        needs_address: bool,
+    ) -> std::sync::Arc<CanonicalTerminalArtifact> {
+        let mut module = TerminalModule::for_entry(machine_id(1));
+        module.machines.push(machine(
+            1,
+            vec![OperationKind::IntegerConstant {
+                value: IntegerValue::Unsigned(41),
+            }],
+        ));
+        module
+            .scalar_applications
+            .insert(ScalarApplication::Evaluate {
+                entry: TargetMachineCallable::Machine(machine_id(1)),
+                scalar_type: scalar(),
+            })
+            .unwrap();
+        let mut nodes = Arena::new();
+        let left = nodes.insert(ScalarPredicateNode(PredicateNode::Leaf(
+            ScalarRangeObservation::Application(application(1)),
+        )));
+        let right = nodes.insert(ScalarPredicateNode(PredicateNode::Value(
+            ScalarValue::Integer(BigInt::from_u64(expected)),
+        )));
+        let root = nodes.insert(ScalarPredicateNode(PredicateNode::Binary {
+            operator: PredicateOperator::Equal,
+            left,
+            right,
+        }));
+        module
+            .scalar_applications
+            .conditions
+            .retain_predicate(
+                ScalarConditionSubject::Application(application(1)),
+                semantic_vocabulary::ScalarConditionRole::Result,
+                "unscoped constant result".into(),
+                nodes,
+                root,
+            )
+            .unwrap();
+        if needs_address {
+            module
+                .scalar_applications
+                .conditions
+                .retain_range(
+                    ScalarConditionSubject::Module,
+                    semantic_vocabulary::ScalarConditionRole::Prerequisite,
+                    ScalarRangeRequirement::AddressModel,
+                    vec![IntegerBoundStep::Observation(
+                        ScalarRangeObservation::Literal(BigInt::from_u64(41)),
+                    )],
+                )
+                .unwrap();
+        }
+        std::sync::Arc::new(canonical(module))
+    }
+
+    fn complete_unscoped(
+        artifact: &std::sync::Arc<CanonicalTerminalArtifact>,
+        accounting: &mut crate::SourceCompletionAccounting,
+    ) -> Result<terminal_installation::AdmittedScalarApplications, String> {
+        complete_scalar_applications(
+            artifact,
+            None,
+            None,
+            &[application(1)],
+            None,
+            accounting,
+            |scope| {
+                assert_eq!(scope, None);
+                Ok(unscoped_inputs(artifact))
+            },
+        )
+    }
+
+    fn unscoped_inputs(artifact: &CanonicalTerminalArtifact) -> ScalarScopeEvaluation {
+        ScalarScopeEvaluation {
+            application_roots: None,
+            targets: None,
+            providers: admit_provider_installation(artifact.view(), &[], &[]).unwrap(),
+            address_model: Ok(None),
+            carrier_layout: None,
+            layout_target: None,
+            import_realizations: None,
+        }
+    }
+
+    fn test_carriers() -> semantic_vocabulary::TargetCarrierLayout {
+        semantic_vocabulary::TargetCarrierLayout {
+            pointer_byte_size: 8,
+            pointer_byte_alignment: 8,
+            descriptor_byte_size: 16,
+            descriptor_byte_alignment: 8,
+            case_tag_byte_size: 4,
+            case_tag_byte_alignment: 4,
+        }
+    }
+
+    #[test]
+    fn unscoped_evaluation_rejects_deployment_inputs_before_recording_execution() {
+        struct UnexpectedImports;
+        impl TargetImportRealizations for UnexpectedImports {
+            fn admit(
+                &self,
+                _: &[semantic_vocabulary::BoundaryMachineId],
+            ) -> Result<Box<dyn AdmittedImportRealizations>, String> {
+                panic!("unscoped evaluation must not consult target imports");
+            }
+        }
+        let artifact = unscoped_constant(41, false);
+        for input in ["carrier layout", "address model", "import realizations"] {
+            let mut accounting = crate::SourceCompletionAccounting::default();
+            let error = complete_scalar_applications(
+                &artifact,
+                None,
+                None,
+                &[application(1)],
+                None,
+                &mut accounting,
+                |_| {
+                    let mut selected = unscoped_inputs(&artifact);
+                    match input {
+                        "carrier layout" => selected.carrier_layout = Some(test_carriers()),
+                        "address model" => {
+                            selected.address_model =
+                                Ok(Some(terminal_installation::ScalarAddressModel {
+                                    target: "macos_arm64".into(),
+                                    carrier: IntegerType::supported_address_representation(),
+                                    semantics_version: 1,
+                                    commitment: [1; 32],
+                                }));
+                        }
+                        _ => selected.import_realizations = Some(Box::new(UnexpectedImports)),
+                    }
+                    Ok(selected)
+                },
+            )
+            .unwrap_err();
+            assert!(error.contains(input), "{input}: {error}");
+            assert!(accounting.receipts().is_empty(), "{input}");
+        }
+    }
+
+    #[test]
+    fn unscoped_scalar_conditions_execute_and_retain_targetless_receipts() {
+        let legacy = compiler_storage::encode(&1_u32, Default::default()).unwrap();
+        assert!(
+            compiler_storage::decode::<crate::PureEvaluationRecord>(&legacy, Default::default())
+                .unwrap_err()
+                .to_string()
+                .contains("without explicit deployment scope")
+        );
+        for expected in [41, 42] {
+            let artifact = unscoped_constant(expected, false);
+            let mut accounting = crate::SourceCompletionAccounting::default();
+            let completed = complete_unscoped(&artifact, &mut accounting);
+            if expected == 41 {
+                let completed = completed.unwrap();
+                assert_eq!(completed.values().value(application(1)), Some(integer(41)));
+                assert!(completed.primary().targets().is_none());
+                assert!(completed.primary().layouts().is_none());
+                assert!(completed.primary().address_model().is_none());
+            } else {
+                assert!(completed.unwrap_err().contains("predicate is false"));
+            }
+            assert_eq!(
+                accounting.receipts().len(),
+                1,
+                "failed conditions still account for the executed invocation"
+            );
+            let encoded = compiler_storage::encode(&accounting, Default::default()).unwrap();
+            let restored: crate::SourceCompletionAccounting =
+                compiler_storage::decode(&encoded, Default::default()).unwrap();
+            restored.validate_charges().unwrap();
+            let crate::PureEvaluationRecord::CanonicalScalar(receipt) = &restored.receipts()[0]
+            else {
+                panic!("scalar invocation retains its canonical receipt");
+            };
+            assert_eq!(receipt.target(), None);
+            assert_eq!(
+                receipt.artifact().view().identity(),
+                artifact.view().identity()
+            );
+        }
+    }
+
+    #[test]
+    fn unscoped_scalar_conditions_refuse_an_actual_address_model_demand() {
+        let artifact = unscoped_constant(41, true);
+        let error = complete_unscoped(&artifact, &mut Default::default()).unwrap_err();
+        assert!(error.contains("address model"), "{error}");
+    }
+
+    #[test]
+    fn unscoped_scalar_entry_cannot_bypass_a_target_family_for_a_pure_body() {
+        let mut module = unscoped_constant(41, false).view().module().clone();
+        let callable = TargetMachineCallable::Machine(machine_id(1));
+        module
+            .target_machine_families
+            .push(terminal_psi::TargetMachineFamily {
+                canonical: callable,
+                head_contract: [1; 32],
+                members: vec![terminal_psi::TargetMachineFamilyMember {
+                    target: "macos_arm64".into(),
+                    callable,
+                    supply: terminal_psi::TargetMachineSupply::CheckedBody,
+                }],
+            });
+        let scope = &mut module.scalar_applications.proof_scope;
+        let declaration = scope.callable_declaration(callable).unwrap();
+        let head = next_declaration(scope);
+        scope
+            .declarations
+            .insert(terminal_psi::ProofScopeDeclaration::Unavailable(
+                "pure target family head".into(),
+            ));
+        let members = scope.plan.target_members.insert_many([
+            semantic_vocabulary::proof_applications::ProofApplicationTargetMember {
+                target: "macos_arm64".into(),
+                machine: declaration,
+            },
+        ]);
+        scope.plan.machines.for_each_mut(|_, row| {
+            if row.machine == declaration {
+                row.authored_target = Some("macos_arm64".into());
+                row.source_target = Some("macos_arm64".into());
+            }
+        });
+        scope.plan.machines.insert(ProofApplicationMachine {
+            machine: head,
+            family_interface: true,
+            family_members: members,
+            product_selected: true,
+            ..Default::default()
+        });
+        assert_eq!(scope.plan.callable_for_target(head, None), None);
+        assert_eq!(
+            scope.plan.callable_for_target(head, "macos_arm64"),
+            Some(declaration)
+        );
+        let artifact = std::sync::Arc::new(canonical(module));
+        let mut accounting = crate::SourceCompletionAccounting::default();
+        let error = complete_unscoped(&artifact, &mut accounting).unwrap_err();
+        assert!(error.contains("explicit deployment selection"), "{error}");
+        assert!(accounting.receipts().is_empty());
+
+        let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
+        let targets = admit_target_machine_selections(artifact.view(), "macos_arm64");
+        let (observations, _) = evaluated(&artifact, &targets, &providers, 1);
+        assert_eq!(
+            observations.value(application(1)).unwrap(),
+            Some(integer(41))
+        );
+    }
+
+    #[test]
+    fn unscoped_layout_observations_use_portable_geometry_not_host_pointer_size() {
+        for pointer in [false, true] {
+            let mut module = graph(24, false, false).view().module().clone();
+            if pointer {
+                module.structural_types[1].shape = StructuralTypeShape::Reference {
+                    referent: type_id(1),
+                    access: terminal_psi::StructuralAccess::SharedBorrow,
+                };
+            }
+            let artifact = canonical(module);
+            let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
+            if pointer {
+                let error =
+                    ScalarApplicationObservations::new(artifact.view(), None, &providers, None)
+                        .unwrap()
+                        .with_target_carriers(Some(test_carriers()))
+                        .err()
+                        .unwrap();
+                assert!(error.contains("carrier layout requires an explicit deployment"));
+            }
+            let mut observations =
+                ScalarApplicationObservations::new(artifact.view(), None, &providers, None)
+                    .unwrap();
+            let outcome = evaluate_scalar_applications(
+                &mut observations,
+                None,
+                &[application(5)],
+                &mut WorkMeter::unbounded(),
+            );
+            if pointer {
+                assert!(outcome.err().unwrap().contains("MissingCarrierLayout"));
+            } else {
+                outcome.unwrap();
+                assert_eq!(
+                    observations.value(application(5)).unwrap(),
+                    Some(integer(24))
+                );
+            }
+        }
+    }
     fn value_id(value: u64) -> ValueId {
         ValueId::new(value).unwrap()
     }
@@ -1305,17 +1653,10 @@ mod tests {
         TerminalMachine {
             id: machine_id(identity),
             attachment: None,
-            declaration: None,
             nominal_cleanup_subject: None,
-            parameters: Vec::new(),
-            parameter_order: Vec::new(),
-            structural_parameters: Vec::new(),
             structural_places: Vec::new(),
-            entry_claims: Vec::new(),
             block_entry_claims: Vec::new(),
             loan_completions: Vec::new(),
-            content_entry_claims: Vec::new(),
-            result: TerminalMachineResult::Scalar(result),
             entry: BlockId::new(1).unwrap(),
             blocks: vec![Block {
                 id: BlockId::new(1).unwrap(),
@@ -1345,13 +1686,22 @@ mod tests {
                 },
             }],
             ranked_scc: None,
-            declared_service_reach: Vec::new(),
-            closed_reach_application: None,
-            published_synchronous_entries: Vec::new(),
-            published_service_ceiling: Vec::new(),
             content_identity_reshuffles: Vec::new(),
             content_partition_compositions: Vec::new(),
-            contract: MachineContract::empty(ContractId::new(identity).unwrap()),
+            contract: terminal_psi::MachineContract {
+                declaration: None,
+                parameters: Vec::new(),
+                parameter_order: Vec::new(),
+                structural_parameters: Vec::new(),
+                entry_claims: Vec::new(),
+                content_entry_claims: Vec::new(),
+                result: TerminalMachineResult::Scalar(result),
+                declared_service_reach: None,
+                closed_reach_application: None,
+                published_synchronous_entries: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                ..MachineContract::empty(ContractId::new(identity).unwrap())
+            },
             assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
         }
     }

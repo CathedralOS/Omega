@@ -3,6 +3,89 @@ Call result typing, captured product operands, construction destinations, build
 and product selections, installed interrupts, and qualification casts.
 */
 
+/// Whether the call the author wrote named a declared operation of the
+/// toolchain Build prelude that typing replaces with a call of the Build
+/// protocol.
+///
+/// `Build::exclude_crash(builder, cause)` and the Product queries are
+/// declared prelude machines, so name resolution answers the authored call
+/// with that declaration. Typing then spells the protocol requirement that
+/// carries the request (the prelude: "typing normalizes the declaration to
+/// the authenticated selection protocol"). The two are different
+/// declarations and both answers are true: the record keeps what the author
+/// named, and the generated call is not that call.
+pub(crate) fn names_replaced_prelude_operation(
+    program: &typed_trees::TypedTrees,
+    occurrence: language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
+    target: symbols::SymbolHandle,
+) -> bool {
+    let Some(selected) = program
+        .authored_declaration_selections()
+        .get(occurrence)
+        .and_then(|selection| selection.target().as_resolved().copied())
+        .map(|resolved| resolved.selected_symbol())
+    else {
+        return false;
+    };
+    selected != target
+        && program.symbols.is_build_prelude_symbol(selected)
+        && program.symbols.is_build_prelude_symbol(target)
+        // The protocol call targets a requirement: a member of a trait.
+        // The symbol table says so before the typed trees hold the trait.
+        && program.symbols.get(program.symbols.get(target).parent).kind
+            == symbols::SymbolKind::Trait
+}
+
+/// A rewrite that already selected an exact declaration must retain that
+/// answer on the original call occurrence. An unresolved different question
+/// or a contradictory earlier answer remains an error.
+///
+/// Returns whether the occurrence is the generated call's own selection. It
+/// is not when the author named a declared prelude operation the rewrite
+/// replaces (`names_replaced_prelude_operation`): the record is left as the
+/// author's answer and the generated call carries no selection.
+pub(crate) fn bind_generated_call_selection(
+    program: &mut typed_trees::TypedTrees,
+    occurrence: language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
+    target: symbols::SymbolHandle,
+) -> Result<bool, diagnostics::Diagnostic> {
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionLateBinding as Late,
+        AuthoredDeclarationSelectionTarget as Target,
+    };
+    let selections = program.authored_declaration_selections();
+    let selection = selections.get(occurrence).ok_or_else(|| {
+        diagnostics::Diagnostic::error("rewritten call lost its original selection record")
+    })?;
+    let source_span = selection.source_span();
+    let refused =
+        |reason: &str| diagnostics::Diagnostic::error(reason).with_source_span(source_span);
+    if selection.kind()
+        != language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call
+    {
+        return Err(refused(
+            "rewritten call does not own a call selection record",
+        ));
+    }
+    match selection.target() {
+        Target::LateBound(Late::CheckedCall) => program
+            .finalize_authored_declaration_selection(occurrence, Late::CheckedCall, target)
+            .map(|()| true)
+            .map_err(|error| {
+                refused(&format!(
+                    "rewritten call cannot retain its selected declaration: {error:?}"
+                ))
+            }),
+        Target::Resolved(selected) if selected.selected_symbol() == target => Ok(true),
+        Target::Resolved(_) if names_replaced_prelude_operation(program, occurrence, target) => {
+            Ok(false)
+        }
+        _ => Err(refused(
+            "rewritten call contradicts its original selection record",
+        )),
+    }
+}
+
 pub(crate) mod build_selections {
     use diagnostics::Diagnostic;
     use language_semantics::declaration_selection::{
@@ -425,8 +508,8 @@ pub(crate) mod call_results {
                             });
                         let field = fields.next()?;
                         if fields.next().is_some()
-                            || (member.member_symbol.is_valid()
-                                && member.member_symbol != field.symbol)
+                            || (member.selection.field_symbol().is_valid()
+                                && member.selection.field_symbol() != field.symbol)
                         {
                             return None;
                         }
@@ -2766,7 +2849,6 @@ pub(crate) mod installed_interrupts {
                 "interrupt installation requires a registrar declaration, not a value or evidence projection",
             ));
         }
-        let mut declaration_path = registrar.path.to_vec();
         let mut continuation = registrar;
         while let Some(application) = &continuation.application
             && application.member.is_valid()
@@ -2776,7 +2858,6 @@ pub(crate) mod installed_interrupts {
                 .ok_or_else(|| {
                     Diagnostic::error("interrupt registrar member has no owning resolved record")
                 })?;
-            declaration_path.extend_from_slice(&continuation.path);
         }
         let registrar_selection = if let Some((first, last)) =
             continuation.path.first().zip(continuation.path.last())
@@ -2802,9 +2883,19 @@ pub(crate) mod installed_interrupts {
         } else {
             None
         };
-        let selected = syntax_trees_to_symbol_resolved_trees::declaration_selection::resolve_signature_free_requirement(program, &declaration_path)
-            .map_err(|reason| Diagnostic::error(format!("interrupt installation registrar declaration cannot be selected: {reason:?}")))?;
-        let registrar_trait = selected.trait_definition.symbol;
+        let selected = registrar
+            .signature_free_requirement
+            .ok_or_else(|| {
+                Diagnostic::error(
+                    "interrupt registrar lost its prepared signature-free requirement selection",
+                )
+            })?
+            .map_err(|reason| {
+                Diagnostic::error(format!(
+                    "interrupt installation registrar declaration cannot be selected: {reason:?}"
+                ))
+            })?;
+        let registrar_trait = selected.trait_definition;
         let mut registrar =
             lower_static_machine_argument(Some(program), target_trees, exposure, registrar)?;
         let mut member_handle = registrar
@@ -2813,7 +2904,7 @@ pub(crate) mod installed_interrupts {
             .map(|application| application.member)
             .unwrap_or_default();
         if !member_handle.is_valid() {
-            registrar.symbol = selected.requirement.symbol;
+            registrar.symbol = selected.requirement;
         } else {
             loop {
                 let member = target_trees
@@ -2828,7 +2919,7 @@ pub(crate) mod installed_interrupts {
                     .map(|application| application.member)
                     .unwrap_or_default();
                 if !next.is_valid() {
-                    member.symbol = selected.requirement.symbol;
+                    member.symbol = selected.requirement;
                     break;
                 }
                 member_handle = next;
@@ -3387,13 +3478,28 @@ pub(crate) mod qualification_casts {
                 .type_reference_handles(cast.semantic_domain_arguments)
                 .to_vec();
             // An entry's target already carries the kept domains; selection reads the carrier.
-            let carrier = if cast.form.entry().is_some() {
+            let mut carrier = if cast.form.entry().is_some() {
                 program
                     .type_reference_table
                     .unconstrained_type_reference(cast.target_type)
             } else {
                 cast.target_type
             };
+            // An entry over a shared view names a domain of its referent
+            // (domains.md, "Mutable views": the cast accounts "for the
+            // domains displayed on its referent"), which accounting left as
+            // the reference's referee.
+            if cast.form.entry().is_some()
+                && let TypeReferenceNode::Reference {
+                    referee,
+                    access: language_core::ReferenceAccess::Shared,
+                    ..
+                } = program.type_reference_table.type_reference(carrier)
+            {
+                carrier = program
+                    .type_reference_table
+                    .unconstrained_type_reference(*referee);
+            }
             let matches = crate::type_reference::domain_constraints::select_domain_candidates(
                 source,
                 program,
@@ -3467,22 +3573,18 @@ pub(crate) mod qualification_casts {
             };
             let authored = *authored;
             if let Some(entry) = authored.form.entry() {
-                /*
-                    Accounting fixed this entry's target and result. Only an
-                    added domain stays on the node, as the membership the cast
-                    establishes; a kept or removed one was named for the
-                    accounting and its selection is recorded above.
-                */
+                // Accounting fixed this entry's target and result. Every
+                // named entry retains the selected declaration and arguments:
+                // the checker must distinguish keeping/removing that domain
+                // from a different qualification with the same carrier.
                 let ExpressionNode::Cast(cast) = program.expression_table.expression_mut(handle)
                 else {
                     continue;
                 };
-                if entry.kind == language_core::cast_form::CastEntryKind::Add {
-                    cast.semantic_domain_symbol = domain;
-                    cast.semantic_domain_id = semantic_id;
-                } else {
+                cast.semantic_domain_symbol = domain;
+                cast.semantic_domain_id = semantic_id;
+                if entry.kind != language_core::cast_form::CastEntryKind::Add {
                     cast.semantic_domain = arena::HandleSpan::empty();
-                    cast.semantic_domain_arguments = arena::HandleSpan::empty();
                 }
                 continue;
             }

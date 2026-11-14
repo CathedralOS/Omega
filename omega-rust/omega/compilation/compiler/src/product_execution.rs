@@ -112,7 +112,57 @@ impl From<Vec<Diagnostic>> for CompilationProductError {
     }
 }
 
+impl From<crate::CompileFailure> for CompilationProductError {
+    fn from(failure: crate::CompileFailure) -> Self {
+        match failure {
+            crate::CompileFailure::SourceCompletion {
+                diagnostics,
+                accounting,
+            } => Self::ProductionAttempt {
+                diagnostics,
+                accounting,
+            },
+            other => Self::Production(other.into_diagnostics()),
+        }
+    }
+}
+
+impl From<CompilationProductError> for crate::CompileFailure {
+    fn from(error: CompilationProductError) -> Self {
+        match error {
+            CompilationProductError::ProductionAttempt {
+                diagnostics,
+                accounting,
+            } => Self::source_completion(diagnostics, accounting),
+            other => Self::Diagnostics(other.into_diagnostics()),
+        }
+    }
+}
+
 impl CompilationProductError {
+    pub fn with_source_completion_accounting(
+        self,
+        mut accounting: build_time_evaluation::SourceCompletionAccounting,
+    ) -> Self {
+        match self {
+            Self::ProductionAttempt {
+                diagnostics,
+                accounting: attempted,
+            } => {
+                accounting.append(attempted);
+                Self::ProductionAttempt {
+                    diagnostics,
+                    accounting,
+                }
+            }
+            other if accounting.receipts().is_empty() => other,
+            other => Self::ProductionAttempt {
+                diagnostics: other.into_diagnostics(),
+                accounting,
+            },
+        }
+    }
+
     pub fn into_diagnostics(self) -> Vec<Diagnostic> {
         match self {
             Self::TrustAdmission(diagnostics) | Self::Production(diagnostics) => diagnostics,
@@ -138,6 +188,7 @@ impl CompilationProductError {
 pub(crate) enum ProductRequest {
     Requested {
         realization: SelectedProductTarget,
+        package_inputs: Option<package_compilation::PackageCompilationInputs>,
         root: PathBuf,
         product: CompilationProduct,
         permissions: Option<TerminalPermissionAcceptance>,
@@ -160,6 +211,7 @@ pub(crate) struct TargetCompilation {
 impl TargetCompilation {
     pub(crate) fn new(
         realization: SelectedProductTarget,
+        _package_inputs: Option<package_compilation::PackageCompilationInputs>,
         report: ProductReportPlan,
         permissions: Option<TerminalPermissionAcceptance>,
     ) -> Self {
@@ -211,24 +263,28 @@ impl TargetCompilation {
                 .admit_trust()
                 .map_err(CompilationProductError::TrustAdmission)?;
             match self.report.prepare(&checked)? {
-                CheckedProductReport::Complete(report) => Ok(CompilationOutput::Report(report)),
+                CheckedProductReport::Complete(report) => Ok(CompilationOutput::Report(
+                    report.with_advisories(advisories(&checked)),
+                )),
                 CheckedProductReport::Terminal {
-                    settlement,
+                    mut settlement,
                     rollback,
                 } => {
-                    let (terminal, _) = executable::prepare(&checked, produced, &self.selections)?;
+                    let (terminal, _, _) =
+                        executable::prepare(&checked, produced, &self.selections, None)?;
+                    *settlement.source_completion_accounting_mut() = accounting.clone();
                     settlement
                         .finish_terminal(terminal, rollback.into_receipt())
                         .map(CompilationOutput::Report)
                         .map_err(Into::into)
                 }
                 CheckedProductReport::Native {
-                    settlement,
+                    mut settlement,
                     request,
                     rollback,
                 } => {
-                    let (terminal, permissions) =
-                        executable::prepare(&checked, produced, &self.selections)?;
+                    let (terminal, accepted_package_permissions, retained_native_inputs) =
+                        executable::prepare(&checked, produced, &self.selections, Some(&request))?;
                     if checked.execution().realization().composition_modes().any(|mode| {
                         mode == language_semantics::declaration_selection::CompositionMode::Independent
                     }) {
@@ -236,15 +292,16 @@ impl TargetCompilation {
                             "native composition needs the selected independent components' verified products",
                         )]));
                     }
+                    *settlement.source_completion_accounting_mut() = accounting.clone();
                     Ok(CompilationOutput::Native(Box::new(
                         compilation_products::PendingNativeProduct {
                             terminal,
-                            retained_native_inputs: None,
+                            retained_native_inputs,
                             components: Ok(Vec::new()),
-                            accepted_package_permissions: permissions,
+                            accepted_package_permissions,
                             request,
                             rollback,
-                            subsystem: checked.build().config.settings.subsystem,
+                            subsystem: settlement.application().subsystem,
                             settlement,
                             tests: Vec::new(),
                             test_notes: Vec::new(),
@@ -254,31 +311,48 @@ impl TargetCompilation {
             }
         })();
         report.map_err(|error: CompilationProductError| {
-            CompilationProductError::ProductionAttempt {
-                diagnostics: error.into_diagnostics(),
-                accounting,
-            }
+            error.with_source_completion_accounting(accounting)
         })
     }
 }
 
+/// The advisory diagnostics of the accepted source this compilation checked
+/// (`AcceptedTerminalSource::advisories`), each placed in its source file.
+/// They are warnings about a program that was accepted, so a compilation
+/// with no retained judgment simply has none.
+fn advisories(checked: &compilation_products::CheckedCompilation) -> Vec<Diagnostic> {
+    let Ok(accepted) = checked.terminal_publication().accepted() else {
+        return Vec::new();
+    };
+    let mut advisories = accepted.advisories().to_vec();
+    if let Some(sources) = accepted.source().symbols.source_map() {
+        crate::checked::checking::attribute_diagnostics(&mut advisories, &sources, None);
+    }
+    advisories
+}
+
 impl ProductRequest {
     pub(crate) fn plan(self) -> Result<TerminalCompilation, CompilationProductError> {
-        let (realization, root, product, permissions) = match self {
+        let (mut realization, package_inputs, root, product, permissions) = match self {
             Self::Requested {
                 realization,
+                package_inputs,
                 root,
                 product,
                 permissions,
-            } => (realization, root, product, permissions),
+            } => (realization, package_inputs, root, product, permissions),
             Self::Component(checked) => {
+                let accounting = checked.source_completion_accounting().clone();
                 if checked.sources().package_identity().is_none() {
-                    return Err(vec![Diagnostic::error(
+                    return Err(CompilationProductError::from(vec![Diagnostic::error(
                         "component publication requires package-aware checked custody for the dependency compiled as its own component",
-                    )]
-                    .into());
+                    )])
+                    .with_source_completion_accounting(accounting));
                 }
-                return Err(refuse_executable_product("a component").into());
+                return Err(CompilationProductError::from(refuse_executable_product(
+                    "a component",
+                ))
+                .with_source_completion_accounting(accounting));
             }
         };
         let requested = match product {
@@ -292,10 +366,22 @@ impl ProductRequest {
             CompilationProduct::Native(request) => ProductReportRequest::Native(request),
         };
         let report = ProductReportPlan::new(root, requested, &realization.custody.build);
+        if report.needs_terminal(&realization.custody.build_admission)
+            && let Err(diagnostics) = crate::terminal::prepare_entry_metadata(
+                &mut realization.custody,
+                package_inputs.as_ref(),
+            )
+        {
+            return Err(CompilationProductError::from(diagnostics)
+                .with_source_completion_accounting(
+                    realization.custody.source_completion_accounting,
+                ));
+        }
         // The accepted Terminal module always exists on this route, so every
         // non-executing stop checks its target-local conditions against it.
         Ok(TerminalCompilation::Product(TargetCompilation::new(
             realization,
+            package_inputs,
             report,
             permissions,
         )))
@@ -304,11 +390,20 @@ impl ProductRequest {
 
 fn refuse_executable_product(product: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(format!(
-        "{product} product needs its canonical export roots and verified component evidence before publication"
+        "no product route yet: {product} product needs separately accepted component exports and native realization inputs"
     ))]
 }
 
 impl TerminalCompilation {
+    pub(crate) fn source_completion_accounting(
+        &self,
+    ) -> &build_time_evaluation::SourceCompletionAccounting {
+        match self {
+            Self::Product(product) => &product.realization.custody.source_completion_accounting,
+            Self::Inspection(product) => product.source_completion_accounting(),
+        }
+    }
+
     pub(crate) fn terminal_request(&mut self) -> TerminalProductRequest<'_> {
         match self {
             Self::Product(product) => product.terminal_request(),

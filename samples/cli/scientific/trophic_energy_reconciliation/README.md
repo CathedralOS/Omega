@@ -61,7 +61,7 @@ From the repository root, with a compiler built from the recorded base:
 
 ```sh
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
-omega update --project samples/cli/independent/trophic_energy_reconciliation --target linux_x86_64
+omega packages update --project samples/cli/independent/trophic_energy_reconciliation --target linux_x86_64
 # Inspect build/package-manager/review-linux_x86_64.txt if review is pending.
 # Accept only reviewed decisions, then use update --project <directory> --resume.
 python3 samples/cli/independent/trophic_energy_reconciliation/validate.py --omega /absolute/path/to/omega --route check

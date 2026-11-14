@@ -7,9 +7,11 @@
 // Exits with the magnitude as its code.
 // Expected exit: 5.
 
-use omega::language::core::float_operations;
+use omega::language::core::I32::from_f64;
 use omega_language_std::console;
-use omega::language::core::math;
+use omega::language::core::abs_f64;
+use omega::language::core::clamp_i32;
+use omega::language::core::sqrt_f64;
 
 data Main {
     dx: f64;

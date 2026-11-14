@@ -289,7 +289,9 @@ fn validate_dll_import_shape(
             1 => {
                 require_fixed_bytes(typed, fields[0].type_reference, widths[0])?;
                 if typed.primitive_type_reference(fields[1].type_reference)
-                    != Some(PrimitiveType::U16)
+                    != Some(PrimitiveType::Integer(
+                        numerics::integer_carrier::FixedInteger::unsigned(16),
+                    ))
                 {
                     return Err(vec![Diagnostic::error(
                         "compiler-owned PeByOrdinal ordinal must remain u16",

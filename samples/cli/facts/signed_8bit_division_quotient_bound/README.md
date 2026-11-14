@@ -14,15 +14,15 @@ Every positive place and the root witness bind `ProgramEntry` across all four ho
 | Place | Project | Transport | Positive Witness | Reject Twin |
 | --- | --- | --- | --- | --- |
 | root | `.` | canonical root witness dividing bounded i8 locals and discharging downstream quotient contract | [`main.omg`](main.omg) | - |
-| local | `local/` | the division operands and quotient are bound to local variables before discharging subtraction | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) |
-| field | `field/` | the operands are wrapped in a DivisorCarrier record field before division and quotient check | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) |
-| parameter | `parameter/` | a helper machine receives the quotient as an explicit parameter under requires contract | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) |
-| call result | `call_result/` | a producer machine returns the computed quotient under postcondition ensures result >= 30i8 && result <= 30i8 | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) |
-| match join | `match_join/` | both branches of a boolean match expression yield the computed quotient before subtraction | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) |
-| const name | `const_name/` | named constants BASE_DIVIDEND and BASE_DIVISOR define bounded i8 operands before division | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) |
-| a nested machine | `other_state/` | an terminal machine transfer transfers the quotient to successor machine step with entry contract | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) |
-| another machine | `other_machine/` | an associated Relay machine computes and forwards the quotient under postcondition | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) |
-| another target body | `target_body/` | each of the four hosted target bodies computes the quotient and discharges subtraction | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) |
+| local | `local/` | the division operands and quotient are bound to local variables before discharging subtraction | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) |
+| field | `field/` | the operands are wrapped in a DivisorCarrier record field before division and quotient check | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) |
+| parameter | `parameter/` | a helper machine receives the quotient as an explicit parameter under requires contract | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) |
+| call result | `call_result/` | a producer machine returns the computed quotient under postcondition ensures result >= 30i8 && result <= 30i8 | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) |
+| match join | `match_join/` | both branches of a boolean match expression yield the computed quotient before subtraction | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) |
+| const name | `const_name/` | named constants BASE_DIVIDEND and BASE_DIVISOR define bounded i8 operands before division | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) |
+| a nested machine | `other_state/` | an terminal machine transfer transfers the quotient to successor machine step with entry contract | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) |
+| another machine | `other_machine/` | an associated Relay machine computes and forwards the quotient under postcondition | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) |
+| another target body | `target_body/` | each of the four hosted target bodies computes the quotient and discharges subtraction | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) |
 
 ## Execution
 
@@ -46,15 +46,15 @@ All 10 samples report `native exit 0` and `interp exit: 0`.
 Each place carries a fact-sensitive reject twin at `<place>/invalid/main.omg` where the divisor bound is widened to `5i8` (yielding quotient down to `18i8`), failing to discharge `requires q >= 30i8 && q <= 30i8`. Check each twin with:
 
 ```sh
-omega --check samples/cli/facts/signed_8bit_division_quotient_bound/local/invalid/main.omg
-omega --check samples/cli/facts/signed_8bit_division_quotient_bound/field/invalid/main.omg
-omega --check samples/cli/facts/signed_8bit_division_quotient_bound/parameter/invalid/main.omg
-omega --check samples/cli/facts/signed_8bit_division_quotient_bound/call_result/invalid/main.omg
-omega --check samples/cli/facts/signed_8bit_division_quotient_bound/match_join/invalid/main.omg
-omega --check samples/cli/facts/signed_8bit_division_quotient_bound/const_name/invalid/main.omg
-omega --check samples/cli/facts/signed_8bit_division_quotient_bound/other_state/invalid/main.omg
-omega --check samples/cli/facts/signed_8bit_division_quotient_bound/other_machine/invalid/main.omg
-omega --check samples/cli/facts/signed_8bit_division_quotient_bound/target_body/invalid/main.omg
+omega --check samples/cli/facts/signed_8bit_division_quotient_bound/invalid_local/main.omg
+omega --check samples/cli/facts/signed_8bit_division_quotient_bound/invalid_field/main.omg
+omega --check samples/cli/facts/signed_8bit_division_quotient_bound/invalid_parameter/main.omg
+omega --check samples/cli/facts/signed_8bit_division_quotient_bound/invalid_call_result/main.omg
+omega --check samples/cli/facts/signed_8bit_division_quotient_bound/invalid_match_join/main.omg
+omega --check samples/cli/facts/signed_8bit_division_quotient_bound/invalid_const_name/main.omg
+omega --check samples/cli/facts/signed_8bit_division_quotient_bound/invalid_other_state/main.omg
+omega --check samples/cli/facts/signed_8bit_division_quotient_bound/invalid_other_machine/main.omg
+omega --check samples/cli/facts/signed_8bit_division_quotient_bound/invalid_target_body/main.omg
 ```
 
 Every reject twin fails closed with:

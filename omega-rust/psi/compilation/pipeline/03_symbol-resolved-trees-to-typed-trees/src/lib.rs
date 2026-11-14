@@ -33,6 +33,8 @@ fn unavailable_judgment(construct: &str) -> diagnostics::Diagnostic {
 }
 
 mod call_and_product_selections;
+mod constant_initializers;
+mod constructor_applications;
 mod contracts_and_signatures;
 mod declarations;
 mod domain_cast_accounting;
@@ -43,6 +45,9 @@ mod runtime_callables;
 mod statement_lowering;
 mod type_reference;
 mod typing_queries;
+
+#[cfg(test)]
+mod ranking_defaults_tests;
 
 pub(crate) use contracts_and_signatures::{contracts, signatures};
 

@@ -18,19 +18,19 @@ accompanied by `<place>/invalid/` reject twins and `<place>/controls/insufficien
 | Place | Positive Program | Invalid Reject Twin | Insufficient Bound Control | Carrier / Transport |
 | --- | --- | --- | --- | --- |
 | root | [main.omg](main.omg) | — | — | root-assumed bound indexes array directly |
-| local | [local/main.omg](local/main.omg) | [local/invalid/main.omg](local/invalid/main.omg) | [local/controls/insufficient_bound/main.omg](local/controls/insufficient_bound/main.omg) | root-assumed bound copied into local variable |
-| field | [field/main.omg](field/main.omg) | [field/invalid/main.omg](field/invalid/main.omg) | [field/controls/insufficient_bound/main.omg](field/controls/insufficient_bound/main.omg) | root-assumed bound stored in and projected from record field |
-| parameter | [parameter/main.omg](parameter/main.omg) | [parameter/invalid/main.omg](parameter/invalid/main.omg) | [parameter/controls/insufficient_bound/main.omg](parameter/controls/insufficient_bound/main.omg) | root-assumed bound passed as explicit machine parameter |
-| call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | [call_result/controls/insufficient_bound/main.omg](call_result/controls/insufficient_bound/main.omg) | root-assumed bound returned across machine call boundary |
-| match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | [match_join/controls/insufficient_bound/main.omg](match_join/controls/insufficient_bound/main.omg) | root-assumed bound preserved across match convergence join |
-| const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | [const_name/controls/insufficient_bound/main.omg](const_name/controls/insufficient_bound/main.omg) | root-assumed bound named and constrained against constant |
-| a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | [other_state/controls/insufficient_bound/main.omg](other_state/controls/insufficient_bound/main.omg) | root-assumed bound transitioned to successor machine argument |
-| another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | [other_machine/controls/insufficient_bound/main.omg](other_machine/controls/insufficient_bound/main.omg) | root-assumed bound forwarded through another machine |
-| another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | [target_body/controls/insufficient_bound/main.omg](target_body/controls/insufficient_bound/main.omg) | root-assumed bound consumed across target-scoped body implementations |
+| local | [local/main.omg](local/main.omg) | [invalid_local/main.omg](invalid_local/main.omg) | [local/controls/insufficient_bound/main.omg](local/controls/insufficient_bound/main.omg) | root-assumed bound copied into local variable |
+| field | [field/main.omg](field/main.omg) | [invalid_field/main.omg](invalid_field/main.omg) | [field/controls/insufficient_bound/main.omg](field/controls/insufficient_bound/main.omg) | root-assumed bound stored in and projected from record field |
+| parameter | [parameter/main.omg](parameter/main.omg) | [invalid_parameter/main.omg](invalid_parameter/main.omg) | [parameter/controls/insufficient_bound/main.omg](parameter/controls/insufficient_bound/main.omg) | root-assumed bound passed as explicit machine parameter |
+| call result | [call_result/main.omg](call_result/main.omg) | [invalid_call_result/main.omg](invalid_call_result/main.omg) | [call_result/controls/insufficient_bound/main.omg](call_result/controls/insufficient_bound/main.omg) | root-assumed bound returned across machine call boundary |
+| match join | [match_join/main.omg](match_join/main.omg) | [invalid_match_join/main.omg](invalid_match_join/main.omg) | [match_join/controls/insufficient_bound/main.omg](match_join/controls/insufficient_bound/main.omg) | root-assumed bound preserved across match convergence join |
+| const name | [const_name/main.omg](const_name/main.omg) | [invalid_const_name/main.omg](invalid_const_name/main.omg) | [const_name/controls/insufficient_bound/main.omg](const_name/controls/insufficient_bound/main.omg) | root-assumed bound named and constrained against constant |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [invalid_other_state/main.omg](invalid_other_state/main.omg) | [other_state/controls/insufficient_bound/main.omg](other_state/controls/insufficient_bound/main.omg) | root-assumed bound transitioned to successor machine argument |
+| another machine | [other_machine/main.omg](other_machine/main.omg) | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | [other_machine/controls/insufficient_bound/main.omg](other_machine/controls/insufficient_bound/main.omg) | root-assumed bound forwarded through another machine |
+| another target body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) | [target_body/controls/insufficient_bound/main.omg](target_body/controls/insufficient_bound/main.omg) | root-assumed bound consumed across target-scoped body implementations |
 
 Run each place with `omega run --both <place>/main.omg`. Public Build
 evaluation of that place's `assume_binding_contract` projects the exact root
-Product risk rows for the activation. No `omega update` lock is required, and
+Product risk rows for the activation. No `omega packages update` lock is required, and
 a retained lock must still match those rows.
 
 ## Requirements and Evidence

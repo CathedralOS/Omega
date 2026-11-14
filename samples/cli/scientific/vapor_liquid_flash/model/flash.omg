@@ -1,6 +1,5 @@
 module model::flash;
 use io::input;
-use omega::language::core::float_operations;
 // Status: 0 liquid, 1 vapor, 2 two_phase, 3 non_identifiable,
 // 4 bubble_boundary, 5 dew_boundary. Only positive-abundance K values
 // constrain identifiability. Endpoints carry only the present phase.

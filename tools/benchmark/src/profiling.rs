@@ -1,7 +1,7 @@
 /*
    Profiling is a separate, correctness-checked execution, not a timing sample
    mixed into an A/B experiment. The same plan and measurement owner execute
-   the subject. Phase/allocation observations and external profiler artifacts
+   the subject. Phase observations and external profiler artifacts
    retain their source/binary identities. Windows recordings use a unique WPR
    instance; no command touches the user's default recording or system settings.
 */
@@ -51,8 +51,8 @@ pub fn run(plan_path: &Path, role: &str, backend: &str, directory: &Path) -> Res
     if !matches!(role, "baseline" | "candidate") {
         return Err("profile role must be baseline or candidate".into());
     }
-    if !matches!(backend, "allocations" | "wpr" | "perf-stat" | "perf-record") {
-        return Err("profile backend must be allocations, wpr, perf-stat or perf-record".into());
+    if !matches!(backend, "wpr" | "perf-stat" | "perf-record") {
+        return Err("profile backend must be wpr, perf-stat or perf-record".into());
     }
     let (mut plan, path, plan_sha256) = experiment::prepare_plan(plan_path)?;
     let directory_parent = directory
@@ -148,42 +148,33 @@ pub fn run(plan_path: &Path, role: &str, backend: &str, directory: &Path) -> Res
     } else {
         &mut plan.candidate
     };
-    match backend {
-        "allocations" => {
-            command.environment.insert(
-                "OMEGA_ALLOCATION_PROFILE".into(),
-                directory.join("allocations.json").display().to_string(),
-            );
-        }
-        "perf-stat" | "perf-record" => {
-            let profiler = find_perf().ok_or("perf was not found at /usr/bin/perf or /bin/perf")?;
-            result["profiler_sha256"] = json!(process::file_digest(&profiler)?);
-            let mut arguments = if backend == "perf-stat" {
-                vec![
-                    "stat".into(),
-                    "-j".into(),
-                    "-o".into(),
-                    directory.join("counters.jsonl").display().to_string(),
-                    "-e".into(),
-                    "cycles,instructions,branches,branch-misses,cache-misses,page-faults".into(),
-                    "--".into(),
-                ]
-            } else {
-                vec![
-                    "record".into(),
-                    "--call-graph".into(),
-                    "dwarf".into(),
-                    "-o".into(),
-                    directory.join("perf.data").display().to_string(),
-                    "--".into(),
-                ]
-            };
-            arguments.push(command.program.display().to_string());
-            arguments.extend(command.arguments.clone());
-            command.program = profiler;
-            command.arguments = arguments;
-        }
-        _ => {}
+    if matches!(backend, "perf-stat" | "perf-record") {
+        let profiler = find_perf().ok_or("perf was not found at /usr/bin/perf or /bin/perf")?;
+        result["profiler_sha256"] = json!(process::file_digest(&profiler)?);
+        let mut arguments = if backend == "perf-stat" {
+            vec![
+                "stat".into(),
+                "-j".into(),
+                "-o".into(),
+                directory.join("counters.jsonl").display().to_string(),
+                "-e".into(),
+                "cycles,instructions,branches,branch-misses,cache-misses,page-faults".into(),
+                "--".into(),
+            ]
+        } else {
+            vec![
+                "record".into(),
+                "--call-graph".into(),
+                "dwarf".into(),
+                "-o".into(),
+                directory.join("perf.data").display().to_string(),
+                "--".into(),
+            ]
+        };
+        arguments.push(command.program.display().to_string());
+        arguments.extend(command.arguments.clone());
+        command.program = profiler;
+        command.arguments = arguments;
     }
     result["executed_plan"] = serde_json::to_value(&plan).map_err(|error| error.to_string())?;
     let mut sample = experiment::Sample {
@@ -241,22 +232,6 @@ pub fn run(plan_path: &Path, role: &str, backend: &str, directory: &Path) -> Res
     }
     let extracted = (|| -> Result<(), String> {
         match backend {
-            "allocations" => {
-                let allocation_path = directory.join("allocations.json");
-                if !allocation_path.exists() {
-                    result["status"] = json!("unavailable");
-                    result["reason"] = json!(
-                        "subject did not emit allocation observations; build with the allocation-observation feature"
-                    );
-                    return Ok(());
-                }
-                let allocation: Value = serde_json::from_slice(
-                    &std::fs::read(allocation_path).map_err(|error| error.to_string())?,
-                )
-                .map_err(|error| error.to_string())?;
-                validate_allocations(&allocation)?;
-                result["allocations"] = allocation;
-            }
             "perf-stat" => {
                 let bytes = std::fs::read(directory.join("counters.jsonl"))
                     .map_err(|error| error.to_string())?;
@@ -290,7 +265,7 @@ pub fn run(plan_path: &Path, role: &str, backend: &str, directory: &Path) -> Res
     if let Err(reason) = extracted {
         result["status"] = json!("failed");
         result["reason"] = json!(reason);
-    } else if result["status"] != "unavailable" {
+    } else {
         result["status"] = json!("complete");
     }
     save(&directory, &result)?;
@@ -309,31 +284,6 @@ pub(crate) fn find_perf() -> Option<PathBuf> {
         .into_iter()
         .map(PathBuf::from)
         .find(|path| path.is_file())
-}
-
-fn validate_allocations(value: &Value) -> Result<(), String> {
-    if value["schema"] != "omega-allocation-observation/1" {
-        return Err("invalid allocation observation schema".into());
-    }
-    for name in [
-        "allocations",
-        "reallocations",
-        "deallocations",
-        "requested_bytes",
-        "live_bytes",
-        "peak_live_bytes",
-        "failures",
-    ] {
-        if value[name].as_u64().is_none() {
-            return Err(format!("allocation observation missing {name}"));
-        }
-    }
-    if value["live_bytes"].as_u64() > value["peak_live_bytes"].as_u64()
-        || value["peak_live_bytes"].as_u64() > value["requested_bytes"].as_u64()
-    {
-        return Err("allocation byte invariants disagree".into());
-    }
-    Ok(())
 }
 
 fn parse_perf_stat(bytes: &[u8]) -> Result<Vec<Value>, String> {

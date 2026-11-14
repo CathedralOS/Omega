@@ -276,58 +276,10 @@ pub(crate) mod compiler_evaluation {
             proposition: &Proposition,
             integers: &mut ClosedIntegerEvaluator,
         ) -> Result<Option<bool>, String> {
-            Ok(match proposition {
-                Proposition::Truth => Some(true),
-                Proposition::Falsehood => Some(false),
-                Proposition::Equal(left, right) if left.scalar_type() == ScalarType::Boolean => {
-                    left.boolean_value()
-                        .zip(right.boolean_value())
-                        .map(|(left, right)| left == right)
-                }
-                semantic_vocabulary::ordered_comparison_operands!(left, right) => left
-                    .integer_value()
-                    .zip(right.integer_value())
-                    .and_then(|((left_type, left), (right_type, right))| {
-                        (left_type == right_type)
-                            .then(|| left_type.compare(left, right))
-                            .flatten()
-                    })
-                    .map(|ordering| match proposition {
-                        Proposition::Equal(..) => ordering.is_eq(),
-                        Proposition::LessThan(..) => ordering.is_lt(),
-                        _ => !ordering.is_gt(),
-                    }),
-                semantic_vocabulary::integer_math_comparison_operands!(left, right) => integers
-                    .compare(left, right)
-                    .map_err(|reason| {
-                        format!("the checked crash guard could not be evaluated: {reason}")
-                    })?
-                    .map(|ordering| match proposition {
-                        Proposition::IntegerMathEqual(..) => ordering.is_eq(),
-                        Proposition::IntegerMathLessThan(..) => ordering.is_lt(),
-                        _ => !ordering.is_gt(),
-                    }),
-                Proposition::Conjunction(children) | Proposition::Disjunction(children) => {
-                    let identity = matches!(proposition, Proposition::Conjunction(_));
-                    let mut unknown = false;
-                    for child in children {
-                        match closed_guard(child, integers)? {
-                            Some(value) if value != identity => return Ok(Some(value)),
-                            Some(_) => (),
-                            None => unknown = true,
-                        }
-                    }
-                    (!unknown).then_some(identity)
-                }
-                Proposition::Implication {
-                    premise,
-                    conclusion,
-                } => match closed_guard(premise, integers)? {
-                    Some(false) => Some(true),
-                    Some(true) => closed_guard(conclusion, integers)?,
-                    None => closed_guard(conclusion, integers)?.filter(|value| *value),
-                },
-                _ => None,
+            // The shared walk decides the guard. This only keeps the admission
+            // message for a closed-integer resource limit.
+            proof_admission::closed_guard(proposition, integers).map_err(|reason| {
+                format!("the checked crash guard could not be evaluated: {reason}")
             })
         }
 
@@ -478,6 +430,51 @@ pub(crate) mod compiler_evaluation {
             }
 
             #[test]
+            fn float_guard_decides_literal_ieee_comparison() {
+                // The same Binary32 guards the interpreter decides: 1.0 < 2.0,
+                // and a NaN is not equal to itself.
+                use proof_admission::ClosedIntegerEvaluator;
+                use semantic_vocabulary::{
+                    IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatValue,
+                };
+                let guard = |kind, left, right| Proposition::ScalarIeeeFloatComparison {
+                    kind,
+                    format: IeeeFloatFormat::Binary32,
+                    left: ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary32(left)),
+                    right: ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary32(right)),
+                };
+                let mut integers = ClosedIntegerEvaluator::default();
+                assert_eq!(
+                    super::closed_guard(
+                        &guard(IeeeFloatComparisonKind::LessThan, 0x3f80_0000, 0x4000_0000),
+                        &mut integers,
+                    )
+                    .unwrap(),
+                    Some(true)
+                );
+                assert_eq!(
+                    super::closed_guard(
+                        &guard(IeeeFloatComparisonKind::Equal, 0x7fc0_0000, 0x7fc0_0000),
+                        &mut integers,
+                    )
+                    .unwrap(),
+                    Some(false)
+                );
+                let mismatched = Proposition::ScalarIeeeFloatComparison {
+                    kind: IeeeFloatComparisonKind::LessThan,
+                    format: IeeeFloatFormat::Binary32,
+                    left: ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary32(0x3f80_0000)),
+                    right: ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary64(
+                        0x4000_0000_0000_0000,
+                    )),
+                };
+                assert_eq!(
+                    super::closed_guard(&mismatched, &mut integers).unwrap(),
+                    None
+                );
+            }
+
+            #[test]
             fn malformed_or_oversized_guard_never_proves_absence() {
                 assert!(
                     exclude_failure_routes(&Ok(vec![CrashRouteBucket {
@@ -569,27 +566,12 @@ pub(crate) mod compiler_evaluation {
                 TerminalMachine {
                     assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
                     id: MachineId::new(id).unwrap(),
-                    declaration: None,
                     attachment: None,
                     nominal_cleanup_subject: None,
-                    parameters: vec![terminal_psi::ValueDeclaration {
-                        id: ValueId::FIRST,
-                        scalar_type: ScalarType::Integer(integer_type()),
-                        qualifications: Default::default(),
-                    }],
-                    parameter_order: vec![terminal_psi::BoundaryParameterKind::Scalar],
-                    structural_parameters: Vec::new(),
                     ranked_scc: None,
-                    result: TerminalMachineResult::Unit,
                     structural_places: Vec::new(),
-                    entry_claims: Vec::new(),
                     block_entry_claims: Vec::new(),
                     loan_completions: Vec::new(),
-                    declared_service_reach: Vec::new(),
-                    closed_reach_application: None,
-                    published_synchronous_entries: Vec::new(),
-                    published_service_ceiling: Vec::new(),
-                    content_entry_claims: Vec::new(),
                     content_identity_reshuffles: Vec::new(),
                     content_partition_compositions: Vec::new(),
                     entry: block,
@@ -601,7 +583,24 @@ pub(crate) mod compiler_evaluation {
                             cleanup_actions: Vec::new(),
                         },
                     )],
-                    contract: terminal_psi::MachineContract::empty(ContractId::new(1).unwrap()),
+                    contract: terminal_psi::MachineContract {
+                        declaration: None,
+                        parameters: vec![terminal_psi::ValueDeclaration {
+                            id: ValueId::FIRST,
+                            scalar_type: ScalarType::Integer(integer_type()),
+                            qualifications: Default::default(),
+                        }],
+                        parameter_order: vec![terminal_psi::BoundaryParameterKind::Scalar],
+                        structural_parameters: Vec::new(),
+                        result: TerminalMachineResult::Unit,
+                        entry_claims: Vec::new(),
+                        declared_service_reach: None,
+                        closed_reach_application: None,
+                        published_synchronous_entries: Vec::new(),
+                        published_service_ceiling: Vec::new(),
+                        content_entry_claims: Vec::new(),
+                        ..terminal_psi::MachineContract::empty(ContractId::new(1).unwrap())
+                    },
                 }
             }
 
@@ -798,7 +797,7 @@ pub(crate) mod compiler_evaluation {
     pub struct AdmittedCompilerEvaluation {
         providers: crate::AdmittedProviderSelections,
         artifact: terminal_codec::TerminalExecutionIdentity,
-        target: String,
+        target: Option<String>,
         declaration: ProofDeclarationId,
         requester: DeclarationCustody,
     }
@@ -807,18 +806,19 @@ pub(crate) mod compiler_evaluation {
         pub const fn requester(&self) -> DeclarationCustody {
             self.requester
         }
-        pub fn target(&self) -> &str {
-            &self.target
+        pub fn target(&self) -> Option<&str> {
+            self.target.as_deref()
         }
         pub fn providers(&self) -> &crate::AdmittedProviderSelections {
             &self.providers
         }
-        pub fn require_invocation<'code>(
+        pub fn require_invocation<'code, 'target>(
             &self,
             artifact: impl Into<terminal_codec::TerminalExecutionView<'code>>,
-            target: &str,
+            target: impl Into<Option<&'target str>>,
             entry: TargetMachineCallable,
         ) -> Result<(), String> {
+            let target = target.into();
             let artifact = artifact.into();
             let declaration = artifact
                 .module()
@@ -826,7 +826,7 @@ pub(crate) mod compiler_evaluation {
                 .proof_scope
                 .callable_declaration(entry);
             if self.artifact != artifact.custody_identity()
-                || self.target != target
+                || self.target.as_deref() != target
                 || declaration != Some(self.declaration)
             {
                 return Err(
@@ -838,25 +838,52 @@ pub(crate) mod compiler_evaluation {
         }
     }
 
-    pub fn admit_compiler_evaluation<'code>(
+    /// Consent to select unowned source inside this exact private invocation.
+    /// This is not a declaration owner, package edge or execution admission.
+    pub trait InvocationSourceSelection {
+        fn allows_selection(
+            &self,
+            artifact: terminal_codec::TerminalExecutionView<'_>,
+            requester: Option<ProofDeclarationId>,
+            declaration: ProofDeclarationId,
+        ) -> bool;
+    }
+
+    pub fn admit_compiler_evaluation<'code, 'target>(
         artifact: impl Into<terminal_codec::TerminalExecutionView<'code>>,
-        target: &str,
+        target: impl Into<Option<&'target str>>,
         root: ProofDeclarationId,
         providers: crate::AdmittedProviderSelections,
         requester: DeclarationCustody,
         authority: Option<&dyn DeclarationSelectionAuthority>,
     ) -> Result<AdmittedCompilerEvaluation, String> {
+        admit_compiler_evaluation_with_source_consent(
+            artifact, target, root, providers, requester, authority, None,
+        )
+    }
+
+    pub fn admit_compiler_evaluation_with_source_consent<'code, 'target>(
+        artifact: impl Into<terminal_codec::TerminalExecutionView<'code>>,
+        target: impl Into<Option<&'target str>>,
+        root: ProofDeclarationId,
+        providers: crate::AdmittedProviderSelections,
+        requester: DeclarationCustody,
+        authority: Option<&dyn DeclarationSelectionAuthority>,
+        source_consent: Option<&dyn InvocationSourceSelection>,
+    ) -> Result<AdmittedCompilerEvaluation, String> {
         let artifact = artifact.into();
+        let target = target.into();
         if providers.execution_identity() != &artifact.custody_identity() {
             return Err(
                 "compiler-evaluation provider installation names a different artifact".into(),
             );
         }
         let scope = &artifact.module().scalar_applications.proof_scope;
-        let root = scope
-            .plan
-            .callable_for_target(root, target)
-            .ok_or("compiler-evaluation declaration has no selected target body")?;
+        let root = match target {
+            Some(target) => scope.plan.callable_for_target(root, target),
+            None => scope.plan.callable_without_target(root),
+        }
+        .ok_or("compiler-evaluation declaration has no body in the requested target scope")?;
         let root_facts = declaration(scope, root)?;
         if root_facts.entry_requires {
             return Err(format!(
@@ -890,8 +917,15 @@ pub(crate) mod compiler_evaluation {
         }
         let mut effects = CompilerEvaluationEffects::default();
         let mut closure_violation = None;
-        let mut selection_violation =
-            require_selection(requester, root_facts.custody, authority).err();
+        let selection_violation = require_invocation_selections(
+            scope,
+            &closure,
+            root,
+            requester,
+            authority,
+            source_consent.map(|consent| (artifact, consent)),
+        )
+        .err();
         for &machine in &closure.machines {
             let facts = declaration(scope, machine)?;
             for service in &facts.effects.services {
@@ -918,30 +952,8 @@ pub(crate) mod compiler_evaluation {
                     facts.name
                 ));
             }
-            let requests = facts.selections.as_ref().map_err(Clone::clone)?;
-            for request in requests {
-                if let Err(reason) = require_selection(
-                    DeclarationCustody::Package(request.requester),
-                    DeclarationCustody::Package(request.owner),
-                    authority,
-                ) && selection_violation.is_none()
-                {
-                    selection_violation = Some(reason);
-                }
-            }
         }
         for edge in &closure.invocations {
-            if !edge.provider
-                && !edge.static_delegation
-                && let (Ok(source), Ok(target)) = (
-                    declaration(scope, edge.source.machine()),
-                    declaration(scope, edge.target.machine()),
-                )
-                && let Err(reason) = require_selection(source.custody, target.custody, authority)
-                && selection_violation.is_none()
-            {
-                selection_violation = Some(reason);
-            }
             let mut pending = vec![edge.target.clone()];
             let mut visited = Vec::new();
             let mut recurrent = false;
@@ -976,7 +988,7 @@ pub(crate) mod compiler_evaluation {
         Ok(AdmittedCompilerEvaluation {
             providers,
             artifact: artifact.custody_identity(),
-            target: target.to_owned(),
+            target: target.map(str::to_owned),
             declaration: root,
             requester,
         })
@@ -990,16 +1002,164 @@ pub(crate) mod compiler_evaluation {
         pub dependencies: Vec<ProofDeclarationId>,
     }
 
-    pub(crate) fn compiler_invocation_scope(
-        scope: &ProofApplicationScope,
-        target: &str,
+    /// Admit the declarations an execution can select without imposing the
+    /// effect-free floor of a constant evaluator. Build has separately admitted
+    /// host effects, but still owes the same exact package-custody checks.
+    pub fn admit_declaration_selections(
+        artifact: terminal_codec::TerminalExecutionView<'_>,
+        target: Option<&str>,
+        entry: TargetMachineCallable,
         providers: &crate::AdmittedProviderSelections,
-        root: ProofDeclarationId,
-    ) -> Result<CompilerInvocationScope, String> {
+        requester: DeclarationCustody,
+        authority: &dyn DeclarationSelectionAuthority,
+    ) -> Result<(), String> {
+        if providers.execution_identity() != &artifact.custody_identity() {
+            return Err(
+                "declaration admission provider installation names a different artifact".into(),
+            );
+        }
+        let scope = &artifact.module().scalar_applications.proof_scope;
+        let root = scope
+            .callable_declaration(entry)
+            .ok_or("declaration admission entry lost its retained declaration")?;
         let root = scope
             .plan
             .callable_for_target(root, target)
-            .ok_or("compiler-evaluation declaration has no selected target body")?;
+            .ok_or("declaration admission entry has no selected target body")?;
+        let invocation = compiler_invocation_scope(scope, target, providers, root)?;
+        require_invocation_selections(
+            scope,
+            &invocation.closure,
+            root,
+            requester,
+            Some(authority),
+            None,
+        )
+    }
+
+    fn require_invocation_selections(
+        scope: &ProofApplicationScope,
+        closure: &semantic_vocabulary::proof_applications::ProofApplicationReachability<
+            ProofDeclarationId,
+        >,
+        root: ProofDeclarationId,
+        requester: DeclarationCustody,
+        authority: Option<&dyn DeclarationSelectionAuthority>,
+        source_consent: Option<(
+            terminal_codec::TerminalExecutionView<'_>,
+            &dyn InvocationSourceSelection,
+        )>,
+    ) -> Result<(), String> {
+        require_invocation_selection(
+            (requester, None),
+            (declaration(scope, root)?.custody, root),
+            authority,
+            source_consent,
+        )?;
+        for &machine in &closure.machines {
+            let facts = declaration(scope, machine)?;
+            for request in facts.selections.as_ref().map_err(Clone::clone)? {
+                require_selection(
+                    DeclarationCustody::Package(request.requester),
+                    DeclarationCustody::Package(request.owner),
+                    authority,
+                )?;
+            }
+        }
+        for edge in &closure.invocations {
+            if !edge.provider && !edge.static_delegation {
+                let source = declaration(scope, edge.source.machine())?;
+                let target = declaration(scope, edge.target.machine())?;
+                require_invocation_selection(
+                    (source.custody, Some(edge.source.machine())),
+                    (target.custody, edge.target.machine()),
+                    authority,
+                    source_consent,
+                )?;
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn declaration_admission_preserves_authority_without_a_pure_effect_floor() {
+        use semantic_vocabulary::compiler_evaluation::DeclarationAuthorityRequest;
+        use semantic_vocabulary::proof_applications::ProofApplicationReachability;
+        let root = ProofDeclarationId(1);
+        let package = semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]).unwrap();
+        let other = semantic_vocabulary::PackageKeyIdentity::from_digest([2; 32]).unwrap();
+        let facts = CompilerEvaluationDeclaration {
+            name: "build".into(),
+            custody: DeclarationCustody::Package(package),
+            effects: CompilerEvaluationEffects {
+                services: vec!["explicit host service".into()],
+                may_suspend: true,
+                may_block: false,
+            },
+            local_terminates: false,
+            entry_requires: false,
+            linear_carrier: None,
+            static_application: None,
+            selections: Ok(Vec::new()),
+        };
+        let closure = ProofApplicationReachability {
+            machines: vec![root],
+            calls: Vec::new(),
+            invocations: Vec::new(),
+        };
+        let check = |facts: Result<CompilerEvaluationDeclaration, String>| {
+            let mut scope = ProofApplicationScope::default();
+            scope
+                .callable_headers
+                .insert(terminal_psi::ProofCallableHeader {
+                    declaration: root,
+                    compiler_evaluation: facts,
+                    ..Default::default()
+                });
+            require_invocation_selections(
+                &scope,
+                &closure,
+                root,
+                DeclarationCustody::Package(package),
+                None,
+                None,
+            )
+        };
+        assert!(check(Ok(facts.clone())).is_ok());
+        let mut foreign = facts.clone();
+        foreign.selections = Ok(vec![DeclarationAuthorityRequest {
+            requester: package,
+            owner: other,
+        }]);
+        assert!(
+            check(Ok(foreign))
+                .unwrap_err()
+                .contains("dependency selection authority")
+        );
+        let mut missing = facts.clone();
+        missing.custody = DeclarationCustody::Missing;
+        assert!(check(Ok(missing)).unwrap_err().contains("provenance"));
+        assert_eq!(
+            check(Err("lost declaration facts".into())).unwrap_err(),
+            "lost declaration facts"
+        );
+        assert!(
+            require_compiler_evaluation_floor(&facts.name, &facts.effects, None, None).is_err()
+        );
+    }
+
+    pub(crate) fn compiler_invocation_scope<'target>(
+        scope: &ProofApplicationScope,
+        target: impl Into<Option<&'target str>>,
+        providers: &crate::AdmittedProviderSelections,
+        root: ProofDeclarationId,
+    ) -> Result<CompilerInvocationScope, String> {
+        let target = target.into();
+        let root = match target {
+            Some(target) => scope.plan.callable_for_target(root, target),
+            None => scope.plan.callable_without_target(root),
+        }
+        .ok_or("compiler-evaluation declaration has no body in the requested target scope")?;
         let mut selected = Vec::new();
         for (requirement, body) in providers.providers().chain(
             providers
@@ -1034,6 +1194,31 @@ pub(crate) mod compiler_evaluation {
             }
         }
         dependencies.extend(scope.plan.declaration_closure(&dependencies.clone()));
+        if target.is_none() {
+            // A tagged callee can occur below an untagged root. Traversal leaves
+            // it in the demanded call roster rather than silently selecting it.
+            let demanded = dependencies
+                .iter()
+                .copied()
+                .collect::<std::collections::BTreeSet<_>>();
+            for (_, machine) in scope.plan.machines.iter() {
+                if (demanded.contains(&machine.machine)
+                    || scope
+                        .plan
+                        .symbols
+                        .span_or_empty(machine.states)
+                        .iter()
+                        .any(|state| demanded.contains(state)))
+                    && (machine.authored_target.is_some()
+                        || machine.source_target.is_some()
+                        || machine.family_interface)
+                {
+                    return Err(
+                        "target-independent evaluation demands a target-selected body".into(),
+                    );
+                }
+            }
+        }
         Ok(CompilerInvocationScope {
             selected,
             closure,
@@ -1066,6 +1251,27 @@ pub(crate) mod compiler_evaluation {
             .compiler_evaluation
             .as_ref()
             .map_err(Clone::clone)
+    }
+
+    fn require_invocation_selection(
+        requester: (DeclarationCustody, Option<ProofDeclarationId>),
+        owner: (DeclarationCustody, ProofDeclarationId),
+        authority: Option<&dyn DeclarationSelectionAuthority>,
+        source_consent: Option<(
+            terminal_codec::TerminalExecutionView<'_>,
+            &dyn InvocationSourceSelection,
+        )>,
+    ) -> Result<(), String> {
+        if requester.0 == DeclarationCustody::UnownedUser
+            && owner.0 == DeclarationCustody::UnownedUser
+            && source_consent.is_some_and(|(artifact, consent)| {
+                artifact.module().identities.invocation_scope().is_some()
+                    && consent.allows_selection(artifact, requester.1, owner.1)
+            })
+        {
+            return Ok(());
+        }
+        require_selection(requester.0, owner.0, authority)
     }
 
     fn covered_recursive_edge(
@@ -1406,7 +1612,7 @@ pub(crate) mod synchronous_calls {
                     } else {
                         unrelated
                     },
-                    family_tuple: vec![slot.to_string()],
+                    family_tuple: vec![terminal_psi::FiniteScalarValue::Integer(i128::from(slot))],
                     scalar_parameters: Vec::new(),
                     structural_parameters: Vec::new(),
                     entry_claim_paths: Vec::new(),

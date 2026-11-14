@@ -877,49 +877,28 @@ mod token_bindings {
     }
 
     /*
-        Resolve domain homes under the same occurrence-scoped namespace law as
-        other domain references. The ordinary path lookup owns exact selections
-        and ambiguity; attached-domain exposure additionally admits a carrier's
-        leaf spelling. Loading another package, stratum or Build/Product copy
-        never adds an operand home. Keep ambiguity unresolved rather than choosing
-        one arena row or collapsing independently checked declarations by spelling.
+        Resolve a token's domain home with the membership pool. A signature-free
+        unique hit does not return before module-local preference. The same
+        symbol reached by lookup and by the exposure scan is one home. Two
+        different symbols stay unresolved even when they print the same.
     */
     fn domain_named(program: &SymbolResolvedTrees, name: &DiagnosticName) -> Option<SymbolHandle> {
-        let reference = name.source_span();
-        match program
-            .symbols
-            .lookup_signature_free_top_level_from_source_matching(
-                name.as_str(),
-                &[SymbolKind::Domain],
-                reference,
-                |_| true,
-            ) {
-            symbols::SymbolLookup::Unique(symbol) => return Some(symbol),
-            symbols::SymbolLookup::Ambiguous { .. } => return None,
-            symbols::SymbolLookup::NotFound => {}
-        }
-        let candidates = program
-            .domain_definitions
-            .iter()
-            .filter_map(|domain| {
-                (program
-                    .symbols
-                    .source_reference_can_see_symbol(reference, domain.symbol)
-                    && program
-                        .symbols
-                        .domain_name_reaches(domain.symbol, name.as_str(), reference))
-                .then_some(domain.symbol)
-            })
-            .collect();
-        let candidates =
-            crate::symbols::prefer_module_local_domain(&program.symbols, candidates, reference);
-        match candidates.as_slice() {
-            [symbol] => Some(*symbol),
-            _ => None,
+        match crate::symbols::membership_domain_lookup(
+            &program.symbols,
+            name.as_str(),
+            name.source_span(),
+        ) {
+            crate::symbols::DomainMembership::Unique(symbol) => Some(symbol),
+            crate::symbols::DomainMembership::NotFound
+            | crate::symbols::DomainMembership::Ambiguous { .. }
+            | crate::symbols::DomainMembership::Contested => None,
         }
     }
 
-    #[cfg(test)]
+    /*
+        Two unsourced `Quantity` rows are different symbols. A shared display
+        path does not choose one of them.
+    */
     #[test]
     fn domain_home_lookup_keeps_unsourced_ambiguity() {
         use symbols::{SymbolNameRef, SymbolTableBuilder};
@@ -940,6 +919,112 @@ mod token_bindings {
                 (count == 1).then_some(domains.start()),
             );
         }
+    }
+
+    /*
+        Ordinary lookup and the exposure scan can both name one domain. That
+        repeated handle is one candidate.
+    */
+    #[test]
+    fn one_domain_symbol_reached_through_two_routes_is_one_candidate() {
+        use std::path::PathBuf;
+        use std::sync::Arc;
+
+        use source::{SourceMap, SourceSpan, Span};
+        use symbols::{SymbolKind, SymbolLookup, SymbolNameRef, SymbolTableBuilder};
+
+        let mut sources = SourceMap::default();
+        let local = sources
+            .add(PathBuf::from("pkg/local.omg"), "Quantity".to_owned())
+            .source_id;
+        let sources = Arc::new(sources);
+        let reference = SourceSpan::new(local, Span::new(0, 8));
+        let mut builder = SymbolTableBuilder::with_sources(Some(sources));
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let quantity = builder.insert_children(
+            root,
+            [(
+                SymbolKind::Domain,
+                SymbolNameRef::OwnedSource {
+                    value: "Quantity",
+                    source_span: reference,
+                },
+            )],
+        );
+        let quantity = SymbolTableBuilder::child_handles(quantity)
+            .next()
+            .expect("one domain");
+        let mut symbols = builder.finish();
+        symbols
+            .register_source_module(local, [("here", reference)])
+            .expect("one module");
+        assert_eq!(
+            symbols.lookup_top_level_by_name_and_kinds_from_source_matching(
+                "Quantity",
+                &[SymbolKind::Domain],
+                reference,
+                |_| true,
+            ),
+            SymbolLookup::Unique(quantity),
+        );
+        assert!(symbols.domain_name_reaches(quantity, "Quantity", reference));
+        assert!(matches!(
+            crate::symbols::membership_domain_lookup(&symbols, "Quantity", reference),
+            crate::symbols::DomainMembership::Unique(symbol) if symbol == quantity
+        ));
+    }
+
+    /*
+        A signature-free lookup can see one exact `Quantity` and stop. The
+        membership lookup still scans the module and prefers the local leaf
+        `Widget::Quantity`. Token homes have to take that local domain.
+    */
+    #[test]
+    fn signature_free_unique_domain_does_not_skip_module_local_preference() {
+        use std::path::PathBuf;
+        use std::sync::Arc;
+
+        use source::{SourceMap, SourceSpan, Span};
+        use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+        let mut sources = SourceMap::default();
+        let local = sources
+            .add(PathBuf::from("pkg/local.omg"), "Quantity".to_owned())
+            .source_id;
+        let sources = Arc::new(sources);
+        let reference = SourceSpan::new(local, Span::new(0, 8));
+        let mut builder = SymbolTableBuilder::with_sources(Some(sources));
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let mut handles = SymbolTableBuilder::child_handles(builder.insert_children(
+            root,
+            [
+                (SymbolKind::Domain, SymbolNameRef::Static("Quantity")),
+                (
+                    SymbolKind::Domain,
+                    SymbolNameRef::OwnedSource {
+                        value: "Widget::Quantity",
+                        source_span: reference,
+                    },
+                ),
+            ],
+        ));
+        let signature_free = handles.next().expect("exact Quantity");
+        let module_local = handles.next().expect("module-local leaf");
+        let mut symbols = builder.finish();
+        symbols
+            .register_source_module(local, [("here", reference)])
+            .expect("one module");
+        let program = SymbolResolvedTrees {
+            symbols,
+            ..Default::default()
+        };
+        let selected = domain_named(&program, &DiagnosticName::from_str("Quantity", reference));
+        assert_eq!(
+            selected.map(|symbol| program.symbols.display_path(symbol, "::")),
+            Some(program.symbols.display_path(module_local, "::")),
+            "signature-free hit was {}",
+            program.symbols.display_path(signature_free, "::"),
+        );
     }
 
     /* The declaration set a direct binding is validated against. */
@@ -1488,11 +1573,8 @@ use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
 use language_semantics::RankingViewId;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
-use language_semantics::declaration_selection::CollectionMeasure;
 use language_semantics::declaration_selection::CompilerDerivedSelectionPartition;
 use std::mem::replace;
-use symbol_resolved_trees::data::TypeParameter;
-use symbol_resolved_trees::data::TypeParameterKind;
 use symbol_resolved_trees::expression::ExpressionHandle;
 use symbol_resolved_trees::machine::{
     GenericConformanceBound, GenericDataMachineOrigin, Machine, MachineBodyStatus, MachineStorage,
@@ -1600,6 +1682,12 @@ fn lower_lexical_machine_parts(
         return Err(Diagnostic::error(
             "a nested machine is a private independent lexical declaration",
         ));
+    }
+    let compiler_provided = machine.target.is_none()
+        && !machine.target_family_interface
+        && crate::lowering::operator::is_bare_bodyless_signature(machine);
+    if compiler_provided {
+        crate::lowering::operator::require_catalog_signature(lowerer, syntax_trees, machine)?;
     }
     let compiler_selection_partition = compiler_selection_partition(
         lowerer.symbol_resolved_trees.machines.len(),
@@ -1713,8 +1801,7 @@ fn lower_lexical_machine_parts(
         .attached_data
         .as_ref()
         .map(|name| lower_name(syntax_trees, name));
-    let termination_plan =
-        build_termination_plan(lowerer, syntax_trees, machine, states, type_parameters);
+    let termination_plan = build_termination_plan(syntax_trees, machine);
 
     let supply_mode = {
         let via_binding = syntax_items(syntax_trees)
@@ -1726,7 +1813,9 @@ fn lower_lexical_machine_parts(
             .satisfies_clauses(machine.satisfies)
             .iter()
             .any(|clause| clause.via_expression.is_valid());
-        if machine.target_family_interface {
+        if compiler_provided {
+            language_semantics::MachineSupplyMode::CompilerProvided
+        } else if machine.target_family_interface {
             language_semantics::MachineSupplyMode::Requirement
         } else if crate::lowering::operator::is_token_bearing_boundary_signature(machine) {
             language_semantics::MachineSupplyMode::TopLevelRequirement
@@ -2028,29 +2117,14 @@ pub(crate) fn lower_generic_conformance_bounds(
 }
 
 /*
-    TPR2 (decision 23): populate the normalized `MachineTerminationPlan` --
-    the plan's ONE population site; every later stage copies, never
-    re-derives.
-
-    - Bare `terminates;` authors the PUBLIC termination guarantee
-      (premises land with TPR4's pinned progress profiles). `terminates by
-      ...` alone publishes NOTHING: it supplies the private witness for a
-      checked body or an inherited claim (the brief's firewall).
-    - `checked_summary` stays `NoGuarantee` here: it is the CHECKER's to
-      establish (TPR3), never claimed at lowering.
-    - The witness records the ranked subjects and the EXPLICIT ranking view.
-      Canonical defaults elaborate immediately where this stage determines
-      them (the two-subject builtin, `.len` subjects, and root-state
-      parameters of unsigned/slice type -- mirroring the checker's inference
-      EXACTLY); the remaining single-subject short forms keep an empty
-      `view_path` until TPR3 folds elaboration into the migrated checker.
+    Retain the authored promise and witness without guessing a subject's
+    carrier from its spelling. Typing selects canonical default views after
+    parameter types and collection observations have exact identities.
+    Neither stage establishes the checked termination guarantee.
 */
 fn build_termination_plan(
-    lowerer: &Lowerer,
     syntax_trees: &SyntaxTrees,
     machine: &syntax::item::Machine,
-    states: HandleSpan<Handle<State>>,
-    type_parameters: HandleSpan<TypeParameter>,
 ) -> language_semantics::MachineTerminationPlan {
     use language_semantics::{
         MachineTerminationPlan, RankingWitness, TerminationGuarantee, TerminationInterface,
@@ -2068,14 +2142,7 @@ fn build_termination_plan(
 
     let subjects = syntax_expressions(syntax_trees).expression_handles(machine.ranking_subjects);
     let implementation_witness = (!subjects.is_empty()).then(|| {
-        let (ranking_view, view_path) = elaborate_ranking_view(
-            lowerer,
-            syntax_trees,
-            machine,
-            states,
-            type_parameters,
-            subjects,
-        );
+        let (ranking_view, view_path) = authored_ranking_view(syntax_trees, machine);
         RankingWitness {
             subjects: subjects
                 .iter()
@@ -2112,7 +2179,7 @@ fn build_termination_plan(
 
 /*
     Render one ranked subject as source-like text for the private witness
-    (mirrors the checker's `decreasing_value_text`).
+    for diagnostics; retained expression handles carry semantic identity.
 */
 fn render_ranked_subject(
     syntax_trees: &SyntaxTrees,
@@ -2143,18 +2210,13 @@ fn render_ranked_subject(
 }
 
 /*
-    The witness's explicit view: the authored `-> View` verbatim (canonical
-    builtins get their FIXED ids; a user-declared measure carries `NULL`
-    until TPR3 assigns normalized measure identity), or the canonical
-    default the short form elaborates to.
+    Retain an authored `-> View` verbatim, with a fixed identity for canonical
+    builtins. An empty view requests default selection in typing; an unknown
+    explicit path stays nonempty and must not acquire a default instead.
 */
-fn elaborate_ranking_view(
-    lowerer: &Lowerer,
+fn authored_ranking_view(
     syntax_trees: &SyntaxTrees,
     machine: &syntax::item::Machine,
-    states: HandleSpan<Handle<State>>,
-    type_parameters: HandleSpan<TypeParameter>,
-    subjects: &[syntax::expression::ExpressionHandle],
 ) -> (RankingViewId, String) {
     use language_semantics::RankingViewId;
 
@@ -2165,121 +2227,7 @@ fn elaborate_ranking_view(
         return (id, path);
     }
 
-    match subjects {
-        [_, _] => canonical_view(RankingViewId::NAT_BOUNDED_DISTANCE),
-        [single] => elaborate_single_subject_default(
-            lowerer,
-            syntax_trees,
-            states,
-            type_parameters,
-            *single,
-        ),
-        _ => (RankingViewId::NULL, String::new()),
-    }
-}
-
-fn canonical_view(id: RankingViewId) -> (RankingViewId, String) {
-    (id, id.canonical_path().unwrap_or_default().to_string())
-}
-
-/*
-    The single-subject short form's canonical default, mirroring the
-    checker's `decreasing_value_kind` EXACTLY: a `.len` member is nat-like;
-    a plain name ranking a root-state parameter elaborates from the
-    parameter's DECLARED type with constraint shells stripped (ranges and
-    arithmetic domains never change WHAT descends) -- unsigned/bounded
-    scalars descend through the naturals, slices by their length. Anything
-    else stays PENDING (empty path): the checker diagnoses ambiguity as
-    today, and TPR3 folds elaboration into the migrated checker.
-*/
-fn elaborate_single_subject_default(
-    lowerer: &Lowerer,
-    syntax_trees: &SyntaxTrees,
-    states: HandleSpan<Handle<State>>,
-    type_parameters: HandleSpan<TypeParameter>,
-    subject: syntax::expression::ExpressionHandle,
-) -> (RankingViewId, String) {
-    use language_semantics::RankingViewId;
-    use symbol_resolved_trees::types::TypeReference;
-
-    if let ExpressionNode::Member(member) = syntax_trees.expressions.expression(subject)
-        && CollectionMeasure::from_authored_spelling(member.member.as_str(syntax_trees))
-            == Some(CollectionMeasure::Length)
-    {
-        return canonical_view(RankingViewId::NAT_DESCENDING);
-    }
-
-    let ExpressionNode::Name {
-        members: path,
-        application: path_application,
-    } = syntax_trees.expressions.expression(subject)
-    else {
-        return (RankingViewId::NULL, String::new());
-    };
-    let trees = &lowerer.symbol_resolved_trees;
-    let pending = (RankingViewId::NULL, String::new());
-    if path_application.is_some() {
-        return pending;
-    }
-    let Some(subject_name) = syntax_expressions(syntax_trees)
-        .identifier_path_members(path.to_owned())
-        .last()
-    else {
-        return pending;
-    };
-    let Some(root_state) = trees.machine_state_handles(states).first() else {
-        return pending;
-    };
-    let root_state = trees.machine_state(*root_state);
-    let declared = trees
-        .state_parameters(root_state.parameters)
-        .iter()
-        .find(|parameter| parameter.name.as_str() == subject_name.as_str(syntax_trees))
-        .map(|parameter| &parameter.type_reference)
-        .or_else(|| {
-            let parameter = trees
-                .data_type_parameters(type_parameters)
-                .iter()
-                .find(|parameter| parameter.name.as_str() == subject_name.as_str(syntax_trees))?;
-            match &parameter.kind {
-                TypeParameterKind::Value { type_reference }
-                | TypeParameterKind::Const { type_reference } => Some(type_reference),
-                _ => None,
-            }
-        });
-    let Some(mut base) = declared else {
-        return pending;
-    };
-    loop {
-        match base {
-            TypeReference::Constrained(constrained) => {
-                base = trees.child_type_reference(constrained.base_type);
-            }
-            TypeReference::Reference(reference) => {
-                base = trees.child_type_reference(reference.referee);
-            }
-            _ => break,
-        }
-    }
-    match base {
-        TypeReference::Slice(_) | TypeReference::FixedArray(_) => {
-            canonical_view(RankingViewId::SLICE_LENGTH)
-        }
-        TypeReference::Named { symbol, .. }
-            if matches!(
-                trees.symbols.builtin_type_atom(*symbol),
-                Some(
-                    symbols::BuiltinTypeAtom::U8
-                        | symbols::BuiltinTypeAtom::U16
-                        | symbols::BuiltinTypeAtom::U32
-                        | symbols::BuiltinTypeAtom::U64
-                )
-            ) =>
-        {
-            canonical_view(RankingViewId::NAT_DESCENDING)
-        }
-        _ => pending,
-    }
+    (RankingViewId::NULL, String::new())
 }
 
 fn lower_machine_ranking_view(

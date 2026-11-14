@@ -1,5 +1,5 @@
 use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega::language::core::U64::from_f64;
 // Bounded scientific output: signed fixed point with six fractional digits.
 // The admitted populations and two-second horizon bound displayed values.
 public machine integer(value:u64) reaches Console

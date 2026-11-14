@@ -28,15 +28,15 @@ A formation error or unrelated refusal does not count.
 
 | Place | Positive | Reject | Transport |
 | --- | --- | --- | --- |
-| local | [main](local/main.omg) | [invalid](local/invalid/main.omg) | Formed reference retained as a local. |
-| field | [main](field/main.omg) | [invalid](field/invalid/main.omg) | Lifetime-bound `Holder.view` stores the formed reference. |
-| parameter | [main](parameter/main.omg) | [invalid](parameter/invalid/main.omg) | Observer receives the reference and original address as explicit formals. |
-| call result | [main](call_result/main.omg) | [invalid](call_result/invalid/main.omg) | Identity helper returns an already-formed reference to caller storage. |
-| match join | [main](match_join/main.omg) | [invalid](match_join/invalid/main.omg) | True forwards directly; false forwards through the identity helper; both selections execute. |
-| const name | [main](const_name/main.omg) | [invalid](const_name/invalid/main.omg) | `const START: u64 = 1` selects the same runtime byte, following the indexed-address row's named-geometry pattern. |
-| another state | [main](other_state/main.omg) | [invalid](other_state/invalid/main.omg) | Named state receives the formed reference and original address. |
-| another machine | [main](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) | Relay forwards both formals to a separate observing machine. |
-| target body | [main](target_body/main.omg) | [invalid](target_body/invalid/main.omg) | Each hosted target body performs the same address comparison and field read. |
+| local | [main](local/main.omg) | [invalid](invalid_local/main.omg) | Formed reference retained as a local. |
+| field | [main](field/main.omg) | [invalid](invalid_field/main.omg) | Lifetime-bound `Holder.view` stores the formed reference. |
+| parameter | [main](parameter/main.omg) | [invalid](invalid_parameter/main.omg) | Observer receives the reference and original address as explicit formals. |
+| call result | [main](call_result/main.omg) | [invalid](invalid_call_result/main.omg) | Identity helper returns an already-formed reference to caller storage. |
+| match join | [main](match_join/main.omg) | [invalid](invalid_match_join/main.omg) | True forwards directly; false forwards through the identity helper; both selections execute. |
+| const name | [main](const_name/main.omg) | [invalid](invalid_const_name/main.omg) | `const START: u64 = 1` selects the same runtime byte, following the indexed-address row's named-geometry pattern. |
+| another state | [main](other_state/main.omg) | [invalid](invalid_other_state/main.omg) | Named state receives the formed reference and original address. |
+| another machine | [main](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) | Relay forwards both formals to a separate observing machine. |
+| target body | [main](target_body/main.omg) | [invalid](invalid_target_body/main.omg) | Each hosted target body performs the same address comparison and field read. |
 
 Every positive declares `Expected exit: 0`, has native and interpreter exit-0
 oracles, and binds `ProgramEntry` for `windows_x86_64`, `linux_x86_64`,

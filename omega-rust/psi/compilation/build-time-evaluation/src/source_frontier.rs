@@ -10,6 +10,19 @@ use typed_trees::TypedTrees;
 use typed_trees::declaration_authority::RecordedDeclarationAuthority;
 use typed_trees::deferred_refusals::DeferredRequest;
 
+/// Selection of private source in one captured Build context. This consent
+/// grants neither a declaration owner nor package edges or execution effects.
+/// The invocation bridge still admits the complete produced call separately.
+pub trait InvocationSourceConsent: Send + Sync {
+    fn allows_selection(
+        &self,
+        sources: &Arc<source::SourceMap>,
+        requester: source::SourceSpan,
+        declaration: source::SourceSpan,
+        purpose: source::DependencyScope,
+    ) -> bool;
+}
+
 fn unavailable() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "no product route yet: source evaluation and normalization",
@@ -223,7 +236,10 @@ fn require_no_unevaluated_constant_use(typed: &TypedTrees) -> Result<(), Vec<Dia
     let unevaluated = typed
         .const_declarations()
         .iter()
-        .filter(|declaration| declaration.evaluated_value.is_none())
+        .filter(|declaration| {
+            declaration.evaluated_value.is_none()
+                && !typed.tables.machines.is_valid(declaration.evaluation_entry)
+        })
         .map(|declaration| declaration.symbol)
         .collect::<Vec<_>>();
     if unevaluated.is_empty() {
@@ -439,12 +455,21 @@ impl PreCheckEvaluation {
         self,
         typed: &mut TypedTrees,
     ) -> Result<crate::RecordedPreCheck, Vec<Diagnostic>> {
+        if self.recorded_authority.is_some() {
+            return Err(vec![Diagnostic::error(
+                "source normalization authority has not been rejoined",
+            )]);
+        }
+        // Inventory all remaining source work before retaining an invocation
+        // owner. Later refusal recording must not mutate its request metadata.
+        defer_source_jobs(typed)?;
+        // A source frontier has no compilation demand. Retain constant
+        // requests until SourcePreparationRequest receives the real roster.
+        let accounting = crate::SourceCompletionAccounting::default();
         self.evaluate(typed)?;
-        // Declarations retain their deferred requests. No evaluation ran, so
-        // this produces no execution receipt and discharges no source contract.
         Ok(crate::RecordedPreCheck {
             pending: None,
-            accounting: crate::SourceCompletionAccounting::default(),
+            accounting,
         })
     }
     pub fn evaluate_or_defer(

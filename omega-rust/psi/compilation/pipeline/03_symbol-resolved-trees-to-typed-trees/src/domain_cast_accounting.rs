@@ -10,7 +10,7 @@ part of the cast is what can be read from declarations: which domain each
 entry names, that the entries account for every domain the operand's declared
 type carries, each exactly once, and that the result is a well-formed set (a
 child with its parents, one arithmetic policy). Each entry then carries the
-type before it and after it, and an added domain keeps its declaration on the
+type before it and after it, and each named domain keeps its declaration on the
 node. Whether an addition is allowed (predicates, issuance) and what a removal
 must retain are judged where the declaration is checked, not here.
 
@@ -38,6 +38,10 @@ use typed_trees::types::{
     TypeReferenceNode,
 };
 
+#[cfg(test)]
+#[path = "domain_cast_accounting_tests.rs"]
+mod tests;
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Atom {
     Declared(SymbolHandle, language_semantics::SemanticDomainId),
@@ -61,9 +65,6 @@ struct Named {
 }
 
 type Run = Vec<(ExpressionHandle, TableCastExpression, CastEntry)>;
-
-/// The machine state whose body or contracts hold a run, as positions.
-type Owner = (ExpressionHandle, usize, usize);
 
 /// Why a run is not accounted: a source error, or a form typing does not
 /// serve yet.
@@ -113,7 +114,40 @@ pub(crate) fn account(
         .filter(|(_, cast)| !cast.form.entry().is_some_and(|entry| entry.first))
         .map(|(_, cast)| cast.value)
         .collect();
-    let owners = owners(program, &sites);
+    let owners = typed_trees::references::collect_program_operand_owners(program);
+    // A retained constant and its exact initializer entry share source
+    // expressions. They are one source owner, unlike two unrelated callables
+    // that happen to retain the same expression handle.
+    let symbol_key = |symbol: SymbolHandle| (symbol.arena_index(), symbol.generation());
+    let mut initializer_owners = program
+        .const_declarations()
+        .iter()
+        .filter(|declaration| {
+            program
+                .tables
+                .machines
+                .is_valid(declaration.evaluation_entry)
+        })
+        .map(|declaration| {
+            (
+                program
+                    .tables
+                    .machines
+                    .get(declaration.evaluation_entry)
+                    .symbol,
+                declaration.symbol,
+            )
+        })
+        .collect::<Vec<_>>();
+    initializer_owners.sort_unstable_by_key(|(entry, _)| symbol_key(*entry));
+    if initializer_owners
+        .windows(2)
+        .any(|pair| pair[0].0 == pair[1].0)
+    {
+        return Err(Diagnostic::error(
+            "domain cast initializer entry has more than one constant owner",
+        ));
+    }
     let mut runs: Vec<Run> = Vec::new();
     for (outermost, _) in sites.iter().filter(|(handle, _)| !inner.contains(handle)) {
         let mut run = Vec::new();
@@ -133,26 +167,36 @@ pub(crate) fn account(
     }
     // Operands are allocated before the casts over them, so inner runs settle first.
     runs.sort_by_key(|run| run[0].0.arena_index());
-    let mut unowned = None;
     for run in runs {
         let outermost = run[run.len() - 1].0;
-        let owner = owners.iter().find(|(owned, _, _)| *owned == outermost);
+        let mut holders = owners
+            .expression_owners(outermost)
+            .filter(|owner| owner.is_valid())
+            .map(|owner| {
+                initializer_owners
+                    .binary_search_by_key(&symbol_key(owner), |(entry, _)| symbol_key(*entry))
+                    .map_or(owner, |position| initializer_owners[position].1)
+            })
+            .collect::<Vec<_>>();
+        holders.sort_unstable_by_key(|owner| symbol_key(*owner));
+        holders.dedup();
+        let owner = match holders.as_slice() {
+            [owner] => Some(*owner),
+            [] => None,
+            _ => {
+                return Err(refuse(
+                    program,
+                    outermost,
+                    "domain cast has more than one exact lexical owner".into(),
+                ));
+            }
+        };
         let request = match account_run(source, program, owner, &run, cast_destinations) {
             Ok(()) => continue,
             Err(Unaccounted::Rejected(diagnostic)) => return Err(diagnostic),
             Err(Unaccounted::Deferred(request)) => request,
         };
         let source_span = program.expression_table.source_span(run[0].0);
-        let holders: Vec<SymbolHandle> = match owner {
-            Some((_, machine, _)) => vec![program.machines()[*machine].symbol],
-            None => unowned
-                .get_or_insert_with(|| {
-                    typed_trees::references::collect_program_operand_owners(program)
-                })
-                .expression_owners(outermost)
-                .filter(|holder| holder.is_valid())
-                .collect(),
-        };
         if holders.is_empty() {
             return Err(Diagnostic::error(format!(
                 "no product route yet: an expression outside every declaration is one {}",
@@ -165,54 +209,6 @@ pub(crate) fn account(
         }
     }
     Ok(())
-}
-
-fn owners(program: &TypedTrees, sites: &[(ExpressionHandle, TableCastExpression)]) -> Vec<Owner> {
-    use typed_trees::signature::SignatureContractKind;
-    let mut owners = Vec::new();
-    for (machine_position, machine) in program.machines().iter().enumerate() {
-        for (state_position, state) in program.machine_states(machine).iter().enumerate() {
-            let mut roots = Vec::new();
-            for statement in program.statement_table.statements(state.statement_nodes) {
-                roots.extend(
-                    program
-                        .tables
-                        .expression_roots(statement)
-                        .into_iter()
-                        .map(|(_, root)| root),
-                );
-            }
-            for kind in [
-                SignatureContractKind::Requires,
-                SignatureContractKind::Ensures,
-            ] {
-                roots.extend(
-                    program.contract_expressions(
-                        program
-                            .machine_contracts(machine)
-                            .iter()
-                            .chain(program.state_contracts(state)),
-                        kind,
-                    ),
-                );
-            }
-            for root in roots {
-                program.subtree_for_each(
-                    root,
-                    typed_trees::SubtreeEdges::STRUCTURAL,
-                    |handle, node| {
-                        if matches!(node, ExpressionNode::Cast(cast) if cast.form.entry().is_some())
-                            && sites.iter().any(|(site, _)| *site == handle)
-                            && !owners.iter().any(|(owned, _, _)| *owned == handle)
-                        {
-                            owners.push((handle, machine_position, state_position));
-                        }
-                    },
-                );
-            }
-        }
-    }
-    owners
 }
 
 fn refuse(program: &TypedTrees, handle: ExpressionHandle, message: String) -> Diagnostic {
@@ -333,7 +329,7 @@ fn authored_span(program: &TypedTrees, handle: ExpressionHandle) -> Option<sourc
 */
 fn declared_type(
     program: &TypedTrees,
-    state: &typed_trees::state::State,
+    owner: SymbolHandle,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     let table = &program.expression_table;
@@ -342,7 +338,7 @@ fn declared_type(
     }
     match table.expression(expression) {
         ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
-            crate::typing_queries::declared_place_type(program, state, expression).ok()
+            crate::typing_queries::declared_callable_value_type(program, owner, expression).ok()
         }
         // An accounted entry and a settled cast carry their result. A plain
         // carrier cast results in the carrier it names.
@@ -367,7 +363,7 @@ fn declared_type(
                 if is_anonymous_literal(program, operand) {
                     continue;
                 }
-                let reference = declared_type(program, state, operand)?;
+                let reference = declared_type(program, owner, operand)?;
                 let TypeReferenceNode::Named { symbol, .. } =
                     program.type_reference_table.type_reference(reference)
                 else {
@@ -383,20 +379,10 @@ fn declared_type(
             let operand = [binary.left, binary.right]
                 .into_iter()
                 .find(|operand| !is_anonymous_literal(program, *operand))?;
-            result.and_then(|_| declared_type(program, state, operand))
+            result.and_then(|_| declared_type(program, owner, operand))
         }
         _ => None,
     }
-}
-
-fn owner_state<'program>(
-    program: &'program TypedTrees,
-    owner: Option<&Owner>,
-) -> Option<&'program typed_trees::state::State> {
-    let (_, machine, state) = owner?;
-    program
-        .machine_states(&program.machines()[*machine])
-        .get(*state)
 }
 
 /*
@@ -407,7 +393,7 @@ fn owner_state<'program>(
 */
 fn refuse_qualified_carrier_operand(
     program: &TypedTrees,
-    owner: Option<&Owner>,
+    owner: Option<SymbolHandle>,
     run: &Run,
 ) -> Result<(), Unaccounted> {
     let (first, first_cast, entry) = run[0];
@@ -418,8 +404,7 @@ fn refuse_qualified_carrier_operand(
         return Ok(());
     };
     let target = program.display_type_reference(carrier_cast.target_type);
-    let converted = owner_state(program, owner)
-        .and_then(|state| declared_type(program, state, carrier_cast.value));
+    let converted = owner.and_then(|owner| declared_type(program, owner, carrier_cast.value));
     let Some(converted) = converted else {
         if is_anonymous_literal(program, carrier_cast.value) {
             return Ok(());
@@ -475,19 +460,53 @@ fn entry_label(program: &TypedTrees, cast: &TableCastExpression) -> String {
 by a named domain when no receiving type is available. */
 fn operand_type(
     source: &symbol_resolved_trees::SymbolResolvedTrees,
-    program: &TypedTrees,
-    owner: Option<&Owner>,
+    program: &mut TypedTrees,
+    owner: Option<SymbolHandle>,
     run: &Run,
     cast_destinations: &[TypeReferenceHandle],
 ) -> Result<TypeReferenceHandle, Unaccounted> {
     let (first, first_cast, _) = run[0];
     let operand = first_cast.value;
-    if let Some(reference) =
-        owner_state(program, owner).and_then(|state| declared_type(program, state, operand))
-    {
+    if let Some(reference) = owner.and_then(|owner| declared_type(program, owner, operand)) {
         return Ok(reference);
     }
     let label = entry_label(program, &first_cast);
+    // A quoted literal is a shared view of its bytes in no domain
+    // (domains.md, "Byte containers and encoding domains": "Quoted literals
+    // supply raw bytes"). With a receiving view it is that view with the
+    // domains its referent displays left off, which the entries then add.
+    if matches!(
+        program.expression_table.expression(operand),
+        ExpressionNode::String(_)
+    ) {
+        let destination = cast_destinations
+            .get(run[run.len() - 1].0.arena_index() as usize)
+            .copied()
+            .filter(|destination| destination.is_valid());
+        let Some(TypeReferenceNode::Reference {
+            referee,
+            access: language_core::ReferenceAccess::Shared,
+            lifetime,
+        }) = destination.map(|destination| {
+            program
+                .type_reference_table
+                .type_reference(destination)
+                .clone()
+        })
+        else {
+            return Err(Unaccounted::Deferred(
+                DeferredRequest::DomainCastOperandType,
+            ));
+        };
+        let referee = flatten(program, referee).0;
+        return Ok(program
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee,
+                access: language_core::ReferenceAccess::Shared,
+                lifetime,
+            }));
+    }
     if !is_anonymous_literal(program, operand) {
         return Err(Unaccounted::Deferred(
             DeferredRequest::DomainCastOperandType,
@@ -696,24 +715,36 @@ fn named_domains(
 fn account_run(
     source: &symbol_resolved_trees::SymbolResolvedTrees,
     program: &mut TypedTrees,
-    owner: Option<&Owner>,
+    owner: Option<SymbolHandle>,
     run: &Run,
     cast_destinations: &[TypeReferenceHandle],
 ) -> Result<(), Unaccounted> {
     let outermost = run[run.len() - 1].0;
     refuse_qualified_carrier_operand(program, owner, run)?;
     let operand_type = operand_type(source, program, owner, run, cast_destinations)?;
-    if matches!(
-        program.type_reference_table.type_reference(operand_type),
-        TypeReferenceNode::Reference { .. }
-    ) {
-        // domains.md, "Mutable views": a cast through a reference accounts
-        // for the referent's domains and may owe a removed one back.
-        return Err(Unaccounted::Deferred(
-            DeferredRequest::DomainCastThroughReference,
-        ));
-    }
-    let (carrier, constraints) = flatten(program, operand_type);
+    // domains.md, "Mutable views": "A cast applies to a reference by
+    // accounting for the domains displayed on its referent, with the same
+    // syntax ... The cast preserves the referent, lifetime and access mode".
+    // Through a shared reference "any removal a by-value cast permits is
+    // accepted and nothing is owed", so the accounting is the referent's and
+    // each type an entry carries is that reference again. A mutable or
+    // write-only view may owe a removed domain back, which this does not
+    // account for yet.
+    let view = match program.type_reference_table.type_reference(operand_type) {
+        TypeReferenceNode::Reference {
+            referee,
+            access: language_core::ReferenceAccess::Shared,
+            lifetime,
+        } => Some((*referee, lifetime.clone())),
+        TypeReferenceNode::Reference { .. } => {
+            return Err(Unaccounted::Deferred(
+                DeferredRequest::DomainCastThroughReference,
+            ));
+        }
+        _ => None,
+    };
+    let accounted = view.as_ref().map_or(operand_type, |(referee, _)| *referee);
+    let (carrier, constraints) = flatten(program, accounted);
     let operand_display = program.display_type_reference_with_constraints(operand_type);
     let members = carried(program, &constraints)?;
     let named = named_domains(source, program, run, carrier)?;
@@ -860,6 +891,22 @@ fn account_run(
             }
         }
         let after = spell(source, program, carrier, &running)?;
+        // A view's entry carries the same reference to each referent type.
+        let (before, after) = match &view {
+            Some((_, lifetime)) => {
+                let mut lent = |referee| {
+                    program
+                        .type_reference_table
+                        .insert(TypeReferenceNode::Reference {
+                            referee,
+                            access: language_core::ReferenceAccess::Shared,
+                            lifetime: lifetime.clone(),
+                        })
+                };
+                (lent(before), lent(after))
+            }
+            None => (before, after),
+        };
         let ExpressionNode::Cast(cast) = program.expression_table.expression_mut(entry.handle)
         else {
             continue;

@@ -2,7 +2,7 @@
 // Expected exit: 64.
 // Expected output contains: INVALID expected M 0D with M=1..6 density=1..8
 use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega::language::core::F64::from_i32;
 use physics::model;
 use reporting::numbers;
 

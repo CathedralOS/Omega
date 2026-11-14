@@ -12,15 +12,15 @@ accompanied by `<place>/invalid/` reject twins:
 | Place | Positive Program | Invalid Reject Twin | Carrier / Transport |
 | --- | --- | --- | --- |
 | root | [main.omg](main.omg) | — | 64-bit unsigned bitwise XOR establishes bound and discharges subtractions directly |
-| local | [local/main.omg](local/main.omg) | [local/invalid/main.omg](local/invalid/main.omg) | bitwise XOR result bound to local variable |
-| field | [field/main.omg](field/main.omg) | [field/invalid/main.omg](field/invalid/main.omg) | bitwise XOR result stored in and projected from record field |
-| parameter | [parameter/main.omg](parameter/main.omg) | [parameter/invalid/main.omg](parameter/invalid/main.omg) | bitwise XOR result passed as explicit machine parameter |
-| call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | bitwise XOR result returned across machine call boundary |
-| match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | bitwise XOR result converged across match join arms |
-| const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | raw input provided by named compile-time constant |
-| a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | bitwise XOR result forwarded across state machine transition |
-| another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | bitwise XOR result forwarded through intermediate machine |
-| another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | bitwise XOR result verified across target-scoped machine bodies |
+| local | [local/main.omg](local/main.omg) | [invalid_local/main.omg](invalid_local/main.omg) | bitwise XOR result bound to local variable |
+| field | [field/main.omg](field/main.omg) | [invalid_field/main.omg](invalid_field/main.omg) | bitwise XOR result stored in and projected from record field |
+| parameter | [parameter/main.omg](parameter/main.omg) | [invalid_parameter/main.omg](invalid_parameter/main.omg) | bitwise XOR result passed as explicit machine parameter |
+| call result | [call_result/main.omg](call_result/main.omg) | [invalid_call_result/main.omg](invalid_call_result/main.omg) | bitwise XOR result returned across machine call boundary |
+| match join | [match_join/main.omg](match_join/main.omg) | [invalid_match_join/main.omg](invalid_match_join/main.omg) | bitwise XOR result converged across match join arms |
+| const name | [const_name/main.omg](const_name/main.omg) | [invalid_const_name/main.omg](invalid_const_name/main.omg) | raw input provided by named compile-time constant |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [invalid_other_state/main.omg](invalid_other_state/main.omg) | bitwise XOR result forwarded across state machine transition |
+| another machine | [other_machine/main.omg](other_machine/main.omg) | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | bitwise XOR result forwarded through intermediate machine |
+| another target body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) | bitwise XOR result verified across target-scoped machine bodies |
 
 Every positive place and the root `main.omg` probe binds `ProgramEntry` for
 `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`, carries an
@@ -59,15 +59,15 @@ omega --check samples/cli/facts/unsigned_64bit_bitwise_xor_bound/<place>/invalid
 
 | Place | Reject Twin | Obligation Class | Authored Diagnostic Fragment |
 | --- | --- | --- | --- |
-| local | [local/invalid/main.omg](local/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
-| field | [field/invalid/main.omg](field/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
-| parameter | [parameter/invalid/main.omg](parameter/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
-| call result | [call_result/invalid/main.omg](call_result/invalid/main.omg) | Contract postcondition | `cannot prove ensures contract` |
-| match join | [match_join/invalid/main.omg](match_join/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
-| const name | [const_name/invalid/main.omg](const_name/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
-| a nested machine | [other_state/invalid/main.omg](other_state/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
-| another machine | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
-| another target body | [target_body/invalid/main.omg](target_body/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
+| local | [invalid_local/main.omg](invalid_local/main.omg) | Contract precondition | `cannot prove requires contract` |
+| field | [invalid_field/main.omg](invalid_field/main.omg) | Contract precondition | `cannot prove requires contract` |
+| parameter | [invalid_parameter/main.omg](invalid_parameter/main.omg) | Contract precondition | `cannot prove requires contract` |
+| call result | [invalid_call_result/main.omg](invalid_call_result/main.omg) | Contract postcondition | `cannot prove ensures contract` |
+| match join | [invalid_match_join/main.omg](invalid_match_join/main.omg) | Contract precondition | `cannot prove requires contract` |
+| const name | [invalid_const_name/main.omg](invalid_const_name/main.omg) | Contract precondition | `cannot prove requires contract` |
+| a nested machine | [invalid_other_state/main.omg](invalid_other_state/main.omg) | Contract precondition | `cannot prove requires contract` |
+| another machine | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | Contract precondition | `cannot prove requires contract` |
+| another target body | [invalid_target_body/main.omg](invalid_target_body/main.omg) | Contract precondition | `cannot prove requires contract` |
 
 ### Acceptance Gate
 

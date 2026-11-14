@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::float_operations;
 data Model { z: [f64; 5]; }
 data Main { model: Model; }
 machine Main::main(main: &mut Main) reaches Console {

@@ -319,10 +319,9 @@ pub(crate) mod domain_constraints {
             let qualified = source.symbols.display_path(domain.symbol, "::");
             index
                 .by_qualified
-                .entry(qualified.clone().into_boxed_str())
+                .entry(qualified.into_boxed_str())
                 .or_default()
                 .push(position as u32);
-            index.qualified.push(qualified.into_boxed_str());
             let local = domain.name.as_str();
             let mut spellings = vec![local.to_owned()];
             if let Some((_, members)) = local.split_once("::") {
@@ -413,28 +412,27 @@ pub(crate) mod domain_constraints {
                 .collect()
         } else {
             with_domain_candidate_index(source, program, |index| {
-                let mut merged: Vec<(u32, bool)> = Vec::new();
+                let mut merged = Vec::new();
                 if let Some(bucket) = index.by_qualified.get(authored_name) {
-                    merged.extend(bucket.iter().map(|position| (*position, false)));
+                    merged.extend_from_slice(bucket);
                 }
                 if let Some(bucket) = index.by_relative.get(authored_name) {
-                    merged.extend(bucket.iter().map(|position| (*position, true)));
+                    merged.extend_from_slice(bucket);
                 }
-                merged.sort_by_key(|(position, _)| *position);
-                merged.dedup_by_key(|(position, _)| *position);
+                merged.sort_unstable();
+                merged.dedup();
                 merged
                     .into_iter()
-                    .filter_map(|(position, needs_exposure)| {
+                    .filter_map(|position| {
                         let domain = &definitions[position as usize];
                         (visible(domain)
-                            && (!needs_exposure
-                                || domain_exposed_to(
-                                    source,
-                                    domain,
-                                    &index.qualified[position as usize],
+                            && reference.is_some_and(|reference| {
+                                source.symbols.domain_name_reaches(
+                                    domain.symbol,
                                     authored_name,
                                     reference,
-                                ))
+                                )
+                            })
                             && accepts(domain))
                         .then(|| domain.clone())
                     })
@@ -478,31 +476,10 @@ pub(crate) mod domain_constraints {
             .collect::<Vec<_>>();
         if local.is_empty() { candidates } else { local }
     }
-
-    fn domain_exposed_to(
-        source: &SymbolResolvedTrees,
-        domain: &typed_trees::domain::DomainDefinition,
-        qualified: &str,
-        authored: &str,
-        reference: Option<source::SourceSpan>,
-    ) -> bool {
-        let domain_module = source.symbols.symbol_module(domain.symbol);
-        if !domain_module.is_valid() {
-            return true;
-        }
-        let Some(reference) = reference else {
-            return false;
-        };
-        if source.symbols.source_module(reference.source_id) == domain_module {
-            return true;
-        }
-        !authored.contains("::")
-            && source
-                .symbols
-                .source_module_import_paths(reference.source_id)
-                .any(|path| path == qualified)
-    }
 }
+#[cfg(test)]
+#[path = "type_reference_domain_exposure_tests.rs"]
+mod domain_exposure_tests;
 
 use crate::lowerer::Lowerer;
 use diagnostics::Diagnostic;
@@ -623,18 +600,7 @@ pub(crate) mod arithmetic_results {
         };
         if !matches!(
             source_symbols.builtin_type_atom(carrier),
-            Some(
-                BuiltinTypeAtom::I8
-                    | BuiltinTypeAtom::I16
-                    | BuiltinTypeAtom::I32
-                    | BuiltinTypeAtom::I64
-                    | BuiltinTypeAtom::U8
-                    | BuiltinTypeAtom::U16
-                    | BuiltinTypeAtom::U32
-                    | BuiltinTypeAtom::U64
-                    | BuiltinTypeAtom::F32
-                    | BuiltinTypeAtom::F64
-            )
+            Some(BuiltinTypeAtom::Integer(_) | BuiltinTypeAtom::F32 | BuiltinTypeAtom::F64)
         ) {
             return;
         }
@@ -952,14 +918,7 @@ pub(crate) mod const_arguments {
             }
             Some(match program.symbols.builtin_type_atom(symbol)? {
                 Atom::Bool => Carrier::Boolean,
-                Atom::I8 => Carrier::Integer(Landed::I8),
-                Atom::I16 => Carrier::Integer(Landed::I16),
-                Atom::I32 => Carrier::Integer(Landed::I32),
-                Atom::I64 => Carrier::Integer(Landed::I64),
-                Atom::U8 => Carrier::Integer(Landed::U8),
-                Atom::U16 => Carrier::Integer(Landed::U16),
-                Atom::U32 => Carrier::Integer(Landed::U32),
-                Atom::U64 => Carrier::Integer(Landed::U64),
+                Atom::Integer(carrier) => Carrier::Integer(Landed::Fixed(carrier)),
                 _ => return None,
             })
         }
@@ -985,7 +944,7 @@ pub(crate) mod const_arguments {
             let refuse = |found: String| {
                 let expected = match carrier {
                     Carrier::Integer(landed) => landed.name(),
-                    Carrier::Boolean => "bool",
+                    Carrier::Boolean => "bool".to_owned(),
                 };
                 Diagnostic::error(format!(
                     "const argument for `{}` of `{}` must be a `{expected}`, found {found}",
@@ -1011,11 +970,8 @@ pub(crate) mod const_arguments {
                         .value_i64()
                         .map(i128::from)
                         .or_else(|| literal.value_u64().map(i128::from));
-                    let (least, greatest) = landed.bounds();
                     match value {
-                        Some(value) if (least..=greatest).contains(&value) => {
-                            Ok(Some(value.to_string()))
-                        }
+                        Some(value) if landed.admits_i128(value) => Ok(Some(value.to_string())),
                         _ => Err(refuse(format!(
                             "`{}`, which is outside that type",
                             literal.canonical_spelling().as_str()
@@ -1900,6 +1856,63 @@ pub(crate) mod direct {
     use crate::lowerer::name::{lower_name, lower_names};
     use crate::type_reference::constraints::lower_type_constraint_node_span_with_context;
 
+    /*
+        `u<N>` and `i<N>` reach typing only when their width is not a closed
+        number: Psi 02 already replaced every closed application by the
+        carrier it names. What is left is a width the declaration is generic
+        in, which `wiki/spec/language/generics.md` ("Binder forms") admits
+        only for a `const` binder: "Value must be statically known within the
+        compiled specialization", whereas `N: u64` is "runtime-capable" and
+        "a static-only use of a dynamic binder rejects". The name was
+        resolved in the scope of the declaration that wrote the type, so a
+        runtime value that only shares its spelling with a constant or a
+        parameter somewhere else is told apart here by its symbol.
+
+        A width written as an expression is left for the specialization that
+        would have to compute it.
+    */
+    fn integer_family_width(
+        source_trees: &SymbolResolvedTrees,
+        generic: &resolved::types::GenericTypeReference,
+        arguments: &[resolved::types::TypeReference],
+    ) -> Result<(), Diagnostic> {
+        let Some(sign) = source_trees.symbols.integer_family(generic.base_symbol) else {
+            return Ok(());
+        };
+        let letter = match sign {
+            numerics::integer_carrier::IntegerSign::Unsigned => 'u',
+            numerics::integer_carrier::IntegerSign::Signed => 'i',
+        };
+        let [resolved::types::TypeReference::Named { symbol, name, .. }] = arguments else {
+            return Ok(());
+        };
+        let is_const_binder = symbol.is_valid()
+            && source_trees.symbols.get(*symbol).kind == symbols::SymbolKind::TypeParameter
+            && source_trees
+                .tables
+                .declarations
+                .data_type_parameters
+                .iter()
+                .any(|(_, parameter)| {
+                    parameter.symbol == *symbol
+                        && matches!(
+                            parameter.kind,
+                            resolved::data::TypeParameterKind::Const { .. }
+                        )
+                });
+        /* A declared constant whose value Psi 02 did not close is not a runtime value. */
+        let is_constant = symbol.is_valid()
+            && source_trees.symbols.get(*symbol).kind == symbols::SymbolKind::Const;
+        if is_const_binder || is_constant {
+            return Ok(());
+        }
+        Err(Diagnostic::error(format!(
+            "the width of `{letter}<{name}>` is a runtime value: `{name}` is not a constant or a \
+             `const` parameter in scope here, and an integer width is known before the program runs"
+        ))
+        .with_source_span(generic.base_name.source_span()))
+    }
+
     pub(crate) fn lower_type_reference_handle_with_context(
         source_trees: &SymbolResolvedTrees,
         typed_trees: &mut typed::TypedTrees,
@@ -1976,6 +1989,7 @@ pub(crate) mod direct {
                     )
                 } else {
                     let source_arguments = source_trees.child_type_references(generic.arguments);
+                    integer_family_width(source_trees, generic, source_arguments)?;
                     let mut lowered_arguments = Vec::with_capacity(source_arguments.len());
                     for argument in source_arguments {
                         let argument = lower!(argument)?;

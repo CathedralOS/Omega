@@ -64,41 +64,100 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### Q1 - Does an unsuffixed operator apply to one policy-qualified operand and one plain binding, or only to a plain literal?
+### Q1 - May a qualified operator be declared outside the domain's module?
 
-Decision name: `policy-operator-plain-operand`.
+Decision name: `unresolved-qualified-operator-home`.
 
-**Customer.** A hash or checksum loop that keeps its state in a Wrapping
-binding and mixes in plain values:
+**Customer.** No authored source and no product requirement needs an operator
+declared outside its domain's module. The only user is the #2965 homing test.
+
+**Gap.** [Operator families](wiki/spec/language/expressions.md#operator-families)
+(`expressions.md:299-328`), [declaration and membership](wiki/spec/language/domains.md#declaration-and-membership)
+(`domains.md:23-29`), [foreign attached paths](wiki/spec/language/modules.md#foreign-attached-declaration-paths)
+(`modules.md:77-94`), and [operators on a domain](wiki/language_guide/chapter_8_domains.md#operators-on-a-domain)
+(`chapter_8_domains.md:111-123`) were checked. A qualified name establishes a
+home, operations are separate machines, a short path selects an exposed domain,
+and the guide places the operator beside the domain. Those clauses are silent
+on a root file declaring `Carrier::Leaf::op`.
 
 ```omega
-machine mix(hash: u32 in Wrapping, byte: u32) -> u32 in Wrapping {
-    hash * 31 + byte
-}
+// Form A, inside the domain's module.
+module units;
+public domain u64::Distance requires self > 0;
+public operator + u64::Distance::add(
+    left: u64 in u64::Distance, right: u64 in u64::Distance
+) -> u64 in u64::Distance;
+
+// Form B, root file.
+use units;
+public operator + u64::Distance::add(
+    left: u64 in u64::Distance, right: u64 in u64::Distance
+) -> u64 in u64::Distance;
 ```
 
-`hash * 31` is the case every reading accepts. `... + byte` adds a plain
-`u32` binding to a `u32 in Wrapping` value.
+Before #2965, Form B stays a root item, so `a + b` fails to resolve.
+Now Form B is homed on `u64::Distance`, so `a + b` resolves.
 
-**Gap.** [Policy domains](wiki/spec/language/numeric_values.md#policy-domains)
-says core declares each unsuffixed operator "for two operands carrying the
-domain and for one such operand with a plain operand of the same carrier, so
-`counter + 1` needs no cast". Read as written, `byte` is a plain operand of
-the same carrier and the program is valid.
-[Overflow policies](wiki/spec/language/numeric_values.md#overflow-policies)
-says "incompatible policies do not mix implicitly" and "A machine naming no
-arithmetic policy publishes Exact", and the checker being removed rejects
-this exact program as "mixed arithmetic domains ... one operand is `Wrapping`
-and the other is `Exact`", while accepting the literal. Neither page says
-whether the plain-operand declarations were meant for literals only, and
-[literals and expected types](wiki/spec/language/domains.md#literals-and-expected-types)
-makes a literal an ordinary plain value, which would leave no way to tell the
-two apart by type.
+**Question.** (a) Allow the root form (current behavior)? (b) Or reject a
+qualified operator declared outside the domain's module?
 
-**Options.** (a) Any plain operand of the same carrier, as the sentence
-reads. (b) A literal only; a plain binding needs `as` first. The same answer
-applies to the comparisons core declares for these shapes.
+**Until answered.** The compiler homes Form B on `u64::Distance`.
 
-**Until answered.** The lowered-form checker serves the literal and refuses
-the plain binding as not supported (`operator between a policy-qualified
-operand and a plain operand that is not a literal`).
+### Q2 - What becomes of the fact samples whose dependency package was removed?
+
+Decision name: `fact-sample-dependency-packages`.
+
+**Customer.** Three families of `samples/cli/facts/` exist to show a
+capability across a package boundary: `build_target_provider`,
+`dependency_type_qualified_call` and `component_scalar_lending`. Each place's
+Build registers a dependency in a folder beside it
+(`Source::Path { location: "reading_provider" }`, `"lib"`, `"producer"`).
+
+**Gap.** #1841 ("deduplicate facts corpus and freeze new fact additions")
+removed those folders, 216 files, as duplicates of each other, and left the
+Builds that name them. Every program of the three families, about 55 with
+their `invalid/` twins, is refused before its Build finishes: `cannot
+establish canonical external source path`. The same change froze the
+directory: `cargo xtask check-rules` rejects any new `.omg` file under
+`samples/cli/facts/`, so the folders cannot be put back there, and a shared
+copy elsewhere would be new sample design, not a repair. This is repository
+content and its freeze rule, which no agent may change; no page of
+`wiki/spec/` is involved.
+
+**Question.** (a) Restore one shared dependency package per family outside
+the frozen directory and point each place's Build at it (six new `.omg`
+files); (b) delete the three families, since a sample that cannot have its
+dependency shows nothing; or (c) leave them refused?
+
+**Until answered.** The samples stay as they are and are refused at source
+discovery. They are the largest group of programs that still stops in its
+Build.
+
+<a id="native-cache-producer-authorization"></a>
+
+### Q3 - Does enabling a native component cache authorize its producer?
+
+Decision name: `native-cache-producer-authorization`.
+
+**Customer.** Separate package builds reuse native components from the optional
+disk cache. `ComponentProductCache::load` checks the compiler identity, input
+key, record size and content digest before recovering a component. Those checks
+identify bytes; they do not authorize the process that produced them.
+
+**Gap.** [Publication and separate consumption](wiki/spec/terminal-psi/product.md#publication-and-separate-consumption)
+requires receiving-host authorization of the exact artifact and producer, and
+permits trusted internal outputs without replay. That page and
+[claim admission](wiki/drafts/designs/psi_claim_admission.md) do not say whether
+configuring `CompilerProductRetention` is itself that host authorization.
+The implementation has a directory and identities, but no separate decision.
+
+**Question.** (a) Require explicit host authorization for recovered components,
+treating unauthorized optional cache entries as misses and rebuilding source;
+or (b) define enabling a cache as an explicit host decision to trust its writers
+and recovered contents? Directory protection remains the host's responsibility,
+not a new Omega guarantee. Recommend (a), keeping byte identity separate from
+authorization without adding an OS credential or ACL system.
+
+**Until answered.** Cache recovery retains its existing behavior; hashes must
+not be described as producer authorization. The public native ingress repair
+remains under `PSI-CLAIM-ADMISSION`.

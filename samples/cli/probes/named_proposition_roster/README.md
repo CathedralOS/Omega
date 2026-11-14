@@ -18,5 +18,5 @@ Compile-checked only (no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/named_proposition_roster/main.omg
-mbx run -p omega -- update --project samples/cli/probes/named_proposition_roster
+mbx run -p omega -- packages update --project samples/cli/probes/named_proposition_roster
 ```

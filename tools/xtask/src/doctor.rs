@@ -99,7 +99,7 @@ fn check_git_repository(root: &Path) -> CheckEntry {
             "warn",
             format!("{detail}; pull.rebase is not true"),
             Some(
-                "git config pull.rebase true — publication is squash-only through the merge queue (tools/landing.md)",
+                "git config pull.rebase true — pull requests land by squash merge after `admission` (tools/landing.md)",
             ),
         );
     }
@@ -371,7 +371,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         i += 1;
     }
 
-    let root = repo_root();
+    let root = repo_root()?;
     let checks = collect_checks(&root);
     let failed = checks.iter().filter(|c| c.status == "fail").count();
     let warned = checks.iter().filter(|c| c.status == "warn").count();
@@ -427,7 +427,7 @@ mod tests {
 
     #[test]
     fn reads_pinned_toolchain_channel() {
-        let channel = toolchain_channel(&repo_root());
+        let channel = toolchain_channel(&repo_root().expect("test runs in the Omega workspace"));
         assert!(channel.is_some());
     }
 }

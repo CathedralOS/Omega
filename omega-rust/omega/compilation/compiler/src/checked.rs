@@ -3,7 +3,7 @@ We orchestrate compiler work from assembled syntax and Build continuations to a
 sealed `CheckedCompilation` and target-captured declaration custody.
 
 Start at `CompilationSession` (`compilation_session.rs`) for invocation-level
-reuse of parsed sources, Pure Build judgments, and checked trees, and
+reuse of parsed sources and Pure Build judgments, and
 `checking.rs` for the feed-forward source and Build continuation pipeline.
 */
 
@@ -26,14 +26,14 @@ mod target_preparation;
 mod test_roots;
 
 pub use artifacts::compile_timings::counters::{
-    checked_compilation_call_count, preliminary_check_totals, settled_check_totals,
-    source_assembly_invocation_count, typed_frontier_reuse_count,
+    checked_compilation_call_count, settled_check_totals, source_assembly_invocation_count,
+    typed_frontier_reuse_count,
 };
 pub use checking::compile_thread::{
     COMPILE_STACK_SIZE, run_on_compile_thread, spawn_compile_worker,
 };
 pub use checking::typed_frontier::{
-    CurrentCheckerVerdict, TypedFrontier, TypedFrontierCheck, TypedFrontierRequest,
+    ProductCheckOutcome, TypedFrontier, TypedFrontierCheck, TypedFrontierRequest,
 };
 pub use checking::{
     CheckedCompilation, CheckedCompileOutcome, CheckedCompileRequest,
@@ -50,4 +50,8 @@ pub use package_compilation::{
     PackageSourceRequest, PreparedPackageProduct, SourceBuildDeclaration,
 };
 pub use package_review::{PackageReviewFailure, PackageReviewProduct, PackageReviewSource};
-pub(crate) use target_preparation::PreparedProductTarget;
+pub(crate) use target_preparation::{PreparedProductTarget, selected_supplies};
+pub use target_preparation::{
+    ProductSupplySource, SuppliedProduct, TargetSupplySource, judge_supplied_product,
+    prepare_supplied_target,
+};

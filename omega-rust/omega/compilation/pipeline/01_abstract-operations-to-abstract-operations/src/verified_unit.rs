@@ -26,7 +26,6 @@ mod error {
         },
         PropositionCodec(CodecError),
         FactIndex(optimization_unit::AcceptedObligationFactIndexError),
-        ProofQuestionIndex(optimization_unit::ProofQuestionIndexError),
         MissingStructuralCatalogMachine(MachineId),
         /// An evidence seal does not match the operation obligation it names:
         /// its parts changed after sealing, the operation is not in the module,
@@ -71,12 +70,6 @@ mod error {
     {
         fn from(error: optimization_unit::AcceptedObligationFactIndexError) -> Self {
             Self::FactIndex(error)
-        }
-    }
-
-    impl From<optimization_unit::ProofQuestionIndexError> for VerifiedPsiOptimizationUnitBuildError {
-        fn from(error: optimization_unit::ProofQuestionIndexError) -> Self {
-            Self::ProofQuestionIndex(error)
         }
     }
 }
@@ -465,11 +458,11 @@ mod evidence_seal_tests {
         IdTable, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId, Proposition,
         ScalarTerm, ScalarType,
     };
-    use structure_elaboration::{
+    use terminal_codec::{EvidenceSeals, ObligationEvidenceSeal};
+    use typed_trees_to_terminal_psi::{
         Body, CrashCeiling, Expression, ExpressionKind, Signature, SourceOrigin, Statement, Strict,
         Target, Termination, Unpositioned,
     };
-    use terminal_codec::{EvidenceSeals, ObligationEvidenceSeal};
 
     use super::{VerifiedPsiOptimizationUnitBuildError, build_verified_psi_optimization_unit};
     use terminal_psi_to_abstract_operations::{
@@ -531,17 +524,22 @@ mod evidence_seal_tests {
             result: Some(u32_type().into()),
             requires: vec![at_most(1), at_most(2)],
             ensures: Vec::new(),
-            reaches: structure_elaboration::Ceiling::Inferred,
-            invokes: structure_elaboration::Ceiling::Inferred,
+            reaches: typed_trees_to_terminal_psi::Ceiling::Inferred,
+            invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
         });
         let entry = MachineId::new(1).unwrap();
-        let mut elaboration =
-            structure_elaboration::lower_bodies(entry, &bodies, &signatures, &IdTable::default())
-                .unwrap();
+        let mut elaboration = typed_trees_to_terminal_psi::lower_bodies(
+            entry,
+            &bodies,
+            &signatures,
+            &IdTable::default(),
+        )
+        .unwrap();
+        let mut activity = terminal_psi_to_terminal_psi::ProofSearchActivity::default();
         let discharge =
-            lowered_discharge::discharge(&mut elaboration, &mut Default::default()).unwrap();
+            terminal_psi_to_terminal_psi::discharge(&mut elaboration, &mut activity).unwrap();
         let seals = discharge.operation_seals(&elaboration).unwrap();
         assert_eq!(seals.len(), 1, "the add's safety obligation is discharged");
         (elaboration.module, seals)

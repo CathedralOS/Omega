@@ -3,7 +3,7 @@
 //! ```omega
 //! machine forward<T>(item: T) -> T { item }
 //! machine relay<T>(item: T) -> T ensures item { forward<T>(item) }
-//! machine sized<const N: u64>() { }
+//! machine sized<const N: u64>() ensures N { }
 //! machine main() {
 //!     let a = relay<u8>(1);
 //!     let b = relay<u8>(2);
@@ -13,7 +13,9 @@
 //! ```
 //!
 //! `main` holds closed type applications, which are served. `counted` holds
-//! an application of a value parameter, which is not: it is the failing twin.
+//! an application of a value parameter whose argument typing left as a
+//! spelling with no literal, which is not: it is the failing twin. The same
+//! call with the literal `3` is served (`counted_at`).
 
 use super::prepare;
 use arena::HandleSpan;
@@ -328,12 +330,21 @@ fn source_named(relay_name: &'static str) -> Source {
         },
         ..Default::default()
     }]);
+    let promised = name(&mut program, sized_parameter, "N");
+    let facts = program
+        .proof_facts
+        .insert_many([ProofFact::Expression(promised)]);
+    let contracts = program.signature_contracts.insert_many([SignatureContract {
+        kind: SignatureContractKind::Ensures,
+        facts,
+        ..Default::default()
+    }]);
     push_machine(
         &mut program,
         sized,
         "sized",
         type_parameters,
-        HandleSpan::empty(),
+        contracts,
         State {
             symbol: sized_state,
             name: Identifier::generated("entry"),
@@ -614,6 +625,113 @@ fn an_application_inside_a_generated_body_is_served_in_turn() {
     assert_eq!(named_symbol(&program, item.type_reference), byte);
     // `relay` and `forward`, each at `u8` and at `bool`.
     assert_eq!(program.machine_specializations.len(), 4);
+}
+
+/// `source()` with `counted`'s one call given the integer literal `value`
+/// as typing records one: `sized<value>()`.
+fn counted_at(value: i64) -> Source {
+    let mut source = source();
+    let literal = StaticMachineArgument {
+        const_literal: Some(numerics::literals::IntegerLiteral::from_value(value)),
+        ..StaticMachineArgument::default()
+    };
+    let program = &mut source.program;
+    let statements = only_state(program, source.counted).statement_nodes;
+    let handle = statements.handles().next().expect("one call");
+    let StatementNode::Call(call) = program.statement_table.statement_mut(handle) else {
+        panic!("one call");
+    };
+    call.machine_arguments = Box::new([literal.clone()]);
+    let application = call.authored_machine_application;
+    program
+        .expression_table
+        .static_machine_application_arguments_mut(application)[0] = literal;
+    source
+}
+
+/// A value parameter given one integer literal is served like a type
+/// parameter: the call enters a machine generated for that value, the
+/// application binds the parameter as a constant of its declared type, and
+/// where the copied contract named the parameter it holds the literal,
+/// landed in the parameter's type. The generic machine keeps the name.
+#[test]
+fn a_literal_value_application_enters_a_machine_with_the_value_in_place() {
+    let Source {
+        mut program,
+        sized_state,
+        counted,
+        ..
+    } = counted_at(3);
+    prepare(&mut program).expect("the pass refuses no program");
+
+    let state = only_state(&program, counted);
+    let [StatementNode::Call(call)] = program.statement_table.statements(state.statement_nodes)
+    else {
+        panic!("one call");
+    };
+    assert!(program.deferred_refusal(counted).is_none());
+    assert_ne!(call.target_symbol, sized_state);
+    assert!(call.machine_arguments.is_empty());
+    let [binding] = program
+        .expression_table
+        .static_machine_application_bindings(call.authored_machine_application)
+    else {
+        panic!("one binding");
+    };
+    assert!(matches!(binding.value, StaticMachineBindingValue::Const(_)));
+
+    let generated = program.symbols.get(call.target_symbol).parent;
+    let sized = program.symbols.get(sized_state).parent;
+    let promised = |machine: SymbolHandle| {
+        let machine = program.machine_by_symbol(machine).expect("a machine");
+        let [contract] = program.machine_contracts(machine) else {
+            panic!("one contract");
+        };
+        let [ProofFact::Expression(expression)] = program.proof_facts.span_or_empty(contract.facts)
+        else {
+            panic!("one fact");
+        };
+        program.expression_table.expression(*expression).clone()
+    };
+    let ExpressionNode::Integer(literal) = promised(generated) else {
+        panic!("the generated machine promises a literal");
+    };
+    assert_eq!(literal.canonical_spelling().as_str(), "3");
+    assert_eq!(
+        literal.landing().map(|landing| landing.landed_type),
+        Some(numerics::literals::LandedIntegerType::U64)
+    );
+    assert!(matches!(promised(sized), ExpressionNode::Name(_)));
+    assert!(
+        program
+            .machine_by_symbol(generated)
+            .is_some_and(|machine| { machine.type_parameters.is_empty() })
+    );
+}
+
+/// One value, one machine: two programs that differ only in the literal
+/// name their generated machines apart, and the machine is keyed by the
+/// value, not by where the call stands.
+#[test]
+fn a_generated_machine_is_named_for_its_value() {
+    let generated_name = |value| {
+        let Source {
+            mut program,
+            counted,
+            ..
+        } = counted_at(value);
+        prepare(&mut program).expect("the pass refuses no program");
+        let state = only_state(&program, counted);
+        let [StatementNode::Call(call)] = program.statement_table.statements(state.statement_nodes)
+        else {
+            panic!("one call");
+        };
+        let machine = program.symbols.get(call.target_symbol).parent;
+        program.symbols.name(machine).to_owned()
+    };
+    assert_eq!(generated_name(3), generated_name(3));
+    assert_ne!(generated_name(3), generated_name(4));
+    assert!(generated_name(4).starts_with("sized$specialized$4$"));
 }
 
 #[test]

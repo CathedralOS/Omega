@@ -53,7 +53,9 @@ pub(super) struct AcceptedCompilationRequest<'request> {
 fn failure(package: &PackageKey, message: impl Into<String>) -> Error {
     Error::Compilation {
         package: package.clone(),
-        diagnostics: vec![Diagnostic::error(message.into())],
+        failure: compilation_products::CompileFailure::Diagnostics(vec![Diagnostic::error(
+            message.into(),
+        )]),
     }
 }
 
@@ -340,7 +342,7 @@ impl CompilationReceipt {
             Some(Err(error)) => {
                 return Err(ProjectCompilationError::Review(Error::Compilation {
                     package: self.packages.get(error.occurrence).unwrap_or(root).clone(),
-                    diagnostics: error.failure.into_diagnostics(),
+                    failure: error.failure,
                 }));
             }
             Some(Ok(output)) => output,
@@ -351,7 +353,7 @@ impl CompilationReceipt {
         if *current != self.identity {
             return Err(ProjectCompilationError::Review(failure(
                 root,
-                "compiler library changed during compilation; run `omega update` for fresh review",
+                "compiler library changed during compilation; run `omega packages update` for fresh review",
             )));
         }
         Ok(output)
@@ -394,7 +396,7 @@ fn admit_accepted_contexts(
                     && occurrence.context().purpose().is_product()
                     && occurrence.context().target() == request.closure.target_profile()
             }).map(|occurrence| occurrence.acceptance().terminal_permissions())
-                .ok_or_else(|| failure(root, "locked target has no accepted root Product occurrence; run omega update"))
+                .ok_or_else(|| failure(root, "locked target has no accepted root Product occurrence; run omega packages update"))
         }).transpose()?
     } else {
         None

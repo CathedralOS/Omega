@@ -1,38 +1,30 @@
-// Stable numeric tags and spellings for structural arithmetic, primitive types, and integer comparisons.
-// Each row helper pairs the persisted wire tag with the authored canonical spelling so binary encoding, canonical text, and recovery share one roster.
+// Structural integer types retain their sign and width, not a host-width catalog.
+// Arithmetic and comparison operators remain closed tagged vocabularies.
 
+use crate::encoding::PackageReviewEncodingError;
 use crate::encoding::encode::values::crashes::Encoder;
 use crate::record::PackageReviewArithmeticDomain;
 use crate::record::PackageReviewIntegerBinaryKind;
 use crate::record::PackageReviewIntegerComparisonKind;
 use crate::record::PackageReviewPrimitiveType;
 
-pub(super) const fn primitive_type_row(
-    primitive_type: PackageReviewPrimitiveType,
-) -> (u8, &'static str) {
-    match primitive_type {
-        PackageReviewPrimitiveType::Bool => (0, "bool"),
-        PackageReviewPrimitiveType::F32 => (1, "f32"),
-        PackageReviewPrimitiveType::F64 => (2, "f64"),
-        PackageReviewPrimitiveType::I8 => (3, "i8"),
-        PackageReviewPrimitiveType::I16 => (4, "i16"),
-        PackageReviewPrimitiveType::I32 => (5, "i32"),
-        PackageReviewPrimitiveType::I64 => (6, "i64"),
-        PackageReviewPrimitiveType::U8 => (7, "u8"),
-        PackageReviewPrimitiveType::U16 => (8, "u16"),
-        PackageReviewPrimitiveType::U32 => (9, "u32"),
-        PackageReviewPrimitiveType::U64 => (10, "u64"),
-        PackageReviewPrimitiveType::Addr => (11, "addr"),
-        PackageReviewPrimitiveType::Selector => (12, "selector"),
-    }
-}
-
 pub(crate) fn encode_primitive_type(
     encoder: &mut Encoder,
     primitive_type: PackageReviewPrimitiveType,
-) {
-    let (tag, name) = primitive_type_row(primitive_type);
-    encoder.tag(name, tag);
+) -> Result<(), PackageReviewEncodingError> {
+    match primitive_type {
+        PackageReviewPrimitiveType::Bool => encoder.tag("bool", 0),
+        PackageReviewPrimitiveType::F32 => encoder.tag("f32", 1),
+        PackageReviewPrimitiveType::F64 => encoder.tag("f64", 2),
+        PackageReviewPrimitiveType::Integer(carrier) => {
+            encoder.tag("integer", 3);
+            encoder.boolean_field("signed", carrier.is_signed())?;
+            encoder.u64_field("width", carrier.width())?;
+        }
+        PackageReviewPrimitiveType::Addr => encoder.tag("addr", 11),
+        PackageReviewPrimitiveType::Selector => encoder.tag("selector", 12),
+    }
+    Ok(())
 }
 
 pub(crate) const fn integer_comparison_row(
@@ -79,12 +71,6 @@ pub(crate) const fn integer_binary_row(kind: PackageReviewIntegerBinaryKind) -> 
         PackageReviewIntegerBinaryKind::SaturatingShiftLeft => (29, "saturating_shift_left"),
         PackageReviewIntegerBinaryKind::SaturatingShiftRight => (30, "saturating_shift_right"),
     }
-}
-
-pub(super) const fn primitive_type_name(
-    primitive_type: PackageReviewPrimitiveType,
-) -> &'static str {
-    primitive_type_row(primitive_type).1
 }
 
 pub(super) const fn arithmetic_domain_name(domain: PackageReviewArithmeticDomain) -> &'static str {

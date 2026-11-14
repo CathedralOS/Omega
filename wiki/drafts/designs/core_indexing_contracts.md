@@ -25,11 +25,10 @@ by-copy read.
 
 ## Starting implementation
 
-The Rust reference compiler currently admits declaration-free builtin brackets,
-uses a range/index fact ladder, and restricts selected index contracts to a
-small bounds-clause grammar. That reader safely rejects unfamiliar clauses;
-the target is to accept a well-formed declaration and prove every requirement
-at its calls. Generic/lifetime-bearing sealed catalog rows are a prerequisite.
+The Rust reference compiler admits declaration-free builtin brackets; the
+lowered-form checker, the only checker, owns steps 3 and 4 below. The target
+is to accept a well-formed declaration and prove every requirement at its
+calls. Generic/lifetime-bearing sealed catalog rows are a prerequisite.
 
 `slice_index` and `slice_range` have named callers; their `slice_views` helpers
 use brackets internally. `SliceAccess` has no discovered callers or
@@ -49,28 +48,25 @@ adds indexing. Other-language bootstrap rungs are not being redesigned.
    A transitional resolved selection is identity plumbing, not completion of
    contract ownership. The final path has no declaration-free fallback and no
    mandatory checked wrapper. Preserve existing named helper customers.
-3. Discharge each instantiated requirement through ordinary call-contract
-   checking. Temporarily consult existing bounds strategies for unresolved
-   bounds only, while recording which obligations and fixtures need them.
-   A ladder success never bypasses another unproved requirement. No failure or
-   unknown result becomes assumed evidence.
-4. Migrate missing strategies into shared facts and entailment: const-generic
-   extents, captured/hoisted selectors, assignment-length changes, result
-   guarantees, ordering chains, range formation and inclusive-end arithmetic.
-   Preserve exact value versions, disjointness and overlapping-write invalidation.
-   Make these conclusions usable by named calls and bracket calls alike.
-5. Preserve the existing per-occurrence evidence handoff. Publish discharged
-   indexing occurrences through the checked-tree interface currently named
-   `proven_scalar_indexes`, retaining their selected contract, exact actuals
-   and bound evidence. Map each to its own Terminal `RuntimeIndex` obligation
-   and source-checked evidence. A membership bit alone is not a certificate;
-   keep access/loan evidence separate. Do not replace evidence transport with
-   repeated proof search or change verification placement.
-6. Remove the ladder's independent admission ownership after fallback demand
-   is eliminated. Shared proving strategies may survive. Remove unused
-   `SliceAccess`, collapse redundant `slice_views`, and retain named helpers
-   as ordinary checked calls to the selected core operations. Update the guide
-   and library implementation notice when delivery is complete.
+3. Discharge each instantiated requirement through the lowered-form checker's
+   ordinary call-contract checking. A requirement it cannot prove refuses the
+   call; no failure or unknown result becomes assumed evidence, and proving the
+   bounds never bypasses another unproved requirement.
+4. Give the lowered-form checker the facts and entailment that indexing
+   customers need: const-generic extents, captured/hoisted selectors,
+   assignment-length changes, result guarantees, ordering chains, range
+   formation and inclusive-end arithmetic. Preserve exact value versions,
+   disjointness and overlapping-write invalidation. Make these conclusions
+   usable by named calls and bracket calls alike.
+5. Map each discharged indexing occurrence to its own Terminal `RuntimeIndex`
+   obligation, retaining its selected contract, exact actuals and bound
+   evidence. A membership bit alone is not a certificate; keep access/loan
+   evidence separate. Do not replace evidence transport with repeated proof
+   search or change verification placement.
+6. Remove unused `SliceAccess`, collapse redundant `slice_views`, and retain
+   named helpers as ordinary checked calls to the selected core operations.
+   Update the guide and library implementation notice when delivery is
+   complete.
 
 ## Acceptance and measurement
 
@@ -90,14 +86,13 @@ adds indexing. Other-language bootstrap rungs are not being redesigned.
   confirm primitive accesses do not introduce per-element forwarding calls.
 - Check emitted evidence identity against altered selectors, extents and sibling
   views using the existing receiving verifier tests. Preserve both numerical
-  obligations and storage authority through checked, Terminal and native forms.
+  obligations and storage authority through the Terminal and native forms.
 - Attribute fixture movement against the fixed base. An invalid-contract
   fixture becoming accepted is a regression; a safe proof-limit fixture becoming
   accepted requires explicit semantic review and appropriate reclassification.
-  Do not re-pin unexpected outcomes to hide regressions. Record golden outcomes
-  only from the clean committed tree under the existing corpus rules.
-- Measure fallback demand and per-function checker/entailment cost with existing
-  attribution tools. Keep common constant and runtime-bound accesses cheap;
+  Do not re-pin unexpected outcomes to hide regressions.
+- Measure per-function checker/entailment cost with existing attribution
+  tools. Keep common constant and runtime-bound accesses cheap;
   correctness, complete contract checking and preserved evidence are mandatory.
 
 Completion means the declared contract owns admission across this whole scope,

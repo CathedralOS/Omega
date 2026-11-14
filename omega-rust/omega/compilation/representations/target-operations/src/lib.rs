@@ -31,6 +31,9 @@ use terminal_psi::TerminalPsiIdentity;
 pub struct TargetOperationPlan {
     pub psi: TerminalPsiIdentity,
     pub target: NativeTarget,
+    /// Selected deployment identity; native geometry alone cannot authorize platform services.
+    /// Geometry-only inputs may omit it, but cannot use deployment-specific operations.
+    pub profile: Option<target::TargetProfile>,
     pub entry: MachineId,
     pub functions: Vec<TargetFunction>,
     pub native_callback_arguments: Vec<TargetNativeCallbackArgument>, // Admission-retained callback custody rows joined to their registrar by Terminal operation and entry plan.
@@ -55,8 +58,9 @@ pub use calls::{
 };
 pub mod control_flow;
 pub use control_flow::{
-    TargetControlBlock, TargetControlCasePayload, TargetControlCaseSuccessor, TargetControlGraph,
-    TargetControlSuccessor, TargetControlTerminator, TargetFunction, TargetScalarBlockParameter,
+    TargetCasePointerSlot, TargetControlBlock, TargetControlCasePayload,
+    TargetControlCaseSuccessor, TargetControlGraph, TargetControlSuccessor,
+    TargetControlTerminator, TargetFunction, TargetScalarBlockParameter,
     TargetStructuralCaseSource, TargetStructuralReturnSource,
 };
 pub mod provenance;

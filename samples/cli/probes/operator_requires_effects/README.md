@@ -1,7 +1,7 @@
 # operator_requires_effects
 
 Runnable probe; no standard-library dependency. `omega run main.omg` must exit 0
-natively after `omega update --project .` reviews the local package inputs.
+natively after `omega packages update --project .` reviews the local package inputs.
 
 A boundary operator's operand `requires` is discharged through an
 effect-bearing call: `boundary machine == Integer::equal ... requires

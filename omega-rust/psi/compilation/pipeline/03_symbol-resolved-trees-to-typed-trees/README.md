@@ -26,10 +26,11 @@ limits, not a different generated-source language.
 - [seeded resolution](../02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs)
   appends the later stratum and rebases only extension-owned selections.
 - [typed continuation](src/lowerer.rs)
-  validates append cohorts and preserves the base. Extension-owned nominal
-  static-machine binders are pinned by the corpus fixtures under
-  `tests/omega/pass/build` and `tests/omega/fail/build`, which bind a program
-  entry and run the continuation end to end.
+  validates append cohorts and preserves the base. It consumes the
+  [representation-owned continuation records](../../representations/symbol-resolved-trees/src/continuations.rs),
+  not resolver state. The Psi driver retains pending syntax and coordinates
+  resolution, source activation and typing; their exact predecessor pairings
+  are exercised by `resolution_handoff_tests` in `source_compilation.rs`.
 
 ## One typing route
 
@@ -48,12 +49,9 @@ value. The typed join preserves prepared domain instances, appends declaration
 ceilings by owner, and translates only new evidence forwardings after typing
 has recorded erased proof calls.
 
-The generated-dependency fixture
-`tests/omega/pass/build/generated_declaration_continuation_exit` exercises
-an emitted domain and named implementation, including a call to the frozen
-authored base. Check its `kit/main.omg` directly to exercise retained typing;
-run the consumer with `--both` to execute the generated implementation.
-The invalid twin changes only a generated domain argument.
+Signature-free static requirement operands retain resolution's selected trait,
+declaring trait and exact requirement, or its refusal. Typing consumes that
+outcome rather than resolving the path again with a different context.
 
 Both the continuation and fresh typing close through `close_typed_cohort`.
 Declaration identities, written contracts, progress premises, domain constraints

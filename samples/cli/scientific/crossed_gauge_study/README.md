@@ -43,9 +43,9 @@ interaction decomposition, signed components or stdin study workflow.
 From the repository root, using a compiler built from the recorded base:
 
 ```sh
-omega update --project samples/cli/independent/crossed_gauge_study
+omega packages update --project samples/cli/independent/crossed_gauge_study
 # Read the generated review; accept only requested std/entry decisions and resume.
-omega update --resume --project samples/cli/independent/crossed_gauge_study
+omega packages update --resume --project samples/cli/independent/crossed_gauge_study
 omega --check samples/cli/independent/crossed_gauge_study/main.omg
 omega samples/cli/independent/crossed_gauge_study/main.omg
 omega run --both samples/cli/independent/crossed_gauge_study/main.omg < samples/cli/independent/crossed_gauge_study/data/interaction.stdin

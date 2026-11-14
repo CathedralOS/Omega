@@ -84,10 +84,10 @@ From the repository root, set `OMEGA_LIBRARY_ROOT` to this checkout's absolute
 
 ```sh
 sample=samples/cli/independent/range_only_localization
-omega update --project "$sample" --target linux_x86_64
+omega packages update --project "$sample" --target linux_x86_64
 # Read the pending review, accept the local std entry/provider decisions,
 # then resume using the normal package-review workflow.
-omega update --resume --project "$sample"
+omega packages update --resume --project "$sample"
 omega --check --target linux_x86_64 "$sample/main.omg"
 omega --target linux_x86_64 "$sample/main.omg"
 omega run --both "$sample/main.omg" < "$sample/data/unique.stdin"

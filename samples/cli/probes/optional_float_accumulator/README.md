@@ -18,7 +18,7 @@ so this is compile-checked only:
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/optional_float_accumulator/main.omg
-mbx run -p omega -- update --project samples/cli/probes/optional_float_accumulator
+mbx run -p omega -- packages update --project samples/cli/probes/optional_float_accumulator
 ```
 
 Both complete green on Linux x86-64; the package review publishes

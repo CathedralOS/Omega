@@ -10,7 +10,7 @@
 #
 #   bash tools/warm_build.sh pack <slot> <out-dir>   # CI: archive ./target
 #   bash tools/warm_build.sh publish <slot> <out-dir> # CI: push it to the registry
-#   bash tools/warm_build.sh restore <slot>          # unpack into the slot
+#   bash tools/warm_build.sh restore <slot> [replace-stale] # unpack into the slot
 #   bash tools/warm_build.sh session-start           # SessionStart hook, cloud only
 #
 # mbx cannot do this job here. This workspace builds with Cargo's checksum
@@ -19,7 +19,9 @@
 # model: every unit is reported as bypassed and its store stays empty. The
 # same setting is what makes a plain directory restore sound: Cargo compares
 # source contents, not file times, so a fresh clone reuses a restored build and
-# recompiles exactly the crates whose sources differ.
+# recompiles exactly the crates whose sources differ. Build scripts are the
+# exception: Cargo still dates their inputs by modification time, which
+# settle_source_times handles.
 #
 # There are two slots because Cargo gives the two places a session builds in
 # different identities. A pool worktree (.agents/worktree/worker-N) sits inside
@@ -35,7 +37,7 @@
 # language-core recompiles all of them: a build restored three commits away
 # from its sources took 673 s, as long as a cold one. So session-start creates
 # worker-1 at the published commit, `cargo xtask worktree acquire` hands it out
-# there, and the work keeps that commit as its base; the merge queue
+# there, and the work keeps that commit as its base; the squash merge
 # integrates it with main.
 set -euo pipefail
 
@@ -89,6 +91,7 @@ pack() {
     echo "schema=$SCHEMA"
     echo "slot=$slot"
     echo "commit=$commit"
+    echo "root=$dir"
     echo "rustc=$(toolchain "$dir")"
     echo "asset=$asset"
     echo "sha256=$(sha256sum "$out/$asset" | cut -d' ' -f1)"
@@ -179,16 +182,54 @@ JSON
   echo "warm build: published $slot as ghcr.io/$PACKAGE:$slot"
 }
 
+# stale_restore <slot> <dir> <published-commit>: whether $dir/target is a
+# restored build of another commit that nothing has built on, so a newer
+# published build may replace it. A cloud environment can start a session from
+# a saved container that still holds an old restore under .agents/, which Git
+# ignores. Kept, it is reused for nothing: a build tens of commits away from
+# its sources recompiles every crate. The worker slot also needs its checkout
+# untouched at that commit, since replacing the build moves the checkout.
+stale_restore() {
+  local slot=$1 dir=$2 published=$3 stamp=$2/target/.warm-build.txt old
+  [ -f "$stamp" ] || return 1
+  old=$(manifest_value "$stamp" commit)
+  [ -n "$old" ] && [ "$old" != "$published" ] || return 1
+  # The stamp is written last; any build since then leaves a newer file.
+  [ -z "$(find "$dir/target" -newer "$stamp" -print -quit 2>/dev/null)" ] || return 1
+  if [ "$slot" = worker ]; then
+    [ "$(git -C "$dir" rev-parse HEAD 2>/dev/null)" = "$old" ] || return 1
+    [ -z "$(git -C "$dir" status --porcelain 2>/dev/null)" ] || return 1
+  fi
+}
+
+# settle_source_times <dir> <published-commit>: date the checkout's tracked
+# files back to the published commit, so the restored build is not rerun.
+# Checksum freshness covers what rustc reads, but Cargo still judges a build
+# script's rerun-if-changed inputs by modification time. The compiler crate's
+# build script watches every file under omega-rust/ and source/library/, and a
+# fresh clone writes all of them after CI built: without this, the first build
+# reruns that script and recompiles compiler, package-manager, orchestration
+# and omega (21-35 s). Only a clean checkout at the published commit holds the
+# exact bytes that build read, so any other checkout keeps its real times.
+settle_source_times() {
+  local dir=$1 commit=$2 when
+  [ "$(git -C "$dir" rev-parse HEAD 2>/dev/null)" = "$commit" ] || return 0
+  [ -z "$(git -C "$dir" status --porcelain --untracked-files=all 2>/dev/null)" ] || return 0
+  # The commit exists before CI starts building it, so its time is older than
+  # every timestamp the build recorded.
+  when=$(git -C "$dir" log -1 --format=%ct "$commit") || return 0
+  (cd "$dir" && git ls-files -z | xargs -0 -r touch -h -c -d "@$when" &&
+    git ls-files -z | xargs -0 -r dirname -z | sort -zu | xargs -0 -r touch -h -c -d "@$when") ||
+    echo "warm build: could not date $dir back to ${commit:0:12}; the first build reruns the compiler build script"
+}
+
+# restore <slot> [replace-stale]
 restore() (
-  local slot=$1 root dir stage manifest commit asset want have need free started
+  local slot=$1 replace=${2:-} root dir stage manifest commit asset want have need free started
+  local built_at old=''
   started=$(date +%s)
   root=$(primary_root)
   dir=$(slot_dir "$slot")
-  # Never unpack over a build: another restore or a session's own build owns it.
-  if [ -d "$dir/target" ] && [ -n "$(ls -A "$dir/target/")" ]; then
-    echo "warm build: $slot kept, $dir/target already holds a build"
-    return 0
-  fi
   stage=$root/.agents/worktree/.warm-$slot.$$
   mkdir -p "$stage"
   trap 'rm -rf "$stage"' EXIT
@@ -196,6 +237,27 @@ restore() (
   fetch "$slot" "warm-build-$slot.txt" "$manifest" || fail "$slot: no published build"
   [ "$(manifest_value "$manifest" schema)" = "$SCHEMA" ] || fail "$slot: unknown manifest schema"
   commit=$(manifest_value "$manifest" commit)
+  # Cargo records the absolute paths of files a crate reads from outside its
+  # package (language-core includes source/library/*.omg), so a build made at
+  # another path recompiles every workspace crate. Restoring one would cost
+  # the download and still leave the full 9-minute build.
+  built_at=$(manifest_value "$manifest" root)
+  [ -z "$built_at" ] || [ "$built_at" = "$dir" ] ||
+    fail "$slot: built at $built_at, this session builds at $dir; Cargo would recompile every crate"
+  # Never unpack over a build: another restore or a session's own build owns
+  # it. The one exception is an untouched restore of an older commit.
+  if [ -d "$dir/target" ] && [ -n "$(ls -A "$dir/target/")" ]; then
+    if [ "$replace" != replace-stale ] || ! stale_restore "$slot" "$dir" "$commit"; then
+      echo "warm build: $slot kept, $dir/target already holds a build"
+      return 0
+    fi
+    old=$(manifest_value "$dir/target/.warm-build.txt" commit)
+    if [ "$slot" = worker ]; then
+      git -C "$root" cat-file -e "$commit^{commit}" 2>/dev/null ||
+        git -C "$root" fetch -q origin "$commit" 2>/dev/null ||
+        { echo "warm build: $slot kept; commit ${commit:0:12} is not in this clone"; return 0; }
+    fi
+  fi
   if [ ! -e "$dir" ]; then
     # The pool's first slot does not exist yet. Create it at the commit the
     # build came from, where the build is reused whole; `cargo xtask worktree
@@ -217,6 +279,16 @@ restore() (
     fail "$slot: $asset does not match its published digest"
   zstd -dc "$stage/$asset" | tar -xf - -C "$stage"
   cp "$manifest" "$stage/target/.warm-build.txt"
+  if [ -n "$old" ]; then
+    # The stale build goes into the stage, which the exit trap deletes.
+    mv -T "$dir/target" "$stage/stale-target" ||
+      fail "$slot: could not move the stale build of ${old:0:12} aside"
+    if [ "$slot" = worker ]; then
+      git -C "$dir" checkout -q --detach "$commit" ||
+        fail "$slot: could not move $dir to ${commit:0:12}"
+    fi
+    echo "warm build: $slot replaced the untouched build of ${old:0:12}"
+  fi
   # One rename publishes the whole build. It fails if a build appeared in the
   # meantime, and that build then stays untouched.
   # mbx leaves `target` as a link into its cache. After its collector removes
@@ -225,6 +297,7 @@ restore() (
   rmdir "$dir/target" 2>/dev/null || true
   mv -T "$stage/target" "$dir/target" 2>/dev/null ||
     fail "$slot: $dir/target appeared during the restore; left as it is"
+  settle_source_times "$dir" "$commit"
   echo "warm build: $slot restored commit ${commit:0:12} into $dir/target in $(($(date +%s) - started)) s"
 )
 
@@ -233,6 +306,11 @@ session_start() {
   # CODEX_ENVIRONMENT_ID identifies a managed environment; ordinary local Codex
   # sessions must not restore a cloud build or change their cache settings.
   [ "${CLAUDE_CODE_REMOTE:-}" = "true" ] || [ -n "${CODEX_ENVIRONMENT_ID:-}" ] || return 0
+  # Claude Code passes the hook's input as JSON on stdin. Only a fresh start
+  # may replace a stale restore; a resumed session's build is its own.
+  local input='' replace=replace-stale
+  [ -t 0 ] || input=$(timeout 2 cat 2>/dev/null || true)
+  case $input in *'"source":"resume"'* | *'"source": "resume"'*) replace='' ;; esac
   # mbx deletes build directories, mid-build included, when free space falls
   # under 10% of the disk's size. The container's disk reports 252 GB while the
   # session may use about 30 GB of it, so that floor is 25 GiB and one compiler
@@ -243,7 +321,7 @@ session_start() {
   # Both at once: each is a 270 MB download, and the session waits for this hook.
   local slot
   for slot in primary worker; do
-    { restore "$slot" 2>&1 ||
+    { restore "$slot" "$replace" 2>&1 ||
       echo "warm build: $slot not restored; the first build compiles everything"; } &
   done
   wait
@@ -266,7 +344,8 @@ case "${1:-}:$#" in
   pack:3) pack "$2" "$3" ;;
   publish:3) publish "$2" "$3" ;;
   restore:2) restore "$2" ;;
+  restore:3) [ "$3" = replace-stale ] || fail "restore: the third argument can only be replace-stale"; restore "$2" "$3" ;;
   # A hook must never block or fail a session; the cold build still works.
   session-start:1) session_start || true ;;
-  *) fail "usage: warm_build.sh pack|publish <slot> <out-dir> | restore <slot> | session-start" ;;
+  *) fail "usage: warm_build.sh pack|publish <slot> <out-dir> | restore <slot> [replace-stale] | session-start" ;;
 esac

@@ -1766,6 +1766,7 @@ pub(crate) mod expression {
                 }
             }),
             symbol: SymbolHandle::invalid(),
+            signature_free_requirement: None,
         })
     }
 
@@ -1821,7 +1822,6 @@ pub(crate) mod item {
     use crate::lowering::measure::lower_measure_definition;
     use crate::lowering::name::lower_name;
     use crate::lowering::name::lower_names;
-    use crate::lowering::operator::lower_bare_bodyless_signature;
     use crate::lowering::operator::lower_operator_definition;
     use crate::lowering::proposition::lower_proposition_definition;
     use crate::lowering::trait_definition::lower_trait_definition;
@@ -1931,14 +1931,6 @@ pub(crate) mod item {
                     .symbol_resolved_trees
                     .domain_definitions
                     .push(domain_definition);
-            }
-            Item::Machine(machine)
-                if machine.target.is_none()
-                    && !machine.target_family_interface
-                    && crate::lowering::operator::is_bare_bodyless_signature(machine) =>
-            {
-                let operator = lower_bare_bodyless_signature(lowerer, syntax_trees, machine)?;
-                lowerer.symbol_resolved_trees.operators.push(operator);
             }
             Item::Machine(machine) => {
                 lower_machine_into(lowerer, syntax_trees, machine)?;
@@ -2128,6 +2120,10 @@ pub(crate) mod item {
                     None
                 } else if definition.is_public
                     && lowerer.const_resolution_mode == ConstResolutionMode::Complete
+                    && !crate::constant::requires_const_initializer_evaluation(
+                        syntax_trees,
+                        definition,
+                    )
                 {
                     Some(
                         crate::constant::evaluated_declaration_value(
@@ -2570,12 +2566,12 @@ pub(crate) mod operator {
     use crate::lowering::state::{lower_signature_contracts, lower_state_parameters};
     use crate::lowering::type_reference::lower_type_reference_handle;
     use crate::resolution::lowerer::Lowerer;
-    use arena::HandleSpan;
     use diagnostics::Diagnostic;
     use language_core::atomic::ATOMIC_FENCE_NAMESPACE;
-    use numerics::float_projection::FLOAT_PROJECTION_CORE_SOURCE;
+    use language_core::sealed_intrinsics::{
+        CollectionPrimitive, CompilerPrimitive, SealedIntrinsic,
+    };
     use numerics::float_projection::FloatProjectionOperation;
-    use std::path::Path;
     use syntax::types::TypeReferenceNode;
     use syntax_trees::{self as syntax, SyntaxTrees};
 
@@ -2640,34 +2636,34 @@ pub(crate) mod operator {
         (`Float::meaning32`, `Float::meaning64`) or a semantic-definition row
         (`FloatSemantics::<name>` with its complete normalized signature, so the
         `from_integer` carriers select distinct rows). The admitted declaration
-        lowers to the same resolved operator declaration the retiring `operator`
-        introducer produced, so the sealed routes (hermetic toolchain symbol
-        identity, exact signature shape, catalog contract identity) validate it
-        unchanged; a same-spelled declaration in any other source is refused here,
-        and a sealed declaration whose signature matches no row rejects instead of
+        retains its complete machine declaration: generic binders, operational
+        clauses and result contracts must reach the same owners as other
+        machines. A token binding is a derived view, not a second header.
+        A same-spelled declaration in another source is refused here, and a
+        sealed declaration whose signature matches no row rejects instead of
         lowering as an ordinary declaration.
     */
-    pub(crate) fn lower_bare_bodyless_signature(
+    pub(crate) fn require_catalog_signature(
         lowerer: &mut Lowerer,
         syntax_trees: &SyntaxTrees,
         machine: &syntax::item::Machine,
-    ) -> Result<symbol_resolved_trees::operator::OperatorDefinition, Diagnostic> {
+    ) -> Result<(), Diagnostic> {
         let name = machine.name.as_str(syntax_trees);
         let (namespace, leaf) = name.rsplit_once("::").unwrap_or(("", name));
-        let family = CatalogFamily::naming(namespace, leaf);
-        let sealed_source =
-            family.is_some_and(|family| {
-                lowerer
-                    .sources
-                    .as_ref()
-                    .and_then(|sources| sources.get(machine.name.source_span().source_id))
-                    .is_some_and(|file| {
-                        file.origin == source::SourceOrigin::Toolchain
-                            && file.path.strip_prefix(&file.package_root).ok().is_some_and(
-                                |relative| relative == Path::new(family.sealed_source()),
-                            )
-                    })
-            });
+        let custody = lowerer
+            .sources
+            .as_ref()
+            .and_then(|sources| sources.get(machine.name.source_span().source_id))
+            .and_then(|file| symbols::sealed_intrinsic_at(file, name));
+        let family = match custody {
+            Some(SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::Collection(operation))) => {
+                Some(CatalogFamily::Collection(operation))
+            }
+            _ => CatalogFamily::naming(namespace, leaf),
+        };
+        let sealed_source = family.is_some_and(|family| {
+            custody == Some(SealedIntrinsic::CompilerPrimitive(family.primitive()))
+        });
         let Some(family) = family.filter(|_| sealed_source) else {
             let token = machine
                 .spelling
@@ -2698,6 +2694,10 @@ pub(crate) mod operator {
         };
         let entry = syntax_trees.items.state(*entry);
         match family {
+            // The exact bundled declaration proceeds through the complete
+            // generic machine owner. Typed schema normalization retains every
+            // binder, lifetime relation and contract before a use is served.
+            CatalogFamily::Collection(_) => {}
             CatalogFamily::FloatProjection => {}
             CatalogFamily::AtomicFence => {
                 require_exact_atomic_fence_row(syntax_trees, machine, entry)?;
@@ -2709,39 +2709,7 @@ pub(crate) mod operator {
                 require_exact_ranking_view_row(syntax_trees, machine, entry, declaration)?;
             }
         }
-        let name_span = machine.name.source_span();
-        let mut path = HandleSpan::empty();
-        for member in name.split("::") {
-            lowerer
-                .symbol_resolved_trees
-                .tables
-                .declarations
-                .operator_path_members
-                .append_to_span(
-                    &mut path,
-                    crate::lowering::name::lower_name(
-                        syntax_trees,
-                        &syntax::identifier::Identifier::new(member, name_span),
-                    ),
-                );
-        }
-        Ok(symbol_resolved_trees::operator::OperatorDefinition {
-            is_public: machine.is_public,
-            is_boundary: false,
-            symbol: Default::default(),
-            name: path,
-            lifetime_parameters: lower_names(syntax_trees, &machine.lifetime_parameters),
-            type_parameters: lower_type_parameters(lowerer, syntax_trees, machine.type_parameters)?,
-            parameters: lower_state_parameters(lowerer, syntax_trees, entry.parameters)?,
-            return_type: entry
-                .return_type
-                .is_valid()
-                .then(|| lower_type_reference_handle(lowerer, syntax_trees, entry.return_type))
-                .transpose()?,
-            contracts: lower_signature_contracts(lowerer, syntax_trees, machine.contracts)?,
-            spelling: machine.spelling,
-            token_count: 0,
-        })
+        Ok(())
     }
 
     /*
@@ -2752,6 +2720,7 @@ pub(crate) mod operator {
     */
     #[derive(Clone, Copy)]
     enum CatalogFamily {
+        Collection(CollectionPrimitive),
         /* Place-free portable fence (`atomic.omg`). */
         AtomicFence,
         /* `Float::meaning32` / `Float::meaning64` (`float_operations.omg`). */
@@ -2787,11 +2756,13 @@ pub(crate) mod operator {
                 .map(Self::RankingView)
         }
 
-        fn sealed_source(self) -> &'static str {
+        fn primitive(self) -> CompilerPrimitive {
             match self {
-                Self::AtomicFence => language_core::atomic::ATOMIC_CORE_SOURCE,
-                Self::FloatProjection | Self::FloatSemantics => FLOAT_PROJECTION_CORE_SOURCE,
-                Self::RankingView(declaration) => declaration.source,
+                Self::Collection(operation) => CompilerPrimitive::Collection(operation),
+                Self::AtomicFence => CompilerPrimitive::AtomicFence,
+                Self::FloatProjection => CompilerPrimitive::FloatProjection,
+                Self::FloatSemantics => CompilerPrimitive::FloatSemantics,
+                Self::RankingView(_) => CompilerPrimitive::NaturalRanking,
             }
         }
     }
@@ -2965,6 +2936,214 @@ pub(crate) mod operator {
             return Err(Diagnostic::error("the sealed atomic fence declaration must be exactly `public machine Atomic::fence(ordering: FenceOrdering);`").with_source_span(machine.name.source_span()));
         }
         Ok(())
+    }
+
+    #[cfg(test)]
+    mod compiler_machine_tests {
+        use crate::{ResolutionRequest, resolve};
+        use source::{DependencyScope, SourceMap, SourceOrigin, SourceResolutionStratum};
+        use std::path::PathBuf;
+        use std::sync::Arc;
+
+        const ATOMIC: &str = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../../source/library/core/atomic.omg"
+        ));
+
+        fn parsed(
+            text: &str,
+            path: &str,
+            origin: SourceOrigin,
+        ) -> (syntax_trees::SyntaxTrees, Arc<SourceMap>) {
+            let mut sources = SourceMap::default();
+            let source_id = sources
+                .add_checked_instance(
+                    PathBuf::from("toolchain").join(path),
+                    text.to_owned(),
+                    PathBuf::from("toolchain"),
+                    None,
+                    origin,
+                    SourceResolutionStratum::Base,
+                    DependencyScope::Product,
+                )
+                .source_id;
+            let tokens = source_files_to_tokens::lexer::Lexer::new(text)
+                .tokenize()
+                .expect("the test source must tokenize");
+            let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens)
+                .expect("the test source must parse");
+            (syntax, Arc::new(sources))
+        }
+
+        fn resolved(
+            text: &str,
+            path: &str,
+            origin: SourceOrigin,
+        ) -> Result<symbol_resolved_trees::SymbolResolvedTrees, Vec<diagnostics::Diagnostic>>
+        {
+            let (syntax, sources) = parsed(text, path, origin);
+            let mut request = ResolutionRequest::new(syntax);
+            request.sources = Some(sources);
+            resolve(request)
+        }
+
+        #[test]
+        fn sealed_bodyless_declaration_retains_its_machine_owner() {
+            let trees = resolved(ATOMIC, "atomic.omg", SourceOrigin::Toolchain)
+                .expect("the bundled fence declaration must resolve");
+            assert_eq!(trees.machines.len(), 1, "one authoritative machine owner");
+            let machine = &trees.machines[0];
+            assert_eq!(machine.name.as_str(), "Atomic::fence");
+            assert_eq!(
+                machine.supply_mode,
+                language_semantics::MachineSupplyMode::CompilerProvided
+            );
+            assert!(!machine.body_is_present);
+            assert!(machine.symbol.is_valid());
+            let [entry] = trees.machine_state_handles(machine.states) else {
+                panic!("the complete machine must retain its entry signature");
+            };
+            let entry = trees.machine_state(*entry);
+            assert_eq!(trees.state_parameters(entry.parameters).len(), 1);
+            assert!(
+                trees.operators.is_empty(),
+                "no partial operator header survives"
+            );
+        }
+
+        #[test]
+        fn copied_or_edited_catalog_source_cannot_acquire_compiler_supply() {
+            let edited = format!("{ATOMIC}\n// local edit\n");
+            for (text, path, origin) in [
+                (ATOMIC, "atomic.omg", SourceOrigin::User),
+                (ATOMIC, "other.omg", SourceOrigin::Toolchain),
+                (edited.as_str(), "atomic.omg", SourceOrigin::Toolchain),
+            ] {
+                let errors = resolved(text, path, origin)
+                    .expect_err("source custody must not be inferred from the machine shape");
+                assert!(
+                    errors.iter().any(|error| error
+                        .message
+                        .contains("only the sealed toolchain declaration")),
+                    "unexpected errors: {errors:?}"
+                );
+            }
+        }
+
+        #[test]
+        fn ordinary_bodyless_machine_still_requires_a_supplier() {
+            let errors = resolved(
+                "machine unsupported(value: u64) -> u64;",
+                "user.omg",
+                SourceOrigin::User,
+            )
+            .expect_err("a bodyless user declaration has no compiler supply");
+            assert!(
+                errors
+                    .iter()
+                    .any(|error| error.message.contains("has no body"))
+            );
+        }
+
+        #[test]
+        fn existing_catalog_families_use_complete_machine_lowering() {
+            const FLOAT: &str = include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../../../source/library/core/float_operations.omg"
+            ));
+            const NAT: &str = include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../../../source/library/core/nat.omg"
+            ));
+            for (text, path, name, arity) in [
+                (FLOAT, "float_operations.omg", "Float::meaning32", 1),
+                (FLOAT, "float_operations.omg", "FloatSemantics::add", 3),
+                (NAT, "nat.omg", "Nat::Descending", 1),
+            ] {
+                let (syntax, sources) = parsed(text, path, SourceOrigin::Toolchain);
+                let authored = syntax
+                    .root_items()
+                    .find_map(|item| match item {
+                        syntax_trees::item::Item::Machine(machine)
+                            if machine.name.as_str(&syntax) == name =>
+                        {
+                            Some(machine)
+                        }
+                        _ => None,
+                    })
+                    .expect("the bundled declaration must exist");
+                let mut lowerer = crate::resolution::lowerer::Lowerer::new(Some(sources), vec![]);
+                crate::lowering::machine::lower_machine_into(&mut lowerer, &syntax, authored)
+                    .expect("existing catalog rows must use ordinary machine lowering");
+                let trees = &lowerer.symbol_resolved_trees;
+                assert_eq!(trees.machines.len(), 1);
+                let machine = &trees.machines[0];
+                assert_eq!(machine.name.as_str(), name);
+                assert_eq!(
+                    machine.supply_mode,
+                    language_semantics::MachineSupplyMode::CompilerProvided
+                );
+                assert_eq!(machine.is_public, authored.is_public);
+                assert!(!machine.body_is_present);
+                let [entry] = trees.machine_state_handles(machine.states) else {
+                    panic!("the catalog machine must retain its entry");
+                };
+                let entry = trees.machine_state(*entry);
+                assert_eq!(trees.state_parameters(entry.parameters).len(), arity);
+                assert!(entry.return_type.is_some());
+                assert!(trees.operators.is_empty());
+            }
+        }
+
+        #[test]
+        fn sealed_integer_conversion_overloads_keep_distinct_machine_symbols() {
+            const FLOAT: &str = include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../../../source/library/core/float_operations.omg"
+            ));
+            let trees = resolved(FLOAT, "float_operations.omg", SourceOrigin::Toolchain)
+                .expect("the real floating-point declaration family must resolve");
+            let family = trees
+                .machines
+                .iter()
+                .filter(|machine| machine.name.as_str() == "FloatSemantics::from_integer")
+                .collect::<Vec<_>>();
+            assert_eq!(family.len(), 8, "retain every signed/unsigned integer row");
+            let mut symbols = family
+                .iter()
+                .map(|machine| machine.symbol)
+                .collect::<Vec<_>>();
+            assert!(symbols.iter().all(|symbol| symbol.is_valid()));
+            symbols.sort_unstable_by_key(|symbol| symbol.arena_index());
+            symbols.dedup();
+            assert_eq!(
+                symbols.len(),
+                8,
+                "same path must not collapse declaration owners"
+            );
+            let carriers = family
+                .iter()
+                .map(|machine| {
+                    let [entry] = trees.machine_state_handles(machine.states) else {
+                        panic!("each overload must retain its entry");
+                    };
+                    let entry = trees.machine_state(*entry);
+                    let [_, value] = trees.state_parameters(entry.parameters) else {
+                        panic!("each integer conversion needs its format and value");
+                    };
+                    let symbol_resolved_trees::types::TypeReference::Named { name, .. } =
+                        &value.type_reference
+                    else {
+                        panic!("the integer catalog row must retain its named carrier");
+                    };
+                    name.as_str()
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(
+                carriers,
+                ["i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64"]
+            );
+        }
     }
 }
 pub(crate) mod proposition {

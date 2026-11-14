@@ -1,5 +1,7 @@
 module reflect;
 
+use omega::language::core::AccessRegion;
+
 // An explicitly retained, immutable graph in this program's own constant data.
 // Its bytes contain descriptive identities, never compiler pointers or access
 // authority. Copying the facade shares immutable program storage. Node views
@@ -11,6 +13,16 @@ public data SchemaMembers<'graph> [copy] { graph: &'graph [u8]; handles: &'graph
 // Only this exact toolchain declaration is elaborated by Psi. The occurrence
 // retains its lexical author's visibility, including through generic helpers.
 public machine schema<T>() -> TypeSchema { TypeSchema { storage: "" } }
+
+// A whole-subject rule retains the same immutable semantic schema. Its
+// consumer still authenticates that schema against the policy request.
+public machine TypeSchema::root(schema: &TypeSchema) -> AccessRegion
+reaches none
+crashes none
+terminates
+{
+    AccessRegion::Subject { schema: TypeSchema { storage: schema.storage } }
+}
 
 // These bytes describe the selected declaration and its chosen arguments.
 // They grant no right to call it or establish a domain. A policy consumer must
@@ -256,6 +268,18 @@ public data FieldInfo {
     has_stable_number: bool;
     is_erased: bool;
     stable_number: u64;
+    source_revision: &[u8];
+}
+
+// A checked declaration query must produce the field description. If this
+// fallback body is reached, no description is returned: ordinary execution
+// cannot replace the query's owner/application/revision correspondence.
+public machine field(declaration: ()) -> FieldInfo
+reaches none
+crashes Trap
+terminates
+{
+    crash Trap;
 }
 
 // A compiler-known operation on this exact toolchain declaration. It closes

@@ -20,7 +20,7 @@ authored `build.omg` code can run:
    list halts immediately with `CompileFailure::BuildConsentRequired` before the
    reviewed action can execute.
 4. The accepted invocation executes under its fresh admission and account.
-   The old checked-tree cache is deleted; no prior checked result substitutes
+   The old result cache is deleted; no prior checked result substitutes
    for this source owner, accepted module, or invocation authority.
 
 `PreparedBuildEvaluation` holds the admitted execution
@@ -146,8 +146,8 @@ pub fn prepare_build_evaluation(
         pure_build_compilation: _,
         root_path,
         typed,
-        // Admission evaluates no constant, so the Product's pending work is
-        // left whole (`admission/checking.rs`).
+        // Build admission prepares its own captured source request; the
+        // Product's pending work stays whole (`admission/checking.rs`).
         pre_checks: _,
         build_source,
         sources,
@@ -208,6 +208,7 @@ pub fn prepare_build_evaluation(
         typed,
         selected_machine,
         package_inputs,
+        anonymous_source,
         dependency_activation,
         timings,
     )?;

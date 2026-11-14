@@ -64,8 +64,16 @@ fn find<'program, Calls: ExpressionCalls<'program>>(
             if let Some(site) = find(traversal, binary.left) {
                 return Some(site);
             }
+            let left_boolean = program
+                .expression_table
+                .expression_is_valid(binary.left)
+                .then(|| program.expression_table.expression(binary.left))
+                .and_then(|expression| match expression {
+                    ExpressionNode::Boolean(value) => Some(*value),
+                    _ => None,
+                });
             if matches!(
-                (binary.operator, program.static_boolean_value(binary.left)),
+                (binary.operator, left_boolean),
                 (BinaryOperator::And, Some(false)) | (BinaryOperator::Or, Some(true))
             ) {
                 return None;

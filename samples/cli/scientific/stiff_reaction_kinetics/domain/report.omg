@@ -1,6 +1,8 @@
 use omega_language_std::console;
-use omega::language::core::float_operations;
-use omega::language::core::numeric_conversion;
+use omega::language::core::I64::from_f64;
+use omega::language::core::narrow_i64_to_u64_wrapping;
+use omega::language::core::narrow_u64_to_i32_saturating;
+use omega::language::core::widen_i32_to_i64;
 
 // Time and total concentration are bounded by 10^6, so 10^-12 units
 // fit i64. Explicit floating conversion handles presentation rounding.

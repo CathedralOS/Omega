@@ -43,11 +43,11 @@ boundary trait WindowsFilesystemRemovalIo {
     reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration blocks
     crashes none;
     machine dispose(handle: i64 in WindowsPrivateNonalertFileOrAbsent, information_class: u32, input: &WindowsNativeFileDisposition, size: u32) -> i32
-    requires handle != 0 && information_class == 4 && input.delete == 1 && size == 1
+    requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 && information_class == 4 && input.delete == 1 && size == 1
     reaches FilesystemNamespaceMutation blocks
     crashes none;
     machine close(handle: i64 in WindowsPrivateNonalertFileOrAbsent) -> i32
-    requires handle != 0
+    requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0
     reaches FilesystemNamespaceMutation blocks
     crashes none;
 }

@@ -1,4 +1,5 @@
-use omega::language::core::nat;
+use omega::language::core::Nat;
+use omega::language::core::mul;
 // An axiom about an unproven shape, cited by a lemma: the citation delivers
 // the accepted fact into the lemma's hypothesis base.
 boundary machine mul_comm_axiom(a: Nat, b: Nat) -> Nat

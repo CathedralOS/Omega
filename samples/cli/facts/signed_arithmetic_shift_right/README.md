@@ -9,15 +9,15 @@ Every place performs the same operation: shift a signed `i64` value (`400i64`) r
 | Place | Positive | Fact-sensitive reject twin | Transport |
 | --- | --- | --- | --- |
 | root | [main.omg](main.omg) | — | root signed i64 value and bounded shift count |
-| local | [local/main.omg](local/main.omg) | [local/invalid/main.omg](local/invalid/main.omg) | both the signed i64 value and bounded shift count are copied into locals |
-| field | [field/main.omg](field/main.omg) | [field/invalid/main.omg](field/invalid/main.omg) | bounded record fields carry the signed i64 value and shift count |
-| parameter | [parameter/main.omg](parameter/main.omg) | [parameter/invalid/main.omg](parameter/invalid/main.omg) | the shift machine reads its parameters directly |
-| call_result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | calls with declared types and bounds supply both operands |
-| match_join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | both arms keep the operands inside bounds, so the joined operands shift safely |
-| const_name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | named constants provide the signed value and shift count |
-| other_state | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | a successor machine receives the operands and shifts there |
-| other_machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | a forwarding machine transports operands to the shift machine |
-| target_body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | each of four target bodies shifts the signed i64 value and shift count |
+| local | [local/main.omg](local/main.omg) | [invalid_local/main.omg](invalid_local/main.omg) | both the signed i64 value and bounded shift count are copied into locals |
+| field | [field/main.omg](field/main.omg) | [invalid_field/main.omg](invalid_field/main.omg) | bounded record fields carry the signed i64 value and shift count |
+| parameter | [parameter/main.omg](parameter/main.omg) | [invalid_parameter/main.omg](invalid_parameter/main.omg) | the shift machine reads its parameters directly |
+| call_result | [call_result/main.omg](call_result/main.omg) | [invalid_call_result/main.omg](invalid_call_result/main.omg) | calls with declared types and bounds supply both operands |
+| match_join | [match_join/main.omg](match_join/main.omg) | [invalid_match_join/main.omg](invalid_match_join/main.omg) | both arms keep the operands inside bounds, so the joined operands shift safely |
+| const_name | [const_name/main.omg](const_name/main.omg) | [invalid_const_name/main.omg](invalid_const_name/main.omg) | named constants provide the signed value and shift count |
+| other_state | [other_state/main.omg](other_state/main.omg) | [invalid_other_state/main.omg](invalid_other_state/main.omg) | a successor machine receives the operands and shifts there |
+| other_machine | [other_machine/main.omg](other_machine/main.omg) | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | a forwarding machine transports operands to the shift machine |
+| target_body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) | each of four target bodies shifts the signed i64 value and shift count |
 
 Each positive place and the root `main.omg` binds `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declares `Expected exit: 0`, carries `expected_native_exit.txt` = 0, and passes `omega run --both` — Terminal Psi and native execution agreeing:
 
@@ -36,15 +36,15 @@ Each twin carries an authored `sample.json` intended-invalid identity (`"role": 
 
 | Place | Reject Twin | Authored diagnostic fragment |
 | --- | --- | --- |
-| local | [local/invalid/main.omg](local/invalid/main.omg) | `cannot prove requires contract for call consume from shift_right: diff >= 0 && diff <= 0` |
-| field | [field/invalid/main.omg](field/invalid/main.omg) | `cannot prove requires contract for call consume from shift_right: diff >= 0 && diff <= 0` |
-| parameter | [parameter/invalid/main.omg](parameter/invalid/main.omg) | `cannot prove requires contract for call consume from shift_right: diff >= 0 && diff <= 0` |
-| call_result | [call_result/invalid/main.omg](call_result/invalid/main.omg) | `cannot prove requires contract for call consume from shift_right: diff >= 0 && diff <= 0` |
-| match_join | [match_join/invalid/main.omg](match_join/invalid/main.omg) | `cannot prove requires contract for call consume from shift_right: diff >= 0 && diff <= 0` |
-| const_name | [const_name/invalid/main.omg](const_name/invalid/main.omg) | `cannot prove requires contract for call consume from shift_right: diff >= 0 && diff <= 0` |
-| other_state | [other_state/invalid/main.omg](other_state/invalid/main.omg) | `cannot prove requires contract for call consume from shift_right: diff >= 0 && diff <= 0` |
-| other_machine | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | `cannot prove requires contract for call consume from forward: diff >= 0 && diff <= 0` |
-| target_body | [target_body/invalid/main.omg](target_body/invalid/main.omg) | `cannot prove requires contract for call consume from shift_right: diff >= 0 && diff <= 0` |
+| local | [invalid_local/main.omg](invalid_local/main.omg) | `cannot prove requires contract for call consume from shift_right: diff >= 0 && diff <= 0` |
+| field | [invalid_field/main.omg](invalid_field/main.omg) | `cannot prove requires contract for call consume from shift_right: diff >= 0 && diff <= 0` |
+| parameter | [invalid_parameter/main.omg](invalid_parameter/main.omg) | `cannot prove requires contract for call consume from shift_right: diff >= 0 && diff <= 0` |
+| call_result | [invalid_call_result/main.omg](invalid_call_result/main.omg) | `cannot prove requires contract for call consume from shift_right: diff >= 0 && diff <= 0` |
+| match_join | [invalid_match_join/main.omg](invalid_match_join/main.omg) | `cannot prove requires contract for call consume from shift_right: diff >= 0 && diff <= 0` |
+| const_name | [invalid_const_name/main.omg](invalid_const_name/main.omg) | `cannot prove requires contract for call consume from shift_right: diff >= 0 && diff <= 0` |
+| other_state | [invalid_other_state/main.omg](invalid_other_state/main.omg) | `cannot prove requires contract for call consume from shift_right: diff >= 0 && diff <= 0` |
+| other_machine | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | `cannot prove requires contract for call consume from forward: diff >= 0 && diff <= 0` |
+| target_body | [invalid_target_body/main.omg](invalid_target_body/main.omg) | `cannot prove requires contract for call consume from shift_right: diff >= 0 && diff <= 0` |
 
 ## Pinned Fixtures
 

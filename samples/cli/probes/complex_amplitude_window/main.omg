@@ -3,7 +3,6 @@
 // through a local, the field, a parameter, and a call result. The untouched
 // half stays put.
 // Expected exit: 0
-use omega::language::core::float_operations;
 
 data Complex [copy] { real: f64; imaginary: f64; }
 data Held<'row> { cells: &'row mut [Complex]; }

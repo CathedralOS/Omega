@@ -1,6 +1,5 @@
 // Generic scalar operations and nested calls use the canonical complex carrier.
 use omega::language::core::complex::Complex;
-use omega::language::core::float_operations;
 
 public trait Arithmetic<Scalar [copy]> {
     machine plus(left: Scalar, right: Scalar) -> Scalar;

@@ -435,6 +435,17 @@ integer_fields! {
     Flag: bool => boolean / boolean,
 }
 
+pub(crate) struct I128;
+impl Field<i128> for I128 {
+    fn write(writer: &mut Writer, value: &i128) -> Result<(), CodecError> {
+        writer.bytes(&value.to_le_bytes());
+        Ok(())
+    }
+    fn read(reader: &mut Reader<'_>) -> Result<i128, CodecError> {
+        Ok(i128::from_le_bytes(reader.array()?))
+    }
+}
+
 pub(crate) struct Path;
 impl Field<Vec<StructuralPathSegment>> for Path {
     fn write(writer: &mut Writer, value: &Vec<StructuralPathSegment>) -> Result<(), CodecError> {

@@ -108,7 +108,7 @@ echo "acceptance ok — the evaluator tape satisfies the native-container contra
 if [ "$ALPHA_SEED_EXECUTABLE" = 1 ]; then
   echo "--- native execution receipt ---"
   printf '(def main () Int 42)\n' > "$TMP/acceptance.gamma"
-  python3 "$OMEGA_REPO_ROOT/tools/bootstrap/gamma/invoke.py" \
+  bootstrap_xtask gamma-invoke \
     --evaluator "$TMP/evaluator" --source "$TMP/acceptance.gamma" \
     --output "$TMP/receipt" --timeout 30 ||
     fail "seeded evaluator did not accept the minimal source"

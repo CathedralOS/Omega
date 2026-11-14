@@ -246,10 +246,7 @@ impl WorkMeter {
     ) -> Result<Self, WorkMeterError> {
         let schedule = WorkSchedule::CURRENT;
         let EvaluationMeasurementIdentity::TerminalPsi { work_schedule, .. } =
-            invocation.measurement()
-        else {
-            return Err(WorkMeterError::InvocationMeasurementMismatch);
-        };
+            invocation.measurement();
         if work_schedule != schedule.identity() {
             return Err(WorkMeterError::InvocationMeasurementMismatch);
         }

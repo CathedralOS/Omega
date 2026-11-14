@@ -92,9 +92,9 @@ matching library selected:
 
 ```sh
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
-omega update --project samples/cli/independent/mold_front_vent_analysis --target linux_x86_64
+omega packages update --project samples/cli/independent/mold_front_vent_analysis --target linux_x86_64
 # Inspect the generated review and explicitly accept only its reviewed decisions,
-# then use omega update --resume --project <same-directory> when required.
+# then use omega packages update --resume --project <same-directory> when required.
 omega --check --target linux_x86_64 samples/cli/independent/mold_front_vent_analysis/main.omg
 omega --target linux_x86_64 samples/cli/independent/mold_front_vent_analysis/main.omg
 omega run --both --keep samples/cli/independent/mold_front_vent_analysis/main.omg < samples/cli/independent/mold_front_vent_analysis/data/merging.in

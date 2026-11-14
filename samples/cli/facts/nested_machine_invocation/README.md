@@ -21,15 +21,15 @@ declarations and operands; it adds no runtime environment.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| Local | [source](local/main.omg) | [wrong result](local/invalid/main.omg) |
-| Field | [source](field/main.omg) | [wrong result](field/invalid/main.omg) |
-| Parameter | [source](parameter/main.omg) | [wrong result](parameter/invalid/main.omg) |
-| Call result | [source](call_result/main.omg) | [wrong result](call_result/invalid/main.omg) |
-| Match join | [source](match_join/main.omg) | [wrong result](match_join/invalid/main.omg) |
-| Const name | [source](const_name/main.omg) | [wrong result](const_name/invalid/main.omg) |
-| Nested machine | [source](other_state/main.omg) | [wrong result](other_state/invalid/main.omg) |
-| Other machine | [source](other_machine/main.omg) | [wrong result](other_machine/invalid/main.omg) |
-| Target body | [source](target_body/main.omg) | [wrong result](target_body/invalid/main.omg) |
+| Local | [source](local/main.omg) | [wrong result](invalid_local/main.omg) |
+| Field | [source](field/main.omg) | [wrong result](invalid_field/main.omg) |
+| Parameter | [source](parameter/main.omg) | [wrong result](invalid_parameter/main.omg) |
+| Call result | [source](call_result/main.omg) | [wrong result](invalid_call_result/main.omg) |
+| Match join | [source](match_join/main.omg) | [wrong result](invalid_match_join/main.omg) |
+| Const name | [source](const_name/main.omg) | [wrong result](invalid_const_name/main.omg) |
+| Nested machine | [source](other_state/main.omg) | [wrong result](invalid_other_state/main.omg) |
+| Other machine | [source](other_machine/main.omg) | [wrong result](invalid_other_machine/main.omg) |
+| Target body | [source](target_body/main.omg) | [wrong result](invalid_target_body/main.omg) |
 
 Every positive returns its authored exit 0 in Terminal Psi and Windows x86-64
 native execution. Every twin changes only the nested helper's result from its
@@ -104,7 +104,7 @@ This is the control for the shared console adapters' nested-machine migration.
 
 [Copied payload](copied_payload/main.omg) passes a case's copied scalar into a
 nested helper that mutates the original case. The copied observation ends before
-the invocation; the [reject twin](copied_payload/invalid/main.omg) instead retains
+the invocation; the [reject twin](invalid_copied_payload/main.omg) instead retains
 a shared reference and must still reject overlapping mutation. The source
 customer is the standard permissions adapter's nested-machine migration.
 

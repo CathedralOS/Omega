@@ -384,12 +384,13 @@ rewrites and promotion are not prerequisites for the first useful compiler.
   rolled back, since a green run alone proves neither. Non-applicable axes are
   explained (mandatory recovery has no disabled mode).
 
-- **BENCHMARKS.** Complete subject/selection/target measurements through the
-  existing [prepare/measure/validate/matrix workflow](tools/benchmark/README.md)
-  and [benchmark matrix](wiki/drafts/measurements/benchmarks.md). Do not
-  rebuild the harness. Records (`omega-benchmark-record/2`) exist for macOS
-  ARM64 and Linux x86-64; they describe their recorded revisions, not a
-  current baseline.
+- **BENCHMARKS.** Complete subject/selection/target measurements with
+  [`omega-bench`](tools/benchmark/README.md) and the
+  [benchmark matrix](wiki/drafts/measurements/benchmarks.md). The earlier
+  `omega-benchmark-record/2` rows from the deleted Python harness cover macOS
+  ARM64 and Linux x86-64 and remain at
+  [`tools/benchmark/records/` as of `09d7d4c08e`](https://github.com/CathedralOS/Omega/tree/09d7d4c08e992a86d024086327cbff44c4d5f92b/tools/benchmark/records);
+  they describe their recorded revisions, not a current baseline.
   - Remaining runtime legs: Linux ARM64, Windows x64 (exercise job-object
     peak-memory accounting), Intel macOS, and an applicable UEFI subject on
     QEMU or hardware. A subject with no bound entry is non-applicable, not a

@@ -8,7 +8,7 @@ storage leases (`EvaluationInvocationAccount`, `EvaluationStorageLease` in
 */
 
 /*
-Compile-time evaluation across Checked-Tree and Terminal-Psi engines requires
+Compile-time evaluation on the Terminal Psi measurement requires
 strict, deterministic resource bounds over logical work units, BuildLog bytes,
 filesystem operation attempts, live filesystem handles, live storage cells, live
 payload bytes, and retained result custody. Separating pure counter transactions
@@ -19,8 +19,8 @@ accounts unchanged.
 
 /*
 Every sponsor and usage record binds an explicit `EvaluationMeasurementIdentity`
-so equal numeric schedule markers from different engines can never spend or
-substitute for each other's budgets. `BuildEvaluationSponsor::charge_pure_usage`
+so a different schedule cannot spend or substitute for this account's budget.
+`BuildEvaluationSponsor::charge_pure_usage`
 atomically replays validated pure evaluation costs against a current sponsor
 without importing the producer's account authority.
 */
@@ -163,13 +163,8 @@ pub struct BuildEvaluationSponsor {
 
 impl BuildEvaluationSponsor {
     pub fn new(limits: BuildEvaluationSponsorLimits) -> Self {
-        Self {
-            account: Arc::new(BuildEvaluationSponsorAccount {
-                limits,
-                measurement: EvaluationMeasurementIdentity::CheckedTree,
-                consumed: Mutex::new(BuildEvaluationSponsorConsumption::default()),
-            }),
-        }
+        Self::new_with_measurement(limits, EvaluationMeasurementIdentity::current())
+            .expect("the current Terminal Psi measurement is supported")
     }
 
     pub fn new_with_measurement(
@@ -190,13 +185,6 @@ impl BuildEvaluationSponsor {
 
     pub fn measurement(&self) -> EvaluationMeasurementIdentity {
         self.account.measurement
-    }
-
-    fn require_checked_tree(&self) -> Result<(), String> {
-        if self.measurement() != EvaluationMeasurementIdentity::CheckedTree {
-            return Err("legacy tree charge cannot use a different measurement account".into());
-        }
-        Ok(())
     }
 
     pub fn limits(&self) -> BuildEvaluationSponsorLimits {
@@ -252,21 +240,6 @@ impl BuildEvaluationSponsor {
 
     pub fn peak_live_text_bytes(&self) -> u64 {
         self.peak_live_payload_bytes()
-    }
-
-    pub fn charge_work_unit(&self) -> Result<(), String> {
-        self.require_checked_tree()?;
-        let maximum = self.account.limits.work_budget();
-        let mut consumed = self.account.consumed.lock().map_err(|_| {
-            "build-evaluation aggregate work sponsor account is unavailable".to_owned()
-        })?;
-        if consumed.work_units >= maximum {
-            return Err(format!(
-                "build-evaluation aggregate work sponsor exhausted at {maximum} work units"
-            ));
-        }
-        consumed.work_units += 1;
-        Ok(())
     }
 
     pub fn charge_build_log_bytes(&self, bytes: u64) -> Result<(), String> {
@@ -325,107 +298,10 @@ impl BuildEvaluationSponsor {
         })
     }
 
-    pub fn charge_result_custody(&self, cells: u64, text_bytes: u64) -> Result<(), String> {
-        self.require_checked_tree()?;
-        let limits = self.account.limits;
-        let mut consumed = self.account.consumed.lock().map_err(|_| {
-            "build-evaluation result-custody sponsor account is unavailable".to_owned()
-        })?;
-        let candidate_cells = consumed
-            .result_storage_cells
-            .checked_add(cells)
-            .ok_or_else(|| "build-evaluation result-cell accounting overflowed".to_owned())?;
-        let candidate_text_bytes = consumed
-            .result_payload_bytes
-            .checked_add(text_bytes)
-            .ok_or_else(|| "build-evaluation result-text accounting overflowed".to_owned())?;
-        if candidate_cells > limits.maximum_result_storage_cells() {
-            return Err(format!(
-                "build-evaluation result-cell sponsor exhausted at {} cells",
-                limits.maximum_result_storage_cells()
-            ));
-        }
-        if candidate_text_bytes > limits.maximum_result_payload_bytes() {
-            return Err(format!(
-                "build-evaluation result-text sponsor exhausted at {} bytes",
-                limits.maximum_result_payload_bytes()
-            ));
-        }
-        consumed.result_storage_cells = candidate_cells;
-        consumed.result_payload_bytes = candidate_text_bytes;
-        Ok(())
-    }
-
-    pub fn reserve_live_cell(&self) -> Result<BuildEvaluationLiveCellLease, String> {
-        self.require_checked_tree()?;
-        let maximum = self.account.limits.maximum_live_storage_cells();
-        let mut consumed =
-            self.account.consumed.lock().map_err(|_| {
-                "build-evaluation live-cell sponsor account is unavailable".to_owned()
-            })?;
-        let Some(candidate) = consumed.live_storage_cells.checked_add(1) else {
-            return Err("build-evaluation live-cell accounting overflowed".to_owned());
-        };
-        if candidate > maximum {
-            return Err(format!(
-                "build-evaluation live-cell sponsor exhausted at {maximum} cells"
-            ));
-        }
-        consumed.live_storage_cells = candidate;
-        consumed.peak_live_storage_cells = consumed.peak_live_storage_cells.max(candidate);
-        drop(consumed);
-        Ok(BuildEvaluationLiveCellLease {
-            sponsor: self.clone(),
-        })
-    }
-
-    pub fn reserve_live_text_bytes(
-        &self,
-        bytes: u64,
-    ) -> Result<BuildEvaluationLiveTextByteLease, String> {
-        self.increase_live_payload_bytes(bytes)?;
-        Ok(BuildEvaluationLiveTextByteLease {
-            sponsor: self.clone(),
-            bytes,
-        })
-    }
-
-    fn increase_live_payload_bytes(&self, bytes: u64) -> Result<(), String> {
-        self.require_checked_tree()?;
-        let maximum = self.account.limits.maximum_live_payload_bytes();
-        let mut consumed = self.account.consumed.lock().map_err(|_| {
-            "build-evaluation live-Text-byte sponsor account is unavailable".to_owned()
-        })?;
-        let candidate = consumed
-            .live_payload_bytes
-            .checked_add(bytes)
-            .ok_or_else(|| "build-evaluation live-Text-byte accounting overflowed".to_owned())?;
-        if candidate > maximum {
-            return Err(format!(
-                "build-evaluation live-Text-byte sponsor exhausted at {maximum} bytes"
-            ));
-        }
-        consumed.live_payload_bytes = candidate;
-        consumed.peak_live_payload_bytes = consumed.peak_live_payload_bytes.max(candidate);
-        Ok(())
-    }
-
     fn release_live_filesystem_handle(&self) {
         let mut consumed = self.consumption();
         debug_assert!(consumed.live_filesystem_handles > 0);
         consumed.live_filesystem_handles = consumed.live_filesystem_handles.saturating_sub(1);
-    }
-
-    fn release_live_cell(&self) {
-        let mut consumed = self.consumption();
-        debug_assert!(consumed.live_storage_cells > 0);
-        consumed.live_storage_cells = consumed.live_storage_cells.saturating_sub(1);
-    }
-
-    fn release_live_payload_bytes(&self, bytes: u64) {
-        let mut consumed = self.consumption();
-        debug_assert!(consumed.live_payload_bytes >= bytes);
-        consumed.live_payload_bytes = consumed.live_payload_bytes.saturating_sub(bytes);
     }
 
     pub fn charge_pure_usage(
@@ -530,46 +406,6 @@ fn charged_total(
         ));
     }
     Ok(candidate)
-}
-
-#[derive(Debug)]
-pub struct BuildEvaluationLiveCellLease {
-    sponsor: BuildEvaluationSponsor,
-}
-
-impl Drop for BuildEvaluationLiveCellLease {
-    fn drop(&mut self) {
-        self.sponsor.release_live_cell();
-    }
-}
-
-#[derive(Debug)]
-pub struct BuildEvaluationLiveTextByteLease {
-    sponsor: BuildEvaluationSponsor,
-    bytes: u64,
-}
-
-impl BuildEvaluationLiveTextByteLease {
-    pub fn grow(&mut self, bytes: u64) -> Result<(), String> {
-        self.sponsor.increase_live_payload_bytes(bytes)?;
-        self.bytes = self
-            .bytes
-            .checked_add(bytes)
-            .expect("sponsor increase rejected byte-count overflow");
-        Ok(())
-    }
-
-    pub fn shrink(&mut self, bytes: u64) {
-        debug_assert!(self.bytes >= bytes);
-        self.bytes = self.bytes.saturating_sub(bytes);
-        self.sponsor.release_live_payload_bytes(bytes);
-    }
-}
-
-impl Drop for BuildEvaluationLiveTextByteLease {
-    fn drop(&mut self) {
-        self.sponsor.release_live_payload_bytes(self.bytes);
-    }
 }
 
 #[derive(Debug)]

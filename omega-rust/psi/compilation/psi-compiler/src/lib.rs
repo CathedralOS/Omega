@@ -1,7 +1,7 @@
 /*
     Target-neutral source parsing, resolution, typing, and preparation. This
     facade supplies frozen typed input to the lowered-form checker; it produces
-    no source-checker judgment, checked-tree cache, or selected checked product.
+    no source-checker judgment or selected product cache.
 */
 
 /*
@@ -18,7 +18,7 @@
     continuation and Product policy admission, `source_checking`
     (`SourcePreparationRequest` and `FrozenSource`) before lowered-form
     checking. Accepted source publication and artifact retention belong to
-    `psi-terminal-production`; no checked-tree cache remains in this facade.
+    `psi-terminal-production`.
 */
 
 #![forbid(unsafe_code)]
@@ -330,7 +330,8 @@ pub(crate) mod source_parsing {
 }
 
 pub use source_checking::{
-    FrozenSource, ProductRepresentationInput, SourceAdmission, SourcePreparationRequest,
+    FrozenSource, ProductRepresentationInput, SourceAdmission, SourcePreparationFailure,
+    SourcePreparationRequest,
 };
 pub use source_parsing::{
     ParsedText, SourceInput, SourceParseError, load_source_files, parse_text,
@@ -342,16 +343,19 @@ pub use source_compilation::{
 };
 
 pub use psi_terminal_production::{
-    AcceptedTerminalSource, BuildCallSite, CallableBoundaryImplementation, PortableTerminalProgram,
-    PreparedTerminalRoots, ProducedBuildProvider, ProducedTerminalApplication,
-    ProducedTerminalProgram, ProgramEntryTerminalReceiptError, PsiCompilationObserver,
-    PsiCompilationStage, TerminalAdmissionRoot, TerminalApplicationCustody,
-    TerminalArtifactProductionError, TerminalBuildBindingCall, TerminalBuildBindingOperation,
-    TerminalBuildBindings, TerminalBuildFilesystem, TerminalBuildFilesystemCall,
-    TerminalBuildFilesystemOperation, TerminalBuildNativeLocator, TerminalBuildProviderRequirement,
-    TerminalBuildQueryCall, TerminalBuildQueryOperation, TerminalBuildRequestCall,
-    TerminalBuildRequestOperation, TerminalBuildRequests, TerminalBuildSelectionRequest,
-    TerminalBuildValueCase, TerminalBuildValueField, TerminalBuildValueShape,
+    AcceptedTerminalSource, BuildCallSite, CallableBoundaryImplementation, ConstantRead,
+    DeclaredBoundaryRequirement, PortableTerminalProgram, PreparedTerminalRoots,
+    ProducedBuildProvider, ProducedTerminalApplication, ProducedTerminalProgram,
+    ProgramEntryTerminalReceiptError, PsiCompilationObserver, PsiCompilationStage,
+    TerminalAdmissionRoot, TerminalApplicationCustody, TerminalArtifactProductionError,
+    TerminalBuildBindingCall, TerminalBuildBindingOperation, TerminalBuildBindings,
+    TerminalBuildFilesystem, TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation,
+    TerminalBuildNativeLocator, TerminalBuildProviderRequirement, TerminalBuildQueryCall,
+    TerminalBuildQueryOperation, TerminalBuildRequestCall, TerminalBuildRequestOperation,
+    TerminalBuildRequests, TerminalBuildSelectionRequest, TerminalBuildValueCase,
+    TerminalBuildValueField, TerminalBuildValueShape, TerminalCallingPolicySelections,
     TerminalCompositionRoots, TerminalMachineSelection, TerminalProductionCustody,
-    TerminalProgramRoots, TerminalSourceCompilation, UnmeasuredProduction,
+    TerminalProgramEntryContractSelection, TerminalProgramRoots, TerminalProviderSelectionInput,
+    TerminalProviderSelections, TerminalSourceCompilation, TerminalSourceSupply,
+    TerminalSuppliedRequirement, UnmeasuredProduction,
 };

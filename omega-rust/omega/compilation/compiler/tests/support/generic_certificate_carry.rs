@@ -8,10 +8,12 @@
 
 use std::path::Path;
 
-use lowered_discharge::{ProofSearchActivity, Selection, discharge, reverify_specialization};
 use semantic_vocabulary::MachineId;
-use structure_elaboration::Elaboration;
 use terminal_check_tables::obligations::ObligationKind;
+use terminal_psi_to_terminal_psi::{
+    ProofSearchActivity, Selection, discharge, reverify_specialization,
+};
+use typed_trees_to_terminal_psi::Elaboration;
 
 fn one_line(text: impl std::fmt::Display) -> String {
     text.to_string()
@@ -48,7 +50,7 @@ fn report(
     main: &Path,
     subject: u64,
     elaboration: &Elaboration,
-    discharged: &lowered_discharge::Discharge,
+    discharged: &terminal_psi_to_terminal_psi::Discharge,
     machine: MachineId,
     lines: &mut Vec<String>,
 ) -> bool {
@@ -106,10 +108,10 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
     // subset), each machine generated from a declaration of the entry's own
     // source file is the root of a closure of its own.
     let mut roots: Vec<(Elaboration, MachineId)> = Vec::new();
-    match structure_elaboration::elaborate_closure(typed, entry) {
+    match typed_trees_to_terminal_psi::elaborate_closure(typed, entry) {
         Ok(closure) => {
             for (machine, symbol) in closure.machines.iter() {
-                if structure_elaboration::template_of(typed, *symbol).is_some() {
+                if typed_trees_to_terminal_psi::template_of(typed, *symbol).is_some() {
                     roots.push((closure.clone(), machine));
                 }
             }
@@ -127,7 +129,8 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
                 {
                     continue;
                 }
-                match structure_elaboration::elaborate_closure(typed, specialization.instance) {
+                match typed_trees_to_terminal_psi::elaborate_closure(typed, specialization.instance)
+                {
                     Ok(closure) => roots.push((closure, entry_machine)),
                     Err(refusal) => {
                         return format!("route=outside\t{}", one_line(&refusal.detail));
@@ -147,28 +150,29 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
     // type family one per alternative it lists.
     let mut generics: Vec<(
         symbols::SymbolHandle,
-        Vec<(Elaboration, lowered_discharge::Discharge)>,
+        Vec<(Elaboration, terminal_psi_to_terminal_psi::Discharge)>,
     )> = Vec::new();
     let mut carried_all = true;
     for (mut consumer, specialization) in roots {
         let Some(template) = consumer
             .machines
             .get(specialization)
-            .and_then(|symbol| structure_elaboration::template_of(typed, *symbol))
+            .and_then(|symbol| typed_trees_to_terminal_psi::template_of(typed, *symbol))
         else {
             return "route=defect\tspecialization without a template".to_owned();
         };
         // 1. The generic body, once, against its requirements alone.
         if !generics.iter().any(|(symbol, _)| *symbol == template) {
-            let forms = match structure_elaboration::elaborate_generic(typed, template) {
+            let forms = match typed_trees_to_terminal_psi::elaborate_generic(typed, template) {
                 Ok(generic) => vec![generic],
-                Err(opaque) => match structure_elaboration::elaborate_alternatives(typed, template)
-                {
-                    Ok(alternatives) => alternatives,
-                    Err(_) => {
-                        return format!("route=outside\tgeneric: {}", one_line(&opaque.detail));
+                Err(opaque) => {
+                    match typed_trees_to_terminal_psi::elaborate_alternatives(typed, template) {
+                        Ok(alternatives) => alternatives,
+                        Err(_) => {
+                            return format!("route=outside\tgeneric: {}", one_line(&opaque.detail));
+                        }
                     }
-                },
+                }
             };
             let mut checked = Vec::new();
             for mut form in forms {
@@ -203,7 +207,7 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
         // accepts. Its closure is elaborated on its own, since the route
         // does not yet serve every machine of the whole program.
         if let Some(symbol) = consumer.machines.get(specialization).copied()
-            && let Ok(mut alone) = structure_elaboration::elaborate_closure(typed, symbol)
+            && let Ok(mut alone) = typed_trees_to_terminal_psi::elaborate_closure(typed, symbol)
             && let Ok(searched) = discharge(&mut alone, &mut proof_activity)
         {
             report(
@@ -250,7 +254,7 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
                 else {
                     return "route=defect\tselection names no machine".to_owned();
                 };
-                let mut witness = match structure_elaboration::elaborate_witness(
+                let mut witness = match typed_trees_to_terminal_psi::elaborate_witness(
                     typed,
                     selected.declaring_trait,
                     selected.requirement,
@@ -268,7 +272,7 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
                         return format!("route=defect\twitness: {}", one_line(&refusal.detail));
                     }
                 };
-                report(
+                carried_all &= report(
                     "witness",
                     main,
                     specialization.get(),

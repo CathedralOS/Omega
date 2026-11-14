@@ -16,8 +16,8 @@
 #[path = "support/unbuilt_frontier.rs"]
 mod unbuilt_frontier;
 
-use lowered_discharge::{RouteVerdict, judge};
-use structure_elaboration::{Compilation, elaborate};
+use terminal_psi_to_terminal_psi::{RouteVerdict, judge};
+use typed_trees_to_terminal_psi::{Compilation, elaborate};
 
 // Fixture compilation shares process-wide counters; run one at a time.
 static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -29,13 +29,15 @@ fn route_verdict(fixture: &str, entry: &str) -> RouteVerdict {
     judge(elaborate(
         &frontier.typed,
         Compilation {
+            declaration_metadata: &[],
             entries: &frontier.entries,
             subjects: &[frontier.subject],
             purpose: source::DependencyScope::Product,
             selected: &frontier.selected,
-            calling: frontier.calling.borrow(&frontier.typed).selection(),
+            calling: frontier.normalization.calling.borrow(&frontier.typed).selection(),
             providers: frontier.provider_selections(),
             bindings: &frontier.bindings,
+            supplies: &[],
         },
     ))
     .unwrap_or_else(|defect| panic!("{fixture}: the route must reach a verdict: {defect:?}"))

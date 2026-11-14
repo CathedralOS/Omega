@@ -77,9 +77,9 @@ Run from the repository root, with a verified compiler matching its library:
 
 ```sh
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
-omega update --project samples/cli/independent/chromatogram_component_fit --target linux_x86_64
+omega packages update --project samples/cli/independent/chromatogram_component_fit --target linux_x86_64
 # Read the generated package review and record each exact acceptance; then resume.
-omega update --resume --project samples/cli/independent/chromatogram_component_fit
+omega packages update --resume --project samples/cli/independent/chromatogram_component_fit
 python3 samples/cli/independent/chromatogram_component_fit/validation/validate.py --omega /path/to/omega --route check
 python3 samples/cli/independent/chromatogram_component_fit/validation/validate.py --omega /path/to/omega --route native
 python3 samples/cli/independent/chromatogram_component_fit/validation/validate.py --omega /path/to/omega --route both

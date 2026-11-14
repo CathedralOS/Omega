@@ -10,6 +10,15 @@ use semantic_vocabulary::PackageKeyIdentity;
 use source::{SourceFile, SourceId, SourceMap, SourceOrigin, SourceSpan};
 
 use super::builtin::BUILTIN_TYPE_COUNT;
+use numerics::integer_carrier::{FixedInteger, IntegerSign};
+
+/* The spelling of the head of an integer family application, `u<N>` or `i<N>`. */
+fn integer_family_name(sign: IntegerSign) -> &'static str {
+    match sign {
+        IntegerSign::Unsigned => "u",
+        IntegerSign::Signed => "i",
+    }
+}
 mod child_batches {
     /*
         Append-only child batches beneath frozen hierarchy nodes.
@@ -33,10 +42,70 @@ mod child_batches {
         last: Handle<ChildBatch>,
     }
 
-    #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
     pub(super) struct SupplementalChildren {
         batches: Arena<ChildBatch>,
         parents: Vec<ChildChain>,
+    }
+
+    impl compiler_storage::Record for SupplementalChildren {
+        fn write(
+            &self,
+            output: &mut compiler_storage::RecordWriter,
+        ) -> Result<(), compiler_storage::RecordError> {
+            output.record(|output| {
+                self.batches.write(output)?;
+                self.parents.write(output)
+            })
+        }
+
+        fn read<Context>(
+            input: &mut compiler_storage::RecordReader<'_, Context>,
+        ) -> Result<Self, compiler_storage::RecordError> {
+            input.record(|input| {
+                let batches = Arena::<ChildBatch>::read(input)?;
+                let parents = Vec::<ChildChain>::read(input)?;
+
+                // Restored links must not turn missing declarations into empty
+                // lookup results, loop forever, or append through the dummy row.
+                // Every retained batch belongs to exactly one terminating chain
+                // whose recorded tail is its final batch. Zero denotes no chain.
+                input.allocate(batches.storage_slice().len())?;
+                let mut visited = vec![false; batches.storage_slice().len()];
+                let mut visited_count = 0;
+                for chain in &parents {
+                    if chain.first.is_valid() != chain.last.is_valid() {
+                        return Err(input.error("supplemental child chain has only one endpoint"));
+                    }
+                    let mut current = chain.first;
+                    let mut tail = Handle::invalid();
+                    while current.is_valid() {
+                        let batch = batches.try_get(current).ok_or_else(|| {
+                            input.error("supplemental child batch link does not name live storage")
+                        })?;
+                        let position = current.arena_index() as usize - 1;
+                        if visited[position] {
+                            return Err(input.error(
+                                "supplemental child batch is cyclic or belongs to multiple chains",
+                            ));
+                        }
+                        visited[position] = true;
+                        visited_count += 1;
+                        tail = current;
+                        current = batch.next;
+                    }
+                    if tail != chain.last && chain.last.is_valid() {
+                        return Err(
+                            input.error("supplemental child chain tail does not match its links")
+                        );
+                    }
+                }
+                if visited_count != batches.len() {
+                    return Err(input.error("supplemental child batch has no owning chain"));
+                }
+                Ok(Self { batches, parents })
+            })
+        }
     }
 
     impl SupplementalChildren {
@@ -107,6 +176,179 @@ mod child_batches {
                 self.next_batch = batch.next;
                 self.children = batch.children;
             }
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use crate::{SymbolKind, SymbolNameRef, SymbolTable, SymbolTableBuilder};
+        use compiler_storage::{RecordLimits, decode, encode};
+
+        fn table_with_batches() -> SymbolTable {
+            let mut builder = SymbolTableBuilder::new();
+            let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+            let original = builder.insert_children(
+                root,
+                [(SymbolKind::Data, SymbolNameRef::Static("original"))],
+            );
+            let mut table = builder.finish();
+            for name in ["first", "second"] {
+                table.append_children(root, [(SymbolKind::Data, SymbolNameRef::Static(name))]);
+            }
+            table.append_children(
+                original.start(),
+                [(SymbolKind::Field, SymbolNameRef::Static("nested"))],
+            );
+            table
+        }
+
+        fn restore(table: &SymbolTable) -> Result<SymbolTable, compiler_storage::RecordError> {
+            let limits = RecordLimits::default();
+            decode(&encode(table, limits).expect("encode candidate"), limits)
+        }
+
+        fn root_chain(table: &SymbolTable) -> ChildChain {
+            table.supplemental_children.parents[table.root().arena_index() as usize]
+        }
+
+        #[test]
+        fn supplemental_storage_preserves_lookup_and_append() {
+            let original = table_with_batches();
+            let table = original.clone();
+            let mut restored = restore(&table).expect("valid child chains");
+            assert_eq!(restored, original);
+            restored.append_children(
+                restored.root(),
+                [(SymbolKind::Data, SymbolNameRef::Static("third"))],
+            );
+            let names = restored
+                .child_handles(restored.root())
+                .expect("root children")
+                .map(|child| restored.name(child).to_owned())
+                .collect::<Vec<_>>();
+            assert_eq!(names, ["original", "first", "second", "third"]);
+            assert!(restore(&restored).is_ok());
+            assert!(restore(&SymbolTable::default()).is_ok());
+        }
+
+        #[test]
+        fn supplemental_storage_rejects_missing_batch_links() {
+            for broken in [Handle::from_parts(2, 9), Handle::from_parts(99, 1)] {
+                let mut table = table_with_batches();
+                let first = root_chain(&table).first;
+                table.supplemental_children.batches.get_mut(first).next = broken;
+                let error = restore(&table).expect_err("stale or out-of-range batch");
+                assert!(
+                    error
+                        .reason
+                        .contains("batch link does not name live storage")
+                );
+            }
+        }
+
+        #[test]
+        fn supplemental_storage_rejects_cycles_and_shared_chains() {
+            let mut cyclic = table_with_batches();
+            let chain = root_chain(&cyclic);
+            cyclic
+                .supplemental_children
+                .batches
+                .get_mut(chain.last)
+                .next = chain.first;
+            let error = restore(&cyclic).expect_err("cyclic chain");
+            assert!(
+                error
+                    .reason
+                    .contains("cyclic or belongs to multiple chains")
+            );
+
+            let mut shared = table_with_batches();
+            shared
+                .supplemental_children
+                .parents
+                .push(root_chain(&shared));
+            let error = restore(&shared).expect_err("shared chain");
+            assert!(
+                error
+                    .reason
+                    .contains("cyclic or belongs to multiple chains")
+            );
+        }
+
+        #[test]
+        fn supplemental_storage_rejects_inexact_tails() {
+            for tail in [
+                Handle::invalid(),
+                Handle::from_parts(1, 1),
+                Handle::from_parts(2, 9),
+            ] {
+                let mut table = table_with_batches();
+                let parent = table.root().arena_index() as usize;
+                table.supplemental_children.parents[parent].last = tail;
+                let error = restore(&table).expect_err("missing, early or stale tail");
+                assert!(
+                    error.reason.contains("only one endpoint")
+                        || error.reason.contains("tail does not match")
+                );
+            }
+        }
+
+        #[test]
+        fn supplemental_storage_rejects_unowned_batches() {
+            let mut table = table_with_batches();
+            let parent = table.root().arena_index() as usize;
+            table.supplemental_children.parents[parent] = ChildChain::default();
+            let error = restore(&table).expect_err("unowned batch storage");
+            assert!(error.reason.contains("batch has no owning chain"));
+        }
+
+        #[test]
+        fn supplemental_storage_charges_chain_validation_scratch() {
+            #[derive(compiler_storage::Record)]
+            struct UncheckedChildren {
+                batches: Arena<ChildBatch>,
+                parents: Vec<ChildChain>,
+            }
+            let children = table_with_batches().supplemental_children;
+            let bytes = encode(&children, RecordLimits::default()).unwrap();
+            let prior_shape = UncheckedChildren {
+                batches: children.batches.clone(),
+                parents: children.parents.clone(),
+            };
+            assert_eq!(
+                bytes,
+                encode(&prior_shape, RecordLimits::default()).unwrap()
+            );
+            let mut low = 0;
+            let mut high = RecordLimits::default().allocation;
+            while low < high {
+                let middle = low + (high - low) / 2;
+                let limits = RecordLimits {
+                    allocation: middle,
+                    ..Default::default()
+                };
+                if decode::<UncheckedChildren>(&bytes, limits).is_ok() {
+                    high = middle;
+                } else {
+                    low = middle + 1;
+                }
+            }
+            let scratch = children.batches.storage_slice().len();
+            let tight = RecordLimits {
+                allocation: low + scratch - 1,
+                ..Default::default()
+            };
+            let error = decode::<SupplementalChildren>(&bytes, tight).unwrap_err();
+            assert!(error.reason.contains("allocation limit"));
+            let exact = RecordLimits {
+                allocation: low + scratch,
+                ..Default::default()
+            };
+            assert_eq!(
+                decode::<SupplementalChildren>(&bytes, exact).unwrap(),
+                children
+            );
         }
     }
 }
@@ -1122,6 +1364,17 @@ mod modules {
                     .has_exact_import
         }
 
+        /*
+            A current-activation extension file sees its module-less package
+            siblings' declarations as local rather than file-private.
+        */
+        pub(super) fn shares_activation_extension(&self, source_span: SourceSpan) -> bool {
+            self.source_file(source_span).is_some_and(|file| {
+                file.resolution_stratum
+                    == source::SourceResolutionStratum::CurrentActivationExtension
+            })
+        }
+
         pub(super) fn select_namespace_candidates(
             &self,
             candidates: &[SymbolHandle],
@@ -1129,10 +1382,7 @@ mod modules {
             reference: SourceSpan,
         ) -> Vec<SymbolHandle> {
             let current_module = self.source_module(reference.source_id);
-            let shared_extension = self.source_file(reference).is_some_and(|file| {
-                file.resolution_stratum
-                    == source::SourceResolutionStratum::CurrentActivationExtension
-            });
+            let shared_extension = self.shares_activation_extension(reference);
             let local = candidates
                 .iter()
                 .copied()
@@ -3386,6 +3636,17 @@ impl SymbolTable {
         if self.source_module(left_span.source_id) != self.source_module(right_span.source_id) {
             return true;
         }
+        // Files that declare no module form one logical module, yet each
+        // file's own declarations take precedence over a sibling's
+        // same-spelled one (`select_namespace_candidates`), so two such files
+        // each select their own declaration. Files of a shared activation
+        // extension see each other's declarations as local and stay one scope.
+        if !self.source_module(left_span.source_id).is_valid()
+            && !self.shares_activation_extension(left_span)
+            && !self.shares_activation_extension(right_span)
+        {
+            return true;
+        }
         if self
             .sources
             .as_deref()
@@ -3608,16 +3869,148 @@ impl SymbolTable {
     }
 
     /*
-        Classify only an exact compiler-installed root builtin slot. A package
-        declaration with the same spelling, or a generated source-free symbol,
-        is deliberately not a compiler atom.
+        Classify only a compiler-installed root builtin type. A package
+        declaration with the same spelling has a declaration kind, and a
+        generated symbol has a derivation origin, so neither is a compiler
+        atom.
+
+        A fixed root slot answers for the roster. Every other installed
+        builtin type is an integer carrier the compilation names
+        (`integer_type_symbol`), and its name is that carrier's decimal
+        spelling: the carrier is read back from it, so `u13` needs no row
+        anywhere and has the same kind of identity `u32` has.
     */
     pub fn builtin_type_atom(&self, symbol: SymbolHandle) -> Option<BuiltinTypeAtom> {
-        if !symbol.is_valid() || self.get(symbol).kind != SymbolKind::BuiltinType {
+        if !symbol.is_valid() {
             return None;
         }
-        self.root_slot_ordinal(symbol, 0, BUILTIN_TYPE_COUNT)
-            .and_then(BuiltinTypeAtom::from_ordinal)
+        let entry = self.get(symbol);
+        if entry.kind != SymbolKind::BuiltinType {
+            return None;
+        }
+        if let Some(slot) = self.root_slot_ordinal(symbol, 0, BUILTIN_TYPE_COUNT) {
+            return BuiltinTypeAtom::from_ordinal(slot);
+        }
+        if entry.parent != self.root || entry.generated_from.is_valid() {
+            return None;
+        }
+        FixedInteger::from_decimal_spelling(self.name(symbol))
+            .map(BuiltinTypeAtom::Integer)
+            .filter(|atom| atom.roster_ordinal().is_none())
+    }
+
+    /*
+        The symbol of a builtin type atom, when this table has one: the fixed
+        slot of a roster member, otherwise the builtin type installed under
+        an integer carrier's spelling. `None` for a carrier means no source
+        of this compilation named it, so nothing can refer to it yet.
+    */
+    pub fn builtin_atom_symbol(&self, atom: BuiltinTypeAtom) -> Option<SymbolHandle> {
+        if let Some(slot) = atom.roster_ordinal() {
+            return self
+                .child_handles(self.root)?
+                .nth(slot)
+                .filter(|symbol| self.get(*symbol).kind == SymbolKind::BuiltinType);
+        }
+        let name = atom.symbol_name();
+        self.root_names
+            .0
+            .get_or_init(|| self.root_name_index())
+            .by_name
+            .get(name.as_ref())
+            .into_iter()
+            .flatten()
+            .map(|&(_, symbol)| symbol)
+            .find(|symbol| self.builtin_type_atom(*symbol) == Some(atom))
+    }
+
+    /*
+        Install a builtin type for each integer carrier that has no symbol
+        yet, so a name such as `u13` resolves the way `u32` does. Carriers
+        already present, including the eight with fixed slots, are left
+        alone: one carrier has one symbol for the life of the table.
+    */
+    pub fn install_integer_types(&mut self, carriers: impl IntoIterator<Item = FixedInteger>) {
+        let mut missing = carriers
+            .into_iter()
+            .filter(|carrier| {
+                self.builtin_atom_symbol(BuiltinTypeAtom::Integer(*carrier))
+                    .is_none()
+            })
+            .collect::<Vec<_>>();
+        missing.sort_unstable();
+        missing.dedup();
+        if missing.is_empty() {
+            return;
+        }
+        let names = missing
+            .iter()
+            .map(|carrier| carrier.to_string())
+            .collect::<Vec<_>>();
+        self.append_children(
+            self.root,
+            names
+                .iter()
+                .map(|name| (SymbolKind::BuiltinType, SymbolNameRef::Borrowed(name))),
+        );
+    }
+
+    /*
+        `u<N>` and `i<N>` apply a family of integers to a width, and the head
+        of such an application needs a declaration to name, the way
+        `Pair<u8>` names `Pair`. The two heads are builtin types installed
+        beside the program's declarations under the spellings `u` and `i`, so
+        they resolve like any other type name. They are installed only for a
+        compilation that keeps such an application: every position a table
+        without one publishes stays where it was.
+
+        A head is not a type by itself here: it has no atom
+        (`builtin_type_atom` answers `None`), and only an application at a
+        closed width names a carrier.
+    */
+    pub fn install_integer_families(&mut self) {
+        let missing = [IntegerSign::Unsigned, IntegerSign::Signed]
+            .into_iter()
+            .filter(|sign| self.integer_family_symbol(*sign).is_none())
+            .map(|sign| {
+                (
+                    SymbolKind::BuiltinType,
+                    SymbolNameRef::Static(integer_family_name(sign)),
+                )
+            })
+            .collect::<Vec<_>>();
+        if !missing.is_empty() {
+            self.append_children(self.root, missing);
+        }
+    }
+
+    /* The sign of the integer family `symbol` is the head of, if it is one. */
+    pub fn integer_family(&self, symbol: SymbolHandle) -> Option<IntegerSign> {
+        if !symbol.is_valid() {
+            return None;
+        }
+        let entry = self.get(symbol);
+        if entry.kind != SymbolKind::BuiltinType
+            || entry.parent != self.root
+            || entry.generated_from.is_valid()
+        {
+            return None;
+        }
+        [IntegerSign::Unsigned, IntegerSign::Signed]
+            .into_iter()
+            .find(|sign| self.name(symbol) == integer_family_name(*sign))
+    }
+
+    pub fn integer_family_symbol(&self, sign: IntegerSign) -> Option<SymbolHandle> {
+        self.root_names
+            .0
+            .get_or_init(|| self.root_name_index())
+            .by_name
+            .get(integer_family_name(sign))
+            .into_iter()
+            .flatten()
+            .map(|&(_, symbol)| symbol)
+            .find(|symbol| self.integer_family(*symbol) == Some(sign))
     }
 
     /*

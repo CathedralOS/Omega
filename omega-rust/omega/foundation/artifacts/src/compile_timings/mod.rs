@@ -6,7 +6,7 @@
 // place without reordering first-seen phases.
 //
 // `BUILD_AND_CHECKED_CONTINUATION` spans build evaluation and the checked
-// continuation it drives (including Psi 00–05 and pre-build checks), while
+// continuation it drives (including Psi 00–03 and pre-build checks), while
 // `SOURCE_ASSEMBLY` spans package closure resolution and per-target source
 // assembly before build evaluation.
 
@@ -41,20 +41,14 @@ pub const SOURCE_FILES_TO_TOKENS: StageMeta =
 pub const TOKENS_TO_SYNTAX_TREES: StageMeta =
     StageMeta::new("Psi 01", "TokenStreams", "SyntaxTrees");
 
-pub const TYPED_TREES_TO_CHECKED_TREES: StageMeta =
-    StageMeta::new("Psi 05", "TypedTrees", "CheckedTrees");
-
 pub const BUILD_AND_CHECKED_CONTINUATION: StageMeta = StageMeta::new(
     "Step: build",
     "AssembledSyntax",
-    "CheckedTrees (contains Psi 00-05)",
+    "TypedTrees (contains Psi 00-03)",
 );
 
 pub const SOURCE_ASSEMBLY: StageMeta =
     StageMeta::new("Step: assemble", "PreparedSources", "AssembledSyntax");
-
-pub const EXECUTION_SETTLEMENT: StageMeta =
-    StageMeta::new("Step: settle", "CheckedTrees", "SelectedExecution");
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PhaseTiming {

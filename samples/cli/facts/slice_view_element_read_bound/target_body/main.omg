@@ -2,7 +2,6 @@
 // Place: another target body. Each hosted target body computes and verifies the element read and extent bound.
 // Expected exit: 0
 
-use omega::language::core::slice;
 
 boundary trait SelectedBodyCheck {
     machine require_tag(tag: u64) reaches crashes Trap;

@@ -3,7 +3,7 @@
 // tree projection participates in producing the application.
 
 use artifacts::compile_timings::StageMeta;
-use compilation_products::{CheckedProductSource, PreparedProductSource};
+use compilation_products::{CheckedProductSource, CompileFailure, PreparedProductSource};
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
 use std::sync::Arc;
@@ -17,64 +17,66 @@ pub(crate) fn check_product_source(
     calling_targets: &[target::TargetProfile],
     rollback: &crate::OptimizationRollback,
     frontier: Option<&mut Option<super::typed_frontier::TypedFrontier>>,
-) -> Result<CheckedProductSource, Vec<Diagnostic>> {
-    let PreparedProductSource {
-        source_completion_accounting,
-        typed,
-        computed_build_config,
-        admission,
-        build_sources,
-        mut timings,
-    } = source;
-    source_completion_accounting
-        .validate_charges()
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    let build = &computed_build_config.config;
-    let symbol_sources = typed.symbols.source_map();
-    let layout_scopes = layout_target_scopes(&typed, build)?;
-    let external_roots = build.program_roots();
-    let bindings = super::entry_shapes::bound_program_entry_shapes(&typed, &build.root_bindings)?;
-    let mut selected = Vec::new();
-    for selection in layout_scopes
-        .iter()
-        .flat_map(|scope| &scope.provider_declarations)
-        .chain(&build.provider_selections)
-        .chain(&build.default_provider_selections)
-    {
-        use build_time_evaluation::provider_declarations::ProviderSelectionSubject;
-        selected.push(selection.provider_type.symbol);
-        match &selection.subject {
-            ProviderSelectionSubject::BoundaryTrait(identity)
-            | ProviderSelectionSubject::BoundaryRequirement(identity) => {
-                selected.push(identity.symbol);
-            }
-            ProviderSelectionSubject::BoundaryOperatorFamily(family) => {
-                selected.extend(family.coordinates().iter().map(|row| row.symbol));
-            }
+) -> Result<CheckedProductSource, CompileFailure> {
+    let mut accounting = source.source_completion_accounting.clone();
+    let result = (|| -> Result<CheckedProductSource, Vec<Diagnostic>> {
+        let PreparedProductSource {
+            source_completion_accounting: _,
+            typed,
+            computed_build_config,
+            admission,
+            build_sources,
+            mut timings,
+        } = source;
+        accounting
+            .validate_charges()
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let build = &computed_build_config.config;
+        let symbol_sources = typed.symbols.source_map();
+        let layout_scopes = layout_target_scopes(&typed, build)?;
+        let external_roots = build.program_roots();
+        let bindings =
+            super::entry_shapes::bound_program_entry_shapes(&typed, &build.root_bindings)?;
+        // The Build's own provider selections are supplies of this compilation
+        // whether or not the program reaches their slots: each chosen provider
+        // is judged against the slot it names. A target package's defaults join
+        // below, when a target chooses them for a requirement its entries reach
+        // (`judge_supplied_product`).
+        let supplies = build
+            .provider_selections
+            .iter()
+            .flat_map(crate::checked::selected_supplies)
+            .collect::<Vec<_>>();
+        let mut selected = Vec::new();
+        for scope in &layout_scopes {
+            selected.extend(scope.entry_declarations.iter().flatten().copied());
         }
-    }
-    for scope in &layout_scopes {
-        selected.extend(scope.entry_declarations.iter().flatten().copied());
-    }
-    // Every admitted native supply needs its exact boundary and signature for
-    // calling-policy validation and trust disclosure, even when its target or
-    // requirement is unused. Claim these source declarations alongside each
-    // ordinary provider selection in the structural judgment.
-    selected.extend(
-        build
-            .native_bindings
-            .iter()
-            .flat_map(|supply| [supply.selection.subject, supply.selection.requirement]),
-    );
-    // Representation declarations are claimed source dependencies; preparation
-    // explicitly refuses choices with no surviving admission route.
-    selected.extend(
-        build
-            .opaque_representation_selections
-            .iter()
-            .flat_map(|selection| [selection.opaque(), selection.application().declaration]),
-    );
-    let source_admission = psi_compiler::SourceAdmission {
+        // A library is judged where it is demanded, not wholesale. Every native
+        // supply this package's own Build declares needs its exact boundary and
+        // signature for calling-policy validation and trust disclosure, even
+        // when its target or requirement is unused, so those declarations are
+        // claimed here. A dependency's bindings are not: like its provider
+        // defaults, they are reached only through the supplies a target chooses
+        // for this package's entries (`judge_supplied_product`), where the
+        // provider's own calls read each requirement it uses.
+        let root = package_inputs.map(PackageCompilationInputs::root);
+        selected.extend(
+            build
+                .native_bindings
+                .iter()
+                .filter(|supply| root.is_none_or(|root| supply.selection.supplier_package == root))
+                .flat_map(|supply| [supply.selection.subject, supply.selection.requirement]),
+        );
+        // Representation declarations are claimed source dependencies; preparation
+        // explicitly refuses choices with no surviving admission route.
+        selected.extend(
+            build
+                .opaque_representation_selections
+                .iter()
+                .flat_map(|selection| [selection.opaque(), selection.application().declaration]),
+        );
+        let source_admission = psi_compiler::SourceAdmission {
+        invocation_sources: None,
         // Roots belong to structural judgment below, rather than to a deleted
         // source-checking admission or projection.
         external_roots: &[],
@@ -119,160 +121,209 @@ pub(crate) fn check_product_source(
         declarations: None,
     };
 
-    let source = timings.record_result(SOURCE_PREPARATION, || {
-        psi_compiler::SourcePreparationRequest {
-            program: typed,
-            admission: source_admission,
-        }
-        .prepare()
-    })?;
-    let program = source.program;
-    let super::provider_choices::PreparedProviderChoices {
-        selections: provider_inputs,
-        declaration_roots,
-        calling_applications,
-    } = super::provider_choices::prepare(
-        &program,
-        calling_targets,
-        &build.provider_selections,
-        &build.default_provider_selections,
-    )?;
-    selected.extend(declaration_roots);
-    let mut entry_contracts = Vec::with_capacity(calling_targets.len());
-    for &profile in calling_targets {
-        if entry_contracts
-            .iter()
-            .any(|(selected, _, _, _)| *selected == profile)
-        {
-            continue;
-        }
-        let selected = provider_planning::program_entry::selected_program_entry_machine(
-            &build.root_bindings,
-            Some(profile),
-        )?
-        .ok_or_else(|| {
-            vec![Diagnostic::error(format!(
-                "requested target `{}` has no selected ProgramEntry",
-                profile.target_name(),
-            ))]
-        })?;
-        // Shape preparation retains the executed binding order and resolves
-        // target families once. Its implementation is the actual body, while
-        // the slot text on the resulting shape is diagnostic text only.
-        let implementation = bindings
-            .get(selected.binding_ordinal)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "selected entry lost its target-resolved source shape",
-                )]
-            })?
-            .implementation;
-        let nomination = package_compilation::source_imports::select_program_entry_contract(
-            &program,
-            profile,
-            package_inputs,
-        )?;
-        nomination
-            .require_owner(&program)
-            .map_err(|diagnostic| vec![diagnostic])?;
-        let sources = program.symbols.source_map().ok_or_else(|| {
-            vec![Diagnostic::error(
-                "selected entry contract has no source inventory",
-            )]
-        })?;
-        let file = sources.get(nomination.source()).ok_or_else(|| {
-            vec![Diagnostic::error(
-                "selected entry contract lost its exact source file",
-            )]
-        })?;
-        let package = profile
-            .program_entry_slot()
-            .physical_contract_package
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "selected entry has no physical contract package",
-                )]
-            })?;
-        let digest = *provider_planning::program_entry::ProgramEntryPhysicalContractPackageSourceDigest::from_package_source(
-            package, file.source.as_bytes(),
-        ).as_bytes();
-        entry_contracts.push((profile, nomination, implementation, digest));
-    }
-    let entry_inputs = entry_contracts
-        .iter()
-        .map(|(profile, nomination, implementation, digest)| {
-            super::typed_frontier::ProgramEntryInput {
-                target: profile.target_name().to_owned(),
-                application: nomination.application().clone(),
-                physical_source_digest: *digest,
-                implementation: *implementation,
-            }
-        })
-        .collect::<Vec<_>>();
-    let calling_inputs = super::typed_frontier::CallingInputs {
-        applications: calling_applications,
-        entries: entry_inputs,
-    };
-    let calling_context = calling_inputs.borrow(&program);
-    let subject = package_inputs.map(PackageCompilationInputs::root);
-    let judged = super::lowered_route::RouteScope {
-        entries: &external_roots,
-        subject,
-        selected: &selected,
-        bindings: &bindings,
-        calling: calling_context.selection(),
-        providers: (!provider_inputs.is_empty()).then_some(
-            structure_elaboration::provider_selections::ProviderSelections {
-                source: &program,
-                choices: &provider_inputs,
-            },
-        ),
-    }
-    .judge(Arc::clone(&program));
-    drop(calling_context);
-    if let Some(frontier) = frontier {
-        *frontier = Some(super::typed_frontier::TypedFrontier {
-            typed: program.as_ref().clone(),
+        let subject = package_inputs.map(PackageCompilationInputs::root);
+        let mut roster = compilation_products::ProductRoster {
+            declaration_metadata: Vec::new(),
             entries: external_roots,
             subject,
             selected,
             bindings,
+            supplies,
+            normalization: Default::default(),
+        };
+        let preparation_compilation = roster.preparation_compilation()?;
+        let source = timings.record_result(SOURCE_PREPARATION, || {
+            psi_compiler::SourcePreparationRequest {
+                program: typed,
+                admission: source_admission,
+                compilation: preparation_compilation,
+                accounting: accounting.clone(),
+            }
+            .prepare()
+        });
+        let program = match source {
+            Ok(source) => {
+                accounting = source.accounting;
+                source.program
+            }
+            Err(failure) => {
+                accounting = failure.accounting;
+                return Err(failure.diagnostics);
+            }
+        };
+        let mut provider_defaults =
+            build_time_evaluation::provider_declarations::retain_provider_defaults(
+                build_time_evaluation::provider_declarations::ProviderPlanningContext::new(
+                    &program,
+                    source::DependencyScope::Product,
+                ),
+            )?;
+        for selection in &build.default_provider_selections {
+            provider_defaults.push(
+                build_time_evaluation::provider_declarations::TargetProviderDefaults {
+                    target: selection
+                        .target
+                        .map(|target| target.canonical_name().to_owned()),
+                    machines: Vec::new(),
+                    selections: vec![selection.clone()],
+                },
+            );
+        }
+        let super::provider_choices::PreparedProviderChoices {
+            selections: provider_inputs,
+            declaration_roots,
+            calling_applications,
+        } = super::provider_choices::prepare_with_source_defaults(
+            &program,
+            calling_targets,
+            &build.provider_selections,
+            &[],
+            &provider_defaults,
+        )?;
+        roster.selected.extend(declaration_roots);
+        let mut entry_contracts = Vec::with_capacity(calling_targets.len());
+        for &profile in calling_targets {
+            if entry_contracts
+                .iter()
+                .any(|(selected, _, _, _)| *selected == profile)
+            {
+                continue;
+            }
+            let selected = provider_planning::program_entry::selected_program_entry_machine(
+                &build.root_bindings,
+                Some(profile),
+            )?
+            .ok_or_else(|| {
+                vec![Diagnostic::error(format!(
+                    "requested target `{}` has no selected ProgramEntry",
+                    profile.target_name(),
+                ))]
+            })?;
+            // Shape preparation retains the executed binding order and resolves
+            // target families once. Its implementation is the actual body, while
+            // the slot text on the resulting shape is diagnostic text only.
+            let implementation = roster
+                .bindings
+                .get(selected.binding_ordinal)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "selected entry lost its target-resolved source shape",
+                    )]
+                })?
+                .implementation;
+            let nomination = package_compilation::source_imports::select_program_entry_contract(
+                &program,
+                profile,
+                package_inputs,
+            )?;
+            nomination
+                .require_owner(&program)
+                .map_err(|diagnostic| vec![diagnostic])?;
+            let sources = program.symbols.source_map().ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "selected entry contract has no source inventory",
+                )]
+            })?;
+            let file = sources.get(nomination.source()).ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "selected entry contract lost its exact source file",
+                )]
+            })?;
+            let package = profile
+                .program_entry_slot()
+                .physical_contract_package
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "selected entry has no physical contract package",
+                    )]
+                })?;
+            let digest = *provider_planning::program_entry::ProgramEntryPhysicalContractPackageSourceDigest::from_package_source(
+            package, file.source.as_bytes(),
+        ).as_bytes();
+            entry_contracts.push((profile, nomination, implementation, digest));
+        }
+        let entry_inputs = entry_contracts
+            .iter()
+            .map(|(profile, nomination, implementation, digest)| {
+                super::typed_frontier::ProgramEntryInput {
+                    target: profile.target_name().to_owned(),
+                    application: nomination.application().clone(),
+                    physical_source_digest: *digest,
+                    implementation: *implementation,
+                }
+            })
+            .collect::<Vec<_>>();
+        let calling_inputs = super::typed_frontier::CallingInputs {
+            applications: calling_applications,
+            entries: entry_inputs,
+        };
+        roster.normalization = Arc::new(compilation_products::SourceNormalizationInputs {
             calling: calling_inputs,
             providers: provider_inputs,
         });
-    }
-    let accepted_source = judged.map_err(|mut diagnostics| {
-        if let Some(sources) = symbol_sources.as_deref() {
-            super::attribute_diagnostics(&mut diagnostics, sources, package_inputs);
+
+        let source_completion_accounting = accounting.clone();
+        if let Some(frontier) = frontier {
+            *frontier = Some(super::typed_frontier::TypedFrontier {
+                typed: program.as_ref().clone(),
+                source_completion_accounting: source_completion_accounting.clone(),
+                entries: roster.entries.clone(),
+                subject,
+                selected: roster.selected.clone(),
+                bindings: roster.bindings.clone(),
+                supplies: roster.supplies.clone(),
+                normalization: Arc::clone(&roster.normalization),
+            });
         }
-        diagnostics
-    })?;
-    let sources = Arc::new(build_sources.seal(&program, package_inputs)?);
-    let provider_inventory = Arc::new(
-        typed_trees::provider_declarations::PreparedProviderInventory::new(
+        let judged = compilation_products::ProductTerminalPublication::judge(
             Arc::clone(&program),
-            sources.exact_toolchain_sources(),
-        ),
-    );
-    let terminal_publication = Arc::new(
-        compilation_products::ProductTerminalPublication::new(
+            roster,
             rollback
                 .settle(&computed_build_config.config.settings.optimizations)
                 .effective()
                 .clone(),
-        )
-        .with_accepted(accepted_source),
-    );
-    Ok(CheckedProductSource {
-        source_completion_accounting,
-        program,
-        provider_inventory,
-        terminal_publication,
-        computed_build_config,
-        admission,
-        sources,
-        timings,
-    })
+        );
+        let terminal_publication = Arc::new(judged.map_err(|mut diagnostics| {
+            if let Some(sources) = symbol_sources.as_deref() {
+                super::attribute_diagnostics(&mut diagnostics, sources, package_inputs);
+            }
+            diagnostics
+        })?);
+        // The Product has one module for every target, so the providers each
+        // target chooses are judged in it before anything is published. The
+        // judgment kept is that module's: the verdict, the demand of each target
+        // and the publication are all read from it.
+        let terminal_publication =
+            crate::checked::judge_supplied_product(crate::checked::ProductSupplySource {
+                publication: terminal_publication,
+                build: &build.provider_selections,
+                defaults: &provider_defaults,
+            })
+            .map_err(|mut diagnostics| {
+                if let Some(sources) = symbol_sources.as_deref() {
+                    super::attribute_diagnostics(&mut diagnostics, sources, package_inputs);
+                }
+                diagnostics
+            })?;
+        let sources = Arc::new(build_sources.seal(&program, package_inputs)?);
+        let provider_inventory = Arc::new(
+            typed_trees::provider_declarations::PreparedProviderInventory::new(
+                Arc::clone(&program),
+                sources.exact_toolchain_sources(),
+            ),
+        );
+        Ok(CheckedProductSource {
+            source_completion_accounting,
+            program,
+            provider_inventory,
+            terminal_publication,
+            computed_build_config,
+            admission,
+            sources,
+            timings,
+        })
+    })();
+    result.map_err(|diagnostics| CompileFailure::source_completion(diagnostics, accounting))
 }
 
 pub(super) fn layout_target_scopes(

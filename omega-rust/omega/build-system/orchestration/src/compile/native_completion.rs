@@ -14,7 +14,7 @@ and report settlement inside a `PendingNativeProduct`:
    callback.
 3. For `NativeImageDemand::Emit`, the native backend emits the executable image
    and attaches its runtime provisions to the settlement. For
-   `NativeImageDemand::RuntimeAdmissionOnly` (`omega run --engine terminal`),
+   `NativeImageDemand::RuntimeAdmissionOnly` (`omega run --engine psi`),
    runtime admission is validated without emitting machine code before settling
    the report.
 4. Any failure wraps the diagnostics together with the attempted evaluation
@@ -84,11 +84,13 @@ pub(crate) fn complete_native(
         tests,
         test_notes,
     } = product;
-    // Registered tests run before the application can succeed. A failing or
-    // incomplete test refuses the application with its exact identity.
-    let roster = super::test_execution::run_tests(tests, test_notes)?;
     let image = request.image;
-    let produced = {
+    let produced = (|| -> Result<_, CompilationProductError> {
+        // Tests and all native preparation share this attempt's error boundary.
+        let (roster, test_accounting) = super::test_execution::run_tests(tests, test_notes)?;
+        settlement
+            .source_completion_accounting_mut()
+            .append(test_accounting);
         let selected = components
             .as_ref()
             .map_err(|reason| vec![Diagnostic::error(reason.clone())])?;
@@ -130,7 +132,7 @@ pub(crate) fn complete_native(
                 .complete(completed)
                 .map_err(|reason| vec![Diagnostic::error(reason)])?;
         }
-        match image {
+        let produced = match image {
             compilation_products::NativeImageDemand::Emit => native_compiler::compile(prepared)
                 .map(NativeStop::Image)
                 .map_err(|(_, diagnostics)| diagnostics),
@@ -139,17 +141,14 @@ pub(crate) fn complete_native(
                     .map(NativeStop::RuntimeAdmission)
                     .map_err(|(_, diagnostics)| diagnostics)
             }
-        }
-    };
-    let produced = match produced {
-        Ok(produced) => produced,
-        Err(diagnostics) => {
-            return Err(CompilationProductError::ProductionAttempt {
-                diagnostics,
-                accounting: std::mem::take(settlement.source_completion_accounting_mut()),
-            });
-        }
-    };
+        }?;
+        Ok((produced, roster))
+    })();
+    let (produced, roster) = produced.map_err(|error| {
+        error.with_source_completion_accounting(
+            settlement.source_completion_accounting_mut().clone(),
+        )
+    })?;
     let accounting = settlement.source_completion_accounting_mut().clone();
     let report =
         (|| -> Result<_, CompilationProductError> {
@@ -162,9 +161,6 @@ pub(crate) fn complete_native(
                     .finish_terminal_runtime(terminal, provisions, rollback.into_receipt())?),
             }
         })()
-        .map_err(|error| CompilationProductError::ProductionAttempt {
-            diagnostics: error.into_diagnostics(),
-            accounting,
-        })?;
+        .map_err(|error| error.with_source_completion_accounting(accounting))?;
     Ok(CompilationOutput::Report(report.with_test_roster(roster)))
 }

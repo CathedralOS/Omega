@@ -646,10 +646,12 @@ impl<'pass> PackageReviewRound<'pass> {
             }
             None => Err(CompileResolvedPackageReviewsError::Compilation {
                 package: occurrence.key.clone(),
-                diagnostics: vec![Diagnostic::error(format!(
-                    "an independent provider selection names dependency package `{}`, which this closure never compiled",
-                    inputs.package_name(component).unwrap_or("<unnamed>"),
-                ))],
+                failure: compilation_products::CompileFailure::Diagnostics(vec![
+                    Diagnostic::error(format!(
+                        "an independent provider selection names dependency package `{}`, which this closure never compiled",
+                        inputs.package_name(component).unwrap_or("<unnamed>"),
+                    )),
+                ]),
             }),
         }
     }

@@ -8,15 +8,15 @@ The same sentence, bounds and consuming operation appear in every place. The rea
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| local | [local/main.omg](local/main.omg) | [index512](local/invalid/main.omg) |
-| field | [field/main.omg](field/main.omg) | [index512](field/invalid/main.omg) |
-| parameter | [parameter/main.omg](parameter/main.omg) | [index512](parameter/invalid/main.omg) |
-| call_result | [call_result/main.omg](call_result/main.omg) | [index512](call_result/invalid/main.omg) |
-| match_join | [match_join/main.omg](match_join/main.omg) | [index512](match_join/invalid/main.omg) |
-| const_name | [const_name/main.omg](const_name/main.omg) | [index512](const_name/invalid/main.omg) |
-| other_state | [other_state/main.omg](other_state/main.omg) | [index512](other_state/invalid/main.omg) |
-| other_machine | [other_machine/main.omg](other_machine/main.omg) | [index512](other_machine/invalid/main.omg) |
-| target_body | [target_body/main.omg](target_body/main.omg) | [index512](target_body/invalid/main.omg) |
+| local | [local/main.omg](local/main.omg) | [index512](invalid_local/main.omg) |
+| field | [field/main.omg](field/main.omg) | [index512](invalid_field/main.omg) |
+| parameter | [parameter/main.omg](parameter/main.omg) | [index512](invalid_parameter/main.omg) |
+| call_result | [call_result/main.omg](call_result/main.omg) | [index512](invalid_call_result/main.omg) |
+| match_join | [match_join/main.omg](match_join/main.omg) | [index512](invalid_match_join/main.omg) |
+| const_name | [const_name/main.omg](const_name/main.omg) | [index512](invalid_const_name/main.omg) |
+| other_state | [other_state/main.omg](other_state/main.omg) | [index512](invalid_other_state/main.omg) |
+| other_machine | [other_machine/main.omg](other_machine/main.omg) | [index512](invalid_other_machine/main.omg) |
+| target_body | [target_body/main.omg](target_body/main.omg) | [index512](invalid_target_body/main.omg) |
 
 [Root](main.omg) and [ordinary zero initialization](zeroed_source/main.omg) exercise both construction routes. Every positive declares all four hosted `ProgramEntry` bindings and exit 0. The ten reject twins change only the final index 511 to 512, reaching “cannot prove index `512` is within length512”. The nine places and extra producer are pinned under `tests/omega/{pass,fail}/facts/nested_zero_leaf_array_storage_*`.
 

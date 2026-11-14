@@ -3,7 +3,8 @@
 use io::protocol;
 use domain::orbit;
 use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega::language::core::F64::from_i32;
+use omega::language::core::I32::from_f64;
 
 data Main { protocol: Protocol; orbit: Orbit; step: i32 in Wrapping; steps: i32 in Wrapping; time: f64; }
 machine Main::main(main: &mut Main) reaches Console {

@@ -42,11 +42,12 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
-Marker 255 introduced term tables. Current marker 258 also carries normalized service contracts, selected provider
-coordinates, entry source commitments and sealed native execution meanings. It
+Marker 255 introduced term tables. Current marker 261 combines normalized service contracts, selected provider
+coordinates, entry source commitments and sealed native execution meanings with
+typed dynamic-family tuple members and exact numeric intrinsic sign and width. It
 retains the runtime callable contracts, descriptors and synchronous-entry rows
-of marker 257 and the flat term tables. Marker 257, both independent marker 256 layouts, marker 255,
-marker 254 (which nested terms inline), and older modules reject at the header.
+of marker 257 and the flat term tables. Every earlier module marker rejects at
+the header; decoding cannot supply its missing records.
 
 Content terms do not nest: a separation's members are projections, so a
 separated member that is itself a separation rejects, and content terms keep
@@ -93,7 +94,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 258 even when every table
+order below. This layout uses semantic format marker 261 even when every table
 is empty, and retains the Id formation catalog below; older markers reject
 rather than selecting an optional dialect:
 
@@ -394,7 +395,7 @@ byte limit. Any tag value absent from a closed-sum table rejects.
 | IEEE float format | `u8`: 1 binary32; 2 binary64 |
 | IEEE float relation | `u8`: 0 Equal, 1 NotEqual, 2 Less, 3 LessOrEqual, 4 Greater, 5 GreaterOrEqual |
 | IEEE float comparison kind | `u8`: 1 Equal, 2 NotEqual; propositions only — a distinct space from the relation byte |
-| structural path | counted segments, each `u8`: 1 + `u32` interned field identity; 2 + `u64` fixed index; 3 referent; 4 + `u64` start + `u64` end for a fixed byte range; 6 + value id + obligation id for a runtime index; 7 + case id; 8 + structural type id + `bool` scalar-codec presence + optional scalar type for a representation view; retired tag 5 rejects |
+| structural path | counted segments, each `u8`: 1 + `u32` interned field identity; 2 + `u64` fixed index; 3 referent; 4 + `u64` start + `u64` end for a fixed byte range; 6 + value id + obligation id for a runtime index; 7 + case id; 8 + structural type id + `bool` scalar-codec presence + optional scalar type for a representation view; 10 all elements (qualification paths only); retired tag 5 rejects |
 | canonical path segment | `u8`: 1 + field id; 2 + `u64` fixed index; 3 + case id; 4 referent |
 | canonical structural field | root place id + counted canonical path segments |
 | scalar field carrier path | counted segments, each `u8`: 1 + field id; 2 + `u64` fixed index; 3 + case id; 4 referent; declared types and readable access validate every step |
@@ -952,7 +953,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 258 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 261 + `u16` vocabulary
 marker 135 + a Boolean default-entry presence flag, followed by the entry
 callable when present and the module tables in the declaration order below.
 The entry callable uses its ordinary machine-or-boundary tag and identifier

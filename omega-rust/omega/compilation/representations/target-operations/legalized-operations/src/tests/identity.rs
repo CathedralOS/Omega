@@ -41,6 +41,21 @@ fn scalar_return_mut(function: &mut LegalizedScalarFunction) -> &mut LegalizedSc
 }
 
 #[test]
+fn deployment_profile_changes_identity_even_with_identical_machine_geometry() {
+    let mut plan = call_aware_plan();
+    plan.profile = Some(target::TargetProfile::UefiX64);
+    let firmware = legalized_operation_plan_identity(&plan);
+    assert_eq!(plan.target, target::NativeTarget::windows_x64());
+    plan.profile = Some(target::TargetProfile::WindowsX64);
+    let windows = legalized_operation_plan_identity(&plan);
+    assert_ne!(firmware, windows);
+    plan.profile = None;
+    let unspecified = legalized_operation_plan_identity(&plan);
+    assert_ne!(unspecified, firmware);
+    assert_ne!(unspecified, windows);
+}
+
+#[test]
 fn scalar_graph_identity_binds_ordered_source_and_abi_custody() {
     let plan = scalar_call_unit_plan();
     let identity = legalized_operation_plan_identity(&plan);

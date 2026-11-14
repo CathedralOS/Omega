@@ -71,7 +71,6 @@ pub fn reconstruct_psi_optimization_unit_seed(
         dynamic_dispatch: plan.dynamic_dispatch.clone(),
         callables: plan.callables.clone(),
         accepted_obligation_facts: Vec::new(),
-        proof_questions: Vec::new(),
         ownership_frontier_facts: Vec::new(),
         pruned_machines: Vec::new(),
         identities: plan.identities.clone(),
@@ -607,7 +606,63 @@ pub fn operation_definition(operation: &AbstractOperation) -> Option<(ValueId, S
                 E::Store { .. } | E::CompareExchangeOnce { .. } | E::Fence { .. } => None,
             }
         }
-        _ => None,
+        O::EstablishActivationClaim { .. }
+        | O::ReleaseActivationClaim { .. }
+        | O::SplitActivationClaim { .. }
+        | O::MergeActivationClaim { .. }
+        | O::EstablishNativeCodeLayout { .. }
+        | O::GlobalDescriptorTable { .. }
+        | O::EstablishScalarArray { .. }
+        | O::EstablishStructuralArray { .. }
+        | O::EstablishPrimitiveLocal { .. }
+        | O::PrimitiveLocalStore { .. }
+        | O::ByteSequenceSubslice { .. }
+        | O::ByteSequenceWrite { .. }
+        | O::StructuralByteSequenceFieldByteStore { .. }
+        | O::ByteSequenceStore { .. }
+        | O::StructuralByteSequenceFieldStore { .. }
+        | O::StructuralByteViewFieldStore { .. }
+        | O::EstablishElementView { .. }
+        | O::ElementViewWrite { .. }
+        | O::ElementViewSubslice { .. }
+        | O::WriteOnlyPrimitiveStore { .. }
+        | O::StructuralScalarFieldStore { .. }
+        | O::MoveStructuralField { .. }
+        | O::MoveStructuralValue { .. }
+        | O::TransformContent { .. }
+        | O::StructuralLeafCopy { .. }
+        | O::StoreStructuralField { .. }
+        | O::EstablishCase { .. }
+        | O::EstablishByteSequenceConcatenation { .. }
+        | O::EstablishByteSequenceLiteral { .. }
+        | O::EstablishTrivialAffineLocal { .. }
+        | O::EstablishZeroedStructural { .. }
+        | O::EstablishStructuralLocal { .. }
+        | O::EstablishRecord { .. }
+        | O::PortWrite { .. }
+        | O::Jump { .. }
+        | O::Conditional { .. }
+        | O::StructuralCase { .. }
+        | O::Return { .. }
+        | O::ReturnUnit { .. }
+        | O::ReturnStructural { .. }
+        | O::EstablishAccessReference { .. }
+        | O::EstablishReference { .. }
+        | O::ReleaseReference { .. }
+        | O::InvokeNoNormal { .. }
+        | O::ExternalCompletion { .. }
+        | O::Crash { .. }
+        | O::CallStructural {
+            result:
+                AbstractStructuralCallResult::Unit | AbstractStructuralCallResult::Structural { .. },
+            ..
+        }
+        | O::BoundaryCall {
+            result:
+                abstract_operations::AbstractBoundaryResult::Unit
+                | abstract_operations::AbstractBoundaryResult::Structural(_),
+            ..
+        } => None,
     }
 }
 
@@ -660,7 +715,13 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
             vec![left.length(), right.length()]
         }
         abstract_operations::byte_sequence_store_pair_pattern!(length, ..) => vec![*length],
-        abstract_operations::byte_sequence_write_pair_pattern!(index, value, length, ..) => {
+        abstract_operations::byte_sequence_write_pair_pattern!(index, value, length, ..)
+        | O::ElementViewWrite {
+            index,
+            value,
+            length,
+            ..
+        } => {
             vec![*index, *value, *length]
         }
         O::ByteSequenceSubslice {
@@ -740,7 +801,41 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
                 E::Load { .. } | E::Fence { .. } => Vec::new(),
             }
         }
-        _ => Vec::new(),
+        O::EstablishNativeCodeLayout { .. }
+        | O::GlobalDescriptorTable { .. }
+        | O::StorageAddress { .. }
+        | O::PrimitiveScalarRead { .. }
+        | O::StructuralCaseMembership { .. }
+        | O::StructuralByteViewFieldStore { .. }
+        | O::StructuralByteSequenceFieldLength { .. }
+        | O::ByteSequenceLength { .. }
+        | O::ElementViewLength { .. }
+        | O::MoveStructuralField { .. }
+        | O::MoveStructuralValue { .. }
+        | O::TransformContent { .. }
+        | O::StructuralLeafCopy { .. }
+        | O::StoreStructuralField { .. }
+        | O::EstablishByteSequenceLiteral { .. }
+        | O::EstablishTrivialAffineLocal { .. }
+        | O::EstablishZeroedStructural { .. }
+        | O::EstablishStructuralLocal { .. }
+        | O::SelectImplementation { .. }
+        | O::SelectMachine { .. }
+        | O::PortWrite { .. }
+        | O::IntegerConstant { .. }
+        | O::IeeeFloatConstant { .. }
+        | O::BooleanConstant { .. }
+        | O::StructuralScalarFieldRead { .. }
+        | O::StructuralCase { .. }
+        | O::ReturnUnit { .. }
+        | O::ReturnStructural { .. }
+        | O::EstablishAccessReference { .. }
+        | O::ReleaseReference { .. }
+        | O::Crash { .. }
+        | O::EstablishElementView {
+            region: terminal_psi::ElementViewRegion::WholeCollection,
+            ..
+        } => Vec::new(),
     }
 }
 
@@ -1047,6 +1142,87 @@ pub fn operation_ownership(operation: &AbstractOperation) -> Vec<OwnershipEvent>
         } => {
             vec![OwnershipEvent::CrashFrontier(frontier_lower_bound.clone())]
         }
-        _ => Vec::new(),
+        O::EstablishActivationClaim { .. }
+        | O::ReleaseActivationClaim { .. }
+        | O::SplitActivationClaim { .. }
+        | O::MergeActivationClaim { .. }
+        | O::EstablishNativeCodeLayout { .. }
+        | O::ActivateTaskRegister { .. }
+        | O::ReloadSegmentDescriptors { .. }
+        | O::ReadSegmentSelector { .. }
+        | O::ReadTaskRegister { .. }
+        | O::GlobalDescriptorTable { .. }
+        | O::StorageAddress { .. }
+        | O::EstablishScalarArray { .. }
+        | O::EstablishStructuralArray { .. }
+        | O::EstablishPrimitiveLocal { .. }
+        | O::PrimitiveLocalStore { .. }
+        | O::PrimitiveScalarRead { .. }
+        | O::StructuralCaseMembership { .. }
+        | O::ByteSequenceSubslice { .. }
+        | O::ByteSequenceRead { .. }
+        | O::ByteSequencePredicate { .. }
+        | O::ByteSequenceEqual { .. }
+        | O::ByteSequenceWrite { .. }
+        | O::StructuralByteSequenceFieldByteStore { .. }
+        | O::ByteSequenceStore { .. }
+        | O::StructuralByteSequenceFieldStore { .. }
+        | O::StructuralByteViewFieldStore { .. }
+        | O::StructuralByteSequenceFieldRead { .. }
+        | O::StructuralByteSequenceFieldLength { .. }
+        | O::ByteSequenceLength { .. }
+        | O::EstablishElementView { .. }
+        | O::ElementViewLength { .. }
+        | O::ElementViewRead { .. }
+        | O::ElementViewWrite { .. }
+        | O::ElementViewSubslice { .. }
+        | O::WriteOnlyPrimitiveStore { .. }
+        | O::StructuralScalarFieldStore { .. }
+        | O::MoveStructuralField { .. }
+        | O::MoveStructuralValue { .. }
+        | O::TransformContent { .. }
+        | O::StructuralLeafCopy { .. }
+        | O::StoreStructuralField { .. }
+        | O::AtomicEvent { .. }
+        | O::EstablishCase { .. }
+        | O::EstablishByteSequenceConcatenation { .. }
+        | O::EstablishByteSequenceLiteral { .. }
+        | O::EstablishTrivialAffineLocal { .. }
+        | O::EstablishZeroedStructural { .. }
+        | O::EstablishStructuralLocal { .. }
+        | O::EstablishRecord { .. }
+        | O::SelectImplementation { .. }
+        | O::SelectMachine { .. }
+        | O::PortWrite { .. }
+        | O::RegisterAccess { .. }
+        | O::Call { .. }
+        | O::IntegerConstant { .. }
+        | O::IeeeFloatConstant { .. }
+        | O::FloatResultPolicy { .. }
+        | O::NearestIeeeFloatFusedMultiplyAdd { .. }
+        | O::IeeeFloatCompare { .. }
+        | O::BooleanConstant { .. }
+        | O::StructuralScalarFieldRead { .. }
+        | O::BooleanNot { .. }
+        | O::BooleanEqual { .. }
+        | O::IntegerEqual { .. }
+        | O::IntegerLessThan { .. }
+        | O::IntegerLessOrEqual { .. }
+        | O::IntegerBitwiseNot { .. }
+        | O::IntegerWiden { .. }
+        | O::IntegerExactCast { .. }
+        | O::ScalarRepresentationView { .. }
+        | O::IntegerBitwiseAnd { .. }
+        | O::IntegerBitwiseOr { .. }
+        | O::IntegerBitwiseXor { .. }
+        | O::IntegerShift { .. }
+        | O::IntegerArithmetic { .. }
+        | O::TrappingInteger { .. }
+        | O::Jump { .. }
+        | O::Conditional { .. }
+        | O::StructuralCase { .. }
+        | O::EstablishAccessReference { .. }
+        | O::EstablishReference { .. }
+        | O::ReleaseReference { .. } => Vec::new(),
     }
 }

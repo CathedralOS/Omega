@@ -17,7 +17,7 @@ standard library):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/linear_receipt_drop/main.omg
-mbx run -p omega -- update --project samples/cli/probes/linear_receipt_drop
+mbx run -p omega -- packages update --project samples/cli/probes/linear_receipt_drop
 ```
 
 Both green on Linux x86-64; `omega.lock` publishes locally, ignored.

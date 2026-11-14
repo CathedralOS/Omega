@@ -11,5 +11,5 @@ array's `ensures` to discharge Exact multiplication and division.
 
 Expected exit: 0. Expected output contains: `exact=6`.
 
-The invalid control divides by a provably zero pivot and must be rejected
+The ../invalid_bounded_exact_bareiss_step control divides by a provably zero pivot and must be rejected
 at checking.

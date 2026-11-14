@@ -11,7 +11,11 @@
 // Compile-checked only: no standard-library dependency, no ProcessExit
 // provider.
 
-use omega::language::core::float_operations;
+use omega::language::core::F32::square_root;
+use omega::language::core::F64::maximum;
+use omega::language::core::F64::minimum;
+use omega::language::core::F64::negate;
+use omega::language::core::F64::square_root;
 
 data Main {
     zero: f64;

@@ -1,6 +1,5 @@
 // Expected exit: 0.
 // An atomic value operand is checked once against the cell's `u32` carrier: a `u32` operand exchanges the resident, and an operand of another carrier reports one implicit conversion.
-use omega::language::core::atomic;
 data Cell { value: AtomicU32; }
 machine input(select: bool) -> u32 { match select { true -> 7 false -> 9 } }
 machine perform(cell: &Cell, expected: u32, select: bool) -> u32 {

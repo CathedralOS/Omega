@@ -15,15 +15,15 @@ Each twin changes only that value's declared carrier from `u32` to `u64`.
 
 | Place | Positive | Reject twin | Route of the new value |
 | --- | --- | --- | --- |
-| Local | [source](local/main.omg) | [twin](local/invalid/main.omg) | a `let` binding |
-| Field | [source](field/main.omg) | [twin](field/invalid/main.omg) | a `[copy]` record field |
-| Parameter | [source](parameter/main.omg) | [twin](parameter/invalid/main.omg) | a callee parameter |
-| Call result | [source](call_result/main.omg) | [twin](call_result/invalid/main.omg) | a call's result |
-| Match join | [source](match_join/main.omg) | [twin](match_join/invalid/main.omg) | the join of a `match` |
-| Const name | [source](const_name/main.omg) | [twin](const_name/invalid/main.omg) | a named constant |
-| Nested machine | [source](other_state/main.omg) | [twin](other_state/invalid/main.omg) | a nested machine's parameter |
-| Other machine | [source](other_machine/main.omg) | [twin](other_machine/invalid/main.omg) | two machines by terminal transfer |
-| Target body | [source](target_body/main.omg) | [twin](target_body/invalid/main.omg) | an implementation selected by Build |
+| Local | [source](local/main.omg) | [twin](invalid_local/main.omg) | a `let` binding |
+| Field | [source](field/main.omg) | [twin](invalid_field/main.omg) | a `[copy]` record field |
+| Parameter | [source](parameter/main.omg) | [twin](invalid_parameter/main.omg) | a callee parameter |
+| Call result | [source](call_result/main.omg) | [twin](invalid_call_result/main.omg) | a call's result |
+| Match join | [source](match_join/main.omg) | [twin](invalid_match_join/main.omg) | the join of a `match` |
+| Const name | [source](const_name/main.omg) | [twin](invalid_const_name/main.omg) | a named constant |
+| Nested machine | [source](other_state/main.omg) | [twin](invalid_other_state/main.omg) | a nested machine's parameter |
+| Other machine | [source](other_machine/main.omg) | [twin](invalid_other_machine/main.omg) | two machines by terminal transfer |
+| Target body | [source](target_body/main.omg) | [twin](invalid_target_body/main.omg) | an implementation selected by Build |
 
 The pinned copies are `tests/omega/{pass,fail}/facts/atomic_operand_carrier_once_*`.
 Each recorded row lists the exact diagnostic lines, so a duplicate returns as

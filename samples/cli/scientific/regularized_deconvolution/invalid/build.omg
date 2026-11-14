@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "unchecked_convolution_index");
-    let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../../../source/library/std" }));
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-}

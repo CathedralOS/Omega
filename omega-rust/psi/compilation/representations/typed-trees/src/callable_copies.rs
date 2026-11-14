@@ -699,11 +699,6 @@ fn expression_type_payloads(owner: &mut impl TypePayloadTransform, expression: E
             }
             call.visit_static_arguments_mut(|argument| static_argument_types(owner, argument));
             application_types(owner, call.authored_machine_application);
-            if let Some(dispatch) = &call.static_requirement_dispatch
-                && dispatch.selection_application != call.authored_machine_application
-            {
-                application_types(owner, dispatch.selection_application);
-            }
         }
         ExpressionNode::Cast(cast) => {
             cast.target_type = owner.reference(cast.target_type);
@@ -767,35 +762,6 @@ fn expression_type_payloads(owner: &mut impl TypePayloadTransform, expression: E
             .tables()
             .expression_table
             .set_construction_required_type_reference(expression, copied);
-    }
-    if let Some(mut authority) = owner
-        .tables()
-        .expression_table
-        .index_expression_authority(expression)
-        .cloned()
-    {
-        if let Some(normalization) = &mut authority.normalization {
-            normalization.index_type = owner.reference(normalization.index_type);
-        }
-        if let Some(operation) = &mut authority.operation {
-            operation.operand_type = owner.reference(operation.operand_type);
-            for evidence in &mut operation.law_evidence {
-                for actual in &mut evidence.bound.arguments {
-                    *actual = owner.reference(*actual);
-                }
-            }
-        }
-        if let Some(application) = authority
-            .operation
-            .as_mut()
-            .and_then(|operation| operation.application.as_mut())
-        {
-            static_argument_types(owner, application);
-        }
-        *owner
-            .tables()
-            .expression_table
-            .index_expression_authority_mut(expression) = authority;
     }
 }
 

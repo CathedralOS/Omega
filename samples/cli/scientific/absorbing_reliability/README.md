@@ -44,8 +44,8 @@ From the repository root, select the matching library and compiler:
 
 ```sh
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
-omega update --project samples/cli/independent/absorbing_reliability --target linux_x86_64
-# Read and accept the generated review, then omega update --resume --project ...
+omega packages update --project samples/cli/independent/absorbing_reliability --target linux_x86_64
+# Read and accept the generated review, then omega packages update --resume --project ...
 omega --check --target linux_x86_64 samples/cli/independent/absorbing_reliability/main.omg
 omega --target linux_x86_64 samples/cli/independent/absorbing_reliability/main.omg
 printf '04\n' | omega run --both --keep samples/cli/independent/absorbing_reliability/main.omg

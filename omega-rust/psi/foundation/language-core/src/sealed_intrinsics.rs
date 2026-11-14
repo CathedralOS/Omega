@@ -26,6 +26,8 @@ use std::path::Path;
 /// The compiler-supplied operation a catalog row identifies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SealedIntrinsic {
+    /// A bodyless machine supplied by a closed portable compiler catalog.
+    CompilerPrimitive(CompilerPrimitive),
     /// A member of core's `NativeFloats` realization of `FloatNativeOperations`.
     NativeFloatOperation,
     /// Core's `NativeFloats` map itself.
@@ -70,6 +72,25 @@ pub enum SealedIntrinsic {
     FixedImageRequirement(FixedImageOperation),
     /// The bundled `uefi_x86_64` realization of a fixed-image requirement.
     FixedImageRealization(FixedImageOperation),
+}
+
+/// Catalog identity only; the complete machine declaration owns its signature
+/// and contract, and each execution consumer still checks the supplied operation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CompilerPrimitive {
+    AtomicFence,
+    FloatProjection,
+    FloatSemantics,
+    NaturalRanking,
+    Collection(CollectionPrimitive),
+}
+
+/// The operation supplied by one exact generic core collection declaration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CollectionPrimitive {
+    Read,
+    Range,
+    ArrayView,
 }
 
 /// The free placed scalar primitives in core `layout.omg`.
@@ -266,6 +287,60 @@ const fn lifecycle(operation: PlacementOperation, content: PlacementContent) -> 
 }
 
 const ROWS: &[SealedIntrinsicRow] = &[
+    row(
+        "indexing.omg",
+        "read",
+        bundled!("core/indexing.omg"),
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::Collection(
+            CollectionPrimitive::Read,
+        )),
+    ),
+    row(
+        "indexing.omg",
+        "range",
+        bundled!("core/indexing.omg"),
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::Collection(
+            CollectionPrimitive::Range,
+        )),
+    ),
+    row(
+        "indexing.omg",
+        "view",
+        bundled!("core/indexing.omg"),
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::Collection(
+            CollectionPrimitive::ArrayView,
+        )),
+    ),
+    row(
+        "atomic.omg",
+        "Atomic::fence",
+        bundled!("core/atomic.omg"),
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::AtomicFence),
+    ),
+    row(
+        "float_operations.omg",
+        "Float::meaning32",
+        CORE_FLOAT_OPERATIONS,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::FloatProjection),
+    ),
+    row(
+        "float_operations.omg",
+        "Float::meaning64",
+        CORE_FLOAT_OPERATIONS,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::FloatProjection),
+    ),
+    member_row(
+        "float_operations.omg",
+        "FloatSemantics",
+        CORE_FLOAT_OPERATIONS,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::FloatSemantics),
+    ),
+    row(
+        "nat.omg",
+        "Nat::Descending",
+        bundled!("core/nat.omg"),
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::NaturalRanking),
+    ),
     row(
         "float_provider.omg",
         "NativeFloats",

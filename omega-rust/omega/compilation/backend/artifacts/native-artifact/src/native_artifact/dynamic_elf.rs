@@ -71,11 +71,12 @@ impl DynamicElfNativeArtifact {
         let final_image_symbol_digest =
             *image::final_image_symbol_digest(parts.image.emission().admitted().image()).as_bytes();
         derive_physical_evidence(
+            super::PhysicalEvidencePass::Publication,
             &parts.physical_evidence_scope,
-            &parts.psi_artifact,
+            parts.psi_artifact.view().into(),
             parts.target,
             &parts.object,
-            parts.image.output(),
+            &parts.image.output().final_text_bytes,
             final_image_symbol_digest,
             &parts.selected_provider_plans,
             &parts.provider_executions,

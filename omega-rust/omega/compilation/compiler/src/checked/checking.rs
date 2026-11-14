@@ -18,7 +18,6 @@ active compiler worker run inline without spawning additional threads.
 
 pub(crate) mod build_continuation;
 mod entry_shapes;
-mod lowered_route;
 mod product_queries;
 mod product_selections;
 mod provider_choices;
@@ -368,6 +367,9 @@ pub struct SourceCompilation {
 }
 
 impl SourceCompilation {
+    pub(crate) fn package_inputs(&self) -> Option<&PackageCompilationInputs> {
+        self.inputs.as_ref()
+    }
     pub fn product_queries(&self) -> ProductQueries {
         self.source.product_queries()
     }
@@ -409,15 +411,8 @@ impl SourceCompilation {
     pub(super) fn check(
         self,
         returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
-    ) -> Result<compilation_products::CheckedProductSource, Vec<Diagnostic>> {
-        let prepared = self
-            .source
-            .complete(
-                returned.map_err(CompileFailure::into_diagnostics)?,
-                None,
-                None,
-            )
-            .map_err(CompileFailure::into_diagnostics)?;
+    ) -> Result<compilation_products::CheckedProductSource, CompileFailure> {
+        let prepared = self.source.complete(returned?, None, None)?;
         let source = complete_prepared_build(prepared, self.inputs.as_ref())?;
         check_product_source(
             source,
@@ -515,15 +510,17 @@ pub(super) fn select_completed_build(
         .built
         .computed_build_config
         .independent_components();
-    match complete_prepared_build(prepared, package_inputs).and_then(|source| {
-        check_product_source(
-            source,
-            package_inputs,
-            &[selected_target_profile.unwrap_or_else(target::TargetProfile::host)],
-            rollback,
-            frontier,
-        )
-    }) {
+    match complete_prepared_build(prepared, package_inputs)
+        .map_err(CompileFailure::from)
+        .and_then(|source| {
+            check_product_source(
+                source,
+                package_inputs,
+                selected_target_profile.as_slice(),
+                rollback,
+                frontier,
+            )
+        }) {
         Ok(source) => crate::execution_settlement::select_product_target(
             &source,
             crate::checked::PreparedProductTarget::capture(
@@ -533,7 +530,7 @@ pub(super) fn select_completed_build(
             ),
         ),
         Err(diagnostics) => SelectedCompileOutcome {
-            result: Err(CompileFailure::from(diagnostics)),
+            result: Err(diagnostics),
             independent_components,
             tests: Vec::new(),
             test_notes: Vec::new(),
@@ -550,6 +547,16 @@ fn attribute_failure(
         CompileFailure::Diagnostics(mut diagnostics) => {
             attribute_diagnostics(&mut diagnostics, sources, package_inputs);
             CompileFailure::Diagnostics(diagnostics)
+        }
+        CompileFailure::SourceCompletion {
+            mut diagnostics,
+            accounting,
+        } => {
+            attribute_diagnostics(&mut diagnostics, sources, package_inputs);
+            CompileFailure::SourceCompletion {
+                diagnostics,
+                accounting,
+            }
         }
         other => other,
     }

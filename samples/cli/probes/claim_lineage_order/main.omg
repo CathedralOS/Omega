@@ -11,7 +11,6 @@
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
 
-use omega::language::core::drop;
 
 data Receipt [linear] dropped by drop_receipt { code: i32; }
 machine drop_receipt(receipt: &mut Receipt) {}

@@ -11,7 +11,7 @@
 // Compile-checked only: declaration surface, no standard-library
 // dependency, no ProcessExit provider.
 
-use omega::language::core::relation;
+use omega::language::core::Equivalence;
 
 data Representative {
     case Zero;

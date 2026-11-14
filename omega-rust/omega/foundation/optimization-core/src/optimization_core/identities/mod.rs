@@ -94,12 +94,9 @@ pub use artifacts::{
     FunctionFragmentEmissionIdentity, FunctionFragmentEmissionManifestIdentity,
     FunctionFragmentObjectContainerManifestIdentity, FunctionFragmentTextSectionManifestIdentity,
     OptimizedObjectArtifactIdentity, OptimizedObjectArtifactManifestIdentity,
-    OptimizedOrdinaryCallableEntryManifestIdentity,
-    OptimizedProgramStorageSemanticWrapperObjectContainerIdentity,
-    OptimizedProgramStorageSemanticWrapperObjectIdentity,
-    OptimizedProgramStorageSemanticWrapperObjectManifestIdentity,
-    OptimizedTerminalOrdinaryCallableEntryIdentity, RelocationFreeObjectContainerIdentity,
-    RelocationFreeObjectPlanIdentity, TerminalRelocationFreeTextSectionIdentity,
+    OptimizedOrdinaryCallableEntryManifestIdentity, OptimizedTerminalOrdinaryCallableEntryIdentity,
+    RelocationFreeObjectContainerIdentity, RelocationFreeObjectPlanIdentity,
+    TerminalRelocationFreeTextSectionIdentity,
 };
 pub use bundle::{OptimizationIdentityBundle, OptimizationIdentityBundleIdentity};
 pub use decisions::{
@@ -112,7 +109,7 @@ pub(crate) use error::IdentityDecodeError;
 pub use rules_and_facts::{
     AcceptedObligationFactIdentity, OptimizationCandidateIdentity, OptimizationPassIdentity,
     OptimizationRuleIdentity, OptimizationRuleSetIdentity, OwnershipFrontierFactIdentity,
-    ProofQuestionIdentity, ScalarConstantFactIdentity, ValueRangeFactIdentity,
+    ScalarConstantFactIdentity, ValueRangeFactIdentity,
 };
 pub use stages::{
     FunctionRelativeOptimizationRealizationManifestIdentity, NativeOptimizationProjectionIdentity,

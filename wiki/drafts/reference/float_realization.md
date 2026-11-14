@@ -43,7 +43,7 @@ operation identity into selected instructions and its physical coverage child.
 Reproduce the portable boundary with:
 
 ```text
-mbx run -p omega -- inspect-terminal --machine choose --target macos_arm64 tests/omega/pass/expressions/match_float_patterns/main.omg
+mbx run -p omega -- psi inspect --machine choose --target macos_arm64 tests/omega/pass/expressions/match_float_patterns/main.omg
 ```
 
 The same fixture has a `Main::main` application root; its original `choose`

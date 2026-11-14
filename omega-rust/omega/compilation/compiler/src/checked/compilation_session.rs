@@ -111,16 +111,16 @@ impl CompilationSession {
         run_on_compile_thread(|| {
             source.require_product_policy(&product)?;
             let root = source.root().to_path_buf();
+            let package_inputs = source.package_inputs().cloned();
             let selected = self
                 .select_completed_source(source, returned, None)
                 .result
-                .map_err(|failure| {
-                    crate::CompilationProductError::Production(failure.into_diagnostics())
-                })?;
+                .map_err(crate::CompilationProductError::from)?;
             let mut outputs = crate::target_batch::produce_products(vec![(
                 (),
                 Ok(crate::product_execution::ProductRequest::Requested {
                     realization: selected,
+                    package_inputs,
                     root,
                     product,
                     permissions: None,
@@ -137,7 +137,7 @@ impl CompilationSession {
     }
 
     /// Run the session's ordinary check and also return the frozen typed trees
-    /// the current checker judged, whether it accepted them or not.
+    /// the product check judged, whether it accepted them or not.
     ///
     /// A package request takes `check_package_build`'s path and a source request
     /// takes `complete_source_check`'s; the verdict is what that call returns.
@@ -168,7 +168,7 @@ impl CompilationSession {
     /// is `None` and the source declares one) is bound to the request
     /// target's `ProgramEntry`, as a Build's `Build::bind` would bind it;
     /// nothing else a Build decides is present. Judge the result with
-    /// `lowered_discharge::judge_compilation`. This is the route's probe
+    /// `terminal_psi_to_terminal_psi::judge_compilation`. This is the route's probe
     /// (`checking::unbuilt_source`), not a way to compile: it yields no
     /// product.
     pub fn typed_frontier_without_build(
@@ -337,7 +337,7 @@ impl CompilationSession {
         &mut self,
         source: SourceCompilation,
         returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
-    ) -> Result<compilation_products::CheckedProductSource, Vec<diagnostics::Diagnostic>> {
+    ) -> Result<compilation_products::CheckedProductSource, CompileFailure> {
         source.check(returned)
     }
 }

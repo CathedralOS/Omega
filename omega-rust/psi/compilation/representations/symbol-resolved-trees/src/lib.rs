@@ -30,6 +30,9 @@ its backing storage.
   - `type_system.rs`: symbol-resolved type references (`TypeReference`) and diagnostic name carriers (`DiagnosticName`).
   - `values.rs`: symbol-resolved expressions (`Expression`) and cross-table/symbol copy routines.
   - `storage_and_indexes.rs`: backing arena tables (`tables`) and revision-tracked lookup indexes (`lookup_indexes`).
+  - `continuations.rs`: exact predecessor/successor handoffs for generated allocations,
+    source activation, appended declarations and completed bodies. Pending syntax
+    stays with the resolver; the driver coordinates its next batch.
 */
 
 pub mod declaration_selection {
@@ -63,6 +66,7 @@ macro_rules! deref_to_storage {
 }
 
 pub mod callable_values;
+pub mod continuations;
 mod control_flow_and_calls;
 pub use control_flow_and_calls::{calls, control_flow, evidence};
 mod declarations_and_machines;

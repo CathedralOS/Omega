@@ -47,5 +47,5 @@ target = { path = "../../backend/target" }
 [dev-dependencies]
 optimization-unit-semantics = { path = "../../representations/abstract-operations/optimization-unit/semantics" }
 psi-work = { path = "../../../../psi/compilation/representations/terminal-psi/work" }
-lowered-discharge = { path = "../../../../psi/compilation/pipeline/lowered-discharge" }
-structure-elaboration = { path = "../../../../psi/compilation/pipeline/structure-elaboration" }
+terminal-psi-to-terminal-psi = { path = "../../../../psi/compilation/pipeline/06_terminal-psi-to-terminal-psi" }
+typed-trees-to-terminal-psi = { path = "../../../../psi/compilation/pipeline/05_typed-trees-to-terminal-psi" }

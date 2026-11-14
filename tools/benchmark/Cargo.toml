@@ -7,7 +7,6 @@ default-run = "omega-bench"
 
 [features]
 fixtures = []
-allocation-observation = ["dep:allocation-observation"]
 
 [[bin]]
 name = "omega-bench-workload"
@@ -24,7 +23,6 @@ name = "runner"
 required-features = ["fixtures"]
 
 [dependencies]
-allocation-observation = { path = "allocation-observation", optional = true }
 bounded-process = { path = "../../omega-rust/omega/foundation/bounded-process" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["float_roundtrip"] }

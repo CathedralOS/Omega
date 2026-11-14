@@ -7,15 +7,15 @@ Every place carries the same construct and operation: a terminating, ranked mult
 | Place | Positive Project | Reject Twin | Transport Mechanism |
 | --- | --- | --- | --- |
 | root | [`main.omg`](main.omg) with [`build.omg`](build.omg) | — | canonical root witness evaluating exact subtraction of 100u64 after wide branch countdown loop |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | a local binding receives the loop accumulator before subtraction |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | a record field carries the loop accumulator before subtraction |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | an explicit machine parameter receives the loop accumulator |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | a contracted forwarding machine result delivers the loop accumulator |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | reconverging match branches join on the exact loop accumulator bound |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constant `const SUBTRAHEND: u64 = 100` supplies the subtrahend |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine transition carries the loop accumulator to subtraction |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a separate evaluation machine carries the loop accumulator |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | target-scoped machine bodies for all four hosted targets evaluate subtraction |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | a local binding receives the loop accumulator before subtraction |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | a record field carries the loop accumulator before subtraction |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | an explicit machine parameter receives the loop accumulator |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | a contracted forwarding machine result delivers the loop accumulator |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | reconverging match branches join on the exact loop accumulator bound |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | named constant `const SUBTRAHEND: u64 = 100` supplies the subtrahend |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | a successor machine transition carries the loop accumulator to subtraction |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | a separate evaluation machine carries the loop accumulator |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | target-scoped machine bodies for all four hosted targets evaluate subtraction |
 
 ## Execution
 
@@ -46,15 +46,15 @@ Each place has an `invalid/` twin that breaks only the accumulator obligation by
 
 | Place | Twin | Pinned Diagnostic Fragment |
 | --- | --- | --- |
-| local | [`local/invalid/main.omg`](local/invalid/main.omg) | `exact arithmetic` |
-| field | [`field/invalid/main.omg`](field/invalid/main.omg) | `exact arithmetic` |
-| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | `exact arithmetic` |
-| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `exact arithmetic` |
-| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `exact arithmetic` |
-| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `exact arithmetic` |
-| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `exact arithmetic` |
-| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `exact arithmetic` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `exact arithmetic` |
+| local | [`invalid_local/main.omg`](invalid_local/main.omg) | `exact arithmetic` |
+| field | [`invalid_field/main.omg`](invalid_field/main.omg) | `exact arithmetic` |
+| parameter | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | `exact arithmetic` |
+| call result | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | `exact arithmetic` |
+| match join | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | `exact arithmetic` |
+| const name | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | `exact arithmetic` |
+| a nested machine | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | `exact arithmetic` |
+| another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | `exact arithmetic` |
+| another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | `exact arithmetic` |
 
 ## Pinned Fixtures
 

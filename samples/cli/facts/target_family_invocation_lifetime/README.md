@@ -17,15 +17,15 @@ Each twin changes only one implementation's callback result to the enclosing
 lifetime. Every supplied implementation must check even when another target's
 Build row selects execution.
 
-- [Local](local/main.omg) / [reject](local/invalid/main.omg)
-- [Field](field/main.omg) / [reject](field/invalid/main.omg)
-- [Parameter](parameter/main.omg) / [reject](parameter/invalid/main.omg)
-- [Call result](call_result/main.omg) / [reject](call_result/invalid/main.omg)
-- [Match join](match_join/main.omg) / [reject](match_join/invalid/main.omg)
-- [Const name](const_name/main.omg) / [reject](const_name/invalid/main.omg)
-- [Nested machine](other_state/main.omg) / [reject](other_state/invalid/main.omg)
-- [Another machine](other_machine/main.omg) / [reject](other_machine/invalid/main.omg)
-- [Selected target implementation](target_body/main.omg) / [reject](target_body/invalid/main.omg)
+- [Local](local/main.omg) / [reject](invalid_local/main.omg)
+- [Field](field/main.omg) / [reject](invalid_field/main.omg)
+- [Parameter](parameter/main.omg) / [reject](invalid_parameter/main.omg)
+- [Call result](call_result/main.omg) / [reject](invalid_call_result/main.omg)
+- [Match join](match_join/main.omg) / [reject](invalid_match_join/main.omg)
+- [Const name](const_name/main.omg) / [reject](invalid_const_name/main.omg)
+- [Nested machine](other_state/main.omg) / [reject](invalid_other_state/main.omg)
+- [Another machine](other_machine/main.omg) / [reject](invalid_other_machine/main.omg)
+- [Selected target implementation](target_body/main.omg) / [reject](invalid_target_body/main.omg)
 
 The match helper takes a runtime choice. Both paths call the same original
 operation; the true call must return the original item 42 and the false call

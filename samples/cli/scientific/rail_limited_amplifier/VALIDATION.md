@@ -140,7 +140,7 @@ source /workspace/cloud-setup/activate.sh
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
 export CARGO_BUILD_JOBS=4
 mbx build --release -p omega
-./target/release/omega update --project samples/cli/independent/rail_limited_amplifier --target linux_x86_64
+./target/release/omega packages update --project samples/cli/independent/rail_limited_amplifier --target linux_x86_64
 # Inspect any pending review; accept only explicitly authorized exact decisions.
 ./target/release/omega --check samples/cli/independent/rail_limited_amplifier/main.omg
 ./target/release/omega run --both --keep samples/cli/independent/rail_limited_amplifier/main.omg < samples/cli/independent/rail_limited_amplifier/data/rail_recovery.in

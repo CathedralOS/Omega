@@ -390,6 +390,19 @@ pub mod expression {
                 {
                     argument.symbol = *replacement;
                 }
+                if let Some(Ok(selected)) = &mut argument.signature_free_requirement {
+                    for symbol in [
+                        &mut selected.trait_definition,
+                        &mut selected.declaring_trait,
+                        &mut selected.requirement,
+                    ] {
+                        if let Some((_, replacement)) =
+                            symbols.iter().find(|(source, _)| *source == *symbol)
+                        {
+                            *symbol = *replacement;
+                        }
+                    }
+                }
                 if let Some(application) = &mut argument.application {
                     for argument in application.arguments.iter_mut() {
                         self.remap_static_argument_symbols(argument, symbols);
@@ -966,6 +979,11 @@ pub mod expression {
                 argument.authored_selection_target = argument
                     .authored_selection_target
                     .map(|target| self.symbol(target));
+                if let Some(Ok(selected)) = &mut argument.signature_free_requirement {
+                    selected.trait_definition = self.symbol(selected.trait_definition);
+                    selected.declaring_trait = self.symbol(selected.declaring_trait);
+                    selected.requirement = self.symbol(selected.requirement);
+                }
                 if let Some(application) = &mut argument.application {
                     for child in application.arguments.iter_mut() {
                         self.static_argument(child);
@@ -1477,6 +1495,13 @@ pub mod expression {
                     const_literal: None,
                     evidence_projection: None,
                     symbol: original,
+                    signature_free_requirement: Some(Ok(
+                        crate::expression::ResolvedSignatureFreeRequirement {
+                            trait_definition: original,
+                            declaring_trait: original,
+                            requirement: original,
+                        },
+                    )),
                 };
                 let source = program.expression_table_mut().insert(ExpressionNode::Call(
                     TableCallExpression {
@@ -1518,6 +1543,14 @@ pub mod expression {
                 assert!(!call.receiver.is_valid());
                 assert!(!call.machine_arguments[0].type_reference.is_valid());
                 assert_eq!(call.machine_arguments[0].symbol, replacement);
+                assert_eq!(
+                    call.machine_arguments[0].signature_free_requirement,
+                    Some(Ok(crate::expression::ResolvedSignatureFreeRequirement {
+                        trait_definition: replacement,
+                        declaring_trait: replacement,
+                        requirement: replacement,
+                    }))
+                );
                 assert_eq!(
                     call.machine_arguments[0]
                         .application
@@ -2087,6 +2120,72 @@ pub mod expression {
         use language_semantics::declaration_selection::CompilerDerivedSelectionPartition;
         use source::{SourceId, SourceSpan, Span};
         use symbols::SymbolHandle;
+
+        #[test]
+        fn pattern_dependencies_retain_the_combined_condition_once() {
+            use super::{MatchFieldAction, MatchPattern, TableDestructurePattern, TableMatchField};
+
+            let mut table = ExpressionTable::new();
+            let head = table.insert(ExpressionNode::Boolean(true));
+            let observed = table.insert(ExpressionNode::Boolean(false));
+            let expected = table.insert(ExpressionNode::Boolean(true));
+            let equality = table.insert(ExpressionNode::Binary(TableBinaryExpression {
+                policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                left: observed,
+                operator: BinaryOperator::Equal,
+                right: expected,
+            }));
+            let guard = table.insert(ExpressionNode::Boolean(true));
+            let condition = table.insert(ExpressionNode::Binary(TableBinaryExpression {
+                policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                left: equality,
+                operator: BinaryOperator::And,
+                right: guard,
+            }));
+            let fields = table.insert_match_fields([TableMatchField {
+                action: MatchFieldAction::Equal(expected),
+                ..Default::default()
+            }]);
+            let pattern = MatchPattern::Destructure(TableDestructurePattern {
+                head,
+                fields,
+                guard,
+                condition,
+                ..Default::default()
+            });
+            assert_eq!(
+                table
+                    .match_pattern_dependencies(pattern)
+                    .collect::<Vec<_>>(),
+                [head, condition]
+            );
+            let ExpressionNode::Binary(combined) = table.expression(condition) else {
+                panic!("retained condition contains both predicate inputs");
+            };
+            assert_eq!([combined.left, combined.right], [equality, guard]);
+            let ExpressionNode::Binary(comparison) = table.expression(combined.left) else {
+                panic!("field comparison is retained inside the condition");
+            };
+            assert_eq!(comparison.right, expected);
+            assert_eq!(
+                table
+                    .match_pattern_dependencies(MatchPattern::Value(equality))
+                    .collect::<Vec<_>>(),
+                [equality]
+            );
+            assert_eq!(
+                table
+                    .match_pattern_dependencies(MatchPattern::Wildcard)
+                    .count(),
+                0
+            );
+            assert_eq!(
+                table
+                    .match_pattern_dependencies(MatchPattern::Destructure(Default::default()))
+                    .count(),
+                0
+            );
+        }
 
         fn authored_selection_occurrences() -> [AuthoredDeclarationSelectionOccurrenceId; 2] {
             let mut selections = AuthoredDeclarationSelections::default();
@@ -2981,31 +3080,14 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
             &self,
             pattern: MatchPattern,
         ) -> impl Iterator<Item = ExpressionHandle> + '_ {
-            let (head, fields, guard) = match pattern {
-                MatchPattern::Value(value) => {
-                    (value, HandleSpan::empty(), ExpressionHandle::invalid())
-                }
-                MatchPattern::Destructure(pattern) => {
-                    (pattern.head, HandleSpan::empty(), pattern.condition)
-                }
-                MatchPattern::Wildcard => (
-                    ExpressionHandle::invalid(),
-                    HandleSpan::empty(),
-                    ExpressionHandle::invalid(),
-                ),
+            // Resolution combines field equalities and the authored guard into
+            // condition. Traverse that graph once, not its retained source fields too.
+            let roots = match pattern {
+                MatchPattern::Value(value) => [value, ExpressionHandle::invalid()],
+                MatchPattern::Destructure(pattern) => [pattern.head, pattern.condition],
+                MatchPattern::Wildcard => [ExpressionHandle::invalid(); 2],
             };
-            head.is_valid()
-                .then_some(head)
-                .into_iter()
-                .chain(
-                    self.match_fields(fields)
-                        .iter()
-                        .filter_map(|field| match &field.action {
-                            MatchFieldAction::Equal(value) => Some(*value),
-                            _ => None,
-                        }),
-                )
-                .chain(guard.is_valid().then_some(guard))
+            roots.into_iter().filter(|root| root.is_valid())
         }
 
         pub fn match_field_mut(&mut self, field: Handle<TableMatchField>) -> &mut TableMatchField {
@@ -3732,6 +3814,20 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
         pub operational_acknowledgement: language_semantics::CallOperationalAcknowledgement,
     }
 
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+    pub enum SignatureFreeRequirementResolutionError {
+        InvalidPath,
+        TraitNotUnique,
+        RequirementNotUnique,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+    pub struct ResolvedSignatureFreeRequirement {
+        pub trait_definition: SymbolHandle,
+        pub declaring_trait: SymbolHandle,
+        pub requirement: SymbolHandle,
+    }
+
     #[derive(Debug, Clone, Default, PartialEq, Eq)]
     pub struct StaticMachineArgument {
         /// Exact ledger occurrence attached when resolution mints this input.
@@ -3745,6 +3841,11 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
         pub const_literal: Option<numerics::literals::IntegerLiteral>,
         pub evidence_projection: Option<EvidenceProjection>,
         pub symbol: SymbolHandle,
+        /// Resolution records the whole qualified operand's requirement lookup.
+        /// A refusal is retained too: typing must not retry with a call signature.
+        pub signature_free_requirement: Option<
+            Result<ResolvedSignatureFreeRequirement, SignatureFreeRequirementResolutionError>,
+        >,
     }
 
     impl compiler_storage::Record for StaticMachineArgument {
@@ -3752,7 +3853,7 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
             &self,
             output: &mut compiler_storage::RecordWriter,
         ) -> Result<(), compiler_storage::RecordError> {
-            b"ARGSEL1".write(output)?;
+            b"ARGSEL2".write(output)?;
             self.authored_selection.write(output)?;
             self.authored_selection_target.write(output)?;
             self.type_reference.write(output)?;
@@ -3760,13 +3861,14 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
             self.application.write(output)?;
             self.const_literal.write(output)?;
             self.evidence_projection.write(output)?;
-            self.symbol.write(output)
+            self.symbol.write(output)?;
+            self.signature_free_requirement.write(output)
         }
 
         fn read<Context>(
             input: &mut compiler_storage::RecordReader<'_, Context>,
         ) -> Result<Self, compiler_storage::RecordError> {
-            if <[u8; 7]>::read(input)? != *b"ARGSEL1" {
+            if <[u8; 7]>::read(input)? != *b"ARGSEL2" {
                 return Err(input.error("static input selection storage has another version"));
             }
             Ok(Self {
@@ -3778,6 +3880,7 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
                 const_literal: Option::read(input)?,
                 evidence_projection: Option::read(input)?,
                 symbol: SymbolHandle::read(input)?,
+                signature_free_requirement: Option::read(input)?,
             })
         }
     }
@@ -3990,6 +4093,13 @@ mod static_input_record_tests {
             authored_selection: Some(occurrence),
             authored_selection_target: Some(selected),
             symbol: selected,
+            signature_free_requirement: Some(Ok(
+                crate::expression::ResolvedSignatureFreeRequirement {
+                    trait_definition: SymbolHandle::from_parts(4, 5),
+                    declaring_trait: SymbolHandle::from_parts(6, 5),
+                    requirement: selected,
+                },
+            )),
             ..Default::default()
         };
         let mut bytes = encode(&argument, RecordLimits::default()).unwrap();

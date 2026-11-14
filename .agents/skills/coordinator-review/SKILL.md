@@ -67,7 +67,7 @@ the five checks below fail:
   `CallFrameResolver`, `FactPayload`) rather than matching the surface AST shape
   of one fixture (e.g., handling only a bare `ExpressionNode::Name` when an
   operand may be a projection, cast, or call result).
-- **Full stage carry-through (lowered-form checker `-> 08 -> Native`):** Verify
+- **Full stage carry-through (`Psi 05 -> 06 -> publication -> Native`):** Verify
   that a construct, carrier, or cleanup disposition admitted by the lowered-form
   checker is carried through Terminal Psi execution and native codegen
   (`omega run --both`), rather than stopping at `--check`.
@@ -91,9 +91,10 @@ the five checks below fail:
   failed check green. Keep source and host limits beside the reported result.
 
 ### Point 4: Witness, Reject-Twin & Anti-Bloat Audit (`samples/` & kept-fixture diff)
-- **No new `samples/cli/facts/<folder>/` or 18-fixture fact-matrix bloat:**
-  `samples/cli/facts/` is frozen against new folder creation (`cargo xtask check-rules`
-  enforces this). Repairs target existing failing programs in `samples/` or
+- **No expansion of the frozen fact matrix:**
+  No new `.omg` file may be added under `samples/cli/facts/`, including inside
+  an existing folder (`cargo xtask check-rules` enforces this). Repairs target
+  existing failing programs in `samples/` or
   add a test on the changed code with, at most, a focused positive/negative
   pair kept beside it under `tests/fixtures/`.
 - **No weakened positive witnesses:** Confirm the worker did not make a fixture
@@ -116,9 +117,12 @@ the five checks below fail:
   accidental $O(N^2)$ linear scans (`Vec::iter().find(...)` inside a statement
   or state walk instead of dense handle-indexed lookup) or uncollapsed branch
   multiplication.
-- **Stage 05/06 ratchets:** Confirm no new shape gates or source-context reads
-  were added in violation of stage ratchets, and no production boundary checks
-  were bypassed.
+- **Frozen-checker deletion boundary:** The retired checked-tree stages
+  (`typed-trees-to-checked-trees`, `checked-trees-to-lowered-psi`) and other crates
+  named in [AGENTS.md](../../../AGENTS.md#law-of-completion) take only deletions
+  or moves of still-needed code into surviving owners. Reject repairs or
+  fallback routes through them; verify the lowered-form checker retains the
+  required obligations and no production boundary check was bypassed.
 - **`TASKS.md` closure:** Delete a bullet only when its full stated acceptance
   is demonstrated. For a fact row that is its existing nine places and reject
   twins; other outcomes follow their own acceptance. This is the test for a

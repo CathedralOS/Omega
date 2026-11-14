@@ -869,6 +869,23 @@ pub(super) fn extend_symbol_table(
     const_declarations: &[crate::resolution::lowerer::PendingConstDeclaration],
 ) {
     let has_sources = true;
+    // Homing can append signatures to a retained domain, outside the new-root
+    // watermark. Its published children remain a prefix; only the added suffix
+    // needs identities in this extension.
+    let retained_operator_counts = program
+        .domain_definitions
+        .iter()
+        .take(roots.domain_definitions)
+        .map(|domain| {
+            program
+                .symbols
+                .child_handles(domain.symbol)
+                .into_iter()
+                .flatten()
+                .filter(|child| program.symbols.get(*child).kind == SymbolKind::Operator)
+                .count()
+        })
+        .collect::<Vec<_>>();
     let mut extension = std::mem::take(&mut program.symbols)
         .begin_extension(Some(sources.clone()), source_scoped_top_level_bindings);
 
@@ -887,6 +904,30 @@ pub(super) fn extend_symbol_table(
         };
     }
     extend_root_family!(domain_definitions, Domain, insert_domain_symbol_children);
+    for (domain_index, published_count) in retained_operator_counts.into_iter().enumerate() {
+        let domain = &program.domain_definitions[domain_index];
+        let operators = program.operator_definitions(domain.operators);
+        let names = operators
+            .iter()
+            .skip(published_count)
+            .map(|operator| operator_symbol_name(program, operator))
+            .collect::<Vec<_>>();
+        if names.is_empty() {
+            continue;
+        }
+        let children = extension.append_children(
+            domain.symbol,
+            names
+                .iter()
+                .zip(operators.iter().skip(published_count))
+                .map(|(name, operator)| operator_symbol_seed(program, operator, name, has_sources)),
+        );
+        for (symbol, operator) in
+            SymbolTableBuilder::child_handles(children).zip(operators.iter().skip(published_count))
+        {
+            insert_operator_symbol_children(&mut extension, program, symbol, operator, has_sources);
+        }
+    }
     extend_root_family!(data_definitions, Data, insert_data_symbol_children);
     extend_root_family!(type_aliases, TypeAlias, insert_type_alias_symbol_children);
     for index in roots.conformances..program.conformances.len() {

@@ -264,6 +264,8 @@ pub enum TargetUnitOperation {
         case: semantic_vocabulary::StructuralCaseId,
         case_tag: u32,
         indices: Vec<TargetStructuralRuntimeIndex>,
+        /// Pointer words crossed before the tag load, in chase order.
+        pointer_slots: Vec<crate::control_flow::TargetCasePointerSlot>,
     },
     StructuralScalarFieldRead {
         psi_operation: OperationId,

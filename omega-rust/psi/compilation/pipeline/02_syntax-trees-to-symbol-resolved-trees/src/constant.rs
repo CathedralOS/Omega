@@ -1,17 +1,14 @@
 /*
     Constant substitution and exact const-index declaration custody; value contract: wiki/spec/language/constants.md.
 
-    Const VALUE semantics exist only until symbol resolution:
-    A constant declares a named pure value; each selected expression path gets
-    a fresh copy of its initializer before resolution publishes its result.
-    Typed trees, validation, proofs, backends, and the interpreter never grow a
-    const-value concept -- each use IS the literal, which is exactly the copied-at-each-use
-    semantics the contract specifies (and why interior mutability can never hide in
-    one). Resolved declarations keep a detached initializer handle so later
-    source extensions can use the same substitution without reparsing or
-    decoding review encodings. Only newly authored roots resolve names: retained
-    roots keep their declaration-side selections. The symbol table preserves
-    declaration provenance for authored-selection and package-authority checks.
+    Closed values substitute only after resolution has selected their exact
+    declaration. A computational initializer instead remains an ordinary named
+    request: copying its call into every use would execute it at runtime.
+    Typing retains that initializer and its declared destination, and the
+    accepted invocation evaluator later supplies its canonical value and actual
+    receipt before uses are materialized. Resolution supplies no acceptance for
+    that computation. The symbol table preserves declaration provenance for
+    authored-selection and package-authority checks.
 
     Scalar and closed aggregate literals substitute
     only after the shared resolver has selected their namespace and lexical
@@ -119,14 +116,7 @@ mod carrier {
             return Ok(());
         };
         let integer_type = match atom {
-            BuiltinTypeAtom::I8 => Some(LandedIntegerType::I8),
-            BuiltinTypeAtom::I16 => Some(LandedIntegerType::I16),
-            BuiltinTypeAtom::I32 => Some(LandedIntegerType::I32),
-            BuiltinTypeAtom::I64 => Some(LandedIntegerType::I64),
-            BuiltinTypeAtom::U8 => Some(LandedIntegerType::U8),
-            BuiltinTypeAtom::U16 => Some(LandedIntegerType::U16),
-            BuiltinTypeAtom::U32 => Some(LandedIntegerType::U32),
-            BuiltinTypeAtom::U64 => Some(LandedIntegerType::U64),
+            BuiltinTypeAtom::Integer(carrier) => Some(LandedIntegerType::Fixed(carrier)),
             BuiltinTypeAtom::Address => Some(LandedIntegerType::Addr),
             _ => None,
         };
@@ -573,7 +563,11 @@ mod declaration_values {
         definition: &ConstDefinition,
         selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
     ) -> Result<(), Diagnostic> {
-        if definition.normalization.is_some() {
+        if definition.normalization.is_some()
+            || crate::constant::requires_const_initializer_evaluation(syntax, definition)
+        {
+            // Resolution retains the request and its declaration identities.
+            // Only an accepted invocation can supply a computed value.
             return Ok(());
         }
         if definition.pending_target_observation {
@@ -584,14 +578,7 @@ mod declaration_values {
                 .is_some_and(|atom| {
                     matches!(
                         atom,
-                        symbols::BuiltinTypeAtom::I8
-                            | symbols::BuiltinTypeAtom::I16
-                            | symbols::BuiltinTypeAtom::I32
-                            | symbols::BuiltinTypeAtom::I64
-                            | symbols::BuiltinTypeAtom::U8
-                            | symbols::BuiltinTypeAtom::U16
-                            | symbols::BuiltinTypeAtom::U32
-                            | symbols::BuiltinTypeAtom::U64
+                        symbols::BuiltinTypeAtom::Integer(_)
                             | symbols::BuiltinTypeAtom::Bool
                             | symbols::BuiltinTypeAtom::F32
                             | symbols::BuiltinTypeAtom::F64
@@ -648,6 +635,7 @@ mod declaration_values {
         if !pending
             && definition.normalization.is_none()
             && !has_scalar_initializer(syntax, definition)
+            && !crate::constant::requires_const_initializer_evaluation(syntax, definition)
         {
             if crate::preparation::module_normalization::module_literal_constant(syntax, definition)
             {
@@ -2677,10 +2665,7 @@ mod initializer_leaves {
             TypeReferenceNode::Named(name)
                 if matches!(
                     selection.builtin_type(syntax, name),
-                    Some(symbols::BuiltinTypeAtom::I8 | symbols::BuiltinTypeAtom::I16
-                        | symbols::BuiltinTypeAtom::I32 | symbols::BuiltinTypeAtom::I64
-                        | symbols::BuiltinTypeAtom::U8 | symbols::BuiltinTypeAtom::U16
-                        | symbols::BuiltinTypeAtom::U32 | symbols::BuiltinTypeAtom::U64
+                    Some(symbols::BuiltinTypeAtom::Integer(_)
                         | symbols::BuiltinTypeAtom::Bool
                         | symbols::BuiltinTypeAtom::F32 | symbols::BuiltinTypeAtom::F64)
                 ) =>
@@ -3529,7 +3514,7 @@ pub(crate) mod initializer_normalization {
                     return Err("materialized initializer conflicts with integer carrier".into());
                 };
                 if literal.landing().is_some_and(|landing| {
-                    landing.landed_type.name() != carrier
+                    landing.landed_type.name() != carrier.as_ref()
                         || landing.domain != numerics::arithmetic::ArithmeticDomain::Exact
                 }) {
                     return Err("materialized initializer conflicts with integer landing".into());
@@ -3539,16 +3524,15 @@ pub(crate) mod initializer_normalization {
                     .map(i128::from)
                     .or_else(|| literal.value_u64().map(i128::from))
                     .ok_or("materialized initializer integer exceeds canonical storage")?;
-                let integer_type = numerics::literals::LandedIntegerType::from_name(carrier)
+                let integer_type = numerics::literals::LandedIntegerType::from_name(&carrier)
                     .ok_or("materialized integer initializer lost its selected carrier")?;
-                let (minimum, maximum) = integer_type.bounds();
-                if value < minimum || value > maximum {
+                if !integer_type.admits_i128(value) {
                     return Err(format!(
                         "materialized const value `{value}` does not fit `{carrier}`"
                     ));
                 }
                 Ok(Value::Integer {
-                    type_name: carrier.to_owned(),
+                    type_name: carrier.into_owned(),
                     value,
                 })
             }
@@ -5327,8 +5311,7 @@ mod substitution {
                 ));
             };
             if mode == crate::resolution::lowerer::ConstResolutionMode::ArgumentSelection
-                || (mode == crate::resolution::lowerer::ConstResolutionMode::InitializerSelection
-                    && declaration.evaluated_value.is_none())
+                || declaration.evaluated_value.is_none()
             {
                 selections.push(crate::resolution::lowerer::PendingConstSelection {
                     expression: occurrence.expression,

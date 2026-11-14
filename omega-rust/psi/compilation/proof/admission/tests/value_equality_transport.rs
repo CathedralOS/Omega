@@ -262,8 +262,8 @@ mod float_fields {
 
     fn proof(goal: Proposition, equations: &[Proposition]) -> ProofNode {
         let premise = match &goal {
-            // Exact float identity remains an identity after denotation;
-            // unlike a closed IEEE comparison, it does not become Truth.
+            // Exact float identity remains an identity after denotation.
+            // A closed IEEE comparison stays that comparison, so Truth does not discharge it.
             Proposition::Equal(_, right) => ProofNode {
                 conclusion: Proposition::Equal(right.clone(), right.clone()),
                 rule: ProofRule::Primitive(super::PrimitiveJudgment::ReflexiveEquality),
@@ -379,26 +379,22 @@ mod float_fields {
 
     #[test]
     fn field_bit_identity_does_not_become_ieee_equality() {
-        for (bits, other_bits, ieee_equal) in [
+        for (bits, other_bits) in [
             (
                 IeeeFloatValue::Binary32(0x7fc0_1234),
                 IeeeFloatValue::Binary32(0x7fc0_1235),
-                false,
             ),
             (
                 IeeeFloatValue::Binary64(0x7ff8_0000_0000_1234),
                 IeeeFloatValue::Binary64(0x7ff8_0000_0000_1235),
-                false,
             ),
             (
                 IeeeFloatValue::Binary32(0x8000_0000),
                 IeeeFloatValue::Binary32(0),
-                true,
             ),
             (
                 IeeeFloatValue::Binary64(0x8000_0000_0000_0000),
                 IeeeFloatValue::Binary64(0),
-                true,
             ),
         ] {
             let format = bits.format();
@@ -432,12 +428,7 @@ mod float_fields {
                     left: subject.clone(),
                     right: subject.clone(),
                 };
-                let accepted = if kind == IeeeFloatComparisonKind::Equal {
-                    ieee_equal
-                } else {
-                    !ieee_equal
-                };
-                assert_eq!(
+                assert!(
                     accept_certificate(
                         &context(format),
                         &goal,
@@ -445,8 +436,8 @@ mod float_fields {
                         &equations,
                         &proof(goal.clone(), &equations)
                     )
-                    .is_ok(),
-                    accepted
+                    .is_err(),
+                    "{format:?} {kind:?} stays a relation, so Truth does not discharge it"
                 );
             }
         }

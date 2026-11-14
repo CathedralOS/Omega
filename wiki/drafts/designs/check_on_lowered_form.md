@@ -24,7 +24,7 @@ needs new code on both sides. This record reverses the order: lower first,
 then check. Checking runs on the explicit form the compiler already emits, so
 the checker and the product name the same values and nothing is carried
 between them. It supersedes the design section of
-[fact transport](fact_transport.md), whose evidence still stands and whose
+[fact transport](https://github.com/CathedralOS/Omega/blob/3b24dc9383e37416021ff19b350869a147c57432/wiki/drafts/designs/fact_transport.md), whose evidence still stands and whose
 errors are listed [below](#corrections-to-fact-transport).
 
 ## Why the order is the problem
@@ -243,8 +243,8 @@ before variants are added. Route one is:
   crashes` alone), which is too small a sample to judge the gate.
 - **Build.** Shared dense-identity tables (`terminal-check-tables`, `#2279`);
   structure-only elaboration of the subset to unsealed Terminal Psi
-  (`structure-elaboration`, `#2286`); obligation reconstruction and discharge
-  by one prover (`lowered-discharge`, `#2293`) that states goals over Terminal
+  (`typed-trees-to-terminal-psi`, `#2286`); obligation reconstruction and discharge
+  by one prover (`terminal-psi-to-terminal-psi`, `#2293`) that states goals over Terminal
   values and emits certificates verified by `proof/admission` rather than
   threading `validation`'s source-shaped arithmetic engine. Before the gate
   closes, the prover must also prove relations and affine bounds between two
@@ -272,7 +272,7 @@ before variants are added. Route one is:
   obligations discharged with kernel-checked evidence (all of the subset's);
   decisions keyed on text (none); steps that drop without a refusal (none);
   meanings one kind of obligation has (one, wherever the value sits;
-  [restated below](#one-meaning-per-obligation)). [Route one measures](route_one_measures.md)
+  [restated below](#one-meaning-per-obligation)). [Route one measures](https://github.com/CathedralOS/Omega/blob/3b24dc9383e37416021ff19b350869a147c57432/wiki/drafts/designs/route_one_measures.md)
   records all eight and the verdict against the stop rule this record first
   carried.
 - **Gate.** [The gate](#the-gate) below. It replaces the stop rule, which
@@ -281,30 +281,21 @@ before variants are added. Route one is:
 ### The gate
 
 **Superseding ruling, 2026-11-12 (later the same day).** The old checker is
-removed now. The router (`compiler/src/checked/checking/lowered_route.rs`)
+removed now. The router (`products/src/terminal_publication.rs`, `ProductRoster::judge`)
 takes the route's verdict as the compilation's only verdict:
 
-- The route rejects: the compilation fails with the route's diagnostics. The
-  old checker's diagnostics no longer follow them.
+- The route rejects: the compilation fails with the route's diagnostics.
 - The route cannot judge the program (`RefusalReason::Unsupported`, an
   `Incomplete` verdict, or a defect of the route): the compilation fails with
-  an error that opens "not supported yet" and names the construct or goal. The
-  program is not given to Psi 05. A missing verdict is a refusal, never an
-  acceptance.
-- The route accepts: Psi 05 and 06 still run until they are deleted, only
-  because product selection, the provider inventory and target preparation
-  read their output. They also still judge the Build program and the bound
-  target's entry-contract source, which the route does not lower yet, and a
-  rejection placed there stands. A rejection placed anywhere else fails with
-  "no product route yet".
+  an error that opens "not supported yet" and names the construct or goal.
+  A missing verdict is a refusal, never an acceptance.
 
-Deleting Psi 05 and 06 removes that last use. From then on a product exists
-only through the route's own published module (`AcceptedClosure::publish`),
-so that hand-off is the critical path, and until the route lowers Build
-programs no compilation completes. The four conditions below no longer decide
-whether the old stages may be deleted. Conditions 1 to 3 remain as statements
-of what the route must get right; condition 4 is replaced by the deletion
-itself. The paragraphs below that describe the router while both checkers
+A product exists only through the route's own published module
+(`AcceptedClosure::publish`), so that hand-off is the critical path, and until
+the route lowers Build programs no compilation completes. The four
+conditions below no longer decide whether the old stages may be deleted.
+Conditions 1 to 3 remain as statements of what the route must get right;
+condition 4 is replaced by the deletion itself. The paragraphs below that describe the router while both checkers
 shipped are the record of that earlier state.
 
 The owner lifted the pause on 2026-11-12: the construct lanes resume now, and
@@ -323,7 +314,7 @@ This replaces the stop rule this record first carried: "If the route is not
 clearly smaller than what it replaces, cannot reach agreement on the widened
 subset, or cannot prove two-value relations through its single certificate
 route, the replacement stops and this record is withdrawn in favor of
-migrating in place." [Route one measures](route_one_measures.md#verdict-against-the-stop-rule)
+migrating in place." [Route one measures](https://github.com/CathedralOS/Omega/blob/3b24dc9383e37416021ff19b350869a147c57432/wiki/drafts/designs/route_one_measures.md#verdict-against-the-stop-rule)
 found that rule could not be evaluated. "Clearly smaller" had no number to
 compare, because the route retired no old code. Agreement failed for
 classified causes that the rule did not tell apart from a failure of the
@@ -338,7 +329,7 @@ that cannot fail cannot hold work back, and work went ahead
    by exact-key reuse of a dependency slice. Everything else is outside the
    check's claim." The route's scope is neither
    of the two in use today:
-   - *The route was too narrow.* `structure_elaboration::elaborate` lowered
+   - *The route was too narrow.* `typed_trees_to_terminal_psi::elaborate` lowered
      only what the program entry calls. The specification's closure "starts
      from every declaration of every subject, including unused ones". `#2317`
      found 13 `fail/` programs the route accepted because the defect is in a
@@ -349,7 +340,7 @@ that cannot fail cannot hold work back, and work went ahead
      it cannot lower. A sweep found
      49 such `fail/` programs; none is accepted now, and the compiler test
      `lowered_route_subjects` pins it
-     ([route one measures](route_one_measures.md#2-verdict-agreement)).
+     ([route one measures](https://github.com/CathedralOS/Omega/blob/3b24dc9383e37416021ff19b350869a147c57432/wiki/drafts/designs/route_one_measures.md#2-verdict-agreement)).
      Still open for this condition: the closure also names "the Build and
      preparation entries the compile executes". The route roots neither the
      Build program, which the Build activation checks with the current
@@ -363,7 +354,7 @@ that cannot fail cannot hold work back, and work went ahead
      the route accepts everything else; a rejection by either rejects the
      compilation. The split ends when the route can lower Build programs.
      The router implements this in the default compile
-     (`compiler/src/checked/checking/lowered_route.rs`): when the current
+     (`products/src/terminal_publication.rs`, `ProductRoster::judge`): when the current
      checker finds nothing wrong in the Build program or an entry-contract
      source, a route rejection fails the compilation with the route's
      diagnostics (the current checker's follow when it rejects too), and a
@@ -375,7 +366,7 @@ that cannot fail cannot hold work back, and work went ahead
      `AcceptedClosure::publish` (`#2666`) publishes exactly the module the
      route checked as canonical Terminal Psi with its evidence seals. Each
      machine states its declaration identity from the typed trees
-     (`structure-elaboration`, `declare.rs`); its contract commitment is the
+     (`typed-trees-to-terminal-psi`, `declare.rs`); its contract commitment is the
      route's own digest of the lowered contract, distinct from the old
      checker's digest. A stage-04 generated machine without a declaration
      identity still prevents publication.
@@ -442,7 +433,7 @@ that cannot fail cannot hold work back, and work went ahead
 
 2. **A wrong obligation list is caught, and tests show it.** Elaboration
    writes both the lowered program and the list of obligations that program
-   owes ("mints every obligation", `structure-elaboration` README). The prover
+   owes ("mints every obligation", `typed-trees-to-terminal-psi` README). The prover
    then proves what is on the list. If elaboration leaves a bounds check off
    the list, or states it about the wrong value, every obligation on the list
    is still proved and the program is accepted. The decision's second step
@@ -480,14 +471,14 @@ that cannot fail cannot hold work back, and work went ahead
    then decided again by `proof/admission` in each of two generated
    specializations, against goals and hypotheses the specialization computes
    from its own lowered module, with no search
-   (`lowered_discharge::reverify_specialization`). The program,
+   (`terminal_psi_to_terminal_psi::reverify_specialization`). The program,
    `run/generics/implementation_parameter_contract`, passes
    `omega run --both` with exit 0, and its fail twin, which differs only in
    the bound `advance` promises, is rejected. What this does not yet show:
    - The parameter is an implementation parameter. A type or value parameter
      is not served, and the check tables have no row for a value of an
      abstract type
-     ([what the lowered form does not carry](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md#what-the-lowered-form-does-not-carry)); [lowered type generics](lowered_type_generics.md) proposes how it
+     ([what the lowered form does not carry](../../../omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/README.md#what-the-lowered-form-does-not-carry)); [lowered type generics](lowered_type_generics.md) proposes how it
      could be.
    - The route was not the compile path when this was measured. `omega run
      --both` runs the program through the current pipeline; the generic check
@@ -513,7 +504,7 @@ that cannot fail cannot hold work back, and work went ahead
    `lowered_route_generics` pins both, with `#2378`'s pair. The program
    passes `omega run --both` on the current pipeline (native exit 0, Psi
    exit 0, Linux x86_64, `omega` built at `b741666a1`). Limits, each stated with its reason in the
-   [lowered-discharge README](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md#value-parameters):
+   [terminal-psi-to-terminal-psi README](../../../omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/README.md#value-parameters):
    a body that reads the parameter as an operand is not carried; a member's
    refinement of a requirement with value parameters is proved per argument
    in use, not for every value; a value parameter in a type waits for
@@ -541,7 +532,7 @@ that cannot fail cannot hold work back, and work went ahead
    lower, and what tells it from its fail twin is what a caller learns from
    a callee's body, which the decision `callee-result-body-summary`
    ([state contracts](../../spec/language/state_contracts.md)) settles. Limits, in the
-   [lowered-discharge README](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md#type-parameters):
+   [terminal-psi-to-terminal-psi README](../../../omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/README.md#type-parameters):
    only where `T` is a scalar type; no operation has a result of type `T`;
    a `T` value is used at most once unless `T` is `[copy]`, because the
    route has no judgment of moves.
@@ -556,13 +547,13 @@ that cannot fail cannot hold work back, and work went ahead
    (`omega run --both`: native exit 0, Psi exit 0) and its twin
    `fail/generics/finite_family_contract_wrong_alternative`, refused at the
    `u16` alternative. Limits, in the
-   [lowered-discharge README](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md#finite-families):
+   [terminal-psi-to-terminal-psi README](../../../omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/README.md#finite-families):
    one type parameter listed by one clause of builtin scalar types.
 
    **In the default compile, 2026-11-12.** Since `#2674` a subject's generic
    machines no longer hand the compilation back. The router judges the
    closure of the compilation's roots and, beside it, each generic machine
-   as its own check form (`lowered_discharge::judge_compilation`): once with
+   as its own check form (`terminal_psi_to_terminal_psi::judge_compilation`): once with
    its parameters rigid, or once per alternative of a finite family, whether
    or not the program applies it. A compilation is decided only when every
    part is. An unused `bump<T>` over `u8 | u16` whose body can overflow is
@@ -589,7 +580,7 @@ that cannot fail cannot hold work back, and work went ahead
 
    **Measured 2026-11-12: the covered subset makes almost none of the old
    checker unreachable, so nothing is retired.** The 12 programs of the
-   [places gate](places_foundation_lane.md#gate-re-run-2026-11-12) that both
+   [places gate](https://github.com/CathedralOS/Omega/blob/3b24dc9383e37416021ff19b350869a147c57432/wiki/drafts/designs/places_foundation_lane.md#gate-re-run-2026-11-12) that both
    checkers accept run 233,226 of the 596,993 instrumented lines of the
    three stages. A sample of 36 programs the route does not serve (every
    fourteenth of the gate's 502 "outside" programs) runs 325,931. Together
@@ -704,7 +695,7 @@ passed. Two started before any gate was evaluated. This is the state on
 
 | Lane | State | What exists |
 | --- | --- | --- |
-| Places (records, fields, cases, patterns, data `requires`) | started, on `main` | `#2328` split `structure-elaboration` into per-family modules. `#2332` records and field reads, `#2337` field stores, whole assignment and locals without an initializer, `#2343` sums, case dispatch and patterns, `#2356` payload-binding justification, `#2362` data `requires` at construction and every store. |
+| Places (records, fields, cases, patterns, data `requires`) | started, on `main` | `#2328` split `typed-trees-to-terminal-psi` into per-family modules. `#2332` records and field reads, `#2337` field stores, whole assignment and locals without an initializer, `#2343` sums, case dispatch and patterns, `#2356` payload-binding justification, `#2362` data `requires` at construction and every store. |
 | Numbers (integers, floats, casts and domains) | started, not on `main` | `#2365` (open draft): result bounds for divide, remainder, shift and bitwise operations, described as that lane's first slice. It reports 4 of the 12 prover gaps in route one measures now agreeing (quoted). |
 | Loops, recursion and termination | resumed 2026-11-12 (paused until then) | A staging plan on branch `work/docs-loops-recursion-termination-lane` (`d352f7e36`). No pull request is open for it and no code exists. |
 | Proofs, evidence and quotients | resumed 2026-11-12 (paused until then) | `#2366` (open draft, marked do not land): erased scalar bindings, the first of eleven planned slices, with the lane's plan file. |
@@ -717,7 +708,7 @@ that takes it is described under [condition 1](#the-gate).
 
 The three route crates were 9,463 lines of Rust at `82d2ea5d5`, where route
 one measures counted them, and are 21,576 at `c7371d3dc`, tests included
-(`structure-elaboration` 11,082, `lowered-discharge` 9,392,
+(`typed-trees-to-terminal-psi` 11,082, `terminal-psi-to-terminal-psi` 9,392,
 `terminal-check-tables` 1,102). None of the six places commits on `main`
 touches a file in Psi 05, validation or Psi 06 (`git show --stat`).
 
@@ -739,7 +730,7 @@ them except to delete them
 Since the owner lifted the pause on 2026-11-12, the remaining construct
 families run alongside [the gate](#the-gate)'s conditions, in two
 dependency-ordered groups rather than ten simultaneous sessions. The
-split of `structure-elaboration` into per-family modules and part of the
+split of `typed-trees-to-terminal-psi` into per-family modules and part of the
 places foundation have already landed
 ([above](#started-before-the-gate-paused-and-resumed)):
 
@@ -747,7 +738,7 @@ places foundation have already landed
    expressions, so `ExactPlaceId` projections, structural roots and the forward
    write log (`places`, `roots`, `writes`, all empty in the scalar spine) are
    built once. [Places foundation lane](places_foundation_lane.md) is the
-   staged plan: scope, tables, corpus slice, measures and worker brief.
+   staged plan: scope, tables and measures.
 2. **First parallel group (five lanes):** references, loans, windows, ownership
    and cleanup; calls and callee summaries; loops, recursion and termination;
    integers, floats, casts and domains; proofs, evidence and quotients.
@@ -759,12 +750,9 @@ places foundation have already landed
 
 There is no second checker to agree with. A lane is measured by the programs
 it moves from refused to judged: the router refuses a compilation on any
-`RefusalReason::Unsupported`, so the count of refused programs in the
-post-merge ledger is the progress number, and a lane is done when the corpus
-rows of its families are judged and their verdicts match the rows' expected
-outcomes. The first lane by programs unblocked is the product hand-off from
-the route's published module, then Build programs and the entry-contract
-source, which every compilation needs.
+`RefusalReason::Unsupported`. The first lane by programs unblocked is the
+product hand-off from the route's published module, then Build programs and
+the entry-contract source, which every compilation needs.
 
 ### Census of evidence
 
@@ -838,118 +826,13 @@ What the numbers do not say:
 These accept invalid programs, or can, on `main` today. They were read in the
 code and are not yet confirmed by a run:
 
-- The prover's check that a call guarantee still describes a copied argument
-  looks only at the callee's own writes, not at writes by the call's other
-  operands (`checks_contracts_prover.rs` `capture_preserved`). Three
-  `fail/calls/copied_*_ensures_cannot_restore_*` programs exercise it.
-- A call the flow builder cannot match records no write
-  (`flow_expression.rs` `invoke`).
-- Index segments compare by expression structure, so a fact on `a[i]` can
-  outlive a change to `i` (`validation/src/places.rs`).
 - Omega 01 turns every operation obligation reference in a unit into an
   accepted fact, with no evidence attached
   (`01_abstract-operations-to-abstract-operations/src/verified_unit.rs`
   `source_checked_obligation_facts`); the interpreter still checks. A wrongly
-  kept fact therefore makes native code and the interpreter disagree. An
-  earlier wording said the back end read a list of source-checked obligations
-  from lowering; no reader of that list was found.
+  kept fact therefore makes native code and the interpreter disagree.
 
-The full read added seven places that accept on missing or mismatched input.
-Each was traced on 2026-11-10 at `c118c914794`, and the probes were run on the
-Mac mini. One accepted an invalid program and has since been closed; the other
-six are closed or not
-reached:
-
-- **Accepted an invalid program; closed.** The default-domain driver skipped
-  its end-of-state window check when the state contained any crash statement,
-  even one that cannot run (`domains_and_predicates.rs` `walk_state`). A write
-  that breaks a data `requires`, then a complete dispatch whose arms all
-  return, then a dead `crash Trap;` was accepted. Without the crash, the same
-  program was rejected. The driver now checks open windows at each returning
-  row of the dispatch and lets only a crash row that ends the dispatch abandon
-  one. Witness: `fail/dependent/data_requires_return_beside_dead_crash`, now
-  rejected with a recorded ledger row. A crash beside a normal exit on another
-  path cannot be written: the parser makes `crash` an unguarded statement that
-  ends the dispatch.
-- A linear carry fact crosses a call when its place label text equals the
-  argument's spelling (`flow_calls.rs:419`). This adds nothing beyond
-  `places_match`, which already compares labels made from bare symbol names
-  (`facts/src/lib.rs:1827`). Two distinct locals or parameters cannot share a
-  name: `value_custody_core.rs:5750` and `declarations_core.rs:2373` reject
-  that. Label collisions remain only through index or expression spelling,
-  which is the `places.rs` item above.
-- An `ensures` subject binds to a callee parameter by name alone
-  (`flow_calls.rs:1066`). This is closed: the parameters and the contracts come
-  from one signature, and duplicate parameter names are rejected
-  (`declarations_core.rs:2373`).
-- With no checked body to consult, the fence on a call's result domains
-  answers yes (`flow_calls.rs:546`). For a direct call, the callee's own exit
-  refuses a forged `ensures result in D` (`checks_contracts_exits.rs:9902`).
-  The bodyless-realization case was not run.
-- A recognizer for two-arm guarded values compares the first arm's condition
-  with itself (`contract_entailment.rs:44311`). Read only: this fails
-  closed. The recognizer is a fallback, tried only when the primary case walk
-  returns nothing, and the primary walk's refusals stay in the same batch
-  (`:90466-90474`). Its two arms must be the state's only statements, both
-  value returns. Each arm is judged with no hypothesis from its guard, and the
-  claim is proven only when every arm proves it.
-- A storage validity check answers "valid" when no storage graph exists
-  (`contract_entailment.rs:73358`). Read only: this branch is never reached. No storage
-  version is produced without a graph, and all seven callers are guarded.
-- An arena returns a shared dummy row for an invalid or stale handle
-  (`arena.rs:1023`). An invalid expression handle therefore reads as the
-  literal `0`, and the operator `requires` check compares that text
-  (`checks_operators.rs:2319`). An operand `0` was still refused, by the
-  call `requires` check (`checks_contracts_calls.rs:3508`). Other tables'
-  dummy rows were not audited.
-
-The carry-label place, the arena place and the `places.rs` item share one
-mechanism: they decide that two values are the same by comparing their
-spelling. Each is closed today only by the check that stands behind it.
-
-A review of the automated accept-on-unknown trace named nine more candidates.
-Each was run with `omega --check` at `10d773ae305` on 2026-11-10. None
-accepts an invalid program. Two of them really do miss on unknown input and
-are covered only by a check in another file:
-
-- **Extent search budget.** The inline-extent search gives up after 4096 steps
-  and reports "no runtime extent" (`value_custody_core.rs:9551`). A data type
-  that holds a generic doubled ten or more levels deep, beside
-  `[u8; Count]` with a runtime `Count`, loses the "runtime value ... for an
-  inline fixed-array extent" diagnostic. At depth 9 the diagnostic is still
-  reported. The program is still rejected by the cleanup-disposition check
-  (`flow.rs:10785`). With a const extent, the same deep type is accepted, so
-  that rejection depends on the runtime extent, not on the depth.
-- **Transition handback.** The scalar-loan handback check skips
-  `CallSite::TransitionNamed` (`contract_entailment.rs:21217`). Lending
-  `&mut target.count` to a nested or top-level machine through `transition`
-  still reaches the same check and is rejected (`:21352`). A callee that
-  `ensures slot == 0` is accepted. No transition shape reaching `:21217`
-  was found.
-
-The other seven are closed:
-
-- Field signedness from the first machine (`proof/src/checker.rs:5446`).
-  This cannot be written, because a `self` receiver in a machine body is
-  rejected by the parser (`expressions.rs:1728`).
-- Assembly that raises a rank before recursion. Rejected by the ranking check
-  (`checks_termination.rs:8113`). The same assembly writing another local is
-  accepted.
-- A live crash beside a return. A partial dispatch is rejected as
-  fall-through (`equality_and_exhaustiveness.rs:984`), and an arm cannot be
-  `crash` (parse error, "expected `->`").
-- A reference local lending a restricted field, including one chosen in a
-  `match`. Rejected at `contract_entailment.rs:21352`.
-- A guard on one local reused for a same-spelled call initializer of another.
-  Rejected by the call `requires` check (`checks_contracts_calls.rs:3508`).
-  Guarding the second local itself is accepted.
-- The binding-observation retry. A read through a view after a write to its
-  owner is rejected by the borrow-conflict check (`checks_borrows.rs:4709`).
-- Atoms keyed on `Debug` text (`contract_entailment.rs:58147`). Settled by
-  reading. Each `Debug` impl omits only the fields that semantic equality
-  ignores, so two terms that are not equal never print the same text.
-
-Must-reject programs the corpus lacks, none under `facts/`: knowledge that
+Must-reject programs to cover: knowledge that
 survives a pause; a write through a partly overlapping window; a linear value
 consumed on a loop back-edge; a copied scalar whose source a later operand
 overwrites; a rank premise across a pause.
@@ -986,7 +869,7 @@ overwrites; a rank premise across a pause.
   and names record fields in `StructuralPathSegment::Field` by that index.
   Decided in `#2279` and `#2286`: `terminal-check-tables` mints dense
   `IdTable` identities and resolves fields once at elaboration to
-  `StructuralFieldId`, and `structure-elaboration` classifies builtin scalars
+  `StructuralFieldId`, and `typed-trees-to-terminal-psi` classifies builtin scalars
   through `SymbolTable::builtin_type_atom` on the resolved root symbol rather
   than by spelling.
 - **Diagnostics.** Errors must name source constructs. `LoweredSourceCustody`
@@ -994,7 +877,7 @@ overwrites; a rank premise across a pause.
   carries per-machine `MachineSources` over dense identities with explicit
   `Unpositioned` reasons; whether that suffices for every diagnostic across the
   remaining families is checked as each lane lands. Measured on every
-  `fail/` fixture: [route one diagnostics](route_one_diagnostics.md). Where
+  `fail/` fixture: [route one diagnostics](https://github.com/CathedralOS/Omega/blob/3b24dc9383e37416021ff19b350869a147c57432/wiki/drafts/designs/route_one_diagnostics.md). Where
   the route rejects, 288 of 293 rejections name the defect's obligation at
   its construct, but no message states the failing condition; the missing
   part is mapping, not information the lowered form lacks.
@@ -1014,7 +897,7 @@ overwrites; a rank premise across a pause.
   [`validation_subjects.md`](../../spec/build/validation_subjects.md#what-this-rule-does-not-do)
   (a consumer checks every dependency declaration it needs; since the owner
   ruling of 2026-11-12 that check may be exact-key reuse of a dependency
-  slice's checked result) is about checking. `lowered_discharge::reverify` is the
+  slice's checked result) is about checking. `terminal_psi_to_terminal_psi::reverify` is the
   tested mechanism, and `reverify_specialization` carries a generic body's
   certificates into a specialization that selects an implementation;
   substituting a concrete type for a type parameter in a certificate is not

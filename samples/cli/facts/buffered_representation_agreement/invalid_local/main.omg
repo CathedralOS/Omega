@@ -1,0 +1,257 @@
+// Fact: A completed buffered round trip preserves every semantic field and returns the caller's output storage.
+// Expected exit: 0
+use omega::language::core::Result;
+use omega::language::core::TryFrom;
+use omega::language::core::convert;
+
+data Pair [copy] { first: u8; last: u8; }
+data Request<'buffer> { value: Pair; output: &'buffer mut [u8]; }
+data Frame<'buffer> { output: &'buffer mut [u8]; }
+data Reason [copy] { case Exhausted; case InvalidTag; }
+data Failure<'buffer> { output: &'buffer mut [u8]; reason: Reason; }
+
+// Callers can use the bytes written by this completed operation. The first
+// length check makes each later indexed observation well formed.
+trait Encoding<'buffer> : TryFrom<Request<'buffer>, Frame<'buffer>, Failure<'buffer>> {
+    machine encode_sufficient(request: Request<'buffer>) -> Result<Frame<'buffer>, Failure<'buffer>>
+    requires request.output.len >= 3u64
+    ensures (result in Result::Ok) && result.value.output.len >= 3u64
+        && result.value.output[0u64] == 165u8
+        && result.value.output[1u64] == request.value.first
+        && result.value.output[2u64] == request.value.last;
+}
+Writer<'buffer> satisfies Encoding<'buffer> {
+    machine try_from(request: Request<'buffer>) -> Result<Frame<'buffer>, Failure<'buffer>>
+    ensures request.output.len < 3u64 || ((result in Result::Ok)
+        && result.value.output.len >= 3u64 && result.value.output[0u64] == 165u8
+        && result.value.output[1u64] == request.value.first
+        && result.value.output[2u64] == request.value.last)
+    {
+        transition request.output.len >= 3u64 {
+            true -> emit(request)
+            false -> Result::Err { error: Failure { output: request.output, reason: Reason::Exhausted } }
+        }
+        machine emit(request: Request<'buffer>) -> Result<Frame<'buffer>, Failure<'buffer>>
+        requires request.output.len >= 3u64
+        ensures (result in Result::Ok) && result.value.output.len >= 3u64
+            && result.value.output[0u64] == 165u8
+            && result.value.output[1u64] == request.value.first
+            && result.value.output[2u64] == request.value.last
+        {
+            request.output[0u64] = 165u8;
+            request.output[1u64] = request.value.first;
+            request.output[2u64] = request.value.last;
+            Result::Ok { value: Frame { output: request.output } }
+        }
+    }
+    machine encode_sufficient(request: Request<'buffer>) -> Result<Frame<'buffer>, Failure<'buffer>>
+    requires request.output.len >= 3u64
+    ensures (result in Result::Ok) && result.value.output.len >= 3u64
+        && result.value.output[0u64] == 165u8
+        && result.value.output[1u64] == request.value.first
+        && result.value.output[2u64] == request.value.last
+    { try_from(request) }
+}
+
+// Reading borrows the frame so its owner retains the mutable output resource.
+// These promises describe this call's result and current bytes; no call is
+// repeated as a mathematical expression.
+trait Decoding<'buffer> {
+    machine decode<'frame>(source: &'frame Frame<'buffer>) -> Result<Pair, Reason>
+    requires source.output.len >= 3u64
+    ensures source.output[0u64] != 165u8 || result in Result::Ok
+    ensures (result in Result::Err) || (result.value.first == source.output[1u64]
+        && result.value.last == source.output[2u64]);
+}
+Reader<'buffer> satisfies Decoding<'buffer> {
+    machine decode<'frame>(source: &'frame Frame<'buffer>) -> Result<Pair, Reason>
+    requires source.output.len >= 3u64
+    ensures source.output[0u64] != 165u8 || result in Result::Ok
+    ensures (result in Result::Err) || (result.value.first == source.output[1u64]
+        && result.value.last == source.output[2u64])
+    {
+        transition source.output[0u64] == 165u8 {
+            true -> Result::Ok { value: Pair {
+                first: source.output[1u64], last: source.output[1u64]
+            } }
+            false -> Result::Err { error: Reason::InvalidTag }
+        }
+    }
+}
+ReadFrame<'frame, 'buffer> satisfies TryFrom<&'frame Frame<'buffer>, Pair, Reason> {
+    machine try_from(source: &'frame Frame<'buffer>) -> Result<Pair, Reason> {
+        transition source.output.len >= 3u64 {
+            true -> Reader<'buffer>::decode(source)
+            false -> Result::Err { error: Reason::Exhausted }
+        }
+    }
+}
+
+// The frame borrow and the buffer it contains have distinct lifetimes. Name
+// both for the selected map; this helper intentionally publishes no value law.
+machine read_frame<'frame, 'buffer>(source: &'frame Frame<'buffer>) -> Result<Pair, Reason> {
+    convert<&'frame Frame<'buffer>, Pair, Reason, ReadFrame<'frame, 'buffer>>(source)
+}
+
+trait BufferedRoundTrip<'buffer> {
+    machine round_trip(request: Request<'buffer>) -> Result<Request<'buffer>, Failure<'buffer>>
+    requires request.output.len >= 3u64
+    ensures (result in Result::Ok) && core::Identity<Pair>(result.value.value, request.value)
+        && result.value.output.len >= 3u64;
+}
+FirstAgreement<'buffer> satisfies BufferedRoundTrip<'buffer> {
+    machine round_trip(request: Request<'buffer>) -> Result<Request<'buffer>, Failure<'buffer>>
+    requires request.output.len >= 3u64
+    ensures (result in Result::Ok) && core::Identity<Pair>(result.value.value, request.value)
+        && result.value.output.len >= 3u64
+    {
+        let encoded: Result<Frame<'buffer>, Failure<'buffer>> =
+            Writer<'buffer>::encode_sufficient(request);
+        transition encoded {
+            Result::Err { error as failure } -> Result::Err { error: failure }
+            Result::Ok { value as frame } -> restore(frame)
+        }
+        machine restore(frame: Frame<'buffer>) -> Result<Request<'buffer>, Failure<'buffer>>
+        requires frame.output.len >= 3u64 && frame.output[0u64] == 165u8
+        ensures (result in Result::Ok) && result.value.output.len >= 3u64
+            && result.value.value.first == frame.output[1u64]
+            && result.value.value.last == frame.output[2u64]
+        {
+            let decoded: Result<Pair, Reason> = Reader<'buffer>::decode(&frame);
+            transition decoded {
+                Result::Ok { value as value } -> Result::Ok { value: Request { value: value, output: frame.output } }
+                Result::Err { error as reason } -> Result::Err { error: Failure { output: frame.output, reason: reason } }
+            }
+        }
+    }
+}
+
+// The caller receives only the public selected promise. It can require the
+// returned pair to equal its saved input without inspecting the implementation.
+machine selected_round_trip<'buffer, Selected satisfies BufferedRoundTrip<'buffer>>(
+    request: Request<'buffer>
+) -> Result<Request<'buffer>, Failure<'buffer>>
+requires request.output.len >= 3u64
+ensures (result in Result::Ok) && core::Identity<Pair>(result.value.value, request.value)
+        && result.value.output.len >= 3u64
+{ Selected::round_trip(request) }
+
+machine observe<'buffer>(output: &'buffer mut [u8], expected: Pair) -> bool
+requires output.len >= 3u64
+{
+    let capacity: u64 = output.len;
+    let answer: Result<Request<'buffer>, Failure<'buffer>> =
+        selected_round_trip<FirstAgreement<'buffer>>(Request { value: expected, output: output });
+    transition answer {
+        Result::Err { error as failure } -> false
+        Result::Ok { value as restored } -> consume(restored, expected, capacity)
+    }
+    machine consume(restored: Request<'buffer>, expected: Pair, capacity: u64) -> bool
+    requires core::Identity<Pair>(restored.value, expected)
+    requires restored.output.len >= 3u64
+    {
+        let bytes: bool = restored.output[0u64] == 165u8
+            && restored.output[1u64] == expected.first && restored.output[2u64] == expected.last;
+        let same_extent: bool = restored.output.len == capacity;
+        restored.output[0u64] = 166u8;
+        bytes && same_extent
+    }
+}
+
+// The weak interface runs the same complete round trip without publishing its
+// equality promise. Runtime checks must inspect the actual returned request.
+RoundTrip<'buffer> satisfies TryFrom<Request<'buffer>, Request<'buffer>, Failure<'buffer>> {
+    machine try_from(request: Request<'buffer>) -> Result<Request<'buffer>, Failure<'buffer>> {
+        transition request.output.len >= 3u64 {
+            true -> perform(request)
+            false -> Result::Err { error: Failure { output: request.output, reason: Reason::Exhausted } }
+        }
+        machine perform(request: Request<'buffer>) -> Result<Request<'buffer>, Failure<'buffer>>
+        requires request.output.len >= 3u64
+        { selected_round_trip<FirstAgreement<'buffer>>(request) }
+    }
+}
+
+machine observe_weak<'buffer>(output: &'buffer mut [u8], expected: Pair) -> bool
+requires output.len >= 3u64
+{
+    let capacity: u64 = output.len;
+    let answer: Result<Request<'buffer>, Failure<'buffer>> =
+        convert<Request<'buffer>, Request<'buffer>, Failure<'buffer>, RoundTrip<'buffer>>(
+            Request { value: expected, output: output });
+    transition answer {
+        Result::Err { error as failure } -> false
+        Result::Ok { value as restored } -> check_extent(restored, expected, capacity)
+    }
+    machine check_extent(restored: Request<'buffer>, expected: Pair, capacity: u64) -> bool {
+        transition restored.output.len >= 3u64 {
+            true -> inspect(restored, expected, capacity)
+            false -> false
+        }
+    }
+    machine inspect(restored: Request<'buffer>, expected: Pair, capacity: u64) -> bool
+    requires restored.output.len >= 3u64
+    {
+        let preserved: bool = restored.value.first == expected.first && restored.value.last == expected.last;
+        let bytes: bool = restored.output[0u64] == 165u8
+            && restored.output[1u64] == expected.first && restored.output[2u64] == expected.last;
+        let same_extent: bool = restored.output.len == capacity;
+        restored.output[0u64] = 167u8;
+        preserved && bytes && same_extent
+    }
+}
+
+machine short_output<'buffer>(output: &'buffer mut [u8]) -> bool {
+    let answer: Result<Frame<'buffer>, Failure<'buffer>> =
+        convert<Request<'buffer>, Frame<'buffer>, Failure<'buffer>, Writer<'buffer>>(
+            Request { value: Pair { first: 17u8, last: 42u8 }, output: output });
+    transition answer {
+        Result::Ok { value as unexpected } -> false
+        Result::Err { error as failure } -> inspect(failure)
+    }
+    machine inspect(failure: Failure<'buffer>) -> bool {
+        transition failure.output.len == 2u64 && failure.reason in Reason::Exhausted {
+            true -> (failure.output[0u64] == 61u8 && failure.output[1u64] == 62u8)
+            false -> false
+        }
+    }
+}
+machine malformed<'buffer>(output: &'buffer mut [u8]) -> bool {
+    let frame: Frame<'buffer> = Frame { output: output };
+    let answer: Result<Pair, Reason> = read_frame(&frame);
+    transition answer {
+        Result::Ok { value as unexpected } -> false
+        Result::Err { error as reason } -> (reason in Reason::InvalidTag)
+    }
+}
+
+machine main() crashes Trap {
+    let mut storage: [u8; 5] = [81u8, 1u8, 2u8, 3u8, 82u8];
+    let ordinary: bool = observe(&mut storage[1u64..4u64], Pair { first: 17u8, last: 42u8 });
+    let first_bytes: bool = storage[0u64] == 81u8 && storage[1u64] == 166u8
+        && storage[2u64] == 17u8 && storage[3u64] == 42u8 && storage[4u64] == 82u8;
+    let ordinary_weak: bool = observe_weak(&mut storage[1u64..4u64], Pair { first: 17u8, last: 42u8 });
+    let weak_bytes: bool = storage[0u64] == 81u8 && storage[1u64] == 167u8
+        && storage[2u64] == 17u8 && storage[3u64] == 42u8 && storage[4u64] == 82u8;
+    let endpoints: bool = observe(&mut storage[1u64..4u64], Pair { first: 0u8, last: 255u8 });
+    let edge_bytes: bool = storage[0u64] == 81u8 && storage[1u64] == 166u8
+        && storage[2u64] == 0u8 && storage[3u64] == 255u8 && storage[4u64] == 82u8;
+    let endpoints_weak: bool = observe_weak(&mut storage[1u64..4u64], Pair { first: 0u8, last: 255u8 });
+    let weak_edge_bytes: bool = storage[0u64] == 81u8 && storage[1u64] == 167u8
+        && storage[2u64] == 0u8 && storage[3u64] == 255u8 && storage[4u64] == 82u8;
+    let mut short: [u8; 4] = [91u8, 61u8, 62u8, 92u8];
+    let exhausted: bool = short_output(&mut short[1u64..3u64]);
+    let short_unchanged: bool = short[0u64] == 91u8 && short[1u64] == 61u8
+        && short[2u64] == 62u8 && short[3u64] == 92u8;
+    let mut invalid: [u8; 5] = [71u8, 0u8, 17u8, 42u8, 72u8];
+    let rejected: bool = malformed(&mut invalid[1u64..4u64]);
+    let invalid_unchanged: bool = invalid[0u64] == 71u8 && invalid[1u64] == 0u8
+        && invalid[2u64] == 17u8 && invalid[3u64] == 42u8 && invalid[4u64] == 72u8;
+    transition ordinary && first_bytes && ordinary_weak && weak_bytes
+        && endpoints && edge_bytes && endpoints_weak && weak_edge_bytes
+        && exhausted && short_unchanged && rejected && invalid_unchanged {
+        true -> done() _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

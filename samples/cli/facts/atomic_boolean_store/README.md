@@ -23,7 +23,7 @@ The same inputs are pinned under `tests/omega/{pass,fail}/facts/atomic_boolean_s
 `other_state` retains the existing nested-state transport spelling during the
 repository's separate nested-machine source migration.
 
-Run each positive with `omega update --project <place> --target linux_x86_64`,
+Run each positive with `omega packages update --project <place> --target linux_x86_64`,
 then `omega run --both <place>/main.omg`; both engines must exit 0. Check each
 reject twin through the ordinary public CLI and require its ordering diagnostic.
 The root repeats the local witness. `composition` additionally tests true/false

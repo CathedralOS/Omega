@@ -1,7 +1,0 @@
-fail/build/installed_arrival_without_context rejected 255252ms expected
-	installed interrupt entry: installation requires an explicit bootstrap environment assumption through publication
-fail/build/installed_arrival_wrong_controller rejected 252274ms expected
-	installed interrupt arrival: completion at OperationId(2373) selects another installation's controller
-pass/calls/runtime_composed_index_case_pool_transition_exit checked 156844ms check-target:macos_arm64
-pass/calls/runtime_indexed_case_pool_transition_exit checked 150065ms check-target:macos_arm64
-pass/filesystem/runtime_portable_unknown_directory_kinds_exit checked 155902ms check-target:macos_arm64

@@ -163,7 +163,7 @@ machine WindowsX86_64::plan(signature: BoundarySignature) -> BoundaryPlanResult
     machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
             reason: CallingPolicyRejection {
-                reason: "WindowsX86_64Application requires exact physical or program-storage entry shapes",
+                reason: "WindowsX86_64Application requires exact physical or program-storage entry shapes" as +Utf8,
             },
         }
     }

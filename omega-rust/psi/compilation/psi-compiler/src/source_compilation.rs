@@ -846,7 +846,10 @@ impl SourceCompilationRequest {
                 )
             })?;
             observer.record_result(PsiCompilationStage::Typing, || {
-                typing.append_deferred(extension)
+                let (source, frontier) = extension.rebase_for_typed_continuation(
+                    typing.typed().authored_declaration_selections(),
+                )?;
+                Ok::<_, Vec<Diagnostic>>((typing.append_resolved(source)?, frontier))
             })?
         } else {
             let mut frontier = {
@@ -886,13 +889,14 @@ impl SourceCompilationRequest {
             if build_bodies.is_empty() {
                 break;
             }
-            pending_bodies = typing.join_prepared_allocations(pending_bodies)?;
+            pending_bodies =
+                pending_bodies.with_prepared_allocations(typing.prepare_allocations()?)?;
             let completed = observer.record_result(PsiCompilationStage::Resolution, || {
                 pending_bodies.complete_machine_bodies(&build_bodies)
             })?;
             (typing, pending_bodies) = observer
                 .record_result(PsiCompilationStage::Typing, || {
-                    typing.complete_bodies(completed)
+                    type_completed_bodies(typing, completed)
                 })?;
         }
         PreCheckEvaluation::defer_declared_requests(typing.typed_mut())?;
@@ -928,13 +932,17 @@ impl SourceContinuation {
         ),
         Vec<Diagnostic>,
     > {
-        let (mut typing, mut pending_bodies) = input.typing.clone().activate_body_completion(
-            input.pending_bodies.clone(),
-            Arc::clone(&sources),
-            bindings,
-        )?;
+        let mut typing = input.typing.clone();
+        let pending_bodies = input
+            .pending_bodies
+            .clone()
+            .with_prepared_allocations(typing.prepare_allocations()?)?;
+        let (mut pending_bodies, activation) =
+            pending_bodies.activate_sources(Arc::clone(&sources), bindings)?;
+        typing = typing.activate_body_completion(activation)?;
         loop {
-            pending_bodies = typing.join_prepared_allocations(pending_bodies)?;
+            pending_bodies =
+                pending_bodies.with_prepared_allocations(typing.prepare_allocations()?)?;
             let selected = pending_bodies
                 .pending_machines()
                 .filter(|symbol| {
@@ -953,7 +961,7 @@ impl SourceContinuation {
             })?;
             (typing, pending_bodies) = observer
                 .record_result(PsiCompilationStage::Typing, || {
-                    typing.complete_bodies(resolved)
+                    type_completed_bodies(typing, resolved)
                 })?;
         }
         Ok((typing, input.pending_pre_checks.clone()))
@@ -1113,6 +1121,31 @@ impl SourceContinuation {
     }
 }
 
+// Resolution retains pending syntax; typing receives only the completed trees.
+// The driver joins their exact checkpoints before either stage resumes.
+fn type_completed_bodies(
+    typing: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
+    completed: syntax_trees_to_symbol_resolved_trees::ResolvedBodyCompletion,
+) -> Result<
+    (
+        symbol_resolved_trees_to_typed_trees::SeededTypingBase,
+        syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
+    ),
+    Vec<Diagnostic>,
+> {
+    let (source, frontier) = completed.rebase_authored_selections_for_typed_completion(
+        typing.typed().authored_declaration_selections(),
+    ).map_err(|(_, error)| vec![Diagnostic::error(format!(
+        "authored-body completion could not join its retained typed selection ledger: {error:?}"
+    ))])?;
+    let mut typing = typing.complete_bodies(source)?;
+    // Completing a body can introduce evaluation work. Record it on the
+    // declaration before retained source is narrowed or activated, so unused
+    // helpers stay deferred and demanding one still raises its refusal.
+    PreCheckEvaluation::defer_declared_requests(typing.typed_mut())?;
+    Ok((typing, frontier))
+}
+
 fn complete_authored_bodies(
     mut typing: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
     mut pending_bodies: syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
@@ -1125,7 +1158,7 @@ fn complete_authored_bodies(
     Vec<Diagnostic>,
 > {
     loop {
-        pending_bodies = typing.join_prepared_allocations(pending_bodies)?;
+        pending_bodies = pending_bodies.with_prepared_allocations(typing.prepare_allocations()?)?;
         let selected = pending_bodies.pending_machines().collect::<Vec<_>>();
         if selected.is_empty() {
             break;
@@ -1137,7 +1170,7 @@ fn complete_authored_bodies(
         };
         (typing, pending_bodies) = {
             observer.record_result(PsiCompilationStage::Typing, || {
-                typing.complete_bodies(resolved)
+                type_completed_bodies(typing, resolved)
             })?
         };
     }
@@ -1281,4 +1314,168 @@ fn build_bodies(
                 })
         })
         .collect()
+}
+
+#[cfg(test)]
+mod resolution_handoff_tests {
+    use super::*;
+
+    fn deferred(
+        text: &str,
+    ) -> (
+        symbol_resolved_trees_to_typed_trees::SeededTypingBase,
+        syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
+        Arc<source::SourceMap>,
+    ) {
+        let mut sources = source::SourceMap::default();
+        let id = sources
+            .add("completion/main.omg".into(), text.to_owned())
+            .source_id;
+        let sources = Arc::new(sources);
+        let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(id, &tokens).unwrap();
+        let frontier =
+            syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_deferred_numeric_probe(
+                syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                    syntax,
+                    sources: Some(Arc::clone(&sources)),
+                    top_level_bindings: Vec::new(),
+                    retained_base: None,
+                },
+            )
+            .unwrap();
+        let typing =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees_to_seeded_base(
+                frontier.shared_trees(),
+            )
+            .unwrap();
+        (typing, frontier, sources)
+    }
+
+    #[test]
+    fn resolution_handoff_completes_each_batch_without_changing_its_predecessor() {
+        let (mut typing, mut frontier, sources) = deferred(
+            "machine first(value: u64) -> u64 { value } machine second(value: u64) -> u64 { value }",
+        );
+        frontier = frontier
+            .with_prepared_allocations(typing.prepare_allocations().unwrap())
+            .unwrap();
+        let (activated, activation) = frontier.activate_sources(sources, Vec::new()).unwrap();
+        frontier = activated;
+        typing = typing.activate_body_completion(activation).unwrap();
+        let pending: Vec<_> = frontier.pending_machines().collect();
+        assert_eq!(pending.len(), 2);
+        for selected in pending {
+            frontier = frontier
+                .with_prepared_allocations(typing.prepare_allocations().unwrap())
+                .unwrap();
+            let predecessor = typing.shared_resolved();
+            let snapshot = predecessor.as_ref().clone();
+            let completed = frontier.complete_machine_bodies(&[selected]).unwrap();
+            (typing, frontier) = type_completed_bodies(typing, completed).unwrap();
+            assert_eq!(predecessor.as_ref(), &snapshot);
+            assert_eq!(typing.resolved(), frontier.trees());
+        }
+        assert_eq!(frontier.pending_machines().count(), 0);
+        assert_eq!(typing.typed().machines.len(), 2);
+    }
+
+    #[test]
+    fn resolution_handoff_refuses_cross_paired_completion_and_activation() {
+        let (typing, _, _) = deferred("machine first() -> u64 { 1 }");
+        let (_, frontier, sources) = deferred("machine second() -> u64 { 2 }");
+        let selected: Vec<_> = frontier.pending_machines().collect();
+        let completed = frontier.clone().complete_machine_bodies(&selected).unwrap();
+        let error = type_completed_bodies(typing.clone(), completed).unwrap_err();
+        assert!(
+            error.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("exact retained resolved predecessor")),
+            "{error:?}"
+        );
+        let (_, activation) = frontier.activate_sources(sources, Vec::new()).unwrap();
+        let error = typing.activate_body_completion(activation).unwrap_err();
+        assert!(
+            error.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("exact retained resolved predecessor")),
+            "{error:?}"
+        );
+    }
+
+    #[test]
+    fn completed_body_work_is_recorded_before_retained_source_activation() {
+        use typed_trees::deferred_refusals::DeferredRequest;
+
+        let text = "machine length() -> u64 { 4 }\n\
+                    machine helper() { let bytes: [u8; length()]; }\n";
+        let (mut typing, frontier, sources) = deferred(text);
+        let source_id = sources.files().next().unwrap().source_id;
+        let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+        let syntax =
+            tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
+        let (_, pending) = build_time_evaluation::evaluate_pre_resolution(
+            build_time_evaluation::BuildTimeEvaluationRequest {
+                syntax_trees: syntax,
+                source_context: build_time_evaluation::BuildTimeSources {
+                    sources: Some(Arc::clone(&sources)),
+                    ..Default::default()
+                },
+            },
+        )
+        .unwrap()
+        .into_syntax_and_pre_check();
+        PreCheckEvaluation::defer_declared_requests(typing.typed_mut()).unwrap();
+        let frontier = frontier
+            .with_prepared_allocations(typing.prepare_allocations().unwrap())
+            .unwrap();
+        let (frontier, activation) = frontier.activate_sources(sources, Vec::new()).unwrap();
+        typing = typing.activate_body_completion(activation).unwrap();
+        let frontier = frontier
+            .with_prepared_allocations(typing.prepare_allocations().unwrap())
+            .unwrap();
+        let helper = frontier
+            .pending_machines()
+            .find(|symbol| frontier.trees().symbols.name(*symbol) == "helper")
+            .unwrap();
+        assert!(typing.typed().deferred_refusal(helper).is_none());
+        let completed = frontier.complete_machine_bodies(&[helper]).unwrap();
+        let (typing, _) = type_completed_bodies(typing, completed).unwrap();
+
+        pending
+            .activate_sources(typing.typed())
+            .expect("new declaration-owned work is recorded before source activation");
+        assert!(
+            typing
+                .typed()
+                .deferred_refusals_of(helper)
+                .any(|row| row.request == DeferredRequest::ArrayExtentEvaluation)
+        );
+        let unserved = typing.typed().deferred_refusal(helper).unwrap().request;
+        let (program, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+            typing.typed().clone(),
+            &typed_trees_to_typed_trees::PreparationRequest::settled(),
+        )
+        .unwrap();
+        let refused = crate::AcceptedTerminalSource::judge(
+            Arc::new(program),
+            crate::TerminalSourceCompilation {
+                declaration_metadata: &[],
+                entries: &[helper],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .expect_err("recording the request cannot admit the helper that needs its evaluation");
+        assert!(
+            refused
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(unserved.construct())),
+            "{refused:?}"
+        );
+    }
 }

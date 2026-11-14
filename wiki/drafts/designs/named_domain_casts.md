@@ -111,14 +111,13 @@ declaration later turns every cast that ignores it into an error at that cast.
 5. Admit `-D` on a mutable reference where the lender could add `D`, and
    re-establish each removed domain at the end of the loan as an
    invariant-window debt.
-6. Sweep `source/library`, then `samples` and `tests/omega`, re-recording
-   touched golden rows. `source/psi` is detached from the product path and
+6. Sweep `source/library`, then `samples` and `tests/fixtures`. `source/psi` is detached from the product path and
    may follow last.
 
 The non-reference build used during design (`eb37f41`, stable toolchain)
 attached and dropped a predicate-free, route-free tag silently, dropped a
 predicate domain silently and already required `as` to drop a domain that
-homes an operator (`tests/omega/fail/domains/implicit_semantic_domain_local_weakening`).
+homes an operator.
 Steps 3 and 4 are therefore where existing programs start to reject.
 
 ## Fixtures and acceptance
@@ -143,7 +142,7 @@ One pass and fail pair per behavior, within the six-file limit per change:
 
 Acceptance: these pass `omega run --both`, the existing weakening fixtures
 still reject, and no whole-type cast target remains in `source/library`,
-`samples` or `tests/omega`.
+`samples` or `tests/fixtures`.
 
 ## Left open
 

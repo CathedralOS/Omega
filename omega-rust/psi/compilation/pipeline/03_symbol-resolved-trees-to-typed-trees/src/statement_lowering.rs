@@ -109,6 +109,17 @@ pub(crate) mod statement {
                     .find(|signature| signature.symbol == operation.target)
                     .ok_or_else(|| Diagnostic::error("Product query lost its exact operation"))?;
                 lowered.target = crate::lowerer::name::lower_name(&signature.name);
+                if let Some(occurrence) = call.authored_call_selection
+                    && !crate::call_and_product_selections::bind_generated_call_selection(
+                        &mut lowerer.typed_trees,
+                        occurrence,
+                        operation.target,
+                    )?
+                {
+                    // The author named the declared query of the prelude; the
+                    // protocol call typing spells is not that call.
+                    lowered.authored_call_selection = None;
+                }
                 return Ok(StatementNode::Call(lowered));
             }
             if let Some(request) = crate::expressions::product_selections::request(
@@ -141,6 +152,17 @@ pub(crate) mod statement {
                     arguments,
                     call.operational_acknowledgement,
                 )?;
+                if let Some(occurrence) = call.authored_call_selection
+                    && let typed::expression::ExpressionNode::Call(generated) =
+                        lowerer.typed_trees.expression_table.expression(expression)
+                {
+                    let selected = generated.target_symbol;
+                    crate::call_and_product_selections::bind_generated_call_selection(
+                        &mut lowerer.typed_trees,
+                        occurrence,
+                        selected,
+                    )?;
+                }
                 expression_table_mut(&mut lowerer.typed_trees)
                     .attach_authored_selection_occurrences(expression, occurrences);
                 return Ok(StatementNode::Expression(expression));

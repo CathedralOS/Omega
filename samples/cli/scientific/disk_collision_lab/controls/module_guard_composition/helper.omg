@@ -1,6 +1,5 @@
-use omega::language::core::math;
+use omega::language::core::abs_f64;
 
-use omega::language::core::float_operations;
 use model;
 public machine accepted(lab:&Measurements,choice:i32)->bool {
  transition choice {0 -> test(lab) _ -> rejected()}

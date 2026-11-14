@@ -19,15 +19,15 @@ guard on the negative snapshot supplies that proof.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| local | [source](local/main.omg) | [false consumer domain](local/invalid/main.omg) |
-| field | [source](field/main.omg) | [false consumer domain](field/invalid/main.omg) |
-| parameter | [source](parameter/main.omg) | [false consumer domain](parameter/invalid/main.omg) |
-| call result | [source](call_result/main.omg) | [false consumer domain](call_result/invalid/main.omg) |
-| match join | [source](match_join/main.omg) | [false consumer domain](match_join/invalid/main.omg) |
-| const name | [source](const_name/main.omg) | [false consumer domain](const_name/invalid/main.omg) |
-| nested machine | [source](other_state/main.omg) | [false consumer domain](other_state/invalid/main.omg) |
-| another machine | [source](other_machine/main.omg) | [false consumer domain](other_machine/invalid/main.omg) |
-| selected body | [source](target_body/main.omg) | [false consumer domain](target_body/invalid/main.omg) |
+| local | [source](local/main.omg) | [false consumer domain](invalid_local/main.omg) |
+| field | [source](field/main.omg) | [false consumer domain](invalid_field/main.omg) |
+| parameter | [source](parameter/main.omg) | [false consumer domain](invalid_parameter/main.omg) |
+| call result | [source](call_result/main.omg) | [false consumer domain](invalid_call_result/main.omg) |
+| match join | [source](match_join/main.omg) | [false consumer domain](invalid_match_join/main.omg) |
+| const name | [source](const_name/main.omg) | [false consumer domain](invalid_const_name/main.omg) |
+| nested machine | [source](other_state/main.omg) | [false consumer domain](invalid_other_state/main.omg) |
+| another machine | [source](other_machine/main.omg) | [false consumer domain](invalid_other_machine/main.omg) |
+| selected body | [source](target_body/main.omg) | [false consumer domain](invalid_target_body/main.omg) |
 
 Each twin changes only the consumer's input contract from `value == -1` to
 `value >= 0`. Its total identity body, producer, restoration and runtime oracle

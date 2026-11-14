@@ -202,7 +202,7 @@ mod references {
     ) {
         let (head_symbol, symbol) = resolve_expression_table_receiver_path_symbols(
             symbols,
-            machine.symbol,
+            machine,
             state_symbol,
             expression_table,
             receiver,
@@ -256,7 +256,7 @@ mod references {
         }
         let mut member_symbol = resolve_expression_table_member_symbol(
             symbols,
-            machine.symbol,
+            machine,
             state_symbol,
             expression_table,
             receiver,
@@ -897,21 +897,52 @@ mod traversal {
                 for nested in &mut application.arguments {
                     self.assign_declaration_argument_symbols(nested);
                 }
-                self.assign_member_argument_symbols(application.member);
+                self.assign_member_argument_symbols(argument.symbol, application.member);
             }
         }
 
-        fn assign_member_argument_symbols(&mut self, handle: arena::Handle<StaticMachineArgument>) {
+        fn assign_member_argument_symbols(
+            &mut self,
+            owner: SymbolHandle,
+            handle: arena::Handle<StaticMachineArgument>,
+        ) {
             let Some(mut member) = self.expression_table.static_member(handle).cloned() else {
                 return;
             };
             // The member itself belongs to its applied owner, not the lexical
             // namespace. Its supplied arguments still have ordinary lexical scope.
+            // A known data declaration already owns its member identities;
+            // only their substituted types need the later application owner.
+            // Type-dependent selections remain deferred when no such owner exists.
+            if self.symbols.symbols().nodes().is_valid(owner)
+                && matches!(
+                    self.symbols.get(owner).kind,
+                    symbols::SymbolKind::Data | symbols::SymbolKind::Variant
+                )
+            {
+                let selected = crate::symbols::scoped_paths::resolve_path_members_from_head(
+                    self.symbols,
+                    owner,
+                    &member.path,
+                );
+                member.symbol = selected
+                    .last()
+                    .copied()
+                    .filter(|_| !member.path.is_empty())
+                    .filter(|_| selected.len() == member.path.len() + 1)
+                    .filter(|selected| {
+                        member.path.last().is_some_and(|name| {
+                            self.symbols
+                                .source_reference_may_select_symbol(name.source_span(), *selected)
+                        })
+                    })
+                    .unwrap_or_else(SymbolHandle::invalid);
+            }
             if let Some(application) = &mut member.application {
                 for argument in &mut application.arguments {
                     self.assign_declaration_argument_symbols(argument);
                 }
-                self.assign_member_argument_symbols(application.member);
+                self.assign_member_argument_symbols(member.symbol, application.member);
             }
             *self
                 .expression_table
@@ -991,6 +1022,7 @@ mod traversal {
                                 self.assign_expression_table_symbols(pattern);
                             }
                         }
+                        self.normalize_payload_free_case_pattern(&mut dispatch, &mut arm);
                         self.normalize_domain_pattern(&mut dispatch, &mut arm);
                         self.expression_table
                             .match_arm_mut(dispatch.arms.handle_at(offset))
@@ -1165,6 +1197,64 @@ mod traversal {
             }
         }
 
+        /// A bare, resolved payload-free case observes the same case as empty
+        /// braces. Complete its subject capture here, where the selected symbol
+        /// and its real payload are known, before typing consumes the pattern.
+        /// Value calls and applied heads keep their own representation; no
+        /// spelling lookup or implicit waiver can substitute for this selection.
+        fn normalize_payload_free_case_pattern(
+            &mut self,
+            dispatch: &mut TableMatchExpression,
+            arm: &mut TableMatchArm,
+        ) {
+            use symbol_resolved_trees::expression::{
+                ExpressionHandle, ExpressionNode, MatchPattern, TableDestructurePattern,
+            };
+            let MatchPattern::Value(head) = arm.pattern else {
+                return;
+            };
+            let Some(path) = self.expression_table.name_path_node(head) else {
+                return;
+            };
+            let selected = path.symbol;
+            if path.static_application.is_valid()
+                || !selected.is_valid()
+                || self.symbols.get(selected).kind != symbols::SymbolKind::Variant
+                || self
+                    .symbols
+                    .child_handles(selected)
+                    .is_none_or(|mut children| {
+                        children
+                            .any(|child| self.symbols.get(child).kind == symbols::SymbolKind::Field)
+                    })
+            {
+                return;
+            }
+            if !dispatch.capture.is_valid() {
+                dispatch.capture = self.expression_table.insert_match_subject(dispatch.subject);
+            }
+            let condition = self.expression_table.insert(ExpressionNode::Boolean(true));
+            self.expression_table
+                .set_source_span(condition, self.expression_table.source_span(head));
+            if let Some(exposure) = self.expression_table.authored_expression_exposure(head) {
+                self.expression_table
+                    .set_authored_expression_exposure(condition, exposure);
+            }
+            if let Some(partition) = self.expression_table.compiler_selection_partition(head) {
+                self.expression_table
+                    .set_compiler_selection_partition(condition, partition);
+            }
+            arm.pattern = MatchPattern::Destructure(TableDestructurePattern {
+                application_type: Default::default(),
+                head,
+                fields: HandleSpan::empty(),
+                has_rest: false,
+                guard: ExpressionHandle::invalid(),
+                condition,
+                proof_selectors: HandleSpan::empty(),
+            });
+        }
+
         /*
             A selected domain head is an ordinary predicate on the one captured
             subject. Normalize it where declaration identity is known, before the
@@ -1300,3 +1390,138 @@ pub(super) use traversal::{
     assign_expression_with_declaration_references, assign_pattern_head_symbols,
     assign_statement_expression_symbols, assign_static_arguments_type_symbols,
 };
+
+#[cfg(test)]
+mod case_pattern_tests {
+    use std::sync::Arc;
+    use symbol_resolved_trees::expression::{ExpressionNode, MatchPattern, TableMatchExpression};
+
+    fn resolved(text: &str) -> symbol_resolved_trees::SymbolResolvedTrees {
+        let mut sources = source::SourceMap::default();
+        let source = sources
+            .add_with_metadata(
+                "cases/main.omg".into(),
+                text.to_owned(),
+                "cases".into(),
+                None,
+                source::SourceOrigin::User,
+            )
+            .source_id;
+        let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap();
+        crate::resolution::resolve(crate::resolution::ResolutionRequest {
+            syntax,
+            sources: Some(Arc::new(sources)),
+            top_level_bindings: Vec::new(),
+            retained_base: None,
+        })
+        .unwrap()
+    }
+
+    fn dispatch(program: &symbol_resolved_trees::SymbolResolvedTrees) -> TableMatchExpression {
+        program
+            .tables
+            .bodies
+            .expressions
+            .iter_expressions()
+            .find_map(|(_, node)| {
+                if let ExpressionNode::Match(dispatch) = node {
+                    Some(*dispatch)
+                } else {
+                    None
+                }
+            })
+            .expect("one real source match")
+    }
+
+    #[test]
+    fn bare_cases_keep_the_same_exact_subject_capture_as_empty_braces() {
+        let source = "data Choice [copy] { case Left; case Right; }\n\
+            machine choose(value: Choice) -> u32 {\n\
+                match value { Choice::Left -> 1 Choice::Right -> 2 }\n\
+            }";
+        for braces in [false, true] {
+            let source = if braces {
+                source
+                    .replace("Choice::Left ->", "Choice::Left {} ->")
+                    .replace("Choice::Right ->", "Choice::Right {} ->")
+            } else {
+                source.to_owned()
+            };
+            let program = resolved(&source);
+            let matched = dispatch(&program);
+            let table = &program.tables.bodies.expressions;
+            assert!(matched.capture.is_valid());
+            assert_eq!(
+                table.match_subject(matched.capture).subject,
+                matched.subject
+            );
+            for arm in table.match_arms(matched.arms) {
+                let MatchPattern::Destructure(pattern) = arm.pattern else {
+                    panic!("case pattern")
+                };
+                assert!(pattern.fields.is_empty() && !pattern.has_rest);
+                assert!(matches!(
+                    table.expression(pattern.condition),
+                    ExpressionNode::Boolean(true)
+                ));
+                let head = table.name_path_node(pattern.head).unwrap();
+                assert_eq!(
+                    program.symbols.get(head.symbol).kind,
+                    symbols::SymbolKind::Variant
+                );
+                assert_eq!(
+                    program
+                        .symbols
+                        .name(program.symbols.get(head.symbol).parent),
+                    "Choice"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_same_named_foreign_case_keeps_its_actual_owner() {
+        let program = resolved(
+            "data Choice [copy] { case Left; case Right; }\n\
+            data Other [copy] { case Left; }\n\
+            machine choose(value: Choice) -> u32 {\n\
+                match value { Other::Left -> 1 _ -> 2 }\n\
+            }",
+        );
+        let table = &program.tables.bodies.expressions;
+        let matched = dispatch(&program);
+        let MatchPattern::Destructure(pattern) = table.match_arms(matched.arms)[0].pattern else {
+            panic!("selected foreign case")
+        };
+        let selected = table.name_path_node(pattern.head).unwrap().symbol;
+        assert_eq!(
+            program.symbols.name(program.symbols.get(selected).parent),
+            "Other",
+            "normalization must not substitute the subject's same-spelled case"
+        );
+    }
+
+    #[test]
+    fn payload_cases_and_value_calls_are_not_empty_case_patterns() {
+        for source in [
+            "data Choice [copy] { case Payload(value: u32); }\n\
+                machine choose(value: Choice) -> u32 { match value { Choice::Payload -> 1 _ -> 2 } }",
+            "data Choice [copy] { case Left; }\n\
+                machine candidate() -> Choice { Choice::Left {} }\n\
+                machine choose(value: Choice) -> u32 { match value { candidate() -> 1 _ -> 2 } }",
+        ] {
+            let program = resolved(source);
+            let table = &program.tables.bodies.expressions;
+            let matched = dispatch(&program);
+            assert!(!matched.capture.is_valid());
+            assert!(
+                matches!(
+                    table.match_arms(matched.arms)[0].pattern,
+                    MatchPattern::Value(_)
+                ),
+                "a payload or value computation cannot become an empty case observation"
+            );
+        }
+    }
+}

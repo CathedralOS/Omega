@@ -2,11 +2,11 @@
   Canonical SHA-256 identity producer for `SelectedInstructionPlan`.
 
   Owns the byte-stable encoding over which `SelectedInstructionPlanIdentity` is
-  derived (`omega.terminal-selected-instructions.v54\0`). The identity is
+  derived (`omega.terminal-selected-instructions.v55\0`). The identity is
   hierarchical: `Sha256` over the plan's roots and the ordered digests of its
   functions, each function digest (`omega.terminal-selected-instruction-function.v2\0`)
   retaining its static metadata, 64-register pages, local frame storage slots,
-  boundary settlements, and ordered block digests (`omega.terminal-selected-instruction-block.v1\0`).
+  boundary settlements, and ordered block digests (`omega.terminal-selected-instruction-block.v2\0`).
   Every field of every function reaches the identity, while `SelectedFunctions`
   and `SelectedBlocks` retain pre-encoded prefix pages beside their shared
   entries so register-pressure recovery re-hashes only touched metadata,
@@ -40,7 +40,7 @@ pub(crate) struct RetainedPlanPrefix {
 pub fn selected_instruction_plan_identity(
     plan: &SelectedInstructionPlan,
 ) -> SelectedInstructionPlanIdentity {
-    let domain = b"omega.terminal-selected-instructions.v54\0".as_slice();
+    let domain = b"omega.terminal-selected-instructions.v55\0".as_slice();
     let mut header_bytes = Vec::with_capacity(128);
     header_bytes.extend_from_slice(domain);
     header_bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
@@ -345,7 +345,7 @@ pub(crate) struct RetainedBlockEncoding {
 }
 
 fn encode_block_header(bytes: &mut Vec<u8>, block: &crate::SelectedBlock) {
-    bytes.extend_from_slice(b"omega.terminal-selected-instruction-block.v1\0");
+    bytes.extend_from_slice(b"omega.terminal-selected-instruction-block.v2\0");
     push_encoded(bytes, block.id.0.to_le_bytes());
     match block.origin {
         crate::SelectedBlockOrigin::Source(source) => {
@@ -583,43 +583,12 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
         push_encoded(bytes, binding.semantic.argument.place.get().to_le_bytes());
         crate::codec_bytes::encode_len(bytes, binding.semantic.argument.path.len());
         for segment in &binding.semantic.argument.path {
-            match segment {
-                terminal_psi::StructuralPathSegment::AllElements => bytes.push(10),
-                terminal_psi::StructuralPathSegment::Case(case) => {
-                    bytes.push(7);
-                    push_encoded(bytes, case.get().to_le_bytes());
-                }
-                terminal_psi::StructuralPathSegment::Referent => bytes.push(2),
-                terminal_psi::StructuralPathSegment::FixedRange { start, end } => {
-                    bytes.push(3);
-                    push_encoded(bytes, start.to_le_bytes());
-                    push_encoded(bytes, end.to_le_bytes());
-                }
-                terminal_psi::StructuralPathSegment::Field(field) => {
-                    bytes.push(0);
-                    push_encoded(bytes, field.0.to_le_bytes());
-                }
-                terminal_psi::StructuralPathSegment::FixedIndex(index) => {
-                    bytes.push(1);
-                    push_encoded(bytes, index.to_le_bytes());
-                }
-                terminal_psi::StructuralPathSegment::RuntimeIndex { index, obligation } => {
-                    bytes.push(4);
-                    push_encoded(bytes, index.get().to_le_bytes());
-                    push_encoded(bytes, obligation.get().to_le_bytes());
-                }
-                terminal_psi::StructuralPathSegment::RepresentationView {
-                    structural_type,
-                    stored_scalar,
-                } => {
-                    bytes.push(8);
-                    push_encoded(bytes, structural_type.get().to_le_bytes());
-                    bytes.push(u8::from(stored_scalar.is_some()));
-                    if let Some(scalar) = stored_scalar {
-                        encode_scalar_type(bytes, *scalar);
-                    }
-                }
-            }
+            terminal_psi::structural_path_encoding::encode_structural_path_segment(
+                bytes,
+                segment,
+                Vec::extend_from_slice,
+                encode_scalar_type,
+            );
         }
         bytes.push(match binding.semantic.argument.access {
             terminal_psi::StructuralAccess::Owned => 0,

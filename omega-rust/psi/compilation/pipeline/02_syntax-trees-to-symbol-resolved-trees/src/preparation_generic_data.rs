@@ -17,6 +17,9 @@
 */
 
 use crate::preparation::declaration_selection;
+#[cfg(test)]
+#[path = "preparation_const_operands_tests.rs"]
+mod const_operands_tests;
 use crate::preparation::generic_data::uses::concrete_machine_expression_handles;
 use crate::tables::syntax_expressions;
 use crate::tables::syntax_type_references;
@@ -55,7 +58,6 @@ mod arguments {
     use crate::tables::syntax_type_references;
     use arena::HandleSpan;
     use diagnostics::Diagnostic;
-    use std::collections::HashMap;
     use syntax_trees::SyntaxTrees;
     use syntax_trees::expression::ExpressionNode;
     use syntax_trees::identifier::Identifier;
@@ -81,7 +83,6 @@ mod arguments {
         base_info: &GenericData,
         base_name: &Identifier,
         supplied: &[TypeReferenceHandle],
-        const_values: &HashMap<String, i128>,
         selection: Option<&declaration_selection::ConstantSelection>,
         warnings: &mut Vec<Diagnostic>,
     ) -> Result<Vec<TypeReferenceHandle>, Diagnostic> {
@@ -99,15 +100,7 @@ mod arguments {
             const_parameter_types: &base_info.const_parameter_types,
             type_equations: &base_info.type_equations,
         };
-        complete_equation_arguments(
-            syntax,
-            template,
-            base_name,
-            supplied,
-            const_values,
-            selection,
-            warnings,
-        )
+        complete_equation_arguments(syntax, template, base_name, supplied, selection, warnings)
     }
 
     /*
@@ -1798,103 +1791,12 @@ mod eligibility {
 }
 pub(crate) use crate::preparation::type_equations as equations;
 pub(crate) use equations::{template_type_equation_offsets, validate_materialized_type_equations};
-pub(crate) mod module_constants {
-    /* Reject module constant selection before legacy lexical evaluation can erase it. */
-
-    use source::{SourceId, SourceSpan};
-    use std::collections::HashMap;
+pub(crate) mod source_modules {
+    /* Source module ownership used by declaration selection and domain naming. */
+    use source::SourceId;
     use syntax_trees::SyntaxTrees;
-    use syntax_trees::expression::ExpressionNode;
     use syntax_trees::identifier::JoinedSyntaxPath;
-    use syntax_trees::item::{ConstDefinition, Item};
-
-    pub(super) fn is_module_constant(syntax: &SyntaxTrees, definition: &ConstDefinition) -> bool {
-        module_path(syntax, definition.name.source_span().source_id).is_some()
-    }
-
-    /*
-        The integer constant ledger pre-resolution fact evaluation may read: every
-        non-module const's qualified name mapped to its literal integer value.
-        Module constants deliberately stay out — their names need resolved
-        declaration selection, which `reject_module_constant_selection` enforces on
-        any fact spelling that could reach one.
-    */
-    pub(crate) fn lexical_integer_const_values(syntax: &SyntaxTrees) -> HashMap<String, i128> {
-        syntax
-            .root_items()
-            .filter_map(|item| {
-                let Item::Const(definition) = item else {
-                    return None;
-                };
-                if is_module_constant(syntax, definition) {
-                    return None;
-                }
-                let ExpressionNode::Integer(value) =
-                    syntax.expressions.expression(definition.value)
-                else {
-                    return None;
-                };
-                Some((
-                    super::qualified_const_name(syntax, definition),
-                    super::integer_literal_value(value)?,
-                ))
-            })
-            .collect()
-    }
-
-    pub(crate) fn reject_module_constant_selection(
-        syntax: &SyntaxTrees,
-        spelling: &str,
-        reference: SourceSpan,
-    ) -> Result<(), String> {
-        let current_module = module_path(syntax, reference.source_id);
-        for item in syntax.root_items() {
-            let Item::Const(definition) = item else {
-                continue;
-            };
-            let Some(module) = module_path(syntax, definition.name.source_span().source_id) else {
-                continue;
-            };
-            let local_name = super::qualified_const_name(syntax, definition);
-            let full_name = format!("{module}::{local_name}");
-            let local = current_module.as_ref() == Some(&module) && spelling == local_name;
-            let qualified = spelling == full_name || spelling.ends_with(&format!("::{full_name}"));
-            let imported = syntax.root_items().any(|item| {
-                let Item::Use(import) = item else {
-                    return false;
-                };
-                let members = syntax.items.identifier_path_members(import.path);
-                if !members
-                    .first()
-                    .is_some_and(|member| member.source_span().source_id == reference.source_id)
-                {
-                    return false;
-                }
-                let path = members.joined_path_in(syntax);
-                let imports_declaration =
-                    path == full_name || path.ends_with(&format!("::{full_name}"));
-                if imports_declaration
-                    && (spelling == definition.name.as_str(syntax) || spelling == path)
-                {
-                    return true;
-                }
-                let imports_module = path == module || path.ends_with(&format!("::{module}"));
-                imports_module
-                    && (spelling == format!("{path}::{local_name}")
-                        || spelling
-                            == format!(
-                                "{}::{local_name}",
-                                module.rsplit("::").next().unwrap_or(&module)
-                            ))
-            });
-            if local || qualified || imported {
-                return Err(format!(
-                    "module constant `{spelling}` requires resolved declaration selection before generic or domain constant evaluation"
-                ));
-            }
-        }
-        Ok(())
-    }
+    use syntax_trees::item::Item;
 
     pub(crate) fn module_path(syntax: &SyntaxTrees, source: SourceId) -> Option<String> {
         syntax.root_items().find_map(|item| {
@@ -2168,7 +2070,7 @@ mod substitution {
         member: DataMember,
         substitution: &HashMap<String, TypeReferenceHandle>,
         impossible_variants: &HashSet<String>,
-        const_values: &HashMap<String, i128>,
+        selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
         warnings: &mut Vec<Diagnostic>,
     ) -> Result<DataMember, Diagnostic> {
         let member = match member {
@@ -2177,7 +2079,7 @@ mod substitution {
                 snapshot,
                 field,
                 substitution,
-                const_values,
+                selection,
                 warnings,
             )),
             DataMember::Variant(mut variant) => {
@@ -2192,7 +2094,7 @@ mod substitution {
                         snapshot,
                         field,
                         substitution,
-                        const_values,
+                        selection,
                         warnings,
                     );
                     let handle = syntax.tables.items.append_data_payload_field(field);
@@ -2588,7 +2490,7 @@ mod substitution {
         snapshot: &SyntaxTrees,
         mut field: syntax_trees::item::DataField,
         substitution: &HashMap<String, TypeReferenceHandle>,
-        const_values: &HashMap<String, i128>,
+        selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
         warnings: &mut Vec<Diagnostic>,
     ) -> syntax_trees::item::DataField {
         field.type_reference = substitute_type_reference(
@@ -2596,7 +2498,7 @@ mod substitution {
             snapshot,
             field.type_reference,
             substitution,
-            const_values,
+            selection,
             warnings,
         );
         field
@@ -2607,7 +2509,7 @@ mod substitution {
         snapshot: &SyntaxTrees,
         type_reference: TypeReferenceHandle,
         substitution: &HashMap<String, TypeReferenceHandle>,
-        const_values: &HashMap<String, i128>,
+        selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
         warnings: &mut Vec<Diagnostic>,
     ) -> TypeReferenceHandle {
         let node = syntax_type_references(syntax)
@@ -2651,7 +2553,7 @@ mod substitution {
                             match evaluate_const_argument_expression(
                                 syntax,
                                 expression,
-                                const_values,
+                                selection,
                                 &const_bindings,
                                 &HashSet::new(),
                                 integer_types.get(index).copied().flatten(),
@@ -2674,7 +2576,7 @@ mod substitution {
                             snapshot,
                             argument,
                             substitution,
-                            const_values,
+                            selection,
                             warnings,
                         ),
                     };
@@ -2702,7 +2604,7 @@ mod substitution {
                     snapshot,
                     element_type,
                     substitution,
-                    const_values,
+                    selection,
                     warnings,
                 );
                 let substituted_length = match length {
@@ -2741,7 +2643,7 @@ mod substitution {
                     snapshot,
                     referee,
                     substitution,
-                    const_values,
+                    selection,
                     warnings,
                 );
                 syntax
@@ -2759,7 +2661,7 @@ mod substitution {
                     snapshot,
                     element_type,
                     substitution,
-                    const_values,
+                    selection,
                     warnings,
                 );
                 syntax
@@ -2777,7 +2679,7 @@ mod substitution {
                 base_type,
                 constraints,
                 substitution,
-                const_values,
+                selection,
                 warnings,
             ),
             _ => type_reference,
@@ -2798,7 +2700,7 @@ mod substitution {
         base_type: TypeReferenceHandle,
         constraints: HandleSpan<TypeConstraintNode>,
         substitution: &HashMap<String, TypeReferenceHandle>,
-        const_values: &HashMap<String, i128>,
+        selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
         warnings: &mut Vec<Diagnostic>,
     ) -> TypeReferenceHandle {
         let substituted_base = substitute_type_reference(
@@ -2806,7 +2708,7 @@ mod substitution {
             snapshot,
             base_type,
             substitution,
-            const_values,
+            selection,
             warnings,
         );
         let source_constraints = syntax_type_references(syntax)
@@ -2828,7 +2730,7 @@ mod substitution {
                             snapshot,
                             argument,
                             substitution,
-                            const_values,
+                            selection,
                             warnings,
                         );
                         domain_changed |= substituted != argument;
@@ -2882,7 +2784,7 @@ mod substitution {
         snapshot: &SyntaxTrees,
         argument: TypeReferenceHandle,
         substitution: &HashMap<String, TypeReferenceHandle>,
-        const_values: &HashMap<String, i128>,
+        selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
         warnings: &mut Vec<Diagnostic>,
     ) -> TypeReferenceHandle {
         match syntax_type_references(syntax)
@@ -2908,7 +2810,7 @@ mod substitution {
                 snapshot,
                 argument,
                 substitution,
-                const_values,
+                selection,
                 warnings,
             ),
         }
@@ -3003,40 +2905,40 @@ mod substitution {
     pub(super) fn substitute_cleanup_selection(
         syntax: &mut SyntaxTrees,
         snapshot: &SyntaxTrees,
-        mut selection: syntax_trees::expression::StaticMachineArgument,
+        mut cleanup: syntax_trees::expression::StaticMachineArgument,
         substitution: &HashMap<String, TypeReferenceHandle>,
-        const_values: &HashMap<String, i128>,
+        selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
         warnings: &mut Vec<Diagnostic>,
     ) -> syntax_trees::expression::StaticMachineArgument {
-        if selection.type_reference.is_valid() {
-            selection.type_reference = substitute_type_reference(
+        if cleanup.type_reference.is_valid() {
+            cleanup.type_reference = substitute_type_reference(
                 syntax,
                 snapshot,
-                selection.type_reference,
+                cleanup.type_reference,
                 substitution,
-                const_values,
+                selection,
                 warnings,
             );
-        } else if let [name] = selection.path.as_ref()
-            && selection.application.is_none()
+        } else if let [name] = cleanup.path.as_ref()
+            && cleanup.application.is_none()
             && let Some(actual) = substitution.get(name.as_str(syntax))
         {
-            selection.type_reference = *actual;
-            selection.path = Box::default();
+            cleanup.type_reference = *actual;
+            cleanup.path = Box::default();
         }
-        if let Some(application) = &mut selection.application {
+        if let Some(application) = &mut cleanup.application {
             for argument in application.arguments.iter_mut() {
                 *argument = substitute_cleanup_selection(
                     syntax,
                     snapshot,
                     argument.clone(),
                     substitution,
-                    const_values,
+                    selection,
                     warnings,
                 );
             }
         }
-        selection
+        cleanup
     }
 }
 mod synthesis {
@@ -3065,9 +2967,8 @@ mod synthesis {
     use crate::preparation::generic_data::normalize_domain_head_positions;
     use crate::preparation::generic_data::normalize_generic_template_const_expressions;
     use crate::preparation::generic_data::prepare_closed_application;
-    use crate::preparation::generic_data::qualified_const_name;
 
-    use super::module_constants::module_path;
+    use super::source_modules::module_path;
     use super::substitution::fold_impossible_case_memberships;
     use super::substitution::variant_fact_verdict;
     use crate::preparation::declaration_selection::ConstantSelection;
@@ -3086,7 +2987,6 @@ mod synthesis {
     use syntax_trees::expression::ExpressionHandle;
     use syntax_trees::expression::ExpressionNode;
     use syntax_trees::identifier::Identifier;
-    use syntax_trees::item::ConstDefinition;
     use syntax_trees::item::DataDefinition;
     use syntax_trees::item::DataMember;
     use syntax_trees::item::Item;
@@ -3100,16 +3000,9 @@ mod synthesis {
         syntax: &mut SyntaxTrees,
         warnings: &mut Vec<Diagnostic>,
     ) -> Result<(), Vec<Diagnostic>> {
-        let selection = if syntax
-            .root_items()
-            .any(|item| matches!(item, Item::Module(_)))
-        {
-            Some(ConstantSelection::new(syntax, None, Vec::new())?)
-        } else {
-            None
-        };
-        super::domain_heads::normalize(syntax, selection.as_ref())?;
-        desugar_generic_data_instances_with_selection(syntax, warnings, selection.as_ref(), &[])
+        let selection = ConstantSelection::new(syntax, None, Vec::new())?;
+        super::domain_heads::normalize(syntax, Some(&selection))?;
+        desugar_generic_data_instances_with_selection(syntax, warnings, Some(&selection), &[])
     }
 
     pub(in crate::preparation) fn desugar_generic_data_instances_with_selection(
@@ -3255,20 +3148,6 @@ mod synthesis {
                 },
             );
         }
-        let const_definitions: HashMap<String, ConstDefinition> = syntax
-            .root_items()
-            .filter_map(|item| {
-                let Item::Const(definition) = item else {
-                    return None;
-                };
-                if super::module_constants::is_module_constant(syntax, definition) {
-                    return None;
-                }
-                Some((qualified_const_name(syntax, definition), definition.clone()))
-            })
-            .collect();
-        let const_values = super::module_constants::lexical_integer_const_values(syntax);
-
         let mut domain_head_positions =
             work.type_positions(syntax, TypePositionPurpose::Identity, true);
         for item in syntax.root_items().filter(|_| work.is_all()) {
@@ -3302,7 +3181,7 @@ mod synthesis {
         }
         normalize_domain_head_positions(syntax, selection, &domain_head_positions);
 
-        canonicalize_closed_domain_indices(syntax, &const_values, selection, warnings, &work)
+        canonicalize_closed_domain_indices(syntax, selection, warnings, &work)
             .map_err(|diagnostic| vec![diagnostic])?;
 
         if generic_data.is_empty() {
@@ -3349,14 +3228,8 @@ mod synthesis {
                 let domain_positions =
                     work.type_positions(syntax, TypePositionPurpose::Identity, true);
                 normalize_domain_head_positions(syntax, selection, &domain_positions);
-                canonicalize_closed_domain_indices(
-                    syntax,
-                    &const_values,
-                    selection,
-                    warnings,
-                    &work,
-                )
-                .map_err(|diagnostic| vec![diagnostic])?;
+                canonicalize_closed_domain_indices(syntax, selection, warnings, &work)
+                    .map_err(|diagnostic| vec![diagnostic])?;
             }
             let storage_positions: std::collections::HashSet<TypeReferenceHandle> = work
                 .type_positions(syntax, TypePositionPurpose::Materialization, false)
@@ -3368,8 +3241,6 @@ mod synthesis {
                 let Some(application) = prepare_closed_application(
                     syntax,
                     &generic_data,
-                    &const_definitions,
-                    &const_values,
                     selection,
                     position,
                     warnings,
@@ -3447,7 +3318,6 @@ mod synthesis {
                         &mut synthesized,
                         &generic_data,
                         &attached_machines,
-                        &const_values,
                         selection,
                         instance,
                     )?;
@@ -3505,13 +3375,8 @@ mod synthesis {
             &declarations,
         );
 
-        normalize_generic_template_const_expressions(
-            syntax,
-            &const_values,
-            warnings,
-            &declarations,
-        )
-        .map_err(|diagnostic| vec![diagnostic])?;
+        normalize_generic_template_const_expressions(syntax, selection, warnings, &declarations)
+            .map_err(|diagnostic| vec![diagnostic])?;
         Ok(())
     }
 
@@ -3528,7 +3393,6 @@ mod synthesis {
         synthesized: &mut Vec<Instantiation>,
         generic_data: &HashMap<syntax_trees::item::ItemHandle, GenericData>,
         attached_machines: &HashMap<syntax_trees::item::ItemHandle, Vec<usize>>,
-        const_values: &HashMap<String, i128>,
         selection: Option<&ConstantSelection>,
         instance: &Instantiation,
     ) -> Result<(), Vec<Diagnostic>> {
@@ -3666,7 +3530,6 @@ mod synthesis {
                 ProofFact::Expression(expression) => evaluate_const_fact_expression(
                     snapshot,
                     *expression,
-                    const_values,
                     &const_parameter_scalars,
                     selection,
                     warnings,
@@ -3678,7 +3541,6 @@ mod synthesis {
                 ProofFact::Membership(membership) => evaluate_const_membership_fact(
                     snapshot,
                     membership,
-                    const_values,
                     &const_parameter_values,
                     &const_parameter_type_names,
                     selection,
@@ -3770,7 +3632,7 @@ mod synthesis {
                 member,
                 &substitution,
                 &impossible_variants,
-                const_values,
+                selection,
                 warnings,
             )
             .map_err(|diagnostic| vec![diagnostic])?;
@@ -3783,13 +3645,13 @@ mod synthesis {
         let copied_types = syntax_type_references(syntax).named_nodes_from(type_watermark, syntax);
         substitute_copied_type_names(syntax, copied_types, &substitution);
         replace_const_expression_names_from(syntax, fact_expression_watermark, &const_expressions);
-        let cleanup_selection = base_info.cleanup_selection.clone().map(|selection| {
+        let cleanup_selection = base_info.cleanup_selection.clone().map(|cleanup| {
             super::substitution::substitute_cleanup_selection(
                 syntax,
                 snapshot,
-                selection,
+                cleanup,
                 &substitution,
-                &const_parameter_values,
+                selection,
                 warnings,
             )
         });
@@ -4053,7 +3915,7 @@ pub(crate) use const_evaluation::{
 };
 pub(in crate::preparation::generic_data) use const_evaluation::{
     ConstPredicateAdmission, EvaluatedConst, canonicalize_closed_domain_indices,
-    canonicalize_const_definition, canonicalize_selected_declaration_value,
+    canonicalize_selected_declaration_value,
     canonicalize_selected_declaration_value_with_admission, canonicalize_selected_index_expression,
     capture_machine_runtime_template_names, checked_fact_integer,
     collect_callable_type_reference_positions, collect_data_type_reference_positions,
@@ -4731,7 +4593,7 @@ pub struct GenericDataRequest<'a> {
     pub syntax: SyntaxTrees,
     /*
         The loader's exact source/import custody. A source-free forest has
-        none; its instances then synthesize without header selection.
+        none; its declarations still use the syntax forest's header selection.
     */
     pub sources: Option<std::sync::Arc<source::SourceMap>>,
     pub top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
@@ -4840,6 +4702,13 @@ fn normalize_generic_data_in_mode(
         .collect::<Vec<_>>();
     super::declared_types::normalize_with_declarations(&mut syntax, &selection, &declarations)?;
     domain_heads::normalize(&mut syntax, Some(&selection))?;
+    /*
+        Generic operands read the same completed declaration values as resolution,
+        including aliases. Probe modes keep the authored initializers for evaluation.
+    */
+    if mode == crate::resolution::lowerer::ConstResolutionMode::Complete {
+        fold_closed_scalar_initializers(&mut syntax, &selection)?;
+    }
     validate_with_const_resolution_mode(&syntax, &selection, mode)?;
     let mut warnings = Vec::new();
     desugar_generic_data_instances_in(&mut syntax, &mut warnings, Some(&selection), domain)?;
@@ -4945,6 +4814,9 @@ fn normalize_generic_data_with_warnings(
 ) -> Result<(SyntaxTrees, Vec<Diagnostic>), Vec<Diagnostic>> {
     domain_heads::normalize(&mut syntax, None)?;
     let selection = ConstantSelection::new(&syntax, None, Vec::new())?;
+    if mode == crate::resolution::lowerer::ConstResolutionMode::Complete {
+        fold_closed_scalar_initializers(&mut syntax, &selection)?;
+    }
     validate_with_const_resolution_mode(&syntax, &selection, mode)?;
     let mut warnings = Vec::new();
     match domain {

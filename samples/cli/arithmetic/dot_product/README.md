@@ -10,7 +10,7 @@ storage borrowed across the reduction's nested-machine cycle.
 
 On a fresh checkout, the public command first needs the package review for
 the selected host. Inspect and decide the generated review before resuming
-`omega update`; tests do not authorize sample package decisions.
+`omega packages update`; tests do not authorize sample package decisions.
 
 The byte-identical body is pinned by:
 

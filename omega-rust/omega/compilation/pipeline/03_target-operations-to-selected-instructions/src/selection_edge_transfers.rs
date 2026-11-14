@@ -93,7 +93,7 @@ pub(crate) mod construction {
     use crate::selection::construction::scalar_graph::value_provenance;
     use crate::selection::edge_transfers::instruction_count;
     use crate::selection::edge_transfers::invalid;
-    use register_model::ValidatedRegisterConstraintCatalog;
+    use register_model::PreparedRegisterConstraintCatalog;
     use selected_instructions::{
         SelectedBlock, SelectedBlockId, SelectedInstructionId, SelectedInstructionKind,
         SelectedInstructionProvenance, SelectedSelectionConstraints, SelectedTerminator,
@@ -101,8 +101,8 @@ pub(crate) mod construction {
     };
     pub(crate) mod structural_case {
         use super::{
-            SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance,
-            SelectedSelectionConstraints, ValidatedRegisterConstraintCatalog, VirtualRegister,
+            PreparedRegisterConstraintCatalog, SelectedInstructionId, SelectedInstructionKind,
+            SelectedInstructionProvenance, SelectedSelectionConstraints, VirtualRegister,
             VirtualRegisterId, VirtualRegisterOrigin,
         };
         use crate::SelectedInstructionError;
@@ -124,7 +124,7 @@ pub(crate) mod construction {
             slots: &[SelectedLocalStorageSlot],
             next_instruction: &mut usize,
             constraints: &SelectedSelectionConstraints,
-            catalog: &ValidatedRegisterConstraintCatalog,
+            catalog: &PreparedRegisterConstraintCatalog,
             environment: &register_environment::ValidatedTargetRegisterEnvironment,
             instructions: &mut Vec<selected_instructions::SelectedInstruction>,
         ) -> Result<(), SelectedInstructionError> {
@@ -369,7 +369,7 @@ pub(crate) mod construction {
         function_index: usize,
         function: &mut SelectedFunction,
         constraints: &SelectedSelectionConstraints,
-        catalog: &ValidatedRegisterConstraintCatalog,
+        catalog: &PreparedRegisterConstraintCatalog,
         environment: &register_environment::ValidatedTargetRegisterEnvironment,
         mut edge_work: Vec<super::EdgeWork>,
     ) -> Result<(), SelectedInstructionError> {
@@ -1281,7 +1281,7 @@ pub(crate) mod emission {
     use crate::SelectedInstructionError;
     use crate::selection::constraints::store_registers;
     use crate::selection::edge_transfers::invalid;
-    use register_model::ValidatedRegisterConstraintCatalog;
+    use register_model::PreparedRegisterConstraintCatalog;
     use selected_instructions::{
         FrameStorageSlotId, LocalStorageSlotId, SelectedInstruction, SelectedInstructionId,
         SelectedInstructionKind, SelectedMemoryAccess, SelectedMemoryAccessOrigin,
@@ -1299,7 +1299,7 @@ pub(crate) mod emission {
         pub(crate) edge: EdgeId,
         pub(crate) environment: &'state register_environment::ValidatedTargetRegisterEnvironment,
         pub(crate) constraints: &'state SelectedSelectionConstraints,
-        pub(crate) catalog: &'state ValidatedRegisterConstraintCatalog,
+        pub(crate) catalog: &'state PreparedRegisterConstraintCatalog,
     }
 
     impl Emission<'_> {

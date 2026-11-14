@@ -1,7 +1,7 @@
 /*
 We provide the x86-64 physical register model, register-constraint catalog,
 machine-effect catalog, frame and MXCSR custody protocols, hosted syscall
-sequences, post-handoff writer lowering, semantic-unit wrapper templates, and
+sequences, post-handoff writer lowering, and
 selected-form instruction encoders and validators for the native realization
 pipeline. Every interface in this crate consumes only normalized target,
 register-home, and terminal-installation facts, with zero dependency on
@@ -32,10 +32,9 @@ x64, Linux, macOS, and UEFI targets:
 - `selected_form_encoding`: encoding, structural decoding, and validation for
   all x86-64 selected instruction forms, branches, call templates, atomics, and
   installed interrupt/table sequences.
-- `generated_entry`, `hosted_kernel`, `post_handoff_writer`, and
-  `semantic_unit_wrapper_encoding`: generated entry replay, import-free Linux
-  and Darwin syscall leaves, post-handoff writer lowering, and semantic Unit
-  wrapper templates.
+- `generated_entry`, `hosted_kernel`, and `post_handoff_writer`: generated entry
+  replay, import-free Linux and Darwin syscall leaves, and post-handoff writer
+  lowering.
 */
 
 pub(crate) use optimization_core::codec_bytes;
@@ -48,9 +47,6 @@ pub(crate) fn encoder_resolved(
         minimum_bytes,
         maximum_bytes,
     }
-}
-pub(crate) mod cursor {
-    pub(crate) use optimization_core::cursor::Cursor;
 }
 mod model_specific_state {
     use calling_conventions::{MachineState, MachineStateSet, RegisterSet, StateEffectsEvidence};
@@ -221,8 +217,6 @@ pub use selected_form_encoding::system_call::{
     encode_x86_64_selected_system_call_form, validate_x86_64_selected_system_call_form,
 };
 
-mod semantic_unit_wrapper_encoding;
-
 pub use frame_protocol::{
     X86_64FrameProtocolError, X86_64FrameSlot, X86_64StackProbe,
     encode_system_v_amd64_frame_protocol, encode_x86_64_aligned_frame_address,
@@ -260,10 +254,10 @@ pub use register_model::{
     X86_64_MATERIALIZE_I64, X86_64_MICROSOFT_CALL, X86_64_MICROSOFT_RETURN,
     X86_64_MICROSOFT_RETURN_UNIT, X86_64_SUBTRACT_I64, X86_64_SUBTRACT_I64_IMMEDIATE,
     X86_64_SYSTEM_V_CALL, X86_64_SYSTEM_V_RETURN, X86_64_SYSTEM_V_RETURN_UNIT,
-    X86_64RegisterConstraintCatalogValidationError, validate_x86_64_register_constraint_catalog,
-    validated_x86_64_physical_register_model, x86_64_fixed_register_view,
-    x86_64_physical_register_model, x86_64_preservation_convention_for_target,
-    x86_64_register_constraint_catalog,
+    X86_64RegisterConstraintCatalogValidationError, prepare_x86_64_register_constraint_catalog,
+    validate_x86_64_register_constraint_catalog, validated_x86_64_physical_register_model,
+    x86_64_fixed_register_view, x86_64_physical_register_model,
+    x86_64_preservation_convention_for_target, x86_64_register_constraint_catalog,
 };
 pub use register_model::{
     X86_64_LOAD_PACKED, X86_64_STORE_PACKED, x86_64_microsoft_aggregate_call_keys,
@@ -332,16 +326,6 @@ pub use selected_form_encoding::{
 };
 pub use selected_form_encoding::{
     encode_x86_64_selected_hosted_write_byte_form, validate_x86_64_selected_hosted_write_byte_form,
-};
-pub use semantic_unit_wrapper_encoding::{
-    ValidatedX86_64SemanticUnitWrapperTemplate, X86_64_SEMANTIC_UNIT_WRAPPER_FUNCTION_BYTE_COUNT,
-    X86_64SemanticUnitWrapperArgumentBinding, X86_64SemanticUnitWrapperCopy,
-    X86_64SemanticUnitWrapperEncodingError, X86_64SemanticUnitWrapperEncodingPolicy,
-    X86_64SemanticUnitWrapperEncodingRequest, X86_64SemanticUnitWrapperResolutionError,
-    canonical_x86_64_semantic_unit_wrapper_encoding_request,
-    encode_x86_64_semantic_unit_wrapper_template,
-    resolve_x86_64_semantic_unit_wrapper_private_continuation,
-    validate_x86_64_semantic_unit_wrapper_template,
 };
 
 pub use register_model::{X86_64_ACCESSOR_READ, X86_64_ACCESSOR_WRITE};

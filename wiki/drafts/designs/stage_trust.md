@@ -46,8 +46,7 @@ checking; that was not opened for this record.
 
 ## What is checked at each hand-off today
 
-"Checked" means a check on that hand-off in an ordinary compile. Corpus
-outcomes are not counted here; they are the end-to-end check, described below.
+"Checked" means a check on that hand-off in an ordinary compile.
 
 | Hand-off | Checked in an ordinary compile | Independent of the producer |
 | --- | --- | --- |
@@ -74,8 +73,7 @@ native executable and the interpreter on the same portable program and
 compares the exit status, a trap's signal, and the entry memory. It does not
 compare what the program printed. With `--target` neither engine runs and the
 command exits 0. A comparison that is declined keeps the native exit code, and
-a failed full replay is itself reported as declined. Output and exit oracles
-run in the corpus harness only.
+a failed full replay is itself reported as declined.
 
 Two documents disagree with the code. `omega-rust/pipeline.md` says default
 compilation does not run stage-output validators; the code runs them for
@@ -88,9 +86,8 @@ Hand-offs are of three kinds, and each kind has one rule.
 
 1. **A stage's own output, inside one compile.** The next stage may trust it.
    That is the current rule in `pipeline.md` and it stays: re-verifying every
-   stage on every compile is not the goal. Two conditions make the trust
-   safe: the producer returns a row or a refusal and never drops silently, and
-   every validator that exists runs in the corpus harness on every program.
+   stage on every compile is not the goal. One condition makes the trust
+   safe: the producer returns a row or a refusal and never drops silently.
 2. **A claim that removes a runtime check.** The guarantee is made real at
    the front, and the back half then trusts it. The checker accepts an
    obligation only when the proof kernel has verified a proof of it. An
@@ -154,11 +151,8 @@ Three supporting rules:
    becomes the shipping path for a program, an obligation it cannot discharge
    rejects the program with a diagnostic naming the source construct. Nothing
    in back-half trust, optimization or instruction selection changes.
-4. **Run what exists.** Every validator and replay that exists runs in the
-   corpus harness for every program, including the Omega 02 to 03 audit, the
-   06 to 07 validator and the full native replay. The `--validator` options
-   the specification describes are implemented, or the gap is recorded as an
-   owner question.
+4. **Run what exists.** The `--validator` options the specification
+   describes are implemented, or the gap is recorded as an owner question.
 5. **Fix the oracle.** `--both` compares printed output, reports declined as
    declined, and fails when nothing ran.
 6. **Correct the words.** `pipeline.md`'s statement about default validators,

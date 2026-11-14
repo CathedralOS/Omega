@@ -608,6 +608,7 @@ pub(crate) mod affine_authority {
         pub(super) fn valid_transition(
             function: &PsiOptimizationFunction,
             types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+            unrestricted: &[PlaceId],
             entry: &OwnershipFrontierSnapshot,
             exit: &OwnershipFrontierSnapshot,
             actions: &[TerminalAffineCleanupAction],
@@ -617,7 +618,7 @@ pub(crate) mod affine_authority {
                 return false;
             };
             let Some(mut expected) =
-                retire_cleanup_roots(function, types, consumed.frontier, actions)
+                retire_cleanup_roots(function, types, unrestricted, consumed.frontier, actions)
             else {
                 return false;
             };
@@ -662,6 +663,7 @@ pub(crate) mod affine_authority {
         fn retire_cleanup_roots(
             function: &PsiOptimizationFunction,
             types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+            unrestricted: &[PlaceId],
             mut frontier: OwnershipFrontierSnapshot,
             actions: &[TerminalAffineCleanupAction],
         ) -> Option<OwnershipFrontierSnapshot> {
@@ -677,6 +679,37 @@ pub(crate) mod affine_authority {
                     .take_while(|action| action.place() == place)
                     .count();
                 let (group, rest) = remaining.split_at(count);
+                if unrestricted.binary_search(&place).is_ok() {
+                    if !matches!(group,
+                        [TerminalAffineCleanupAction::RetireHome(root) | TerminalAffineCleanupAction::DiscardRoot(root)] if *root == place)
+                        || frontier
+                            .owned_places
+                            .iter()
+                            .any(|owned| owned.place == place)
+                        || frontier
+                            .partial_custody
+                            .iter()
+                            .any(|custody| custody.place == place)
+                        || frontier
+                            .claims
+                            .iter()
+                            .any(|claim| claim.input == Some(place))
+                    {
+                        return None;
+                    }
+                    retired.push(place);
+                    remaining = rest;
+                    continue;
+                }
+                if group
+                    .iter()
+                    .all(|action| matches!(action, TerminalAffineCleanupAction::DiscardResidual(_)))
+                {
+                    consume_residual_group(function, types, &mut frontier, place, group)?;
+                    retired.push(place);
+                    remaining = rest;
+                    continue;
+                }
                 let partition = match group.split_last()? {
                     (TerminalAffineCleanupAction::RetireHome(retired), partition)
                         if *retired == place =>
@@ -737,6 +770,82 @@ pub(crate) mod affine_authority {
                 remaining = rest;
             }
             Some(frontier)
+        }
+
+        /// An equalizing edge discards only its live remainder and retains
+        /// the allocated owner. Record exactly those absent paths instead of
+        /// treating every cleanup group as whole-home retirement.
+        fn consume_residual_group(
+            function: &PsiOptimizationFunction,
+            types: &(impl crate::StructuralTypes + ?Sized),
+            frontier: &mut OwnershipFrontierSnapshot,
+            place: PlaceId,
+            actions: &[TerminalAffineCleanupAction],
+        ) -> Option<()> {
+            if !frontier.owned_places.iter().any(|owned| {
+                owned.place == place && owned.multiplicity == StructuralMultiplicity::Affine
+            }) {
+                return None;
+            }
+            let source =
+                super::super::operation_contracts::structural_source_contract(function, place)?;
+            if source.access != StructuralAccess::Owned
+                || source.multiplicity != StructuralMultiplicity::Affine
+            {
+                return None;
+            }
+            let mut moved = frontier
+                .partial_custody
+                .iter()
+                .find(|custody| custody.place == place)
+                .map(|custody| custody.moved_paths.iter().cloned().collect::<BTreeSet<_>>())
+                .unwrap_or_default();
+            for action in actions {
+                let TerminalAffineCleanupAction::DiscardResidual(discard) = action else {
+                    return None;
+                };
+                if discard.place != place
+                    || discard.path.is_empty()
+                    || super::super::structural_catalog::resolve_structural_path(
+                        types,
+                        source.structural_type,
+                        &discard.path,
+                    ) != Some(discard.structural_type)
+                    || types
+                        .declaration(discard.structural_type)
+                        .is_none_or(|declaration| !declaration.no_code_affine_cleanup)
+                    || frontier.claims.iter().any(|claim| {
+                        claim.input == Some(place)
+                            && terminal_semantics::structural_paths_may_overlap(
+                                &claim.path,
+                                &discard.path,
+                            )
+                    })
+                    || moved.iter().any(|existing| {
+                        existing.starts_with(&discard.path) || discard.path.starts_with(existing)
+                    })
+                {
+                    return None;
+                }
+                moved.insert(discard.path.clone());
+            }
+            if crate::current_ownership::partial_affine_root_is_drained(
+                function, types, place, &moved,
+            ) {
+                frontier.owned_places.retain(|owned| owned.place != place);
+            }
+            let missing = OwnershipFrontierPartialCustody {
+                place,
+                moved_paths: moved.into_iter().collect(),
+            };
+            match frontier
+                .partial_custody
+                .binary_search_by_key(&place, |custody| custody.place)
+            {
+                Ok(position) => frontier.partial_custody[position] = missing,
+                Err(position) => frontier.partial_custody.insert(position, missing),
+            }
+            Some(())
         }
 
         struct ConsumedSources<'function> {
@@ -887,6 +996,197 @@ pub(crate) mod affine_authority {
             }
             true
         }
+        #[cfg(test)]
+        mod tests {
+            use super::*;
+            use semantic_vocabulary::PsiSemanticId;
+            use terminal_psi::StructuralPathSegment as Segment;
+            use terminal_psi::{
+                ArrayExtent, StructuralAffineDiscard, StructuralPlaceDeclaration,
+                StructuralRecordStorage, StructuralTypeShape, TerminalIdentityIndex,
+            };
+
+            fn id<T: PsiSemanticId>(raw: u64) -> T {
+                T::new(raw).unwrap()
+            }
+
+            #[test]
+            fn a_residual_only_edge_retains_its_actual_parent_home() {
+                let declarations = (1..=3)
+                    .map(|raw| StructuralTypeDeclaration {
+                        id: id(raw),
+                        identity: TerminalIdentityIndex(raw as u32),
+                        quotient_carrier: None,
+                        owns_linear_claim: false,
+                        copyable: false,
+                        no_code_affine_cleanup: true,
+                        descriptor_cleanup: true,
+                        scalar_restriction: None,
+                        requires: Vec::new(),
+                        shape: if raw == 1 {
+                            StructuralTypeShape::Record {
+                                fields: Vec::new(),
+                                storage: StructuralRecordStorage::Packed,
+                            }
+                        } else {
+                            StructuralTypeShape::FixedArray {
+                                element: id(raw - 1),
+                                length: ArrayExtent::Literal(2),
+                            }
+                        },
+                    })
+                    .collect::<Vec<_>>();
+                let types = declarations
+                    .iter()
+                    .map(|declaration| (declaration.id, declaration))
+                    .collect();
+                let function = PsiOptimizationFunction {
+                    machine: id(1),
+                    attachment: None,
+                    nominal_cleanup_subject: None,
+                    entry: id(1),
+                    parameters: Vec::new(),
+                    structural_parameters: vec![StructuralParameterDeclaration {
+                        place: id(1),
+                        position: 0,
+                        structural_type: id(3),
+                        multiplicity: StructuralMultiplicity::Affine,
+                        access: StructuralAccess::Owned,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        additional_input_qualifications: Vec::new(),
+                    }],
+                    structural_places: vec![StructuralPlaceDeclaration {
+                        id: id(1),
+                        kind: semantic_vocabulary::StructuralPlaceKind::Parameter { position: 0 },
+                    }],
+                    result: abstract_operations::AbstractFunctionResult::Unit,
+                    declared_places: BTreeSet::from([id(1)]),
+                    entry_claim_declarations: Vec::new(),
+                    block_entry_claims: Vec::new(),
+                    content_entry_claims: Vec::new(),
+                    verified_contract: None,
+                    evidence_contract_lanes: Vec::new(),
+                    entry_claims: BTreeSet::new(),
+                    published_service_ceiling: Vec::new(),
+                    declared_service_reach: Vec::new(),
+                    facts: Vec::new(),
+                    blocks: Vec::new(),
+                };
+                let first = vec![Segment::FixedIndex(0), Segment::FixedIndex(0)];
+                let second = vec![Segment::FixedIndex(0), Segment::FixedIndex(1)];
+                let entry = OwnershipFrontierSnapshot {
+                    claims: Vec::new(),
+                    owned_places: vec![OwnershipFrontierOwnedPlace {
+                        place: id(1),
+                        multiplicity: StructuralMultiplicity::Affine,
+                    }],
+                    partial_custody: vec![OwnershipFrontierPartialCustody {
+                        place: id(1),
+                        moved_paths: vec![first.clone()],
+                    }],
+                };
+                let mut exit = entry.clone();
+                exit.partial_custody[0].moved_paths.push(second.clone());
+                let action =
+                    TerminalAffineCleanupAction::DiscardResidual(StructuralAffineDiscard {
+                        place: id(1),
+                        path: second,
+                        structural_type: id(1),
+                    });
+                assert!(valid_transition(
+                    &function,
+                    &types,
+                    &[],
+                    &entry,
+                    &exit,
+                    std::slice::from_ref(&action),
+                    &[]
+                ));
+                let last_sibling =
+                    TerminalAffineCleanupAction::DiscardResidual(StructuralAffineDiscard {
+                        place: id(1),
+                        path: vec![Segment::FixedIndex(1)],
+                        structural_type: id(2),
+                    });
+                let mut vacant = exit.clone();
+                vacant.owned_places.clear();
+                vacant.partial_custody[0]
+                    .moved_paths
+                    .push(vec![Segment::FixedIndex(1)]);
+                let mut all = vec![last_sibling, action.clone()];
+                assert!(valid_transition(
+                    &function,
+                    &types,
+                    &[],
+                    &entry,
+                    &vacant,
+                    &all,
+                    &[]
+                ));
+                let mut ended = vacant.clone();
+                ended.partial_custody.clear();
+                assert!(
+                    !valid_transition(&function, &types, &[], &entry, &ended, &all, &[]),
+                    "an empty obligation frontier retains the vacant home until explicit retirement"
+                );
+                all.push(TerminalAffineCleanupAction::RetireHome(id(1)));
+                assert!(valid_transition(
+                    &function,
+                    &types,
+                    &[],
+                    &entry,
+                    &ended,
+                    &all,
+                    &[]
+                ));
+                let mut wrong_type = action.clone();
+                let TerminalAffineCleanupAction::DiscardResidual(discard) = &mut wrong_type else {
+                    unreachable!()
+                };
+                discard.structural_type = id(2);
+                assert!(!valid_transition(
+                    &function,
+                    &types,
+                    &[],
+                    &entry,
+                    &exit,
+                    &[wrong_type],
+                    &[]
+                ));
+                assert!(!valid_transition(
+                    &function,
+                    &types,
+                    &[],
+                    &entry,
+                    &exit,
+                    &[action.clone(), action.clone()],
+                    &[]
+                ));
+                let mut claimed = entry.clone();
+                claimed
+                    .claims
+                    .push(optimization_unit::OwnershipFrontierLiveClaim {
+                        claim: id(1),
+                        input: Some(id(1)),
+                        path: vec![Segment::FixedIndex(0), Segment::FixedIndex(1)],
+                        multiplicity: Some(StructuralMultiplicity::Linear),
+                    });
+                assert!(!valid_transition(
+                    &function,
+                    &types,
+                    &[],
+                    &claimed,
+                    &exit,
+                    std::slice::from_ref(&action),
+                    &[]
+                ));
+                assert!(
+                    !valid_transition(&function, &types, &[], &entry, &entry, &[action], &[]),
+                    "the retained frontier must record the actual discarded subtree"
+                );
+            }
+        }
     }
     pub(super) fn validate_retained_ownership_authority(
         unit: &PsiOptimizationUnit,
@@ -906,6 +1206,10 @@ pub(crate) mod affine_authority {
             .collect::<BTreeMap<_, _>>();
 
         for function in &unit.functions {
+            let unrestricted = crate::current_ownership::unrestricted_owned_cleanup_roots(
+                function,
+                &structural_types,
+            );
             for block in &function.blocks {
                 for (node_index, node) in block.nodes.iter().enumerate() {
                     let node_index = u32::try_from(node_index).expect("unit node index fits u32");
@@ -951,6 +1255,7 @@ pub(crate) mod affine_authority {
                             if !block_bindings::valid_transition(
                                 function,
                                 &structural_types,
+                                &unrestricted,
                                 entry,
                                 exit,
                                 actions,
@@ -1181,12 +1486,6 @@ mod catalogs {
             .any(|fact| !machines.contains_key(&fact.machine) && !pruned.contains(&fact.machine))
         {
             return Err(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch);
-        }
-        if unit.proof_questions.iter().any(|question| {
-            let machine = question.owner.machine();
-            !machines.contains_key(&machine) && !pruned.contains(&machine)
-        }) {
-            return Err(OptimizationUnitValidationError::ProofQuestionIndexMismatch);
         }
         let mut boundary_machines = BTreeMap::new();
         for boundary in &unit.boundary_machines {
@@ -2382,9 +2681,6 @@ pub(crate) mod derived_metadata {
             }
         }
     }
-    mod ownership {
-        pub(crate) use optimization_unit::operation_ownership as expected_ownership;
-    }
     mod places {
         use crate::OptimizationUnitValidationError;
         use abstract_operations::AbstractOperation as O;
@@ -2653,44 +2949,14 @@ pub(crate) mod derived_metadata {
             }
         }
     }
-    mod values {
-        use optimization_unit::{ValueDefinition, ValueDefinitionSite, ValueUse};
-        use semantic_vocabulary::BlockId;
-
-        pub(crate) fn expected_definitions(
-            operation: &abstract_operations::AbstractOperation,
-            block: BlockId,
-            node: u32,
-        ) -> Vec<ValueDefinition> {
-            let definition = optimization_unit::operation_definition(operation);
-            definition
-                .into_iter()
-                .map(|(value, scalar_type)| ValueDefinition {
-                    value,
-                    scalar_type,
-                    site: ValueDefinitionSite::Node { block, node },
-                })
-                .collect()
-        }
-
-        pub(crate) fn expected_uses(
-            operation: &abstract_operations::AbstractOperation,
-            block: BlockId,
-            node: u32,
-        ) -> Vec<ValueUse> {
-            optimization_unit::operation_uses(operation)
-                .into_iter()
-                .map(|value| ValueUse { value, block, node })
-                .collect()
-        }
-    }
+    pub(crate) use crate::operation_metadata::{
+        expected_definitions, expected_ownership, expected_uses,
+    };
     pub(crate) use control_flow::is_terminator;
     pub(crate) use edges::{expected_edges, successors_match_operation};
     pub(crate) use optimization_unit::dominators;
-    pub(crate) use ownership::expected_ownership;
     pub(crate) use places::{function_has_claim, reconstruct_declared_places};
     pub(crate) use provenance::{expected_provenance, provenance_matches_operation};
-    pub(crate) use values::{expected_definitions, expected_uses};
 
     pub(crate) fn validate_places_and_claims(
         function: &PsiOptimizationFunction,
@@ -5132,12 +5398,7 @@ pub(crate) mod function_structure {
         StructuralTypeShape::PrimitiveScalar(semantic_vocabulary::ScalarType::Integer(integer))
         if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 8 && !integer.is_address()))
         }
-        fn covers(actual: StructuralAccess, requested: StructuralAccess) -> bool {
-            actual == requested
-                || actual == StructuralAccess::Owned
-                || actual == StructuralAccess::MutableBorrow
-                    && requested == StructuralAccess::SharedBorrow
-        }
+        use terminal_psi::structural_access_covers as covers;
 
         pub(super) fn valid_whole(
             function: &PsiOptimizationFunction,
@@ -5607,8 +5868,7 @@ pub(crate) mod function_structure {
     pub use byte_views::declared_descriptor_home;
     mod control_flow {
         use crate::unit_validation::derived_metadata::{
-            expected_definitions, expected_ownership, expected_uses, is_terminator,
-            provenance_matches_operation, successors_match_operation,
+            is_terminator, provenance_matches_operation, successors_match_operation,
         };
         use crate::{OperationSite, OptimizationUnitValidationError};
         use optimization_unit::PsiOptimizationFunction;
@@ -5698,11 +5958,8 @@ pub(crate) mod function_structure {
                     let node_index =
                         u32::try_from(index).expect("unit node index was built as u32");
                     if !provenance_matches_operation(&node.operation, &node.provenance)
-                        || node.definitions
-                            != expected_definitions(&node.operation, block.id, node_index)
-                        || node.uses != expected_uses(&node.operation, block.id, node_index)
+                        || !crate::operation_metadata::metadata_matches(node, block.id, node_index)
                         || !successors_match_operation(&node.operation, &node.successors)
-                        || node.ownership != expected_ownership(&node.operation)
                     {
                         return Err(OptimizationUnitValidationError::OperationMetadataMismatch(
                             OperationSite::new(function.machine, block.id, node_index),
@@ -8283,7 +8540,7 @@ pub(crate) mod function_structure {
                                         .is_none_or(|missing| {
                                             missing
                                                 .iter()
-                                                .any(|node| !node.establishment_routes.is_empty())
+                                                .any(|node| node.establishment_routes.is_some())
                                         })
                                 }) {
                                     return Err(invalid(
@@ -9692,7 +9949,6 @@ mod identity_indexes {
         recompute_psi_optimization_unit_identity,
     };
     use psi_work::WorkSchedule;
-    use std::collections::BTreeSet;
 
     pub(super) fn validate_identity_and_fact_indexes(
         unit: &PsiOptimizationUnit,
@@ -9717,16 +9973,6 @@ mod identity_indexes {
             })
         {
             return Err(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch);
-        }
-        let mut proof_question_identities = BTreeSet::new();
-        let mut proof_question_owners = BTreeSet::new();
-        if unit.proof_questions.iter().any(|question| {
-            question.terminal_psi != unit.psi
-                || !question.has_canonical_identity()
-                || !proof_question_identities.insert(question.identity)
-                || !proof_question_owners.insert((question.owner, question.obligation))
-        }) {
-            return Err(OptimizationUnitValidationError::ProofQuestionIndexMismatch);
         }
         if unit.ownership_frontier_facts.iter().any(|fact| {
             fact.psi != unit.psi
@@ -14992,17 +15238,7 @@ pub(crate) mod references {
             })
     }
 
-    pub(crate) fn access_covers(authority: StructuralAccess, requested: StructuralAccess) -> bool {
-        authority == requested
-            || matches!(
-                (authority, requested),
-                (StructuralAccess::Owned, _)
-                    | (
-                        StructuralAccess::MutableBorrow,
-                        StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
-                    )
-            )
-    }
+    pub(crate) use terminal_psi::structural_access_covers as access_covers;
 
     pub(crate) fn leaf_access_within(
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
@@ -16288,8 +16524,7 @@ pub(crate) mod structural_catalog {
         use crate::OptimizationUnitValidationError;
         use crate::unit_validation::structural_catalog::content_projection::validate_structural_content_projection;
         use crate::unit_validation::structural_catalog::type_declarations::{
-            attachment_storage_types, validate_structural_cases, validate_structural_fields,
-            validate_structural_type_graph,
+            storage_graph_error, validate_structural_cases, validate_structural_fields,
         };
         use optimization_unit::PsiOptimizationUnit;
         use semantic_vocabulary::{StructuralDomainId, StructuralTypeId};
@@ -16346,12 +16581,17 @@ pub(crate) mod structural_catalog {
             {
                 return Err(OptimizationUnitValidationError::NonCanonicalStructuralTypeOrder);
             }
-            let attachment_storage = attachment_storage_types(
-                &types,
-                unit.functions
-                    .iter()
-                    .filter_map(|function| function.attachment),
-            );
+            let storage_graph = terminal_semantics::storage::type_graph::StorageTypeGraph::new(
+                unit.structural_types.iter(),
+            )
+            .map_err(storage_graph_error)?;
+            let attachment_storage = storage_graph
+                .storage_reachable_from(
+                    unit.functions
+                        .iter()
+                        .filter_map(|function| function.attachment),
+                )
+                .map_err(storage_graph_error)?;
             let mut referent_ids = BTreeSet::new();
             for referent in unit.structural_types.referents() {
                 if types.contains_key(&referent.id) || !referent_ids.insert(referent.id) {
@@ -16400,7 +16640,7 @@ pub(crate) mod structural_catalog {
                             declaration.id,
                             None,
                             fields,
-                            attachment_storage.contains(&declaration.id),
+                            attachment_storage.binary_search(&declaration.id).is_ok(),
                         )?;
                     }
                     terminal_psi::StructuralTypeShape::Sum { cases } => {
@@ -16481,7 +16721,9 @@ pub(crate) mod structural_catalog {
                     }
                 }
             }
-            validate_structural_type_graph(&types)?;
+            storage_graph
+                .validate_acyclic()
+                .map_err(storage_graph_error)?;
             for declaration in &unit.structural_types {
                 if let terminal_psi::StructuralTypeShape::ElementView { element, .. } =
                     declaration.shape
@@ -16559,15 +16801,22 @@ pub(crate) mod structural_catalog {
                             }))
                     || declaration
                         .establishment_routes
+                        .as_deref()
+                        .unwrap_or_default()
                         .windows(2)
                         .any(|pair| pair[0] >= pair[1])
-                    || declaration.establishment_routes.iter().any(|route| {
-                        [route.declaration().identity(), route.identity()]
-                            .iter()
-                            .any(|identity| {
-                                unit.identities.text(*identity).is_none_or(str::is_empty)
-                            })
-                    })
+                    || declaration
+                        .establishment_routes
+                        .as_deref()
+                        .unwrap_or_default()
+                        .iter()
+                        .any(|route| {
+                            [route.declaration().identity(), route.identity()]
+                                .iter()
+                                .any(|identity| {
+                                    unit.identities.text(*identity).is_none_or(str::is_empty)
+                                })
+                        })
                 {
                     return Err(
                         OptimizationUnitValidationError::InvalidStructuralDomainIdentity(
@@ -16591,7 +16840,7 @@ pub(crate) mod structural_catalog {
                 if declaration.byte_predicate.is_some()
                     && (declaration.content_projection.is_some()
                         || !declaration.has_no_required_memberships()
-                        || !declaration.establishment_routes.is_empty()
+                        || declaration.establishment_routes.is_some()
                         || !matches!(
                             types[&declaration.carrier].shape,
                             terminal_psi::StructuralTypeShape::ByteSequence(_)
@@ -17839,7 +18088,7 @@ pub(crate) mod structural_catalog {
     mod type_declarations {
         use crate::OptimizationUnitValidationError;
         use semantic_vocabulary::StructuralTypeId;
-        use std::collections::{BTreeMap, BTreeSet};
+        use std::collections::BTreeSet;
 
         pub(crate) fn validate_structural_fields(
             structural_type: StructuralTypeId,
@@ -17977,108 +18226,43 @@ pub(crate) mod structural_catalog {
             Ok(())
         }
 
-        pub(crate) fn validate_structural_type_graph(
-            types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
-        ) -> Result<(), OptimizationUnitValidationError> {
-            fn visit(
-                id: StructuralTypeId,
-                types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
-                active: &mut BTreeSet<StructuralTypeId>,
-                complete: &mut BTreeSet<StructuralTypeId>,
-            ) -> Result<(), OptimizationUnitValidationError> {
-                if complete.contains(&id) {
-                    return Ok(());
+        pub(super) fn storage_graph_error(
+            error: terminal_semantics::storage::type_graph::StorageGraphError,
+        ) -> OptimizationUnitValidationError {
+            use terminal_semantics::storage::type_graph::StorageGraphError;
+            match error {
+                StorageGraphError::MissingType(id) => {
+                    OptimizationUnitValidationError::UnknownStructuralType(id)
                 }
-                if !active.insert(id) {
-                    return Err(OptimizationUnitValidationError::RecursiveStructuralType(id));
+                StorageGraphError::DuplicateType(id) => {
+                    OptimizationUnitValidationError::DuplicateStructuralType(id)
                 }
-                let declaration = types[&id];
-                match &declaration.shape {
-                    terminal_psi::StructuralTypeShape::Reference { .. }
-                    | terminal_psi::StructuralTypeShape::ElementView { .. }
-                    | terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
-                    | terminal_psi::StructuralTypeShape::AtomicCell(_) => {}
-                    terminal_psi::StructuralTypeShape::ByteSequence(_) => {}
-                    terminal_psi::StructuralTypeShape::Record { fields, .. } => {
-                        for field in fields {
-                            if let Some(target) = field.field_type.as_structural() {
-                                visit(target, types, active, complete)?;
-                            }
-                        }
-                    }
-                    terminal_psi::StructuralTypeShape::FixedArray { element, .. } => {
-                        visit(*element, types, active, complete)?;
-                    }
-                    terminal_psi::StructuralTypeShape::Sum { cases } => {
-                        for field in cases.iter().flat_map(|case| &case.fields) {
-                            if let Some(target) = field.field_type.as_structural() {
-                                visit(target, types, active, complete)?;
-                            }
-                        }
-                    }
-                    terminal_psi::StructuralTypeShape::Mixed { fields, cases } => {
-                        for field in fields
-                            .iter()
-                            .chain(cases.iter().flat_map(|case| &case.fields))
-                        {
-                            if let Some(target) = field.field_type.as_structural() {
-                                visit(target, types, active, complete)?;
-                            }
-                        }
-                    }
+                StorageGraphError::Cycle(id) => {
+                    OptimizationUnitValidationError::RecursiveStructuralType(id)
                 }
-                active.remove(&id);
-                complete.insert(id);
-                Ok(())
             }
-
-            let mut active = BTreeSet::new();
-            let mut complete = BTreeSet::new();
-            for id in types.keys().copied() {
-                visit(id, types, &mut active, &mut complete)?;
-            }
-            Ok(())
         }
 
-        pub(super) fn attachment_storage_types(
-            types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
-            attachments: impl Iterator<Item = StructuralTypeId>,
-        ) -> BTreeSet<StructuralTypeId> {
-            use terminal_psi::{StructuralTypeShape, structural_children};
-            let mut pending: Vec<_> = attachments.collect();
-            let mut storage = BTreeSet::new();
-            while let Some(identity) = pending.pop() {
-                if !storage.insert(identity) {
-                    continue;
-                }
-                let Some(declaration) = types.get(&identity) else {
-                    continue;
-                };
-                let mut retain_fields = |fields: &[terminal_psi::StructuralFieldDeclaration]| {
-                    pending.extend(structural_children(fields));
-                };
-                match &declaration.shape {
-                    StructuralTypeShape::Record { fields, .. } => retain_fields(fields),
-                    StructuralTypeShape::Mixed { fields, cases } => {
-                        retain_fields(fields);
-                        for case in cases {
-                            retain_fields(&case.fields);
-                        }
-                    }
-                    StructuralTypeShape::Sum { cases } => {
-                        for case in cases {
-                            retain_fields(&case.fields);
-                        }
-                    }
-                    StructuralTypeShape::FixedArray { element, .. } => pending.push(*element),
-                    StructuralTypeShape::PrimitiveScalar(_)
-                    | StructuralTypeShape::AtomicCell(_)
-                    | StructuralTypeShape::ByteSequence(_)
-                    | StructuralTypeShape::Reference { .. }
-                    | StructuralTypeShape::ElementView { .. } => {}
-                }
+        #[test]
+        fn shared_storage_graph_preserves_native_error_identities() {
+            use terminal_semantics::storage::type_graph::StorageGraphError;
+            let id = StructuralTypeId::new(29).unwrap();
+            for (source, expected) in [
+                (
+                    StorageGraphError::MissingType(id),
+                    OptimizationUnitValidationError::UnknownStructuralType(id),
+                ),
+                (
+                    StorageGraphError::DuplicateType(id),
+                    OptimizationUnitValidationError::DuplicateStructuralType(id),
+                ),
+                (
+                    StorageGraphError::Cycle(id),
+                    OptimizationUnitValidationError::RecursiveStructuralType(id),
+                ),
+            ] {
+                assert_eq!(storage_graph_error(source), expected);
             }
-            storage
         }
     }
     mod witnesses {

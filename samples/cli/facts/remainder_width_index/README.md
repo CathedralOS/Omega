@@ -13,15 +13,15 @@ performs that selection; only the transport of the width relation changes.
 | Place | Positive | Invalid | Width transport |
 | --- | --- | --- | --- |
 | (root) | [source](main.omg) | — | root application indexing view via remainder |
-| local | [source](local/main.omg) | [source](local/invalid/main.omg) | a local copy of the view's length |
-| field | [source](field/main.omg) | [source](field/invalid/main.omg) | a record field whose contract equals the length |
-| parameter | [source](parameter/main.omg) | [source](parameter/invalid/main.omg) | an explicit parameter required to equal the length |
-| call result | [source](call_result/main.omg) | [source](call_result/invalid/main.omg) | a call whose `ensures` equates its result with the length through the result carrier |
-| match join | [source](match_join/main.omg) | [source](match_join/invalid/main.omg) | both arms denote the same length, and both arms run |
-| const name | [source](const_name/main.omg) | [source](const_name/invalid/main.omg) | a named width equal to the length |
-| a nested machine | [source](other_state/main.omg) | [source](other_state/invalid/main.omg) | a successor machine receives the width relation |
-| another machine | [source](other_machine/main.omg) | [source](other_machine/invalid/main.omg) | a forwarding machine supplies the width |
-| another target body | [source](target_body/main.omg) | [source](target_body/invalid/main.omg) | each of four target bodies obtains the width from the declared measurement |
+| local | [source](local/main.omg) | [source](invalid_local/main.omg) | a local copy of the view's length |
+| field | [source](field/main.omg) | [source](invalid_field/main.omg) | a record field whose contract equals the length |
+| parameter | [source](parameter/main.omg) | [source](invalid_parameter/main.omg) | an explicit parameter required to equal the length |
+| call result | [source](call_result/main.omg) | [source](invalid_call_result/main.omg) | a call whose `ensures` equates its result with the length through the result carrier |
+| match join | [source](match_join/main.omg) | [source](invalid_match_join/main.omg) | both arms denote the same length, and both arms run |
+| const name | [source](const_name/main.omg) | [source](invalid_const_name/main.omg) | a named width equal to the length |
+| a nested machine | [source](other_state/main.omg) | [source](invalid_other_state/main.omg) | a successor machine receives the width relation |
+| another machine | [source](other_machine/main.omg) | [source](invalid_other_machine/main.omg) | a forwarding machine supplies the width |
+| another target body | [source](target_body/main.omg) | [source](invalid_target_body/main.omg) | each of four target bodies obtains the width from the declared measurement |
 
 The root application and each place bind `ProgramEntry` for all four hosted
 targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and

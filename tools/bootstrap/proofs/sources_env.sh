@@ -102,8 +102,8 @@ DERIVATION_COMPARISON_ENTRY_WITNESS_SHA256=2ba9d62188b05e802231ab0da5be0add5751e
 
 # require_bound_manifest_closure LABEL MANIFEST SIZE SHA256 PACKED_SIZE
 # PACKED_SHA256 RECORD : shared manifest-then-repack check behind both proof
-# subjects. Repacking needs python3; without it the closure identity cannot
-# be established and the check refuses rather than skipping.
+# subjects. Repacking needs the built xtask binary; without it the closure
+# identity cannot be established and the check refuses rather than skipping.
 require_bound_manifest_closure() {
   require_bound_identity "$1" "$2" "$3" "$4" "$7" || return $?
   require_packed_closure_identity "$2" closure.gamma "$5" "$6" "$7" \
@@ -148,19 +148,19 @@ require_beta_encoding_definition_package_identity() {
 
 # materialize_derivation_checker DEST / materialize_beta_encoding_theory DEST :
 # write the canonical packed member Gamma source to DEST after the bound
-# identity check. source_closure.py checks every member row and writes
+# identity check. source-closure checks every member row and writes
 # atomically; a changed member refuses before DEST is written.
 materialize_derivation_checker() {
   DERIVATION_CHECKER_DEST=$1
   require_derivation_checker_identity || return $?
-  python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+  bootstrap_xtask source-closure \
     "$OMEGA_PATH_DERIVATION_CHECKER_SOURCES" "$DERIVATION_CHECKER_DEST"
 }
 
 materialize_beta_encoding_theory() {
   BETA_ENCODING_DEST=$1
   require_beta_encoding_theory_identity || return $?
-  python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+  bootstrap_xtask source-closure \
     "$OMEGA_PATH_BETA_ENCODING_SOURCES" "$BETA_ENCODING_DEST"
 }
 

@@ -603,13 +603,12 @@ pub(crate) mod expression {
                     ) -> Result<typed::expression::ExpressionHandle, Diagnostic>
                     {
                         let subject = self.lower_value(dispatch.subject)?;
-                        let capture = if dispatch.capture.is_valid() {
-                            self.target().insert_match_subject(subject)
-                        } else {
-                            Handle::invalid()
-                        };
+                        // Even a fieldless case match owns one completed
+                        // subject for dispatch and cleanup. Resolution needs a
+                        // saved-subject name only when an arm refers to it.
+                        let capture = self.target().insert_match_subject(subject);
                         let outer_captures = self.match_captures.len();
-                        if capture.is_valid() {
+                        if dispatch.capture.is_valid() {
                             self.match_captures.push((dispatch.capture, capture));
                         }
                         let lowered = (|| {
@@ -908,19 +907,11 @@ pub(crate) mod expression {
                     let Some(program) = self.program else {
                         return Ok(typed::types::TypeReferenceHandle::invalid());
                     };
-                    let symbol = program
-                        .symbols
-                        .child_handles(program.symbols.root())
-                        .and_then(|mut symbols| {
-                            symbols.find(|symbol| {
-                                program.symbols.builtin_type_atom(*symbol) == Some(atom)
-                            })
-                        })
-                        .ok_or_else(|| {
-                            Diagnostic::error(
-                                "typed expression lost its compiler-installed builtin type",
-                            )
-                        })?;
+                    let symbol = program.symbols.builtin_atom_symbol(atom).ok_or_else(|| {
+                        Diagnostic::error(
+                            "typed expression lost its compiler-installed builtin type",
+                        )
+                    })?;
                     Ok(self
                         .target_trees
                         .type_reference_table
@@ -929,8 +920,8 @@ pub(crate) mod expression {
                             self.target_trees.type_reference_table.insert(
                                 typed::types::TypeReferenceNode::Named {
                                     symbol,
-                                    name: typed::name::Identifier::generated_static(
-                                        atom.symbol_name(),
+                                    name: typed::name::Identifier::generated(
+                                        atom.symbol_name().as_ref(),
                                     ),
                                 },
                             )
@@ -969,6 +960,39 @@ pub(crate) mod expression {
                             name: lower_name(&owner.name),
                         },
                     );
+                }
+
+                pub(super) fn finalize_generated_call_selection(
+                    &mut self,
+                    expression: resolved::expression::ExpressionHandle,
+                    selected_target: symbols::SymbolHandle,
+                ) -> Result<(), Diagnostic> {
+                    let occurrences = self
+            .source
+            .authored_selection_occurrences(expression)
+            .filter(|occurrence| {
+                self.target_trees
+                    .authored_declaration_selections()
+                    .get(*occurrence)
+                    .is_some_and(|selection| {
+                        selection.kind()
+                            == language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call
+                    })
+            })
+            .collect::<Vec<_>>();
+                    let [occurrence] = occurrences.as_slice() else {
+                        return Err(Diagnostic::error(format!(
+                            "rewritten call retains {} call selections; expected one",
+                            occurrences.len()
+                        )));
+                    };
+
+                    crate::call_and_product_selections::bind_generated_call_selection(
+                        self.target_trees,
+                        *occurrence,
+                        selected_target,
+                    )?;
+                    Ok(())
                 }
 
                 pub(crate) fn lower(
@@ -1018,6 +1042,30 @@ pub(crate) mod expression {
                                 .with_source_span(source_call.target.source_span()));
                             }
                             own = Some(occurrence);
+                        }
+                        if let Some(occurrence) = own
+                            && let typed::expression::ExpressionNode::Call(call) =
+                                self.target().expression(lowered)
+                        {
+                            let selected = call.target_symbol;
+                            // A generated call owns the occurrence only when
+                            // the answer the author got is that call's target.
+                            let owned = if call.build_selection.is_valid() {
+                                crate::call_and_product_selections::bind_generated_call_selection(
+                                    self.target_trees,
+                                    occurrence,
+                                    selected,
+                                )?
+                            } else {
+                                !crate::call_and_product_selections::names_replaced_prelude_operation(
+                                    self.target_trees,
+                                    occurrence,
+                                    selected,
+                                )
+                            };
+                            if !owned {
+                                own = None;
+                            }
                         }
                         if let typed::expression::ExpressionNode::Call(call) =
                             self.target().expression_mut(lowered)
@@ -1394,14 +1442,17 @@ pub(crate) mod expression {
                                         .into_iter()
                                         .map(|argument| self.lower_value(argument))
                                         .collect::<Result<Vec<_>, Diagnostic>>()?;
-                                    return crate::expressions::product_queries::lower(
+                                    let selected = operation.target;
+                                    let query = crate::expressions::product_queries::lower(
                                         program,
                                         self.target_trees,
                                         operation,
                                         arguments,
                                         self.source.source_span(expression),
                                         call.operational_acknowledgement,
-                                    );
+                                    )?;
+                                    self.finalize_generated_call_selection(expression, selected)?;
+                                    return Ok(query);
                                 }
                                 if let Some(request) =
                                     crate::expressions::product_selections::request(
@@ -1600,6 +1651,29 @@ pub(crate) mod expression {
                         }
                         resolved::expression::ExpressionNode::Integer(value) => {
                             if let Some(landing) = value.landing() {
+                                /*
+                                    numeric_values.md, "Literal landing and
+                                    destinations": "A suffix lands its literal
+                                    at that occurrence", and integer landing
+                                    requires the "destination range where
+                                    bounded". `1i1` and `8192u13` name a value
+                                    their own carrier does not hold, whatever
+                                    policy the surrounding operation selects.
+                                */
+                                if let numerics::literals::LandedIntegerType::Fixed(carrier) =
+                                    landing.landed_type
+                                    && !value
+                                        .value_bignum()
+                                        .is_some_and(|exact| carrier.admits(&exact))
+                                {
+                                    return Err(Diagnostic::error(format!(
+                                        "integer literal `{}` is outside `{carrier}`: a suffix \
+                                         lands the literal in that type, which does not hold \
+                                         this value",
+                                        value.canonical_spelling().as_str(),
+                                    ))
+                                    .with_source_span(self.source.source_span(expression)));
+                                }
                                 self.retain_builtin_type_reference(
                                     typed::types::builtin_type_atom(landing.landed_type),
                                 )?;
@@ -1612,19 +1686,22 @@ pub(crate) mod expression {
                             self.lower_membership_expression(membership)
                         }
                         resolved::expression::ExpressionNode::Member(member) => {
-                            if CollectionMeasure::from_authored_spelling(member.member.as_str())
-                                == Some(CollectionMeasure::Length)
-                            {
+                            let (selection, case_variant) = self.selected_member(member);
+                            if matches!(
+                                selection,
+                                typed::expression::MemberSelection::CollectionMeasure(
+                                    CollectionMeasure::Length
+                                )
+                            ) {
                                 self.retain_builtin_type_reference(symbols::BuiltinTypeAtom::U64)?;
                             }
-                            let (member_symbol, case_variant) = self.declared_member(member);
                             let receiver = self.lower_value(member.receiver)?;
                             Ok(self
                                 .target()
                                 .insert(typed::expression::ExpressionNode::Member(
                                     typed::expression::TableMemberExpression {
                                         receiver,
-                                        member_symbol,
+                                        selection,
                                         member: lower_name(&member.member),
                                         case_variant: case_variant.as_ref().map(lower_name),
                                     },
@@ -2500,7 +2577,8 @@ pub(crate) mod expression {
                 else {
                     return Ok(());
                 };
-                let selected = member.member_symbol;
+                let selection = member.selection;
+                let selected = selection.field_symbol();
                 let fail = |reason: &str| {
                     diagnostics::Diagnostic::error(format!(
                         "authored member selection on expression {expression:?}: {reason}"
@@ -2533,6 +2611,20 @@ pub(crate) mod expression {
                     .get(occurrence)
                     .ok_or_else(|| fail("lost its selected occurrence"))?;
                 let target = row.target();
+                if let typed_trees::expression::MemberSelection::CollectionMeasure(measure) =
+                    selection
+                {
+                    let expected = measure.intrinsic();
+                    return match target {
+                        Target::Intrinsic(actual) if actual == expected => Ok(()),
+                        Target::LateBound(Binding::CheckedMember) => program
+                            .finalize_authored_intrinsic_selection(occurrence, Binding::CheckedMember, expected)
+                            .map_err(|error| diagnostics::Diagnostic::error(format!(
+                                "authored collection selection {occurrence:?} on expression {expression:?} could not be completed: {error:?}"
+                            ))),
+                        _ => Err(fail("changes its selected collection observation")),
+                    };
+                }
                 match target {
                     Target::LateBound(Binding::CheckedMember) | Target::Resolved(_) => {}
                     Target::Intrinsic(_) if !selected.is_valid() => return Ok(()),
@@ -2600,6 +2692,44 @@ pub(crate) mod expression {
             }
 
             impl ExpressionTableLowerer<'_, '_, '_> {
+                pub(crate) fn selected_member(
+                    &self,
+                    member: &TableMemberExpression,
+                ) -> (
+                    typed_trees::expression::MemberSelection,
+                    Option<resolved::name::DiagnosticName>,
+                ) {
+                    use language_semantics::declaration_selection::CollectionMeasure;
+                    use typed_trees::expression::MemberSelection;
+                    let (field, case) = self.declared_member(member);
+                    if field.is_valid() {
+                        return (MemberSelection::Field(field), case);
+                    }
+                    // A same-spelled nominal field keeps its exact selection.
+                    // Only an actual builtin collection type gives this
+                    // observation its meaning; unknown receivers stay unresolved.
+                    let collection = self.program.is_some_and(|program| {
+                        declared_type(program, self.source, member.receiver, 0).is_some_and(
+                            |reference| {
+                                matches!(
+                                    peel(program, reference),
+                                    TypeReference::Slice(_) | TypeReference::FixedArray(_)
+                                )
+                            },
+                        )
+                    });
+                    let selected = if collection
+                        && case.is_none()
+                        && CollectionMeasure::from_authored_spelling(member.member.as_str())
+                            == Some(CollectionMeasure::Length)
+                    {
+                        MemberSelection::CollectionMeasure(CollectionMeasure::Length)
+                    } else {
+                        MemberSelection::Unresolved
+                    };
+                    (selected, case)
+                }
+
                 pub(crate) fn declared_member(
                     &self,
                     member: &TableMemberExpression,
@@ -2705,7 +2835,15 @@ pub(crate) mod expression {
                 }
                 match expressions.expression(expression) {
                     ExpressionNode::Name(path) => {
-                        inferred_capture_type(program, expressions, path.symbol, depth)
+                        if path.reserved_result_of.is_valid() {
+                            // A result guarantee describes its exact owning
+                            // callable's return type, not a captured local. This
+                            // also keeps ordinary result fields ahead of builtin
+                            // collection measurements in member selection.
+                            declared_call_return(program, path.reserved_result_of)
+                        } else {
+                            inferred_capture_type(program, expressions, path.symbol, depth)
+                        }
                     }
                     ExpressionNode::Call(call) => {
                         if callee_is_value(program, expressions, call.callee) {
@@ -3167,7 +3305,9 @@ pub(crate) mod expression {
                         program.expression_table.insert(ExpressionNode::Member(
                             TableMemberExpression {
                                 receiver,
-                                member_symbol,
+                                selection: typed_trees::expression::MemberSelection::Field(
+                                    member_symbol,
+                                ),
                                 member: "value".into(),
                                 case_variant: None,
                             },
@@ -3263,7 +3403,7 @@ pub(crate) mod expression {
                     else {
                         panic!("member")
                     };
-                    member.member_symbol = fields[2];
+                    member.selection = typed_trees::expression::MemberSelection::Field(fields[2]);
                     assert!(
                         finalize_authored_member_selection(&mut program, expressions[0])
                             .unwrap_err()
@@ -3275,10 +3415,25 @@ pub(crate) mod expression {
                     else {
                         panic!("member")
                     };
-                    member.member_symbol = SymbolHandle::from_parts(
-                        fields[0].arena_index(),
-                        fields[0].generation() + 1,
+                    member.selection = typed_trees::expression::MemberSelection::CollectionMeasure(
+                        language_semantics::declaration_selection::CollectionMeasure::Length,
                     );
+                    assert!(
+                        finalize_authored_member_selection(&mut program, expressions[0])
+                            .unwrap_err()
+                            .message
+                            .contains("changes its selected collection observation")
+                    );
+                    let ExpressionNode::Member(member) =
+                        program.expression_table.expression_mut(expressions[0])
+                    else {
+                        panic!("member")
+                    };
+                    member.selection =
+                        typed_trees::expression::MemberSelection::Field(SymbolHandle::from_parts(
+                            fields[0].arena_index(),
+                            fields[0].generation() + 1,
+                        ));
                     assert!(
                         finalize_authored_member_selection(&mut program, expressions[0])
                             .unwrap_err()
@@ -3290,7 +3445,7 @@ pub(crate) mod expression {
                     else {
                         panic!("member")
                     };
-                    member.member_symbol = SymbolHandle::invalid();
+                    member.selection = typed_trees::expression::MemberSelection::Unresolved;
                     finalize_authored_member_selection(&mut program, expressions[1]).unwrap();
                     assert_eq!(
                         program
@@ -3365,10 +3520,7 @@ pub(crate) mod expression {
                             return Ok(None);
                         }
                     }
-                    self.finalize_synthesized_equatable_call_selection(
-                        expression,
-                        call.target_symbol,
-                    )?;
+                    self.finalize_generated_call_selection(expression, call.target_symbol)?;
                     let observed_operand = |operand| match self.source.expression(operand) {
                         resolved::expression::ExpressionNode::Borrow(borrow)
                             if borrow.access == language_semantics::ReferenceAccess::Shared =>
@@ -3401,66 +3553,6 @@ pub(crate) mod expression {
                             },
                         ),
                     )))
-                }
-
-                fn finalize_synthesized_equatable_call_selection(
-                    &mut self,
-                    expression: resolved::expression::ExpressionHandle,
-                    synthesized_target: symbols::SymbolHandle,
-                ) -> Result<(), Diagnostic> {
-                    let occurrences = self
-            .source
-            .authored_selection_occurrences(expression)
-            .filter(|occurrence| {
-                self.target_trees
-                    .authored_declaration_selections()
-                    .get(*occurrence)
-                    .is_some_and(|selection| {
-                        selection.kind()
-                            == language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call
-                    })
-            })
-            .collect::<Vec<_>>();
-                    let [occurrence] = occurrences.as_slice() else {
-                        return Err(Diagnostic::error(format!(
-                            "authored synthesized equality call retains {} call selections; expected one",
-                            occurrences.len()
-                        )));
-                    };
-
-                    let mut selections =
-                        self.target_trees.authored_declaration_selections().clone();
-                    let selection = selections.get(*occurrence).ok_or_else(|| {
-                        Diagnostic::error(
-                            "authored synthesized equality call lost its selection custody",
-                        )
-                    })?;
-                    match selection.target() {
-            language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::LateBound(
-                language_semantics::declaration_selection::AuthoredDeclarationSelectionLateBinding::CheckedCall,
-            ) => selections
-                .finalize_late_bound(
-                    *occurrence,
-                    language_semantics::declaration_selection::AuthoredDeclarationSelectionLateBinding::CheckedCall,
-                    synthesized_target,
-                )
-                .map_err(|error| {
-                    Diagnostic::error(format!(
-                        "failed to bind authored synthesized equality call: {error:?}"
-                    ))
-                })?,
-            language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(
-                target,
-            ) if target.selected_symbol() == synthesized_target => {}
-            _ => {
-                return Err(Diagnostic::error(
-                    "authored synthesized equality call retains contradictory selection custody",
-                ));
-            }
-                    }
-                    self.target_trees
-                        .retain_authored_declaration_selections(selections);
-                    Ok(())
                 }
 
                 pub(crate) fn try_lower_structural_equality(
@@ -4157,7 +4249,7 @@ pub(crate) mod expression {
                         .insert(typed::expression::ExpressionNode::Member(
                             typed::expression::TableMemberExpression {
                                 receiver: place,
-                                member_symbol: field.symbol,
+                                selection: typed::expression::MemberSelection::Field(field.symbol),
                                 member: lower_name(&field.name),
                                 case_variant: case_variant.map(|variant| lower_name(&variant.name)),
                             },

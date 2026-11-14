@@ -1,6 +1,7 @@
 // Expected exit: 70
 use omega_language_std::console;
-use omega::language::core::nat;
+use omega::language::core::Nat;
+use omega::language::core::saturating_sub;
 machine selected_identity<machine Modulus>(value: Nat) -> Nat
 requires machine Modulus(value: Nat) -> Nat terminates;
 requires core::Identity<Nat>(saturating_sub(Modulus(value), value), Nat::Zero)

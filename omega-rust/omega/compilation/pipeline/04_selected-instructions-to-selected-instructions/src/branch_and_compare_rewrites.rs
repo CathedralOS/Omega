@@ -18,9 +18,9 @@ pub(crate) mod constant_boolean {
         use register_environment::ValidatedTargetRegisterEnvironment;
         use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
         use selected_instructions::{
-            MachineSemanticKind, SelectedInstruction, SelectedInstructionId,
-            SelectedInstructionKind, SelectedInstructionProvenance, SelectedOperand,
-            ValidatedMachineEffectCatalog, VirtualRegisterId,
+            MachineSemanticKind, PreparedMachineEffectCatalog, SelectedInstruction,
+            SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance,
+            SelectedOperand, VirtualRegisterId,
         };
         use semantic_vocabulary::IntegerValue;
 
@@ -62,7 +62,7 @@ pub(crate) mod constant_boolean {
             function_index: usize,
             materialization: SelectedInstructionId,
             environment: &'source ValidatedTargetRegisterEnvironment,
-            effect_catalog: &ValidatedMachineEffectCatalog,
+            effect_catalog: &PreparedMachineEffectCatalog,
             budget: OptimizationWorkBudget,
         ) -> Result<Admission<'source>, ConstantBooleanError> {
             let plan = source.selected_plan();
@@ -506,7 +506,7 @@ pub(crate) mod constant_boolean {
     pub(crate) mod rewrite {
         use optimization_core::OptimizationWorkBudget;
         use register_environment::ValidatedTargetRegisterEnvironment;
-        use selected_instructions::{SelectedInstructionId, ValidatedMachineEffectCatalog};
+        use selected_instructions::{PreparedMachineEffectCatalog, SelectedInstructionId};
 
         use super::{ConstantBooleanError, ValidatedConstantBoolean, admission};
         use crate::ValidatedSelectedAnalysis;
@@ -516,7 +516,7 @@ pub(crate) mod constant_boolean {
             function_index: usize,
             materialization: SelectedInstructionId,
             environment: &ValidatedTargetRegisterEnvironment,
-            effect_catalog: &ValidatedMachineEffectCatalog,
+            effect_catalog: &PreparedMachineEffectCatalog,
             budget: OptimizationWorkBudget,
         ) -> Result<ValidatedConstantBoolean, ConstantBooleanError> {
             let admitted = admission::admit(
@@ -675,9 +675,9 @@ pub(crate) mod constant_branch {
         use register_environment::ValidatedTargetRegisterEnvironment;
         use register_model::{RegisterInstructionConstraint, RegisterUnitId};
         use selected_instructions::{
-            SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
-            SelectedInstructionProvenance, SelectedSuccessor, SelectedTerminator,
-            ValidatedMachineEffectCatalog, terminator_instruction,
+            PreparedMachineEffectCatalog, SelectedInstruction, SelectedInstructionId,
+            SelectedInstructionKind, SelectedInstructionProvenance, SelectedSuccessor,
+            SelectedTerminator, terminator_instruction,
         };
 
         use super::ConstantBranchError;
@@ -716,7 +716,7 @@ pub(crate) mod constant_branch {
             function_index: usize,
             branch: SelectedInstructionId,
             environment: &'source ValidatedTargetRegisterEnvironment,
-            effect_catalog: &ValidatedMachineEffectCatalog,
+            effect_catalog: &PreparedMachineEffectCatalog,
             budget: OptimizationWorkBudget,
         ) -> Result<Admission<'source>, ConstantBranchError> {
             let plan = source.selected_plan();
@@ -1151,7 +1151,7 @@ pub(crate) mod constant_branch {
     pub(crate) mod rewrite {
         use optimization_core::OptimizationWorkBudget;
         use register_environment::ValidatedTargetRegisterEnvironment;
-        use selected_instructions::{SelectedInstructionId, ValidatedMachineEffectCatalog};
+        use selected_instructions::{PreparedMachineEffectCatalog, SelectedInstructionId};
 
         use super::{ConstantBranchError, ValidatedConstantBranch, admission};
         use crate::ValidatedSelectedAnalysis;
@@ -1161,7 +1161,7 @@ pub(crate) mod constant_branch {
             function_index: usize,
             branch: SelectedInstructionId,
             environment: &ValidatedTargetRegisterEnvironment,
-            effect_catalog: &ValidatedMachineEffectCatalog,
+            effect_catalog: &PreparedMachineEffectCatalog,
             budget: OptimizationWorkBudget,
         ) -> Result<ValidatedConstantBranch, ConstantBranchError> {
             let admitted = admission::admit(

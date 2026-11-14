@@ -91,7 +91,7 @@ and norm, and RMS to 1e-7 absolute. Orthogonality and determinant errors must be
 at most 1e-8. Geometry is also recomputed from the emitted R and t. All outputs,
 stderr and exit statuses are captured. Exit parity alone is insufficient.
 
-`intended_invalid/` is a separate complete source-invalid control. Its coordinate
+`../invalid_rigid_point_registration_intended/` is a separate complete source-invalid control. Its coordinate
 helper accesses a 48-element source array through an unconstrained index and
 must fail for `cannot prove index` and `within length 48`, not an admission,
 typing or cast error.
@@ -108,8 +108,8 @@ retain all genuine authority and custody checks.
 
 ```sh
 sample=samples/cli/independent/rigid_point_registration
-omega update --project "$sample" --target linux_x86_64
-omega update --resume --project "$sample"
+omega packages update --project "$sample" --target linux_x86_64
+omega packages update --resume --project "$sample"
 omega --target linux_x86_64 "$sample/main.omg"
 python3 -B "$sample/validation/validate.py" "$sample/build/omega-program" --output build/w211-native
 omega --check --target linux_x86_64 "$sample/intended_invalid/main.omg"

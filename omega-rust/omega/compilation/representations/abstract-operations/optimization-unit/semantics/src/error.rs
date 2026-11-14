@@ -347,7 +347,6 @@ pub enum OptimizationUnitValidationError {
         obligation: semantic_vocabulary::ObligationId,
     },
     AcceptedObligationFactIndexMismatch,
-    ProofQuestionIndexMismatch,
     OwnershipFrontierFactIndexMismatch,
     CurrentValueRangeFactMismatch,
     CurrentValueRangeFactNotApplicable(OperationSite),

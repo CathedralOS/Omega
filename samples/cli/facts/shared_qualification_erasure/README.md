@@ -13,15 +13,15 @@ obligation. It does not demonstrate physical initialization or retirement.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| Local descriptor | [main](local/main.omg) | [invalid](local/invalid/main.omg) |
-| Record field | [main](field/main.omg) | [invalid](field/invalid/main.omg) |
-| Parameter | [main](parameter/main.omg) | [invalid](parameter/invalid/main.omg) |
-| Call result | [main](call_result/main.omg) | [invalid](call_result/invalid/main.omg) |
-| Match join | [main](match_join/main.omg) | [invalid](match_join/invalid/main.omg) |
-| Const evaluation | [main](const_name/main.omg) | [invalid](const_name/invalid/main.omg) |
-| A nested machine | [main](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
-| Another machine | [main](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
-| Target body | [main](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
+| Local descriptor | [main](local/main.omg) | [invalid](invalid_local/main.omg) |
+| Record field | [main](field/main.omg) | [invalid](invalid_field/main.omg) |
+| Parameter | [main](parameter/main.omg) | [invalid](invalid_parameter/main.omg) |
+| Call result | [main](call_result/main.omg) | [invalid](invalid_call_result/main.omg) |
+| Match join | [main](match_join/main.omg) | [invalid](invalid_match_join/main.omg) |
+| Const evaluation | [main](const_name/main.omg) | [invalid](invalid_const_name/main.omg) |
+| A nested machine | [main](other_state/main.omg) | [invalid](invalid_other_state/main.omg) |
+| Another machine | [main](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) |
+| Target body | [main](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
 Each twin changes only the `Observed` alias from `Issued` to the independently
 routed `Other`. It must reject with `cannot mint routed provenance` at the view,

@@ -15,15 +15,15 @@ empty ceiling rejects that hidden direct service. It does not close the item.
 | Place | Positive project | Reject twin | Transport |
 | --- | --- | --- | --- |
 | root | [`main.omg`](main.omg) with [`build.omg`](build.omg) | — | the call result is a local in the entry, same shape as local |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | the call result is a local |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | the call result is stored in a record field |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | the call result arrives as a parameter |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | a call returns the boundary result |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms return the boundary result |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | the comparison uses the named constant the provider returns |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the call result |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | another machine returns the boundary result to the checker |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each target's Build row selects an ordinary implementation that performs the call |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | the call result is a local |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | the call result is stored in a record field |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | the call result arrives as a parameter |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | a call returns the boundary result |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | both match arms return the boundary result |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | the comparison uses the named constant the provider returns |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | a successor machine receives the call result |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | another machine returns the boundary result to the checker |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | each target's Build row selects an ordinary implementation that performs the call |
 
 ## Execution
 
@@ -61,15 +61,15 @@ empty ceiling.
 
 | Place | Twin | Pinned diagnostic fragment |
 | --- | --- | --- |
-| local | [`local/invalid/main.omg`](local/invalid/main.omg) | `reaches undeclared service \`Mark\`` |
-| field | [`field/invalid/main.omg`](field/invalid/main.omg) | `reaches undeclared service \`Mark\`` |
-| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | `reaches undeclared service \`Mark\`` |
-| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `reaches undeclared service \`Mark\`` |
-| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `reaches undeclared service \`Mark\`` |
-| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `reaches undeclared service \`Mark\`` |
-| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `reaches undeclared service \`Mark\`` |
-| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `reaches undeclared service \`Mark\`` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `reaches undeclared service \`Mark\`` |
+| local | [`invalid_local/main.omg`](invalid_local/main.omg) | `reaches undeclared service \`Mark\`` |
+| field | [`invalid_field/main.omg`](invalid_field/main.omg) | `reaches undeclared service \`Mark\`` |
+| parameter | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | `reaches undeclared service \`Mark\`` |
+| call result | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | `reaches undeclared service \`Mark\`` |
+| match join | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | `reaches undeclared service \`Mark\`` |
+| const name | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | `reaches undeclared service \`Mark\`` |
+| a nested machine | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | `reaches undeclared service \`Mark\`` |
+| another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | `reaches undeclared service \`Mark\`` |
+| another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | `reaches undeclared service \`Mark\`` |
 
 Before the checker change, the positive local program and its empty-ceiling
 twin both stopped in source checking with
@@ -266,7 +266,7 @@ worktree-bound build receipt retains exact input blobs and profile queries.
   and native/Terminal agreement. This includes all original and new transported
   positives and the executable contract probes. Package acceptance round-trip
   behavior remains separately required by the parent task.
-- `omega audit packages --project contracts/declared_slack --details` after
+- `omega packages audit --project contracts/declared_slack --details` after
   ordinary project review reports `requires-review false`. Its fresh policy
   retains published Mark + Unused, checked Mark, and one ConsumerAudit Unused
   slack finding. Accepted lock data is historical; the fresh findings supply

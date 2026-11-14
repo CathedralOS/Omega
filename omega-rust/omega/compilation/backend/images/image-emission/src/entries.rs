@@ -3038,6 +3038,7 @@ pub(crate) mod hosted_receiver {
             .map(|replay| replay.terminal_module())
             .ok_or_else(invalid)?;
         if !physical_contract_matches(&binding.physical, artifact.target)
+            || artifact.profile != Some(binding.physical.target_slot().owner)
             || binding.physical.target_slot() != binding.source.target_slot()
             || binding.physical.target_slot().owner.native_target() != artifact.target
             || crate::derive_stack_demand(artifact, artifact.entry).map_err(|_| invalid())?
@@ -4693,6 +4694,7 @@ pub(crate) mod physical_entry {
             installed_reserve: u64,
         ) -> Result<PhysicalEntryRequirements, Diagnostic> {
             if contract.target_slot().owner != target::TargetProfile::UefiX64
+                || artifact.profile != Some(contract.target_slot().owner)
                 || contract.target_slot().owner.native_target() != artifact.target()
             {
                 return Err(invalid(
@@ -5244,6 +5246,7 @@ pub(crate) mod physical_entry {
             invalid("physical entry contract has no numeric arrival-stack requirement")
         })?;
         if contract.target_slot().owner != target::TargetProfile::UefiX64
+            || artifact.profile != Some(contract.target_slot().owner)
             || contract.boundary_entry_plan() != physical
         {
             return Err(invalid("physical entry changed its selected UEFI contract"));
@@ -5949,7 +5952,7 @@ pub(crate) mod private_entry_origin {
                 body.entry(),
                 body.psi(),
                 body.target(),
-                body.x86_feature_profile(),
+                body.profile(),
                 body.installed_entry_execution().map(|execution| (
                     execution.entry().callback_function,
                     execution.scope().operation(),

@@ -61,7 +61,7 @@ mod calls {
             }
             let (_, receiver_symbol) = resolve_expression_table_receiver_path_symbols(
                 symbols,
-                machine.symbol,
+                machine,
                 state_symbol,
                 expression_table,
                 call.receiver,
@@ -196,6 +196,13 @@ pub(in crate::symbols) mod projected_receivers {
                 },
             }
         }
+    }
+
+    pub(in crate::symbols) fn declared_nominal(
+        reference: &TypeReference,
+        children: &Arena<TypeReference>,
+    ) -> Option<SymbolHandle> {
+        ReceiverType::Declared(reference).nominal(children)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -357,6 +364,7 @@ pub(in crate::symbols) mod projected_receivers {
 }
 mod receivers {
 
+    use super::super::scope::MachineScope;
     use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
     use super::super::lookup::{
@@ -428,7 +436,7 @@ mod receivers {
 
     pub(in crate::symbols) fn resolve_expression_table_member_symbol(
         symbols: &SymbolTable,
-        machine_symbol: SymbolHandle,
+        machine: &MachineScope<'_>,
         state_symbol: SymbolHandle,
         expression_table: &symbol_resolved_trees::expression::ExpressionTable,
         receiver: symbol_resolved_trees::expression::ExpressionHandle,
@@ -446,7 +454,7 @@ mod receivers {
         }
         let (_, receiver_symbol) = receiver_path_symbols(
             symbols,
-            machine_symbol,
+            machine,
             state_symbol,
             expression_table,
             receiver,
@@ -467,14 +475,14 @@ mod receivers {
     /* Resolve a receiver expression to its lexical head and selected leaf. */
     pub(in crate::symbols) fn resolve_expression_table_receiver_path_symbols(
         symbols: &SymbolTable,
-        machine_symbol: SymbolHandle,
+        machine: &MachineScope<'_>,
         state_symbol: SymbolHandle,
         expression_table: &symbol_resolved_trees::expression::ExpressionTable,
         receiver: symbol_resolved_trees::expression::ExpressionHandle,
     ) -> (SymbolHandle, SymbolHandle) {
         receiver_path_symbols(
             symbols,
-            machine_symbol,
+            machine,
             state_symbol,
             expression_table,
             receiver,
@@ -494,7 +502,7 @@ mod receivers {
     */
     fn receiver_path_symbols(
         symbols: &SymbolTable,
-        machine_symbol: SymbolHandle,
+        machine: &MachineScope<'_>,
         state_symbol: SymbolHandle,
         expression_table: &symbol_resolved_trees::expression::ExpressionTable,
         receiver: symbol_resolved_trees::expression::ExpressionHandle,
@@ -505,16 +513,30 @@ mod receivers {
             ExpressionNode::SavedSubject(saved) if indexed_last_member.is_none() => {
                 receiver_path_symbols(
                     symbols,
-                    machine_symbol,
+                    machine,
                     state_symbol,
                     expression_table,
                     saved.pattern_head,
                     None,
                 )
             }
+            ExpressionNode::Name(path) if path.reserved_result_of.is_valid() => {
+                // The ordinary result name has no value symbol. Its exact
+                // contract owner and declared type select this nominal root.
+                let result = machine.contract_result_data;
+                if path.reserved_result_of == state_symbol
+                    && indexed_last_member.is_none()
+                    && result.is_valid()
+                    && symbols.get(result).kind == SymbolKind::Data
+                {
+                    (state_symbol, result)
+                } else {
+                    invalid_symbol_pair()
+                }
+            }
             ExpressionNode::Name(path) => resolve_state_scoped_table_path(
                 symbols,
-                machine_symbol,
+                machine.symbol,
                 state_symbol,
                 expression_table,
                 path,
@@ -523,7 +545,7 @@ mod receivers {
             ExpressionNode::Member(member) => {
                 let (head_symbol, receiver_symbol) = receiver_path_symbols(
                     symbols,
-                    machine_symbol,
+                    machine,
                     state_symbol,
                     expression_table,
                     member.receiver,
@@ -563,7 +585,7 @@ mod receivers {
             }
             ExpressionNode::Borrow(inner) => receiver_path_symbols(
                 symbols,
-                machine_symbol,
+                machine,
                 state_symbol,
                 expression_table,
                 inner.target,
@@ -580,7 +602,7 @@ mod receivers {
 
                 receiver_path_symbols(
                     symbols,
-                    machine_symbol,
+                    machine,
                     state_symbol,
                     expression_table,
                     indexed.collection,

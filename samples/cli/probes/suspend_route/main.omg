@@ -19,7 +19,6 @@
 // Compile-checked only: suspending machines never run here — the
 // probe exercises declaration and reach accounting.
 
-use omega::language::core::task;
 
 public boundary data Sleeper;
 

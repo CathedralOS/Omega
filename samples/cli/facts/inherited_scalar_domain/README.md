@@ -11,15 +11,15 @@ predicate. `const HELD: u64 in Nested::Inherited = 3` exits 0. Initializer
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| local | [local/main.omg](local/main.omg) | [invalid](local/invalid/main.omg) |
-| field | [field/main.omg](field/main.omg) | [invalid](field/invalid/main.omg) |
-| parameter | [parameter/main.omg](parameter/main.omg) | [invalid](parameter/invalid/main.omg) |
-| call_result | [call_result/main.omg](call_result/main.omg) | [invalid](call_result/invalid/main.omg) |
-| match_join | [match_join/main.omg](match_join/main.omg) | [invalid](match_join/invalid/main.omg) |
-| const_name | [const_name/main.omg](const_name/main.omg) | [invalid](const_name/invalid/main.omg) |
-| other_state | [other_state/main.omg](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
-| other_machine | [other_machine/main.omg](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
-| target_body | [target_body/main.omg](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
+| local | [local/main.omg](local/main.omg) | [invalid](invalid_local/main.omg) |
+| field | [field/main.omg](field/main.omg) | [invalid](invalid_field/main.omg) |
+| parameter | [parameter/main.omg](parameter/main.omg) | [invalid](invalid_parameter/main.omg) |
+| call_result | [call_result/main.omg](call_result/main.omg) | [invalid](invalid_call_result/main.omg) |
+| match_join | [match_join/main.omg](match_join/main.omg) | [invalid](invalid_match_join/main.omg) |
+| const_name | [const_name/main.omg](const_name/main.omg) | [invalid](invalid_const_name/main.omg) |
+| other_state | [other_state/main.omg](other_state/main.omg) | [invalid](invalid_other_state/main.omg) |
+| other_machine | [other_machine/main.omg](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) |
+| target_body | [target_body/main.omg](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
 - Establishment: `Small` proves `self < 5`. `Nested` requires that membership.
   `Nested::Inherited` adds the parent membership, so a destination qualified

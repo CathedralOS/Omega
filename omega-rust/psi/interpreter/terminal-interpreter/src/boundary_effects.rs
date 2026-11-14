@@ -8,7 +8,7 @@
 */
 
 pub(crate) mod boundary_predicates {
-    use proof_admission::{ClosedIntegerEvaluationError, ClosedIntegerEvaluator};
+    use proof_admission::ClosedIntegerEvaluator;
     use semantic_vocabulary::{
         CanonicalStructuralPathSegment, IntegerMathTerm, IntegerValue, PlaceId, Proposition,
         PropositionContext, ScalarReadProjection, ScalarTerm, ScalarType, StructuralPlaceKind,
@@ -127,36 +127,17 @@ pub(crate) mod boundary_predicates {
             predicate: &Proposition,
             integers: &mut ClosedIntegerEvaluator,
         ) -> Result<Option<bool>, TerminalInterpretError> {
-            match predicate {
-                Proposition::Conjunction(children) | Proposition::Disjunction(children) => {
-                    let identity = matches!(predicate, Proposition::Conjunction(_));
-                    for child in children {
-                        match self.evaluate(child, integers)? {
-                            Some(value) if value != identity => return Ok(Some(value)),
-                            Some(_) => {}
-                            None => return Ok(None),
-                        }
-                    }
-                    Ok(Some(identity))
-                }
-                Proposition::Implication {
-                    premise,
-                    conclusion,
-                } => match self.evaluate(premise, integers)? {
-                    Some(false) => Ok(Some(true)),
-                    Some(true) => self.evaluate(conclusion, integers),
-                    None => Ok(None),
-                },
-                _ => {
-                    let mut closed = predicate.clone();
-                    self.close_predicate(&mut closed)?;
-                    closed_guard(&closed, integers).map_err(|_| {
-                        TerminalInterpretError::UnsupportedSemanticVariant(
-                            "boundary input requirement evaluation exceeds the resource limit",
-                        )
-                    })
-                }
-            }
+            // Close each leaf as the shared walk reaches it. A deciding child
+            // still skips later siblings; an unknown child does not.
+            proof_admission::closed_guard_with(predicate, |leaf| {
+                let mut closed = leaf.clone();
+                self.close_predicate(&mut closed)?;
+                closed_guard(&closed, integers).map_err(|_| {
+                    TerminalInterpretError::UnsupportedSemanticVariant(
+                        "boundary input requirement evaluation exceeds the resource limit",
+                    )
+                })
+            })
         }
 
         fn close_predicate(
@@ -388,90 +369,156 @@ pub(crate) mod boundary_predicates {
         }
     }
 
-    pub(crate) fn closed_guard(
-        proposition: &Proposition,
-        integers: &mut ClosedIntegerEvaluator,
-    ) -> Result<Option<bool>, ClosedIntegerEvaluationError> {
-        Ok(match proposition {
-            Proposition::Truth => Some(true),
-            Proposition::Falsehood => Some(false),
+    pub(crate) use proof_admission::closed_guard;
+
+    #[cfg(test)]
+    mod tests {
+        use super::{InputObservations, closed_guard};
+        use proof_admission::ClosedIntegerEvaluator;
+        use semantic_vocabulary::{
+            IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatValue, Proposition, PropositionId,
+            ScalarTerm,
+        };
+
+        fn unknown() -> Proposition {
+            Proposition::Atom(PropositionId::new(1).unwrap())
+        }
+
+        fn binary32(bits: u32) -> ScalarTerm {
+            ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary32(bits))
+        }
+
+        fn float_guard(kind: IeeeFloatComparisonKind, left: u32, right: u32) -> Proposition {
             Proposition::ScalarIeeeFloatComparison {
-                kind, left, right, ..
-            } => {
-                let (ScalarTerm::IeeeFloatLiteral(left), ScalarTerm::IeeeFloatLiteral(right)) =
-                    (left, right)
-                else {
-                    return Ok(None);
-                };
-                use semantic_vocabulary::{
-                    IeeeFloatComparisonKind as Kind, IeeeFloatComparisonOperation as Operation,
-                };
-                let (operation, negate) = match kind {
-                    Kind::Equal => (Operation::Equal, false),
-                    Kind::NotEqual => (Operation::NotEqual, false),
-                    Kind::LessThan => (Operation::Less, false),
-                    Kind::LessOrEqual => (Operation::LessOrEqual, false),
-                    Kind::NotLessThan => (Operation::Less, true),
-                    Kind::NotLessOrEqual => (Operation::LessOrEqual, true),
-                };
-                Some(
-                    crate::engine::scalar_operations::ieee_float_compare(operation, *left, *right)
-                        != negate,
+                kind,
+                format: IeeeFloatFormat::Binary32,
+                left: binary32(left),
+                right: binary32(right),
+            }
+        }
+
+        #[test]
+        fn closed_guard_keeps_a_deciding_child_beside_an_unknown_sibling() {
+            // `false && unknown` is false, and a true conclusion does not
+            // depend on an unknown premise. The interpreter walker used to
+            // stop at the first unknown.
+            let mut integers = ClosedIntegerEvaluator::default();
+            let conjunction = Proposition::Conjunction(vec![Proposition::Falsehood, unknown()]);
+            let implication = Proposition::Implication {
+                premise: Box::new(unknown()),
+                conclusion: Box::new(Proposition::Truth),
+            };
+            assert_eq!(
+                (
+                    closed_guard(&conjunction, &mut integers).unwrap(),
+                    closed_guard(&implication, &mut integers).unwrap(),
+                ),
+                (Some(false), Some(true))
+            );
+        }
+
+        #[test]
+        fn input_observations_false_conjunct_ignores_child_order() {
+            let program = crate::engine::calls::frames::tests::empty_program();
+            let execution = crate::engine::execution::TerminalExecution::start_with_program(
+                program,
+                &[],
+                crate::TerminalStructuralInputs::default(),
+                None,
+                None,
+            )
+            .unwrap();
+            let boundary = idle_boundary();
+            let observations = InputObservations {
+                execution: &execution,
+                boundary: &boundary,
+                arguments: &[],
+                values: &[],
+            };
+            let mut integers = ClosedIntegerEvaluator::default();
+            let false_then_unknown =
+                Proposition::Conjunction(vec![Proposition::Falsehood, unknown()]);
+            let unknown_then_false =
+                Proposition::Conjunction(vec![unknown(), Proposition::Falsehood]);
+            assert_eq!(
+                observations
+                    .evaluate(&false_then_unknown, &mut integers)
+                    .unwrap(),
+                Some(false)
+            );
+            assert_eq!(
+                observations
+                    .evaluate(&unknown_then_false, &mut integers)
+                    .unwrap(),
+                Some(false)
+            );
+        }
+
+        #[test]
+        fn float_guard_decides_literal_ieee_comparison() {
+            // Binary32 1.0 is less than 2.0, and a NaN is not equal to itself.
+            // Build-time admission decides these same two guards.
+            let mut integers = ClosedIntegerEvaluator::default();
+            assert_eq!(
+                closed_guard(
+                    &float_guard(IeeeFloatComparisonKind::LessThan, 0x3f80_0000, 0x4000_0000),
+                    &mut integers,
                 )
+                .unwrap(),
+                Some(true)
+            );
+            assert_eq!(
+                closed_guard(
+                    &float_guard(IeeeFloatComparisonKind::Equal, 0x7fc0_0000, 0x7fc0_0000),
+                    &mut integers,
+                )
+                .unwrap(),
+                Some(false)
+            );
+            let mismatched = Proposition::ScalarIeeeFloatComparison {
+                kind: IeeeFloatComparisonKind::LessThan,
+                format: IeeeFloatFormat::Binary32,
+                left: binary32(0x3f80_0000),
+                right: ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary64(
+                    0x4000_0000_0000_0000,
+                )),
+            };
+            assert_eq!(closed_guard(&mismatched, &mut integers).unwrap(), None);
+        }
+
+        fn idle_boundary() -> terminal_psi::BoundaryMachineDeclaration {
+            let identity = terminal_psi::TerminalIdentityIndex(0);
+            terminal_psi::BoundaryMachineDeclaration {
+                numeric_intrinsic: None,
+                normal_qualifications: Vec::new(),
+                scalar_domain_requirements: Vec::new(),
+                declaration: None,
+                role: terminal_psi::BoundaryDeclarationRole::Callable,
+                id: semantic_vocabulary::BoundaryMachineId::new(1).unwrap(),
+                kind: semantic_vocabulary::BoundaryRequirementKind::Machine,
+                completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
+                unconditional_termination: false,
+                identity,
+                owner: terminal_psi::NominalDeclarationIdentity::new(identity),
+                attachment: None,
+                parameter_order: Vec::new(),
+                scalar_parameters: Vec::new(),
+                crash_routes: Vec::new(),
+                structural_parameters: Vec::new(),
+                result: terminal_psi::BoundaryMachineResult::Unit,
+                requires: Vec::new(),
+                scalar_requires: Vec::new(),
+                scalar_ensures: Vec::new(),
+                program_local_root_introductions: Vec::new(),
+                content_guarantees: Vec::new(),
+                result_reference_regions: Vec::new(),
+                reference_outputs: Vec::new(),
+                fixed_service_reach: Vec::new(),
+                owning_service: None,
+                published_synchronous_entries: Vec::new(),
+                published_service_ceiling: Vec::new(),
             }
-            Proposition::Equal(left, right) if left.scalar_type() == ScalarType::Boolean => left
-                .boolean_value()
-                .zip(right.boolean_value())
-                .map(|(left, right)| left == right),
-            semantic_vocabulary::ordered_comparison_operands!(left, right) => {
-                let Some(((left_type, left), (right_type, right))) =
-                    left.integer_value().zip(right.integer_value())
-                else {
-                    return Ok(None);
-                };
-                if left_type != right_type {
-                    return Ok(None);
-                }
-                left_type
-                    .compare(left, right)
-                    .map(|ordering| match proposition {
-                        Proposition::Equal(..) => ordering.is_eq(),
-                        Proposition::LessThan(..) => ordering.is_lt(),
-                        _ => !ordering.is_gt(),
-                    })
-            }
-            semantic_vocabulary::integer_math_comparison_operands!(left, right) => integers
-                .compare(left, right)?
-                .map(|ordering| match proposition {
-                    Proposition::IntegerMathEqual(..) => ordering.is_eq(),
-                    Proposition::IntegerMathLessThan(..) => ordering.is_lt(),
-                    _ => !ordering.is_gt(),
-                }),
-            Proposition::Conjunction(children) | Proposition::Disjunction(children) => {
-                let conjunction = matches!(proposition, Proposition::Conjunction(_));
-                let mut value = conjunction;
-                for child in children {
-                    let Some(child) = closed_guard(child, integers)? else {
-                        return Ok(None);
-                    };
-                    value = if conjunction {
-                        value && child
-                    } else {
-                        value || child
-                    };
-                }
-                Some(value)
-            }
-            Proposition::Implication {
-                premise,
-                conclusion,
-            } => match closed_guard(premise, integers)? {
-                Some(false) => Some(true),
-                Some(true) => closed_guard(conclusion, integers)?,
-                None => None,
-            },
-            _ => None,
-        })
+        }
     }
 }
 pub(crate) mod byte_buffers {
@@ -3152,7 +3199,7 @@ pub(crate) mod scalar_loans {
                 scalar_type,
                 shared_view,
             )?;
-            let restriction = execution.captured_scalar_restriction(&storage, access)?;
+            let restriction = execution.captured_scalar_restriction(&storage, access, None)?;
             if let (Some(field), Some(encoding)) = (&restriction, storage.encoding) {
                 let source_type = field.scalar_type().ok_or_else(malformed)?;
                 let source_value = encoding.source_value(original, source_type)?;
@@ -3404,11 +3451,12 @@ pub(crate) mod scalar_loans {
             &self,
             storage: &PrimitiveStorage,
             access: StructuralAccess,
+            source_owner: Option<&TerminalStructuralValue>,
         ) -> Result<Option<StructuralFieldType>, TerminalInterpretError> {
             if let PrimitiveStorageEndpoint::Projection { fragments, .. } = &storage.endpoint {
                 for fragment in fragments {
                     if let Some(restriction) =
-                        self.captured_scalar_restriction(&fragment.storage, access)?
+                        self.captured_scalar_restriction(&fragment.storage, access, source_owner)?
                     {
                         let unrestricted = matches!(restriction,
                         StructuralFieldType::Scalar(scalar) if scalar != semantic_vocabulary::ScalarType::Boolean)
@@ -3425,7 +3473,13 @@ pub(crate) mod scalar_loans {
             let PrimitiveStorageEndpoint::ScalarField(cell) = &storage.endpoint else {
                 return Ok(None);
             };
-            let parent_type = self.actual_storage_type_from_owner(&cell.parent)?;
+            // Read-only selection can carry its authenticated retained backing
+            // root, which is no longer a flat local. A different or malformed
+            // supplied owner is an error, never a reason to try another owner.
+            let parent_type = match source_owner {
+                Some(owner) => self.actual_storage_type(owner, &cell.parent)?,
+                None => self.actual_storage_type_from_owner(&cell.parent)?,
+            };
             let declaration = self.structural_declaration(parent_type)?;
             let fields = if cell.namespace == StructuralFieldNamespace::CasePayload {
                 let case = self.structural_cases.require(&cell.parent)?;

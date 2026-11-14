@@ -45,15 +45,15 @@ actual host and producer below.
 
 | Place | Positive | Reject twin | Transport |
 | --- | --- | --- | --- |
-| local | [source](local/main.omg) | [twin](local/invalid/main.omg) | Frozen local Packet is constructed only after install, then consumed before its runtime canaries. |
-| field | [source](field/main.omg) | [twin](field/invalid/main.omg) | The completed Packet moves into Envelope.packet; consume and runtime checks project that stored Packet. |
-| parameter | [source](parameter/main.omg) | [twin](parameter/invalid/main.omg) | The completed Packet moves into accept(packet: Packet), whose own entry requires the full current/previous fact before consume. |
-| call_result | [source](call_result/main.omg) | [twin](call_result/invalid/main.omg) | produce returns the post-install Packet with all four current/previous facts in Ensures; the call result is consumed. Its marker is checked only at runtime. |
-| match_join | [source](match_join/main.omg) | [twin](match_join/invalid/main.omg) | selected_packet joins completed produce(11)/produce(13) results and publishes all four current/previous facts. Main executes and consumes both arms, checking distinct markers only at runtime. |
-| const_name | [source](const_name/main.omg) | [twin](const_name/invalid/main.omg) | FIRST names exactly 7 in the concrete [FIRST,4] install argument. The completed runtime Packet is ordinary storage, not a runtime constant. |
-| other_state | [source](other_state/main.omg) | [twin](other_state/invalid/main.omg) | main terminal-transfers the completed Packet to a genuinely nested accept machine with its own full fact requirement; the nested body consumes before canaries. |
-| other_machine | [source](other_machine/main.omg) | [twin](other_machine/invalid/main.omg) | A separate forward machine receives the completed Packet and returns it with all four current/previous facts in Ensures. Its stored marker is checked only at runtime. |
-| target_body | [source](target_body/main.omg) | [twin](target_body/invalid/main.omg) | Build selects an ordinary HostedPacketBody implementation for all four targets. Its producer performs the real install and returns the completed Packet with all four current/previous facts; its marker is checked only at runtime. |
+| local | [source](local/main.omg) | [twin](invalid_local/main.omg) | Frozen local Packet is constructed only after install, then consumed before its runtime canaries. |
+| field | [source](field/main.omg) | [twin](invalid_field/main.omg) | The completed Packet moves into Envelope.packet; consume and runtime checks project that stored Packet. |
+| parameter | [source](parameter/main.omg) | [twin](invalid_parameter/main.omg) | The completed Packet moves into accept(packet: Packet), whose own entry requires the full current/previous fact before consume. |
+| call_result | [source](call_result/main.omg) | [twin](invalid_call_result/main.omg) | produce returns the post-install Packet with all four current/previous facts in Ensures; the call result is consumed. Its marker is checked only at runtime. |
+| match_join | [source](match_join/main.omg) | [twin](invalid_match_join/main.omg) | selected_packet joins completed produce(11)/produce(13) results and publishes all four current/previous facts. Main executes and consumes both arms, checking distinct markers only at runtime. |
+| const_name | [source](const_name/main.omg) | [twin](invalid_const_name/main.omg) | FIRST names exactly 7 in the concrete [FIRST,4] install argument. The completed runtime Packet is ordinary storage, not a runtime constant. |
+| other_state | [source](other_state/main.omg) | [twin](invalid_other_state/main.omg) | main terminal-transfers the completed Packet to a genuinely nested accept machine with its own full fact requirement; the nested body consumes before canaries. |
+| other_machine | [source](other_machine/main.omg) | [twin](invalid_other_machine/main.omg) | A separate forward machine receives the completed Packet and returns it with all four current/previous facts in Ensures. Its stored marker is checked only at runtime. |
+| target_body | [source](target_body/main.omg) | [twin](invalid_target_body/main.omg) | Build selects an ordinary HostedPacketBody implementation for all four targets. Its producer performs the real install and returns the completed Packet with all four current/previous facts; its marker is checked only at runtime. |
 
 Pins: tests/omega/pass/facts/owned_array_field_replacement_<place>_exit and
  tests/omega/fail/facts/owned_array_field_replacement_<place>_rejected.

@@ -1,5 +1,5 @@
 use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega::language::core::I64::from_f64;
 
 // Decimal integer fields represent trillionths, truncated toward zero. The
 // external oracle requires absolute numerical error at most 1e-9.

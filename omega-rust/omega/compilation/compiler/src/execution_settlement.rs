@@ -60,9 +60,17 @@ impl SelectedProductTarget {
     // Checking one target on its own: the accepted program is produced, its
     // target-local conditions and task activations are checked, and the
     // checked compilation is sealed.
-    pub(crate) fn finish_check(mut self) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-        let terminal = crate::terminal::check_terminal_conditions(&mut self.custody)?;
-        self.check_declaration_requirements(terminal.module())?;
+    pub(crate) fn finish_check(mut self) -> Result<CheckedCompilation, CompileFailure> {
+        let checked = (|| -> Result<(), Vec<Diagnostic>> {
+            let terminal = crate::terminal::check_terminal_conditions(&mut self.custody)?;
+            self.check_declaration_requirements(terminal.module())
+        })();
+        if let Err(diagnostics) = checked {
+            return Err(CompileFailure::source_completion(
+                diagnostics,
+                self.custody.source_completion_accounting,
+            ));
+        }
         self.into_checked_compilation()
     }
 
@@ -71,18 +79,24 @@ impl SelectedProductTarget {
         module: &terminal_psi::TerminalModule,
     ) -> Result<(), Vec<Diagnostic>> {
         let execution = &self.custody.execution;
+        if module.task_activation_demands.demands.is_empty() {
+            return Ok(());
+        }
+        let profile = execution.target_profile().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "task activation requires an explicit deployment target",
+            )]
+        })?;
         task_plans::realize_task_activations(
             &module.task_activation_demands,
             &module.identities,
             execution.plans(),
-            execution
-                .target_profile()
-                .unwrap_or_else(target::TargetProfile::host),
+            profile,
         )?;
         Ok(())
     }
 
-    pub(crate) fn into_checked_compilation(self) -> Result<CheckedCompilation, Vec<Diagnostic>> {
+    pub(crate) fn into_checked_compilation(self) -> Result<CheckedCompilation, CompileFailure> {
         let SelectedProviderCustody {
             terminal_publication,
             source_completion_accounting,
@@ -104,6 +118,9 @@ impl SelectedProductTarget {
             timings,
             terminal_publication,
         )
+        .map_err(|diagnostics| {
+            CompileFailure::source_completion(diagnostics, source_completion_accounting.clone())
+        })
         .map(|checked| checked.with_source_completion_accounting(source_completion_accounting))
     }
 }
@@ -166,7 +183,27 @@ fn settle_execution(
 ) -> Result<SelectedExecution, Vec<Diagnostic>> {
     use provider_planning::target_supply::{TargetSupplyRealizationRequest, realize_target_supply};
     let accepted = source.terminal_publication.accepted()?;
-    let target = profile.unwrap_or_else(target::TargetProfile::host);
+    let Some(target) = profile else {
+        let roots = source
+            .terminal_publication
+            .roster()?
+            .entries
+            .iter()
+            .map(|symbol| {
+                accepted.machine_of(*symbol).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "unscoped source lost its actual invocation root",
+                    )]
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let realization = provider_planning::target_supply::RealizedTargetSupply::unscoped(
+            accepted.module(),
+            &roots,
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        return SelectedExecution::from_realization(None, realization);
+    };
     let mut bindings = Vec::new();
     let mut execution_inputs = None::<(
         Vec<semantic_vocabulary::BoundaryMachineId>,
@@ -227,9 +264,7 @@ pub(crate) struct SelectedCompileOutcome {
 impl SelectedCompileOutcome {
     pub(crate) fn finish_check(self) -> CheckedCompileOutcome {
         CheckedCompileOutcome {
-            result: self
-                .result
-                .and_then(|selected| selected.finish_check().map_err(CompileFailure::from)),
+            result: self.result.and_then(SelectedProductTarget::finish_check),
             independent_components: self.independent_components,
         }
     }
@@ -242,7 +277,12 @@ pub(crate) fn select_product_target(
     SelectedCompileOutcome {
         result: prepared
             .and_then(|prepared| SelectedProductTarget::select(source, prepared))
-            .map_err(CompileFailure::from),
+            .map_err(|diagnostics| {
+                CompileFailure::source_completion(
+                    diagnostics,
+                    source.source_completion_accounting.clone(),
+                )
+            }),
         independent_components: source.computed_build_config.independent_components(),
         tests: Vec::new(),
         test_notes: Vec::new(),

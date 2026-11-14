@@ -173,7 +173,7 @@ pub(super) fn settle_compiler_builtins<'request>(
                 let scalar = semantic_vocabulary::IntegerType::address(64)
                     .map(semantic_vocabulary::ScalarType::Integer)
                     .map_err(|_| vec![Diagnostic::error("invalid target address carrier")])?;
-                if request.target() != target::NativeTarget::uefi_x64()
+                if request.profile != target::TargetProfile::UefiX64
                     || !boundary.scalar_parameters.is_empty()
                     || !boundary.structural_parameters.is_empty()
                     || boundary.result != terminal_psi::BoundaryMachineResult::Scalar(scalar.into())

@@ -44,15 +44,15 @@ provider issuance, cross-owner boundary custody and Cathedral remain open.
 | Place | Positive | Reject twin | Transport |
 | --- | --- | --- | --- |
 | root | [`main.omg`](main.omg) | — | several reunion shapes in one program |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | the descendant claims are locals |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | the parts live in a record field |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | `observe` receives the reunited region |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `deliver` returns the reunited region |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both arms reconstruct the root |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `BASE` and `LENGTH` name the bound |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine reconstructs the root |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `forward` reconstructs and `rejoin` forwards |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target bodies reconstructs |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | the descendant claims are locals |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | the parts live in a record field |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | `observe` receives the reunited region |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | `deliver` returns the reunited region |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | both arms reconstruct the root |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | `BASE` and `LENGTH` name the bound |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | a successor machine reconstructs the root |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | `forward` reconstructs and `rejoin` forwards |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | each of four target bodies reconstructs |
 
 ## Execution
 
@@ -161,7 +161,7 @@ require that exact correspondence and refuse unsupported multi-origin substituti
 without consuming inputs or publishing a qualification.
 
 The disposal finisher exposed a canonical-artifact mismatch: native and Terminal
-execution returned 0, while `inspect-terminal` rejected the retained `program.oterm`
+execution returned 0, while `psi inspect` rejected the retained `program.oterm`
 because the disposed tail had no returned claim origin. Terminal ancestry now
 accounts for exact nominal disposal separately from returned origins. Its bounded
 replay follows the complete claim frontier on every normal path and accepts only

@@ -15,7 +15,7 @@ trap 'rm -rf -- "$INVARIANT_TMP"' EXIT HUP INT TERM
 materialize_epsilon_evaluator "$INVARIANT_TMP/epsilon_compiler.delta"
 materialize_delta_compiler "$INVARIANT_TMP/delta_compiler.gamma"
 materialize_delta_support "$INVARIANT_TMP/support.bin"
-python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+bootstrap_xtask source-closure \
     "$GATE_DIR/runtime_invariants.delta.sources" "$INVARIANT_TMP/controls.delta"
 materialize_gamma_evaluator "$INVARIANT_TMP/evaluator" >/dev/null
 

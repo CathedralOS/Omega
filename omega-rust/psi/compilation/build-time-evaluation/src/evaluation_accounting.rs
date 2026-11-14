@@ -41,7 +41,9 @@ mod canonical_scalar {
     #[derive(Debug, Clone, Record)]
     pub(crate) struct CanonicalScalarScope {
         artifact: RecordedArtifact,
-        target: String,
+        // Replay must preserve unscoped evaluation instead of substituting
+        // whichever deployment happens to host the reader.
+        target: Option<String>,
         providers: Vec<ProviderInstallationSelection>,
         assumptions: Vec<AssumedBindingSelection>,
         carrier_layout: Option<semantic_vocabulary::TargetCarrierLayout>,
@@ -50,7 +52,7 @@ mod canonical_scalar {
     impl CanonicalScalarScope {
         pub(crate) fn capture(
             artifact: &Arc<CanonicalTerminalArtifact>,
-            target: &str,
+            target: Option<&str>,
             providers: &terminal_installation::AdmittedProviderSelections,
             carrier_layout: Option<semantic_vocabulary::TargetCarrierLayout>,
         ) -> Result<Arc<Self>, String> {
@@ -92,7 +94,7 @@ mod canonical_scalar {
                 .collect();
             Ok(Arc::new(Self {
                 artifact: RecordedArtifact(Arc::clone(artifact)),
-                target: target.to_owned(),
+                target: target.map(str::to_owned),
                 providers: selections,
                 assumptions,
                 carrier_layout,
@@ -135,8 +137,8 @@ mod canonical_scalar {
         pub fn artifact(&self) -> &CanonicalTerminalArtifact {
             &self.scope.artifact.0
         }
-        pub fn target(&self) -> &str {
-            &self.scope.target
+        pub fn target(&self) -> Option<&str> {
+            self.scope.target.as_deref()
         }
         pub fn outcome(&self) -> &PureTerminalEvaluationOutcome {
             &self.outcome
@@ -182,8 +184,8 @@ pub(crate) use canonical_scalar::CanonicalScalarScope;
 /// Only actual canonical-artifact execution contributes an evaluation receipt.
 #[derive(Debug, Clone)]
 pub enum PureEvaluationRecord {
-    CanonicalScalar(CanonicalScalarEvaluationReceipt),
-    Invocation(PureTerminalEvaluationReceipt),
+    CanonicalScalar(Arc<CanonicalScalarEvaluationReceipt>),
+    Invocation(Arc<PureTerminalEvaluationReceipt>),
 }
 
 impl compiler_storage::Record for PureEvaluationRecord {
@@ -193,9 +195,9 @@ impl compiler_storage::Record for PureEvaluationRecord {
     ) -> Result<(), compiler_storage::RecordError> {
         output.record(|output| match self {
             Self::CanonicalScalar(receipt) => {
-                // Preserve the existing canonical-scalar wire coordinate. Slot
-                // zero belonged to retired tree-based evaluation receipts.
-                compiler_storage::Record::write(&1_u32, output)?;
+                // This coordinate retains an optional deployment explicitly;
+                // older scalar receipts always encoded a target string.
+                compiler_storage::Record::write(&2_u32, output)?;
                 compiler_storage::Record::write(receipt, output)
             }
             Self::Invocation(_) => Err(output.error(
@@ -208,10 +210,11 @@ impl compiler_storage::Record for PureEvaluationRecord {
     ) -> Result<Self, compiler_storage::RecordError> {
         input.record(
             |input| match <u32 as compiler_storage::Record>::read(input)? {
-                1 => Ok(Self::CanonicalScalar(compiler_storage::Record::read(
+                2 => Ok(Self::CanonicalScalar(compiler_storage::Record::read(
                     input,
                 )?)),
                 0 => Err(input.error("no product route yet: retired tree-evaluation receipt")),
+                1 => Err(input.error("retired scalar receipt without explicit deployment scope")),
                 _ => Err(input.error("unknown PureEvaluationRecord variant")),
             },
         )
@@ -219,6 +222,14 @@ impl compiler_storage::Record for PureEvaluationRecord {
 }
 
 impl PureEvaluationRecord {
+    // A transient ordering of actual immutable occurrences, never a semantic
+    // cache key. Output order remains the incoming account's own order.
+    fn occurrence(&self) -> (u8, usize) {
+        match self {
+            Self::CanonicalScalar(receipt) => (0, Arc::as_ptr(receipt) as usize),
+            Self::Invocation(receipt) => (1, Arc::as_ptr(receipt) as usize),
+        }
+    }
     fn has_complete_usage(&self) -> bool {
         match self {
             Self::CanonicalScalar(receipt) => receipt.returned(),
@@ -301,6 +312,7 @@ pub enum PureTerminalEvaluationOutcome {
 /// arguments and charges; saving this receipt remains explicitly unsupported.
 #[derive(Debug, Clone)]
 pub struct PureTerminalEvaluationReceipt {
+    request_source: Arc<typed_trees::TypedTrees>,
     source: Arc<typed_trees::FrozenTypedTrees>,
     machine: symbols::SymbolHandle,
     requester: symbols::SymbolHandle,
@@ -315,17 +327,18 @@ pub struct PureTerminalEvaluationReceipt {
 
 impl PureTerminalEvaluationReceipt {
     pub(crate) fn new(
-        accepted: &psi_terminal_production::AcceptedTerminalSource,
-        call: typed_trees::expression::ExpressionHandle,
         entry: &crate::PreparedBuildMachineEntry,
-        arguments: &[BuildTimeValue],
         program: Arc<psi_terminal_production::ProducedTerminalProgram>,
         admission: terminal_installation::AdmittedCompilerEvaluation,
         outcome: PureTerminalEvaluationOutcome,
         usage: psi_work::WorkUsage,
     ) -> Result<Self, String> {
+        let accepted = entry.accepted();
+        let call = entry.call_handle();
         let machine = entry.symbol();
         let requester = entry.requester();
+        let request_source = entry.retained_source();
+        let arguments = entry.arguments();
         let entry = accepted
             .entry()
             .ok_or("evaluation receipt lost its accepted entry")?;
@@ -341,6 +354,7 @@ impl PureTerminalEvaluationReceipt {
             return Err("evaluation receipt has another accepted code owner".into());
         }
         let receipt = Self {
+            request_source,
             source: Arc::clone(accepted.source()),
             machine,
             requester,
@@ -358,6 +372,9 @@ impl PureTerminalEvaluationReceipt {
 
     pub fn source(&self) -> &typed_trees::FrozenTypedTrees {
         &self.source
+    }
+    pub fn request_source(&self) -> &typed_trees::TypedTrees {
+        &self.request_source
     }
     pub const fn machine(&self) -> symbols::SymbolHandle {
         self.machine
@@ -521,16 +538,15 @@ pub(crate) fn pure_terminal_invocation_account()
 
 #[derive(Debug, Clone, Default, compiler_storage::Record)]
 pub struct SourceCompletionAccounting {
-    receipts: Arc<[PureEvaluationRecord]>,
+    receipts: Arc<Vec<PureEvaluationRecord>>,
     reused: bool,
 }
 
 impl SourceCompletionAccounting {
     pub(crate) fn append_invocation(&mut self, receipt: PureTerminalEvaluationReceipt) {
-        self.append(Self {
-            receipts: vec![PureEvaluationRecord::Invocation(receipt)].into(),
-            reused: false,
-        });
+        // This constructor just completed one actual run, so its receipt is
+        // fresh. Share it when accounts later join; do not recopy its payload.
+        Arc::make_mut(&mut self.receipts).push(PureEvaluationRecord::Invocation(Arc::new(receipt)));
     }
 
     pub fn was_reused(&self) -> bool {
@@ -572,23 +588,51 @@ impl SourceCompletionAccounting {
         if records.is_empty() {
             return;
         }
-        self.append(Self {
-            receipts: records
+        Arc::make_mut(&mut self.receipts).extend(
+            records
                 .into_iter()
-                .map(PureEvaluationRecord::CanonicalScalar)
-                .collect::<Vec<_>>()
-                .into(),
-            reused: false,
-        });
+                .map(|receipt| PureEvaluationRecord::CanonicalScalar(Arc::new(receipt))),
+        );
     }
 
     pub fn append(&mut self, other: Self) {
+        self.reused |= other.reused;
         if self.receipts.is_empty() {
-            *self = other;
-        } else if !other.receipts.is_empty() {
-            let mut receipts = self.receipts.to_vec();
-            receipts.extend(other.receipts.iter().cloned());
-            self.receipts = receipts.into();
+            self.receipts = other.receipts;
+        } else if !other.receipts.is_empty() && !Arc::ptr_eq(&self.receipts, &other.receipts) {
+            // Prepare membership over these actual occurrences, not the
+            // universe of possible IDs. None sorts before any incoming
+            // position, so an existing occurrence always wins the union.
+            let mut occurrences = self
+                .receipts
+                .iter()
+                .map(|receipt| (receipt.occurrence(), None))
+                .chain(
+                    other
+                        .receipts
+                        .iter()
+                        .enumerate()
+                        .map(|(position, receipt)| (receipt.occurrence(), Some(position))),
+                )
+                .collect::<Vec<_>>();
+            occurrences.sort_unstable();
+            occurrences.dedup_by_key(|(occurrence, _)| *occurrence);
+            let mut incoming = vec![false; other.receipts.len()];
+            for (_, position) in occurrences {
+                if let Some(position) = position {
+                    incoming[position] = true;
+                }
+            }
+            if incoming.iter().any(|include| *include) {
+                Arc::make_mut(&mut self.receipts).extend(
+                    other
+                        .receipts
+                        .iter()
+                        .zip(incoming)
+                        .filter(|(_, include)| *include)
+                        .map(|(receipt, _)| receipt.clone()),
+                );
+            }
         }
     }
 }

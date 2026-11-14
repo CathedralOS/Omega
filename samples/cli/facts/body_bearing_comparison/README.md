@@ -12,15 +12,15 @@ establishes the fact after the comparison.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| local | [local](local/main.omg) | [invalid](local/invalid/main.omg) |
-| field | [field](field/main.omg) | [invalid](field/invalid/main.omg) |
-| parameter | [parameter](parameter/main.omg) | [invalid](parameter/invalid/main.omg) |
-| call result | [call_result](call_result/main.omg) | [invalid](call_result/invalid/main.omg) |
-| match join | [match_join](match_join/main.omg) | [invalid](match_join/invalid/main.omg) |
-| const name | [const_name](const_name/main.omg) | [invalid](const_name/invalid/main.omg) |
-| a nested machine | [other_state](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
-| another machine | [other_machine](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
-| another target body | [target_body](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
+| local | [local](local/main.omg) | [invalid](invalid_local/main.omg) |
+| field | [field](field/main.omg) | [invalid](invalid_field/main.omg) |
+| parameter | [parameter](parameter/main.omg) | [invalid](invalid_parameter/main.omg) |
+| call result | [call_result](call_result/main.omg) | [invalid](invalid_call_result/main.omg) |
+| match join | [match_join](match_join/main.omg) | [invalid](invalid_match_join/main.omg) |
+| const name | [const_name](const_name/main.omg) | [invalid](invalid_const_name/main.omg) |
+| a nested machine | [other_state](other_state/main.omg) | [invalid](invalid_other_state/main.omg) |
+| another machine | [other_machine](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) |
+| another target body | [target_body](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
 The [root](main.omg) and every positive declare exit 0 and bind ProgramEntry
 for windows_x86_64, linux_x86_64, macos_arm64 and linux_arm64. The local twin
@@ -90,8 +90,8 @@ fetched baseline and are excluded from the scoped golden record.
 ```text
 omega run --both --keep samples/cli/facts/body_bearing_comparison/<place>/main.omg
 omega --check samples/cli/facts/body_bearing_comparison/<place>/invalid/main.omg
-omega inspect-terminal --machine main --output field.psi samples/cli/facts/body_bearing_comparison/field/main.omg
-omega inspect-terminal --artifact field.psi
+omega psi inspect --machine main --output field.psi samples/cli/facts/body_bearing_comparison/field/main.omg
+omega psi inspect --artifact field.psi
 python tools/corpus_gate.py --runner <qualified-runner> --filter facts/body_bearing_comparison
 ```
 

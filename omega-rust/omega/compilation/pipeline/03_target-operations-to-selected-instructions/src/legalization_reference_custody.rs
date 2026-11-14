@@ -7,9 +7,7 @@ resident joins, retirements, and stored calls.
 
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input::structural_case::source_result;
-use crate::legalization::scalar_graph_input::{
-    AbstractOperation, AbstractOperationPlan, PsiOptimizationFunction, PsiOptimizationUnit,
-};
+use crate::legalization::scalar_graph_input::{AbstractOperation, PsiOptimizationFunction};
 use abstract_operations::AbstractStructuralCallResult;
 use abstract_operations::call_source;
 use optimization_unit_semantics::CallRegion;
@@ -208,7 +206,7 @@ pub(crate) mod borrowed_arrivals {
         pub(crate) fn complete_cleanup(
             function: &PsiOptimizationFunction,
             custody: &mut Custody,
-            types: &[StructuralTypeDeclaration],
+            types: &crate::native_geometry::NativeGeometry<'_>,
             event: retirements::DisposalEvent,
         ) -> Result<(), LegalizationError> {
             if !custody
@@ -285,7 +283,7 @@ pub(crate) mod borrowed_arrivals {
         fn entry_authorizes(
             function: &PsiOptimizationFunction,
             custody: &Custody,
-            types: &[StructuralTypeDeclaration],
+            types: &crate::native_geometry::NativeGeometry<'_>,
             source: &Source,
         ) -> bool {
             let origins = source.root.origins();
@@ -468,7 +466,7 @@ pub(crate) mod borrowed_arrivals {
     pub(crate) fn captured_storage(
         function: &PsiOptimizationFunction,
         custody: &Custody,
-        types: &[StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
         source: &StructuralArgument,
     ) -> Option<Vec<CapturedStorage>> {
         let Some(origins) = custody.borrowed_sources.get(&source.place) else {
@@ -504,7 +502,7 @@ pub(crate) mod borrowed_arrivals {
     pub(crate) fn normalize(
         function: &PsiOptimizationFunction,
         custody: &Custody,
-        types: &[StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
         source: &StructuralArgument,
     ) -> Result<(Root, Vec<OccurrenceIdentity>), LegalizationError> {
         let Some(origins) = custody.borrowed_sources.get(&source.place) else {
@@ -534,7 +532,7 @@ pub(crate) mod borrowed_arrivals {
         after: &mut Custody,
         bindings: &[AbstractStructuralBinding],
         parameters: &[StructuralParameterDeclaration],
-        types: &[StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
     ) -> Result<(), LegalizationError> {
         if bindings.len() != parameters.len() {
             return Err(invalid());
@@ -889,15 +887,15 @@ pub(crate) mod borrowed_arrivals {
 pub(crate) mod carrier_reads {
     use super::{
         Custody, Leaf, PlaceId, PsiOptimizationFunction, ReferenceOriginProjection,
-        StructuralAccess, StructuralPathSegment, StructuralTypeDeclaration, access_covers,
-        backing_storage_access_conflicts, borrowed_arrivals, descriptor_backing,
-        find_structural_type, leaf_reference_access, source_contract,
+        StructuralAccess, StructuralPathSegment, access_covers, backing_storage_access_conflicts,
+        borrowed_arrivals, descriptor_backing, find_structural_type, leaf_reference_access,
+        source_contract,
     };
 
     pub(crate) struct CarrierStorageRead<'a> {
         function: &'a PsiOptimizationFunction,
         custody: &'a Custody,
-        types: &'a [StructuralTypeDeclaration],
+        types: &'a crate::native_geometry::NativeGeometry<'a>,
         place: PlaceId,
         path: &'a [StructuralPathSegment],
         inline_entry: bool,
@@ -908,7 +906,7 @@ pub(crate) mod carrier_reads {
         pub(crate) fn new(
             function: &'a PsiOptimizationFunction,
             custody: &'a Custody,
-            types: &'a [StructuralTypeDeclaration],
+            types: &'a crate::native_geometry::NativeGeometry<'a>,
             place: PlaceId,
             path: &'a [StructuralPathSegment],
         ) -> Self {
@@ -1053,7 +1051,7 @@ pub(crate) mod descriptor_backing {
     ) -> Result<Observations, LegalizationError> {
         let plan = descriptor_inputs.plan();
         let unit = descriptor_inputs.unit();
-        let types = &plan.structural_types[..];
+        let types = plan.geometry();
         if !function
             .structural_parameters
             .iter()
@@ -1258,7 +1256,7 @@ pub(crate) mod descriptor_backing {
     pub(crate) fn path_is_impossible(
         function: &PsiOptimizationFunction,
         custody: &Custody,
-        types: &[StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
         place: PlaceId,
         path: &[StructuralPathSegment],
     ) -> bool {
@@ -1291,7 +1289,7 @@ pub(crate) mod descriptor_backing {
     pub(crate) fn capture(
         function: &PsiOptimizationFunction,
         custody: &Custody,
-        types: &[StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
         source: &StructuralArgument,
         operation: OperationId,
         root: &Root,
@@ -1558,7 +1556,7 @@ pub(crate) mod observations {
     pub(crate) fn observe_alternatives(
         function: &PsiOptimizationFunction,
         custody: &Custody,
-        types: &[StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
         place: PlaceId,
         path: &[StructuralPathSegment],
     ) -> Result<Vec<Observed>, LegalizationError> {
@@ -1668,7 +1666,7 @@ pub(crate) mod observations {
             self,
             function: &PsiOptimizationFunction,
             custody: &Custody,
-            types: &[StructuralTypeDeclaration],
+            types: &crate::native_geometry::NativeGeometry<'_>,
             place: PlaceId,
             path: &[StructuralPathSegment],
         ) -> LegalizationError {
@@ -1738,7 +1736,7 @@ pub(crate) mod observations {
     pub(crate) fn observe(
         function: &PsiOptimizationFunction,
         custody: &Custody,
-        types: &[StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
         place: PlaceId,
         path: &[StructuralPathSegment],
     ) -> Result<Observed, Refusal> {
@@ -1748,7 +1746,7 @@ pub(crate) mod observations {
     fn observe_following(
         function: &PsiOptimizationFunction,
         custody: &Custody,
-        types: &[StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
         place: PlaceId,
         path: &[StructuralPathSegment],
         active: &mut Vec<(PlaceId, Vec<StructuralPathSegment>)>,
@@ -1871,7 +1869,7 @@ pub(crate) mod observations {
     fn through_resident(
         function: &PsiOptimizationFunction,
         custody: &Custody,
-        types: &[StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
         place: PlaceId,
         path: &[StructuralPathSegment],
         active: &mut Vec<(PlaceId, Vec<StructuralPathSegment>)>,
@@ -1922,7 +1920,7 @@ pub(crate) mod observations {
     fn authenticate_indirect_ingress(
         function: &PsiOptimizationFunction,
         custody: &Custody,
-        types: &[StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
         current_place: PlaceId,
         current_path: &[StructuralPathSegment],
         incoming_slots: &[(PlaceId, Vec<StructuralPathSegment>)],
@@ -1962,8 +1960,8 @@ pub(crate) mod observations {
 pub(crate) mod occurrences {
     use super::{
         Custody, Leaf, LegalizationError, OperationId, PlaceId, PsiOptimizationFunction, Root,
-        StructuralAccess, StructuralOperationResult, StructuralPathSegment,
-        StructuralTypeDeclaration, StructuralTypeId, invalid, leaf_referent, owned_relative_path,
+        StructuralAccess, StructuralOperationResult, StructuralPathSegment, StructuralTypeId,
+        invalid, leaf_referent, owned_relative_path,
     };
     use crate::legalization::scalar_graph_input::structural_case::source_result;
     use semantic_vocabulary::{BlockId, StructuralPlaceKind};
@@ -2128,7 +2126,7 @@ pub(crate) mod occurrences {
         pub(crate) fn in_caller_storage(
             &self,
             function: &PsiOptimizationFunction,
-            types: &[StructuralTypeDeclaration],
+            types: &crate::native_geometry::NativeGeometry<'_>,
             carrier: PlaceId,
             path: &[StructuralPathSegment],
         ) -> Result<bool, LegalizationError> {
@@ -2221,7 +2219,7 @@ pub(crate) mod occurrences {
     pub(crate) fn merge_arrivals(
         function: &PsiOptimizationFunction,
         target: BlockId,
-        types: &[StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
         guarded_absence: &BTreeSet<(PlaceId, Vec<StructuralPathSegment>)>,
         left: &mut BTreeMap<(PlaceId, Vec<StructuralPathSegment>), Leaf>,
         right: &BTreeMap<(PlaceId, Vec<StructuralPathSegment>), Leaf>,
@@ -2343,7 +2341,7 @@ pub(crate) mod occurrences {
         custody: &mut Custody,
         bindings: &[abstract_operations::AbstractStructuralBinding],
         parameters: &[StructuralParameterDeclaration],
-        types: &[StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
     ) -> Result<(), LegalizationError> {
         if bindings.len() != parameters.len() {
             return Err(invalid());
@@ -2451,9 +2449,8 @@ pub(crate) mod resident_joins {
     use super::occurrences::{remap_parents, resident_type};
     use super::{
         BlockId, CarrierContract, Custody, LegalizationError, OccurrenceIdentity, PlaceId,
-        PsiOptimizationFunction, StructuralAccess, StructuralPathSegment,
-        StructuralTypeDeclaration, StructuralTypeShape, borrowed_arrivals, find_structural_type,
-        invalid, leaf_type, merge_arrivals, retirements,
+        PsiOptimizationFunction, StructuralAccess, StructuralPathSegment, StructuralTypeShape,
+        borrowed_arrivals, find_structural_type, invalid, leaf_type, merge_arrivals, retirements,
     };
     use std::collections::BTreeSet;
 
@@ -2462,7 +2459,7 @@ pub(crate) mod resident_joins {
     pub(crate) fn merge(
         function: &PsiOptimizationFunction,
         target: BlockId,
-        types: &[StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
         arrivals: impl Iterator<Item = Custody>,
     ) -> Result<Option<Custody>, LegalizationError> {
         let mut arrivals = arrivals.collect::<Vec<_>>();
@@ -2860,7 +2857,7 @@ pub(crate) mod stored_calls {
 
     fn writable_slots(
         function: &PsiOptimizationFunction,
-        types: &[StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
     ) -> bool {
         function.structural_parameters.iter().any(|parameter| {
             DescriptorSlotKind::References
@@ -2879,7 +2876,7 @@ pub(crate) mod stored_calls {
     ) -> Effects {
         let plan = descriptor_inputs.plan();
         let unit = descriptor_inputs.unit();
-        let types = &plan.structural_types;
+        let types = plan.geometry();
         let candidates = unit
             .functions
             .iter()
@@ -2915,7 +2912,7 @@ pub(crate) mod stored_calls {
                 .and_then(|function| {
                     let result = function.result.structural()?;
                     optimization_unit_semantics::descriptor_results::access_results::summarize(
-                        types,
+                        &plan.structural_types,
                         &unit.boundary_machines,
                         &function.structural_parameters,
                         result.structural_type,
@@ -3116,7 +3113,7 @@ pub(crate) mod stored_calls {
             DescriptorStoredOrigin,
         >,
         parameters: &[terminal_psi::StructuralParameterDeclaration],
-        types: &[StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
         boundaries: &[terminal_psi::BoundaryMachineDeclaration],
     ) -> Option<Source> {
         let boundary = boundaries
@@ -3257,7 +3254,7 @@ pub(crate) mod stored_calls {
     pub(crate) fn stage(
         function: &PsiOptimizationFunction,
         callee: Option<Callee<'_>>,
-        types: &[StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
         custody: &Custody,
         arguments: &[StructuralArgument],
         operation: OperationId,
@@ -3583,7 +3580,7 @@ pub(crate) mod stored_calls {
 
     pub(crate) fn commit(
         function: &PsiOptimizationFunction,
-        types: &[StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
         result: Option<PlaceId>,
         custody: &mut Custody,
         staged: Staged,
@@ -3685,7 +3682,7 @@ pub(crate) use target_operations::ReferenceRoot as Root;
 fn storage_origins(
     function: &PsiOptimizationFunction,
     custody: &Custody,
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     root: &Root,
     referent: StructuralTypeId,
 ) -> Result<Vec<target_operations::TargetReferenceOrigin>, LegalizationError> {
@@ -3904,7 +3901,7 @@ impl Custody {
     fn form_leaf(
         &self,
         function: &PsiOptimizationFunction,
-        types: &[StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
         source: &StructuralArgument,
         operation: OperationId,
         root: Root,
@@ -3932,7 +3929,7 @@ impl Custody {
     fn copied_reference(
         &self,
         function: &PsiOptimizationFunction,
-        types: &[StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
         source: &StructuralArgument,
         operation: OperationId,
         result: &StructuralOperationResult,
@@ -4011,7 +4008,7 @@ pub(crate) struct ReferentDestination {
 pub(crate) fn referent_destination(
     function: &PsiOptimizationFunction,
     custody: &Custody,
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     carrier: PlaceId,
     path: &[StructuralPathSegment],
     required_access: StructuralAccess,
@@ -4029,7 +4026,7 @@ pub(crate) fn referent_destination(
 pub(crate) fn window_destination(
     function: &PsiOptimizationFunction,
     custody: &Custody,
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     carrier: PlaceId,
     path: &[StructuralPathSegment],
     required_access: StructuralAccess,
@@ -4070,7 +4067,7 @@ pub(crate) fn window_destination(
 pub(crate) fn window_backing_roots(
     function: &PsiOptimizationFunction,
     custody: &Custody,
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     place: PlaceId,
     path: &[StructuralPathSegment],
     access: StructuralAccess,
@@ -4096,7 +4093,7 @@ pub(crate) fn window_backing_roots(
 pub(crate) fn window_regions(
     function: &PsiOptimizationFunction,
     custody: &Custody,
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     place: PlaceId,
     path: &[StructuralPathSegment],
     access: StructuralAccess,
@@ -4126,7 +4123,7 @@ pub(crate) fn window_regions(
 fn window_regions_in_storage(
     function: &PsiOptimizationFunction,
     custody: &Custody,
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     source: &borrowed_arrivals::CapturedStorage,
 ) -> Result<Vec<(PlaceId, Vec<StructuralPathSegment>)>, LegalizationError> {
     let StructuralArgument { place, path, .. } = &source.argument;
@@ -4154,7 +4151,7 @@ fn window_regions_in_storage(
 fn window_storage(
     function: &PsiOptimizationFunction,
     custody: &Custody,
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     place: PlaceId,
     path: &[StructuralPathSegment],
     access: StructuralAccess,
@@ -4172,14 +4169,14 @@ fn invalid() -> LegalizationError {
 }
 
 pub(crate) fn contains_reference(
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     root: StructuralTypeId,
 ) -> bool {
     terminal_psi::structural_type_contains_reference(types, root)
 }
 
 pub(crate) fn shared_copy_type(
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     root: StructuralTypeId,
 ) -> bool {
     let mut pending = vec![root];
@@ -4230,7 +4227,7 @@ fn push_field_leaf(
     path: &[StructuralPathSegment],
     leaves: usize,
     maximum_leaves: usize,
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     field: &terminal_psi::StructuralFieldDeclaration,
 ) -> Option<()> {
     if field.relevance.is_erased() {
@@ -4252,7 +4249,7 @@ fn push_field_leaf(
 }
 
 fn leaf_paths(
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     root: StructuralTypeId,
     maximum_leaves: usize,
 ) -> Option<Vec<Vec<StructuralPathSegment>>> {
@@ -4329,7 +4326,7 @@ fn leaf_paths(
 }
 
 fn referent(
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     structural_type: StructuralTypeId,
 ) -> Option<StructuralTypeId> {
     match find_structural_type(types, structural_type)?.shape {
@@ -4345,7 +4342,7 @@ fn referent(
 }
 
 fn leaf_referent(
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     current: StructuralTypeId,
     fields: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
@@ -4357,7 +4354,7 @@ fn leaf_referent(
 }
 
 fn leaf_type(
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     current: StructuralTypeId,
     fields: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
@@ -4393,7 +4390,7 @@ fn source_contract(
 fn reference_source_type(
     function: &PsiOptimizationFunction,
     custody: &Custody,
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     source: &StructuralArgument,
 ) -> Option<StructuralTypeId> {
     if !reference_source_accessible(function, custody, types, source) {
@@ -4417,7 +4414,7 @@ fn reference_source_type(
 fn reference_source_accessible(
     function: &PsiOptimizationFunction,
     custody: &Custody,
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     source: &StructuralArgument,
 ) -> bool {
     let Some(root) = source_contract(function, custody, source.place) else {
@@ -4443,7 +4440,7 @@ fn reference_source_accessible(
 fn shared_source_compatible(
     function: &PsiOptimizationFunction,
     custody: &Custody,
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     carrier: &PlaceId,
     path: &[StructuralPathSegment],
     access: StructuralAccess,
@@ -4466,7 +4463,7 @@ fn shared_source_compatible(
 fn storage_projection(
     function: &PsiOptimizationFunction,
     custody: &Custody,
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     source: &StructuralArgument,
 ) -> Option<optimization_unit_semantics::StructuralStorageProjection> {
     let mut carrier = source_contract(function, custody, source.place)?;
@@ -4516,7 +4513,7 @@ fn storage_projection(
 fn access_source(
     function: &PsiOptimizationFunction,
     custody: &Custody,
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     source: &StructuralArgument,
 ) -> Option<target_operations::TargetAccessInterpretation> {
     if source.path.is_empty() {
@@ -4545,7 +4542,7 @@ fn access_source(
 fn normalized_source(
     function: &PsiOptimizationFunction,
     custody: &Custody,
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     source: &StructuralArgument,
 ) -> Result<(Root, Vec<OccurrenceIdentity>), LegalizationError> {
     borrowed_arrivals::normalize(function, custody, types, source)
@@ -4554,7 +4551,7 @@ fn normalized_source(
 fn normalized_direct_source(
     function: &PsiOptimizationFunction,
     custody: &Custody,
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     source: &StructuralArgument,
 ) -> Result<(Root, Vec<OccurrenceIdentity>), LegalizationError> {
     let path = source.path.as_slice();
@@ -4597,22 +4594,14 @@ fn normalized_direct_source(
     }
 }
 
-fn access_covers(authority: StructuralAccess, requested: StructuralAccess) -> bool {
-    authority == requested
-        || authority == StructuralAccess::Owned
-        || authority == StructuralAccess::MutableBorrow
-            && matches!(
-                requested,
-                StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
-            )
-}
+use terminal_psi::structural_access_covers as access_covers;
 
 pub(crate) mod call_paths {
     use super::borrowed_arrivals::{captured_storage, granting_ancestor};
     use super::{
         Custody, LegalizationError, PsiOptimizationFunction, Root, StructuralAccess,
-        StructuralArgument, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
-        invalid, leaf_type, shared_source_compatible, source_contract,
+        StructuralArgument, StructuralPathSegment, StructuralTypeShape, invalid, leaf_type,
+        shared_source_compatible, source_contract,
     };
     use crate::structural_inputs::structural_reference_input::reference_formation_geometry;
 
@@ -4628,7 +4617,7 @@ pub(crate) mod call_paths {
     pub(crate) fn call_reference_custody(
         function: &PsiOptimizationFunction,
         custody: &Custody,
-        types: &[StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
         argument: &StructuralArgument,
     ) -> Result<ReferenceObservation, LegalizationError> {
         let observed = observe_reference_custody(function, custody, types, argument)?;
@@ -4638,7 +4627,7 @@ pub(crate) mod call_paths {
     pub(crate) fn captured_reference_custody(
         function: &PsiOptimizationFunction,
         custody: &Custody,
-        types: &[StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
         source: &super::borrowed_arrivals::CapturedStorage,
     ) -> Result<ReferenceObservation, LegalizationError> {
         require_observation(observe_direct_reference_custody(
@@ -4662,7 +4651,7 @@ pub(crate) mod call_paths {
     pub(crate) fn observe_reference_custody(
         function: &PsiOptimizationFunction,
         custody: &Custody,
-        types: &[StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
         argument: &StructuralArgument,
     ) -> Result<ReferenceObservation, LegalizationError> {
         if !custody.borrowed_sources.contains_key(&argument.place) {
@@ -4721,7 +4710,7 @@ pub(crate) mod call_paths {
     fn observe_direct_reference_custody(
         function: &PsiOptimizationFunction,
         custody: &Custody,
-        types: &[StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
         argument: &StructuralArgument,
         grants: &[super::OccurrenceIdentity],
     ) -> Result<ReferenceObservation, LegalizationError> {
@@ -4932,7 +4921,7 @@ pub(crate) mod call_paths {
 fn storage_access_conflicts(
     function: &PsiOptimizationFunction,
     custody: &Custody,
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     place: PlaceId,
     path: &[StructuralPathSegment],
     requested: StructuralAccess,
@@ -4970,7 +4959,7 @@ fn trace_storage_conflict(
 fn storage_access_conflicts_beneath_argument(
     function: &PsiOptimizationFunction,
     custody: &Custody,
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     argument: &StructuralArgument,
 ) -> Result<bool, LegalizationError> {
     let captured = custody
@@ -5062,7 +5051,7 @@ fn storage_access_conflicts_beneath_argument(
 fn backing_storage_access_conflicts(
     function: &PsiOptimizationFunction,
     custody: &Custody,
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     backing: &descriptor_backing::Backing,
     place: PlaceId,
     path: &[StructuralPathSegment],
@@ -5126,7 +5115,7 @@ fn backing_storage_access_conflicts(
 fn backing_intersects_storage(
     function: &PsiOptimizationFunction,
     custody: &Custody,
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     backing: &descriptor_backing::Backing,
     place: PlaceId,
     path: &[StructuralPathSegment],
@@ -5192,7 +5181,7 @@ fn backing_intersects_storage(
 }
 
 fn leaf_reference_access(
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     reference: &Leaf,
 ) -> Option<StructuralAccess> {
     leaf_type(
@@ -5210,7 +5199,7 @@ fn leaf_reference_access(
 fn lifetime_storage_access_conflicts(
     function: &PsiOptimizationFunction,
     custody: &Custody,
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     reference: &Leaf,
     place: PlaceId,
     path: &[StructuralPathSegment],
@@ -5234,7 +5223,7 @@ fn lifetime_storage_access_conflicts(
 fn leaf_storage_access_conflicts(
     function: &PsiOptimizationFunction,
     custody: &Custody,
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     reference: &Leaf,
     place: PlaceId,
     path: &[StructuralPathSegment],
@@ -5261,7 +5250,7 @@ fn leaf_storage_access_conflicts(
 
 fn call_arguments(
     function: &PsiOptimizationFunction,
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     custody: &Custody,
     arguments: &[StructuralArgument],
 ) -> Result<BTreeMap<(PlaceId, Vec<StructuralPathSegment>), Leaf>, LegalizationError> {
@@ -5522,7 +5511,7 @@ fn call_results(
     function: &PsiOptimizationFunction,
     callee: Option<&PsiOptimizationFunction>,
     contract: terminal_semantics::ReferenceCallContract<'_>,
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     result: &StructuralOperationResult,
     psi_operation: OperationId,
     structural_arguments: &[StructuralArgument],
@@ -5784,7 +5773,7 @@ fn owned_relative_path<'a>(
 fn discard_owned(
     function: &PsiOptimizationFunction,
     custody: &mut Custody,
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     source: PlaceId,
     event: retirements::DisposalEvent,
 ) -> Result<bool, LegalizationError> {
@@ -5794,7 +5783,7 @@ fn discard_owned(
 fn discard_subtree(
     function: &PsiOptimizationFunction,
     custody: &mut Custody,
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     source: PlaceId,
     prefix: &[StructuralPathSegment],
     event: retirements::DisposalEvent,
@@ -5825,7 +5814,7 @@ fn discard_subtree(
 fn discard_residual(
     function: &PsiOptimizationFunction,
     custody: &mut Custody,
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     discard: &terminal_psi::StructuralAffineDiscard,
     event: retirements::DisposalEvent,
 ) -> Result<(), LegalizationError> {
@@ -5880,7 +5869,7 @@ enum OwnedOperandUse {
 fn relocate_subtree_leaves<'a>(
     custody: &mut Custody,
     function: &PsiOptimizationFunction,
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     destination: PlaceId,
     operation: OperationId,
     operand_use: OwnedOperandUse,
@@ -6010,8 +5999,8 @@ pub(crate) fn apply(
     node: &optimization_unit::OptimizationNode,
     function: &PsiOptimizationFunction,
     native: &target_operations::TargetOperationPlan,
-    plan: &AbstractOperationPlan,
-    unit: &PsiOptimizationUnit,
+    plan: &crate::native_geometry::NativePlan<'_>,
+    unit: &crate::native_geometry::NativeUnit<'_>,
 ) -> Result<(), LegalizationError> {
     if custody.position_is_impossible() {
         return Ok(());
@@ -6024,7 +6013,7 @@ pub(crate) fn apply(
         .as_ref()
         .map(|(operation, _)| operation)
         .unwrap_or(&node.operation);
-    let types = &plan.structural_types[..];
+    let types = plan.geometry();
     match operation {
         AbstractOperation::BoundaryCall {
             psi_operation,
@@ -6678,7 +6667,7 @@ pub(crate) fn apply(
 fn validate_return_custody(
     custody: &Custody,
     function: &PsiOptimizationFunction,
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     source: PlaceId,
     result: &terminal_psi::StructuralResultDeclaration,
 ) -> Result<(), LegalizationError> {
@@ -6805,7 +6794,7 @@ fn validate_return_custody(
 fn complete_reference_outputs(
     custody: &mut Custody,
     function: &PsiOptimizationFunction,
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     source: Option<PlaceId>,
     cleanup_actions: &[terminal_psi::TerminalAffineCleanupAction],
 ) -> Result<(), LegalizationError> {
@@ -6875,12 +6864,12 @@ pub(crate) fn apply_terminator(
     custody: &mut Custody,
     operation: &AbstractOperation,
     function: &PsiOptimizationFunction,
-    plan: &AbstractOperationPlan,
+    plan: &crate::native_geometry::NativePlan<'_>,
 ) -> Result<(), LegalizationError> {
     if custody.position_is_impossible() {
         return Ok(());
     }
-    let types = &plan.structural_types[..];
+    let types = plan.geometry();
     match operation {
         AbstractOperation::ReturnStructural {
             source,
@@ -7000,7 +6989,7 @@ fn apply_cleanup_actions(
     custody: &mut Custody,
     actions: impl IntoIterator<Item = terminal_psi::TerminalAffineCleanupAction>,
     function: &PsiOptimizationFunction,
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     event: retirements::DisposalEvent,
 ) -> Result<(), LegalizationError> {
     use terminal_psi::TerminalAffineCleanupAction;
@@ -7071,7 +7060,7 @@ fn apply_cleanup_actions(
 
 fn borrowed_sources(
     function: &PsiOptimizationFunction,
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
 ) -> std::sync::Arc<borrowed_arrivals::Sources> {
     let sources = function
         .block_structural_parameters()
@@ -7094,7 +7083,7 @@ pub(crate) fn block_entry_states(
     let native = descriptor_inputs.native();
     let plan = descriptor_inputs.plan();
     let unit = descriptor_inputs.unit();
-    let types = &plan.structural_types[..];
+    let types = plan.geometry();
     let blocks = &function.blocks;
     let positions: BTreeMap<BlockId, usize> = blocks
         .iter()
@@ -7358,7 +7347,7 @@ pub(crate) fn block_entry_states(
 
 fn entry(
     function: &PsiOptimizationFunction,
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
 ) -> Result<Custody, LegalizationError> {
     let mut custody = Custody::default();
     for parameter in &function.structural_parameters {
@@ -7406,7 +7395,7 @@ pub(crate) fn referent_argument(
     native: &target_operations::TargetOperationPlan,
     call_operation: semantic_vocabulary::InvocationSite,
     custody: &Custody,
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
 ) -> Result<target_operations::TargetStructuralArgument, LegalizationError> {
     if argument.access == StructuralAccess::Owned
         || argument.access != declaration.access
@@ -7504,7 +7493,7 @@ pub(crate) fn reference_results(
     result: &StructuralOperationResult,
     psi_operation: OperationId,
     custody: &Custody,
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
 ) -> Result<Vec<target_operations::TargetReferenceResult>, LegalizationError> {
     let mut returned = custody.clone();
     call_transition(
@@ -7522,7 +7511,7 @@ pub(crate) fn reference_results(
 pub(crate) fn access_call_custody(
     caller: &PsiOptimizationFunction,
     callee: &PsiOptimizationFunction,
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     arguments: &[StructuralArgument],
     custody: &Custody,
 ) -> Result<Vec<target_operations::TargetAccessCallBinding>, LegalizationError> {
@@ -7614,7 +7603,7 @@ fn call_transition(
     caller: &PsiOptimizationFunction,
     callee: Option<&PsiOptimizationFunction>,
     result_contract: Option<terminal_semantics::ReferenceCallContract<'_>>,
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     result: Option<&StructuralOperationResult>,
     operation: OperationId,
     arguments: &[StructuralArgument],
@@ -7657,7 +7646,7 @@ fn call_transition(
 pub(crate) fn accessor_scalar_custody(
     function: &PsiOptimizationFunction,
     custody: &Custody,
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     source: &StructuralArgument,
     accessor: StructuralTypeId,
 ) -> Result<(), LegalizationError> {

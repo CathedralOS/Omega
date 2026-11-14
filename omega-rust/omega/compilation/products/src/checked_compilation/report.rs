@@ -191,6 +191,10 @@ impl ProductReportPlan {
 }
 
 impl CompileReportSettlement {
+    pub const fn application(&self) -> &NativeApplicationMetadata {
+        &self.application
+    }
+
     pub fn source_completion_accounting_mut(
         &mut self,
     ) -> &mut build_time_evaluation::SourceCompletionAccounting {

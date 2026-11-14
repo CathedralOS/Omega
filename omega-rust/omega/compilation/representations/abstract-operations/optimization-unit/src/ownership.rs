@@ -86,7 +86,7 @@ pub(crate) fn ownership_frontier_fact_identity(
     snapshot: &OwnershipFrontierSnapshot,
 ) -> OwnershipFrontierFactIdentity {
     let mut canonical = Vec::new();
-    canonical.extend_from_slice(b"omega.psi-ownership-frontier-fact.v1\0");
+    canonical.extend_from_slice(b"omega.psi-ownership-frontier-fact.v2\0");
     canonical.extend_from_slice(psi.program_fingerprint.as_bytes());
     crate::codec_bytes::push_encoded(&mut canonical, psi.vocabulary_marker.get().to_le_bytes());
     crate::codec_bytes::push_encoded(&mut canonical, machine.get().to_le_bytes());
@@ -148,48 +148,19 @@ fn encode_frontier_optional_id(bytes: &mut Vec<u8>, id: Option<u64>) {
 fn encode_frontier_path(bytes: &mut Vec<u8>, path: &[StructuralPathSegment]) {
     encode_frontier_len(bytes, path.len());
     for segment in path {
-        match segment {
-            StructuralPathSegment::AllElements => bytes.push(10),
-            StructuralPathSegment::Case(case) => {
-                bytes.push(7);
-                crate::codec_bytes::push_encoded(bytes, case.get().to_le_bytes());
-            }
-            StructuralPathSegment::Field(identity) => {
-                bytes.push(1);
-                crate::codec_bytes::push_encoded(bytes, identity.0.to_le_bytes());
-            }
-            StructuralPathSegment::FixedIndex(index) => {
-                bytes.push(2);
-                crate::codec_bytes::push_encoded(bytes, index.to_le_bytes());
-            }
-            StructuralPathSegment::Referent => bytes.push(3),
-            StructuralPathSegment::FixedRange { start, end } => {
-                bytes.push(4);
-                crate::codec_bytes::push_encoded(bytes, start.to_le_bytes());
-                crate::codec_bytes::push_encoded(bytes, end.to_le_bytes());
-            }
-            StructuralPathSegment::RuntimeIndex { index, obligation } => {
-                bytes.push(5);
-                crate::codec_bytes::push_encoded(bytes, index.get().to_le_bytes());
-                crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
-            }
-            StructuralPathSegment::RepresentationView {
-                structural_type,
-                stored_scalar,
-            } => {
-                bytes.push(8);
-                crate::codec_bytes::push_encoded(bytes, structural_type.get().to_le_bytes());
-                bytes.push(u8::from(stored_scalar.is_some()));
-                if let Some(scalar) = stored_scalar {
-                    super::encode_scalar_type(
-                        bytes,
-                        *scalar,
-                        |bytes, tag| bytes.push(tag),
-                        super::range::encode_integer_type,
-                    );
-                }
-            }
-        }
+        terminal_psi::structural_path_encoding::encode_structural_path_segment(
+            bytes,
+            segment,
+            Vec::extend_from_slice,
+            |bytes, scalar| {
+                super::encode_scalar_type(
+                    bytes,
+                    scalar,
+                    |bytes, tag| bytes.push(tag),
+                    super::range::encode_integer_type,
+                )
+            },
+        );
     }
 }
 

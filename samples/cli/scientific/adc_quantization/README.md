@@ -74,7 +74,7 @@ oracle, not the delivered application. `data/` contains five valid studies and
 17 malformed-input controls. The valid studies cover unsigned threshold ties,
 signed ties after nonidentity calibration, fractional calibration, 8-bit extrema,
 and a 2-bit signed converter. They include rail endpoints and saturation on
-both sides. `intended_invalid/` is a separate complete build-bound Omega project
+both sides. `../invalid_adc_quantization_intended/` is a separate complete build-bound Omega project
 with a constant-zero division; it must be rejected independently.
 
 ## Commands
@@ -83,7 +83,7 @@ From the repository root, with a compiler built from this candidate and
 `OMEGA_LIBRARY_ROOT` set to that checkout's `source/library`:
 
 ```
-omega update --project samples/cli/independent/adc_quantization
+omega packages update --project samples/cli/independent/adc_quantization
 # Review the generated package decisions and resume the documented review.
 omega --check --target linux_x86_64 samples/cli/independent/adc_quantization/main.omg
 omega run --both --keep samples/cli/independent/adc_quantization/main.omg < samples/cli/independent/adc_quantization/data/signed_calibrated.txt

@@ -1,0 +1,34 @@
+// Expected exit: 0
+// Closed nested Inert carrier transport preserves libc host numbers 66051 and 513 and replacement 1027 while retaining the disjoint sibling.
+
+use omega::language::core::OpaqueRepresentation;
+public boundary data InternetAddress;
+public data AddressWord dropped by drop_address_word { address: u32; }
+machine drop_address_word(word: &mut AddressWord) {}
+public data AddressCarrier<T> { payload: T; }
+public AddressRepresentation satisfies OpaqueRepresentation<InternetAddress, AddressCarrier<AddressCarrier<AddressWord>>> { }
+
+public boundary trait AddressParts {
+    machine make(network: u32, host: u32) -> InternetAddress reaches;
+    machine host(address: InternetAddress) -> u32 reaches;
+}
+
+public data AddressBox { value: InternetAddress; }
+public data AddressPair { first: InternetAddress; second: InternetAddress; }
+
+machine consume(first: InternetAddress, second: InternetAddress) -> bool reaches AddressParts {
+    let mut pair: AddressPair = AddressPair { first: first, second: second };
+    let old_host: u32 = AddressParts::host(pair.first);
+    pair.first = AddressParts::make(10, 1027);
+    let sibling_host: u32 = AddressParts::host(pair.second);
+    let replacement_host: u32 = AddressParts::host(pair.first);
+    old_host == 66051 && sibling_host == 513 && replacement_host == 1027
+}
+machine forward(first: InternetAddress) -> InternetAddress { first }
+machine observe() -> bool reaches AddressParts { consume(forward(AddressParts::make(10, 66051)), AddressParts::make(44048, 513)) }
+
+machine main() reaches AddressParts crashes Trap {
+ transition observe() { true -> done() _ -> failed() }
+ machine done() {}
+ machine failed() { crash Trap; }
+}

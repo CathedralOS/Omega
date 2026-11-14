@@ -243,15 +243,17 @@ fn fetch_record(repo: &Path, version: &str) -> Result<ClaimsRecord, u8> {
     // Only the newest record matters: each commit's message is the whole
     // registry, and the ref's history is tens of thousands of such commits,
     // so a full fetch can exhaust a session's memory.
-    let fetch = Command::new("git")
-        .args(["fetch", "-q", "--depth=1", "origin", version])
-        .current_dir(repo)
-        .stdin(Stdio::null())
-        .status()
-        .map_err(|error| {
-            eprintln!("claims: git fetch failed: {error}");
-            1u8
-        })?;
+    let fetch = crate::repository::with_git_fetch_lock(repo, || {
+        Command::new("git")
+            .args(["fetch", "-q", "--depth=1", "origin", version])
+            .current_dir(repo)
+            .stdin(Stdio::null())
+            .status()
+    })
+    .map_err(|error| {
+        eprintln!("claims: {error}");
+        1u8
+    })?;
     if !fetch.success() {
         eprintln!("claims: cannot fetch registry snapshot {version}");
         return Err(1);
@@ -348,7 +350,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         );
         return Ok(());
     }
-    let repo = repo_root();
+    let repo = repo_root()?;
     let cmd = args[0].as_str();
     let (version, mut record) = fetch_snapshot(&repo)?;
 

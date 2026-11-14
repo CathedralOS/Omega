@@ -747,7 +747,7 @@ pub mod projection {
                 &mut requirements,
                 &mut methods,
                 &mut identities,
-            );
+            )?;
         }
         let receiver_applications =
             applied_receivers::receiver_applications(program, &scopes, &mut identities)?;
@@ -923,7 +923,7 @@ pub mod projection {
                     synchronous_invocations: machine_synchronous_invocation_names(
                         program,
                         requirement,
-                    ),
+                    )?,
                     may_suspend: requirement.suspends,
                     may_block: requirement.blocks,
                     terminates_guarantee: published_termination.promises_termination(),
@@ -940,7 +940,7 @@ pub mod projection {
         requirements: &mut Vec<ServiceRequirementSource>,
         methods: &mut Vec<ServiceMethod>,
         identities: &mut ProviderIdentityTable,
-    ) {
+    ) -> Option<()> {
         let trait_definition = scope.declaration;
         for signature in program.trait_machine_signatures(trait_definition) {
             let requirement_identity = identities.intern(
@@ -995,13 +995,14 @@ pub mod projection {
                     .unwrap_or_default(),
                 result_claims: service_result_claims(program, scope, signature),
                 service_reach: service_reach_names(program, trait_definition, signature),
-                synchronous_invocations: synchronous_invocation_names(program, signature),
+                synchronous_invocations: synchronous_invocation_names(program, signature)?,
                 may_suspend: signature.suspends,
                 may_block: signature.blocks,
                 terminates_guarantee: signature.termination_guarantee.promises_termination(),
                 termination_premises: service_progress_premises(program, signature, identities),
             });
         }
+        Some(())
     }
 
     fn service_progress_premises(
@@ -1348,14 +1349,14 @@ pub mod projection {
     fn synchronous_invocation_names(
         program: &crate::TypedTrees,
         signature: &crate::signature::StateSignature,
-    ) -> Vec<String> {
+    ) -> Option<Vec<String>> {
         let parameters = program
             .state_signature_parameters(signature)
             .iter()
             .collect::<Vec<_>>();
-        boundary_invocation_names(
+        invocation_names(
             program,
-            crate::invocations::declared_signature_invocations(program, signature),
+            crate::invocations::declared_signature_invocations(program, signature).ok()?,
             &parameters,
         )
     }
@@ -1363,19 +1364,17 @@ pub mod projection {
     fn machine_synchronous_invocation_names(
         program: &crate::TypedTrees,
         machine: &crate::machine::Machine,
-    ) -> Vec<String> {
-        let Some(entry) = program.machine_states(machine).first() else {
-            return Vec::new();
-        };
+    ) -> Option<Vec<String>> {
+        let entry = program.machine_states(machine).first()?;
         let parameters = program.state_parameters(entry).iter().collect::<Vec<_>>();
-        boundary_invocation_names(
+        invocation_names(
             program,
-            crate::invocations::declared_machine_invocations(program, machine),
+            crate::invocations::declared_machine_invocations(program, machine).ok()?,
             &parameters,
         )
     }
 
-    fn boundary_trait_name_for_type(
+    fn invocation_trait_name_for_type(
         program: &crate::TypedTrees,
         type_reference: crate::types::TypeReferenceHandle,
     ) -> Option<String> {
@@ -1385,34 +1384,34 @@ pub mod projection {
         program
             .traits()
             .iter()
-            .find(|definition| definition.is_boundary && definition.symbol == symbol)
+            .find(|definition| definition.symbol == symbol)
             .map(|definition| program.trait_declaration_path(definition))
     }
 
-    fn boundary_invocation_names(
+    fn invocation_names(
         program: &crate::TypedTrees,
         targets: Vec<flow_effects::InvocationTarget>,
         parameters: &[&crate::signature::StateParameter],
-    ) -> Vec<String> {
+    ) -> Option<Vec<String>> {
         let mut names = targets
             .into_iter()
-            .filter_map(|target| match target {
+            .map(|target| match target {
                 flow_effects::InvocationTarget::Parameter(index) => parameters
                     .get(index as usize)
                     .map(|parameter| parameter.type_reference)
                     .and_then(|type_reference| {
-                        boundary_trait_name_for_type(program, type_reference)
+                        invocation_trait_name_for_type(program, type_reference)
                     }),
                 flow_effects::InvocationTarget::Service(symbol) => program
                     .traits()
                     .iter()
-                    .find(|definition| definition.is_boundary && definition.symbol == symbol)
+                    .find(|definition| definition.symbol == symbol)
                     .map(|definition| program.trait_declaration_path(definition)),
             })
-            .collect::<Vec<_>>();
+            .collect::<Option<Vec<_>>>()?;
         names.sort_unstable();
         names.dedup();
-        names
+        Some(names)
     }
 }
 pub use projection::ProjectedServiceSurface;
@@ -2607,7 +2606,7 @@ pub mod signatures {
 
         pub struct PreparedCallingInstance {
             pub argument_owner: SymbolHandle,
-            pub policy: Result<SymbolHandle, String>,
+            pub policy: Result<crate::trait_definition::Supply, String>,
             arguments: HandleSpan<TypeReferenceHandle>,
             signatures: HandleSpan<PreparedAppliedBoundarySignature>,
         }
@@ -2714,8 +2713,7 @@ pub mod signatures {
                                 instance.argument_owner,
                                 calling,
                                 policy,
-                            )
-                            .map(|machine| machine.symbol);
+                            );
                             let mut signatures = Vec::new();
                             collect_boundary_signatures(
                                 typed,
@@ -2936,14 +2934,14 @@ pub mod signatures {
             Ok(instances)
         }
 
-        fn prepared_policy_machine<'program>(
-            typed: &'program TypedTrees,
+        fn prepared_policy_machine(
+            typed: &TypedTrees,
             boundary: &crate::trait_definition::TraitDefinition,
             boundary_arguments: &[TypeReferenceHandle],
             argument_owner: symbols::SymbolHandle,
             calling_trait: &crate::trait_definition::TraitDefinition,
             calling_policy: &crate::trait_definition::TraitDefinition,
-        ) -> Result<&'program crate::machine::Machine, String> {
+        ) -> Result<crate::trait_definition::Supply, String> {
             use crate::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
             let boundary_scope = AppliedTraitScope::new(
                 typed,
@@ -2959,29 +2957,16 @@ pub mod signatures {
             let calling_scope = boundary_scope
                 .declaring_scope(typed, calling_trait.symbol)
                 .ok_or("calling policy has no unique exact Calling application")?;
-            let selections = typed
-                .trait_implementation_applications
-                .iter()
-                .filter(|(_, selected)| {
-                    selected.source_scope.scope(typed).is_some_and(|scope| {
-                        scope.argument_owner == argument_owner
-                            && scope.same_application(typed, &calling_scope)
-                    })
-                })
-                .map(|(_, selected)| selected)
-                .collect::<Vec<_>>();
-            let [selected] = selections.as_slice() else {
-                return Err("calling-policy implementation application has no uniquely prepared closed source selection; unresolved static binders cannot execute".to_owned());
+            // The authored trait application already fixes its implementation
+            // operand by declaration identity. This is nomination, not a legacy
+            // checked-application receipt; invocation checks the actual policy
+            // with its concrete input before any calling promise is published.
+            let [parameter] = typed.trait_type_parameters(calling_trait) else {
+                return Err("Calling must declare one exact implementation parameter".into());
             };
-            let Some(conformance) = typed.conformance_by_symbol(selected.application.declaration)
-            else {
-                return Err(format!(
-                    "static argument `{}` does not name a package-scoped conformance",
-                    typed
-                        .symbols
-                        .display_path(selected.application.declaration, "::")
-                ));
-            };
+            let conformance = calling_scope
+                .named_implementation_argument(typed, parameter.symbol)
+                .map_err(str::to_owned)?;
             let trait_definition = typed
                 .trait_definition_by_symbol(conformance.trait_symbol)
                 .ok_or_else(|| {
@@ -3037,63 +3022,15 @@ pub mod signatures {
                         .to_owned(),
                 );
             }
-            let machine = if typed.declaration_scope_parent(machine.symbol) == conformance.symbol
-                && (!typed.conformance_type_parameters(conformance).is_empty()
-                    || !conformance.lifetime_parameters.is_empty())
-            {
-                let captures = typed
-                    .captured_machine_applications
-                    .iter()
-                    .filter(|(_, capture)| {
-                        capture.template == machine.symbol
-                            && capture.conformance_application == selected.application
-                            && typed
-                                .expression_table
-                                .static_machine_application(capture.supplying_application)
-                                .lexical_owner
-                                == argument_owner
-                    })
-                    .map(|(_, capture)| capture)
-                    .collect::<Vec<_>>();
-                let [capture] = captures.as_slice() else {
-                    return Err(
-                        "calling policy has no unique checked realization of its exact map capture"
-                            .to_owned(),
-                    );
-                };
-                let entry = typed
-                    .captured_machine_states
-                    .span_or_empty(capture.states)
-                    .iter()
-                    .filter(|state| state.template == row.realization_state)
-                    .collect::<Vec<_>>();
-                if entry.len() != 1 {
-                    return Err(
-                        "calling policy capture lost its exact entry correspondence".to_owned()
-                    );
-                }
-                let realized = typed
-                    .machine(capture.instance)
-                    .ok_or("calling policy capture has no executable body")?;
-                if typed
-                    .machine_states(realized)
-                    .first()
-                    .is_none_or(|state| state.symbol != entry[0].instance)
-                {
-                    return Err(
-                        "calling policy capture does not select its checked entry state".to_owned(),
-                    );
-                }
-                realized
-            } else {
-                machine
-            };
             if !typed.machine_type_parameters(machine).is_empty()
                 || !machine.conformance_bounds.is_empty()
             {
                 return Err("generic calling-policy realization requires an explicitly specialized machine before policy evaluation".to_owned());
             }
-            Ok(machine)
+            Ok(crate::trait_definition::Supply {
+                slot: requirement.symbol,
+                provider: conformance.symbol,
+            })
         }
 
         fn collect_boundary_signatures<'a>(
@@ -3342,7 +3279,7 @@ pub mod signatures {
         let mut binders = Vec::new();
         let mut callback_sources = Vec::new();
         let mut static_machine_ordinal = 0u32;
-        let invocations = crate::invocations::declared_signature_invocations(typed, signature);
+        let invocations = crate::invocations::declared_signature_invocations(typed, signature)?;
         for parameter in typed.state_signature_type_parameters(signature) {
             let crate::data::TypeParameterKind::Machine { contract } = &parameter.kind else {
                 continue;

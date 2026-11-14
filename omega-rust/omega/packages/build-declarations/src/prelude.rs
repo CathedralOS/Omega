@@ -21,7 +21,9 @@ const BUILD_PRELUDE: &str = r#"
 // Toolchain-provided build vocabulary.
 use omega::language::core::AccessPolicy;
 use omega::language::core::AccessPlan;
-use omega::language::core::Schema;
+use omega::language::core::reflect::TypeSchema;
+use omega::language::core::Issuance;
+use omega::language::core::AccessPlan::new;
 public data Subsystem {
     case Console;
     case Gui;
@@ -121,13 +123,13 @@ public boundary trait BuildBindingOperations {
     machine select_provider(activation: u64, target: u64, independent: bool) reaches none crashes none;
     machine exclude(activation: u64, code: u64) reaches none crashes none;
 }
-machine build_exclusion_crash_code(cause: CrashCause) -> u64 {
+public machine build_exclusion_crash_code(cause: CrashCause) -> u64 {
     match cause {
         CrashCause::Trap -> 0u64
         CrashCause::Abort -> 1u64
     }
 }
-machine build_exclusion_physical_code(authority: PhysicalAuthorityClass) -> u64 {
+public machine build_exclusion_physical_code(authority: PhysicalAuthorityClass) -> u64 {
     match authority {
         PhysicalAuthorityClass::FilesystemContentRead -> 0u64
         PhysicalAuthorityClass::FilesystemContentWrite -> 1u64
@@ -229,9 +231,8 @@ public data BuildTests {
 public data BuildSeal {
 }
 BuildSealAccess satisfies AccessPolicy {
-    machine plan(schema: Schema) -> AccessPlan {
-        let plan: AccessPlan;
-        plan
+    machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
+        AccessPlan::new(&schema, Issuance::Only { routes: [] })
     }
 }
 public domain BuildSeal::Issued

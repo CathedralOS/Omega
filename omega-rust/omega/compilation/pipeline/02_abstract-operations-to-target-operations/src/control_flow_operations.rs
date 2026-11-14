@@ -287,6 +287,7 @@ pub(crate) mod operations {
         operation: &AbstractOperation,
         site: &mut RowSite<'_>,
         target: NativeTarget,
+        profile: Option<target::TargetProfile>,
         functions: &BTreeMap<MachineId, &AbstractFunction>,
         dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
         callables: &terminal_psi::TerminalCallableCatalog,
@@ -1102,7 +1103,7 @@ pub(crate) mod operations {
                         BoundaryRealization::ProgramImageRetainedSuffixStart,
                     ) => super::program_image::lower(
                         operation,
-                        target,
+                        profile,
                         boundary_machines,
                         settlements,
                         site,

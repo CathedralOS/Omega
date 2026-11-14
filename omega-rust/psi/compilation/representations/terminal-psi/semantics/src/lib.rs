@@ -127,7 +127,6 @@ pub use references::reference_storage_geometry::{
     reference_storage_region, reference_storage_size, schema_field_layout_source,
     validate_storage_destination_intervals,
 };
-pub use scalars::scalar_demand;
 pub use scalars::scalar_ordering;
 pub use structural::inline_carriers::{
     InlineCarrierError, inline_carrier_declaration, inline_field_presentation,
@@ -137,8 +136,7 @@ pub(crate) mod semantic_rows {
 
     use crate::scalars::scalar_leaf_schema::goal_free_scalar_leaf;
     use crate::{
-        GoalFreeScalarLeafSchema, ScalarLeafCrashPolicy, ScalarLeafDenotation,
-        ScalarLeafFrontierPolicy, ScalarLeafGoalShape, ScalarLeafOperandShape,
+        GoalFreeScalarLeafSchema, ScalarLeafDenotation, ScalarLeafOperandShape,
         ScalarLeafResultShape,
     };
     use semantic_vocabulary::{IntegerType, PropositionError, ScalarType, ValueId};
@@ -449,17 +447,6 @@ pub(crate) mod semantic_rows {
         )
     }
 
-    pub fn is_unconditionally_total_scalar(operation: &OperationKind) -> bool {
-        matches!(operation, OperationKind::IeeeFloatConstant { .. })
-            || operation_semantic_row(operation).is_ok_and(|row| {
-                row.goal_free_scalar_leaf().is_some_and(|schema| {
-                    schema.goal() == ScalarLeafGoalShape::None
-                        && schema.crash() == ScalarLeafCrashPolicy::Never
-                        && schema.frontier() == ScalarLeafFrontierPolicy::PreserveLocal
-                })
-            })
-    }
-
     pub(crate) fn exactly_one_row_for_tag<R>(
         rows: &[R],
         tag: OperationSemanticTag,
@@ -577,11 +564,11 @@ pub use references::reference_views::{
     scalar_reference_view_value, shared_descriptor_copy_matches, stored_reference_access,
 };
 pub use scalars::proof_bearing_scalar::{
-    CanonicalScalarGoal, ProofBearingIntegerPolicyBinding, ProofBearingScalarLeafElision,
-    ProofBearingScalarLeafSchema, ProofBearingScalarLeafSemantics, ProofBearingScalarSemanticRow,
-    elidable_proof_bearing_scalar_leaf, exact_proof_bearing_scalar_semantic_row_in,
-    proof_bearing_integer_policy_binding, proof_bearing_scalar_leaf_semantics,
-    proof_bearing_scalar_semantic_row, validate_proof_bearing_scalar_semantic_rows,
+    CanonicalScalarGoal, ProofBearingIntegerPolicyBinding, ProofBearingScalarLeafSchema,
+    ProofBearingScalarLeafSemantics, ProofBearingScalarSemanticRow,
+    exact_proof_bearing_scalar_semantic_row_in, proof_bearing_integer_policy_binding,
+    proof_bearing_scalar_leaf_semantics, proof_bearing_scalar_semantic_row,
+    validate_proof_bearing_scalar_semantic_rows,
 };
 pub use scalars::scalar_array::{
     scalar_array_leaf_declaration, scalar_array_leaf_path, scalar_array_leaf_shape,
@@ -603,7 +590,7 @@ pub use scalars::scalar_leaf_semantics::{
 pub use scalars::scalar_representation_view::{ScalarRepresentationViewPair, ScalarViewValue};
 pub use semantic_rows::{
     OperationSemanticCustody, OperationSemanticError, OperationSemanticRow, OperationSemanticTag,
-    exact_operation_semantic_row_in, is_unconditionally_total_scalar, operation_semantic_row,
+    exact_operation_semantic_row_in, operation_semantic_row,
 };
 pub use storage::arrival_storage::{
     StorageNames, arrival_parameter, borrowed_storage_parameter,
@@ -621,7 +608,9 @@ pub use storage::storage_regions::{
 };
 pub use storage::zero_valid_storage::{scalar_declaration_accepts_zero, zero_valid_record_storage};
 pub use structural::atomic_cell::atomic_cell_type;
-pub use structural::partial_affine::partial_affine_residuals;
+pub use structural::partial_affine::{
+    partial_affine_residuals, partial_affine_residuals_in_regions, structural_region_is_vacant,
+};
 pub use structural::primitive_place::{
     Position, StructuralStorageSelection, borrowed_primitive_projection_declaration,
     byte_carrier_geometry_matches, canonical_primitive_path, canonical_primitive_read_path,
@@ -629,8 +618,8 @@ pub use structural::primitive_place::{
     primitive_place_type, primitive_projection_declaration, primitive_projection_restriction,
     primitive_projection_type, primitive_read_field, primitive_read_projection_type,
     primitive_read_requirement, projection_stays_in_inline_storage,
-    projection_storage_dependencies, runtime_structural_copy_type, runtime_structural_path_tip,
-    stored_descriptor_paths,
+    projection_storage_dependencies, runtime_read_projection_tip, runtime_structural_copy_type,
+    runtime_structural_path_tip, stored_descriptor_paths,
 };
 pub use structural::record_field::{
     CasePayloadCarrier, RecordFieldCarrier, SequenceFieldObservation, case_payload_carrier,

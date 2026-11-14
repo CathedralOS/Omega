@@ -17,7 +17,6 @@
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
 
-use omega::language::core::float_operations;
 
 data Main requires ranged >= 0.0 && ranged <= 1.0 {
     direct: f64 in Finite;

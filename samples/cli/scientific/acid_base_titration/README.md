@@ -41,7 +41,7 @@ operation, so equivalent spellings of domain endpoints behave identically.
 Run from the repository root with a recorded optimized compiler:
 
 ```
-omega update --project samples/cli/independent/acid_base_titration --target linux_x86_64
+omega packages update --project samples/cli/independent/acid_base_titration --target linux_x86_64
 omega run samples/cli/independent/acid_base_titration/main.omg < samples/cli/independent/acid_base_titration/data/curve.txt
 python3 samples/cli/independent/acid_base_titration/validation/validate.py --omega /absolute/path/to/omega
 ```
@@ -64,7 +64,7 @@ concentration. It additionally reconstructs mass and charge from printed values
 and checks scaling invariance. Runtime refusals live in `validation/refusals.json`.
 The supplemental `endpoint_oracle.json` additionally freezes equivalent decimal
 endpoint spellings and the long integer coefficient case uncovered by review.
-The separate `invalid` project must reject reading species index 3 from length 3.
+The separate `../invalid_acid_base_titration` project must reject reading species index 3 from length 3.
 
 `terminal_validate.py` compiles an output observer against exact recorded producer
 libraries. It consumes the actual admitted application's retained canonical

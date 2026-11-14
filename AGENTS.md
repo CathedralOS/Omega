@@ -83,6 +83,12 @@ and what the change makes work:
 `Gate: <release-gate> | <what the change makes work>`, where the name comes from
 the release matrix in [Rust compiler completion](wiki/drafts/reference/rust_compiler_completion.md#release-matrix).
 
+The same PRs carry one line naming the specification they implement, so a
+reviewer can open the text the change claims to follow:
+`Spec: <wiki/spec/...md[#anchor]>[, <page>...]`, or
+`Spec: none | <why no page governs this>` when the spec is silent. A change that
+knowingly departs from a page says so in its description, beside this line.
+
 The same PRs carry one line saying what proved the change:
 `Proof: <tests on the change and the area around it> | <clean, or what failed and what it turned out to be>`.
 
@@ -103,16 +109,10 @@ The spec is the answer key. Read the governing page in `wiki/spec/`, build
 what it says, and you will get it right the first time. Check what you
 changed, then land it; `main` is checked after every merge.
 
-**The old checker is frozen for deletion (owner ruling, 2026-11-12).** The
-lowered-form checker's verdict is the only verdict of a compilation. Psi 05
-(`typed-trees-to-checked-trees`), `validation`, Psi 06
-(`checked-trees-to-lowered-psi`), `checked-trees`,
-`facts` and `representation-{planning,selections}` are being removed now: no
-pull request edits them except to delete code or to move a still-needed item
-into the crate that survives. Build what a program needs in the lowered-form
+**Checked trees were removed.** The lowered-form checker's verdict is the
+only verdict of a compilation. Build what a program needs in the lowered-form
 checker (`TASKS.md`, **LOWERED-FORM-CHECKER**). A program it cannot judge is
-refused; never route one back to the old stages or weaken the new checker so
-it compiles.
+refused; never weaken the checker so it compiles.
 
 An open PR is unfinished work sitting in the way of everyone else's. If you
 are the one looking at it, it is yours: finish it or close it.
@@ -137,10 +137,9 @@ are the one looking at it, it is yours: finish it or close it.
    obligations at the exact projected place (`root.field` or case variant
    payload), invalidating overlapping writes without discarding provably
    disjoint sibling storage.
-4. **Full pipeline carry-through (lowered-form checker `-> 08 -> Native`):**
+4. **Full pipeline carry-through (Psi 05 `-> 06 -> publication -> Native`):**
    Carry every semantic repair through the lowered-form checker, Terminal Psi
-   and native execution (`omega run --both`, exit 0). Psi 05 and 06 are being
-   deleted and take no repairs.
+   and native execution (`omega run --both`, exit 0).
 5. **Board closure:** Delete completed bullets from `TASKS.md` outright (never
    rewrite into `"preserving / keeping / now passes"` history prose).
 6. **Fix the mechanism, not the case.** When a fix wants a second carrier,
@@ -176,8 +175,9 @@ check on it does not count.
 ### No `.omg` file bloat
 
 `samples/cli/facts/` is a **frozen finite set**, and `tests/omega/` is gone.
-`cargo xtask check-rules` rejects any new `.omg` file under
-`samples/cli/facts/`, rejects any new file under `tests/omega/`, and caps new
+`cargo xtask check-rules` rejects any change that grows the number of `.omg`
+files under `samples/cli/facts/` (moving them within it is allowed), rejects any
+new file under `tests/omega/`, and caps new
 `.omg` files anywhere in the repository at **at most 6 per PR**
 (`MAX_NEW_OMG_FILES = 6`). Pin a repair with a test on the changed code and,
 when it needs a program, at most a single focused positive/negative pair kept
@@ -212,7 +212,7 @@ and [omega-rust/pipeline.md](omega-rust/pipeline.md):
 - **Identity, lifetime & soundness:** Snapshots and loans track exact storage
   versions; proof preserves ownership, authority, and termination obligations
   while respecting the boundary between erased math and executable values.
-- **Checked-to-Terminal Psi (`Psi 06–08`):** Lower constructs without loss into
+- **Typed-to-Terminal Psi (`Psi 05–06`):** Lower and check constructs without loss in
   canonical target-neutral Terminal Psi (`PSITERM\0`), materializing explicit
   affine cleanup, restoration windows, crash routes, and ranking edges.
 - **Native realization & execution:** Lower Terminal Psi through ABI calling
@@ -285,6 +285,18 @@ refuses a second build or test run while one is active.
 
 ## Conventions and workflow
 
+- **Product and subsystem ownership:** Ship one `omega` binary with
+  `omega <subsystem> <action>` routing. Folders and entry points expose those
+  subsystem responsibilities; do not grow separate tools or hidden command
+  drivers for work belonging to the product.
+- **Representation-to-representation pipeline:** Stages consume their declared
+  input representation and produce the next (`X-to-Y`), or transform the same
+  representation (`Y-to-Y`). Carry needed semantic facts in that representation;
+  do not bypass the pipeline with sidecars, callbacks into earlier stages or
+  source re-analysis. Private stage scratch is not a second inter-stage product.
+- **Cleanup priority within an assigned area:** Repair broken stage topology,
+  ownership and representation handoffs before local polish in that area.
+  This does not displace unrelated user-assigned work.
 - **Compositional lowering ([pipeline.md](omega-rust/pipeline.md#compositional-lowering)):**
   Generalize the touched operation across all value placements and delete the
   superseded code path in the same commit.
@@ -297,6 +309,13 @@ refuses a second build or test run while one is active.
   slot. Size scratch storage to the operation's actual domain: a query over a
   small selected family should use that family's prepared membership or a
   sorted slice, rather than allocate a table spanning every symbol on each query.
+  Favor compact arena-backed records with valid zero/default states where their
+  contracts permit (ZII), without treating zero bytes as arbitrary valid Rust
+  values. Avoid per-element small allocations and reserve from known or cheaply
+  estimated sizes. For sustained growth, consider paged arenas instead of moving
+  a growing contiguous `Vec`; use concurrent paged storage when independent
+  producers need it. Keep a bounded/pre-sized `Vec` when it fits the workload;
+  neither paging nor concurrency is a goal by itself.
 - **Verify at trust boundaries ([pipeline.md](omega-rust/pipeline.md#verification-placement)):**
   Default compilation does not re-verify its own stage output. Verifiers run
   in test harnesses, at foreign package boundaries, and on explicit
@@ -313,12 +332,15 @@ refuses a second build or test run while one is active.
 - When a genuine specification ambiguity blocks progress, record the exact
   question in `OWNER_QUESTIONS.md` and cite it in the relevant README rather
   than inventing unratified language semantics.
-- When the code or tooling itself looks rotten (one idea built twice, a stage
-  reaching across a boundary, a verdict with nothing behind it, a test that
-  pins a bug), write five lines in
-  [OWNER_CODE_CONCERNS.md](OWNER_CODE_CONCERNS.md) and keep working. It never
-  blocks your change and never gets its own pull request. Your first hour in
-  an area is when you see it best; say what you saw.
+- Repair obvious code-quality and architecture defects under the existing rules;
+  they do not need owner sign-off. If a concrete defect reaches beyond the
+  current repair (duplicated mechanisms, pipeline bypasses, unsound fallbacks,
+  misleading tests or wasteful storage), record it in the
+  [code repair queue](OWNER_CODE_CONCERNS.md) in the PR already being landed and
+  keep working. Agents may take those repairs and remove verified resolved or
+  stale entries. Keep plain implementation gaps in the existing `TASKS.md`
+  outcome instead; escalate only genuine language or high-level architecture
+  decisions, not routine refactors.
 
 ## Sessions and subagents
 
@@ -370,8 +392,8 @@ reads the allowed lanes from this table:
   only when the task needs something newer. Release finished slots with
   `cargo xtask worktree release` or `cargo xtask worktree clean`. Push via
   `git push origin HEAD:refs/heads/work/<lane>-<topic>`.
-- **No `.omg` bloat (`MAX_NEW_OMG_FILES = 6`):** Never add `.omg` files under
-  `samples/cli/facts/`, never add a file under `tests/omega/`, and never add
+- **No `.omg` bloat (`MAX_NEW_OMG_FILES = 6`):** Never grow the `.omg` files
+  under `samples/cli/facts/`, never add a file under `tests/omega/`, and never add
   more than 6 `.omg` files in a PR.
 - **No direct pushes to `main` and no chasing `main`:** Land only through
   squash-merged PRs. Rebase only on actual conflicts or

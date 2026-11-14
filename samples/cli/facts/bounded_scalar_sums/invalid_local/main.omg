@@ -1,0 +1,26 @@
+// Bounded u64 operands a <= 50 and b <= 50 make the exact sum
+// a + b fit result <= 100; no Wrapping domain and no as.
+// Place: local (invalid twin). Plain u64 operands do not prove an exact sum.
+// `requires true` insists on every u64 input: a private machine that omits
+// `requires` would infer the bound its sum needs from its callers instead
+// (state_contracts.md, "Private entry inference").
+machine add(a: u64, b: u64) -> u64
+    requires true
+{
+    let left: u64 = a;
+    let right: u64 = b;
+    left + right
+}
+
+machine probe(a: u64, b: u64) -> u64 {
+    add(a, b)
+}
+
+machine main() crashes Trap {
+    transition probe(30, 40) == 70 && probe(50, 50) == 100 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

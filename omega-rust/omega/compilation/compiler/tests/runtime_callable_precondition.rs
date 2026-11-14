@@ -3,14 +3,14 @@
 //! bound of 100; a missing hosted entry or an unsupported construct is not the
 //! rejection this test retains.
 
-use lowered_discharge::RouteVerdict;
 use platform_custody::temporary_directory::TemporaryDirectory;
 use semantic_vocabulary::{IntegerValue, Proposition, ScalarTerm, ScalarType};
-use structure_elaboration::{Compilation, elaborate};
 use terminal_check_tables::edges::{Actual, Callee};
 use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::values::ValueOrigin;
 use terminal_psi::{BoundaryParameterKind, OperationKind};
+use terminal_psi_to_terminal_psi::RouteVerdict;
+use typed_trees_to_terminal_psi::{Compilation, elaborate};
 
 // Preserved source SHA-256: 3e3e00c91368d7805f96ef210086bad767251abafc46ce5d0ad3c39cbc4a4154.
 const INVALID: &str = r#"// A machine value call must prove the public precondition for its actuals.
@@ -116,6 +116,9 @@ fn check_preserved_rejection() {
     let elaboration = elaborate(
         typed,
         Compilation {
+            declaration_metadata: &[],
+            supplies: &[],
+
             entries: &[entry],
             subjects: &[frontier.subject],
             purpose: source::DependencyScope::Product,
@@ -238,7 +241,8 @@ fn check_preserved_rejection() {
         "one(scale, 200)"
     );
 
-    let verdict = lowered_discharge::judge(Ok(elaboration)).expect("one ordinary source judgment");
+    let verdict =
+        terminal_psi_to_terminal_psi::judge(Ok(elaboration)).expect("one ordinary source judgment");
     let RouteVerdict::Rejected {
         formations,
         unproved,

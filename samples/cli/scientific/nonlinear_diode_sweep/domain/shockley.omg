@@ -2,7 +2,6 @@
 // resistor. Thermal voltage includes the ideality factor. No breakdown,
 // self-heating, capacitance, or diode series resistance is modeled.
 // Only validated inputs reach this private model: -48 <= voltage/thermal <= 36.
-use omega::language::core::float_operations;
 
 data Circuit [copy] {
     resistance: f64;

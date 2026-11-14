@@ -808,17 +808,10 @@ mod native {
             TerminalMachine {
                 id: machine_id(identity),
                 attachment: None,
-                declaration: None,
                 nominal_cleanup_subject: None,
-                parameters: Vec::new(),
-                parameter_order: Vec::new(),
-                structural_parameters: Vec::new(),
                 structural_places: Vec::new(),
-                entry_claims: Vec::new(),
                 block_entry_claims: Vec::new(),
                 loan_completions: Vec::new(),
-                content_entry_claims: Vec::new(),
-                result: TerminalMachineResult::Scalar(result),
                 entry: BlockId::new(1).unwrap(),
                 blocks: vec![Block {
                     id: BlockId::new(1).unwrap(),
@@ -838,13 +831,22 @@ mod native {
                     },
                 }],
                 ranked_scc: None,
-                declared_service_reach: Vec::new(),
-                closed_reach_application: None,
-                published_synchronous_entries: Vec::new(),
-                published_service_ceiling: Vec::new(),
                 content_identity_reshuffles: Vec::new(),
                 content_partition_compositions: Vec::new(),
-                contract: MachineContract::empty(ContractId::new(identity).unwrap()),
+                contract: terminal_psi::MachineContract {
+                    declaration: None,
+                    parameters: Vec::new(),
+                    parameter_order: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    entry_claims: Vec::new(),
+                    content_entry_claims: Vec::new(),
+                    result: TerminalMachineResult::Scalar(result),
+                    declared_service_reach: None,
+                    closed_reach_application: None,
+                    published_synchronous_entries: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    ..MachineContract::empty(ContractId::new(identity).unwrap())
+                },
                 assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
             }
         }
@@ -1036,8 +1038,8 @@ mod scalar_applications {
             completed.require_product_formation()?;
             let primary = completed.primary();
             if completed.terminal() != artifact.view().identity()
-                || primary.targets() != targets
-                || primary.layouts() != layouts
+                || primary.targets() != Some(targets)
+                || primary.layouts() != Some(layouts)
             {
                 return Err(
                     "native scalar closure belongs to another artifact, target or layout selection"
@@ -1055,11 +1057,12 @@ mod scalar_applications {
                 }
             }
             for inputs in std::iter::once(primary).chain(completed.supplemental()) {
-                let profile =
-                    target::TargetProfile::from_canonical_target_name(inputs.targets().target())
-                        .map_err(|error| {
-                            format!("scalar closure address-model target: {error:?}")
-                        })?;
+                let selected_target = inputs
+                    .targets()
+                    .ok_or("native scalar closure has no deployment selection")?
+                    .target();
+                let profile = target::TargetProfile::from_canonical_target_name(selected_target)
+                    .map_err(|error| format!("scalar closure address-model target: {error:?}"))?;
                 if inputs.carrier_layout()
                     != profile
                         .native_realization()
@@ -1067,7 +1070,7 @@ mod scalar_applications {
                 {
                     return Err(format!(
                         "scalar closure for {} has different target carrier geometry",
-                        inputs.targets().target()
+                        selected_target
                     ));
                 }
                 let Some(model) = inputs.address_model() else {
@@ -1082,7 +1085,7 @@ mod scalar_applications {
                 {
                     return Err(format!(
                         "scalar closure for {} has a different target address model",
-                        inputs.targets().target(),
+                        selected_target,
                     ));
                 }
             }

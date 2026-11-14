@@ -252,7 +252,9 @@ pub fn produce_fixture_products(
             Ok(output) => reports.push((outcome.target, output)),
             Err(package_manager::operations::ProjectCompilationError::Review(
                 package_manager::review::CompileResolvedPackageReviewsError::Compilation {
-                    diagnostics,
+                    failure:
+                        compilation_products::CompileFailure::Diagnostics(diagnostics)
+                        | compilation_products::CompileFailure::SourceCompletion { diagnostics, .. },
                     ..
                 },
             )) => failures.extend(diagnostics),
@@ -1034,8 +1036,8 @@ fn record_frontier_check(
     match check {
         compiler::TypedFrontierCheck::Reached { frontier, verdict } => {
             let (rejected, result) = match verdict {
-                compiler::CurrentCheckerVerdict::Accepted(checked) => (false, Ok(*checked)),
-                compiler::CurrentCheckerVerdict::Rejected(failure) => {
+                compiler::ProductCheckOutcome::Accepted(checked) => (false, Ok(*checked)),
+                compiler::ProductCheckOutcome::Rejected(failure) => {
                     (true, Err(failure.into_diagnostics()))
                 }
             };
@@ -1052,18 +1054,18 @@ fn record_frontier_check(
 /// One fixture's ordinary review and check, with the Product's frozen typed
 /// trees whenever Psi 04 completed. This is what a harness comparing a second
 /// checker calls: it sees rejected programs as well as accepted ones.
-pub enum FixtureFrontierCheck {
-    /// The current checker accepted and fixture review finished.
+pub enum FixtureProductCheck {
+    /// The product check accepted and fixture review finished.
     Accepted {
         frontier: Box<compiler::TypedFrontier>,
         checked: Box<compiler::CheckedCompilation>,
     },
-    /// Psi 04 completed and the current checker then rejected the program.
+    /// Psi 04 completed and the product check then rejected the program.
     Rejected {
         frontier: Box<compiler::TypedFrontier>,
         diagnostics: Vec<Diagnostic>,
     },
-    /// The current checker accepted, then this harness's own fixture
+    /// The product check accepted, then this harness's own fixture
     /// acceptance (entry, service or permission policy) refused. The trees
     /// are the accepted check's.
     ReviewRefused {
@@ -1081,7 +1083,7 @@ pub enum FixtureFrontierCheck {
 pub fn check_fixture_keeping_typed_frontier(
     main: &Path,
     preferred_target: &str,
-) -> FixtureFrontierCheck {
+) -> FixtureProductCheck {
     let mut record = None;
     let checked = (|| {
         let snapshot = fixture_build_snapshot(main)?;
@@ -1120,7 +1122,7 @@ pub fn check_fixture_keeping_typed_frontier(
                 frontier,
                 rejected: false,
             }),
-        ) => FixtureFrontierCheck::Accepted {
+        ) => FixtureProductCheck::Accepted {
             frontier,
             checked: Box::new(checked),
         },
@@ -1130,7 +1132,7 @@ pub fn check_fixture_keeping_typed_frontier(
                 frontier,
                 rejected: true,
             }),
-        ) => FixtureFrontierCheck::Rejected {
+        ) => FixtureProductCheck::Rejected {
             frontier,
             diagnostics,
         },
@@ -1140,14 +1142,14 @@ pub fn check_fixture_keeping_typed_frontier(
                 frontier,
                 rejected: false,
             }),
-        ) => FixtureFrontierCheck::ReviewRefused {
+        ) => FixtureProductCheck::ReviewRefused {
             frontier,
             diagnostics,
         },
         (Err(diagnostics), Some(FrontierRecord::Stopped) | None) => {
-            FixtureFrontierCheck::StoppedBeforeTypedFrontier(diagnostics)
+            FixtureProductCheck::StoppedBeforeTypedFrontier(diagnostics)
         }
-        (Ok(_), _) => FixtureFrontierCheck::StoppedBeforeTypedFrontier(vec![Diagnostic::error(
+        (Ok(_), _) => FixtureProductCheck::StoppedBeforeTypedFrontier(vec![Diagnostic::error(
             "the fixture check succeeded without recording its typed frontier",
         )]),
     }

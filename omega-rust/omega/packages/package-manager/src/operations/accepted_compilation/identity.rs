@@ -22,7 +22,7 @@ pub(super) fn require_current_acceptance(
     let root_name = source.root().selected().key().name().as_str();
     let stale = |package: &str, reason: &str| {
         format!(
-            "accepted package `{package}` {reason}; run `omega update` for fresh review before compiling"
+            "accepted package `{package}` {reason}; run `omega packages update` for fresh review before compiling"
         )
     };
     if accepted.target() != source.target_profile()

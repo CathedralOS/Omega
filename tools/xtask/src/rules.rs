@@ -1,12 +1,12 @@
 //! Repository admission rules (`cargo xtask check-rules`):
 //! - Per-file count ratchets (`source_text_reads.txt`, `contract_status_phrases.txt`,
-//!   `dense_id_maps.txt`, `cache_state.txt`)
+//!   `dense_id_maps.txt`, `cache_state.txt`, `place_transport.txt`)
 //! - Dangling task ID citations (`dangling_task_ids.txt`)
 //! - Discrete `TASKS.md` board shape
-//! - Diff hygiene (`MAX_NEW_OMG_FILES = 6`, the `samples/cli/facts/` freeze, no new
+//! - Diff hygiene (`MAX_NEW_OMG_FILES = 6`, the `samples/cli/facts/` freeze on growth, no new
 //!   files under the retired `tests/omega/`, raw measurements limit)
 //! - Commit title lane (`AGENTS.md` table) and PR `Agent:` provenance
-//! - Compiler-lane PR `Gate:` and `Proof:` lines
+//! - Compiler-lane PR `Gate:`, `Proof:` and `Spec:` lines
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -126,25 +126,31 @@ fn collect_files_with_ext(dir: &Path, root: &Path, ext: &str, out: &mut Vec<Path
 }
 
 /*
-    Checking reads frozen source and publishes its own evidence. Keep the same
-    state rule on the source preparation and lowered-form checking owners so
-    moving a phase cannot hide shared mutable checking state.
+    Source preparation and lowered-form checking own their mutable work explicitly.
+    Scan every surviving owner for hidden state. A configured root that cannot
+    be read is a violation rather than an empty successful scan.
     :CheckingInteriorState
 */
 const CHECKING_STATE_ROOTS: &[&str] = &[
-    "omega-rust/psi/compilation/pipeline/structure-elaboration/src",
-    "omega-rust/psi/compilation/pipeline/lowered-discharge/src",
     "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src",
-    "omega-rust/psi/compilation/validation/src",
+    "omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src",
+    "omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src",
 ];
 const CHECKING_STATE_FORBIDDEN: &[&str] = &["thread_local!", "RefCell"];
 
 fn checking_interior_state_violations(root: &Path) -> Vec<String> {
     let mut files = Vec::new();
-    for dir in CHECKING_STATE_ROOTS {
-        collect_files_with_ext(&root.join(dir), root, "rs", &mut files);
-    }
     let mut violations = Vec::new();
+    for dir in CHECKING_STATE_ROOTS {
+        let configured = root.join(dir);
+        if let Err(error) = fs::read_dir(&configured) {
+            violations.push(format!(
+                "{dir}: interior-state scan could not read this root ({error})"
+            ));
+            continue;
+        }
+        collect_files_with_ext(&configured, root, "rs", &mut files);
+    }
     for path in files {
         if path
             .file_name()
@@ -1130,6 +1136,41 @@ pub fn proof_violations(title: &str, body: &str) -> Vec<String> {
     }
 }
 
+/// A compiler-lane PR names the specification page it implements, or says why
+/// no page governs the change. The line is `Spec: <wiki/spec page>[#anchor][,
+/// <page>...]` or `Spec: none | <reason>`; each named page must exist, so the
+/// reviewer can open exactly the text the author claims to have followed.
+pub fn spec_violations(title: &str, body: &str, root: &Path) -> Vec<String> {
+    let lane = title.split(':').next().unwrap_or("").trim();
+    if !GATE_LANES.contains(&lane) {
+        return Vec::new();
+    }
+    const FORM: &str = "`Spec: <wiki/spec/...md[#anchor]>[, <page>...]` or `Spec: none | <why no page governs this>` (AGENTS.md 'Explain the change')";
+    let Some(line) = body.lines().find_map(|line| line.strip_prefix("Spec: ")) else {
+        return vec![format!("{lane} pull request description has no {FORM}")];
+    };
+    let fields: Vec<&str> = line.split('|').map(str::trim).collect();
+    if fields[0] == "none" {
+        return if fields.get(1).is_some_and(|why| !why.is_empty()) {
+            Vec::new()
+        } else {
+            vec![format!("`Spec: none` needs a reason, {FORM}")]
+        };
+    }
+    let mut violations = Vec::new();
+    for page in fields[0].split(',').map(str::trim) {
+        let path = page.split('#').next().unwrap_or("");
+        if !path.starts_with("wiki/spec/") || !path.ends_with(".md") {
+            violations.push(format!(
+                "`Spec:` names `{page}`, which is not a page under wiki/spec/; {FORM}"
+            ));
+        } else if !root.join(path).is_file() {
+            violations.push(format!("`Spec:` names `{path}`, which does not exist"));
+        }
+    }
+    violations
+}
+
 // --- TASKS.md board check ---
 
 fn is_tasks_item_line(line: &str) -> bool {
@@ -1213,9 +1254,17 @@ pub fn diff_hygiene_violations(changes: &[(char, String)]) -> Vec<String> {
     let mut violations = Vec::new();
     let mut added_omg = 0isize;
     let mut deleted_omg = 0isize;
+    // `samples/cli/facts/` is a frozen finite set: it may not grow, but a
+    // change may move its programs within it. A diff without rename
+    // detection shows each move as one deletion and one addition.
+    let mut added_facts = Vec::new();
+    let mut deleted_facts = 0usize;
     for (status, path) in changes {
         if *status == 'D' && path.ends_with(".omg") {
             deleted_omg += 1;
+            if path.starts_with(FACTS_ROOT) {
+                deleted_facts += 1;
+            }
             continue;
         }
         if *status != 'A' {
@@ -1228,22 +1277,25 @@ pub fn diff_hygiene_violations(changes: &[(char, String)]) -> Vec<String> {
         } else if path.ends_with(".omg") {
             added_omg += 1;
             if path.starts_with(FACTS_ROOT) {
-                violations.push(format!(
-                    "{path}: {FACTS_ROOT} is a frozen set; add no .omg files to it"
-                ));
+                added_facts.push(path.as_str());
             }
         } else if path.starts_with("tools/swarm/waves/") {
             violations.push(format!(
                 "{path}: swarm wave state belongs in ignored build/swarm/<wave>/, not tools/swarm/waves/"
             ));
-        } else if path.starts_with("tools/")
-            && path.ends_with(".py")
-            && !path.starts_with("tools/bootstrap/")
-        {
+        } else if path.starts_with("tools/") && path.ends_with(".py") {
             violations.push(format!(
                 "{path}: Python repository tooling is retired; implement developer and CI tooling in Rust under `tools/xtask/` (`cargo xtask`)"
             ));
         }
+    }
+    if added_facts.len() > deleted_facts {
+        let added = added_facts.len();
+        violations.extend(added_facts.iter().map(|path| {
+            format!(
+                "{path}: {FACTS_ROOT} is a frozen set; it may not grow (this change adds {added} .omg files to it and removes {deleted_facts})"
+            )
+        }));
     }
     let net_added = added_omg - deleted_omg;
     if net_added > MAX_NEW_OMG_FILES {
@@ -1272,7 +1324,7 @@ const RATCHET_SPECS: &[RatchetSpec] = &[
         header: &[
             "Source-text reads (include_str!/read_to_string of .rs or .toml) per file.",
             "Counts may only fall: express the rule as a dependency in",
-            "tools/check_native_boundary.py, a type or visibility, or a test that runs code.",
+            "`cargo xtask check-boundary`, a type or visibility, or a test that runs code.",
         ],
         advice: "Tests check behavior or structure, never source text (AGENTS.md): state the rule as a dependency, a type, or a test that runs the code.",
     },
@@ -1319,7 +1371,7 @@ const RATCHET_SPECS: &[RatchetSpec] = &[
             "*Place*, *Path* or *Projection*, per non-test file under",
             "omega-rust/psi/compilation. Counts may only fall: facts travel on one place",
             "key, one overlap relation and one formal-to-actual map",
-            "(wiki/drafts/designs/fact_transport.md).",
+            "(https://github.com/CathedralOS/Omega/blob/3b24dc9383e37416021ff19b350869a147c57432/wiki/drafts/designs/fact_transport.md).",
         ],
         advice: "Do not add another place comparison, rebaser or path type. The checker on the lowered form names places by terminal_check_tables::ExactPlaceId (wiki/drafts/designs/check_on_lowered_form.md); existing tree-level code keeps using validation::storage_path_relations::canonical_place_segments_may_overlap until it is replaced.",
     },
@@ -1369,7 +1421,7 @@ pub fn compute_ratchet_counts(
 fn format_ratchet_file(spec: &RatchetSpec, counts: &BTreeMap<String, usize>) -> String {
     let mut lines: Vec<String> = spec.header.iter().map(|h| format!("# {h}")).collect();
     lines.push(format!(
-        "# Written by `python tools/check_rules.py --{}`.",
+        "# Written by `cargo xtask check-rules --{}`.",
         spec.flag
     ));
     for (path, count) in counts {
@@ -1447,7 +1499,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         i += 1;
     }
 
-    let root = repo_root();
+    let root = repo_root()?;
     let semantic_ids = semantic_id_names(&root);
 
     if !update_flags.is_empty() {
@@ -1474,7 +1526,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     if update_dangling {
         let mut lines = vec![
             "# Task IDs cited by samples/cli/facts READMEs that no board holds.".to_owned(),
-            "# Written by `python tools/check_rules.py --update-dangling-task-ids`.".to_owned(),
+            "# Written by `cargo xtask check-rules --update-dangling-task-ids`.".to_owned(),
             "# Entries may only be removed: repoint a citation to its current board".to_owned(),
             "# item, or delete it when the work is done.".to_owned(),
         ];
@@ -1560,6 +1612,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         if let Some(t) = &title {
             violations.extend(gate_violations(t, &body));
             violations.extend(proof_violations(t, &body));
+            violations.extend(spec_violations(t, &body, &root));
         }
     }
 
@@ -1580,6 +1633,55 @@ mod tests {
     use super::*;
 
     #[test]
+    fn interior_state_scan_reports_an_unreadable_configured_root() {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-interior-state-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock precedes the unix epoch")
+                .as_nanos()
+        ));
+        fs::create_dir(&scratch).unwrap();
+        let missing = checking_interior_state_violations(&scratch);
+
+        for dir in CHECKING_STATE_ROOTS {
+            let stage = scratch.join(dir);
+            fs::create_dir_all(&stage).unwrap();
+            fs::write(stage.join("hidden.rs"), "let cell = RefCell::new(1);\n").unwrap();
+        }
+        let found = checking_interior_state_violations(&scratch);
+
+        for dir in CHECKING_STATE_ROOTS {
+            fs::write(scratch.join(dir).join("hidden.rs"), "fn plain() {}\n").unwrap();
+        }
+        let clean = checking_interior_state_violations(&scratch);
+        let _ = fs::remove_dir_all(&scratch);
+
+        assert_eq!(missing.len(), CHECKING_STATE_ROOTS.len());
+        for dir in CHECKING_STATE_ROOTS {
+            assert!(
+                missing.iter().any(|violation| violation.starts_with(dir)
+                    && violation.contains("could not read this root")),
+                "{dir} missing from {missing:?}"
+            );
+        }
+        assert!(
+            found
+                .iter()
+                .any(|violation| violation.contains("hidden.rs") && violation.contains("RefCell")),
+            "{found:?}"
+        );
+        assert!(
+            found
+                .iter()
+                .all(|violation| !violation.contains("could not read this root")),
+            "{found:?}"
+        );
+        assert!(clean.is_empty(), "{clean:?}");
+    }
+
+    #[test]
     fn place_transport_counts_comparisons_rebasers_and_place_types() {
         let text = "\
 pub(super) fn owner_path_overlaps(a: u8) -> bool { true }
@@ -1595,7 +1697,7 @@ struct Ledger;
 
     #[test]
     fn ratchets_and_dangling_ids_match_checked_in_baselines() {
-        let root = repo_root();
+        let root = repo_root().expect("test runs in the Omega workspace");
         let semantic_ids = semantic_id_names(&root);
         for (idx, spec) in RATCHET_SPECS.iter().enumerate() {
             let counts = compute_ratchet_counts(&root, idx, &semantic_ids);
@@ -1834,7 +1936,7 @@ struct Ledger;
 
     #[test]
     fn validates_commit_titles_and_provenance() {
-        let root = repo_root();
+        let root = repo_root().expect("test runs in the Omega workspace");
         let allowed = lanes(&fs::read_to_string(root.join("AGENTS.md")).unwrap());
         assert!(subject_violations("tools: port repository checks to rust", &allowed).is_empty());
         assert!(!subject_violations("unknownlane: bad", &allowed).is_empty());
@@ -1867,6 +1969,30 @@ struct Ledger;
     }
 
     #[test]
+    fn frozen_facts_may_move_but_not_grow() {
+        // A twin moved out of the program that contains it: one deletion
+        // and one addition inside the set.
+        let moved = [
+            ('D', "samples/cli/facts/a/local/invalid/main.omg".to_owned()),
+            ('A', "samples/cli/facts/a/invalid_local/main.omg".to_owned()),
+        ];
+        assert!(diff_hygiene_violations(&moved).is_empty());
+        // An addition beside a move still grows the set.
+        let grown = [
+            moved[0].clone(),
+            moved[1].clone(),
+            ('A', "samples/cli/facts/a/extra/main.omg".to_owned()),
+        ];
+        assert_eq!(diff_hygiene_violations(&grown).len(), 2);
+        // A deletion outside the set makes no room inside it.
+        let elsewhere = [
+            ('D', "tests/fixtures/pass/a/main.omg".to_owned()),
+            ('A', "samples/cli/facts/a/extra/main.omg".to_owned()),
+        ];
+        assert_eq!(diff_hygiene_violations(&elsewhere).len(), 1);
+    }
+
+    #[test]
     fn proof_line_states_the_tests_and_what_they_showed() {
         let check = |body: &str| proof_violations("psi: keep a bound", body);
         assert!(
@@ -1880,6 +2006,24 @@ struct Ledger;
         assert!(!check("Proof: unit tests | \n").is_empty());
         // Other lanes carry no proof line.
         assert!(proof_violations("docs: explain a page", "Summary\n").is_empty());
+    }
+
+    #[test]
+    fn spec_line_names_an_existing_page_or_says_why_none_governs() {
+        let root = repo_root().expect("test runs in the Omega workspace");
+        let check = |body: &str| spec_violations("psi: fix", body, &root);
+        assert!(check("Spec: wiki/spec/language/domains.md#domain-only-casts\n").is_empty());
+        assert!(
+            check("Spec: wiki/spec/language/domains.md, wiki/spec/language/ownership.md\n")
+                .is_empty()
+        );
+        assert!(check("Spec: none | refusal placement is not specified\n").is_empty());
+        assert!(!check("Spec: none\n").is_empty());
+        assert!(!check("Spec: none | \n").is_empty());
+        assert!(!check("Spec: wiki/spec/language/no_such_page.md\n").is_empty());
+        assert!(!check("Spec: omega-rust/pipeline.md\n").is_empty());
+        assert!(!check("No spec line\n").is_empty());
+        assert!(spec_violations("docs: explain", "No spec line\n", &root).is_empty());
     }
 
     #[test]

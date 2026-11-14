@@ -31,7 +31,7 @@ pub(crate) mod conditions {
     pub struct ScalarConditionSelection<'artifact> {
         proof_scope: &'artifact ProofApplicationScope,
         conditions: &'artifact ScalarConditions,
-        target: String,
+        target: Option<String>,
         primary: bool,
         providers: Vec<(BoundaryMachineId, MachineId)>,
         ranges: Vec<usize>,
@@ -42,15 +42,16 @@ pub(crate) mod conditions {
     }
 
     impl<'artifact> ScalarConditionSelection<'artifact> {
-        pub(crate) fn select(
+        pub(crate) fn select<'scope>(
             scope: &'artifact ProofApplicationScope,
             conditions: &'artifact ScalarConditions,
-            target: &str,
+            target: impl Into<Option<&'scope str>>,
             primary: bool,
             providers: impl IntoIterator<Item = (BoundaryMachineId, MachineId)>,
             demanded: &[ScalarApplicationId],
             condition_scope: &super::ScalarConditionScope,
         ) -> Result<Self, String> {
+            let target = target.into();
             let providers: Vec<_> = providers.into_iter().collect();
             let mut selected = Vec::new();
             for &(boundary, body) in &providers {
@@ -136,7 +137,7 @@ pub(crate) mod conditions {
             Ok(Self {
                 proof_scope: scope,
                 conditions,
-                target: target.to_owned(),
+                target: target.map(str::to_owned),
                 primary,
                 providers,
                 ranges,
@@ -181,7 +182,7 @@ pub(crate) mod conditions {
             let extra = Self::select(
                 self.proof_scope,
                 self.conditions,
-                &self.target,
+                self.target.as_deref(),
                 self.primary,
                 self.providers.iter().copied(),
                 &[],
@@ -212,7 +213,7 @@ pub(crate) mod conditions {
         pub(crate) fn matches(
             &self,
             observations: &super::ScalarApplicationObservations<'_>,
-            primary: &str,
+            primary: Option<&str>,
         ) -> bool {
             std::ptr::eq(
                 self.conditions,
@@ -221,8 +222,8 @@ pub(crate) mod conditions {
                     .module()
                     .scalar_applications
                     .conditions,
-            ) && self.target == observations.targets().target()
-                && self.primary == (self.target == primary)
+            ) && self.target.as_deref() == observations.target()
+                && self.primary == (self.target.as_deref() == primary)
                 && self.condition_scope == observations.condition_scope
                 && self
                     .providers
@@ -747,7 +748,7 @@ pub(crate) mod prerequisites {
         conditions: &'artifact ScalarConditions,
         application: ScalarApplicationId,
         entry: MachineId,
-        target: String,
+        target: Option<String>,
         providers: crate::AdmittedProviderSelections,
         rows: Vec<ConditionId>,
     }
@@ -806,7 +807,7 @@ pub(crate) mod prerequisites {
                     .ok_or("scalar prerequisite entry has no checked declaration")?;
                 let invocation = crate::compiler_evaluation::compiler_invocation_scope(
                     scope,
-                    observations.targets().target(),
+                    observations.target(),
                     observations.providers(),
                     root,
                 )?;
@@ -857,7 +858,7 @@ pub(crate) mod prerequisites {
                 conditions,
                 application,
                 entry,
-                target: observations.targets().target().to_owned(),
+                target: observations.target().map(str::to_owned),
                 providers: observations.providers().clone(),
                 rows,
             })
@@ -944,7 +945,7 @@ pub(crate) mod prerequisites {
                     .module()
                     .scalar_applications
                     .conditions,
-            ) || self.target != observations.targets().target()
+            ) || self.target.as_deref() != observations.target()
                 || self.providers != *observations.providers()
                 || self.entry != observations.entry(self.application)?
             {
@@ -1001,7 +1002,7 @@ pub(crate) mod prerequisites {
                             ScalarRangeRequirement::AddressModel => {
                                 let model = address_model
                                     .ok_or("scalar prerequisite needs an admitted address model")?;
-                                if model.target != self.target
+                                if Some(model.target.as_str()) != self.target.as_deref()
                                     || !model.carrier.is_address()
                                     || model.semantics_version == 0
                                 {
@@ -1503,9 +1504,9 @@ pub(crate) mod closure {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct ScalarScopeInputs {
-        targets: AdmittedTargetMachineSelections,
+        targets: Option<AdmittedTargetMachineSelections>,
         providers: AdmittedProviderSelections,
-        layouts: AdmittedTargetLayouts,
+        layouts: Option<AdmittedTargetLayouts>,
         address_model: Option<ScalarAddressModel>,
         carrier_layout: Option<semantic_vocabulary::TargetCarrierLayout>,
         entry_membership: ScalarEntryMembership,
@@ -1519,14 +1520,14 @@ pub(crate) mod closure {
     }
 
     impl ScalarScopeInputs {
-        pub fn targets(&self) -> &AdmittedTargetMachineSelections {
-            &self.targets
+        pub fn targets(&self) -> Option<&AdmittedTargetMachineSelections> {
+            self.targets.as_ref()
         }
         pub fn providers(&self) -> &AdmittedProviderSelections {
             &self.providers
         }
-        pub fn layouts(&self) -> &AdmittedTargetLayouts {
-            &self.layouts
+        pub fn layouts(&self) -> Option<&AdmittedTargetLayouts> {
+            self.layouts.as_ref()
         }
         pub fn address_model(&self) -> Option<&ScalarAddressModel> {
             self.address_model.as_ref()
@@ -1604,8 +1605,8 @@ pub(crate) mod closure {
 
     pub struct ScalarApplicationClosure<'artifact> {
         artifact: terminal_codec::TerminalExecutionView<'artifact>,
-        primary: String,
-        scopes: Vec<(String, bool)>,
+        primary: Option<String>,
+        scopes: Vec<(Option<String>, bool)>,
         ranges: Vec<bool>,
         predicates: Vec<bool>,
         completions: Vec<bool>,
@@ -1622,13 +1623,16 @@ pub(crate) mod closure {
     }
 
     impl<'artifact> ScalarApplicationClosure<'artifact> {
-        pub fn new(artifact: TerminalArtifactView<'artifact>, primary: &str) -> Self {
-            Self::source(artifact.into(), primary)
+        pub fn new<'scope>(
+            artifact: TerminalArtifactView<'artifact>,
+            primary: impl Into<Option<&'scope str>>,
+        ) -> Self {
+            Self::source(artifact.into(), primary.into())
         }
 
         fn source(
             artifact: terminal_codec::TerminalExecutionView<'artifact>,
-            primary: &str,
+            primary: Option<&str>,
         ) -> Self {
             let catalog = &artifact.module().scalar_applications;
             let applications = catalog.proof_scope.applications();
@@ -1669,21 +1673,21 @@ pub(crate) mod closure {
             let scopes = applications
                 .required_scopes(primary, &owners, unscoped)
                 .into_iter()
-                .map(|scope| (scope.to_owned(), false))
+                .map(|scope| (scope.map(str::to_owned), false))
                 .collect();
             Self::with_scopes(artifact, primary, scopes, ScalarClosureKind::Source)
         }
 
         fn with_scopes(
             artifact: terminal_codec::TerminalExecutionView<'artifact>,
-            primary: &str,
-            scopes: Vec<(String, bool)>,
+            primary: Option<&str>,
+            scopes: Vec<(Option<String>, bool)>,
             kind: ScalarClosureKind,
         ) -> Self {
             let conditions = &artifact.module().scalar_applications.conditions;
             Self {
                 artifact,
-                primary: primary.to_owned(),
+                primary: primary.map(str::to_owned),
                 scopes,
                 ranges: vec![false; conditions.ranges().len()],
                 predicates: vec![false; conditions.predicates().len()],
@@ -1694,12 +1698,13 @@ pub(crate) mod closure {
             }
         }
 
-        pub fn for_invocation(
+        pub fn for_invocation<'scope>(
             artifact: impl Into<terminal_codec::TerminalExecutionView<'artifact>>,
-            primary: &str,
+            primary: impl Into<Option<&'scope str>>,
             roots: &[terminal_psi::ProofDeclarationId],
         ) -> Self {
             let artifact = artifact.into();
+            let primary = primary.into();
             let mut declarations = Vec::with_capacity(roots.len());
             for &root in roots {
                 if !declarations.contains(&root) {
@@ -1709,7 +1714,7 @@ pub(crate) mod closure {
             Self::with_scopes(
                 artifact,
                 primary,
-                vec![(primary.to_owned(), false)],
+                vec![(primary.map(str::to_owned), false)],
                 ScalarClosureKind::Invocation(declarations),
             )
         }
@@ -1721,8 +1726,8 @@ pub(crate) mod closure {
             demand.require_artifact(artifact)?;
             Ok(Self::with_scopes(
                 artifact.into(),
-                &demand.target,
-                vec![(demand.target.clone(), false)],
+                Some(&demand.target),
+                vec![(Some(demand.target.clone()), false)],
                 ScalarClosureKind::AbiStorage(demand.scope.clone()),
             ))
         }
@@ -1732,19 +1737,23 @@ pub(crate) mod closure {
                 self.kind,
                 ScalarClosureKind::Invocation(_) | ScalarClosureKind::AbiStorage(_)
             ) {
-                self = Self::source(self.artifact, &self.primary);
+                self = Self::source(self.artifact, self.primary.as_deref());
             }
             self.kind = ScalarClosureKind::Deployment;
             for scope in scopes {
-                if !self.scopes.iter().any(|(target, _)| target == scope) {
-                    self.scopes.push((scope.clone(), false));
+                if !self
+                    .scopes
+                    .iter()
+                    .any(|(target, _)| target.as_ref() == Some(scope))
+                {
+                    self.scopes.push((Some(scope.clone()), false));
                 }
             }
             self
         }
 
-        pub fn scopes(&self) -> impl Iterator<Item = &str> {
-            self.scopes.iter().map(|(scope, _)| scope.as_str())
+        pub fn scopes(&self) -> impl Iterator<Item = Option<&str>> {
+            self.scopes.iter().map(|(scope, _)| scope.as_deref())
         }
 
         pub fn close_scope(
@@ -1754,7 +1763,7 @@ pub(crate) mod closure {
             address_model: Result<Option<ScalarAddressModel>, String>,
         ) -> Result<(), String> {
             if observations.artifact().identity() != self.artifact.identity()
-                || !conditions.matches(&observations, &self.primary)
+                || !conditions.matches(&observations, self.primary.as_deref())
             {
                 return Err(
                     "scalar closure selection differs from its artifact or scope inputs".into(),
@@ -1780,11 +1789,11 @@ pub(crate) mod closure {
                     "scalar closure deployment roots differ from its selected conditions".into(),
                 );
             }
-            let target = observations.targets().target();
+            let target = observations.target();
             let scope = self
                 .scopes
                 .iter()
-                .position(|(scope, _)| scope == target)
+                .position(|(scope, _)| scope.as_deref() == target)
                 .ok_or("scalar closure received an unrequested authored scope")?;
             if self.scopes[scope].1 {
                 return Err("scalar closure scope completed more than once".into());
@@ -1839,7 +1848,7 @@ pub(crate) mod closure {
             }
             let address_model = address_model?;
             let bounds = if let Some(model) = &address_model {
-                if model.target != target
+                if Some(model.target.as_str()) != target
                     || !model.carrier.is_address()
                     || model.semantics_version == 0
                 {
@@ -1863,7 +1872,9 @@ pub(crate) mod closure {
                     bounds.as_ref().map(|(minimum, maximum)| (minimum, maximum)),
                 )?;
             }
-            let mut geometry = observations.layouts().resolved_records().to_vec();
+            let mut geometry = observations
+                .layouts()
+                .map_or_else(Vec::new, |layouts| layouts.resolved_records().to_vec());
             for declaration in &observations.artifact().module().structural_types {
                 if let terminal_psi::StructuralTypeShape::FixedArray {
                     element,
@@ -1890,9 +1901,9 @@ pub(crate) mod closure {
                 self.ranges[position] = true;
             }
             let inputs = ScalarScopeInputs {
-                targets: observations.targets().clone(),
+                targets: observations.targets().cloned(),
                 providers: observations.providers().clone(),
-                layouts: observations.layouts().clone(),
+                layouts: observations.layouts().cloned(),
                 address_model,
                 carrier_layout: observations.carrier_layout(),
                 entry_membership: match conditions.scope() {
@@ -1903,7 +1914,7 @@ pub(crate) mod closure {
                         .unwrap_or(ScalarEntryMembership::Source),
                 },
             };
-            if target == self.primary {
+            if target == self.primary.as_deref() {
                 self.primary_result = Some(CompletedScalarScope {
                     inputs,
                     values: observations.values(),
@@ -2096,9 +2107,9 @@ pub(crate) enum EntryResult {
 
 pub struct ScalarApplicationObservations<'artifact> {
     artifact: terminal_codec::TerminalExecutionView<'artifact>,
-    targets: &'artifact AdmittedTargetMachineSelections,
+    targets: Option<&'artifact AdmittedTargetMachineSelections>,
     providers: &'artifact AdmittedProviderSelections,
-    layouts: AdmittedTargetLayouts,
+    layouts: Option<AdmittedTargetLayouts>,
     carrier_layout: Option<semantic_vocabulary::TargetCarrierLayout>,
     applications: std::sync::Arc<Arena<ApplicationObservations>>,
     condition_scope: ScalarConditionScope,
@@ -2130,27 +2141,36 @@ impl ScalarApplicationValues {
 }
 
 impl<'artifact> ScalarApplicationObservations<'artifact> {
-    pub fn new(
+    pub fn new<'layout>(
         artifact: impl Into<terminal_codec::TerminalExecutionView<'artifact>>,
-        targets: &'artifact AdmittedTargetMachineSelections,
+        targets: impl Into<Option<&'artifact AdmittedTargetMachineSelections>>,
         providers: &'artifact AdmittedProviderSelections,
-        target_layout: &crate::LayoutTargetFacts,
+        target_layout: impl Into<Option<&'layout crate::LayoutTargetFacts>>,
     ) -> Result<Self, String> {
         let artifact = artifact.into();
-        if artifact.identity() != targets.terminal_psi()
+        let targets = targets.into();
+        let target_layout = target_layout.into();
+        if targets.is_some_and(|targets| artifact.identity() != targets.terminal_psi())
             || artifact.custody_identity() != *providers.execution_identity()
         {
             return Err("scalar observations name a different Terminal artifact".into());
         }
         if let Some(target) = artifact.module().folded_constants.target.as_deref()
-            && (targets.target() != target || providers.folded_constant_target() != Some(target))
+            && (targets.map(AdmittedTargetMachineSelections::target) != Some(target)
+                || providers.folded_constant_target() != Some(target))
         {
             return Err(
                 "scalar observations differ from the artifact's folded target closure".into(),
             );
         }
-        let layouts = crate::admit_target_layouts(artifact, targets, target_layout)
-            .map_err(|error| error.to_string())?;
+        let layouts = match (targets, target_layout) {
+            (Some(targets), Some(layout)) => Some(
+                crate::admit_target_layouts(artifact, targets, layout)
+                    .map_err(|error| error.to_string())?,
+            ),
+            (None, None) => None,
+            _ => return Err("scalar layout facts and deployment selection disagree".into()),
+        };
         let mut applications = Arena::new();
         applications.insert_many(
             artifact
@@ -2178,22 +2198,37 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
     pub fn with_target_carriers(
         mut self,
         carriers: Option<semantic_vocabulary::TargetCarrierLayout>,
-    ) -> Self {
+    ) -> Result<Self, String> {
+        if carriers.is_some() && self.targets.is_none() {
+            return Err("scalar carrier layout requires an explicit deployment selection".into());
+        }
         self.carrier_layout = carriers;
-        self
+        Ok(self)
     }
 
     pub fn carrier_layout(&self) -> Option<semantic_vocabulary::TargetCarrierLayout> {
         self.carrier_layout
     }
-    pub fn targets(&self) -> &AdmittedTargetMachineSelections {
+    pub fn targets(&self) -> Option<&AdmittedTargetMachineSelections> {
         self.targets
+    }
+    pub fn target(&self) -> Option<&str> {
+        self.targets.map(AdmittedTargetMachineSelections::target)
     }
     pub fn providers(&self) -> &AdmittedProviderSelections {
         self.providers
     }
-    pub fn layouts(&self) -> &AdmittedTargetLayouts {
-        &self.layouts
+    pub fn layouts(&self) -> Option<&AdmittedTargetLayouts> {
+        self.layouts.as_ref()
+    }
+
+    fn geometry(&self) -> Result<crate::TargetLayoutGeometry<'_>, String> {
+        match &self.layouts {
+            Some(layouts) => layouts
+                .geometry(self.artifact)
+                .map_err(|error| error.to_string()),
+            None => Ok(crate::TargetLayoutGeometry::unscoped(self.artifact)),
+        }
     }
 
     pub fn with_application_roots(
@@ -2263,7 +2298,7 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
 
     pub fn with_abi_storage(mut self, demand: &CallingAbiStorageDemand) -> Result<Self, String> {
         demand.require_artifact(self.artifact)?;
-        if demand.target != self.targets.target() {
+        if Some(demand.target.as_str()) != self.target() {
             return Err("ABI storage demand names another selected target".into());
         }
         self.condition_scope = ScalarConditionScope::AbiStorage(demand.scope.clone());
@@ -2274,11 +2309,12 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
         ScalarApplicationValues(std::sync::Arc::clone(&self.applications))
     }
 
-    pub fn conditions(
+    pub fn conditions<'scope>(
         &self,
-        value_scope: &str,
+        value_scope: impl Into<Option<&'scope str>>,
         demanded: &[ScalarApplicationId],
     ) -> Result<ScalarConditionSelection<'artifact>, String> {
+        let value_scope = value_scope.into();
         if let ScalarConditionScope::AbiStorage(scope) = &self.condition_scope
             && scope.applications != demanded
         {
@@ -2288,8 +2324,8 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
         ScalarConditionSelection::select(
             &catalog.proof_scope,
             &catalog.conditions,
-            self.targets.target(),
-            self.targets.target() == value_scope,
+            self.target(),
+            self.target() == value_scope,
             self.providers.providers().chain(
                 self.providers
                     .assumed_bindings()
@@ -2326,10 +2362,13 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
         else {
             return Err("scalar application is not a complete evaluation entry".into());
         };
-        let machine = self
-            .targets
-            .entry(self.artifact.identity(), self.artifact.module(), *entry)
-            .map_err(|error| error.to_string())?;
+        let machine = AdmittedTargetMachineSelections::resolve_entry(
+            self.targets,
+            self.artifact.identity(),
+            self.artifact.module(),
+            *entry,
+        )
+        .map_err(|error| error.to_string())?;
         let declaration = self
             .artifact
             .module()
@@ -2465,10 +2504,7 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
         else {
             return Err("application is not a layout observation".into());
         };
-        let geometry = self
-            .layouts
-            .geometry(self.artifact)
-            .map_err(|error| error.to_string())?;
+        let geometry = self.geometry()?;
         ReferenceStorageGeometry::new(geometry.declarations(), |application| {
             Err(StorageGeometryError::UnresolvedExtent(application))
         })
@@ -2503,9 +2539,8 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
             ));
         }
         let geometry = self
-            .layouts
-            .geometry(self.artifact)
-            .map_err(|error| ScalarLayoutObservationError::Invalid(error.to_string()))?;
+            .geometry()
+            .map_err(ScalarLayoutObservationError::Invalid)?;
         let mut input_error = None;
         let mut geometry = ReferenceStorageGeometry::new(geometry.declarations(), |dependency| {
             match self.extent(dependency) {

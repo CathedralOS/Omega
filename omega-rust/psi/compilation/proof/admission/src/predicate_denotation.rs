@@ -207,6 +207,7 @@ mod value_equalities {
         ) -> Result<Proposition, PredicateDenotationError> {
             budget.proposition(original, depth)?;
             let mut transported = original.clone();
+            let mathematical_equality = matches!(original, Proposition::IntegerMathEqual(..));
             match &mut transported {
                 semantic_vocabulary::ordered_comparison_operands!(left, right) => {
                     *left = self.scalar(left, budget, depth + 1, &mut Vec::new())?;
@@ -236,6 +237,12 @@ mod value_equalities {
                 semantic_vocabulary::integer_math_comparison_operands!(left, right) => {
                     *left = self.mathematical(left, budget, depth + 1)?;
                     *right = self.mathematical(right, budget, depth + 1)?;
+                    // Expanding a value into its exact expression can reverse
+                    // equality's canonical operand order. Restore that order
+                    // before validating the substituted proposition.
+                    if mathematical_equality && left > right {
+                        std::mem::swap(left, right);
+                    }
                 }
                 Proposition::IeeeFloatComparison { .. }
                 | Proposition::ByteSequenceEqual { .. }
@@ -519,13 +526,6 @@ fn normalize(
     depth: usize,
 ) -> Result<Proposition, PredicateDenotationError> {
     budget.step(depth)?;
-    if let Some(holds) = closed_ieee_float_relation(proposition) {
-        return Ok(if holds {
-            Proposition::Truth
-        } else {
-            Proposition::Falsehood
-        });
-    }
     if let Some(denotation) = closed_integer_relation(proposition) {
         return Ok(denotation);
     }
@@ -580,40 +580,6 @@ fn closed_integer_relation(proposition: &Proposition) -> Option<Proposition> {
         Proposition::Truth
     } else {
         Proposition::Falsehood
-    })
-}
-
-fn closed_ieee_float_relation(proposition: &Proposition) -> Option<bool> {
-    use numerics::float_semantics::{FloatMeaning, FloatSemantics};
-    use semantic_vocabulary::{IeeeFloatComparisonKind as Kind, IeeeFloatValue};
-    let Proposition::ScalarIeeeFloatComparison {
-        kind,
-        format,
-        left,
-        right,
-    } = proposition
-    else {
-        return None;
-    };
-    let (ScalarTerm::IeeeFloatLiteral(left), ScalarTerm::IeeeFloatLiteral(right)) = (left, right)
-    else {
-        return None;
-    };
-    if left.format() != *format || right.format() != *format {
-        return None;
-    }
-    let meaning = |value| match value {
-        IeeeFloatValue::Binary32(bits) => FloatMeaning::from_f32(f32::from_bits(bits)),
-        IeeeFloatValue::Binary64(bits) => FloatMeaning::from_f64(f64::from_bits(bits)),
-    };
-    let (left, right) = (meaning(*left), meaning(*right));
-    Some(match kind {
-        Kind::Equal => FloatSemantics::equal(&left, &right),
-        Kind::NotEqual => FloatSemantics::not_equal(&left, &right),
-        Kind::LessThan => FloatSemantics::less(&left, &right),
-        Kind::LessOrEqual => FloatSemantics::less_or_equal(&left, &right),
-        Kind::NotLessThan => !FloatSemantics::less(&left, &right),
-        Kind::NotLessOrEqual => !FloatSemantics::less_or_equal(&left, &right),
     })
 }
 
@@ -1268,6 +1234,71 @@ mod value_equality_tests {
     }
 
     #[test]
+    fn mathematical_equality_keeps_canonical_order_after_exact_value_substitution() {
+        use semantic_vocabulary::IntegerMathTerm;
+        let (context, _, _) = fixture();
+        let embedded = |identity| IntegerMathTerm::MathValue {
+            source_type: integer_type(),
+            value: ValueId::new(identity).unwrap(),
+        };
+        let original = Proposition::IntegerMathEqual(embedded(1), embedded(4));
+        let expected = Proposition::IntegerMathEqual(
+            embedded(4),
+            IntegerMathTerm::Add(Box::new(embedded(2)), Box::new(embedded(3))),
+        );
+        let exact = Proposition::Equal(
+            value(1),
+            ScalarTerm::exact_integer_add(integer_type(), value(2), value(3)).unwrap(),
+        );
+        assert_eq!(
+            check_value_equality_denotation(&context, &original, [&exact]).unwrap(),
+            expected,
+        );
+        let transport = |equation: &Proposition| ProofNode {
+            conclusion: expected.clone(),
+            rule: ProofRule::ValueEqualityTransport {
+                premise: Box::new(assumption_proof(original.clone(), 0)),
+                equalities: vec![semantic_axiom_proof(equation.clone(), 0)],
+            },
+        };
+        crate::accept_certificate(
+            &context,
+            &expected,
+            std::slice::from_ref(&original),
+            std::slice::from_ref(&exact),
+            &transport(&exact),
+        )
+        .expect("canonical equality transport retains its exact input equation");
+        for changed in [
+            Proposition::Equal(value(1), literal(7)),
+            Proposition::Equal(
+                value(1),
+                ScalarTerm::wrapping_integer_add(integer_type(), value(2), value(3)).unwrap(),
+            ),
+        ] {
+            assert!(
+                crate::accept_certificate(
+                    &context,
+                    &expected,
+                    std::slice::from_ref(&original),
+                    std::slice::from_ref(&changed),
+                    &transport(&changed)
+                )
+                .is_err()
+            );
+        }
+        assert_ne!(
+            check_value_equality_denotation(
+                &context,
+                &original,
+                [&Proposition::Equal(value(2), literal(0))]
+            )
+            .unwrap(),
+            expected
+        );
+    }
+
+    #[test]
     fn mathematical_leaf_order_expands_only_cited_exact_scalar_definitions() {
         use semantic_vocabulary::IntegerMathTerm;
         let (context, _, _) = fixture();
@@ -1345,6 +1376,81 @@ mod value_equality_tests {
                 &transport(&exact),
             )
             .is_err()
+        );
+    }
+
+    #[test]
+    fn literal_ieee_comparison_stays_the_relation() {
+        use semantic_vocabulary::{IeeeFloatComparisonKind as Kind, IeeeFloatValue};
+        // Fact validity keeps a closed IEEE relation as that relation. These
+        // literals are the cases a Boolean decision would erase: +0 compared
+        // with -0, and a NaN compared with itself.
+        let relations = [
+            (
+                IeeeFloatValue::Binary32(0),
+                IeeeFloatValue::Binary32(0x8000_0000),
+                Kind::Equal,
+            ),
+            (
+                IeeeFloatValue::Binary64(0),
+                IeeeFloatValue::Binary64(0x8000_0000_0000_0000),
+                Kind::Equal,
+            ),
+            (
+                IeeeFloatValue::Binary32(0x7fc0_0001),
+                IeeeFloatValue::Binary32(0x7fc0_0001),
+                Kind::Equal,
+            ),
+            (
+                IeeeFloatValue::Binary64(0x7ff8_0000_0000_0001),
+                IeeeFloatValue::Binary64(0x7ff8_0000_0000_0001),
+                Kind::Equal,
+            ),
+            (
+                IeeeFloatValue::Binary32(0x7fc0_0001),
+                IeeeFloatValue::Binary32(0x7fc0_0001),
+                Kind::NotLessThan,
+            ),
+        ];
+        let context = PropositionContext::default();
+        for (left_bits, right_bits, kind) in relations {
+            let format = left_bits.format();
+            let mut left = ScalarTerm::IeeeFloatLiteral(left_bits);
+            let mut right = ScalarTerm::IeeeFloatLiteral(right_bits);
+            if kind.is_symmetric() && left > right {
+                std::mem::swap(&mut left, &mut right);
+            }
+            let goal = Proposition::ScalarIeeeFloatComparison {
+                kind,
+                format,
+                left,
+                right,
+            };
+            let converted = super::check_predicate_denotations(&context, &goal, &[], &[]).unwrap();
+            assert_eq!(
+                converted.goal(),
+                &goal,
+                "{format:?} {kind:?} must stay a scalar IEEE comparison"
+            );
+            let truth = ProofNode {
+                conclusion: Proposition::Truth,
+                rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
+            };
+            assert!(
+                converted.check_certificate(&context, &truth).is_err(),
+                "a proof of Truth must not discharge {format:?} {kind:?}"
+            );
+        }
+        let integer = IntegerType::new(IntegerSign::Signed, 32).unwrap();
+        let one = ScalarTerm::integer(integer, IntegerValue::Signed(1)).unwrap();
+        let two = ScalarTerm::integer(integer, IntegerValue::Signed(2)).unwrap();
+        let order = Proposition::LessThan(one, two);
+        assert_eq!(
+            super::check_predicate_denotations(&context, &order, &[], &[])
+                .unwrap()
+                .goal(),
+            &Proposition::Truth,
+            "a closed fixed-integer relation is still decided"
         );
     }
 }

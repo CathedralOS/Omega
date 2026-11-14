@@ -34,7 +34,7 @@ def main():
         environment.update(TMPDIR=str(temporary), TMP=str(temporary), TEMP=str(temporary))
         for name in ("main.omg", "build.omg"):
             shutil.copy2(source / name, project / name)
-        review = invoke("update", "--project", project, "--dangerously-accept-all")
+        review = invoke("packages", "update", "--project", project, "--dangerously-accept-all")
         assert review.returncode == 0, review.stderr.decode(errors="replace")
         run = invoke("run", "--both", "--keep", project / "main.omg")
         text = run.stderr.decode(errors="replace")

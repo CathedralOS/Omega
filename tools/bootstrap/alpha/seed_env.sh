@@ -136,15 +136,12 @@ require_bound_identity() {
 }
 
 # require_packed_closure_identity MANIFEST BASENAME SIZE SHA256 RECORD
-# PACKED_LABEL PYTHON_LABEL : repack and check every member on each call.
+# PACKED_LABEL LABEL : repack and check every member on each call.
 # Callers check the manifest first. Preserve the repack status through cleanup.
+# Repacking needs the built xtask binary; without it the check refuses.
 require_packed_closure_identity() {
-  command -v python3 >/dev/null 2>&1 || {
-    echo "bootstrap artifact: no python3 to repack the $7" >&2
-    return 2
-  }
   BOOTSTRAP_PACKED_CLOSURE_TMP=$(mktemp -d)
-  python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+  bootstrap_xtask source-closure \
     "$1" "$BOOTSTRAP_PACKED_CLOSURE_TMP/$2" || {
       BOOTSTRAP_PACKED_CLOSURE_RC=$?
       rm -rf -- "$BOOTSTRAP_PACKED_CLOSURE_TMP"

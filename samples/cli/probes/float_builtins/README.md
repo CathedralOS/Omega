@@ -15,7 +15,7 @@ Compile-checked only (no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/float_builtins/main.omg
-mbx run -p omega -- update --project samples/cli/probes/float_builtins
+mbx run -p omega -- packages update --project samples/cli/probes/float_builtins
 ```
 
 The program imports `omega::language::core::float_operations`, so the guard's

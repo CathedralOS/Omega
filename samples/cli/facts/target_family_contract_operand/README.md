@@ -29,15 +29,15 @@ public requirement does not imply that provider precondition, including on macOS
 where WindowsChoice is unselected. This replaces the retired family's false
 call-conjunct diagnostic with ordinary implementation refinement.
 
-- [local](local/main.omg) / [reject](local/invalid/main.omg)
-- [field](field/main.omg) / [reject](field/invalid/main.omg)
-- [parameter](parameter/main.omg) / [reject](parameter/invalid/main.omg)
-- [call result](call_result/main.omg) / [reject](call_result/invalid/main.omg)
-- [match join](match_join/main.omg) / [reject](match_join/invalid/main.omg)
-- [const name](const_name/main.omg) / [reject](const_name/invalid/main.omg)
-- [nested machine](other_state/main.omg) / [reject](other_state/invalid/main.omg)
-- [another machine](other_machine/main.omg) / [reject](other_machine/invalid/main.omg)
-- [selected target body](target_body/main.omg) / [reject](target_body/invalid/main.omg)
+- [local](local/main.omg) / [reject](invalid_local/main.omg)
+- [field](field/main.omg) / [reject](invalid_field/main.omg)
+- [parameter](parameter/main.omg) / [reject](invalid_parameter/main.omg)
+- [call result](call_result/main.omg) / [reject](invalid_call_result/main.omg)
+- [match join](match_join/main.omg) / [reject](invalid_match_join/main.omg)
+- [const name](const_name/main.omg) / [reject](invalid_const_name/main.omg)
+- [nested machine](other_state/main.omg) / [reject](invalid_other_state/main.omg)
+- [another machine](other_machine/main.omg) / [reject](invalid_other_machine/main.omg)
+- [selected target body](target_body/main.omg) / [reject](invalid_target_body/main.omg)
 
 The selected-target place uses an ordinary DirectRouting requirement and shared
 DirectCode implementation, which calls the target-selected Choosing requirement.

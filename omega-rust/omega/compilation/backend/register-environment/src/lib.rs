@@ -38,26 +38,22 @@ mod tests;
 pub use register_model::FrameAbiPreservationConvention;
 
 use catalog::{
-    conservative_baseline_reservation_profile, selected_constraint_keys, target_constraint_catalog,
-    target_physical_register_model,
+    conservative_baseline_reservation_profile, prepared_target_constraint_catalog,
+    selected_constraint_keys, target_physical_register_model,
 };
-use isa_aarch64::{
-    Aarch64RegisterConstraintCatalogValidationError, aarch64_fixed_register_view,
-    validate_aarch64_register_constraint_catalog,
-};
+use isa_aarch64::{Aarch64RegisterConstraintCatalogValidationError, aarch64_fixed_register_view};
 use isa_x86_64::{
-    X86_64RegisterConstraintCatalogValidationError, validate_x86_64_register_constraint_catalog,
-    x86_64_fixed_register_view, x86_64_preservation_convention_for_target,
+    X86_64RegisterConstraintCatalogValidationError, x86_64_fixed_register_view,
+    x86_64_preservation_convention_for_target,
 };
 use register_model::{
-    PreservationConvention, RegisterConstraintCatalog, RegisterConstraintKey,
+    PreparedRegisterConstraintCatalog, PreservationConvention, RegisterConstraintKey,
     RegisterInstructionConstraint, RegisterModelValidationError, RegisterReservationProfile,
     RegisterReservationProfileValidationError, RegisterViewId,
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedPreservationStorageCatalog,
-    ValidatedRegisterConstraintCatalog, ValidatedRegisterReservationProfile,
-    target_register_environment_identity, validate_physical_register_model,
-    validate_register_reservation_profile,
+    ValidatedRegisterReservationProfile, target_register_environment_identity,
+    validate_physical_register_model, validate_register_reservation_profile,
 };
 use selected_instructions::SelectedConstraintKeys;
 use target::{Architecture, NativeTarget, ObjectFormat};
@@ -92,15 +88,15 @@ fn build_baseline_target_register_environment(
     let physical = target_physical_register_model(target);
     let validated = validate_physical_register_model(physical.clone())
         .map_err(TargetRegisterEnvironmentValidationError::Physical)?;
-    let constraints = target_constraint_catalog(target, &validated);
+    let constraints = prepared_target_constraint_catalog(target, &validated)?;
     let reservations = conservative_baseline_reservation_profile(target, &physical);
-    validate_target_register_environment_join(target, validated, constraints, reservations)
+    assemble_target_register_environment(target, validated, constraints, reservations)
 }
 
-pub(crate) fn validate_target_register_environment_join(
+fn assemble_target_register_environment(
     target: NativeTarget,
     physical: ValidatedPhysicalRegisterModel,
-    constraints: RegisterConstraintCatalog,
+    constraints: PreparedRegisterConstraintCatalog,
     reservations: RegisterReservationProfile,
 ) -> Result<ValidatedTargetRegisterEnvironment, TargetRegisterEnvironmentValidationError> {
     if target.architecture != physical.model().architecture {
@@ -111,14 +107,12 @@ pub(crate) fn validate_target_register_environment_join(
             },
         );
     }
-    let constraints = match target.architecture {
-        Architecture::X86_64 => validate_x86_64_register_constraint_catalog(constraints, &physical)
-            .map_err(TargetRegisterEnvironmentValidationError::X86_64)?,
-        Architecture::Aarch64 => {
-            validate_aarch64_register_constraint_catalog(constraints, &physical)
-                .map_err(TargetRegisterEnvironmentValidationError::Aarch64)?
-        }
-    };
+    if constraints.architecture() != target.architecture {
+        return Err(TargetRegisterEnvironmentValidationError::ConstraintArchitectureMismatch);
+    }
+    if constraints.physical_identity() != physical.identity() {
+        return Err(TargetRegisterEnvironmentValidationError::ConstraintPhysicalModelMismatch);
+    }
     let selected_keys = selected_constraint_keys(target)
         .ok_or(TargetRegisterEnvironmentValidationError::UnsupportedSelectedInstructionAbi)?;
     if reservations
@@ -152,7 +146,7 @@ pub(crate) fn validate_target_register_environment_join(
 pub struct ValidatedTargetRegisterEnvironment {
     target: NativeTarget,
     physical: ValidatedPhysicalRegisterModel,
-    constraints: ValidatedRegisterConstraintCatalog,
+    constraints: PreparedRegisterConstraintCatalog,
     reservations: ValidatedRegisterReservationProfile,
     selected_keys: SelectedConstraintKeys,
     identity: TargetRegisterEnvironmentIdentity,
@@ -162,7 +156,7 @@ impl ValidatedTargetRegisterEnvironment {
     const fn new(
         target: NativeTarget,
         physical: ValidatedPhysicalRegisterModel,
-        constraints: ValidatedRegisterConstraintCatalog,
+        constraints: PreparedRegisterConstraintCatalog,
         reservations: ValidatedRegisterReservationProfile,
         selected_keys: SelectedConstraintKeys,
         identity: TargetRegisterEnvironmentIdentity,
@@ -197,7 +191,7 @@ impl ValidatedTargetRegisterEnvironment {
         &self.physical
     }
 
-    pub const fn constraints(&self) -> &ValidatedRegisterConstraintCatalog {
+    pub const fn constraints(&self) -> &PreparedRegisterConstraintCatalog {
         &self.constraints
     }
 
@@ -306,6 +300,8 @@ pub enum TargetRegisterEnvironmentValidationError {
         target: Architecture,
         model: Architecture,
     },
+    ConstraintArchitectureMismatch,
+    ConstraintPhysicalModelMismatch,
     X86_64(X86_64RegisterConstraintCatalogValidationError),
     Aarch64(Aarch64RegisterConstraintCatalogValidationError),
     Reservations(RegisterReservationProfileValidationError),

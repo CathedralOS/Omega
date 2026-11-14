@@ -62,36 +62,19 @@ fn data_identity_is_reflexive_but_distinct_subjects_need_a_premise() {
 #[test]
 fn closed_ieee_order_preserves_nan_signed_zero_and_format() {
     use semantic_vocabulary::{IeeeFloatComparisonKind as Kind, IeeeFloatValue};
-    for (left_binary32, right_binary32, left_binary64, right_binary64, equal, less, less_equal) in [
-        (0x8000_0000, 0, 0x8000_0000_0000_0000, 0, true, false, true),
-        (
-            0x7fc0_0001,
-            0,
-            0x7ff8_0000_0000_0001,
-            0,
-            false,
-            false,
-            false,
-        ),
+    // Signed zero, NaN, infinities, and a subnormal stay inside the comparison.
+    // Deciding them would erase the relation this conversion must leave unchanged.
+    for (left_binary32, right_binary32, left_binary64, right_binary64) in [
+        (0x8000_0000, 0, 0x8000_0000_0000_0000, 0),
+        (0x7fc0_0001, 0, 0x7ff8_0000_0000_0001, 0),
         (
             0xff80_0000,
             0x7f80_0000,
             0xfff0_0000_0000_0000,
             0x7ff0_0000_0000_0000,
-            false,
-            true,
-            true,
         ),
-        (0xbf80_0000, 0, 0xbff0_0000_0000_0000, 0, false, true, true),
-        (
-            0x0000_0001,
-            0,
-            0x0000_0000_0000_0001,
-            0,
-            false,
-            false,
-            false,
-        ),
+        (0xbf80_0000, 0, 0xbff0_0000_0000_0000, 0),
+        (0x0000_0001, 0, 0x0000_0000_0000_0001, 0),
     ] {
         for (left, right) in [
             (
@@ -104,13 +87,13 @@ fn closed_ieee_order_preserves_nan_signed_zero_and_format() {
             ),
         ] {
             let format = left.format();
-            for (kind, holds) in [
-                (Kind::Equal, equal),
-                (Kind::NotEqual, !equal),
-                (Kind::LessThan, less),
-                (Kind::LessOrEqual, less_equal),
-                (Kind::NotLessThan, !less),
-                (Kind::NotLessOrEqual, !less_equal),
+            for kind in [
+                Kind::Equal,
+                Kind::NotEqual,
+                Kind::LessThan,
+                Kind::LessOrEqual,
+                Kind::NotLessThan,
+                Kind::NotLessOrEqual,
             ] {
                 let mut left = ScalarTerm::IeeeFloatLiteral(left);
                 let mut right = ScalarTerm::IeeeFloatLiteral(right);
@@ -128,12 +111,15 @@ fn closed_ieee_order_preserves_nan_signed_zero_and_format() {
                         .unwrap();
                 assert_eq!(
                     converted.goal(),
-                    if holds {
-                        &Proposition::Truth
-                    } else {
-                        &Proposition::Falsehood
-                    },
-                    "{format:?} {kind:?}: {goal:?}"
+                    &goal,
+                    "{format:?} {kind:?} must stay a scalar IEEE comparison"
+                );
+                assert!(
+                    !matches!(
+                        converted.goal(),
+                        Proposition::Truth | Proposition::Falsehood
+                    ),
+                    "{format:?} {kind:?}"
                 );
             }
         }

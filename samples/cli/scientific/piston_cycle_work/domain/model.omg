@@ -1,5 +1,4 @@
 module domain::model;
-use omega::language::core::float_operations;
 
 // Declared quasi-static sample model, not an ideal-gas equation of state.
 // Pressure is kPa, volume is litres, hence work is joules. Positive work

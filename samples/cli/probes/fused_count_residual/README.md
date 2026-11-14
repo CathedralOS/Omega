@@ -16,7 +16,7 @@ does not execute it.
 
 On agreement the program prints `PASS` and exits 0.
 
-`invalid/` stores a fourth difference into `[f64; 3]` and is rejected with
+`../invalid_fused_count_residual/` stores a fourth difference into `[f64; 3]` and is rejected with
 `cannot prove index `3` is within length 3`.
 
 x86-64 builds admit AVX+FMA3 in `build.omg`. That admission is the deployment

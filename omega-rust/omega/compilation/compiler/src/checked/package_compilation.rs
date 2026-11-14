@@ -328,7 +328,7 @@ impl CompilationSession {
     }
 
     // Provider publication needs the lowered route's actual provider custody.
-    // The removed checked-tree producer cannot be called with typed source.
+    // The removed producer cannot be called with typed source.
     pub fn produce_package_build_provider(
         &mut self,
         _build: PackageBuild,
@@ -346,7 +346,10 @@ impl CompilationSession {
     ) -> Result<
         Vec<(
             Owner,
-            Result<package_compilation::IndependentComponentDescription, Vec<Diagnostic>>,
+            Result<
+                package_compilation::IndependentComponentDescription,
+                crate::CompilationProductError,
+            >,
         )>,
         Vec<Diagnostic>,
     > {
@@ -373,10 +376,8 @@ impl CompilationSession {
                     Ok(selected) => selected
                         .into_checked_compilation()
                         .map(crate::product_execution::ProductRequest::Component)
-                        .map_err(crate::CompilationProductError::Production),
-                    Err(failure) => Err(crate::CompilationProductError::Production(
-                        failure.into_diagnostics(),
-                    )),
+                        .map_err(crate::CompilationProductError::from),
+                    Err(failure) => Err(crate::CompilationProductError::from(failure)),
                 };
                 requests.push((owner, request));
             }
@@ -392,7 +393,7 @@ impl CompilationSession {
                         self.retain_component_product(product);
                         Ok(description)
                     }
-                    Err(error) => Err(error.into_diagnostics()),
+                    Err(error) => Err(error),
                 };
                 completed.push((position, owner, description));
             }
@@ -419,8 +420,9 @@ impl CompilationSession {
                 .into_iter()
                 .map(|(owner, request)| {
                     let root = request.build.source.root_path().to_path_buf();
+                    let inputs = request.build.source.package_inputs().clone();
                     (
-                        (owner, root, request.product, request.permissions),
+                        (owner, root, request.product, request.permissions, inputs),
                         request.build.source,
                     )
                 })
@@ -431,7 +433,7 @@ impl CompilationSession {
             // execute them before the application report succeeds.
             let mut requests = Vec::new();
             let mut applications = Vec::new();
-            for ((owner, root, product, permissions), selected) in
+            for ((owner, root, product, permissions, inputs), selected) in
                 self.select_build_batch(builds, None)
             {
                 let position = applications.len();
@@ -460,16 +462,13 @@ impl CompilationSession {
                                 .map(|realization| {
                                     crate::product_execution::ProductRequest::Requested {
                                         realization,
+                                        package_inputs: Some(inputs.clone()),
                                         root: root.clone(),
                                         product: test_product.clone(),
                                         permissions: permissions.clone(),
                                     }
                                 })
-                                .map_err(|failure| {
-                                    crate::CompilationProductError::Production(
-                                        failure.into_diagnostics(),
-                                    )
-                                }),
+                                .map_err(crate::CompilationProductError::from),
                         ));
                         identities.push(identity);
                     }
@@ -479,14 +478,13 @@ impl CompilationSession {
                     .map(
                         |realization| crate::product_execution::ProductRequest::Requested {
                             realization,
+                            package_inputs: Some(inputs.clone()),
                             root,
                             product,
                             permissions,
                         },
                     )
-                    .map_err(|failure| {
-                        crate::CompilationProductError::Production(failure.into_diagnostics())
-                    });
+                    .map_err(crate::CompilationProductError::from);
                 requests.push(((position, None), request));
                 applications.push((owner, identities, notes));
             }
@@ -523,10 +521,19 @@ impl CompilationSession {
                                             Ok(crate::CompilationOutput::Native(pending)) => {
                                                 Ok(pending)
                                             }
+                                            Ok(crate::CompilationOutput::Report(report)) => {
+                                                Err(CompileFailure::source_completion(
+                                                    vec![Diagnostic::error(
+                                                        "test root lost its native product",
+                                                    )],
+                                                    report.source_completion_accounting().clone(),
+                                                ))
+                                            }
                                             Ok(_) => Err(vec![Diagnostic::error(
                                                 "test root lost its native product",
-                                            )]),
-                                            Err(error) => Err(error.into_diagnostics()),
+                                            )]
+                                            .into()),
+                                            Err(error) => Err(CompileFailure::from(error)),
                                         },
                                     }
                                 })

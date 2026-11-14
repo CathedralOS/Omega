@@ -32,15 +32,15 @@ a guard before using the returned carrier.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| Local | [program](local/main.omg) | [use after transfer](local/invalid/main.omg) |
-| Field | [program](field/main.omg) | [use after transfer](field/invalid/main.omg) |
-| Parameter | [program](parameter/main.omg) | [use after transfer](parameter/invalid/main.omg) |
-| Call result | [program](call_result/main.omg) | [use after transfer](call_result/invalid/main.omg) |
-| Match join | [program](match_join/main.omg) | [use after transfer](match_join/invalid/main.omg) |
-| Const name | [program](const_name/main.omg) | [use after transfer](const_name/invalid/main.omg) |
-| A nested machine | [program](other_state/main.omg) | [use after transfer](other_state/invalid/main.omg) |
-| Another machine | [program](other_machine/main.omg) | [use after transfer](other_machine/invalid/main.omg) |
-| Target body | [program](target_body/main.omg) | [use after transfer](target_body/invalid/main.omg) |
+| Local | [program](local/main.omg) | [use after transfer](invalid_local/main.omg) |
+| Field | [program](field/main.omg) | [use after transfer](invalid_field/main.omg) |
+| Parameter | [program](parameter/main.omg) | [use after transfer](invalid_parameter/main.omg) |
+| Call result | [program](call_result/main.omg) | [use after transfer](invalid_call_result/main.omg) |
+| Match join | [program](match_join/main.omg) | [use after transfer](invalid_match_join/main.omg) |
+| Const name | [program](const_name/main.omg) | [use after transfer](invalid_const_name/main.omg) |
+| A nested machine | [program](other_state/main.omg) | [use after transfer](invalid_other_state/main.omg) |
+| Another machine | [program](other_machine/main.omg) | [use after transfer](invalid_other_machine/main.omg) |
+| Target body | [program](target_body/main.omg) | [use after transfer](invalid_target_body/main.omg) |
 
 The const-name place carries the selected slot through a constant index; it
 does not claim a constant can own a runtime reference. Each twin changes only

@@ -19,11 +19,7 @@
 //! zero-established or literal value of a record holding one, so the only
 //! `Build` a script holds is the one it was lent. That the declaration has
 //! this shape is checked here; the checker judges the program against it.
-//!
-//! The source checker establishes the script's obligations before the host
-//! calls this guard. Recognition of the exact protected declaration admits the
-//! host's original value; it does not permit source to construct another one.
-//! Real-prelude controls live in `compiler/tests/build_value_protection.rs`.
+
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -35,13 +31,13 @@ use typed_trees::types::{
 
 use super::is_exact_toolchain_build_prelude_data;
 
-/// Whether the checked program declares the compiler-owned Build activation.
-/// The host supplies a value only after its exact vocabulary and seal pass.
-/// A user declaration with the same name receives no compiler-owned value.
+/// Whether the program has the toolchain's Build activation: it declares the
+/// toolchain's `Build`. A program that does is refused when that
+/// declaration is not the vocabulary the host decodes or does not carry the
+/// seal that keeps source from producing a `Build`.
 pub fn admit_toolchain_build_activation(typed: &TypedTrees) -> Result<bool, Vec<Diagnostic>> {
-    build_activation_symbol(typed).map(|build| build.is_some())
+    Ok(build_activation_symbol(typed)?.is_some())
 }
-
 /// The toolchain's `Build` declaration, when the program has one, after
 /// checking the part of its vocabulary the host decodes by exact type.
 fn build_activation_symbol(typed: &TypedTrees) -> Result<Option<SymbolHandle>, Vec<Diagnostic>> {
@@ -200,7 +196,7 @@ public data Build<'storage> {
     }
 
     #[test]
-    fn a_program_with_the_protected_toolchain_build_has_an_activation() {
+    fn a_program_with_the_sealed_toolchain_build_has_an_activation() {
         let typed = typed("machine build_entry() { }", Some(PRELUDE));
         assert_eq!(admit_toolchain_build_activation(&typed), Ok(true));
     }

@@ -6,8 +6,8 @@ layout, and view projection.
 
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::{
-    Builder, LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
-    PlaceId, SelectedInstructionKind, VirtualRegisterId, fragmented_scalar, record,
+    Builder, LegalizedScalarInstruction, LegalizedScalarInstructionKind, PlaceId,
+    SelectedInstructionKind, VirtualRegisterId, fragmented_scalar, record,
 };
 use crate::structural_inputs::structural_reference_input;
 use abstract_operations::AccessLifecycleOperands;
@@ -23,8 +23,8 @@ use terminal_psi::{
 pub(crate) mod initialization {
     use super::{
         Builder, ImageDirection, ImageHome, LegalizedScalarInstruction, PlaceId,
-        SelectedInstructionKind, StructuralTypeDeclaration, TerminalAccessLifecyclePlan,
-        VirtualRegisterId, coordinate, failure, fragmented_scalar, operand_indices, owner_word,
+        SelectedInstructionKind, TerminalAccessLifecyclePlan, VirtualRegisterId, coordinate,
+        failure, fragmented_scalar, operand_indices, owner_word,
     };
     use crate::SelectedInstructionError;
 
@@ -34,7 +34,7 @@ pub(crate) mod initialization {
     };
 
     pub(crate) fn emit(
-        source: &super::LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         row: &LegalizedScalarInstruction,
         builder: &mut Builder<'_>,
         plan: &TerminalAccessLifecyclePlan,
@@ -69,11 +69,11 @@ pub(crate) mod initialization {
                 "initialization lost its admitted core profile type",
             ));
         };
-        let types = &source
+        source
             .structural
             .as_ref()
-            .ok_or_else(|| failure("initialization lost its structural signature"))?
-            .structural_types;
+            .ok_or_else(|| failure("initialization lost its structural signature"))?;
+        let types = source.geometry();
         let layout = result_layout::ResultLayout::derive(types, result.structural_type, plan)?;
         let result_layout::ReturnedLayout::Owned {
             owner: returned_owner,
@@ -279,7 +279,7 @@ pub(crate) mod initialization {
     }
 
     pub(crate) fn stage_image(
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &crate::native_geometry::NativeGeometry<'_>,
         builder: &mut Builder<'_>,
         row: &LegalizedScalarInstruction,
         plan: &TerminalAccessLifecyclePlan,
@@ -557,7 +557,7 @@ pub(crate) mod relocation {
     use selected_instructions::SelectedMemoryAccessRole;
 
     pub(crate) fn emit(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         row: &LegalizedScalarInstruction,
         builder: &mut Builder<'_>,
         plan: &TerminalAccessLifecyclePlan,
@@ -593,11 +593,11 @@ pub(crate) mod relocation {
         else {
             return Err(failure("relocation requires a retained run owner"));
         };
-        let types = &source
+        source
             .structural
             .as_ref()
-            .ok_or_else(|| failure("relocation lost its structural signature"))?
-            .structural_types;
+            .ok_or_else(|| failure("relocation lost its structural signature"))?;
+        let types = source.geometry();
         let layout = result_layout::ResultLayout::derive(types, result.structural_type, plan)?;
         let result_layout::ReturnedLayout::Owned {
             owner: returned_run,
@@ -930,7 +930,7 @@ pub(crate) mod resource_profile {
             }
 
             pub(in super::super::super) fn assess(
-                declarations: &[terminal_psi::StructuralTypeDeclaration],
+                declarations: &crate::native_geometry::NativeGeometry<'_>,
                 profile_type: semantic_vocabulary::StructuralTypeId,
                 builder: &mut Builder<'_>,
                 row: &LegalizedScalarInstruction,
@@ -1727,7 +1727,7 @@ pub(crate) mod resource_profile {
         }
 
         pub(in super::super) fn assess(
-            declarations: &[terminal_psi::StructuralTypeDeclaration],
+            declarations: &crate::native_geometry::NativeGeometry<'_>,
             profile_type: semantic_vocabulary::StructuralTypeId,
             builder: &mut Builder<'_>,
             row: &LegalizedScalarInstruction,
@@ -1996,7 +1996,7 @@ pub(crate) mod resource_profile {
 
         impl Node {
             fn root(
-                declarations: &[StructuralTypeDeclaration],
+                declarations: &crate::native_geometry::NativeGeometry<'_>,
                 root: StructuralTypeId,
             ) -> Result<Self, SelectedInstructionError> {
                 let shape =
@@ -2012,7 +2012,7 @@ pub(crate) mod resource_profile {
 
             fn declaration<'types>(
                 &self,
-                declarations: &'types [StructuralTypeDeclaration],
+                declarations: &'types crate::native_geometry::NativeGeometry<'types>,
             ) -> Result<&'types StructuralTypeDeclaration, SelectedInstructionError> {
                 find_structural_type(
                     declarations,
@@ -2023,7 +2023,7 @@ pub(crate) mod resource_profile {
 
             fn record<const COUNT: usize>(
                 &self,
-                declarations: &[StructuralTypeDeclaration],
+                declarations: &crate::native_geometry::NativeGeometry<'_>,
             ) -> Result<[Node; COUNT], SelectedInstructionError> {
                 let declaration = self.declaration(declarations)?;
                 let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
@@ -2069,7 +2069,7 @@ pub(crate) mod resource_profile {
                                 ));
                             }
                             let shape =
-                                structural_reference_input::field_storage_shape(field, declarations)
+                                structural_reference_input::field_storage_shape(field, declarations, declaration.id)
                                     .ok_or_else(|| {
                                         failure(
                                             "resource profile structural field has no native storage shape",
@@ -2090,7 +2090,7 @@ pub(crate) mod resource_profile {
 
             fn sum<const CASES: usize>(
                 &self,
-                declarations: &[StructuralTypeDeclaration],
+                declarations: &crate::native_geometry::NativeGeometry<'_>,
             ) -> Result<(Scalar, [Vec<Node>; CASES]), SelectedInstructionError> {
                 let declaration = self.declaration(declarations)?;
                 let StructuralTypeShape::Sum { cases } = &declaration.shape else {
@@ -2140,7 +2140,7 @@ pub(crate) mod resource_profile {
 
             fn tag<const CASES: usize>(
                 &self,
-                declarations: &[StructuralTypeDeclaration],
+                declarations: &crate::native_geometry::NativeGeometry<'_>,
             ) -> Result<Scalar, SelectedInstructionError> {
                 let (tag, payloads) = self.sum::<CASES>(declarations)?;
                 if payloads.iter().any(|payload| !payload.is_empty()) {
@@ -2153,7 +2153,7 @@ pub(crate) mod resource_profile {
 
             fn scalar(
                 &self,
-                declarations: &[StructuralTypeDeclaration],
+                declarations: &crate::native_geometry::NativeGeometry<'_>,
                 boolean: bool,
             ) -> Result<Scalar, SelectedInstructionError> {
                 let scalar = match &self.field_type {
@@ -2186,7 +2186,7 @@ pub(crate) mod resource_profile {
 
             fn counted(
                 &self,
-                declarations: &[StructuralTypeDeclaration],
+                declarations: &crate::native_geometry::NativeGeometry<'_>,
                 capacity: u64,
             ) -> Result<(Counted, Node), SelectedInstructionError> {
                 let [entries, count] = self.record(declarations)?;
@@ -2225,7 +2225,7 @@ pub(crate) mod resource_profile {
 
         impl ProfileLayout {
             pub(crate) fn derive(
-                declarations: &[StructuralTypeDeclaration],
+                declarations: &crate::native_geometry::NativeGeometry<'_>,
                 root: StructuralTypeId,
             ) -> Result<Self, SelectedInstructionError> {
                 let profile = Node::root(declarations, root)?;
@@ -2312,8 +2312,8 @@ pub(crate) mod resource_profile {
                 CallPlan, CallingPolicy, EntryControl, RegisterSet, ValuePlacement,
             };
             use legalized_operations::{
-                LegalizedCallUnitParameter, LegalizedScalarFunction,
-                LegalizedScalarInstructionKind, LegalizedStructuralContract,
+                LegalizedCallUnitParameter, LegalizedScalarInstructionKind,
+                LegalizedStructuralContract,
             };
             use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId};
             use semantic_vocabulary::{BoundaryMachineId, MachineId, StructuralDomainId};
@@ -2407,7 +2407,9 @@ pub(crate) mod resource_profile {
                     access: StructuralAccess::SharedBorrow,
                 });
                 types.expose_scalar_fields();
-                let profile_layout = ProfileLayout::derive(&types.0, profile_type).unwrap();
+                let native_geometry =
+                    crate::native_geometry::NativeGeometry::new(&types.0).unwrap();
+                let profile_layout = ProfileLayout::derive(&native_geometry, profile_type).unwrap();
                 let boundary = BoundaryMachineId::new(8).unwrap();
                 let plan = TerminalAccessLifecyclePlan {
                     target: None,
@@ -2542,9 +2544,11 @@ pub(crate) mod resource_profile {
                                 .zip(parameter_types)
                                 .enumerate()
                                 .map(|(position, (place, structural_type))| {
-                                    let shape =
-                                        crate::structural_inputs::shape(structural_type, &types.0)
-                                            .unwrap();
+                                    let shape = crate::structural_inputs::shape(
+                                        structural_type,
+                                        &native_geometry,
+                                    )
+                                    .unwrap();
                                     let semantic = StructuralParameterDeclaration {
                                         place,
                                         position: position as u32,
@@ -2572,7 +2576,7 @@ pub(crate) mod resource_profile {
                                     }
                                 })
                                 .collect();
-                            let source = LegalizedScalarFunction {
+                            let source = legalized_operations::LegalizedScalarFunction {
                                 machine: MachineId::new(1).unwrap(),
                                 attachment: None,
                                 nominal_cleanup_subject: None,
@@ -2596,6 +2600,8 @@ pub(crate) mod resource_profile {
                                 blocks: vec![],
                                 ownership_frontier_facts: vec![],
                             };
+                            let source =
+                                crate::native_geometry::NativeInput::new(&source, &native_geometry);
                             builder.open_block = Some(operation_control::OpenBlock {
                                 id: SelectedBlockId(0),
                                 origin: SelectedBlockOrigin::Source(source.entry_block),
@@ -2818,7 +2824,9 @@ pub(crate) mod resource_profile {
                 let mut declarations = Types::default();
                 let profile_type = declarations.profile();
                 declarations.expose_scalar_fields();
-                let layout = ProfileLayout::derive(&declarations.0, profile_type).unwrap();
+                let native_geometry =
+                    crate::native_geometry::NativeGeometry::new(&declarations.0).unwrap();
+                let layout = ProfileLayout::derive(&native_geometry, profile_type).unwrap();
 
                 for target in targets() {
                     for (count, base, length) in [
@@ -2863,7 +2871,7 @@ pub(crate) mod resource_profile {
                             let assessments =
                                 [SupplyRole::Source, SupplyRole::Destination].map(|role| {
                                     compatibility::run::assess(
-                                        &declarations.0,
+                                        &native_geometry,
                                         profile_type,
                                         builder,
                                         row,
@@ -3259,7 +3267,9 @@ pub(crate) mod resource_profile {
             let mut declarations = Types::default();
             let profile_type = declarations.profile();
             declarations.expose_scalar_fields();
-            let layout = ProfileLayout::derive(&declarations.0, profile_type).unwrap();
+            let native_geometry =
+                crate::native_geometry::NativeGeometry::new(&declarations.0).unwrap();
+            let layout = ProfileLayout::derive(&native_geometry, profile_type).unwrap();
             for target in targets() {
                 with_builder(target, |builder, row| {
                     let profile = profile_home(builder, row);
@@ -3269,7 +3279,7 @@ pub(crate) mod resource_profile {
                     let available =
                         fragmented_scalar::constant(builder, row, place, available).unwrap();
                     let result = validate(
-                        &declarations.0,
+                        &native_geometry,
                         profile_type,
                         builder,
                         row,
@@ -3721,7 +3731,9 @@ pub(crate) mod resource_profile {
             let mut declarations = Types::default();
             let profile_type = declarations.profile();
             declarations.expose_scalar_fields();
-            let layout = ProfileLayout::derive(&declarations.0, profile_type).unwrap();
+            let native_geometry =
+                crate::native_geometry::NativeGeometry::new(&declarations.0).unwrap();
+            let layout = ProfileLayout::derive(&native_geometry, profile_type).unwrap();
             for target in targets() {
                 for (placement_position, placement) in placements.iter().enumerate() {
                     with_builder(target, |builder, row| {
@@ -3737,7 +3749,7 @@ pub(crate) mod resource_profile {
                         let available =
                             fragmented_scalar::constant(builder, row, place, 256).unwrap();
                         let assessment = compatibility::assess(
-                            &declarations.0,
+                            &native_geometry,
                             profile_type,
                             builder,
                             row,
@@ -4175,7 +4187,7 @@ pub(crate) mod resource_profile {
 
     #[cfg(test)]
     fn validate(
-        declarations: &[terminal_psi::StructuralTypeDeclaration],
+        declarations: &crate::native_geometry::NativeGeometry<'_>,
         profile_type: semantic_vocabulary::StructuralTypeId,
         builder: &mut Builder<'_>,
         row: &LegalizedScalarInstruction,
@@ -4335,20 +4347,20 @@ pub(crate) mod result_layout {
         Borrowed,
     }
 
-    fn declaration(
-        types: &[StructuralTypeDeclaration],
+    fn declaration<'input>(
+        types: &'input crate::native_geometry::NativeGeometry<'input>,
         identity: StructuralTypeId,
-    ) -> Result<&StructuralTypeDeclaration, SelectedInstructionError> {
+    ) -> Result<&'input StructuralTypeDeclaration, SelectedInstructionError> {
         types
             .iter()
             .find(|item| item.id == identity)
             .ok_or_else(|| failure("placement result lost a retained declaration"))
     }
 
-    fn cases(
-        types: &[StructuralTypeDeclaration],
+    fn cases<'input>(
+        types: &'input crate::native_geometry::NativeGeometry<'input>,
         identity: StructuralTypeId,
-    ) -> Result<&[StructuralCaseDeclaration], SelectedInstructionError> {
+    ) -> Result<&'input [StructuralCaseDeclaration], SelectedInstructionError> {
         match &declaration(types, identity)?.shape {
             StructuralTypeShape::Sum { cases } => Ok(cases),
             _ => Err(failure("placement outcome must retain its core sum")),
@@ -4366,7 +4378,7 @@ pub(crate) mod result_layout {
 
     impl ResultLayout {
         pub(crate) fn derive(
-            types: &[StructuralTypeDeclaration],
+            types: &crate::native_geometry::NativeGeometry<'_>,
             result: StructuralTypeId,
             plan: &TerminalAccessLifecyclePlan,
         ) -> Result<Self, SelectedInstructionError> {
@@ -4451,7 +4463,7 @@ pub(crate) mod result_layout {
                 let packed = |field: &StructuralFieldDeclaration| -> Result<PackedFieldLayout, SelectedInstructionError> {
                     let region = super::field_region(types, ready_type, field)?;
                     Ok(PackedFieldLayout {
-                        shape: structural_reference_input::field_storage_shape(field, types)
+                        shape: structural_reference_input::field_storage_shape(field, types, ready_type)
                             .ok_or_else(|| failure("relocation result field has no native shape"))?,
                         byte_offset: offset(ready_owner.byte_offset, u64::from(region.byte_offset))?,
                     })
@@ -4472,8 +4484,9 @@ pub(crate) mod result_layout {
             };
             let returned_field = |field: &StructuralFieldDeclaration| {
                 let region = super::field_region(types, returned_type, field)?;
-                let shape = structural_reference_input::field_storage_shape(field, types)
-                    .ok_or_else(|| failure("placement returned field has no storage shape"))?;
+                let shape =
+                    structural_reference_input::field_storage_shape(field, types, returned_type)
+                        .ok_or_else(|| failure("placement returned field has no storage shape"))?;
                 Ok(PackedFieldLayout {
                     shape,
                     byte_offset: offset(
@@ -4556,8 +4569,9 @@ pub(crate) mod result_layout {
                         .ok_or_else(|| failure("run count field is absent"))?;
                     let backing_region = super::field_region(types, carrier, backing)?;
                     let count_region = super::field_region(types, carrier, count)?;
-                    let shape = structural_reference_input::field_storage_shape(backing, types)
-                        .ok_or_else(|| failure("run backing field has no physical shape"))?;
+                    let shape =
+                        structural_reference_input::field_storage_shape(backing, types, carrier)
+                            .ok_or_else(|| failure("run backing field has no physical shape"))?;
                     (
                         PackedFieldLayout {
                             shape,
@@ -4626,6 +4640,7 @@ pub(crate) mod tests {
             ),
             work_schedule: WorkScheduleIdentity::new(1).unwrap(),
             target,
+            profile: None,
             entry: MachineId::new(1).unwrap(),
             scalar_functions: vec![],
         };
@@ -4638,8 +4653,10 @@ pub(crate) mod tests {
                 invocations: std::collections::BTreeMap::new(),
                 inputs: std::collections::BTreeMap::new(),
             };
+        let geometries = crate::native_geometry::NativeGeometries::new(std::iter::empty()).unwrap();
         let backings = crate::selection::foreign_scalar_backings::ForeignScalarBackings::new(
             &program,
+            &geometries,
             &callable_invocations,
         )
         .expect("the instruction fixture has no foreign scalar call backings");
@@ -5350,6 +5367,7 @@ pub(crate) mod tests {
                 },
             ),
         ];
+        let types = crate::native_geometry::NativeGeometry::new(&types).unwrap();
         let field = StructuralFieldDeclaration {
             inline_carrier: None,
             id: StructuralFieldId::new(1).unwrap(),
@@ -5576,6 +5594,7 @@ pub(crate) mod tests {
     #[test]
     fn resident_complete_image_stages_commits_and_decodes_without_touching_rejected_backing() {
         let (types, plan) = image_fixture();
+        let types = crate::native_geometry::NativeGeometry::new(&types).unwrap();
         for target in targets() {
             for supplied in [0, 1] {
                 with_builder(target, |builder, row| {
@@ -5717,6 +5736,7 @@ pub(crate) mod tests {
             byte_offset: 16,
             element_stride: 8,
         });
+        let types = crate::native_geometry::NativeGeometry::new(&types).unwrap();
         for target in targets() {
             with_builder(target, |builder, row| {
                 let owner = PlaceId::new(9).unwrap();
@@ -5927,14 +5947,14 @@ pub(crate) mod tests {
 }
 pub(crate) mod view {
     use super::{
-        Builder, ImageHome, LegalizedScalarFunction, LegalizedScalarInstruction,
-        LegalizedScalarInstructionKind, TerminalAccessLifecyclePlan, failure, fragmented_scalar,
-        operand_indices, outcome, owner_word, resource_profile, result_layout,
+        Builder, ImageHome, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
+        TerminalAccessLifecyclePlan, failure, fragmented_scalar, operand_indices, outcome,
+        owner_word, resource_profile, result_layout,
     };
     use crate::SelectedInstructionError;
 
     pub(crate) fn emit(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         row: &LegalizedScalarInstruction,
         builder: &mut Builder<'_>,
         plan: &TerminalAccessLifecyclePlan,
@@ -5959,11 +5979,11 @@ pub(crate) mod view {
         else {
             return Err(failure("borrowed placement lost its original profile type"));
         };
-        let types = &source
+        source
             .structural
             .as_ref()
-            .ok_or_else(|| failure("borrowed placement has no structural signature"))?
-            .structural_types;
+            .ok_or_else(|| failure("borrowed placement has no structural signature"))?;
+        let types = source.geometry();
         let layout = result_layout::ResultLayout::derive(types, result.structural_type, plan)?;
         if !matches!(layout.returned, result_layout::ReturnedLayout::Borrowed)
             || layout.ready_owner.shape.byte_size != 8
@@ -6085,7 +6105,7 @@ fn offset(base: u32, displacement: u64) -> Result<u32, SelectedInstructionError>
 }
 
 pub(crate) fn emit(
-    source: &LegalizedScalarFunction,
+    source: &crate::native_geometry::NativeFunction<'_>,
     row: &LegalizedScalarInstruction,
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
@@ -6102,8 +6122,9 @@ pub(crate) fn emit(
         .structural
         .as_ref()
         .ok_or_else(|| failure("resident extraction lost its structural signature"))?;
-    let declarations = &signature.structural_types;
-    let plan = declarations
+    let declarations = source.geometry();
+    let plan = signature
+        .structural_types
         .access_lifecycles()
         .iter()
         .find(|plan| plan.boundary == *boundary && plan.operation == operands.operation())
@@ -6310,7 +6331,7 @@ fn operand_indices<'indices>(
 }
 
 fn owner_word(
-    types: &[StructuralTypeDeclaration],
+    types: &crate::native_geometry::NativeGeometry<'_>,
     row: &LegalizedScalarInstruction,
     builder: &mut Builder<'_>,
     plan: &TerminalAccessLifecyclePlan,
@@ -6406,7 +6427,7 @@ enum ImageDirection {
 }
 
 fn transfer_image(
-    declarations: &[StructuralTypeDeclaration],
+    declarations: &crate::native_geometry::NativeGeometry<'_>,
     row: &LegalizedScalarInstruction,
     builder: &mut Builder<'_>,
     plan: &TerminalAccessLifecyclePlan,
@@ -6497,7 +6518,7 @@ fn transfer_image(
 }
 
 fn field_region(
-    declarations: &[StructuralTypeDeclaration],
+    declarations: &crate::native_geometry::NativeGeometry<'_>,
     schema: StructuralTypeId,
     field: &StructuralFieldDeclaration,
 ) -> Result<calling_conventions::PackedFieldLayout, SelectedInstructionError> {
@@ -6515,7 +6536,7 @@ fn field_region(
             "resident image field is not its direct owned storage",
         ));
     }
-    let shape = structural_reference_input::field_storage_shape(field, declarations)
+    let shape = structural_reference_input::field_storage_shape(field, declarations, schema)
         .ok_or_else(|| failure("resident field has no native storage shape"))?;
     Ok(calling_conventions::PackedFieldLayout {
         shape,
@@ -6531,7 +6552,7 @@ struct ImageChunk {
 }
 
 fn aggregate_chunks(
-    declarations: &[StructuralTypeDeclaration],
+    declarations: &crate::native_geometry::NativeGeometry<'_>,
     field: &StructuralFieldDeclaration,
     byte_count: u64,
     placements: &[LayoutPlacementReport],
@@ -6647,7 +6668,7 @@ enum ScalarImageCodec {
 
 impl ScalarImageCodec {
     fn field(
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &crate::native_geometry::NativeGeometry<'_>,
         schema: StructuralTypeId,
         field: &StructuralFieldDeclaration,
     ) -> Result<Self, SelectedInstructionError> {

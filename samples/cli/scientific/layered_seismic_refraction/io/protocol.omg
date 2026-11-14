@@ -1,5 +1,5 @@
 use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega::language::core::I32::from_f64;
 data Protocol {
  fields: [f64; 25]; numerators: [f64; 25]; scales: [f64; 25]; position: i32 in Wrapping;
  length: i32 in Wrapping; accumulator: f64; scale: f64;

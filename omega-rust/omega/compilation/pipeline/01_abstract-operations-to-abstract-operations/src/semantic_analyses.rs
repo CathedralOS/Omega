@@ -682,19 +682,10 @@ pub(crate) mod place_access_summaries {
                                 },
                             );
                         }
-                        O::Jump {
-                            structural_bindings,
-                            ..
-                        } => bind_arguments(&mut bindings, structural_bindings),
-                        O::Conditional {
-                            when_true,
-                            when_false,
-                            ..
-                        } => {
-                            bind_arguments(&mut bindings, &when_true.structural_bindings);
-                            bind_arguments(&mut bindings, &when_false.structural_bindings);
-                        }
                         _ => {}
+                    }
+                    for successor in &node.successors {
+                        bind_arguments(&mut bindings, &successor.structural_bindings);
                     }
                 }
             }
@@ -2241,7 +2232,6 @@ pub(crate) mod use_definitions {
 pub(crate) mod value_liveness {
     use std::collections::{BTreeMap, BTreeSet};
 
-    use abstract_operations::AbstractOperation as O;
     use optimization_unit::PsiOptimizationUnit;
     use semantic_vocabulary::{BlockId, MachineId, ValueId};
 
@@ -2269,26 +2259,6 @@ pub(crate) mod value_liveness {
     pub(crate) fn value_liveness(unit: &PsiOptimizationUnit) -> ValueLivenessAnalysis {
         let mut output = Vec::new();
         for function in &unit.functions {
-            let successors = function
-                .blocks
-                .iter()
-                .map(|block| {
-                    let targets = block
-                        .nodes
-                        .last()
-                        .map(|node| match &node.operation {
-                            O::Jump { target, .. } => vec![*target],
-                            O::Conditional {
-                                when_true,
-                                when_false,
-                                ..
-                            } => vec![when_true.target, when_false.target],
-                            _ => Vec::new(),
-                        })
-                        .unwrap_or_default();
-                    (block.id, targets)
-                })
-                .collect::<BTreeMap<_, _>>();
             let mut live_entry = function
                 .blocks
                 .iter()
@@ -2298,9 +2268,9 @@ pub(crate) mod value_liveness {
             loop {
                 let mut changed = false;
                 for block in function.blocks.iter().rev() {
-                    let next_exit = successors[&block.id]
-                        .iter()
-                        .filter_map(|successor| live_entry.get(successor))
+                    let next_exit = block
+                        .successors()
+                        .filter_map(|successor| live_entry.get(&successor.target))
                         .flat_map(|set| set.iter().copied())
                         .collect::<BTreeSet<_>>();
                     let mut next_entry = next_exit.clone();
@@ -2393,11 +2363,7 @@ pub(crate) fn semantically_reachable_blocks(
         .map(|block| {
             (
                 block.id,
-                block
-                    .nodes
-                    .last()
-                    .map(|node| node.successors.iter().map(|edge| edge.target).collect())
-                    .unwrap_or_default(),
+                block.successors().map(|edge| edge.target).collect(),
             )
         })
         .collect::<BTreeMap<BlockId, Vec<BlockId>>>();

@@ -1021,9 +1021,15 @@ impl<T: Default> Arena<T> {
 
     #[inline]
     pub fn get(&self, handle: Handle<T>) -> &T {
-        let index = self.index_from_valid_handle(handle);
+        self.try_get(handle).unwrap_or_else(|| self.dummy())
+    }
 
-        self.items.get(index).unwrap_or_else(|| self.dummy())
+    /// Resolves a live row without substituting the shared default. Zero,
+    /// retired generations and out-of-range handles return `None`; ownership
+    /// by a particular arena still requires its owning context.
+    #[inline]
+    pub fn try_get(&self, handle: Handle<T>) -> Option<&T> {
+        self.items.get(self.index_from_valid_handle(handle))
     }
 
     pub fn get_mut(&mut self, handle: Handle<T>) -> &mut T {
@@ -1953,6 +1959,28 @@ mod tests {
         assert_eq!(arena.get(invalid).as_str(), "");
         assert_eq!(arena.get(first).as_str(), "alpha");
         assert_eq!(arena.get(second).as_str(), "beta");
+    }
+
+    #[test]
+    fn checked_lookup_does_not_substitute_dummy_for_missing_storage() {
+        let mut arena = Arena::new();
+        let handle = arena.insert(7u32);
+        *arena.get_mut(Handle::invalid()) = 99;
+        assert_eq!(arena.try_get(handle), Some(&7));
+        assert_eq!(arena.try_get(Handle::invalid()), None);
+        assert_eq!(
+            arena.try_get(Handle::from_parts(handle.arena_index(), 9)),
+            None
+        );
+        assert_eq!(
+            arena.try_get(Handle::from_parts(99, handle.generation())),
+            None
+        );
+        assert!(arena.free(handle));
+        let replacement = arena.insert(8);
+        assert_eq!(arena.try_get(handle), None);
+        assert_eq!(arena.try_get(replacement), Some(&8));
+        assert_eq!(arena.get(Handle::invalid()), &99);
     }
 
     #[test]

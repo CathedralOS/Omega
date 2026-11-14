@@ -6,63 +6,9 @@
 
 use compilation_products::{CheckedCompilation, CompileFailure};
 
-/// Source requests captured with the frontier, so a developer replay judges
-/// the same calling-policy and entry roots as the original compilation.
-#[derive(Debug, Clone, Default)]
-pub struct CallingInputs {
-    pub applications: Vec<typed_trees::trait_definition::TraitApplicationEnvironment>,
-    pub entries: Vec<ProgramEntryInput>,
-}
-
-#[derive(Debug, Clone)]
-pub struct ProgramEntryInput {
-    pub target: String,
-    pub application: typed_trees::trait_definition::TraitApplicationEnvironment,
-    pub physical_source_digest: [u8; 32],
-    pub implementation: symbols::SymbolHandle,
-}
-
-pub struct CallingSelectionContext<'source> {
-    source: &'source typed_trees::FrozenTypedTrees,
-    applications: &'source [typed_trees::trait_definition::TraitApplicationEnvironment],
-    entries: Vec<structure_elaboration::ProgramEntryContractSelection<'source>>,
-}
-
-impl CallingInputs {
-    pub fn borrow<'source>(
-        &'source self,
-        source: &'source typed_trees::FrozenTypedTrees,
-    ) -> CallingSelectionContext<'source> {
-        CallingSelectionContext {
-            source,
-            applications: &self.applications,
-            entries: self
-                .entries
-                .iter()
-                .map(
-                    |entry| structure_elaboration::ProgramEntryContractSelection {
-                        target: &entry.target,
-                        application: &entry.application,
-                        physical_source_digest: entry.physical_source_digest,
-                        implementation: entry.implementation,
-                    },
-                )
-                .collect(),
-        }
-    }
-}
-
-impl CallingSelectionContext<'_> {
-    pub fn selection(&self) -> Option<structure_elaboration::CallingPolicySelections<'_>> {
-        (!self.entries.is_empty() || !self.applications.is_empty()).then_some(
-            structure_elaboration::CallingPolicySelections {
-                source: self.source,
-                applications: self.applications,
-                entries: &self.entries,
-            },
-        )
-    }
-}
+pub use compilation_products::{
+    SourceCallingInputs as CallingInputs, SourceProgramEntryInput as ProgramEntryInput,
+};
 
 /// What to check: either form the session already checks.
 pub enum TypedFrontierRequest {
@@ -81,6 +27,8 @@ pub enum TypedFrontierRequest {
 pub struct TypedFrontier {
     /// The actual frozen typed source returned by Psi 04 preparation.
     pub typed: typed_trees::FrozenTypedTrees,
+    /// Actual constant invocation custody retained with this source owner.
+    pub source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
     /// The Build's bound program roots, in the order the checker received
     /// them. Empty when the Build binds no entry.
     pub entries: Vec<symbols::SymbolHandle>,
@@ -95,27 +43,18 @@ pub struct TypedFrontier {
     pub selected: Vec<symbols::SymbolHandle>,
     /// The distinct visible-continuation obligations of the executed bindings.
     pub bindings: Vec<typed_trees::callable_signature_shapes::BoundCallableShape>,
-    pub calling: CallingInputs,
-    /// Exact source choices for developer rejudgment. Product consumers read
-    /// only the normalized selections in the accepted module.
-    pub providers: Vec<structure_elaboration::provider_selections::ProviderSelectionInput>,
+    pub supplies: Vec<psi_compiler::TerminalSourceSupply>,
+    pub normalization: std::sync::Arc<compilation_products::SourceNormalizationInputs>,
 }
 
 impl TypedFrontier {
-    pub fn provider_selections(
-        &self,
-    ) -> Option<structure_elaboration::provider_selections::ProviderSelections<'_>> {
-        (!self.providers.is_empty()).then_some(
-            structure_elaboration::provider_selections::ProviderSelections {
-                source: &self.typed,
-                choices: &self.providers,
-            },
-        )
+    pub fn provider_selections(&self) -> Option<psi_compiler::TerminalProviderSelections<'_>> {
+        self.normalization.providers(&self.typed)
     }
 }
 
 /// What the product path concluded after receiving its typed source.
-pub enum CurrentCheckerVerdict {
+pub enum ProductCheckOutcome {
     /// The check the product path runs returned a checked compilation.
     Accepted(Box<CheckedCompilation>),
     /// Structural judgment or a later product step refused it.
@@ -127,7 +66,7 @@ pub enum TypedFrontierCheck {
     /// Psi 00 through 04 completed for the Product program.
     Reached {
         frontier: Box<TypedFrontier>,
-        verdict: CurrentCheckerVerdict,
+        verdict: ProductCheckOutcome,
     },
     /// The compilation stopped before Psi 04 produced the Product's frozen
     /// typed trees: a parse error or another refusal in Psi 00 through 03, a
@@ -147,11 +86,11 @@ impl TypedFrontierCheck {
         match (frontier, result) {
             (Some(frontier), Ok(checked)) => Self::Reached {
                 frontier: Box::new(frontier),
-                verdict: CurrentCheckerVerdict::Accepted(Box::new(checked)),
+                verdict: ProductCheckOutcome::Accepted(Box::new(checked)),
             },
             (Some(frontier), Err(failure)) => Self::Reached {
                 frontier: Box::new(frontier),
-                verdict: CurrentCheckerVerdict::Rejected(failure),
+                verdict: ProductCheckOutcome::Rejected(failure),
             },
             (None, Err(failure)) => Self::StoppedBeforeTypedFrontier(failure),
             (None, Ok(_)) => Self::StoppedBeforeTypedFrontier(

@@ -17,7 +17,7 @@ Our unit carries two distinct kinds of data:
    `pruned_machines`), which rewrites transform and re-seal under a fresh
    `OptimizationUnitIdentity`.
 2. Immutable verifier custody (`structural_types`, `structural_domains`, `services`,
-   `accepted_obligation_facts`, `proof_questions`, `ownership_frontier_facts`,
+   `accepted_obligation_facts`, `ownership_frontier_facts`,
    `runtime_evidence`), which optimizer admission attaches once from the verified
    Terminal module and preserves across every rewrite.
 */
@@ -55,13 +55,12 @@ use abstract_operations::{
 use optimization_core::{
     AcceptedObligationFactIdentity, OptimizationIdentityBundle, OptimizationSelections,
     OptimizationUnitIdentity, OptimizationWorkBudget, OptimizedAbstractPlanProjectionIdentity,
-    OwnershipFrontierFactIdentity, ProofQuestionIdentity, ScalarConstantFactIdentity,
-    ValueRangeFactIdentity,
+    OwnershipFrontierFactIdentity, ScalarConstantFactIdentity, ValueRangeFactIdentity,
 };
 use semantic_vocabulary::{
-    AdmissionSiteId, BlockId, ClaimId, ContractId, EdgeId, EvidenceIdentity, IntegerCarrier,
-    IntegerType, IntegerValue, MachineId, ObligationId, OperationId, PlaceId, ScalarType,
-    ServiceId, StructuralPlaceKind, StructuralTypeId, ValueId, WorkScheduleIdentity,
+    BlockId, ClaimId, EdgeId, IntegerCarrier, IntegerType, IntegerValue, MachineId, ObligationId,
+    OperationId, PlaceId, ScalarType, ServiceId, StructuralPlaceKind, StructuralTypeId, ValueId,
+    WorkScheduleIdentity,
 };
 use terminal_psi::{
     BoundaryMachineDeclaration, ContentEntryClaim, EntryClaim, EvidenceContractLane,
@@ -123,16 +122,11 @@ pub use ownership::{
     canonical_ownership_frontier_snapshot,
 };
 pub use proof::{
-    AcceptedObligationFact, AcceptedObligationFactIndexError, ProofQuestionIndexError,
-    ProofQuestionOwner, RuntimeEvidenceCatalog, SourceCheckedScalarReceiving,
-    attach_accepted_obligation_facts, attach_verified_module_context,
+    AcceptedObligationFact, AcceptedObligationFactIndexError, RuntimeEvidenceCatalog,
+    SourceCheckedScalarReceiving, attach_accepted_obligation_facts, attach_verified_module_context,
     validate_runtime_evidence_context,
 };
-pub(crate) use proof::{ProofQuestion, ProofQuestionAdmissionKind, ProofQuestionClass};
-pub use range::{
-    IntervalExtraction, ValueRangeFact, ValueRangeRegion, ValueRangeScope, ValueRangeSupport,
-    extract_integer_intervals, proof_range_goal, value_range_fact_identity,
-};
+pub use range::{ValueRangeFact, ValueRangeRegion, ValueRangeSupport, value_range_fact_identity};
 pub use rewrite::{
     AdjacentBlockMergeRewrite, BlockParameterIncomingBinding, BooleanConstantRewrite,
     CaseMembershipSpecializationRewrite, ConstantConditionalRewrite, DeadScalarNodeRewrite,
@@ -179,7 +173,6 @@ pub struct PsiOptimizationUnit {
     pub dynamic_dispatch: terminal_psi::TerminalDynamicDispatchCatalog,
     pub callables: terminal_psi::TerminalCallableCatalog,
     pub accepted_obligation_facts: Vec<AcceptedObligationFact>,
-    pub proof_questions: Vec<ProofQuestion>, // Complete immutable verifier roster in reconstruction order.
     pub ownership_frontier_facts: Vec<OwnershipFrontierFact>, // Absent only on low-level bare seeds.
     pub pruned_machines: Vec<PrunedMachineCustody>, // Source ordinals bind removed machines to the verified Terminal roster.
     pub identities: terminal_psi::TerminalIdentityTable, // Sealed module table that every `TerminalIdentityIndex` resolves against.

@@ -1230,7 +1230,9 @@ pub(crate) mod record {
                     self.host_atoms.insert(relocate(home)?, *payload)?;
                 }
                 for (home, view) in &original.views {
-                    self.views.insert(relocate(home)?, view.clone())?;
+                    let target = relocate(home)?;
+                    self.views
+                        .insert(target.clone(), view.relocated_descriptor(home, &target)?)?;
                 }
                 for (home, case) in &original.cases {
                     let destination = relocate(home)?;
@@ -1650,10 +1652,26 @@ pub(crate) mod record {
                     .get(&child.structural_type)
                     .is_some_and(|row| matches!(row.shape, StructuralTypeShape::ElementView { .. }))
                 {
-                    self.views.insert(
-                        destination.clone(),
-                        execution.element_view_argument(argument, child)?.clone(),
-                    )?;
+                    let view = execution.element_view_argument(argument, child)?;
+                    // Indexed descriptor storage is relocated once by the
+                    // shared subtree walk below. A root/frame binding lives in
+                    // another table, so capture that binding here instead.
+                    if !execution
+                        .structural_element_view_fields
+                        .contains_key(&StructuralRuntimePlace::from(child))
+                    {
+                        // The root table already authenticated this exact
+                        // descriptor. Retain that home before the shared move,
+                        // including legacy root bindings with no inline home.
+                        let view = view.clone().with_descriptor_home(child.clone());
+                        self.views.insert(
+                            destination.clone(),
+                            view.relocated_descriptor(
+                                &StructuralRuntimePlace::from(child),
+                                destination,
+                            )?,
+                        )?;
+                    }
                 }
                 if execution
                     .structural_types()
@@ -1805,7 +1823,10 @@ pub(crate) mod record {
                     source,
                 ) {
                     if let Some(target) = relocate(home) {
-                        self.views.insert(target, descriptor.clone())?;
+                        self.views.insert(
+                            target.clone(),
+                            descriptor.relocated_descriptor(home, &target)?,
+                        )?;
                     }
                 }
                 for (home, referent) in crate::storage::structural_storage::cells(
@@ -2109,9 +2130,116 @@ pub(crate) mod record {
         use super::storage::{ConstructorStorage, ConstructorValue};
         use super::*;
         use crate::engine::execution::operation_kind;
+        use semantic_vocabulary::StructuralTypeId;
         use terminal_psi::OperationKind;
 
         impl TerminalExecution<'_> {
+            // The same array operation owns the supplied element roster. A
+            // stored-length result retains those values in Terminal's existing
+            // immutable sequence backing rather than relabeling inline storage.
+            fn establish_immutable_elements(
+                &mut self,
+                result: &terminal_psi::StructuralOperationResult,
+                element: StructuralTypeId,
+                elements: &[terminal_psi::StructuralArgument],
+            ) -> Result<crate::engine::execution::OperationFlow, TerminalInterpretError>
+            {
+                use crate::storage::element_views::{
+                    ElementView, immutable_sequence::ImmutableStructuralSequence,
+                };
+                if !result.qualifications.is_empty()
+                    || !result.projected_qualifications.is_empty()
+                    || !result.claims.is_empty()
+                    || !result.qualification_establishments.is_empty()
+                    || self.result_place_in_use(result.place)
+                    || self.structural_declaration(element)?.owns_linear_claim
+                    || !self.structural_declaration(element)?.no_code_affine_cleanup
+                    || !self.structural_declaration(element)?.descriptor_cleanup
+                {
+                    return Err(malformed());
+                }
+                let mut cursor = self.local_structural_identities.cursor();
+                let descriptor = TerminalStructuralValue::minted(
+                    self.local_structural_identities
+                        .allocate_staged(&mut cursor)?,
+                    result.structural_type,
+                    Vec::new(),
+                );
+                let mut staged = ConstructorStorage::new(self.account.as_ref());
+                let mut frontier = self.live_affine_frontier.clone();
+                let mut consumed = Vec::new();
+                let mut claim_operands = Vec::new();
+                let account = self.account.clone();
+                // from_values reserves and meters the complete retained roster
+                // before asking this iterator to construct any element.
+                let values = ImmutableStructuralSequence::from_values(
+                    elements.len(),
+                    elements.iter().enumerate().map(|(index, argument)| {
+                        let child = ConstructorValue::resolve(self, argument)?;
+                        if argument.access != StructuralAccess::Owned
+                            || argument.place == result.place
+                            || child.structural_type() != element
+                        {
+                            return Err(malformed());
+                        }
+                        let transfers =
+                            self.stage_constructor_operand(argument, &mut frontier, &mut consumed)?;
+                        let mut value = TerminalStructuralValue::minted(
+                            self.local_structural_identities
+                                .allocate_staged(&mut cursor)?,
+                            element,
+                            Vec::new(),
+                        );
+                        child.append_memberships(&[], &mut value.projected_qualifications);
+                        let destination = StructuralRuntimePlace::from(&value);
+                        staged.stage(self, argument, &child, &destination, transfers)?;
+                        claim_operands.push((
+                            argument,
+                            vec![StructuralPathSegment::FixedIndex(
+                                u64::try_from(index).map_err(|_| malformed())?,
+                            )],
+                        ));
+                        Ok(value)
+                    }),
+                    account.as_ref(),
+                )?;
+                staged.validate_projected_memberships(
+                    self,
+                    &descriptor,
+                    &result.projected_qualifications,
+                )?;
+                let claims = self.stage_constructor_claims(
+                    super::ResultClaimOrigin::Construction,
+                    result,
+                    &claim_operands,
+                    &mut frontier,
+                    &|current| staged.case_at_projection(self, &descriptor, &current.path),
+                )?;
+                let retirement = self.prepare_constructor_operands(frontier, &consumed, claims)?;
+                // Reserve both published homes before any staged storage is
+                // made visible. Append transfers those already funded rows.
+                let mut homes = RuntimeRows::from_rows(
+                    self.account.as_ref(),
+                    [(result.place, descriptor.clone())],
+                )?;
+                let mut views = RuntimeRows::from_rows(
+                    self.account.as_ref(),
+                    [(
+                        result.place,
+                        ElementView::immutable_sequence(values, descriptor, result.place),
+                    )],
+                )?;
+                self.structural_values.validate_append(&homes)?;
+                self.element_view_values.validate_append(&views)?;
+                staged.publish(self)?;
+                self.element_view_values.append(&mut views)?;
+                self.structural_values.append(&mut homes)?;
+                retirement.commit(self)?;
+                self.local_structural_identities.commit_cursor(cursor);
+                self.track_affine_result(result);
+                Ok(crate::engine::execution::OperationFlow::Advance)
+            }
+
             pub(crate) fn execute_establish_structural_array(
                 &mut self,
                 operation: &terminal_psi::Operation,
@@ -2119,6 +2247,13 @@ pub(crate) mod record {
             {
                 operation_kind!(operation => EstablishStructuralArray { elements });
                 let result = operation.result.structural().ok_or_else(malformed)?;
+                if let StructuralTypeShape::ElementView {
+                    element,
+                    access: None | Some(StructuralAccess::SharedBorrow),
+                } = self.structural_declaration(result.structural_type)?.shape
+                {
+                    return self.establish_immutable_elements(result, element, elements);
+                }
                 let Some(StructuralTypeShape::FixedArray {
                     element,
                     length: terminal_psi::ArrayExtent::Literal(length),
@@ -4199,6 +4334,10 @@ pub(crate) mod structural_storage {
             pub leaves: Vec<StorageLeaf>,
             pub requires_erased_establishment: bool,
             pub requires_atomic_storage: bool,
+            // Read-only selection retains the actual backing root and the
+            // logical prefix crossed to reach it. Capture must not replay a
+            // stored-length index as inline storage beneath the outer record.
+            observation_root: Option<(TerminalStructuralValue, usize)>,
         }
 
         impl StorageLeaf {
@@ -4315,8 +4454,12 @@ pub(crate) mod structural_storage {
             execution: &TerminalExecution,
             referent: &TerminalStructuralValue,
             selected_path: &[Path],
-        ) -> Result<Option<StorageLeaf>, TerminalInterpretError> {
-            let mut leaves = StorageDescription::default();
+        ) -> Result<Option<(TerminalStructuralValue, StorageLeaf)>, TerminalInterpretError>
+        {
+            let mut leaves = StorageDescription {
+                observation_root: Some((referent.clone(), 0)),
+                ..Default::default()
+            };
             collect(
                 execution,
                 referent.structural_type,
@@ -4327,10 +4470,19 @@ pub(crate) mod structural_storage {
                 &mut Vec::new(),
                 &mut leaves,
             )?;
-            Ok(leaves
+            let (root, prefix) = leaves.observation_root.ok_or_else(malformed)?;
+            let Some(mut leaf) = leaves
                 .leaves
                 .into_iter()
-                .find(|leaf| leaf.path == selected_path))
+                .find(|leaf| leaf.path == selected_path)
+            else {
+                return Ok(None);
+            };
+            if prefix > leaf.path.len() {
+                return Err(malformed());
+            }
+            drop(leaf.path.drain(..prefix));
+            Ok(Some((root, leaf)))
         }
 
         fn collect(
@@ -4379,6 +4531,76 @@ pub(crate) mod structural_storage {
                     leaves,
                     false,
                 )?,
+                StructuralTypeShape::ElementView { element, .. } => {
+                    let selected =
+                        selected_path.and_then(|selected| selected.strip_prefix(path.as_slice()));
+                    if let Some((Path::FixedIndex(index), _)) =
+                        selected.and_then(|selected| selected.split_first())
+                    {
+                        if access != StructuralAccess::SharedBorrow || replacement.is_some() {
+                            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                                "typed sequence snapshots require read-only established backing",
+                            ));
+                        }
+                        let descriptor = TerminalStructuralValue {
+                            opaque_identity: destination.opaque_identity,
+                            structural_type: root,
+                            qualifications: Vec::new(),
+                            projected_qualifications: Vec::new(),
+                            path: destination.path.clone(),
+                        };
+                        let view = execution.element_view_at_resolved_home(&descriptor)?;
+                        let index_usize = usize::try_from(*index).map_err(|_| malformed())?;
+                        if index_usize >= view.len() {
+                            return Err(malformed());
+                        }
+                        let (selected, suffix) = view.structural_projection(
+                            &execution.structural_types(),
+                            &[StructuralPathSegment::FixedIndex(*index)],
+                            false,
+                        )?;
+                        let tip = terminal_semantics::runtime_structural_path_tip(
+                            execution.structural_types().values(),
+                            selected.structural_type,
+                            &suffix,
+                        )
+                        .ok_or_else(malformed)?;
+                        if tip.id != *element {
+                            return Err(malformed());
+                        }
+                        let mut child = StructuralRuntimePlace::from(&selected);
+                        child.path.extend_from_slice(&suffix);
+                        path.push(Path::FixedIndex(*index));
+                        let actual = crate::engine::custody::project_structural_value(
+                            &execution.structural_types(),
+                            &selected,
+                            &suffix,
+                        )
+                        .map_err(|error| {
+                            error.in_argument_preparation("retain selected backing source")
+                        })?;
+                        leaves.observation_root = Some((actual, path.len()));
+                        collect(
+                            execution,
+                            *element,
+                            &child,
+                            access,
+                            None,
+                            selected_path,
+                            path,
+                            leaves,
+                        )?;
+                        path.pop();
+                    } else {
+                        leaves.leaves.push(StorageLeaf {
+                            path: path.clone(),
+                            kind: StorageLeafKind::Opaque {
+                                destination: destination.clone(),
+                                declaration: root,
+                            },
+                        });
+                    }
+                }
                 StructuralTypeShape::FixedArray {
                     length: terminal_psi::ArrayExtent::Application(_),
                     ..
@@ -4655,6 +4877,7 @@ pub(crate) mod structural_storage {
             access: StructuralAccess,
             leaves: &[StorageLeaf],
             normal_qualifications: &[crate::boundary::effects::normal_qualifications::CapturedNormalQualification],
+            source_owner: Option<&TerminalStructuralValue>,
         ) -> Result<(Vec<TerminalBoundaryStorageValue>, Vec<PinnedScalar>), TerminalInterpretError>
         {
             let mut values = Vec::new();
@@ -4719,8 +4942,11 @@ pub(crate) mod structural_storage {
                         {
                             return Err(malformed());
                         }
-                        let original_restriction =
-                            execution.captured_scalar_restriction(&storage, access)?;
+                        let original_restriction = execution
+                            .captured_scalar_restriction(&storage, access, source_owner)
+                            .map_err(|error| {
+                                error.in_argument_preparation("retain captured scalar restriction")
+                            })?;
                         if original_restriction.as_ref().is_some_and(|field| {
                             !satisfies_source_restriction(value, field, storage.encoding)
                         }) {

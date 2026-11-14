@@ -3,41 +3,84 @@
 //! be attached to an artifact after the route has decided it.
 
 use diagnostics::Diagnostic;
-use lowered_discharge::{AcceptedClosure, CompilationRefusal, RouteVerdict};
 use std::sync::Arc;
+use terminal_psi_to_terminal_psi::{AcceptedClosure, CompilationRefusal, RouteVerdict};
 use typed_trees::FrozenTypedTrees;
 
 #[derive(Debug)]
 pub struct AcceptedTerminalSource {
     source: Arc<FrozenTypedTrees>,
     closure: Box<AcceptedClosure>,
-    selection_forms: Vec<Option<structure_elaboration::selection_questions::RawSelectionQuestions>>,
+    correspondence: typed_trees_to_terminal_psi::SourceCorrespondence,
     publication: terminal_codec::TerminalPublication,
+    /// What the route says about the accepted source without refusing it
+    /// (`advisories`), in the order the parts were judged.
+    advisories: Vec<Diagnostic>,
 }
 
-#[derive(Debug)]
-struct AcceptedCompilation {
-    primary: Box<AcceptedClosure>,
-    selection_forms: Vec<Option<structure_elaboration::selection_questions::RawSelectionQuestions>>,
+/// One constant the declarations of an accepted module name.
+///
+/// `declaration` is where the constant is declared, kept as source so a
+/// frontier typed later can find the same declaration; `None` when the
+/// constant has no authored source to rejoin. `value` is what the judged
+/// source recorded for it, `None` when no stage had evaluated it. `name` is
+/// for messages only.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConstantRead {
+    pub name: String,
+    pub declaration: Option<symbols::RetainedDeclaration>,
+    pub value: Option<language_core::constant_value::EvaluatedConstant>,
+}
+
+/// One boundary requirement an accepted module declares.
+///
+/// `boundary` is the callable the module declares for it, `requirement` the
+/// source declaration of that callable and `slot` the boundary trait that
+/// owns the requirement: the two declarations a provider selection can name.
+/// `name` is the authored `Trait::requirement` spelling, for messages only.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeclaredBoundaryRequirement {
+    pub boundary: semantic_vocabulary::BoundaryMachineId,
+    pub requirement: symbols::SymbolHandle,
+    pub slot: symbols::SymbolHandle,
+    pub name: String,
 }
 
 impl AcceptedTerminalSource {
     pub fn judge(
         source: Arc<FrozenTypedTrees>,
-        compilation: structure_elaboration::Compilation<'_>,
+        compilation: typed_trees_to_terminal_psi::Compilation<'_>,
         publication: terminal_codec::TerminalPublication,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let verdicts = lowered_discharge::judge_compilation_for(&source, compilation, publication);
-        let AcceptedCompilation {
-            primary: closure,
-            selection_forms,
-        } = accept_compilation(verdicts)?;
+        let prepared =
+            typed_trees_to_terminal_psi::prepare_compilation(&source, compilation, publication);
+        let verdicts = terminal_psi_to_terminal_psi::judge_compilation(prepared.program);
+        let advisories = advisories(&verdicts);
+        let forms = verdicts.len();
+        let closure = accept_compilation(verdicts)?;
+        if forms == 0
+            || prepared.source.forms.len() != forms
+            || prepared.source.forms.iter().any(Option::is_none)
+        {
+            return Err(vec![route_defect(
+                "accepted forms lost their exact source correspondence",
+            )]);
+        }
         Ok(Self {
             source,
             closure,
-            selection_forms,
+            correspondence: prepared.source,
             publication,
+            advisories,
         })
+    }
+
+    /// The advisory diagnostics of the accepted compilation: warnings and
+    /// their notes, none of which is an error. They are data on the
+    /// accepted judgment for whoever reports the compilation; nothing here
+    /// prints them and no later stage reads them.
+    pub fn advisories(&self) -> &[Diagnostic] {
+        &self.advisories
     }
 
     /// Binds source companions to this exact accepted code owner. The Build
@@ -96,12 +139,12 @@ impl AcceptedTerminalSource {
                 .symbol_source_span(self.source.symbols.authored_origin(*symbol));
             provenance.name(machine, name.machine.clone(), span);
         }
-        let entry = self.entry().ok_or_else(|| {
-            vec![Diagnostic::error(
-                "no product route yet: accepted source module has no machine entry",
-            )]
-        })?;
-        let provenance = provenance.for_root(&elaboration.module, entry, None);
+        // A declaration module has no entry: every machine keeps its name,
+        // and there is no call chain from a root to record.
+        let provenance = match self.entry() {
+            Some(entry) => provenance.for_root(&elaboration.module, entry, None),
+            None => provenance,
+        };
         let applications = custody
             .applications
             .iter()
@@ -109,8 +152,8 @@ impl AcceptedTerminalSource {
                 application.attach(program.view(), program.portable(), &provenance, observer)
             })
             .collect();
-        // Join source selections to the calls this exact artifact emits.
-        // Host records also retain unexecuted native-binding formations.
+        // The published module is the elaboration's module, so the rows
+        // name the artifact's own operations and original source formations.
         let companions = crate::build_companions::produce(self, program.view().module())
             .map_err(|diagnostic| vec![diagnostic])?;
         crate::build_bindings::validate_companions(
@@ -139,7 +182,7 @@ impl AcceptedTerminalSource {
             build_filesystem,
             applications,
             provenance,
-            source_records: elaboration.source_records.clone(),
+            source_records: self.correspondence().records.clone(),
             source_selections: Some(Arc::new(source_selections)),
         })
     }
@@ -155,15 +198,15 @@ impl AcceptedTerminalSource {
         })
     }
 
-    /// The constants the declarations of this accepted module name, by
-    /// name, each once and in the order the declarations name them.
+    /// The constants the declarations of this accepted module name, each
+    /// declaration once and in the order the declarations name them.
     ///
     /// The declarations are the ones the elaboration lowered: its machines,
     /// its boundary requirements and the records it declares. They are read
     /// in the judged source, so the answer is about this artifact and does
     /// not rest on the reader having refused constants on the way here. A
     /// Build admission settles nothing for a module that names none.
-    pub fn constants_read(&self) -> Vec<String> {
+    pub fn constants_read(&self) -> Vec<ConstantRead> {
         let elaboration = &self.closure.elaboration;
         let key = |symbol: symbols::SymbolHandle| (symbol.arena_index(), symbol.generation());
         let mut lowered = elaboration
@@ -172,8 +215,8 @@ impl AcceptedTerminalSource {
             .map(|(_, symbol)| *symbol)
             .chain(elaboration.boundaries.iter().map(|(_, symbol)| *symbol))
             .chain(
-                elaboration
-                    .source_records
+                self.correspondence()
+                    .records
                     .iter()
                     .map(|record| record.declaration),
             )
@@ -191,23 +234,77 @@ impl AcceptedTerminalSource {
                 .is_ok()
         });
         typed_trees::references::visit_program(&self.source, &mut uses);
-        let mut names = Vec::<String>::new();
+        let mut read = Vec::<symbols::SymbolHandle>::new();
         for found in uses.into_uses() {
-            let name = self.source.symbols.name(found.constant);
-            if !names.iter().any(|known| known == name) {
-                names.push(name.to_owned());
+            if !read.contains(&found.constant) {
+                read.push(found.constant);
             }
         }
-        names
+        read.into_iter()
+            .map(|constant| ConstantRead {
+                name: self.source.symbols.name(constant).to_owned(),
+                declaration: symbols::RetainedDeclaration::capture(&self.source.symbols, constant)
+                    .ok(),
+                value: self
+                    .source
+                    .const_declaration_by_symbol(constant)
+                    .and_then(|declaration| declaration.evaluated_value.clone()),
+            })
+            .collect()
     }
 
-    /// Follow only invocations from the selected entry. Provider bodies use
-    /// the actual caller arguments, while retained headers and unused code
-    /// contribute no demand. The answer is entirely in the published namespace.
+    /// The boundary requirements this accepted module declares, in the
+    /// order the module declares them.
+    ///
+    /// The module declares a boundary callable exactly when one of its
+    /// machines calls one. Its machines are the closure of every root of
+    /// the compilation: the entries, the subject's declarations and the
+    /// providers chosen for every target. So a declared requirement is not
+    /// yet a demand on any one target: which of them a target must supply
+    /// is decided by following its entries through the providers that
+    /// target chose (`supplied_requirements`, and
+    /// `provider_planning::target_supply`). Each row is rejoined to the
+    /// source declaration the elaboration lowered it from.
+    pub fn boundary_requirements_declared(
+        &self,
+    ) -> Result<Vec<DeclaredBoundaryRequirement>, Diagnostic> {
+        let elaboration = &self.closure.elaboration;
+        let lost = |detail: &str| {
+            Diagnostic::error(format!(
+                "cannot determine executable boundary supply: {detail}"
+            ))
+        };
+        if elaboration.module.boundary_machines.len() != elaboration.boundaries.len() {
+            return Err(lost(
+                "differ from the requirements the module was lowered from",
+            ));
+        }
+        let mut declared = Vec::with_capacity(elaboration.boundaries.len());
+        for (boundary, symbol) in elaboration.boundaries.iter() {
+            if elaboration.module.boundary_machine(boundary).is_none() {
+                return Err(lost("omit a requirement the module was lowered from"));
+            }
+            let (owner, requirement) = self
+                .source
+                .trait_machine_signature(*symbol)
+                .filter(|(owner, requirement)| owner.is_boundary && requirement.symbol == *symbol)
+                .ok_or_else(|| lost("lost the boundary trait that owns a requirement"))?;
+            declared.push(DeclaredBoundaryRequirement {
+                boundary,
+                requirement: *symbol,
+                slot: owner.symbol,
+                name: format!("{}::{}", owner.name.as_str(), requirement.name.as_str()),
+            });
+        }
+        Ok(declared)
+    }
+
+    /// Follow actual invocations from this entry through the exact selected
+    /// boundary bodies. Retained declarations and descriptors are not roots.
     pub fn boundary_calls_reached(
         &self,
         entry: semantic_vocabulary::MachineId,
-        implementations: &[terminal_semantics::callable_values::CallableBoundaryImplementation],
+        implementations: &[crate::CallableBoundaryImplementation],
     ) -> Result<Vec<semantic_vocabulary::BoundaryMachineId>, Diagnostic> {
         terminal_semantics::callable_values::reached_boundary_calls(
             self.module(),
@@ -219,6 +316,25 @@ impl AcceptedTerminalSource {
                 "cannot determine executable boundary supply: {detail}"
             ))
         })
+    }
+
+    /// The machine of this module each chosen provider gives each
+    /// requirement of the slot it supplies.
+    pub fn supplied_requirements(&self) -> &[typed_trees_to_terminal_psi::SuppliedRequirement] {
+        &self.closure.elaboration.supplied
+    }
+
+    /// The machine of this module that elaborates the source machine
+    /// `declaration`, when the module holds it.
+    pub fn machine_of(
+        &self,
+        declaration: symbols::SymbolHandle,
+    ) -> Option<semantic_vocabulary::MachineId> {
+        self.closure
+            .elaboration
+            .machines
+            .iter()
+            .find_map(|(machine, symbol)| (*symbol == declaration).then_some(machine))
     }
 
     /// The module the route judged and accepted, as publication emits it.
@@ -234,10 +350,26 @@ impl AcceptedTerminalSource {
         &self.closure
     }
 
+    /// Source record associations for the accepted executable form.
+    pub fn source_records(&self) -> &[typed_trees::SourceRecordCorrespondence] {
+        &self.correspondence().records
+    }
+
+    pub(crate) fn correspondence(&self) -> &typed_trees_to_terminal_psi::SourceFormCorrespondence {
+        self.correspondence.forms[0]
+            .as_ref()
+            .expect("judge retained every accepted source form")
+    }
+
     pub(crate) fn selection_forms(
         &self,
-    ) -> &[Option<structure_elaboration::selection_questions::RawSelectionQuestions>] {
-        &self.selection_forms
+    ) -> impl ExactSizeIterator<
+        Item = Option<&typed_trees_to_terminal_psi::selection_questions::RawSelectionQuestions>,
+    > {
+        self.correspondence.forms.iter().map(|form| {
+            form.as_ref()
+                .and_then(|form| form.selection_questions.as_ref())
+        })
     }
 
     pub const fn publication(&self) -> terminal_codec::TerminalPublication {
@@ -256,22 +388,51 @@ impl AcceptedTerminalSource {
     }
 }
 
+/// The advisories of every accepted part: the entry closure and each
+/// generic check form. One authored machine may be judged in more than one
+/// part, and its advisory is the same in each, so an advisory already listed
+/// is not listed again.
+fn advisories(verdicts: &[Result<RouteVerdict, CompilationRefusal>]) -> Vec<Diagnostic> {
+    let mut advisories: Vec<Diagnostic> = Vec::new();
+    for verdict in verdicts {
+        let Ok(RouteVerdict::Accepted(accepted)) = verdict else {
+            continue;
+        };
+        // A warning and the note after it are one advisory.
+        let part = accepted.advisories();
+        let mut rest = &part[..];
+        while !rest.is_empty() {
+            let length = 1 + rest[1..]
+                .iter()
+                .take_while(|diagnostic| {
+                    diagnostic.severity == diagnostics::DiagnosticSeverity::Note
+                })
+                .count();
+            let (advisory, after) = rest.split_at(length);
+            if !advisories.windows(length).any(|listed| listed == advisory) {
+                advisories.extend_from_slice(advisory);
+            }
+            rest = after;
+        }
+    }
+    advisories
+}
+
 fn accept_compilation(
     verdicts: Vec<Result<RouteVerdict, CompilationRefusal>>,
-) -> Result<AcceptedCompilation, Vec<Diagnostic>> {
+) -> Result<Box<AcceptedClosure>, Vec<Diagnostic>> {
     let mut first = None;
-    let mut selection_forms = Vec::new();
     let mut diagnostics = Vec::new();
     for (position, verdict) in verdicts.into_iter().enumerate() {
         match verdict {
-            Ok(RouteVerdict::Accepted(mut accepted)) => {
-                selection_forms.push(accepted.elaboration.source_selection_questions.take());
+            Ok(RouteVerdict::Accepted(accepted)) => {
                 if position == 0 {
                     first = Some(accepted);
                 }
             }
             Ok(RouteVerdict::Rejected {
                 formations,
+                violations,
                 unproved,
                 unestablished,
                 conflicts,
@@ -279,6 +440,7 @@ fn accept_compilation(
             }) => {
                 let before = diagnostics.len();
                 diagnostics.extend(formations.iter().map(|entry| entry.reject_diagnostic()));
+                diagnostics.extend(violations.iter().map(|entry| entry.reject_diagnostic()));
                 for entry in unproved.iter().filter(|entry| !entry.cause.is_incomplete()) {
                     diagnostics.push(entry.reject_diagnostic());
                     diagnostics.extend(entry.opening_diagnostic());
@@ -315,12 +477,7 @@ fn accept_compilation(
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
-    first
-        .map(|primary| AcceptedCompilation {
-            primary,
-            selection_forms,
-        })
-        .ok_or_else(|| vec![route_defect("no accepted compilation root")])
+    first.ok_or_else(|| vec![route_defect("no accepted compilation root")])
 }
 
 fn route_defect(detail: &str) -> Diagnostic {
@@ -333,9 +490,9 @@ fn route_defect(detail: &str) -> Diagnostic {
 mod tests {
     use super::*;
     use semantic_vocabulary::{IdTable, MachineId};
-    use structure_elaboration::{Body, CrashCeiling, Signature, Termination};
+    use typed_trees_to_terminal_psi::{Body, CrashCeiling, Signature, Termination};
 
-    fn elaboration() -> structure_elaboration::Elaboration {
+    fn elaboration() -> typed_trees_to_terminal_psi::Elaboration {
         let mut bodies = IdTable::default();
         bodies.push(Body {
             slots: Vec::new(),
@@ -349,12 +506,12 @@ mod tests {
             result: None,
             requires: Vec::new(),
             ensures: Vec::new(),
-            reaches: structure_elaboration::Ceiling::Inferred,
-            invokes: structure_elaboration::Ceiling::Inferred,
+            reaches: typed_trees_to_terminal_psi::Ceiling::Inferred,
+            invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
         });
-        structure_elaboration::lower_bodies(
+        typed_trees_to_terminal_psi::lower_bodies(
             MachineId::new(1).unwrap(),
             &bodies,
             &signatures,
@@ -364,7 +521,7 @@ mod tests {
     }
 
     fn accepted() -> RouteVerdict {
-        lowered_discharge::judge(Ok(elaboration())).unwrap()
+        terminal_psi_to_terminal_psi::judge(Ok(elaboration())).unwrap()
     }
 
     #[test]
@@ -375,10 +532,10 @@ mod tests {
         stated.module.identities =
             terminal_psi::TerminalIdentityTableBuilder::for_invocation().build();
         let closure = accept_compilation(vec![
-            lowered_discharge::judge(Ok(stated)).map_err(CompilationRefusal::Elaboration),
+            terminal_psi_to_terminal_psi::judge(Ok(stated))
+                .map_err(CompilationRefusal::Elaboration),
         ])
-        .unwrap()
-        .primary;
+        .unwrap();
         let published = closure.publish_invocation().unwrap();
         assert_eq!(
             published.artifact.view().module(),
@@ -387,7 +544,7 @@ mod tests {
         assert_eq!(published.seals.module, published.artifact.view().identity());
         assert_eq!(published.seals.seals, closure.seals);
         assert!(closure.publish().is_err());
-        let portable = accept_compilation(vec![Ok(accepted())]).unwrap().primary;
+        let portable = accept_compilation(vec![Ok(accepted())]).unwrap();
         assert!(portable.publish_invocation().is_err());
     }
 

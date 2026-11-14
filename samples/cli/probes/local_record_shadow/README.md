@@ -16,5 +16,5 @@ Compile-checked only (no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/local_record_shadow/main.omg
-mbx run -p omega -- update --project samples/cli/probes/local_record_shadow
+mbx run -p omega -- packages update --project samples/cli/probes/local_record_shadow
 ```

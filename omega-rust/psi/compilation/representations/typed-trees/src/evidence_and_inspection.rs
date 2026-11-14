@@ -691,9 +691,7 @@ pub mod evidence {
                 } else {
                     None
                 };
-                let owner = program
-                    .normalized_hermetic_symbol_identity(owner)
-                    .unwrap_or_else(|_| program.symbols.display_path(owner, "::"));
+                let owner = program.normalized_hermetic_symbol_identity(owner).ok()?;
                 let case = selected_case.map_or_else(
                     || "record".to_owned(),
                     |case| member_identity(case.identity, case.name.as_str()),
@@ -1908,9 +1906,7 @@ pub mod evidence {
                                 render,
                             )
                         })?;
-                        if let Some(label) = label {
-                            return Ok(label);
-                        }
+                        return label.ok_or(crate::runtime_callable_identity::RuntimeCallableIdentityError::UnresolvedContractFact);
                     }
                     crate::expression::display_name_path(members, "::")
                 }
@@ -1925,8 +1921,15 @@ pub mod evidence {
                 ExpressionNode::String(value) => format!("{value:?}"),
                 ExpressionNode::StructLiteral(literal) => {
                     with_fallible_children(render, |render| {
-                        program.render_proof_constructor_value(literal, render)
+                        constructor_values::render(
+                            program,
+                            literal.type_symbol,
+                            literal.case_symbol,
+                            program.expression_table.struct_fields(literal.fields),
+                            render,
+                        )
                     })?
+                    .ok_or(crate::runtime_callable_identity::RuntimeCallableIdentityError::UnresolvedContractFact)?
                 }
                 ExpressionNode::TypeExpression(reference) => {
                     program.display_type_reference(*reference)
@@ -3328,6 +3331,7 @@ pub mod inspection {
                     #[serde(skip_serializing_if = "Option::is_none")]
                     mechanism: Option<&'static str>,
                 },
+                CompilerProvided,
             }
 
             #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -3782,6 +3786,7 @@ pub mod inspection {
                             mechanism: mechanism.map(|mechanism| mechanism.as_str()),
                         }
                     }
+                    MachineSupplyMode::CompilerProvided => MachineSupplySnapshot::CompilerProvided,
                 }
             }
 
@@ -5088,7 +5093,12 @@ pub mod inspection {
                 program: &TypedTrees,
                 argument: &crate::expression::StaticMachineArgument,
             ) -> StaticArgumentSnapshot {
-                if argument.type_reference.is_valid() {
+                if argument.type_reference.is_valid()
+                    && !argument
+                        .application
+                        .as_ref()
+                        .is_some_and(|application| application.member.is_valid())
+                {
                     StaticArgumentSnapshot::Type {
                         type_reference: Box::new(type_reference_snapshot(
                             program,
@@ -5277,8 +5287,6 @@ pub mod inspection {
                 },
                 ConstExpression {
                     expression: ExpressionSnapshot,
-                    #[serde(skip_serializing_if = "Option::is_none")]
-                    normalization: Option<OpenIndexNormalizationSnapshot>,
                 },
                 DynamicTrait {
                     name: String,
@@ -5291,46 +5299,6 @@ pub mod inspection {
                 Invalid {
                     handle: u32,
                 },
-            }
-
-            #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-            pub struct OpenIndexNormalizationSnapshot {
-                pub index_type: Box<TypeReferenceSnapshot>,
-                pub normalizer_version: u32,
-                pub operations: Vec<OpenIndexOperationSnapshot>,
-            }
-
-            #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-            pub struct OpenIndexOperationSnapshot {
-                pub expression: ExpressionSnapshot,
-                pub spelling: &'static str,
-                pub operation_contract_identity: String,
-                pub provider: String,
-                pub algebra_trait: String,
-                pub algebra_requirement: String,
-                pub algebra_alias: Option<String>,
-                pub commutativity_licensed: bool,
-                pub associativity_licensed: bool,
-                pub distributes_over: Vec<String>,
-                pub law_evidence: Vec<OpenIndexLawSnapshot>,
-                #[serde(skip_serializing_if = "String::is_empty")]
-                pub left_identity_literal: String,
-                #[serde(skip_serializing_if = "String::is_empty")]
-                pub right_identity_literal: String,
-            }
-
-            #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-            pub struct OpenIndexLawSnapshot {
-                pub provider: String,
-                pub bound_trait: String,
-                pub lifetime_arguments: Vec<String>,
-                pub declaring_trait: String,
-                pub law: String,
-                pub contract: u32,
-                pub fact: u32,
-                pub conjunct: Vec<u32>,
-                pub kind: &'static str,
-                pub arguments: Vec<TypeReferenceSnapshot>,
             }
 
             #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -5485,68 +5453,6 @@ pub mod inspection {
                     TypeReferenceNode::ConstExpression(expression) => {
                         TypeReferenceSnapshot::ConstExpression {
                             expression: expression_snapshot(program, *expression),
-                            normalization: program
-                                .expression_table
-                                .index_expression_authority(*expression)
-                                .and_then(|authority| authority.normalization.as_ref())
-                                .map(|normalization| OpenIndexNormalizationSnapshot {
-                                    index_type: Box::new(type_reference_snapshot(
-                                        program,
-                                        normalization.index_type,
-                                    )),
-                                    normalizer_version: normalization.normalizer_version,
-                                    operations: program
-                                        .expression_table
-                                        .open_index_operations(*expression)
-                                        .map(|operation| OpenIndexOperationSnapshot {
-                                            expression: expression_snapshot(
-                                                program,
-                                                operation.expression,
-                                            ),
-                                            spelling: operation.spelling.symbol(),
-                                            operation_contract_identity: operation
-                                                .operation_contract_identity(program),
-                                            provider: program
-                                                .symbols
-                                                .display_path(operation.provider, "::"),
-                                            algebra_trait: program
-                                                .symbols
-                                                .display_path(operation.algebra_trait, "::"),
-                                            algebra_requirement: operation
-                                                .algebra_requirement
-                                                .clone(),
-                                            algebra_alias: operation.algebra_alias.clone(),
-                                            commutativity_licensed: operation
-                                                .commutativity_licensed,
-                                            associativity_licensed: operation
-                                                .associativity_licensed,
-                                            distributes_over: operation.distributes_over.iter().map(|symbol| program.symbols.display_path(*symbol, "::")).collect(),
-                                            law_evidence: operation.law_evidence.iter().map(|evidence| OpenIndexLawSnapshot {
-                                                provider: program.symbols.display_path(evidence.bound.binder, "::"),
-                                                bound_trait: program.symbols.display_path(evidence.bound.trait_symbol, "::"),
-                                                lifetime_arguments: evidence.bound.lifetime_arguments.iter().map(|argument| argument.as_str().to_owned()).collect(),
-                                                declaring_trait: program.symbols.display_path(evidence.declaring_trait, "::"),
-                                                law: program.symbols.display_path(evidence.law, "::"),
-                                                contract: evidence.contract, fact: evidence.fact, conjunct: evidence.conjunct.clone(),
-                                                kind: match evidence.kind {
-                                                    crate::source_index_algebra::IndexLawKind::Commutativity => "commutativity",
-                                                    crate::source_index_algebra::IndexLawKind::Associativity => "associativity",
-                                                    crate::source_index_algebra::IndexLawKind::Distributivity => "distributivity",
-                                                    crate::source_index_algebra::IndexLawKind::LeftIdentity => "left_identity",
-                                                    crate::source_index_algebra::IndexLawKind::RightIdentity => "right_identity",
-                                                    crate::source_index_algebra::IndexLawKind::LiteralConnection => "literal_connection",
-                                                },
-                                                arguments: evidence.bound.arguments.iter().map(|actual| type_reference_snapshot(program, *actual)).collect(),
-                                            }).collect(),
-                                            left_identity_literal: operation
-                                                .left_identity_literal
-                                                .clone(),
-                                            right_identity_literal: operation
-                                                .right_identity_literal
-                                                .clone(),
-                                        })
-                                        .collect(),
-                                }),
                         }
                     }
                     TypeReferenceNode::DynamicTrait {
@@ -5652,8 +5558,7 @@ pub mod inspection {
             TransitionTargetSnapshot,
         };
         pub use type_snapshots::{
-            DomainConstraintSubjectSnapshot, OpenIndexNormalizationSnapshot,
-            OpenIndexOperationSnapshot, TypeConstraintSnapshot, TypeReferenceSnapshot,
+            DomainConstraintSubjectSnapshot, TypeConstraintSnapshot, TypeReferenceSnapshot,
             WireMemberSnapshot, WireSchemaSnapshot,
         };
 
@@ -6062,7 +5967,6 @@ pub mod inspection {
                 wire_encode_obligation_count: program.wire_encode_obligations.len(),
                 wire_schema_plan_count: program.wire_schema_plans.len(),
                 machine_specialization_count: program.machine_specializations.len(),
-                open_index_normalization_count: program.expression_table.open_index_normalization_count(),
                 evidence_forwarding_count: program.evidence_forwardings.len(),
                 proof_output_call_count: program.proof_output_calls.len(),
                 ranking_expression_custody_count: program.ranking_expression_custody.len(),
@@ -6354,7 +6258,6 @@ pub mod inspection {
             pub wire_encode_obligation_count: usize,
             pub wire_schema_plan_count: usize,
             pub machine_specialization_count: usize,
-            pub open_index_normalization_count: usize,
             pub evidence_forwarding_count: usize,
             pub proof_output_call_count: usize,
             pub ranking_expression_custody_count: usize,

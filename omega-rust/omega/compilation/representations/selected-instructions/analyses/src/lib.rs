@@ -683,7 +683,7 @@ pub use liveness::{
 };
 pub use machine_effects::MachineEffectError;
 pub use machine_effects::analyze_pre_allocation_machine_effects;
-pub use machine_effects::validated_machine_effect_catalog;
+pub use machine_effects::prepared_machine_effect_catalog;
 pub use machine_effects::{
     MachineEffectStageError, ValidatedPreAllocationMachineEffects, analyze_machine_effects,
 };

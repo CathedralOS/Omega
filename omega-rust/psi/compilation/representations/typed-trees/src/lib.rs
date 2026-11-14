@@ -22,7 +22,7 @@ without re-running type inference or inspecting surface syntax.
 
 /*
 - Produced by: `Psi 03` (`03_symbol-resolved-trees-to-typed-trees`) and frozen by `Psi 04` (`04_typed-trees-to-typed-trees`).
-- Consumed by: `Psi 05` (`05_typed-trees-to-checked-trees`), `Psi 06`, `Psi 08`, `proof`, `validation`, and Omega realization crates.
+- Consumed by: later Psi stages, `proof`, and Omega realization crates.
 - Flat module layout:
   - `lib.rs`: `TypedTrees`, `FrozenTypedTrees`, `TypedTreeRoots`, `TypedTreeTables`, `boundary_values`, `direct_calls`, and `source_review`.
   - `references.rs`: typed declaration and expression reference occurrences (`references`).
@@ -48,8 +48,7 @@ pub mod boundary_values {
     use crate::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
     use arena::Handle;
     use language_semantics::boundary_values::{
-        BoundaryFieldRecipe, BoundaryRecordStorage, BoundaryTargetRecipe, BoundaryValueRecipe,
-        BoundaryValueRecipes,
+        BoundaryFieldRecipe, BoundaryTargetRecipe, BoundaryValueRecipe, BoundaryValueRecipes,
     };
 
     #[derive(Clone, Default)]
@@ -290,11 +289,7 @@ pub mod boundary_values {
                 {
                     let mut alternatives = Vec::new();
                     for row in application.target_layouts(typed) {
-                        let recipe = self.record_geometry(
-                            definition,
-                            Some(application),
-                            Some(&row.geometry),
-                        );
+                        let recipe = self.record_geometry(definition);
                         let value = self.recipes.values.insert(recipe);
                         alternatives.push(BoundaryTargetRecipe {
                             target: row.target.as_str().to_owned(),
@@ -306,11 +301,7 @@ pub mod boundary_values {
                         alternatives: self.recipes.targets.insert_many(alternatives),
                     }
                 }
-                _ => self.record_geometry(
-                    definition,
-                    application,
-                    application.and_then(crate::PlanLaidLayout::invariant_geometry),
-                ),
+                _ => self.record_geometry(definition),
             };
             self.visiting.pop();
             recipe
@@ -319,25 +310,9 @@ pub mod boundary_values {
         fn record_geometry(
             &mut self,
             definition: &'input crate::data::DataDefinition,
-            application: Option<&'input crate::PlanLaidLayout>,
-            geometry: Option<&'input crate::PlanLaidGeometry>,
         ) -> BoundaryValueRecipe {
             let typed = self.typed;
             let name = definition.name.as_str();
-            let runtime_fields = typed
-                .live_data_fields(typed.data_members(definition))
-                .map(|field| field.symbol)
-                .collect::<Vec<_>>();
-            if let Some((application, geometry)) = application.zip(geometry)
-                && (geometry.offsets.len() != runtime_fields.len()
-                    || application.field_symbols != runtime_fields)
-            {
-                return BoundaryValueRecipe::Rejected(format!(
-                    "plan-laid data `{name}` has {} members but its layout publishes {} offsets",
-                    runtime_fields.len(),
-                    geometry.offsets.len()
-                ));
-            }
             let mut fields = Vec::new();
             for member in typed.data_members(definition) {
                 let Some(field) = member.as_field() else {
@@ -353,42 +328,16 @@ pub mod boundary_values {
                 if field.relevance.is_erased() {
                     continue;
                 }
-                let field_ordinal = fields.len();
-                let value = match geometry.and_then(|geometry| {
-                    geometry
-                        .integer_fields
-                        .iter()
-                        .find(|integer| integer.field_index == field_ordinal)
-                }) {
-                    Some(integer) => {
-                        let bytes = integer.stored_width_bits / 8;
-                        let recipe = if integer.stored_width_bits == 0
-                            || integer.stored_width_bits % 8 != 0
-                            || bytes > 8
-                        {
-                            BoundaryValueRecipe::Rejected(format!(
-                                "plan-laid data `{name}` field `{}` has invalid stored-integer width {}",
-                                field.name, integer.stored_width_bits
-                            ))
-                        } else {
-                            BoundaryValueRecipe::Integer { byte_size: bytes }
-                        };
-                        self.recipes.values.insert(recipe)
-                    }
-                    None => self.value_type(field.type_reference),
-                };
+                let value = self.value_type(field.type_reference);
                 fields.push(BoundaryFieldRecipe {
                     value,
-                    byte_offset: geometry.map(|geometry| geometry.offsets[field_ordinal] as u64),
+                    byte_offset: None,
                 });
             }
             BoundaryValueRecipe::Record {
                 name: name.to_owned(),
                 fields: self.recipes.fields.insert_many(fields),
-                storage: geometry.map(|geometry| BoundaryRecordStorage {
-                    byte_size: geometry.size as u64,
-                    byte_alignment: geometry.align as u64,
-                }),
+                storage: None,
             }
         }
     }
@@ -796,6 +745,7 @@ pub(crate) mod build_selections {
 mod callable_copies;
 pub mod callable_signature_shapes;
 pub mod callable_values;
+pub mod compiler_intrinsics;
 pub mod contract_structure;
 pub mod declaration_projection;
 mod declared_bindings;
@@ -848,7 +798,7 @@ pub(crate) mod canonical_values {
             DecodedCanonicalConstValue::Float { .. } => None,
             DecodedCanonicalConstValue::Integer { type_name, value } => {
                 let primitive = program.type_reference_table.primitive_type(declared_type)?;
-                if type_name != primitive.name() {
+                if *type_name != primitive.name() {
                     return None;
                 }
                 let literal = IntegerLiteral::from_parts(
@@ -1394,10 +1344,9 @@ pub use access_views::{
     AccessAtomicObservingResultContract, AccessAtomicResidentContract, AccessBackingOutcome,
     AccessBackingTransfer, AccessContentShape, AccessExecutionDeclaration, AccessFieldPlan,
     AccessLifecycleOperation, AccessLifecycleOwner, AccessLifecyclePlan, AccessLifecycleStorage,
-    AccessViewPlan, AccessorPrimitive, AccessorTarget, PlanLaidBitField, PlanLaidBitFragment,
-    PlanLaidFieldLayoutSource, PlanLaidGeometry, PlanLaidIntegerField, PlanLaidLayout,
-    PlanLaidRealizations, PlanLaidRepeatedField, PlanLaidRetiredFieldIdentity,
-    PlanLaidSchemaArgument, PlanLaidSchemaField, PlanLaidSchemaFieldKind, PlanLaidTargetLayout,
+    AccessViewPlan, AccessorPrimitive, AccessorTarget, PlanLaidFieldLayoutSource, PlanLaidGeometry,
+    PlanLaidLayout, PlanLaidRealizations, PlanLaidRetiredFieldIdentity, PlanLaidSchemaArgument,
+    PlanLaidSchemaField, PlanLaidSchemaFieldKind, PlanLaidTargetLayout,
     PrivateCallbackSlotApplication, ScalarAccessorDeclaration, ScalarAccessorOperation,
     access_atomic_observing_results,
 };
@@ -1406,7 +1355,7 @@ pub use commitments::{
     ClosedConformanceApplicationCommitment, ClosedConformanceApplicationSite,
     ClosedConformanceConstArgument, ClosedConformanceRowIdentity, DataImplementationApplication,
     MachineSpecialization, MachineSpecializationCommitment, MachineTemplateCommitment,
-    StaticRequirementDispatch, TraitImplementationApplication, closed_conformance_applications_of,
+    StaticRequirementDispatch, TraitImplementationApplication,
     machine_specialization_matches_template_identity,
 };
 
@@ -1822,15 +1771,35 @@ pub fn integer_const_declaration_extent(
     program: &TypedTrees,
     symbol: symbols::SymbolHandle,
 ) -> Option<usize> {
-    canonical_static_const_spelling(canonical_const_declaration_value(program, symbol)?)?
-        .parse()
-        .ok()
+    let language_semantics::const_value::DecodedCanonicalConstValue::Integer { value, .. } =
+        canonical_const_declaration_value(program, symbol)?.decode_encoding()?
+    else {
+        return None;
+    };
+    usize::try_from(value).ok()
 }
 
 pub fn static_const_argument_spelling(
     program: &TypedTrees,
     argument: &expression::StaticMachineArgument,
 ) -> Option<String> {
+    match static_const_argument_value(program, argument)? {
+        StaticConstArgumentValue::Integer(value) => Some(value.to_string()),
+        StaticConstArgumentValue::Literal(literal) => Some(literal.to_string()),
+        StaticConstArgumentValue::Canonical(value) => canonical_static_const_spelling(value),
+    }
+}
+
+enum StaticConstArgumentValue<'argument> {
+    Integer(i128),
+    Literal(&'argument numerics::literals::IntegerLiteral),
+    Canonical(language_semantics::const_value::CanonicalConstValue),
+}
+
+fn static_const_argument_value<'argument>(
+    program: &TypedTrees,
+    argument: &'argument expression::StaticMachineArgument,
+) -> Option<StaticConstArgumentValue<'argument>> {
     use language_semantics::const_value::{CanonicalConstValue, boolean_literal_spelling};
 
     if argument.type_reference.is_valid()
@@ -1845,31 +1814,37 @@ pub fn static_const_argument_spelling(
                 .value_i64()
                 .map(i128::from)
                 .or_else(|| literal.value_u64().map(i128::from))
-                .map_or_else(|| literal.to_string(), |value| value.to_string()),
+                .or_else(|| literal.decimal_value_i128())
+                .map_or(
+                    StaticConstArgumentValue::Literal(literal),
+                    StaticConstArgumentValue::Integer,
+                ),
         );
     }
     if argument.symbol.is_valid() {
         let value = canonical_const_declaration_value(program, argument.symbol)?;
-        return canonical_static_const_spelling(value);
+        return Some(StaticConstArgumentValue::Canonical(value));
     }
     let [name] = argument.path.as_ref() else {
         return None;
     };
     if let Some(value) = boolean_literal_spelling(name.as_str()) {
-        return Some(CanonicalConstValue::boolean(value).atom());
+        return Some(StaticConstArgumentValue::Canonical(
+            CanonicalConstValue::boolean(value),
+        ));
     }
-    CanonicalConstValue::from_atom(name.as_str()).and_then(canonical_static_const_spelling)
+    CanonicalConstValue::from_atom(name.as_str()).map(StaticConstArgumentValue::Canonical)
 }
 
 pub fn static_const_value_identity(
     identity: &language_semantics::const_value::CanonicalConstIdentity,
 ) -> Option<String> {
-    canonical_static_const_spelling(language_semantics::const_value::CanonicalConstValue::new(
+    language_semantics::const_value::CanonicalConstValue::new(
         identity.type_name.clone(),
         identity.encoding.clone(),
         "",
-    ))
-    .map(|spelling| static_const_identity_from_spelling(&spelling))
+    )
+    .application_identity()
 }
 
 fn canonical_static_const_spelling(
@@ -1881,20 +1856,6 @@ fn canonical_static_const_spelling(
         DecodedCanonicalConstValue::Boolean(value) => CanonicalConstValue::boolean(value).atom(),
         _ => value.atom(),
     })
-}
-
-fn static_const_identity_from_spelling(spelling: &str) -> String {
-    if let Some(value) = language_semantics::const_value::CanonicalConstValue::from_atom(spelling) {
-        return format!(
-            "named(canonical-const(type({}),encoding({})))",
-            escape(&value.type_name),
-            escape(&value.encoding)
-        );
-    }
-    if let Ok(value) = spelling.parse::<i128>() {
-        return format!("named(integer-const({value}))");
-    }
-    format!("named(name({}))", escape(spelling))
 }
 
 impl PhaseSnapshot for TypedTrees {
@@ -1977,14 +1938,13 @@ pub use language_semantics::declaration_selection::{
 pub use names::{identity, name};
 pub use snapshot::TypedTreesSnapshot;
 pub use type_system::type_predicates::ProvenTypeContext;
-pub use type_system::type_predicates::StaticBooleanMemo;
 pub use type_system::{CaseMembershipTypeFacts, closed_numeric, types};
 pub use values::const_integer;
 pub use values::expression;
 pub use values::subtrees::{SubtreeEdges, SubtreeVisit};
 
+pub mod source_subjects;
+
 pub mod typed_trees {
     pub use crate::*;
 }
-
-pub mod source_index_algebra;

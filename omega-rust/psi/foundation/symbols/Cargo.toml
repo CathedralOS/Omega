@@ -10,6 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 compiler-storage = { path = "../compiler-storage" }
+numerics = { path = "../numerics" }
 arena = { path = "../arena" }
 language-core = { path = "../language-core" }
 semantic-vocabulary = { path = "../semantic-vocabulary" }

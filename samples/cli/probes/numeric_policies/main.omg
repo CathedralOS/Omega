@@ -13,7 +13,10 @@
 // Compile-checked only: no standard-library dependency, no ProcessExit
 // provider.
 
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_i16_to_i8_exact;
+use omega::language::core::narrow_i16_to_i8_saturating;
+use omega::language::core::narrow_i16_to_i8_wrapping;
+use omega::language::core::widen_i8_to_i64;
 
 data Main { hits: i32 in Wrapping; }
 

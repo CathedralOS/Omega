@@ -1,3 +1,0 @@
-use omega::language::core::time_authority;
-
-public Selected satisfies ClockObservation {}

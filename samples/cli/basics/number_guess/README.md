@@ -45,7 +45,7 @@ PASS: found 42 in exactly 7 guesses (exit 70)
 From the repository root, request review for the host where you will run it:
 
 ```text
-cargo run -p omega -- update --project samples/cli/basics/number_guess --target macos_arm64
+cargo run -p omega -- packages update --project samples/cli/basics/number_guess --target macos_arm64
 ```
 
 Use `windows_x86_64`, `linux_x86_64`, or `linux_arm64` for those hosts.
@@ -54,7 +54,7 @@ the reported `build/package-manager/review-<target>.txt`, change each decision
 from `pending` to `accept` or `reject`, then resume:
 
 ```text
-cargo run -p omega -- update --resume --project samples/cli/basics/number_guess
+cargo run -p omega -- packages update --resume --project samples/cli/basics/number_guess
 ```
 
 Resume must succeed before running. Local-path source identities bind the

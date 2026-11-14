@@ -1,8 +1,7 @@
 module spectrometer::matching;
-use omega::language::core::math;
+use omega::language::core::abs_f64;
 use spectrometer::model::Spectrum;
 use spectrometer::model::Regions;
-use omega::language::core::float_operations;
 
 // All lines within the inclusive tolerance remain candidates. Nearest is only
 // a deterministic preference: equal distances keep the earlier catalog ID.

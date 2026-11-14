@@ -30,6 +30,9 @@ fn geometry_error(
         Geometry::UnsupportedStructuralSum(identity) => {
             LoweringError::UnsupportedStructuralSum(identity)
         }
+        Geometry::InvalidStorageGeometry(_) | Geometry::ReentrantLayoutQuery(_) => {
+            LoweringError::NativeStructuralLayout(error)
+        }
     }
 }
 use calling_conventions::ValueShape;
@@ -42,6 +45,7 @@ use terminal_psi::{StructuralFieldDeclaration, StructuralFieldType, StructuralTy
 pub(crate) struct StorageProjection {
     pub(crate) byte_offset: u32,
     pub(crate) indices: Vec<(semantic_vocabulary::ValueId, u32)>,
+    pub(crate) scalar_descriptor: bool,
 }
 
 pub(crate) struct PrimitiveProjection {
@@ -138,6 +142,7 @@ fn primitive_access_projection(
         leaf: StorageProjection {
             byte_offset,
             indices,
+            scalar_descriptor: false,
         },
     })
 }
@@ -217,9 +222,12 @@ pub(crate) fn reference_projection_regions<'path>(
             (StructuralPathSegment::Referent, _) => return None,
             _ => continue,
         };
+        let scalar_descriptor = matches!(segment, StructuralPathSegment::Referent)
+            && scalar_storage_type(next_root, declarations).is_some();
         pointer_slots.push(StorageProjection {
             byte_offset,
             indices,
+            scalar_descriptor,
         });
         root = next_root;
         segment_start = next_start;

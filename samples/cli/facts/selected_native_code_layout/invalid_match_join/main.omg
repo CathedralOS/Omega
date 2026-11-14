@@ -1,0 +1,36 @@
+// The exact selected executable application supplies a nonzero native entry and finite attributed code regions at runtime.
+// Reject: late native metadata cannot determine a same-product semantic constant.
+use omega::language::core::CodeLayout;
+machine selected<T, const Salt: u64>(value: T) -> T { value }
+machine inspect(layout: &CodeLayout) -> bool
+terminates
+{
+    transition layout.regions.len > 0 { true -> region(layout) _ -> false }
+    machine region(layout: &CodeLayout) -> bool
+    requires layout.regions.len > 0
+    {
+        layout.entry != 0 && layout.regions[0].base == layout.entry && layout.regions[0].length > 0
+    }
+}
+data MarkedLayout { layout: CodeLayout; path: u64; }
+machine marked_layout() -> MarkedLayout terminates {
+    let layout: CodeLayout = code_layout<selected<u64, 7>>();
+    MarkedLayout { layout: layout, path: 1 }
+}
+machine fetch(branch: bool) -> MarkedLayout terminates {
+    match branch {
+        true -> marked_layout(),
+        false -> MarkedLayout { layout: code_layout<selected<u64, 7>>(), path: 0 }
+    }
+}
+machine witness() -> bool terminates {
+    let left: MarkedLayout = fetch(true);
+    let right: MarkedLayout = fetch(false);
+    inspect(&left.layout) && inspect(&right.layout) && left.path == 1 && right.path == 0
+}
+const OBSERVED: bool = witness();
+machine main() crashes Trap {
+    transition OBSERVED { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

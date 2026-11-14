@@ -102,7 +102,7 @@ is a program error.
 
 ## Slices
 
-Each slice lands on its own with its measured agreement, and each refuses
+Each slice lands on its own, and each refuses
 the constructs of the later ones as `Unsupported` with a detail naming them.
 
 | Slice | Serves | Refuses until later |
@@ -137,7 +137,7 @@ AGENTS.md stop rule 6 applies to every row above.
 - Every certificate goes through `prove.rs` and `verify_obligation`. If a
   rank comparison needs a rule the kernel lacks, that is reported as a
   finding, not worked around.
-- Acyclic joins (`lowered-discharge`, `joins`) were on `main` first: lowering
+- Acyclic joins (`terminal-psi-to-terminal-psi`, `joins`) were on `main` first: lowering
   mints one `ArrivalInvariant` on every edge that passes arguments, and the
   checker infers a join's predicate as a `BlockInvariant` knowledge row.
   Slice 1 uses that one mechanism. A loop head's declared row becomes the
@@ -147,55 +147,23 @@ AGENTS.md stop rule 6 applies to every row above.
   arrival fails has its inferred predicate weakened to `Truth`, and a head's
   declared predicate is never weakened, so its failed arrival rejects.
 
-## The corpus slice
-
-Measured 2026-11-12 with `route_one_comparison` on slice 1 (`#2367`, on
-`main` `a5af180a58c`), cloud Linux x86_64, `CARGO_PROFILE_DEV_OPT_LEVEL=1`,
-over the 380 fixtures of `pass|fail|run/{termination,recursion,loops,control,machines}`:
-
-| Outcome | Fixtures |
-| --- | --- |
-| both accept | 1 (`run/termination/productive_scalar_loop_exit`) |
-| both reject | 2 (`fail/termination/productive_scalar_loop_arrival_unproved`, `fail/machines/private_division_signed_pair_control`), each `fragment=all site=exact` |
-| current accepts, route rejects | 3, already classified in [route one measures](route_one_measures.md) as a current-checker error (`pass/machines/private_division_exact_pair_exit`, `_excluded_exit`, `private_division_signed_remainder_exit`) |
-| current rejects, route accepts | 0 |
-| no program entry | 197 |
-| outside the subset | 166 |
-| current checker stopped before typed trees | 11 |
-
-Of the 166 outside, 10 are refused first for this lane (`contract ranking
-witness` 9, slice 2; `contract termination promise over a call cycle` 1,
-slice 3). The rest are first refused for other families: `machine service
-reach` 52, `parameter mutable parameter` 31, `type data with custody` 21,
-`type constrained` 16, `type reference` 13, `machine attached data` 6,
-`contract term other than a formal or literal` 6, and 11 more across four
-details. None is refused as `call recursion` any longer. The probe reports
-only the first refusal of each program.
-
 ## Measures and acceptance
 
-Per slice, measured as route one measures them (`route_one_comparison`,
-`structure_elaboration_corpus`):
+Per slice:
 
-1. **Agreement.** Every program of the slice above that the slice brings
-   into the subset is checked by both routes, and each disagreement is read
-   and classified. Target: zero programs the new route accepts and the
-   specification rejects.
-2. **Rejection diagnostics.** On every `fail/` program both routes reject,
-   the route's message carries the fixture's pinned `expected.txt` fragment
-   and stands at the same source construct (`quality fragment=all
-   site=exact`). A failed head arrival is worded as the call requirement it
-   is. Slice 1 reports such a failure once per member whose graph holds the
-   cycle; the current checker reports it once.
-3. **Kernel-checked evidence** per obligation kind, with its denominator.
-4. **Decisions keyed on text: 0.** Slice 2 exists for this: the witness's
+1. **Rejection diagnostics.** On every must-reject program of the slice, the
+   route's message names the failing obligation and stands at the source
+   construct. A failed head arrival is worded as the call requirement it is.
+   Slice 1 reports such a failure once per member whose graph holds the
+   cycle.
+2. **Kernel-checked evidence** per obligation kind, with its denominator.
+3. **Decisions keyed on text: 0.** Slice 2 exists for this: the witness's
    rendered subjects are never read.
-5. **Silent drops: 0.** Every edge into a head has an obligation; a test
+4. **Silent drops: 0.** Every edge into a head has an obligation; a test
    asserts it over the edge table.
-6. **Routes per obligation kind: 1.**
-7. **Lines added**, production and test, per slice.
+5. **Routes per obligation kind: 1.**
+6. **Lines added**, production and test, per slice.
 
-Must-reject programs are named per slice from `fail/termination` and
-`fail/control_flow` once the probe shows which lie inside it; the lane adds
-at most one focused pair under `tests/omega/{pass,fail}/termination/` and
-none under `facts/`.
+Must-reject programs are named per slice. A slice adds at most one focused
+positive/negative pair, kept beside the test that reads it under
+`tests/fixtures/`.

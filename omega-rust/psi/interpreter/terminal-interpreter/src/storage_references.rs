@@ -2743,7 +2743,7 @@ impl TerminalExecution<'_> {
                     .find(|domain| domain.id == identity)
                     .is_some_and(|domain| {
                         domain.content_projection.is_none()
-                            && domain.establishment_routes.is_empty()
+                            && domain.establishment_routes.is_none()
                             && domain.has_no_required_memberships()
                             && match &domain.predicate {
                                 Some(predicate) => terminal_semantics::domain_predicate_is_closed(
@@ -4457,14 +4457,4 @@ impl TerminalExecution<'_> {
     }
 }
 
-pub(crate) fn access_covers(available: StructuralAccess, requested: StructuralAccess) -> bool {
-    available == requested
-        || available == StructuralAccess::Owned
-        || matches!(
-            (available, requested),
-            (
-                StructuralAccess::MutableBorrow,
-                StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
-            )
-        )
-}
+pub(crate) use terminal_psi::structural_access_covers as access_covers;

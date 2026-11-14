@@ -14,7 +14,7 @@ use typed_trees::service_declarations::projection;
 use typed_trees::trait_definition::{AppliedTraitScope, TraitApplicationEnvironment};
 use typed_trees::{FrozenTypedTrees, TypedTrees};
 
-use structure_elaboration::provider_selections::ProviderSelectionInput;
+use psi_compiler::TerminalProviderSelectionInput as ProviderSelectionInput;
 
 type Slot = ((u32, u32), Option<String>);
 type Provider = ((u32, u32), Option<String>);
@@ -233,24 +233,12 @@ fn declaration<'a>(
     })
 }
 
-pub(super) fn prepare(
+pub(super) fn prepare_with_source_defaults(
     source: &Arc<FrozenTypedTrees>,
     targets: &[target::TargetProfile],
     overrides: &[ProviderSelection],
     defaults: &[ProviderSelection],
-) -> Result<PreparedProviderChoices, Vec<Diagnostic>> {
-    let source_defaults = build_time_evaluation::provider_declarations::retain_provider_defaults(
-        ProviderPlanningContext::new(source, source::DependencyScope::Product),
-    )?;
-    prepare_with_source_defaults(source, targets, overrides, defaults, source_defaults)
-}
-
-fn prepare_with_source_defaults(
-    source: &Arc<FrozenTypedTrees>,
-    targets: &[target::TargetProfile],
-    overrides: &[ProviderSelection],
-    defaults: &[ProviderSelection],
-    source_defaults: Vec<TargetProviderDefaults>,
+    source_defaults: &[TargetProviderDefaults],
 ) -> Result<PreparedProviderChoices, Vec<Diagnostic>> {
     let typed: &TypedTrees = source;
     let context = ProviderPlanningContext::new(typed, source::DependencyScope::Product);

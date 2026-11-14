@@ -13,9 +13,9 @@ enumeration, weighting, accumulation, and decimal formatting. Its only host
 service is Console input, output, and termination of its own process.
 
 ```sh
-omega update --project samples/cli/independent/weighted_lattice --offline --target linux_x86_64
+omega packages update --project samples/cli/independent/weighted_lattice --offline --target linux_x86_64
 # Review the generated package decisions, then resume the same proposal.
-omega update --resume --project samples/cli/independent/weighted_lattice --offline
+omega packages update --resume --project samples/cli/independent/weighted_lattice --offline
 omega run samples/cli/independent/weighted_lattice/main.omg < samples/cli/independent/weighted_lattice/input.txt
 ```
 
@@ -23,7 +23,7 @@ The root example is the four-site ring with activity 2 and bond weight 2.
 `expected_stdout.txt` contains its complete authored output; stderr is empty.
 The original validation roster has eight scientific cases (including the
 256-configuration upper bound), the valid EOF variant, and ten malformed inputs.
-`invalid/` separately rejects index 9 into a length-9 array.
+`../invalid_weighted_lattice/` separately rejects index 9 into a length-9 array.
 
 The independent Cartesian-product reference and all original scientific input
 and output bytes were recovered from the original authoring history. The frozen
@@ -39,6 +39,6 @@ native route, then supply that exact executable to
 `validate.py --route native --executable PATH`. `validate.py --route terminal
 --omega PATH` compiles once with `omega run --both --inputs data` and checks
 both engines' actual stdout, stderr, and exit for the same 19 inputs. Run the separate refusal with
-`validate.py --route invalid --omega PATH`. The validator checks every frozen
+`validate.py --route ../invalid_weighted_lattice --omega PATH`. The validator checks every frozen
 file, exact stream, exit, case count, and intended diagnostic; it never accepts
 package decisions or regenerates expected results.

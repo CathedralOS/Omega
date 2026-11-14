@@ -441,7 +441,7 @@ mod program_image {
 
     pub(crate) fn lower(
         operation: &AbstractOperation,
-        target: target::NativeTarget,
+        profile: Option<target::TargetProfile>,
         declarations: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
         settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
         site: &mut RowSite<'_>,
@@ -473,7 +473,7 @@ mod program_image {
         let AbstractBoundaryResult::Scalar(result) = result else {
             return Err(mismatch);
         };
-        if target != target::NativeTarget::uefi_x64()
+        if profile != Some(target::TargetProfile::UefiX64)
             || binding.execution != execution
             || binding.realization
                 != BoundarySettlementRealization::Builtin(
@@ -827,7 +827,8 @@ mod structural_case {
         let identity = live
             .structural_observation_type(function, *source)
             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-        let (tag_byte_offset, case_tag, runs) = case_projection(identity, path, *case, types)?;
+        let (tag_byte_offset, case_tag, runs, pointer_slots) =
+            case_projection(identity, path, *case, types)?;
         if result.scalar_type != ScalarType::Boolean {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
@@ -846,6 +847,7 @@ mod structural_case {
             case: *case,
             case_tag,
             indices,
+            pointer_slots,
         });
         provenance.operations.push(*psi_operation);
         Ok(())
@@ -928,10 +930,27 @@ mod structural_case {
         path: &[StructuralPathSegment],
         case: semantic_vocabulary::StructuralCaseId,
         types: &StructuralTypeLookup<'_>,
-    ) -> Result<(u32, u32, Vec<(semantic_vocabulary::ValueId, u32)>), LoweringError> {
+    ) -> Result<
+        (
+            u32,
+            u32,
+            Vec<(semantic_vocabulary::ValueId, u32)>,
+            Vec<target_operations::TargetCasePointerSlot>,
+        ),
+        LoweringError,
+    > {
         let invalid = || LoweringError::UnknownStructuralType(identity);
         let regions = crate::structural_layout::reference_projection_regions(identity, path, types)
             .ok_or_else(invalid)?;
+        if !regions.readable
+            || regions
+                .pointer_slots
+                .iter()
+                .any(|slot| slot.scalar_descriptor)
+        {
+            return Err(invalid());
+        }
+        let pointer_slots = prepared_pointer_slots(&regions.pointer_slots).ok_or_else(invalid)?;
         let (identity, _, tag_byte_offset, leaf_runs) =
             crate::structural_layout::runtime_projection(regions.root, regions.path, types)?;
         let runs = regions.selector_runs(leaf_runs);
@@ -946,7 +965,26 @@ mod structural_case {
             .position(|candidate| candidate.id == case)
             .and_then(|ordinal| u32::try_from(ordinal).ok())
             .ok_or_else(invalid)?;
-        Ok((tag_byte_offset, case_tag, runs))
+        Ok((tag_byte_offset, case_tag, runs, pointer_slots))
+    }
+
+    fn prepared_pointer_slots(
+        slots: &[crate::structural_layout::StorageProjection],
+    ) -> Option<Vec<target_operations::TargetCasePointerSlot>> {
+        let mut end = 0u32;
+        let mut prepared = Vec::with_capacity(slots.len());
+        for slot in slots {
+            let start = end;
+            let count = u32::try_from(slot.indices.len()).ok()?;
+            end = start.checked_add(count)?;
+            prepared.push(target_operations::TargetCasePointerSlot {
+                byte_offset: slot.byte_offset,
+                index_start: start,
+                index_end: end,
+                scalar_descriptor: slot.scalar_descriptor,
+            });
+        }
+        Some(prepared)
     }
 
     pub(crate) fn lower(
@@ -968,13 +1006,16 @@ mod structural_case {
         let home = case_source(function, prepared, live, structural_types, *source)?;
         let regions = reference_projection_regions(home.structural_type(), path, structural_types)
             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-        if regions
-            .pointer_slots
-            .iter()
-            .any(|slot| !slot.indices.is_empty())
+        if !regions.readable
+            || regions
+                .pointer_slots
+                .iter()
+                .any(|slot| slot.scalar_descriptor || !slot.indices.is_empty())
         {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
+        let pointer_slots = prepared_pointer_slots(&regions.pointer_slots)
+            .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
         let (selected_type, _, byte_offset) =
             crate::structural_layout::resolve_structural_projection_path(
                 regions.root,
@@ -996,6 +1037,22 @@ mod structural_case {
         };
         let layout =
             crate::structural_layout::structural_sum_layout(selected_type, structural_types)?;
+        // The chase addresses `regions.root`. That is the sum itself only
+        // when the path never leaves the sum's own storage. A pointer chase
+        // or a sum stored in a larger record addresses the outer region,
+        // and the target row has to carry that size: selection no longer
+        // walks the type to recover it.
+        let region_byte_size = if pointer_slots.is_empty() && regions.root == selected_type {
+            layout.shape.byte_size
+        } else {
+            crate::structural_layout::structural_shape(regions.root, structural_types)?.byte_size
+        };
+        if byte_offset
+            .checked_add(layout.shape.byte_size)
+            .is_none_or(|end| end > region_byte_size)
+        {
+            return Err(LoweringError::unsupported_control_flow(function.machine));
+        }
         if cases.len() != declared_cases.len() || cases.len() != layout.cases.len() {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
@@ -1083,6 +1140,8 @@ mod structural_case {
             path: path.clone(),
             byte_offset,
             layout,
+            pointer_slots,
+            region_byte_size,
             cases: lowered,
         })
     }
@@ -2541,6 +2600,7 @@ impl LiveDefinitions {
 pub(crate) fn lower(
     function: &AbstractFunction,
     target: NativeTarget,
+    profile: Option<target::TargetProfile>,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
     dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
     callables: &terminal_psi::TerminalCallableCatalog,
@@ -2966,6 +3026,7 @@ pub(crate) fn lower(
                         provenance,
                     ),
                     target,
+                    profile,
                     functions,
                     dynamic_dispatch,
                     callables,

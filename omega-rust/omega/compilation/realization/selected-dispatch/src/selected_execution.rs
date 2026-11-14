@@ -17,8 +17,7 @@ impl SelectedExecution {
         target_profile: Option<target::TargetProfile>,
         realization: provider_planning::target_supply::RealizedTargetSupply,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let expected = target_profile.unwrap_or_else(target::TargetProfile::host);
-        if realization.target() != expected.target_name() {
+        if realization.target() != target_profile.map(|profile| profile.target_name()) {
             return Err(vec![Diagnostic::error(
                 "selected execution and realized provider supply name different targets",
             )]);
@@ -27,6 +26,18 @@ impl SelectedExecution {
             target_profile,
             realization: Arc::new(realization),
         })
+    }
+
+    pub fn settle(
+        target_profile: Option<target::TargetProfile>,
+        supply: &provider_planning::target_supply::SettledTargetSupply,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        if target_profile.map(|profile| profile.target_name()) != supply.target() {
+            return Err(vec![Diagnostic::error(
+                "selected execution and settled provider supply name different deployments",
+            )]);
+        }
+        Self::from_realization(target_profile, supply.realize_no_demand()?)
     }
 
     pub fn realization(&self) -> &provider_planning::target_supply::RealizedTargetSupply {
@@ -57,11 +68,8 @@ impl SelectedExecution {
         &self,
         artifact: terminal_codec::TerminalArtifactView<'_>,
         optimization_selection: optimization_core::OptimizationSelectionIdentity,
-    ) -> backend_plan::TerminalTargetProviderProposal {
-        let target = self
-            .target_profile
-            .unwrap_or_else(target::TargetProfile::host)
-            .target_name();
+    ) -> Option<backend_plan::TerminalTargetProviderProposal> {
+        let target = self.target_profile?.target_name();
         let selection = backend_plan::TerminalTargetProviderSelection::from_plans(
             self.realization.provider_declarations(),
             artifact,
@@ -71,13 +79,13 @@ impl SelectedExecution {
             selection
         })
         .map_err(|reason| vec![reason]);
-        backend_plan::TerminalTargetProviderProposal {
+        Some(backend_plan::TerminalTargetProviderProposal {
             target: target.to_owned(),
             terminal_psi: artifact.identity(),
             optimization_selection,
             application_roots: None,
             application_required: true,
             selection,
-        }
+        })
     }
 }

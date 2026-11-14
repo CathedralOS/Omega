@@ -11,9 +11,19 @@ The obsolete checked-source production request interfaces have been removed.
 #![forbid(unsafe_code)]
 
 mod accepted;
-pub use accepted::AcceptedTerminalSource;
-pub use structure_elaboration::Compilation as TerminalSourceCompilation;
+pub use accepted::{AcceptedTerminalSource, ConstantRead, DeclaredBoundaryRequirement};
 pub use terminal_semantics::callable_values::CallableBoundaryImplementation;
+pub use typed_trees_to_terminal_psi::Compilation as TerminalSourceCompilation;
+pub use typed_trees_to_terminal_psi::SuppliedRequirement as TerminalSuppliedRequirement;
+pub use typed_trees_to_terminal_psi::Supply as TerminalSourceSupply;
+pub use typed_trees_to_terminal_psi::provider_selections::{
+    ProviderSelectionInput as TerminalProviderSelectionInput,
+    ProviderSelections as TerminalProviderSelections,
+};
+pub use typed_trees_to_terminal_psi::{
+    CallingPolicySelections as TerminalCallingPolicySelections,
+    ProgramEntryContractSelection as TerminalProgramEntryContractSelection,
+};
 
 mod build_bindings;
 mod build_companions;
@@ -38,52 +48,40 @@ pub(crate) mod production_selection {
 }
 pub(crate) mod observation {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    #[repr(usize)]
     pub enum PsiCompilationStage {
-        MachineSelection,
-        Lowering,
-        Optimization,
         EntryReceipt,
         Publication,
         Resolution,
         Typing,
-        Lexing,
-        Parsing,
         SourceParsing,
     }
 
-    const OBSERVATION_LABELS: [(&str, &str, &str); 10] = [
-        (
-            "terminal-production/machine-selection",
-            "CheckedTrees",
-            "TerminalMachine",
-        ),
-        ("terminal-production/lowering", "CheckedTrees", "LoweredPsi"),
-        (
-            "terminal-production/optimization",
-            "LoweredPsi",
-            "OptimizedLoweredPsi",
-        ),
-        (
-            "terminal-production/entry-receipt",
-            "OptimizedLoweredPsi",
-            "ProgramEntryReceipt",
-        ),
-        (
-            "terminal-production/publication",
-            "OptimizedLoweredPsi",
-            "CanonicalTerminalArtifact",
-        ),
-        ("Psi 02", "SyntaxTrees", "SymbolResolvedTrees"),
-        ("Psi 03", "SymbolResolvedTrees", "TypedTrees"),
-        ("Psi 00", "SourceFiles", "TokenStreams"),
-        ("Psi 01", "TokenStreams", "SyntaxTrees"),
-        ("Source ingress", "SourceFiles", "SyntaxTrees"),
-    ];
-
     impl PsiCompilationStage {
+        /// Names the value the recorded call reads and the value it returns.
+        ///
+        /// Publication records `AcceptedClosure::publish` and
+        /// `publish_invocation`: accepted closure in, `TerminalProgramProduct`
+        /// out (portable canonical artifact or invocation code), with the
+        /// evidence seals beside that product. Entry receipt records
+        /// `prepare_program_entry_receipt`: that canonical artifact in,
+        /// `CheckedProgramEntryTerminalReceipt` out. Elaboration and discharge
+        /// remain the judgment in `AcceptedTerminalSource::judge`.
         pub const fn observation_labels(self) -> (&'static str, &'static str, &'static str) {
-            OBSERVATION_LABELS[self as usize]
+            match self {
+                Self::EntryReceipt => (
+                    "terminal-production/entry-receipt",
+                    "CanonicalTerminalArtifact",
+                    "CheckedProgramEntryTerminalReceipt",
+                ),
+                Self::Publication => (
+                    "terminal-production/publication",
+                    "AcceptedClosure",
+                    "TerminalProgramProduct",
+                ),
+                Self::Resolution => ("Psi 02", "SyntaxTrees", "SymbolResolvedTrees"),
+                Self::Typing => ("Psi 03", "SymbolResolvedTrees", "TypedTrees"),
+                Self::SourceParsing => ("Source ingress", "SourceFiles", "SyntaxTrees"),
+            }
         }
     }
 
@@ -104,6 +102,58 @@ pub(crate) mod observation {
             operation: impl FnOnce() -> Result<Value, Error>,
         ) -> Result<Value, Error> {
             operation()
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::PsiCompilationStage;
+
+        #[test]
+        fn live_rows_name_the_representations_their_producers_return() {
+            assert_eq!(
+                PsiCompilationStage::EntryReceipt.observation_labels(),
+                (
+                    "terminal-production/entry-receipt",
+                    "CanonicalTerminalArtifact",
+                    "CheckedProgramEntryTerminalReceipt",
+                )
+            );
+            assert_eq!(
+                PsiCompilationStage::Publication.observation_labels(),
+                (
+                    "terminal-production/publication",
+                    "AcceptedClosure",
+                    "TerminalProgramProduct",
+                )
+            );
+            assert_eq!(
+                PsiCompilationStage::Resolution.observation_labels(),
+                ("Psi 02", "SyntaxTrees", "SymbolResolvedTrees")
+            );
+            assert_eq!(
+                PsiCompilationStage::Typing.observation_labels(),
+                ("Psi 03", "SymbolResolvedTrees", "TypedTrees")
+            );
+            assert_eq!(
+                PsiCompilationStage::SourceParsing.observation_labels(),
+                ("Source ingress", "SourceFiles", "SyntaxTrees")
+            );
+            for stage in [
+                PsiCompilationStage::EntryReceipt,
+                PsiCompilationStage::Publication,
+                PsiCompilationStage::Resolution,
+                PsiCompilationStage::Typing,
+                PsiCompilationStage::SourceParsing,
+            ] {
+                let (name, input, output) = stage.observation_labels();
+                for label in [name, input, output] {
+                    assert!(
+                        !matches!(label, "CheckedTrees" | "LoweredPsi" | "OptimizedLoweredPsi"),
+                        "{stage:?} still names a deleted representation: {label}"
+                    );
+                }
+            }
         }
     }
 }

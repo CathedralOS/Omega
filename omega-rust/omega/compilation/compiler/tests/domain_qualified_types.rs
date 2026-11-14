@@ -9,7 +9,7 @@
 //! One program pins the accepted forms from source. Each twin changes one
 //! machine and is not accepted.
 
-use lowered_discharge::RouteVerdict;
+use terminal_psi_to_terminal_psi::RouteVerdict;
 
 // Compilation shares process-wide counters; run one at a time.
 static COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -17,7 +17,7 @@ static COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 const DOMAINS: &str = "\
 use omega::language::core::AccessPolicy;
 use omega::language::core::AccessPlan;
-use omega::language::core::Schema;
+use omega::language::core::reflect::TypeSchema;
 
 domain i32::Km;
 machine carry(distance: i32 in Km) -> i32 in Km {
@@ -37,7 +37,7 @@ data Seal {
     mark: i32;
 }
 SealAccess satisfies AccessPolicy {
-    machine plan(schema: Schema) -> AccessPlan {
+    machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
         let plan: AccessPlan;
         plan
     }
@@ -108,22 +108,59 @@ fn verdicts(name: &str, machines: &str) -> Vec<String> {
             failure.into_diagnostics()
         )
     });
-    lowered_discharge::judge_compilation(
-        &frontier.typed,
-        structure_elaboration::Compilation {
-            entries: &frontier.entries,
-            subjects: &[frontier.subject],
-            purpose: source::DependencyScope::Product,
-            selected: &frontier.selected,
-            calling: frontier.calling.borrow(&frontier.typed).selection(),
-            providers: frontier.provider_selections(),
-            bindings: &frontier.bindings,
-        },
+    terminal_psi_to_terminal_psi::judge_compilation(
+        typed_trees_to_terminal_psi::prepare_compilation(
+            &frontier.typed,
+            typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
+                entries: &frontier.entries,
+                subjects: &[frontier.subject],
+                purpose: source::DependencyScope::Product,
+                selected: &frontier.selected,
+                calling: frontier
+                    .normalization
+                    .calling
+                    .borrow(&frontier.typed)
+                    .selection(),
+                providers: frontier.provider_selections(),
+                bindings: &frontier.bindings,
+                supplies: &frontier.supplies,
+            },
+            terminal_codec::TerminalPublication::Portable,
+        )
+        .program,
     )
     .iter()
     .map(|verdict| match verdict {
         Ok(RouteVerdict::Accepted(_)) => "accepted".to_owned(),
-        Ok(RouteVerdict::Rejected { .. }) => "rejected".to_owned(),
+        // What was not proved and which rule the program breaks, in the
+        // checker's words, and how many uses of storage nothing established.
+        Ok(RouteVerdict::Rejected {
+            violations,
+            unproved,
+            unestablished,
+            ..
+        }) => {
+            // A broken rule is reported where the program breaks it.
+            assert!(
+                violations.iter().all(|violation| violation.site.is_some()),
+                "{name}: {violations:#?}"
+            );
+            format!(
+                "rejected: {} unestablished; {}",
+                unestablished.len(),
+                unproved
+                    .iter()
+                    .map(|obligation| obligation.statement.as_str())
+                    .chain(
+                        violations
+                            .iter()
+                            .map(|violation| violation.statement.as_str())
+                    )
+                    .collect::<Vec<_>>()
+                    .join("; ")
+            )
+        }
         Ok(RouteVerdict::Incomplete(_)) => "incomplete".to_owned(),
         Ok(RouteVerdict::FallBack(refusal)) => format!("not-supported: {refusal:?}"),
         Err(defect) => format!("defect: {defect:?}"),
@@ -146,30 +183,55 @@ fn refused_with(name: &str, machines: &str, expected: &str) {
     );
 }
 
+/// The one verdict of a twin that breaks a rule of the language: a
+/// rejection of the program that states `expected`, and never "not
+/// supported".
+fn violates(name: &str, machines: &str, expected: &str) {
+    let verdicts = verdicts(name, machines);
+    assert!(
+        verdicts.len() == 1
+            && verdicts[0].starts_with("rejected: 0 unestablished; ")
+            && verdicts[0].contains(expected),
+        "{name}: {verdicts:#?}"
+    );
+}
+
 #[test]
-fn a_plain_argument_for_a_qualified_parameter_is_not_accepted() {
-    refused_with(
+fn a_plain_argument_for_a_qualified_parameter_is_rejected() {
+    violates(
         "plain_argument",
         "machine wrong(distance: i32) -> i32 in Km {\n    carry(distance)\n}\n",
-        "typing argument types",
+        "this value's type carries no domain and the parameter it is passed for declares `i32::Km`",
     );
 }
 
 #[test]
-fn a_plain_value_for_a_qualified_result_is_not_accepted() {
-    refused_with(
+fn a_plain_value_for_a_qualified_result_is_rejected() {
+    violates(
         "plain_result",
         "machine wrong(distance: i32) -> i32 in Km {\n    distance\n}\n",
-        "typing arm value type",
+        "this value's type carries no domain and the machine's result declares `i32::Km`",
     );
 }
 
 #[test]
-fn a_qualified_value_for_a_plain_result_is_not_accepted() {
-    refused_with(
+fn a_qualified_value_for_a_plain_result_is_rejected() {
+    violates(
         "qualified_result",
         "machine wrong(distance: i32 in Km) -> i32 {\n    distance\n}\n",
-        "typing arm value type",
+        "this value's type carries `i32::Km` and the machine's result declares no domain: a type \
+         gains or loses a domain only through a cast that names the domain",
+    );
+}
+
+/// A carrier cast takes an operand with no domain: the domain is removed by
+/// name first, then the carrier changes.
+#[test]
+fn a_carrier_cast_of_a_qualified_value_is_rejected() {
+    violates(
+        "qualified_carrier_cast",
+        "machine wrong(distance: i32 in Km) -> i64 {\n    distance as i64\n}\n",
+        "this cast names a carrier and its operand's type carries `i32::Km`",
     );
 }
 
@@ -186,32 +248,249 @@ fn a_builtin_comparison_of_qualified_operands_is_not_accepted() {
 /// restricts nothing (`added` and `landed` above), and `stamp` is the one
 /// route of `Stamped`: any other machine is outside it.
 #[test]
-fn adding_a_routed_domain_outside_its_routes_is_refused_by_name() {
-    refused_with(
+fn adding_a_routed_domain_outside_its_routes_is_rejected() {
+    violates(
         "outside_route",
         "machine wrong(ticket: Ticket) -> Ticket in Stamped {\n    ticket as +Stamped\n}\n",
-        "cast that adds a domain outside its establishment routes",
+        "this cast adds `Ticket::Stamped` in a machine that is not one of the domain's \
+         establishment routes",
     );
 }
 
-/// A value its route issued travels on, and the domain is not cast off it.
+/// A route may be a trait requirement instead of a machine. The machine that
+/// declares that requirement's edge is invoked only through the requirement,
+/// so its body may add the domain (`wiki/spec/resources/authority.md`,
+/// "Requirement and exact-machine routes": the origin "includes a call by
+/// name to a machine that declares that edge").
+const REQUIREMENT_ROUTE: &str = "data Pass {
+    number: i32;
+}
+trait Grants {
+    machine grant(pass: Pass) -> Pass in Granted;
+}
+domain Pass::Granted established by Grants::grant;
+";
+
 #[test]
-fn removing_a_routed_domain_is_refused_by_name() {
-    refused_with(
-        "routed_removal",
-        "machine wrong(ticket: Ticket in Stamped) -> Ticket {\n    ticket as -Stamped\n}\n",
-        "removal of a domain with restricted issuance",
+fn a_declared_conformer_adds_the_domain_its_requirement_routes() {
+    let verdicts = verdicts(
+        "requirement_route",
+        &format!(
+            "{REQUIREMENT_ROUTE}machine issue(pass: Pass) -> Pass in Granted satisfies Grants::grant {{ pass as +Granted }}
+"
+        ),
+    );
+    assert!(
+        !verdicts.is_empty() && verdicts.iter().all(|verdict| verdict == "accepted"),
+        "{verdicts:#?}"
     );
 }
 
-/// Nothing states a domain's predicates as an obligation on a cast's
-/// operand yet, so a program that declares such a domain is not accepted.
+/// The twin has the conformer's body and signature and declares no edge, so
+/// nothing invokes it through the requirement and its cast mints nothing.
 #[test]
-fn a_domain_with_predicates_is_refused_by_name() {
+fn a_plain_machine_does_not_add_a_domain_routed_through_a_requirement() {
+    let verdicts = verdicts(
+        "requirement_route_plain",
+        &format!(
+            "{REQUIREMENT_ROUTE}machine wrong(pass: Pass) -> Pass in Granted {{ pass as +Granted }}
+"
+        ),
+    );
+    assert!(
+        verdicts.iter().any(|verdict| verdict.starts_with("rejected")
+            && verdict.contains(
+                "this cast adds `Pass::Granted` in a machine that is not one of the domain's establishment routes"
+            )),
+        "{verdicts:#?}"
+    );
+}
+
+/// Issuance restricts adding a domain. Removing one keeps the carrier and
+/// does not grant permission to add the domain again.
+#[test]
+fn removing_a_routed_domain_keeps_the_carrier() {
+    assert_eq!(
+        verdicts(
+            "routed_removal",
+            "machine unstamp(ticket: Ticket in Stamped) -> Ticket {\n    ticket as -Stamped\n}\n",
+        ),
+        ACCEPTED_PARTS,
+    );
+}
+
+/// A domain with predicates, on a scalar. Its predicates are contracts of
+/// the places declared in it: a cast proves them of its operand, a formal
+/// gives them to the body, a result promises them, and a field's are
+/// clauses of the data type that declares the field.
+const PREDICATES: &str = "\
+domain i32::Positive
+    requires self > 0;
+data Account {
+    balance: i32 in Positive;
+    count: i32;
+}
+machine keep(value: i32 in Positive) -> i32 in Positive {
+    value
+}
+";
+
+const ACCEPTED_PREDICATES: &str = "\
+machine literal() -> i32 in Positive {
+    5 as +Positive
+}
+machine guarded(value: i32) -> i32 in Positive requires value > 3 {
+    value as +Positive
+}
+machine known(value: i32 in Positive) -> i32 ensures result > 0 {
+    value as -Positive
+}
+machine relayed_positive(value: i32 in Positive) -> i32 in Positive {
+    keep(value)
+}
+machine promised() -> i32 ensures result > 0 {
+    let kept: i32 in Positive = keep(9 as +Positive);
+    kept as -Positive
+}
+machine opened(value: i32) -> Account requires value > 0 {
+    Account { balance: value as +Positive, count: 1 }
+}
+machine balance(account: Account) -> i32 ensures result > 0 {
+    account.balance as -Positive
+}
+machine deposited(account: Account) -> Account {
+    let mut held: Account = account;
+    held.balance = 7 as +Positive;
+    held
+}
+machine filled() -> Account {
+    let mut account: Account;
+    account.balance = 1 as +Positive;
+    account
+}
+";
+
+fn predicate_verdicts(name: &str, machines: &str) -> Vec<String> {
+    verdicts(name, &format!("{PREDICATES}{machines}"))
+}
+
+#[test]
+fn a_domain_predicate_is_proved_at_the_cast_and_known_where_the_type_is_declared() {
+    assert_eq!(
+        predicate_verdicts("accepted_predicates", ACCEPTED_PREDICATES),
+        ACCEPTED_PARTS
+    );
+}
+
+/// A predicate twin is rejected, the checker's answer to an obligation it
+/// could not prove, and the rejection states `expected`.
+fn rejected(name: &str, machines: &str, expected: &str) {
+    let verdicts = predicate_verdicts(name, machines);
+    assert!(
+        verdicts.len() == 2
+            && verdicts
+                .iter()
+                .any(|verdict| verdict.starts_with("rejected")
+                    && verdict.contains(expected)
+                    && (expected != UNPROVED_CAST || verdict.contains(POSITIVE))),
+        "{name}: {verdicts:#?}"
+    );
+}
+
+/// What the rejection of a cast says, before the domain and its predicate.
+const UNPROVED_CAST: &str =
+    "cannot prove the value of this cast is in the domain it adds in machine `wrong`";
+
+/// The domain and predicate the rejection names.
+const POSITIVE: &str = "domain `i32::Positive` requires `self > 0`";
+
+/// Nothing is known of `value`, so the cast cannot prove `value > 0`.
+#[test]
+fn a_cast_that_cannot_prove_the_predicate_is_rejected() {
+    rejected(
+        "unproved_cast",
+        "machine wrong(value: i32) -> i32 in Positive {\n    value as +Positive\n}\n",
+        UNPROVED_CAST,
+    );
+}
+
+#[test]
+fn a_cast_of_a_value_outside_the_domain_is_rejected() {
+    rejected(
+        "false_cast",
+        "machine wrong() -> i32 in Positive {\n    0 as +Positive\n}\n",
+        UNPROVED_CAST,
+    );
+}
+
+/// The fact comes from the formal's domain: the same body over a plain
+/// formal does not prove its guarantee.
+#[test]
+fn a_plain_formal_gives_the_body_no_predicate() {
+    rejected(
+        "plain_formal",
+        "machine wrong(value: i32) -> i32 ensures result > 0 {\n    value\n}\n",
+        "cannot prove ensures contract for exit from wrong",
+    );
+}
+
+/// Zero is not positive, so a zeroed `Account` is not a value until its
+/// balance is stored: the declaration opens an invariant window and the
+/// return consumes the record while it is open.
+#[test]
+fn a_zeroed_record_whose_field_predicate_fails_at_zero_is_not_accepted() {
+    let verdicts = predicate_verdicts(
+        "zeroed_field",
+        "machine wrong() -> Account {\n    let account: Account;\n    account\n}\n",
+    );
+    assert!(
+        verdicts
+            .iter()
+            .any(|verdict| verdict.starts_with("rejected: 1 unestablished")),
+        "{verdicts:#?}"
+    );
+}
+
+/// A zeroed local that is itself the qualified scalar has no owning data
+/// type to judge whether zero is a member.
+#[test]
+fn a_zeroed_scalar_in_a_domain_with_predicates_is_refused_by_name() {
+    let verdicts = predicate_verdicts(
+        "zeroed_scalar",
+        "machine wrong() -> i32 in Positive {\n    let value: i32 in Positive;\n    value\n}\n",
+    );
+    assert!(
+        verdicts.iter().any(|verdict| verdict
+            .contains("zero-established value in a domain that must be established")),
+        "{verdicts:#?}"
+    );
+}
+
+/// A field in the domain is stored only from a value of its exact type, so
+/// a store that would break the field's predicate is rejected at the cast
+/// that claims the value is in the domain.
+#[test]
+fn a_store_into_a_field_in_the_domain_is_rejected_at_the_cast_it_cannot_prove() {
+    rejected(
+        "broken_field",
+        "machine wrong(account: Account, value: i32) -> Account {
+    let mut held: Account = account;
+    held.balance = value as +Positive;
+    held
+}
+",
+        UNPROVED_CAST,
+    );
+}
+
+/// Predicates over the fields of a data value are not stated yet, so a
+/// domain that has them on a data carrier is refused where it is declared.
+#[test]
+fn a_domain_with_predicates_on_a_data_carrier_is_refused_by_name() {
     refused_with(
-        "predicates",
-        "domain i32::Positive\n    requires self > 0;\nmachine wrong(value: i32) -> i32 in Positive {\n    value as +Positive\n}\n",
-        "domain with predicates",
+        "data_predicates",
+        "domain Reading::Valid\n    requires self.value > 0;\n",
+        "constrained by a domain with predicates on a data carrier",
     );
 }
 
@@ -263,11 +542,12 @@ fn a_data_value_keeps_its_domain_and_a_governed_one_is_passed_on_whole() {
 }
 
 #[test]
-fn a_plain_record_for_a_qualified_field_is_not_accepted() {
-    refused_with(
+fn a_plain_record_for_a_qualified_field_is_rejected() {
+    violates(
         "plain_field",
         "machine wrong(reading: Reading) -> Sample {\n    Sample { reading: reading, count: 1 }\n}\n",
-        "typing record literal field type",
+        "this value's type carries no domain and the field it initializes declares \
+         `Reading::Checked`",
     );
 }
 
@@ -296,7 +576,7 @@ fn removing_a_governed_domain_is_refused_by_name() {
     refused_with(
         "governed_removal",
         "machine wrong(seal: Seal in Issued) -> Seal {\n    seal as -Issued\n}\n",
-        "removal of a domain with restricted issuance",
+        "removal of a domain governed by an access policy",
     );
 }
 
@@ -339,19 +619,19 @@ fn omitting_a_governed_field_from_a_literal_is_not_accepted() {
 }
 
 #[test]
-fn a_literal_for_a_governed_field_is_not_accepted() {
-    refused_with(
+fn a_literal_for_a_governed_field_is_rejected() {
+    violates(
         "governed_literal",
         "machine wrong() -> Sealed {\n    Sealed { seal: Seal { mark: 1 }, count: 1 }\n}\n",
-        "typing record literal field type",
+        "this value's type carries no domain and the field it initializes declares `Seal::Issued`",
     );
 }
 
 /// A loan of a governed field is a loan of its exact type: a machine that
 /// takes the plain carrier would read inside it.
 #[test]
-fn lending_a_governed_field_as_its_plain_carrier_is_not_accepted() {
-    refused_with(
+fn lending_a_governed_field_as_its_plain_carrier_is_rejected() {
+    violates(
         "governed_loan",
         "machine peek(seal: &Seal) -> i32 {
     seal.mark
@@ -360,7 +640,8 @@ machine wrong(sealed: &Sealed) -> i32 {
     peek(&sealed.seal)
 }
 ",
-        "typing argument types",
+        "this value's type carries `Seal::Issued` and the parameter it is passed for declares no \
+         domain",
     );
 }
 

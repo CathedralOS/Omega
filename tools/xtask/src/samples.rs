@@ -1,4 +1,4 @@
-//! Sample native + Terminal Psi gate (`cargo xtask sample-gate`).
+//! Check samples and compare native/Psi execution (`cargo xtask sample-gate`).
 
 use std::collections::BTreeSet;
 use std::fs;
@@ -23,7 +23,7 @@ pub struct SampleProject {
     pub rel_path: String,
     pub entry: Option<PathBuf>,
     pub role: String,
-    pub source_inputs: Vec<String>, // Explicit root inventory; absence retains ordinary caller default.
+    pub source_inputs: Vec<String>, // The same explicit caller inventory for preparation and execution.
     pub rejection: Vec<String>,
     pub rejection_any: Vec<String>,
     pub rejection_casefold: bool,
@@ -166,7 +166,7 @@ pub fn project_at(directory: &Path, repo: &Path) -> Result<SampleProject, String
         .unwrap_or(false);
 
     let source_inputs = match meta.get("source_inputs") {
-        None => Vec::new(),
+        None => project_source_inputs(directory)?,
         Some(value) => {
             let paths = value
                 .as_array()
@@ -212,6 +212,69 @@ pub fn project_at(directory: &Path, repo: &Path) -> Result<SampleProject, String
     })
 }
 
+/// Each discovered sample is a separate invocation. A nested sample's own
+/// descriptor establishes another project boundary; capturing it as a sibling
+/// source of its parent would give two unrelated programs one namespace.
+/// This is caller input selection, not a compiler name-resolution exception.
+fn project_source_inputs(root: &Path) -> Result<Vec<String>, String> {
+    let mut inputs = Vec::new();
+    let mut pending = vec![root.to_path_buf()];
+    while let Some(directory) = pending.pop() {
+        if directory != root && has_project_descriptor(&directory) {
+            continue;
+        }
+        let entries = fs::read_dir(&directory)
+            .map_err(|error| format!("{}: {error}", directory.display()))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| format!("{}: {error}", directory.display()))?;
+        if entries.is_empty() && directory != root {
+            inputs.push(relative_input(root, &directory)?);
+        }
+        for entry in entries {
+            let name = entry.file_name();
+            // The local-source contract excludes Git metadata at every depth
+            // and the selected root's build output and acceptance state.
+            if name == ".git"
+                || directory == root
+                    && (name == "build"
+                        || name.as_encoded_bytes().eq_ignore_ascii_case(b"omega.lock"))
+            {
+                continue;
+            }
+            let kind = entry
+                .file_type()
+                .map_err(|error| format!("{}: {error}", entry.path().display()))?;
+            if kind.is_dir() {
+                pending.push(entry.path());
+            } else {
+                // Keep authored files and symlinks as exact inputs; capture
+                // still checks link containment and immutable source custody.
+                inputs.push(relative_input(root, &entry.path())?);
+            }
+        }
+    }
+    inputs.sort();
+    Ok(inputs)
+}
+
+fn has_project_descriptor(directory: &Path) -> bool {
+    directory.join("build.omg").is_file() || directory.join("sample.json").is_file()
+}
+
+fn relative_input(root: &Path, path: &Path) -> Result<String, String> {
+    path.strip_prefix(root)
+        .map_err(|error| error.to_string())?
+        .components()
+        .map(|component| {
+            component
+                .as_os_str()
+                .to_str()
+                .ok_or_else(|| format!("{}: sample input path is not UTF-8", path.display()))
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(|components| components.join("/"))
+}
+
 pub fn discover_samples(
     search_root: &Path,
     repo: &Path,
@@ -224,12 +287,9 @@ pub fn discover_samples(
             continue;
         };
         let mut subdirs = Vec::new();
-        let mut has_build = false;
+        let has_descriptor = has_project_descriptor(&dir);
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().into_owned();
-            if name == "build.omg" {
-                has_build = true;
-            }
             if entry.file_type().map(|t| t.is_dir()).unwrap_or(false)
                 && !matches!(name.as_str(), "build" | ".git" | "target")
             {
@@ -240,7 +300,7 @@ pub fn discover_samples(
         for sub in subdirs.into_iter().rev() {
             stack.push(sub);
         }
-        if has_build {
+        if has_descriptor {
             let rel = dir
                 .strip_prefix(repo)
                 .unwrap_or(&dir)
@@ -328,7 +388,7 @@ fn settle_review(
     let out = execution::output(
         with_source_inputs(
             Command::new(cli)
-                .args(["update", "--project"])
+                .args(["packages", "update", "--project"])
                 .arg(sample_dir)
                 .args(["--target", target])
                 .stdin(Stdio::null()),
@@ -355,7 +415,7 @@ fn settle_review(
         )?;
         let resume = execution::output(
             Command::new(cli)
-                .args(["update", "--project"])
+                .args(["packages", "update", "--project"])
                 .arg(sample_dir)
                 .arg("--resume")
                 .stdin(Stdio::null()),
@@ -364,14 +424,16 @@ fn settle_review(
         )?;
         if !resume.status.success() {
             return Err(format!(
-                "resume-failed: {}{}",
+                "resume-failed ({}): {}{}",
+                resume.status,
                 String::from_utf8_lossy(&resume.stdout),
                 String::from_utf8_lossy(&resume.stderr)
             ));
         }
     } else if !out.status.success() {
         return Err(format!(
-            "update failed: {}{}",
+            "update failed ({}): {}{}",
+            out.status,
             String::from_utf8_lossy(&out.stdout),
             String::from_utf8_lossy(&out.stderr)
         ));
@@ -729,8 +791,17 @@ pub fn verify_sample(
     Ok(format!("pass (native exit {n_exit}, Psi exit {i_exit})"))
 }
 
+// Compiler errors often put their cause after a heading. Keep those following
+// lines in the report and name the retained command files for further inspection.
+fn failure_report(sample: &str, reason: &str, evidence: &Path) -> String {
+    format!(
+        "FAIL\t{sample}\t{reason}\n  command evidence: {}",
+        evidence.display()
+    )
+}
+
 pub fn run(args: &[String]) -> Result<(), u8> {
-    let repo = repo_root();
+    let repo = repo_root()?;
     let mut filters: Vec<String> = Vec::new();
     let mut facts_only = false;
     let mut programs_only = false;
@@ -830,8 +901,10 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 println!("{state}\t{}", proj.rel_path);
             }
             Err(reason) => {
-                let first_line = reason.lines().next().unwrap_or(&reason);
-                eprintln!("FAIL\t{}\t{first_line}", proj.rel_path);
+                eprintln!(
+                    "{}",
+                    failure_report(&proj.rel_path, &reason, &evidence.join(&proj.rel_path))
+                );
                 failed += 1;
             }
         }
@@ -859,6 +932,63 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn failed_preparation_reports_the_child_status_and_following_diagnostic_lines() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let directory = execution::reserve_directory(&std::env::temp_dir()).unwrap();
+        let cli = directory.join("compiler");
+        for (name, script, expected_status) in [
+            (
+                "update",
+                "#!/bin/sh\nprintf '\\nproject source discovery failed:\\n  error: missing access evidence\\n' >&2\nexit 37\n",
+                37,
+            ),
+            ("silent", "#!/bin/sh\nexit 38\n", 38),
+            (
+                "resume",
+                "#!/bin/sh\ncase \"$*\" in\n  *--resume*) printf '\\n  error: missing access evidence\\n' >&2; exit 39;;\n  *) exit 0;;\nesac\n",
+                39,
+            ),
+        ] {
+            let project = directory.join(name);
+            fs::create_dir(&project).unwrap();
+            if name == "resume" {
+                let reviews = project.join("build/package-manager");
+                fs::create_dir_all(&reviews).unwrap();
+                fs::write(
+                    reviews.join(format!("review-{}.txt", host_target())),
+                    "decision row 0123abcd pending\n",
+                )
+                .unwrap();
+            }
+            fs::write(&cli, script).unwrap();
+            fs::set_permissions(&cli, fs::Permissions::from_mode(0o700)).unwrap();
+            let evidence = directory.join(format!("{name}-evidence"));
+            let reason = settle_review(&cli, &project, host_target(), &evidence, &[]).unwrap_err();
+            let report = failure_report(name, &reason, &evidence);
+            assert!(
+                report.contains(&format!("exit status: {expected_status}")),
+                "{report}"
+            );
+            assert!(report.contains(evidence.to_str().unwrap()), "{report}");
+            let command = if name == "resume" { "resume" } else { "update" };
+            let stderr = fs::read_to_string(evidence.join(format!("{command}.stderr"))).unwrap();
+            assert!(
+                report.contains(&stderr),
+                "the report must retain the complete child diagnostic"
+            );
+            if name != "silent" {
+                assert!(
+                    report.contains("  error: missing access evidence"),
+                    "{report}"
+                );
+            }
+        }
+        fs::remove_dir_all(directory).unwrap();
+    }
 
     fn invalid_sample(directory: &Path) -> SampleProject {
         fs::write(directory.join("main.omg"), "machine main() {}\n").unwrap();
@@ -889,6 +1019,61 @@ mod tests {
             );
         }
         fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn each_project_captures_its_own_modules_and_checks_nested_projects_separately() {
+        let root = execution::reserve_directory(&std::env::temp_dir()).unwrap();
+        for directory in ["modules", "examples/second", "build"] {
+            fs::create_dir_all(root.join(directory)).unwrap();
+        }
+        for file in [
+            "main.omg",
+            "build.omg",
+            "modules/helper.omg",
+            "modules/input.txt",
+            "examples/notes.txt",
+            "examples/second/main.omg",
+            "omega.lock",
+            "build/output.txt",
+        ] {
+            fs::write(root.join(file), "").unwrap();
+        }
+        // A descriptor-only child is still independently discovered; no
+        // directory spelling supplies the boundary or its rejection oracle.
+        fs::write(root.join("examples/second/sample.json"), "{}").unwrap();
+        let projects = discover_samples(&root, &root, &[]).unwrap();
+        assert_eq!(projects.len(), 2);
+        let parent = projects
+            .iter()
+            .find(|project| project.directory == root)
+            .unwrap();
+        assert_eq!(
+            parent.source_inputs,
+            [
+                "build.omg",
+                "examples/notes.txt",
+                "main.omg",
+                "modules/helper.omg",
+                "modules/input.txt",
+            ]
+        );
+        let child = projects
+            .iter()
+            .find(|project| project.directory != root)
+            .unwrap();
+        assert_eq!(child.source_inputs, ["main.omg", "sample.json"]);
+
+        fs::write(
+            root.join("sample.json"),
+            r#"{"source_inputs":["main.omg","build.omg","examples"]}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            project_at(&root, &root).unwrap().source_inputs,
+            ["main.omg", "build.omg", "examples"]
+        );
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[cfg(unix)]
@@ -926,7 +1111,12 @@ if [ "$main" != yes ] || [ "$build" != yes ]; then
   exit 91
 fi
 case "$1" in
-  update) exit 0;;
+  packages)
+    case "$2" in
+      update) exit 0;;
+      *) exit 92;;
+    esac
+    ;;
   run) echo 'native exit 0' >&2; echo 'interp exit: 0' >&2; exit 0;;
   *) exit 92;;
 esac

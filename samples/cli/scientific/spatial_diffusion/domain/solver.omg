@@ -1,6 +1,7 @@
 module domain::solver;
 use domain::grid;
-use omega::language::core::float_operations;
+use omega::language::core::F64::from_u64;
+use omega::language::core::F64::maximum;
 // CG constructs its CSR only after validating the constructive SPD criteria.
 // Caller-supplied CSR storage is rebuilt, so metadata cannot bless another matrix.
 // Stopping uses freshly recomputed b-Ax, never only the recursive CG residual.

@@ -4,6 +4,6 @@ buffer local and explicitly lends it across the case edge. IND07's application
 uses this same ordinary operation without changing storage to evade the gap.
 
 ```text
-omega update --project samples/cli/independent/finite_horizon_controller/reproduction --target linux_x86_64
+omega packages update --project samples/cli/independent/finite_horizon_controller/reproduction --target linux_x86_64
 omega run --both samples/cli/independent/finite_horizon_controller/reproduction/main.omg < samples/cli/independent/finite_horizon_controller/reproduction/input.txt
 ```

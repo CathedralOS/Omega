@@ -23,15 +23,15 @@ The places vary where the returned view comes from inside the selected row.
 
 | Place | Returned view | Positive | Reject twin |
 | --- | --- | --- | --- |
-| local | a local alias of the input | [main](local/main.omg) | [invalid](local/invalid/main.omg) |
-| field | a field of a local record holding the input | [main](field/main.omg) | [invalid](field/invalid/main.omg) |
-| parameter | the input parameter itself | [main](parameter/main.omg) | [invalid](parameter/invalid/main.omg) |
-| call result | the result of `keep`, which hands back its argument | [main](call_result/main.omg) | [invalid](call_result/invalid/main.omg) |
-| match join | a match joining both inputs; `First` takes the false arm, `Second` the true arm | [main](match_join/main.omg) | [invalid](match_join/invalid/main.omg) |
-| const name | **open**: see below | [main](const_name/main.omg) | [invalid](const_name/invalid/main.omg) |
-| nested machine | a nested `deliver` machine's local alias | [main](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
-| another machine | `relay`'s local alias | [main](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
-| selected implementation | Build selects `Selected` for `Reader`; it returns the dispatched view through a local alias | [main](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
+| local | a local alias of the input | [main](local/main.omg) | [invalid](invalid_local/main.omg) |
+| field | a field of a local record holding the input | [main](field/main.omg) | [invalid](invalid_field/main.omg) |
+| parameter | the input parameter itself | [main](parameter/main.omg) | [invalid](invalid_parameter/main.omg) |
+| call result | the result of `keep`, which hands back its argument | [main](call_result/main.omg) | [invalid](invalid_call_result/main.omg) |
+| match join | a match joining both inputs; `First` takes the false arm, `Second` the true arm | [main](match_join/main.omg) | [invalid](invalid_match_join/main.omg) |
+| const name | **open**: see below | [main](const_name/main.omg) | [invalid](invalid_const_name/main.omg) |
+| nested machine | a nested `deliver` machine's local alias | [main](other_state/main.omg) | [invalid](invalid_other_state/main.omg) |
+| another machine | `relay`'s local alias | [main](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) |
+| selected implementation | Build selects `Selected` for `Reader`; it returns the dispatched view through a local alias | [main](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
 The const-name place does not carry the fact. A constant cannot hold the
 returned view: at base `const WORD: &[u8] in Utf8 = "abc";` rejects with

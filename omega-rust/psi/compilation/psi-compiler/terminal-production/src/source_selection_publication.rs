@@ -15,14 +15,14 @@ use semantic_vocabulary::{
     CallableInvocationSite, InvocationSite, MachineId, SelectionDeclarationId, SelectionQuestionId,
     TargetMachineCallable,
 };
-use structure_elaboration::selection_questions::{
-    RawDependencyKind, RawDesignationInput, RawSelectionQuestion, RawSelectionQuestions,
-    RawSelectionRole, RawSelectionTarget,
-};
 use symbols::{SymbolHandle, SymbolKind};
 use terminal_psi::{OperationKind, TerminalModule};
 use typed_trees::TypedTrees;
 use typed_trees::callable_values::RuntimeCallableContractHandle;
+use typed_trees_to_terminal_psi::selection_questions::{
+    RawDependencyKind, RawDesignationInput, RawSelectionQuestion, RawSelectionQuestions,
+    RawSelectionRole, RawSelectionTarget,
+};
 
 use crate::AcceptedTerminalSource;
 
@@ -49,7 +49,7 @@ pub(crate) fn prepare(
         build_sites: HashMap::default(),
     };
     prepared.retain_build_sites()?;
-    for (ordinal, form) in source.selection_forms().iter().enumerate() {
+    for (ordinal, form) in source.selection_forms().enumerate() {
         let raw = form.as_ref().ok_or_else(|| {
             refused("an accepted source form has no declaration-selection correspondence")
         })?;
@@ -89,23 +89,21 @@ impl Questions<'_> {
         machine: MachineId,
         site: InvocationSite,
     ) -> Result<(SymbolHandle, typed_trees::SourceNode), Diagnostic> {
-        let sources = self
+        let mut calls = self
             .source
-            .closure()
-            .elaboration
-            .sources
-            .get(machine)
-            .ok_or_else(|| refused("invocation has no retained source machine"))?;
-        let origin = match site {
-            InvocationSite::Operation(operation) => sources.operations.get(operation),
-            InvocationSite::InvokeNoNormal(edge) | InvocationSite::ExternalCompletion(edge) => {
-                sources.edges.get(edge)
-            }
-        }
-        .ok_or_else(|| refused("invocation has no exact source site"))?;
-        origin.node().ok_or_else(|| {
+            .correspondence()
+            .calls
+            .iter()
+            .filter(|call| call.machine == machine && call.site == site);
+        let call = calls.next().ok_or_else(|| {
             refused("source invocation lost its typed occurrence or original lexical owner")
-        })
+        })?;
+        if calls.next().is_some() {
+            return Err(refused(
+                "source invocation has competing authored correspondences",
+            ));
+        }
+        Ok((call.owner, call.source))
     }
 
     fn source_target(&self, target: TargetMachineCallable) -> Result<SymbolHandle, Diagnostic> {
@@ -340,12 +338,21 @@ impl Questions<'_> {
                         )?;
                     }
                     if let OperationKind::SelectMachine { descriptor } = operation.kind {
-                        let (owner, node) = self.typed_origin(machine.id, site)?;
-                        let typed_trees::SourceNode::Expression(expression) = node else {
+                        let mut sources = self.source.correspondence().constructions.iter().filter(
+                            |(emitted, selected, _, _)| {
+                                *emitted == machine.id && *selected == operation.id
+                            },
+                        );
+                        let (_, _, owner, expression) =
+                            sources.next().copied().ok_or_else(|| {
+                                refused("machine selection has no exact expression occurrence")
+                            })?;
+                        if sources.next().is_some() {
                             return Err(refused(
-                                "machine selection has no exact expression occurrence",
+                                "machine selection has competing source occurrences",
                             ));
-                        };
+                        }
+                        let node = typed_trees::SourceNode::Expression(expression);
                         if !matches!(
                             self.source.source().expression_table.expression(expression),
                             typed_trees::expression::ExpressionNode::MachineValue(_)
@@ -391,10 +398,10 @@ impl Questions<'_> {
                 .flat_map(|block| block.terminator.successor_edges())
                 .collect::<Vec<_>>();
             successors.sort_unstable_by_key(|(edge, _)| *edge);
-            for (edge, origin) in sources.edges.iter() {
-                let Some((owner, node)) = origin.node() else {
+            for &(emitted, edge, owner, node) in &self.source.correspondence().folded_calls {
+                if emitted != machine.id {
                     continue;
-                };
+                }
                 let Ok(position) = successors.binary_search_by_key(&edge, |(edge, _)| *edge) else {
                     continue;
                 };
@@ -436,7 +443,7 @@ impl Questions<'_> {
                 boundary,
             });
         }
-        for record in &elaboration.source_records {
+        for record in &self.source.correspondence().records {
             let declaration = self
                 .declarations
                 .declaration(&mut self.output, record.declaration)?;
@@ -449,20 +456,24 @@ impl Questions<'_> {
         Ok(())
     }
     fn retain_build_sites(&mut self) -> Result<(), Diagnostic> {
-        let elaboration = &self.source.closure().elaboration;
         for machine in &self.module.machines {
-            let sources = elaboration
-                .sources
-                .get(machine.id)
-                .ok_or_else(|| refused("emitted machine lost its exact source sites"))?;
             for call in machine.boundary_invocations() {
                 let InvocationSite::Operation(operation) = call.site else {
                     continue;
                 };
-                let Some((owner, typed_trees::SourceNode::Expression(expression))) = sources
-                    .operations
-                    .get(operation)
-                    .and_then(|origin| origin.node())
+                let mut origins = self.source.correspondence().calls.iter().filter(|call| {
+                    call.machine == machine.id && call.site == InvocationSite::Operation(operation)
+                });
+                let Some(origin) = origins.next() else {
+                    continue;
+                };
+                if origins.next().is_some() {
+                    return Err(refused(
+                        "one Build input occurrence has competing source sites",
+                    ));
+                }
+                let (owner, typed_trees::SourceNode::Expression(expression)) =
+                    (origin.owner, origin.source)
                 else {
                     continue;
                 };
@@ -892,9 +903,10 @@ impl<'source> Declarations<'source> {
         }
         let identity = self.identity(symbol)?;
         let callable_identity = self.callable_identity(symbol)?;
-        let custody =
-            structure_elaboration::selection_questions::declaration_custody(self.typed, symbol)
-                .map_err(refused)?;
+        let custody = typed_trees_to_terminal_psi::selection_questions::declaration_custody(
+            self.typed, symbol,
+        )
+        .map_err(refused)?;
         let purpose = self.purpose(symbol)?;
         let id = output.declarations.push(SelectionDeclaration {
             identity,

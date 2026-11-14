@@ -508,3 +508,50 @@ fn selected_anonymous_source_rejects_an_omitted_compilation_entry() {
         "{diagnostic}"
     );
 }
+
+/// The messages `omega --check` prints for a standalone `main.omg` holding
+/// `source`, with no Build script and no package graph; empty when the check
+/// accepts it.
+fn standalone_check(name: &str, source: &str) -> Vec<String> {
+    let root = fixture_package_inputs::sealed_fixture_staging::temporary_session_root().join(name);
+    fs::create_dir(&root).unwrap();
+    fs::write(root.join("main.omg"), source).unwrap();
+    match orchestration::check_source(
+        &mut CompilationSession::default(),
+        CheckedCompileRequest::new(&root.join("main.omg"), None),
+    )
+    .result
+    {
+        Ok(_) => Vec::new(),
+        Err(failure) => failure
+            .into_diagnostics()
+            .into_iter()
+            .map(|diagnostic| diagnostic.message)
+            .collect(),
+    }
+}
+
+/// A standalone source is its own check's subject, even though its completed
+/// Build gives its files a derived package identity. The check asks for
+/// standalone source, not for that identity, so the reader once counted the
+/// file as a dependency: with no entry to reach them, its machines were
+/// never judged, and an unproved division was accepted. Each twin has no
+/// entry and differs only in the contract that proves the divisor nonzero.
+#[test]
+fn a_standalone_sources_machines_are_judged_without_an_entry() {
+    let unproved = standalone_check(
+        "standalone-subject-unproved",
+        "machine quotient(numerator: u32, divisor: u32) -> u32 {\n    numerator / divisor\n}\n",
+    );
+    assert!(
+        unproved
+            .iter()
+            .any(|message| message.contains("partial exact division in machine `quotient`")),
+        "{unproved:?}"
+    );
+    let proved = standalone_check(
+        "standalone-subject-proved",
+        "machine quotient(numerator: u32, divisor: u32) -> u32 requires divisor > 0 {\n    numerator / divisor\n}\n",
+    );
+    assert!(proved.is_empty(), "{proved:?}");
+}

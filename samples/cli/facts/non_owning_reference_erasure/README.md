@@ -15,15 +15,15 @@ policy and makes no promise that an input `Issued` qualification survives a writ
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| Local | [program](local/main.omg) | [control](local/invalid/main.omg) |
-| Field | [program](field/main.omg) | [control](field/invalid/main.omg) |
-| Parameter | [program](parameter/main.omg) | [control](parameter/invalid/main.omg) |
-| Call result | [program](call_result/main.omg) | [control](call_result/invalid/main.omg) |
-| Match join | [program](match_join/main.omg) | [control](match_join/invalid/main.omg) |
-| Const name | [program](const_name/main.omg) | [control](const_name/invalid/main.omg) |
-| Nested machine | [program](other_state/main.omg) | [control](other_state/invalid/main.omg) |
-| Other machine | [program](other_machine/main.omg) | [control](other_machine/invalid/main.omg) |
-| Selected implementation | [program](target_body/main.omg) | [control](target_body/invalid/main.omg) |
+| Local | [program](local/main.omg) | [control](invalid_local/main.omg) |
+| Field | [program](field/main.omg) | [control](invalid_field/main.omg) |
+| Parameter | [program](parameter/main.omg) | [control](invalid_parameter/main.omg) |
+| Call result | [program](call_result/main.omg) | [control](invalid_call_result/main.omg) |
+| Match join | [program](match_join/main.omg) | [control](invalid_match_join/main.omg) |
+| Const name | [program](const_name/main.omg) | [control](invalid_const_name/main.omg) |
+| Nested machine | [program](other_state/main.omg) | [control](invalid_other_state/main.omg) |
+| Other machine | [program](other_machine/main.omg) | [control](invalid_other_machine/main.omg) |
+| Selected implementation | [program](target_body/main.omg) | [control](invalid_target_body/main.omg) |
 
 The selected place uses an ordinary `ErasedWrite` requirement and checked
 `ErasedWriteCode` implementation. [Build](target_body/build.omg) records four

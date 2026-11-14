@@ -9,10 +9,172 @@ use optimization_core::OptimizationSelections;
 use psi_compiler::PortableTerminalProgram;
 use std::sync::{Arc, OnceLock};
 
+/// The source choices bound after preparation to its actual returned owner.
+/// Rejudging a grown roster reuses these inputs; native consumers read only
+/// the canonical contracts those source choices formed in the module.
+#[derive(Debug, Clone, Default)]
+pub struct SourceNormalizationInputs {
+    pub calling: SourceCallingInputs,
+    pub providers: Vec<psi_compiler::TerminalProviderSelectionInput>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct SourceCallingInputs {
+    pub applications: Vec<typed_trees::trait_definition::TraitApplicationEnvironment>,
+    pub entries: Vec<SourceProgramEntryInput>,
+}
+
+#[derive(Debug, Clone)]
+pub struct SourceProgramEntryInput {
+    pub target: String,
+    pub application: typed_trees::trait_definition::TraitApplicationEnvironment,
+    pub physical_source_digest: [u8; 32],
+    pub implementation: symbols::SymbolHandle,
+}
+
+pub struct SourceCallingContext<'source> {
+    source: &'source typed_trees::TypedTrees,
+    applications: &'source [typed_trees::trait_definition::TraitApplicationEnvironment],
+    entries: Vec<psi_compiler::TerminalProgramEntryContractSelection<'source>>,
+}
+
+impl SourceCallingInputs {
+    pub fn borrow<'source>(
+        &'source self,
+        source: &'source typed_trees::TypedTrees,
+    ) -> SourceCallingContext<'source> {
+        SourceCallingContext {
+            source,
+            applications: &self.applications,
+            entries: self
+                .entries
+                .iter()
+                .map(
+                    |entry| psi_compiler::TerminalProgramEntryContractSelection {
+                        target: &entry.target,
+                        application: &entry.application,
+                        physical_source_digest: entry.physical_source_digest,
+                        implementation: entry.implementation,
+                    },
+                )
+                .collect(),
+        }
+    }
+}
+
+impl SourceCallingContext<'_> {
+    pub fn selection(&self) -> Option<psi_compiler::TerminalCallingPolicySelections<'_>> {
+        (!self.entries.is_empty() || !self.applications.is_empty()).then_some(
+            psi_compiler::TerminalCallingPolicySelections {
+                source: self.source,
+                applications: self.applications,
+                entries: &self.entries,
+            },
+        )
+    }
+}
+
+impl SourceNormalizationInputs {
+    pub fn providers<'source>(
+        &'source self,
+        source: &'source typed_trees::TypedTrees,
+    ) -> Option<psi_compiler::TerminalProviderSelections<'source>> {
+        (!self.providers.is_empty()).then_some(psi_compiler::TerminalProviderSelections {
+            source,
+            choices: &self.providers,
+        })
+    }
+    fn is_empty(&self) -> bool {
+        self.providers.is_empty()
+            && self.calling.applications.is_empty()
+            && self.calling.entries.is_empty()
+    }
+}
+
 pub struct ProductTerminalPublication {
     optimizations: OptimizationSelections,
     program: OnceLock<Result<Arc<PortableTerminalProgram>, Vec<Diagnostic>>>,
-    accepted: Option<Arc<psi_compiler::AcceptedTerminalSource>>,
+    accepted: Option<(Arc<psi_compiler::AcceptedTerminalSource>, ProductRoster)>,
+}
+
+/// What a Product compilation asks the lowered-form checker to judge: the
+/// roots the evaluated Build states (`psi_compiler::TerminalSourceCompilation`
+/// holds the same fields by reference). It is kept beside the judgment it
+/// produced because provider settlement extends it: the supply chosen for a
+/// requirement the accepted module reaches is a further root of the same
+/// compilation, known only after the first judgment.
+#[derive(Debug, Clone, Default)]
+pub struct ProductRoster {
+    /// Canonical declaration descriptors required by this product.
+    pub declaration_metadata: Vec<symbols::SymbolHandle>,
+    /// The Build's bound program entries. The first is the module's entry.
+    pub entries: Vec<symbols::SymbolHandle>,
+    /// The package whose declarations the check claims; `None` for a source
+    /// checked outside a package.
+    pub subject: Option<semantic_vocabulary::PackageKeyIdentity>,
+    /// Layout-scope entries, native binding declarations and chosen opaque
+    /// representations the Build names.
+    pub selected: Vec<symbols::SymbolHandle>,
+    /// One visible-continuation obligation per executed Build binding.
+    pub bindings: Vec<typed_trees::callable_signature_shapes::BoundCallableShape>,
+    /// The providers chosen to supply boundary slots: the Build's own
+    /// selections first, then what settlement chose for reached requirements.
+    pub supplies: Vec<psi_compiler::TerminalSourceSupply>,
+    pub normalization: Arc<SourceNormalizationInputs>,
+}
+
+impl ProductRoster {
+    /// Borrow the full roster for source preparation and judgment alike.
+    pub fn preparation_compilation(
+        &self,
+    ) -> Result<psi_compiler::TerminalSourceCompilation<'_>, Vec<Diagnostic>> {
+        if !self.normalization.is_empty() {
+            return Err(vec![Diagnostic::error(
+                "source choices must bind to the actual prepared owner before judgment",
+            )]);
+        }
+        Ok(psi_compiler::TerminalSourceCompilation {
+            declaration_metadata: &self.declaration_metadata,
+            entries: &self.entries,
+            subjects: std::slice::from_ref(&self.subject),
+            purpose: source::DependencyScope::Product,
+            selected: &self.selected,
+            bindings: &self.bindings,
+            supplies: &self.supplies,
+            calling: None,
+            providers: None,
+        })
+    }
+
+    /// The lowered-form checker's judgment of this roster over `typed`: the
+    /// closure of the roots, the check form of each generic machine the
+    /// subject declares, and the refinement witness of each implementation
+    /// row and chosen supply. Its verdict is the only verdict of a product
+    /// compilation: it accepts only when every part does, a roster it does
+    /// not accept produces no module, and a missing publication never
+    /// selects another stage's module.
+    pub fn judge(
+        &self,
+        typed: Arc<typed_trees::FrozenTypedTrees>,
+    ) -> Result<Arc<psi_compiler::AcceptedTerminalSource>, Vec<Diagnostic>> {
+        let calling = self.normalization.calling.borrow(&typed);
+        let accepted = psi_compiler::AcceptedTerminalSource::judge(
+            Arc::clone(&typed),
+            psi_compiler::TerminalSourceCompilation {
+                declaration_metadata: &self.declaration_metadata,
+                entries: &self.entries,
+                subjects: std::slice::from_ref(&self.subject),
+                purpose: source::DependencyScope::Product,
+                selected: &self.selected,
+                bindings: &self.bindings,
+                supplies: &self.supplies,
+                calling: calling.selection(),
+                providers: self.normalization.providers(&typed),
+            },
+            terminal_codec::TerminalPublication::Portable,
+        )?;
+        Ok(Arc::new(accepted))
+    }
 }
 
 impl std::fmt::Debug for ProductTerminalPublication {
@@ -35,16 +197,61 @@ impl ProductTerminalPublication {
         }
     }
 
-    pub fn with_accepted(mut self, source: Arc<psi_compiler::AcceptedTerminalSource>) -> Self {
-        self.accepted = Some(source);
-        self
+    /// Judge and retain one exact roster. A caller cannot attach unjudged
+    /// supplies to an independently obtained accepted source. Construction is
+    /// fresh, so a previously published artifact cannot survive a new judgment.
+    pub fn judge(
+        source: Arc<typed_trees::FrozenTypedTrees>,
+        roster: ProductRoster,
+        optimizations: OptimizationSelections,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let accepted = roster.judge(source)?;
+        let mut publication = Self::new(optimizations);
+        publication.accepted = Some((accepted, roster));
+        Ok(publication)
+    }
+
+    /// Judge an executable child's descriptors before publication, preserving
+    /// the original roster and every chosen supply on the same frozen owner.
+    pub fn with_declaration_metadata(
+        &self,
+        declarations: &[symbols::SymbolHandle],
+    ) -> Result<Self, Vec<Diagnostic>> {
+        if self.program.get().is_some() {
+            return Err(vec![Diagnostic::error(
+                "declaration metadata must be judged before Terminal publication",
+            )]);
+        }
+        let mut roster = self.roster()?.clone();
+        for declaration in declarations {
+            if !roster.declaration_metadata.contains(declaration) {
+                roster.declaration_metadata.push(*declaration);
+            }
+        }
+        Self::judge(
+            Arc::clone(self.accepted()?.source()),
+            roster,
+            self.optimizations.clone(),
+        )
+    }
+
+    /// The roster the retained judgment accepted.
+    pub fn roster(&self) -> Result<&ProductRoster, Vec<Diagnostic>> {
+        self.accepted
+            .as_ref()
+            .map(|(_, roster)| roster)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "no product route yet: this root selection has no accepted source",
+                )]
+            })
     }
 
     pub fn require_source_owner(
         &self,
         source: &Arc<typed_trees::FrozenTypedTrees>,
     ) -> Result<(), Diagnostic> {
-        let accepted = self.accepted.as_ref().ok_or_else(|| {
+        let (accepted, _) = self.accepted.as_ref().ok_or_else(|| {
             Diagnostic::error("no product route yet: the source has no retained accepted judgment")
         })?;
         if !Arc::ptr_eq(source, accepted.source()) {
@@ -56,18 +263,22 @@ impl ProductTerminalPublication {
     }
 
     pub fn accepted(&self) -> Result<&psi_compiler::AcceptedTerminalSource, Vec<Diagnostic>> {
-        // The factory seals the judged module with the empty Psi execution
-        // record. A requested transform needs its own evidence transport.
+        // The factory seals the module the unoptimized check judged. A
+        // nonempty selection needs the second lowered-form check, which has
+        // no route yet.
         if !self.optimizations.project_psi().selections().is_empty() {
             return Err(vec![Diagnostic::error(
-                "no product route yet: selected Psi optimizations have no accepted evidence transport",
+                "no product route yet: selected Psi optimizations have no second lowered-form check",
             )]);
         }
-        self.accepted.as_deref().ok_or_else(|| {
-            vec![Diagnostic::error(
-                "no product route yet: this root selection has no accepted source",
-            )]
-        })
+        self.accepted
+            .as_ref()
+            .map(|(accepted, _)| accepted.as_ref())
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "no product route yet: this root selection has no accepted source",
+                )]
+            })
     }
 
     // A separately selected test root needs its own structural judgment. It
@@ -154,10 +365,9 @@ mod tests {
     fn accepted_publication_refuses_unexecuted_psi_optimizations() {
         let selected = OptimizationSelections::new([Optimization::ControlFlowCleanup]).unwrap();
         let publication = ProductTerminalPublication::new(selected);
-        assert!(
-            publication.accepted().unwrap_err()[0]
-                .message
-                .contains("Psi optimizations")
+        assert_eq!(
+            publication.accepted().unwrap_err()[0].message,
+            "no product route yet: selected Psi optimizations have no second lowered-form check"
         );
     }
 }

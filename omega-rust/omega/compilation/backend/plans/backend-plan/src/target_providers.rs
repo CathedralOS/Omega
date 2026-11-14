@@ -33,6 +33,15 @@ pub struct TerminalTargetProviderPlan {
     pub row_numeric_realizations: Vec<Option<String>>,
 }
 
+// A retained provider plan belongs to a deployment already selected by its
+// caller. Missing identity is not a request to select the compiler's host.
+fn selected_plan_target(plan: &effects::provider_plan::ProviderPlan) -> Result<&str, String> {
+    if plan.target.is_empty() {
+        return Err("selected provider plan has no deployment target".into());
+    }
+    Ok(&plan.target)
+}
+
 pub fn selected_checked_adapter_header<'module>(
     plan: &effects::provider_plan::ProviderPlan,
     row: &effects::provider_plan::ProviderPlanRow,
@@ -52,11 +61,7 @@ pub fn selected_checked_adapter_header<'module>(
     if callable.is_empty() {
         return Err("checked adapter has no complete callable identity".into());
     }
-    let target = if plan.target.is_empty() {
-        target::TargetProfile::host().target_name()
-    } else {
-        &plan.target
-    };
+    let target = selected_plan_target(plan)?;
     let mut matches = module
         .scalar_applications
         .proof_scope
@@ -110,11 +115,7 @@ pub fn selected_checked_invocation_rows<'plan, 'module>(
         if *machine_package_identity != plan.origin_package_identity {
             return Err("checked adapter differs from its retained package identity".into());
         }
-        let target = if plan.target.is_empty() {
-            target::TargetProfile::host().target_name()
-        } else {
-            &plan.target
-        };
+        let target = selected_plan_target(plan)?;
         let mut headers = Vec::new();
         for candidate in selected.candidates {
             let callable = terminal_psi::TargetMachineCallable::Machine(candidate.candidate);
@@ -218,12 +219,10 @@ fn admit_checked_roster(
     supplied: &[terminal_installation::ProviderInstallationSelection],
     declarations: &[TerminalTargetProviderPlan],
 ) -> Result<terminal_installation::AdmittedProviderSelections, String> {
-    if selected
-        .plans()
-        .iter()
-        .any(|plan| !plan.target.is_empty() && plan.target != target)
-    {
-        return Err("selected provider plan belongs to another deployment target".into());
+    for plan in selected.plans() {
+        if selected_plan_target(plan)? != target {
+            return Err("selected provider plan belongs to another deployment target".into());
+        }
     }
     let module = artifact.module();
     let target_members = terminal_installation::admit_target_machine_selections(artifact, target);
@@ -1011,6 +1010,63 @@ mod tests {
                 compiler_evaluation: Err("not an evaluation fixture".into()),
             });
         (selected, module)
+    }
+
+    #[test]
+    fn selected_provider_headers_require_the_retained_deployment() {
+        let (mut selected, module) = invocation_fixture();
+        let row = &selected.plan.rows[0];
+        assert!(selected_checked_adapter_header(&selected.plan, row, &module).is_ok());
+        assert!(selected_checked_invocation_rows(std::slice::from_ref(&selected), &module).is_ok());
+
+        selected.plan.target.clear();
+        let row = &selected.plan.rows[0];
+        assert_eq!(
+            selected_checked_adapter_header(&selected.plan, row, &module).unwrap_err(),
+            "selected provider plan has no deployment target"
+        );
+        assert_eq!(
+            selected_checked_invocation_rows(&[selected], &module)
+                .err()
+                .unwrap(),
+            "selected provider plan has no deployment target"
+        );
+    }
+
+    #[test]
+    fn selected_provider_roster_does_not_treat_a_missing_target_as_a_wildcard() {
+        let (mut declaration, mut module) = invocation_fixture();
+        module.provider_candidates.sort_by_key(|candidate| {
+            (
+                candidate.boundary,
+                module.identities.text(candidate.provider_identity),
+                module
+                    .identities
+                    .text(candidate.provider_declaration.identity()),
+                module.identities.text(candidate.candidate_identity),
+                candidate.candidate,
+            )
+        });
+        let optimization =
+            terminal_codec::build_identity_optimization_execution_record(&module).unwrap();
+        let artifact =
+            terminal_codec::CanonicalTerminalArtifact::from_parts(module, optimization, None)
+                .unwrap();
+        declaration.plan.target.clear();
+        let selected =
+            effects::SelectedProviderPlanFacts::from_selected_plans(vec![declaration.plan.clone()])
+                .unwrap();
+        assert_eq!(
+            admit_checked_roster(
+                artifact.view(),
+                "macos_arm64",
+                &selected,
+                &[],
+                &[declaration]
+            )
+            .unwrap_err(),
+            "selected provider plan has no deployment target"
+        );
     }
 
     #[test]

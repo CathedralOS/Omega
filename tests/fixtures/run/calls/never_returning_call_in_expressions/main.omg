@@ -1,0 +1,26 @@
+// Accepted with one warning. `stop` and `halt` crash on their only path, so
+// a call of either never returns, wherever it is written. In `settle`, `||`
+// reaches `stop` only when `count < 10` is false, so the statements after it
+// run only when `count < 10` holds and `count + 1` cannot overflow. In
+// `main`, every path of `let held` ends at `halt`, so the statement after it
+// never runs and is reported once. The twin
+// `fail/calls/never_returning_call_in_expressions` differs only in `&&`,
+// which goes on past `stop` when `count < 10` is false.
+machine stop() -> bool crashes Trap {
+    crash Trap;
+}
+machine halt() -> u32 crashes Trap {
+    crash Trap;
+}
+machine settle(count: u32) -> u32
+requires true
+crashes Trap
+{
+    let ok: bool = count < 10 || stop();
+    count + 1
+}
+machine main() crashes Trap {
+    let next: u32 = settle(4);
+    let held: u32 = halt();
+    let after: u32 = held + next;
+}

@@ -82,8 +82,7 @@ Apply the entrypoint principle to application coordinators too: a reader should
 see preparation, iteration or dispatch, domain operations, and result handling
 in execution order. Helpers should own an operation or invariant, not merely
 hide the next section behind a finalizer callback or forwarding chain. Name each
-operation for what it actually produces; checking that returns checked trees is
-not Terminal publication. Product owners assemble their results and evidence;
+operation for what it actually produces; a check is not Terminal publication. Product owners assemble their results and evidence;
 they should not call back into the coordinator to finish their own work.
 
 When API variants differ only in configuration or available inputs, prefer one

@@ -10,15 +10,15 @@ The parameter, forwarding machine and selected implementation retain their origi
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| Local | [Mutable local](local/main.omg) | [Absent input](local/invalid/main.omg) |
-| Field | [Holder field and adjacent canaries](field/main.omg) | [Absent input](field/invalid/main.omg) |
-| Parameter | [Mutable owned parameter](parameter/main.omg) | [Absent input](parameter/invalid/main.omg) |
-| Call result | [Constructor-returning call](call_result/main.omg) | [Absent input](call_result/invalid/main.omg) |
-| Match join | [Both arms and distinct routes](match_join/main.omg) | [Absent in both arms](match_join/invalid/main.omg) |
-| Const name | [Whole case from INITIAL](const_name/main.omg) | [Absent constant](const_name/invalid/main.omg) |
-| Another state | [Closed private arrival](other_state/main.omg) | [Absent arrival](other_state/invalid/main.omg) |
-| Another machine | [Explicit wrapper contracts](other_machine/main.omg) | [Absent input](other_machine/invalid/main.omg) |
-| Target body | [Selected ordinary implementation](target_body/main.omg) | [Absent input](target_body/invalid/main.omg) |
+| Local | [Mutable local](local/main.omg) | [Absent input](invalid_local/main.omg) |
+| Field | [Holder field and adjacent canaries](field/main.omg) | [Absent input](invalid_field/main.omg) |
+| Parameter | [Mutable owned parameter](parameter/main.omg) | [Absent input](invalid_parameter/main.omg) |
+| Call result | [Constructor-returning call](call_result/main.omg) | [Absent input](invalid_call_result/main.omg) |
+| Match join | [Both arms and distinct routes](match_join/main.omg) | [Absent in both arms](invalid_match_join/main.omg) |
+| Const name | [Whole case from INITIAL](const_name/main.omg) | [Absent constant](invalid_const_name/main.omg) |
+| Another state | [Closed private arrival](other_state/main.omg) | [Absent arrival](invalid_other_state/main.omg) |
+| Another machine | [Explicit wrapper contracts](other_machine/main.omg) | [Absent input](invalid_other_machine/main.omg) |
+| Target body | [Selected ordinary implementation](target_body/main.omg) | [Absent input](invalid_target_body/main.omg) |
 
 Each twin differs only in its initial `Present { value: 7 }` constructors becoming `Absent {}`; the match twin changes both arms. Build bytes, full public contracts, argument order, payload read, later write and runtime observations remain identical. The expected refusal names the immediate consumer: `read_payload`, `apply` or `forward`.
 

@@ -792,11 +792,7 @@ pub(crate) mod capabilities {
                 assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
                 id: MachineId::new(1).unwrap(),
                 attachment: None,
-                declaration: None,
                 nominal_cleanup_subject: None,
-                parameters: Vec::new(),
-                parameter_order: Vec::new(),
-                structural_parameters: Vec::new(),
                 structural_places: if selected_origins > 0 {
                     vec![terminal_psi::StructuralPlaceDeclaration {
                         id: PlaceId::new(1).unwrap(),
@@ -805,21 +801,27 @@ pub(crate) mod capabilities {
                 } else {
                     Vec::new()
                 },
-                entry_claims: Vec::new(),
                 block_entry_claims: Vec::new(),
                 loan_completions: Vec::new(),
-                content_entry_claims: Vec::new(),
-                result,
                 entry: block_id,
                 blocks: vec![block],
                 ranked_scc: None,
-                declared_service_reach: Vec::new(),
-                closed_reach_application: None,
-                published_synchronous_entries: Vec::new(),
-                published_service_ceiling: Vec::new(),
                 content_identity_reshuffles: Vec::new(),
                 content_partition_compositions: Vec::new(),
-                contract: MachineContract::empty(semantic_vocabulary::ContractId::new(1).unwrap()),
+                contract: terminal_psi::MachineContract {
+                    declaration: None,
+                    parameters: Vec::new(),
+                    parameter_order: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    entry_claims: Vec::new(),
+                    content_entry_claims: Vec::new(),
+                    result,
+                    declared_service_reach: None,
+                    closed_reach_application: None,
+                    published_synchronous_entries: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    ..MachineContract::empty(semantic_vocabulary::ContractId::new(1).unwrap())
+                },
             }
         }
 
@@ -2381,6 +2383,7 @@ pub(crate) mod execution {
                     })
                     .collect::<Result<Vec<_>, _>>()?;
                 execution.materialize_zeroed_structural_storage_with_established_fields(
+                    parameter.place,
                     &value,
                     &established_fields,
                 )?;
