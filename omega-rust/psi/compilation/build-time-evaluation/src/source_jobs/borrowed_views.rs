@@ -130,9 +130,12 @@ fn a_prepared_bodyless_contract_cannot_follow_changed_application_bindings() {
         .unwrap();
     assert_ne!(signature.return_type, other_signature.return_type);
     let bindings = source
+        .expression_table
         .static_machine_application_bindings(application)
         .to_vec();
-    let other_bindings = source.static_machine_application_bindings(other_application);
+    let other_bindings = source
+        .expression_table
+        .static_machine_application_bindings(other_application);
     assert_eq!(bindings.len(), 2);
     assert_eq!(other_bindings.len(), 2);
     let mut changed = bindings;

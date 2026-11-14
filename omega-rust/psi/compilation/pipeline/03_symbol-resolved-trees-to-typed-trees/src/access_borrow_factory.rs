@@ -81,7 +81,7 @@ pub fn access_borrow_factory_of(
                 ..Default::default()
             })
         || machine.service_reach_is_installation_bound
-        || machine.service_reach_row != language_semantics::ServiceReachRowId::EMPTY_ROW
+        || machine.service_reach_row != language_semantics::ServiceReachRowTable::EMPTY_ROW
         || !machine.declares_no_crash_route
         || !program
             .service_reach_rows

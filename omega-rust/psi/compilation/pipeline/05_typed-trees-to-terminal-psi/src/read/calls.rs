@@ -787,7 +787,9 @@ impl<'t> Program<'t> {
             .ok_or_else(|| {
                 unavailable("sealed borrow has no prepared closed declaration contract")
             })?;
-        let application = typed.static_machine_application(call.authored_machine_application);
+        let application = typed
+            .expression_table
+            .static_machine_application(call.authored_machine_application);
         let actual_owner = typed
             .machine_by_symbol(application.lexical_owner)
             .or_else(|| typed.machine_holding_state(application.lexical_owner))
@@ -797,6 +799,7 @@ impl<'t> Program<'t> {
             || (!call.machine_arguments.is_empty()
                 && call.machine_arguments.as_ref()
                     != typed
+                        .expression_table
                         .static_machine_application_arguments(call.authored_machine_application))
         {
             return Err(unavailable(
@@ -810,7 +813,7 @@ impl<'t> Program<'t> {
             || signature.suspends
             || signature.blocks
             || signature.service_reach_is_installation_bound
-            || signature.service_reach_row != language_semantics::ServiceReachRowId::EMPTY_ROW
+            || signature.service_reach_row != language_semantics::ServiceReachRowTable::EMPTY_ROW
             || !signature.declares_no_crash_route
             || signature.termination_guarantee
                 != language_semantics::TerminationGuarantee::NoGuarantee
@@ -823,7 +826,9 @@ impl<'t> Program<'t> {
                 "sealed borrow needs its complete static or operational contract",
             ));
         }
-        let bindings = typed.static_machine_application_bindings(call.authored_machine_application);
+        let bindings = typed
+            .expression_table
+            .static_machine_application_bindings(call.authored_machine_application);
         let bound_type = |parameter| {
             let mut selected = bindings
                 .iter()
