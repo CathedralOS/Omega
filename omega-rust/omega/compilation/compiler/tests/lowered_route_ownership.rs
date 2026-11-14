@@ -382,9 +382,9 @@ machine restored(choice: Choice) -> u64 {
     };
     outer.selected = Pair { first: Item { value: 7 }, second: Item { value: 11 } };
     let owner: Outer = outer;
-    (consumed as+ u64)
-        + (owner.selected.first.value as+ u64) + (owner.selected.second.value as+ u64)
-        + (owner.other.first.value as+ u64) + (owner.other.second.value as+ u64)
+    (consumed as u64)
+        + (owner.selected.first.value as u64) + (owner.selected.second.value as u64)
+        + (owner.other.first.value as u64) + (owner.other.second.value as u64)
 }
 machine main() crashes Trap {
     let partial: u64 = restored(Choice::Part {});
