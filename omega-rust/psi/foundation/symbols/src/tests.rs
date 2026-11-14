@@ -2069,6 +2069,29 @@ mod provenance {
     }
 
     #[test]
+    fn module_less_sibling_files_keep_their_own_same_spelled_declarations() {
+        // Each module-less file selects its own declaration before a sibling's,
+        // so two such files declaring one name are not duplicates.
+        let (symbols, authored) =
+            sourced_symbol_table([(SourceOrigin::User, None), (SourceOrigin::User, None)]);
+        assert!(symbols.source_scopes_separate(authored[0], authored[1]));
+
+        // Files declaring one named module share its namespace: the same
+        // spelling in both stays one scope and is a duplicate.
+        let (mut symbols, authored) =
+            sourced_symbol_table([(SourceOrigin::User, None), (SourceOrigin::User, None)]);
+        for declaration in &authored {
+            let span = symbols
+                .symbol_source_span(*declaration)
+                .expect("authored span");
+            symbols
+                .register_source_module(span.source_id, [("shared", span)])
+                .expect("module");
+        }
+        assert!(!symbols.source_scopes_separate(authored[0], authored[1]));
+    }
+
+    #[test]
     fn generated_toolchain_symbols_retain_toolchain_origin_without_package_identity() {
         let (mut symbols, authored) = sourced_symbol_table([(SourceOrigin::Toolchain, None)]);
         let generated = symbols.insert_generated_root_from(

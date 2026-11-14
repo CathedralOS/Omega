@@ -1356,6 +1356,17 @@ mod modules {
                     .has_exact_import
         }
 
+        /*
+            A current-activation extension file sees its module-less package
+            siblings' declarations as local rather than file-private.
+        */
+        pub(super) fn shares_activation_extension(&self, source_span: SourceSpan) -> bool {
+            self.source_file(source_span).is_some_and(|file| {
+                file.resolution_stratum
+                    == source::SourceResolutionStratum::CurrentActivationExtension
+            })
+        }
+
         pub(super) fn select_namespace_candidates(
             &self,
             candidates: &[SymbolHandle],
@@ -1363,10 +1374,7 @@ mod modules {
             reference: SourceSpan,
         ) -> Vec<SymbolHandle> {
             let current_module = self.source_module(reference.source_id);
-            let shared_extension = self.source_file(reference).is_some_and(|file| {
-                file.resolution_stratum
-                    == source::SourceResolutionStratum::CurrentActivationExtension
-            });
+            let shared_extension = self.shares_activation_extension(reference);
             let local = candidates
                 .iter()
                 .copied()
@@ -3618,6 +3626,17 @@ impl SymbolTable {
                 || self.import_exposes_symbol(right_span.source_id, left));
         }
         if self.source_module(left_span.source_id) != self.source_module(right_span.source_id) {
+            return true;
+        }
+        // Files that declare no module form one logical module, yet each
+        // file's own declarations take precedence over a sibling's
+        // same-spelled one (`select_namespace_candidates`), so two such files
+        // each select their own declaration. Files of a shared activation
+        // extension see each other's declarations as local and stay one scope.
+        if !self.source_module(left_span.source_id).is_valid()
+            && !self.shares_activation_extension(left_span)
+            && !self.shares_activation_extension(right_span)
+        {
             return true;
         }
         if self
