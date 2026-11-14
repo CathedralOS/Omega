@@ -148,7 +148,7 @@ fn require_no_recorded_work(typed: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
 
 /// The evaluation requests written inside declarations, each with the
 /// declaration that holds it. One that no declaration owns refuses.
-fn declared_jobs(typed: &TypedTrees) -> Result<Vec<SourceJob>, Vec<Diagnostic>> {
+pub(crate) fn declared_jobs(typed: &TypedTrees) -> Result<Vec<SourceJob>, Vec<Diagnostic>> {
     // Reuse the reference owner's complete type-position inventory rather
     // than searching selected statements or treating a type as only a name.
     let references = typed_trees::references::collect_program_references(typed);
