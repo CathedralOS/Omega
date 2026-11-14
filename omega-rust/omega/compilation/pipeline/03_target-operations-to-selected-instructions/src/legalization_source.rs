@@ -1816,12 +1816,9 @@ pub(crate) mod scalar_graph {
                         ordering: *ordering,
                     },
                     AbstractOperation::AtomicEvent { event, .. } => {
-                        let access = scalar_graph_input::atomic_access::access(
-                            event,
-                            optimized,
-                            unit.geometry(),
-                        )
-                        .ok_or(Error::custody())?;
+                        let access =
+                            scalar_graph_input::atomic_access::access(event, optimized, unit)
+                                .ok_or(Error::custody())?;
                         LegalizedScalarInstructionKind::AtomicAccess {
                             location: access.location,
                             scalar_type: access.scalar_type,
@@ -3187,14 +3184,19 @@ pub(crate) fn derive_source_function_rosters(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
+    closed_types: Option<&terminal_codec::ClosedTypeCatalog>,
 ) -> Result<SourceFunctionRosters, LegalizationError> {
     let plan_geometry =
         crate::native_geometry::NativeGeometry::new(&abstract_plan.structural_types)
             .map_err(|_| LegalizationError::custody())?;
     let unit_geometry = crate::native_geometry::NativeGeometry::new(&unit.structural_types)
         .map_err(|_| LegalizationError::custody())?;
-    let abstract_plan = &crate::native_geometry::NativeInput::new(abstract_plan, &plan_geometry);
-    let unit = &crate::native_geometry::NativeInput::new(unit, &unit_geometry);
+    let abstract_plan = &crate::native_geometry::NativeInput::with_types(
+        abstract_plan,
+        &plan_geometry,
+        closed_types,
+    );
+    let unit = &crate::native_geometry::NativeInput::with_types(unit, &unit_geometry, closed_types);
     validate_source_custody(target, abstract_plan, unit)?;
     crate::legalization::scalar_graph_input::normalized_foreign::validate_native_callback_roster(
         target,

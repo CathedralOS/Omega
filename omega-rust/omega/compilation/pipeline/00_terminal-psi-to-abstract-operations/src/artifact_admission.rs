@@ -400,7 +400,7 @@ mod native {
             let input = &self.optimization_input;
             provider_admission::AdmissionSource {
                 plan: self.plan(),
-                module: self.module(),
+                closed_module: input.context().closed_module(),
                 target_machine_selections: input.target_machine_selections(),
                 program_entry: input.selected_program_entry_call().map(|call| {
                     provider_admission::AdmittedProgramEntryCall {

@@ -59,9 +59,9 @@ pub(crate) mod atomic_access {
                         .iter()
                         .find(|row| row.id == result.structural_type)
                         .and_then(|row| {
-                            target_operations::conventional_atomic_once_layout(
+                            target_operations::conventional_atomic_once_layout_closed(
                                 row,
-                                *scalar_type,
+                                source.closed_integer(*scalar_type)?,
                                 custody,
                             )
                         })
@@ -75,7 +75,11 @@ pub(crate) mod atomic_access {
             &location.path,
         )?;
         let logical_type = cell.scalar_type();
-        if target_operations::operations::atomic_storage_integer_type(*event, logical_type)?
+        if target_operations::operations::atomic_storage_integer_type_closed(
+            *event,
+            source.closed_scalar(logical_type)?,
+        )?
+        .as_checking()
             != *scalar_type
             || row
                 .result
@@ -667,6 +671,7 @@ pub(crate) mod construction {
         legalized: &ValidatedLegalizedOperations,
         constraints: &SelectedSelectionConstraints,
         environment: &register_environment::ValidatedTargetRegisterEnvironment,
+        closed_types: Option<&terminal_codec::ClosedTypeCatalog>,
     ) -> Result<SelectedInstructionPlan, SelectedInstructionError> {
         let target = legalized.plan();
         if target.target != environment.target() {
@@ -686,8 +691,11 @@ pub(crate) mod construction {
             }),
         )
         .map_err(|_| SelectedInstructionError::custody())?;
-        let backings =
-            super::foreign_scalar_backings::ForeignScalarBackings::new(target, &native_geometry);
+        let backings = super::foreign_scalar_backings::ForeignScalarBackings::new(
+            target,
+            &native_geometry,
+            closed_types,
+        );
         let mut functions = target
             .scalar_functions
             .iter()
@@ -696,6 +704,7 @@ pub(crate) mod construction {
                 scalar_graph::build_with_environment(
                     index,
                     source,
+                    closed_types,
                     native_geometry
                         .get(
                             source
@@ -991,6 +1000,7 @@ pub(crate) mod foreign_scalar_backings {
 
     pub(crate) struct ForeignScalarBackings<'program> {
         program: &'program LegalizedOperationPlan,
+        closed_types: Option<&'program terminal_codec::ClosedTypeCatalog>,
         geometries: &'program crate::native_geometry::NativeGeometries<'program>,
         incoming: BTreeMap<MachineId, Vec<(usize, &'program LegalizedScalarCall)>>,
         opaque_ingress: BTreeSet<MachineId>,
@@ -1005,9 +1015,11 @@ pub(crate) mod foreign_scalar_backings {
         pub(crate) fn new(
             program: &'program LegalizedOperationPlan,
             geometries: &'program crate::native_geometry::NativeGeometries<'program>,
+            closed_types: Option<&'program terminal_codec::ClosedTypeCatalog>,
         ) -> Self {
             let mut context = Self {
                 program,
+                closed_types,
                 geometries,
                 incoming: BTreeMap::new(),
                 opaque_ingress: BTreeSet::from([program.entry]),
@@ -1080,7 +1092,11 @@ pub(crate) mod foreign_scalar_backings {
                         "foreign backing query lost its prepared native geometry",
                     )
                 })?;
-                let function = &crate::native_geometry::NativeInput::new(function, geometry);
+                let function = &crate::native_geometry::NativeInput::with_types(
+                    function,
+                    geometry,
+                    self.closed_types,
+                );
                 let Some(origins) = super::storage_origin_input::scalar_storage_origins(
                     function,
                     &coordinates[cursor].source,
@@ -1273,32 +1289,48 @@ pub(crate) mod identity {
 }
 pub(crate) mod integer_conversion {
     use legalized_operations::LegalizedScalarInstructionKind;
-    use semantic_vocabulary::ScalarType;
+    use semantic_vocabulary::{ClosedIntegerType, ClosedScalarType, ScalarType};
 
     pub(crate) fn normalization(
+        source: &crate::native_geometry::NativeFunction<'_>,
         kind: &LegalizedScalarInstructionKind,
         scalar_type: ScalarType,
     ) -> Option<selected_instructions::SelectedInstructionKind> {
+        let scalar = source.closed_scalar(scalar_type)?;
         if let LegalizedScalarInstructionKind::ScalarRepresentationView { source_type, .. } = kind {
-            terminal_semantics::ScalarRepresentationViewPair::classify(*source_type, scalar_type)?;
-            return Some(register_form_normalization(scalar_type));
+            let from = source.closed_scalar(*source_type)?;
+            terminal_semantics::ScalarRepresentationViewPair::classify(
+                from.as_checking(),
+                scalar.as_checking(),
+            )?;
+            return Some(register_form_normalization(scalar));
         }
-        let target = scalar_type.as_integer()?;
-        let fixed = |integer: semantic_vocabulary::IntegerType| {
+        let target = scalar.as_integer()?;
+        let fixed = |integer: ClosedIntegerType| {
             integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
                 && matches!(integer.bits(), 8 | 16 | 32 | 64)
         };
         let narrower = match kind {
-            LegalizedScalarInstructionKind::IntegerWiden { source_type, .. }
-                if fixed(*source_type) && fixed(target) && source_type.can_widen_to(target) =>
-            {
-                *source_type
+            LegalizedScalarInstructionKind::IntegerWiden { source_type, .. } => {
+                let from = source.closed_integer(*source_type)?;
+                if !fixed(from)
+                    || !fixed(target)
+                    || !from.as_checking().can_widen_to(target.as_checking())
+                {
+                    return None;
+                }
+                from
             }
-            LegalizedScalarInstructionKind::IntegerExactCast { source_type, .. }
-                if crate::legalization::exact_cast_has_native_carriers(*source_type, target) =>
-            {
-                if source_type.bits() < target.bits() {
-                    *source_type
+            LegalizedScalarInstructionKind::IntegerExactCast { source_type, .. } => {
+                let from = source.closed_integer(*source_type)?;
+                if !crate::legalization::exact_cast_has_native_carriers(
+                    from.as_checking(),
+                    target.as_checking(),
+                ) {
+                    return None;
+                }
+                if from.bits() < target.bits() {
+                    from
                 } else {
                     target
                 }
@@ -1306,20 +1338,20 @@ pub(crate) mod integer_conversion {
             _ => return None,
         };
         Some(
-            crate::selection::scalar_call_abi::integer_carrier_normalization(ScalarType::Integer(
-                narrower,
-            )),
+            crate::selection::scalar_call_abi::integer_carrier_normalization(
+                ClosedScalarType::Integer(narrower),
+            ),
         )
     }
 
     fn register_form_normalization(
-        scalar_type: ScalarType,
+        scalar_type: ClosedScalarType,
     ) -> selected_instructions::SelectedInstructionKind {
         match scalar_type {
-            ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => {
+            ClosedScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => {
                 selected_instructions::SelectedInstructionKind::ZeroExtendU32
             }
-            ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => {
+            ClosedScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => {
                 selected_instructions::SelectedInstructionKind::CopyI64
             }
             other => crate::selection::scalar_call_abi::integer_carrier_normalization(other),
@@ -1832,12 +1864,22 @@ pub(crate) use crate::legalization::ValidatedLegalizedOperations;
 #[allow(unused_imports)]
 pub(crate) use construction::build_plan;
 
+#[cfg(test)]
 pub(crate) fn select_instructions(
     legalized: &ValidatedLegalizedOperations,
     constraints: &SelectedSelectionConstraints,
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<ValidatedSelectedInstructions, SelectedInstructionError> {
-    let plan = build_plan(legalized, constraints, environment)?;
+    select_instructions_with_types(legalized, constraints, environment, None)
+}
+
+pub(crate) fn select_instructions_with_types(
+    legalized: &ValidatedLegalizedOperations,
+    constraints: &SelectedSelectionConstraints,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    closed_types: Option<&terminal_codec::ClosedTypeCatalog>,
+) -> Result<ValidatedSelectedInstructions, SelectedInstructionError> {
+    let plan = build_plan(legalized, constraints, environment, closed_types)?;
     let receipt = identity::receipt(&plan, legalized);
     Ok(ValidatedSelectedInstructions {
         plan: plan.into(),

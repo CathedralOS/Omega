@@ -1832,7 +1832,7 @@ impl CanonicalHandleState {
                 let known = match (result.scalar_type, captured.length) {
                     (ScalarType::Integer(integer), Some(length))
                         if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
-                            && integer.bits() == 64 =>
+                            && integer.bits() == Some(64) =>
                     {
                         KnownHandleScalar::Integer(
                             integer,
@@ -2401,10 +2401,10 @@ impl CanonicalHandleState {
             // Application Verifier's INVALID_HANDLE / NULL_HANDLE checks.
             let invalid_file_word = |value: &KnownHandleScalar| match value {
                 KnownHandleScalar::Integer(integer, IntegerValue::Signed(value)) => {
-                    integer.bits() == 64 && (*value == 0 || *value == -1)
+                    integer.bits() == Some(64) && (*value == 0 || *value == -1)
                 }
                 KnownHandleScalar::Integer(integer, IntegerValue::Unsigned(value)) => {
-                    integer.bits() == 64 && (*value == 0 || *value == u64::MAX as u128)
+                    integer.bits() == Some(64) && (*value == 0 || *value == u64::MAX as u128)
                 }
                 _ => false,
             };

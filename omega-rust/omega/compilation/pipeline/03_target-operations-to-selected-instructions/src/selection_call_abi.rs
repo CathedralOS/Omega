@@ -1939,18 +1939,22 @@ pub(crate) fn scalar_shape(scalar_type: ScalarType) -> Option<ValueShape> {
     ValueShape::for_scalar(scalar_type)
 }
 
-pub(crate) fn integer_carrier_normalization(scalar_type: ScalarType) -> SelectedInstructionKind {
+pub(crate) fn integer_carrier_normalization(
+    scalar_type: semantic_vocabulary::ClosedScalarType,
+) -> SelectedInstructionKind {
     match scalar_type {
-        ScalarType::Boolean => SelectedInstructionKind::ZeroExtendU8,
-        ScalarType::Integer(integer) => match (integer.sign(), integer.bits()) {
-            (IntegerSign::Unsigned, 8) => SelectedInstructionKind::ZeroExtendU8,
-            (IntegerSign::Unsigned, 16) => SelectedInstructionKind::ZeroExtendU16,
-            (IntegerSign::Unsigned, 32) => SelectedInstructionKind::ZeroExtendU32,
-            (IntegerSign::Signed, 8) => SelectedInstructionKind::SignExtendI8,
-            (IntegerSign::Signed, 16) => SelectedInstructionKind::SignExtendI16,
-            (IntegerSign::Signed, 32) => SelectedInstructionKind::SignExtendI32,
-            _ => SelectedInstructionKind::CopyI64,
-        },
+        semantic_vocabulary::ClosedScalarType::Boolean => SelectedInstructionKind::ZeroExtendU8,
+        semantic_vocabulary::ClosedScalarType::Integer(integer) => {
+            match (integer.sign(), integer.bits()) {
+                (IntegerSign::Unsigned, 8) => SelectedInstructionKind::ZeroExtendU8,
+                (IntegerSign::Unsigned, 16) => SelectedInstructionKind::ZeroExtendU16,
+                (IntegerSign::Unsigned, 32) => SelectedInstructionKind::ZeroExtendU32,
+                (IntegerSign::Signed, 8) => SelectedInstructionKind::SignExtendI8,
+                (IntegerSign::Signed, 16) => SelectedInstructionKind::SignExtendI16,
+                (IntegerSign::Signed, 32) => SelectedInstructionKind::SignExtendI32,
+                _ => SelectedInstructionKind::CopyI64,
+            }
+        }
         _ => SelectedInstructionKind::CopyI64,
     }
 }
