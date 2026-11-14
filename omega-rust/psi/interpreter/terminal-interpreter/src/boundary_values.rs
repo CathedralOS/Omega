@@ -484,6 +484,10 @@ pub(crate) mod errors {
         ScalarEntryQualificationUnsupported,
         UnsupportedCapability(crate::engine::capabilities::TerminalUnsupportedCapability),
         UnsupportedSemanticVariant(&'static str),
+        ScalarDescriptorNotRetained {
+            scalar_type: ScalarType,
+            cause: terminal_codec::CodecError,
+        },
         ResidentStorage(TerminalEffectRejection),
         AffineFrontierMismatch,
         NominalCleanupHasLiveLoans {
