@@ -277,23 +277,42 @@ machine wrap<'activation>(builder: &'activation mut Build) -> Configuration<'act
 /// `&mut` and is accepted.
 #[test]
 fn binding_an_entry_needs_the_mutable_build_value() {
-    let helper = |access: &str| {
+    let helper = |access: &str, argument: &str| {
         format!(
             "machine helper(builder: &{access}Build) {{
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind({argument}, linux_arm64::ProgramEntry, main);
 }}
 "
         )
     };
     assert_eq!(
-        refusals("bind-mutable", &helper("mut ")),
+        refusals("bind-mutable", &helper("mut ", "builder")),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        refusals("bind-explicit-mutable", &helper("mut ", "&mut builder")),
         Vec::<String>::new()
     );
     rejected_with(
         "bind-shared",
-        &helper(""),
-        "the reference it is reached through grants shared access only",
+        &helper("", "builder"),
+        "is held in storage lent shared: a shared loan admits no mutable child",
     );
+    rejected_with(
+        "bind-mutable-through-shared",
+        &helper("", "&mut builder"),
+        "is held in storage lent shared: a shared loan admits no mutable child",
+    );
+    for (name, argument) in [
+        ("bind-explicit-shared", "&builder"),
+        ("bind-explicit-write-only", "&write builder"),
+    ] {
+        rejected_with(
+            name,
+            &helper("mut ", argument),
+            "Build selection requires a mutable activation borrow",
+        );
+    }
 }
 
 /// The same rule through a record that keeps the Build it was lent
@@ -330,11 +349,11 @@ machine helper(builder: &mut Build) {{
     rejected_with(
         "stored-shared",
         &holder("", direct),
-        "the caller lends only immutable access to this argument",
+        "the reference it is reached through grants shared access only",
     );
     rejected_with(
         "stored-shared-local",
         &holder("", through_local),
-        "the caller lends only immutable access to this argument",
+        "the reference it is reached through grants shared access only",
     );
 }

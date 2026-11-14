@@ -126,10 +126,11 @@ public boundary trait BuildProductOperations {
 // Calling this requirement directly supplies no selection or host authority.
 // These are compiler host operations, not a user-selected service binding.
 // Their activation-local ticket is interpreted only at admitted call sites.
-// Selection requires the original mutable Build borrow; a shared view cannot
-// authorize binding or selection merely because it names that activation.
+// Public selection lowering requires an exclusive reborrow of the Build, then
+// lends observation to this host operation: preparation reads identity without
+// granting the opaque host permission to replace reference-bearing fields.
 public boundary trait BuildBindingOperations {
-    machine prepare(builder: &mut Build) -> u64 reaches none crashes none;
+    machine prepare(builder: &Build) -> u64 reaches none crashes none;
     machine prepare_tests(tests: &BuildTests) -> u64 reaches none crashes none;
     machine await_provider(activation: u64) reaches none crashes none suspends;
     machine bind(activation: u64) reaches none crashes none;

@@ -428,8 +428,10 @@ impl Program<'_> {
                 Ok(())
             },
         )?;
-        if crossed
-            && requested != StructuralAccess::SharedBorrow
+        // An incoming shared loan constrains its whole backing too, not only
+        // paths that cross another stored reference. This also checks an
+        // exclusive reborrow attenuated into a shared callee parameter.
+        if requested != StructuralAccess::SharedBorrow
             && let crate::ExpressionKind::Slot(holder) = root.kind
             && slots.get(holder).and_then(|slot| slot.borrowed)
                 == Some(language_core::ReferenceAccess::Shared)
