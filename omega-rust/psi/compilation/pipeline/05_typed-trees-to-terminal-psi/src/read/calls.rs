@@ -2016,11 +2016,8 @@ impl<'t> Program<'t> {
                 .is_some_and(|result| self.names_any(result, &[*parameter]))
                 && !bound.iter().any(|(known, _)| known == parameter);
             if chosen_by_caller {
-                self.region_variables.push(None);
-                bound.push((
-                    *parameter,
-                    super::regions::Region::Variable((self.region_variables.len() - 1) as u32),
-                ));
+                let chosen = self.fresh_region();
+                bound.push((*parameter, chosen));
             }
         }
         let result = declared_result.map(|result| self.substitute(result, &bound));

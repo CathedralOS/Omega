@@ -423,8 +423,7 @@ fn bound(
         }),
         (TypeParameterKind::Const { type_reference }, Closed::Integer(literal)) => {
             let landed_type = program
-                .type_reference_table
-                .primitive_type(*type_reference)
+                .primitive_type_reference(*type_reference)
                 .and_then(PrimitiveType::landed_landing_fixed)
                 .ok_or(Stop::Unserved(
                     "a value parameter that is not a fixed-width integer or a Boolean",
@@ -453,8 +452,7 @@ fn bound(
             })
         }
         (TypeParameterKind::Const { type_reference }, Closed::Boolean(value))
-            if program.type_reference_table.primitive_type(*type_reference)
-                == Some(PrimitiveType::Bool) =>
+            if program.primitive_type_reference(*type_reference) == Some(PrimitiveType::Bool) =>
         {
             Ok(StaticMachineArgument {
                 path: Box::new([Identifier::generated(if value { "true" } else { "false" })]),

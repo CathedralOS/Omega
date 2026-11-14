@@ -294,6 +294,9 @@ impl Program<'_> {
                     // a const is not itself a runtime value type to read here.
                 }
             }
+            // The supplied types are admitted above; the members are read as
+            // fields of this declaration, which state their lifetimes.
+            self.elision = super::regions::Elision::Members;
             self.declared_members(id, members)
         })();
         self.lifetime_owner = enclosing;
@@ -506,27 +509,9 @@ impl Program<'_> {
                 Unserved::Spelling("field without a symbol"),
             ));
         }
-        // A field that names lifetime-parameterised data bare leaves out
-        // which of its owner's lifetimes the nested views live for.
-        // lifetimes.md gives elision to a signature ("For an elided output,
-        // one unambiguous reference input supplies the relation") and says
-        // of a named data application that it must "match the declaration's
-        // lifetime arity", so a field states its arguments.
-        if field.type_reference.is_valid()
-            && let TypeReferenceNode::Named { symbol, .. } = self
-                .typed
-                .type_reference_table
-                .type_reference(field.type_reference)
-            && self
-                .data_declaration(*symbol)
-                .is_some_and(|data| !data.lifetime_parameters.is_empty())
-        {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Typing("data field that elides a lifetime argument"),
-            ));
-        }
+        // A field that names lifetime-parameterised data without its
+        // lifetime arguments, directly or behind a reference, is refused
+        // where its regions are asked for (`regions::Elision::Members`).
         let value_type = self.qualified_view_type(id, field.type_reference)?;
         // Stored byte and typed views keep the region of their actual source
         // type (lifetimes.md: "storage that remains valid for its use"). The
@@ -759,6 +744,79 @@ impl Program<'_> {
         Ok(())
     }
 
+    /// A member the typed trees hold only as a spelling. It is an error
+    /// where the receiver is a record whose declaration has no field of
+    /// that name: expressions.md, "Dot access remains data-field projection;
+    /// it does not select or invoke a machine", and state_contracts.md,
+    /// "Syntax, name resolution, types and declaration validity are checked
+    /// as usual". Every other such member (of a sum, of a value this route
+    /// does not read) stays a refusal.
+    fn unselected_member(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        member: &TableMemberExpression,
+        source: SourceOrigin,
+    ) -> terminal_check_tables::Refusal {
+        let refused = refuse(
+            id,
+            Construct::Machine,
+            Unserved::Spelling("member without a field symbol"),
+        );
+        let name = member.member.as_str();
+        if name.is_empty() || member.case_variant.is_some() {
+            return refused;
+        }
+        let Ok(base) = self.expression(id, slots, member.receiver, None) else {
+            return refused;
+        };
+        let held = match base.result {
+            Some(value) => match self.reference_referent(id, value) {
+                Ok(Some((referent, _))) => Some(referent),
+                Ok(None) => Some(value),
+                Err(_) => None,
+            },
+            None => None,
+        };
+        let Some(ValueType::Record(record, _, _)) = held else {
+            return refused;
+        };
+        let Some(data) = self
+            .record_sources
+            .get(record)
+            .and_then(|row| self.data_declaration(row.declaration))
+        else {
+            return refused;
+        };
+        let mut fields = 0;
+        for declared in self.typed.data_members(data) {
+            match declared {
+                DataMember::Field(field) if field.name.as_str() == name => return refused,
+                DataMember::Field(_) => fields += 1,
+                // A member of a sum may name a payload field of a case.
+                DataMember::Variant(_) => return refused,
+            }
+        }
+        if fields == 0 {
+            return refused;
+        }
+        // The typed trees give the member no span of its own in an
+        // assignment's target; the receiver is the nearest authored place.
+        let at = match source {
+            SourceOrigin::Unpositioned(_) => base.source,
+            authored => authored,
+        };
+        crate::reject(
+            id,
+            at,
+            format!(
+                "data `{}` has no field `{name}`: dot access is data-field projection, and \
+                 the name after the dot must be a field its declaration has",
+                data.name.as_str()
+            ),
+        )
+    }
+
     /// `receiver.member`: a field of the record, or a payload field of a
     /// case of the sum, that the receiver names. Which of the two is read
     /// from the member's field symbol; a member the typed trees hold only as
@@ -779,11 +837,7 @@ impl Program<'_> {
             return self.collection_measure(id, slots, member.receiver, measure, source);
         }
         if !member.selection.field_symbol().is_valid() {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Spelling("member without a field symbol"),
-            ));
+            return Err(self.unselected_member(id, slots, member, source));
         }
         let base = self.expression(id, slots, member.receiver, None)?;
         let Some(record) = self.opened(id, base.result, Access::Read)? else {

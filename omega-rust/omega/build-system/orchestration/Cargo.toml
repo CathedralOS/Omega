@@ -23,6 +23,7 @@ terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi
 terminal-runtime = { path = "../../interpreter/terminal-runtime" }
 
 [dev-dependencies]
+terminal-installation = { path = "../../../psi/compilation/terminal-installation" }
 sha2 = "0.10.9"
 native-artifact = { path = "../../compilation/backend/artifacts/native-artifact" }
 terminal-psi-to-abstract-operations = { path = "../../compilation/pipeline/00_terminal-psi-to-abstract-operations" }

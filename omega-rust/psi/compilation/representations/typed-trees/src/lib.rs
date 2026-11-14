@@ -757,7 +757,7 @@ pub(crate) mod canonical_values {
         match value {
             DecodedCanonicalConstValue::Float { .. } => None,
             DecodedCanonicalConstValue::Integer { type_name, value } => {
-                let primitive = program.type_reference_table.primitive_type(declared_type)?;
+                let primitive = program.primitive_type_reference(declared_type)?;
                 if *type_name != primitive.name() {
                     return None;
                 }
@@ -770,9 +770,8 @@ pub(crate) mod canonical_values {
                 integer_value(program, declared_type, literal)
             }
             DecodedCanonicalConstValue::Boolean(value) => {
-                (program.type_reference_table.primitive_type(declared_type)
-                    == Some(PrimitiveType::Bool))
-                .then_some(ExpressionNode::Boolean(*value))
+                (program.primitive_type_reference(declared_type) == Some(PrimitiveType::Bool))
+                    .then_some(ExpressionNode::Boolean(*value))
             }
             DecodedCanonicalConstValue::Array { type_name, values } => {
                 if *type_name != program.display_type_reference(declared_type) {
@@ -874,7 +873,7 @@ pub(crate) mod canonical_values {
         declared_type: TypeReferenceHandle,
         literal: IntegerLiteral,
     ) -> Option<ExpressionNode> {
-        let primitive = program.type_reference_table.primitive_type(declared_type)?;
+        let primitive = program.primitive_type_reference(declared_type)?;
         let landed_type = primitive.landed_landing()?;
         Some(ExpressionNode::Integer(
             literal.with_landing(IntegerLanding {

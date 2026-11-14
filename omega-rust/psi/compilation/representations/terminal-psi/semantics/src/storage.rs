@@ -1861,7 +1861,7 @@ pub mod borrowed_storage {
         ) {
             match row {
                 Ok(body) => graph.push(body),
-                Err(DescriptorGraphError::IncompleteMachine(_)) => {}
+                Err(DescriptorGraphError::IncompleteMachine { .. }) => {}
                 Err(DescriptorGraphError::MissingOrAmbiguousMachine(machine)) => {
                     return Err(format!("write frame has no unique machine {machine:?}"));
                 }

@@ -123,10 +123,7 @@ fn materialize_argument(
             TypeReferenceNode::Slice { .. }
         ) =>
         {
-            if program
-                .type_reference_table
-                .is_borrowed_byte_slice(destination)
-            {
+            if program.is_borrowed_byte_slice(destination) {
                 let BuildTimeValue::Text(bytes) = value else {
                     return Err("a byte view requires actual immutable bytes".into());
                 };

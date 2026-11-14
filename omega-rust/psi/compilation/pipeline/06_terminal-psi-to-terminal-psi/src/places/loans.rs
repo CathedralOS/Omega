@@ -176,12 +176,15 @@ pub(crate) fn reference_graph(
         [machine],
         &[],
     )
-    .map_err(|reason| {
+    .map_err(|error| {
         crate::refusal(
             RefusalReason::Unsupported,
-            machine,
-            Construct::Machine,
-            reason,
+            error.machine(),
+            error
+                .operation(module)
+                .map(Construct::Operation)
+                .unwrap_or(Construct::Machine),
+            &error.in_module(module),
         )
     })
 }

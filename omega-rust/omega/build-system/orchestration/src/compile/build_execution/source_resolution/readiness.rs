@@ -434,6 +434,15 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                                 selected: None,
                             },
                         )));
+                    } else if let Some(preparation) = step.awaiting_preparation {
+                        pending.push(Work::Dependencies(PendingDependencies::new(
+                            build,
+                            Demand::Preparation {
+                                purpose: preparation.purpose,
+                                ordinal: preparation.request_ordinal,
+                                source: None,
+                            },
+                        )));
                     } else {
                         pending.push(Work::Run(build));
                     }
@@ -479,6 +488,27 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                                 });
                                 pending.push(Work::Graph(resolution));
                             }
+                            Demand::Preparation {
+                                ordinal, source, ..
+                            } => {
+                                let source = source.ok_or_else(|| {
+                                    Source(
+                                        "Build dependency preparation names no issued registration"
+                                            .into(),
+                                    )
+                                })?;
+                                let resolution = self.sources[source]
+                                    .declared
+                                    .clone()
+                                    .resolve()
+                                    .map_err(Source)?;
+                                pending.push(Work::PrepareDependency {
+                                    build: dependencies.build,
+                                    ordinal,
+                                    source,
+                                });
+                                pending.push(Work::Graph(resolution));
+                            }
                             Demand::Query {
                                 query,
                                 dependencies: ready,
@@ -515,6 +545,16 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                                 return Err(Source(format!(
                                     "Build dependency qualifier `{alias}` is ambiguous"
                                 )));
+                            }
+                            pending.push(Work::Dependencies(dependencies));
+                        }
+                        Demand::Preparation {
+                            source: selected, ..
+                        } => {
+                            if selected.replace(source).is_some() {
+                                return Err(Source(
+                                    "Build dependency preparation selected two sources".into(),
+                                ));
                             }
                             pending.push(Work::Dependencies(dependencies));
                         }
@@ -590,6 +630,31 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                             },
                             &provider,
                         )
+                        .map_err(Source)?;
+                    build.dependencies.push(graph);
+                    pending.push(Work::Run(build));
+                }
+                Work::PrepareDependency {
+                    mut build,
+                    ordinal,
+                    source,
+                } => {
+                    // scoped_execution.md, "Dependency declarations and
+                    // binding": preparation "admits and prepares that
+                    // dependency for the requested execution profile". The
+                    // dependency's own Build has run and its graph is
+                    // settled; its Product source is prepared for the Build
+                    // purpose the same way an awaited provider's is.
+                    let graph = Arc::new(take_completed(&mut completed)?.graph()?);
+                    self.settle_graph(&graph)?;
+                    self.prepare_product(source, DependencyPurpose::Build)?;
+                    build
+                        .activation
+                        .dependency_prepared(build_settings::BuildDependencySelection {
+                            purpose: DependencyPurpose::Build,
+                            request_ordinal: ordinal,
+                            package: self.sources[source].declared.identity(),
+                        })
                         .map_err(Source)?;
                     build.dependencies.push(graph);
                     pending.push(Work::Run(build));
@@ -942,11 +1007,19 @@ enum Demand {
         query: Arc<build_settings::host::bindings::BuildProductQuery>,
         dependencies: QueryDependencies,
     },
+    /// `Build::prepare_dependency` parked on one exact registration: the
+    /// request at `ordinal` among the activation's requests of `purpose`.
+    Preparation {
+        purpose: DependencyPurpose,
+        ordinal: usize,
+        source: Option<usize>,
+    },
 }
 
 impl Demand {
     fn purpose(&self) -> DependencyPurpose {
         match self {
+            Self::Preparation { purpose, .. } => *purpose,
             Self::Provider { .. } => DependencyPurpose::Build,
             Self::Query { .. } => DependencyPurpose::Product,
         }
@@ -978,6 +1051,13 @@ impl PendingDependencies {
                 && alias
                     .as_ref()
                     .is_some_and(|alias| alias.as_str() != selected)
+            {
+                continue;
+            }
+            if let Demand::Preparation {
+                ordinal: awaited, ..
+            } = &demand
+                && *awaited != request_ordinal
             {
                 continue;
             }
@@ -1048,6 +1128,11 @@ enum Work {
     InstallProvider {
         build: Box<LiveBuild>,
         declaration: String,
+        ordinal: usize,
+        source: usize,
+    },
+    PrepareDependency {
+        build: Box<LiveBuild>,
         ordinal: usize,
         source: usize,
     },

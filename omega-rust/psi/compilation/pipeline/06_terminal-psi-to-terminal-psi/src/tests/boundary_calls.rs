@@ -1711,12 +1711,11 @@ fn generic_named_map_source_retains_its_explicit_application() {
     assert_eq!(program.conformance_type_parameters(owner).len(), 1);
     assert_eq!(row.requirement, call.target_symbol);
     assert_eq!(signature.symbol, row.requirement);
-    assert_eq!(
-        program
-            .type_reference_table
-            .primitive_type(signature.return_type),
-        typed_trees::types::PrimitiveType::from_name("u32")
-    );
+    let carrier = program
+        .primitive_type_reference(signature.return_type)
+        .and_then(|primitive| primitive.fixed_integer())
+        .expect("the public result retains its canonical integer carrier");
+    assert_eq!((carrier.width(), carrier.is_signed()), (32, false));
     let selection = program
         .authored_declaration_selections()
         .get(call.authored_call_selection.unwrap())
