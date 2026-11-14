@@ -151,52 +151,6 @@ impl EntryContractSource {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn repeated_entry_seeding_reuses_the_first_captured_namespace() {
-        let nonce = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let root = std::env::temp_dir().join(format!(
-            "omega-entry-contract-{}-{nonce}",
-            std::process::id()
-        ));
-        std::fs::create_dir(&root).unwrap();
-        let source = root.join("entry.omg");
-        std::fs::write(&source, "public data Original {}").unwrap();
-        let mut storage = SourceStorage::default();
-        let seed = || EntryContractSeed {
-            source: source.clone(),
-            root: root.clone(),
-            closed_subtree: true,
-        };
-        let admitted = seed().register_custody(&mut storage).unwrap();
-        std::fs::write(&source, "public data Changed {}").unwrap();
-        std::fs::write(root.join("late.omg"), "public data Late {}").unwrap();
-        assert_eq!(seed().register_custody(&mut storage).unwrap(), admitted);
-        assert_eq!(
-            storage
-                .filesystem
-                .read_to_string(&admitted)
-                .unwrap()
-                .as_ref(),
-            "public data Original {}"
-        );
-        assert_eq!(
-            storage
-                .filesystem
-                .captured_files(admitted.parent().unwrap())
-                .unwrap(),
-            vec![admitted]
-        );
-        std::fs::remove_dir_all(root).unwrap();
-    }
-}
-
 /// Resolve the selected target schema inside its admitted contract source.
 pub fn selected_program_entry_boundary(
     typed: &typed_trees::TypedTrees,
@@ -293,5 +247,51 @@ pub fn selected_program_entry_boundary(
         _ => Err(failure(
             "selected entry source publishes competing target boundary declarations",
         )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn repeated_entry_seeding_reuses_the_first_captured_namespace() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "omega-entry-contract-{}-{nonce}",
+            std::process::id()
+        ));
+        std::fs::create_dir(&root).unwrap();
+        let source = root.join("entry.omg");
+        std::fs::write(&source, "public data Original {}").unwrap();
+        let mut storage = SourceStorage::default();
+        let seed = || EntryContractSeed {
+            source: source.clone(),
+            root: root.clone(),
+            closed_subtree: true,
+        };
+        let admitted = seed().register_custody(&mut storage).unwrap();
+        std::fs::write(&source, "public data Changed {}").unwrap();
+        std::fs::write(root.join("late.omg"), "public data Late {}").unwrap();
+        assert_eq!(seed().register_custody(&mut storage).unwrap(), admitted);
+        assert_eq!(
+            storage
+                .filesystem
+                .read_to_string(&admitted)
+                .unwrap()
+                .as_ref(),
+            "public data Original {}"
+        );
+        assert_eq!(
+            storage
+                .filesystem
+                .captured_files(admitted.parent().unwrap())
+                .unwrap(),
+            vec![admitted]
+        );
+        std::fs::remove_dir_all(root).unwrap();
     }
 }

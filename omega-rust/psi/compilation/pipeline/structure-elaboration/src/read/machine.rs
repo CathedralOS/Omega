@@ -281,6 +281,13 @@ impl<'t> Program<'t> {
         reading: Reading,
     ) -> Checked<MachineId> {
         let id = self.next_identity()?;
+        if self.descriptor_storage {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Declaration("machine admission after storage metadata"),
+            ));
+        }
         let (machine, _) = self.declaration(id, symbol)?;
         let bound = self
             .conformer_requirement(id, machine)?
