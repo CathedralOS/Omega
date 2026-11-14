@@ -1057,9 +1057,41 @@ fn a_complete_subject_with_machine_constants_publishes_its_actual_module() {
         panic!("the published program returns the computed constants")
     };
     assert_eq!(
-        crate::terminal_values::scalar_result(value).unwrap(),
+        crate::terminal_values::scalar_result(&program, value).unwrap(),
         crate::BuildTimeValue::Int(9)
     );
+    let foreign =
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 13)
+            .unwrap();
+    let symbolic = semantic_vocabulary::IntegerType::parameterized(
+        semantic_vocabulary::IntegerSign::Unsigned,
+        semantic_vocabulary::WidthParameter {
+            owner: semantic_vocabulary::MachineId::new(1).unwrap(),
+            value: semantic_vocabulary::ValueId::new(1).unwrap(),
+        },
+    );
+    for scalar_type in [foreign, symbolic] {
+        assert!(
+            crate::terminal_values::scalar_argument(
+                &program,
+                semantic_vocabulary::ScalarType::Integer(scalar_type),
+                &crate::BuildTimeValue::Int(9),
+            )
+            .is_err(),
+            "an input type must belong to the actual published owner"
+        );
+        assert!(
+            crate::terminal_values::scalar_result(
+                &program,
+                terminal_interpreter::TerminalScalarValue::Integer {
+                    scalar_type,
+                    value: semantic_vocabulary::IntegerValue::Unsigned(9),
+                }
+            )
+            .is_err(),
+            "a returned scalar cannot acquire an unrelated or symbolic width"
+        );
+    }
 }
 
 #[test]
