@@ -834,6 +834,332 @@ mod tests {
         );
     }
 
+    #[test]
+    fn old_names_only_an_existing_runtime_scalar_input_and_keeps_its_policy() {
+        use crate::body::{DomainSet, Policy, Qualification};
+        use symbols::{BuiltinFunction, builtin_function_symbols};
+        use typed_trees::expression::TableCallExpression;
+        use typed_trees::name::Identifier;
+        let mut builder = SymbolTableBuilder::new();
+        let owner = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let children = builder.insert_children(
+            owner,
+            builtin_type_symbols()
+                .into_iter()
+                .chain(builtin_function_symbols())
+                .chain([
+                    (SymbolKind::Parameter, SymbolNameRef::Static("x")),
+                    (SymbolKind::Parameter, SymbolNameRef::Static("foreign")),
+                    (SymbolKind::Machine, SymbolNameRef::Static("old")),
+                ]),
+        );
+        let declared = symbols::BUILTIN_TYPE_COUNT + BuiltinFunction::COUNT;
+        let formal = children.handles().nth(declared).unwrap();
+        let foreign = children.handles().nth(declared + 1).unwrap();
+        let impostor = children.handles().nth(declared + 2).unwrap();
+        let mut typed = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        let builtin = typed
+            .symbols
+            .builtin_function_symbol(BuiltinFunction::ContentOld)
+            .unwrap();
+        let name = |typed: &mut TypedTrees, symbol, spelled, reserved_result_of| {
+            let mut members = arena::HandleSpan::empty();
+            typed
+                .expression_table
+                .push_name_path_member(&mut members, Identifier::generated(spelled));
+            typed
+                .expression_table
+                .insert(ExpressionNode::Name(TableNamePath {
+                    members,
+                    symbol,
+                    reserved_result_of,
+                    ..Default::default()
+                }))
+        };
+        let named = name(&mut typed, formal, "x", SymbolHandle::invalid());
+        let foreign_name = name(&mut typed, foreign, "foreign", SymbolHandle::invalid());
+        let result = name(&mut typed, SymbolHandle::invalid(), "result", owner);
+        let foreign_result = name(&mut typed, SymbolHandle::invalid(), "result", impostor);
+        let call = |typed: &mut TypedTrees, target_symbol, arguments: &[ExpressionHandle]| {
+            let arguments = typed
+                .expression_table
+                .insert_expression_handles(arguments.iter().copied());
+            typed
+                .expression_table
+                .insert(ExpressionNode::Call(TableCallExpression {
+                    authored_call_selection: None,
+                    authored_call_binding: None,
+                    build_selection: arena::Handle::invalid(),
+                    authored_machine_application: arena::Handle::invalid(),
+                    exact_coercion_target: TypeReferenceHandle::invalid(),
+                    requirement_application: TypeReferenceHandle::invalid(),
+                    receiver: ExpressionHandle::invalid(),
+                    target_symbol,
+                    static_machine_parameter: SymbolHandle::invalid(),
+                    target: Identifier::generated("old"),
+                    static_requirement_dispatch: None,
+                    machine_arguments: Box::new([]),
+                    quotient_operation: None,
+                    private_layout_operation: None,
+                    installed_interrupt_operation: None,
+                    layout_query: None,
+                    native_code_layout: None,
+                    arguments,
+                    evidence_arguments: Box::new([]),
+                    operational_acknowledgement: Default::default(),
+                }))
+        };
+        let old = call(&mut typed, builtin, &[named]);
+        let literal = typed
+            .expression_table
+            .insert(ExpressionNode::Integer(IntegerLiteral::from_value(1)));
+        let old_literal = call(&mut typed, builtin, &[literal]);
+        let old_result = call(&mut typed, builtin, &[result]);
+        let old_foreign_result = call(&mut typed, builtin, &[foreign_result]);
+        let old_foreign = call(&mut typed, builtin, &[foreign_name]);
+        let lookalike = call(&mut typed, impostor, &[named]);
+        let missing_argument = call(&mut typed, builtin, &[]);
+        let extra_argument = call(&mut typed, builtin, &[named, named]);
+        let wrapped_sum = |typed: &mut TypedTrees, left| {
+            typed
+                .expression_table
+                .insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left,
+                    operator: BinaryOperator::Add,
+                    right: literal,
+                    policy: numerics::arithmetic::ArithmeticDomain::Wrapping,
+                }))
+        };
+        let computed = wrapped_sum(&mut typed, named);
+        let old_computed = call(&mut typed, builtin, &[computed]);
+        let using_old = wrapped_sum(&mut typed, old);
+        let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+        let scalar_type = ScalarType::Integer(integer);
+        let value = ValueId::new(1).unwrap();
+        let slot = || Slot {
+            symbol: formal,
+            value_type: ValueType::plain(scalar_type),
+            assignable: true,
+            homed: false,
+            erased: false,
+            borrowed: None,
+        };
+        let slots = [slot()];
+        let values = [Some(value)];
+        let scope = ClauseScope {
+            slots: &slots,
+            values: &values,
+            bound: &[],
+            owner,
+            result: ResultTerm::Named(ValueId::new(2).unwrap(), scalar_type, None),
+            subject: None,
+            formal_fields: false,
+            mathematical: MathematicalTerms::Served,
+        };
+        let mut program = Program::new(&typed, false);
+        let input = (ScalarTerm::value(value, scalar_type), scalar_type);
+        assert_eq!(
+            program.term(machine(), &scope, old, None),
+            Ok(input.clone())
+        );
+        for entry_fields in [false, true] {
+            let before_result = ClauseScope {
+                formal_fields: entry_fields,
+                result: ResultTerm::Absent("result outside an ensures clause"),
+                ..scope
+            };
+            assert_eq!(
+                program.term(machine(), &before_result, old, None),
+                Ok(input.clone())
+            );
+        }
+        let immutable = [Slot {
+            assignable: false,
+            ..slot()
+        }];
+        assert_eq!(
+            program.term(
+                machine(),
+                &ClauseScope {
+                    slots: &immutable,
+                    ..scope
+                },
+                old,
+                None
+            ),
+            Ok(input)
+        );
+        let booleans = [Slot {
+            value_type: ValueType::plain(ScalarType::Boolean),
+            ..slot()
+        }];
+        assert_eq!(
+            program.term(
+                machine(),
+                &ClauseScope {
+                    slots: &booleans,
+                    ..scope
+                },
+                old,
+                None
+            ),
+            Ok((
+                ScalarTerm::value(value, ScalarType::Boolean),
+                ScalarType::Boolean
+            ))
+        );
+        assert_eq!(
+            program
+                .clause_text(&slots, old)
+                .render(&|_| "given".to_owned()),
+            "old(given)"
+        );
+        let detail = |scope: &ClauseScope<'_>, expression| {
+            program
+                .term(machine(), scope, expression, None)
+                .unwrap_err()
+                .detail
+        };
+        let no_input = "contract old of a subject without a scalar invocation input";
+        assert_eq!(
+            program
+                .term(machine(), &scope, old_literal, Some(scalar_type))
+                .unwrap_err()
+                .detail,
+            no_input
+        );
+        assert_eq!(detail(&scope, old_computed), no_input);
+        assert_eq!(
+            detail(&scope, old_result),
+            "contract result has no callable-entry value"
+        );
+        assert_eq!(
+            detail(&scope, old_foreign_result),
+            "contract result of another callable"
+        );
+        assert_eq!(detail(&scope, lookalike), "contract call in a clause term");
+        for expression in [missing_argument, extra_argument] {
+            assert_eq!(
+                detail(&scope, expression),
+                "contract old of other than one subject"
+            );
+        }
+        assert!(program.term(machine(), &scope, old_foreign, None).is_err());
+        let forged = [(
+            foreign,
+            ScalarTerm::value(ValueId::new(999).unwrap(), scalar_type),
+        )];
+        assert_eq!(
+            detail(
+                &ClauseScope {
+                    bound: &forged,
+                    ..scope
+                },
+                old_foreign
+            ),
+            no_input
+        );
+        let bound_constant = [(
+            foreign,
+            ScalarTerm::Integer {
+                scalar_type: integer,
+                value: IntegerValue::Unsigned(1),
+            },
+        )];
+        assert_eq!(
+            detail(
+                &ClauseScope {
+                    bound: &bound_constant,
+                    ..scope
+                },
+                old_foreign
+            ),
+            no_input
+        );
+        let erased = [Slot {
+            erased: true,
+            ..slot()
+        }];
+        assert_eq!(
+            detail(
+                &ClauseScope {
+                    slots: &erased,
+                    ..scope
+                },
+                old
+            ),
+            no_input
+        );
+        assert_eq!(
+            detail(
+                &ClauseScope {
+                    values: &[],
+                    ..scope
+                },
+                old
+            ),
+            "contract formal identity"
+        );
+        let borrowed = [Slot {
+            borrowed: Some(ReferenceAccess::Mutable),
+            ..slot()
+        }];
+        assert_eq!(
+            detail(
+                &ClauseScope {
+                    slots: &borrowed,
+                    ..scope
+                },
+                old
+            ),
+            "contract clause that names a borrowed formal outside requires"
+        );
+        let domain = [Slot {
+            value_type: ValueType::Scalar(
+                scalar_type,
+                Qualification {
+                    policy: None,
+                    domains: DomainSet::EMPTY.with(foreign).unwrap(),
+                },
+            ),
+            ..slot()
+        }];
+        assert_eq!(
+            detail(
+                &ClauseScope {
+                    slots: &domain,
+                    ..scope
+                },
+                old
+            ),
+            "contract formal that carries a declared domain named in a clause"
+        );
+        let qualified = [Slot {
+            value_type: ValueType::Scalar(scalar_type, Qualification::of_policy(Policy::Wrapping)),
+            ..slot()
+        }];
+        let qualified_scope = ClauseScope {
+            slots: &qualified,
+            ..scope
+        };
+        assert!(program.term(machine(), &qualified_scope, old, None).is_ok());
+        assert_eq!(
+            detail(&qualified_scope, using_old),
+            format!("contract {}", crate::policy::QUALIFIED_OPERAND)
+        );
+        assert_eq!(
+            detail(&qualified_scope, computed),
+            format!("contract {}", crate::policy::QUALIFIED_OPERAND)
+        );
+        assert!(
+            program.expression(machine(), &slots, old, None).is_err(),
+            "old has no executable implementation"
+        );
+    }
+
     /// Record constructs this slice does not serve are each refused under
     /// their own name, and a member or literal the typed trees hold only as a
     /// spelling is refused as a spelling, before anything is read from it.
