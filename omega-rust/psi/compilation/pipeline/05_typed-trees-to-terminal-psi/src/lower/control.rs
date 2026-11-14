@@ -220,14 +220,38 @@ impl Lowering<'_> {
     /// a structural result is one place, apart from the scalar lane. The
     /// plain record holds no claim, so none is returned.
     fn return_record(&mut self, source_root: PlaceId, source: SourceOrigin) -> Checked<()> {
-        let edge = self.edge(Destination::Return, source)?;
+        let no_normal_value = self.roots.get(source_root).is_some_and(|(kind, ty)| {
+            !matches!(
+                kind,
+                semantic_vocabulary::StructuralPlaceKind::Result
+                    | semantic_vocabulary::StructuralPlaceKind::ProviderAttachment { .. }
+            ) && self.borrowed_roots.binary_search(&source_root).is_err()
+                && self.records.inhabitation.status(*ty)
+                    == terminal_semantics::inhabitation::Status::ProvedEmpty
+        });
+        // Keep the actual structural expression. Its impossible owned value
+        // supplies no normal result, whatever type the destination expects,
+        // so this edge owes no normal-return guarantee or receiver value.
+        // The checker reconstructs that classification from the real root.
+        let edge = self.edge(
+            if no_normal_value {
+                Destination::NoNormal
+            } else {
+                Destination::Return
+            },
+            source,
+        )?;
         self.terminate(Terminator::ReturnStructural {
             edge,
             source: source_root,
             returned_claims: Vec::new(),
             cleanup_actions: Vec::new(),
         })?;
-        self.guarantee(edge, source)
+        if no_normal_value {
+            Ok(())
+        } else {
+            self.guarantee(edge, source)
+        }
     }
 
     pub(super) fn return_unit(&mut self, source: SourceOrigin) -> Checked<()> {

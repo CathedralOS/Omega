@@ -446,8 +446,18 @@ pub(crate) fn follow_the_lowered_form(
     lowered: &TerminalMachine,
     tables: &MachineTables,
     types: &IdTable<ValueId, ScalarType>,
+    inhabitation: &terminal_semantics::inhabitation::Inhabitation,
 ) -> Checked<()> {
     values_are_declared(id, lowered, tables)?;
+    let returned =
+        terminal_semantics::normal_completion::ReturnSources::new(lowered).map_err(|detail| {
+            refusal(
+                RefusalReason::ForeignIdentity,
+                id,
+                Construct::Machine,
+                detail,
+            )
+        })?;
     let mut minted = Minted {
         machine: id,
         module,
@@ -476,7 +486,15 @@ pub(crate) fn follow_the_lowered_form(
     // its account.
     let mut edges = vec![false; tables.edges.len()];
     for block in &lowered.blocks {
+        let empty_return = returned
+            .is_uninhabited_return(&block.terminator, inhabitation)
+            .map_err(|detail| minted.foreign(Construct::Block(block.id), detail))?;
         for (edge, destination) in successors(&block.terminator) {
+            let destination = if empty_return {
+                Destination::NoNormal
+            } else {
+                destination
+            };
             let concerns = Construct::Edge(edge);
             let row = tables
                 .edges
@@ -673,7 +691,12 @@ pub(crate) fn follow_the_lowered_form(
         | Terminator::ReturnUnit { edge, .. }
         | Terminator::ReturnStructural { edge, .. } = &block.terminator
         {
-            minted.returns(lowered, block.id, *edge)?;
+            if !returned
+                .is_uninhabited_return(&block.terminator, inhabitation)
+                .map_err(|detail| minted.foreign(Construct::Block(block.id), detail))?
+            {
+                minted.returns(lowered, block.id, *edge)?;
+            }
         }
     }
 

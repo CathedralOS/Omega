@@ -18,7 +18,10 @@ use crate::{SourceOrigin, Unserved, refuse};
 
 impl Lowering<'_> {
     pub(super) fn operation_identity(&mut self, source: SourceOrigin) -> OperationId {
-        self.sources.operations.push(source)
+        let id = self.sources.operations.push(source);
+        let location = self.operation_locations.push(None);
+        debug_assert_eq!(id, location);
+        id
     }
 
     /// The obligation guarding `operation`, created at the point before it.
@@ -59,6 +62,19 @@ impl Lowering<'_> {
         result: OperationResult,
         kind: OperationKind,
     ) -> Checked<()> {
+        let block = self.current()?;
+        let ordinal = self.draft()?.operations.len();
+        let location = self.operation_locations.get_mut(operation).ok_or_else(|| {
+            terminal_check_tables::Refusal {
+                reason: terminal_check_tables::RefusalReason::ForeignIdentity,
+                machine: self.id,
+                concerns: Construct::Operation(operation),
+                detail: "an operation has no allocated source coordinate".to_owned(),
+            }
+        })?;
+        if location.replace((block, ordinal)).is_some() {
+            return Err(self.internal("an operation was emitted twice"));
+        }
         self.draft()?
             .operations
             .push(Operation::unsuspended(operation, result, kind));

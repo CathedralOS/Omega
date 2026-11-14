@@ -416,6 +416,7 @@ impl<'a> Lowering<'a> {
             calls: Vec::new(),
             call_formations: Vec::new(),
             blocks: IdTable::default(),
+            operation_locations: IdTable::default(),
             current: None,
             point: None,
             slots: vec![None; slot_types.len()],
@@ -639,6 +640,9 @@ struct Lowering<'a> {
     )>,
     call_formations: Vec<terminal_psi::CallFormation>,
     blocks: IdTable<BlockId, Draft>,
+    /// Coordinates of emitted operations in this in-progress machine. A call
+    /// reads exact scalar definitions without rescanning all earlier blocks.
+    operation_locations: IdTable<OperationId, Option<(BlockId, usize)>>,
     /// The open block, `None` once it is terminated and no block is entered.
     current: Option<BlockId>,
     /// The program point after the last thing emitted in `current`.
@@ -658,7 +662,8 @@ struct Lowering<'a> {
     heads: Vec<Head>,
     invariants: Vec<ScalarBlockInvariant>,
     /// The roots of this machine's borrowed formals: storage the caller
-    /// lent, so a loan of a place beneath one reborrows the incoming loan
+    /// lent, in increasing place order. Formals allocate roots in that order.
+    /// A loan of a place beneath one reborrows the incoming loan
     /// (`Lender::Incoming`) rather than lending owned storage.
     borrowed_roots: Vec<PlaceId>,
     /// How many operands that only some paths evaluate and that rejoin
