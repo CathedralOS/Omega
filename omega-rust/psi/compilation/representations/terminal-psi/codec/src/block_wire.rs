@@ -949,6 +949,7 @@ pub(crate) mod terminator_wire {
 
     wire_enum! {
         TerminatorRow: Terminator, "Terminator" {
+            20 => EliminateEmpty { edge: Id, source: Id, path: Path },
             19 => InvokeNoNormal {
                 edge: Id,
                 static_reach_binding: Optional<U32>,
