@@ -128,6 +128,16 @@ impl Lowering<'_> {
     }
 
     pub(super) fn expression(&mut self, expression: &Expression) -> Evaluation<Value> {
+        let evaluated = self.expression_inner(expression)?;
+        if let Reached::Value(Value::Scalar(value)) = evaluated
+            && let Some(ValueType::Scalar(_, qualification)) = expression.result
+        {
+            self.qualify(value, qualification)?;
+        }
+        Ok(evaluated)
+    }
+
+    fn expression_inner(&mut self, expression: &Expression) -> Evaluation<Value> {
         let source = expression.source;
         // A record-typed expression names storage; its value is a root that
         // holds it. Everything below is scalar or Unit.
@@ -279,9 +289,12 @@ impl Lowering<'_> {
                 self.emit(operation, result, kind).map(Reached::Value)
             }
             // The operand's value under another policy: nothing is computed.
-            ExpressionKind::Requalify(operand) => self
-                .scalar(operand)
-                .map(|reached| reached.map(Value::Scalar)),
+            ExpressionKind::Requalify(operand) => {
+                let scalar_type = self.result_type(operand)?;
+                let operand = continuing!(self.scalar(operand));
+                self.prove_membership(operand, scalar_type, &[], "", source)
+                    .map(|value| Reached::Value(Value::Scalar(value)))
+            }
             ExpressionKind::Establish {
                 operand,
                 clauses,

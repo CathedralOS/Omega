@@ -37,6 +37,7 @@ pub mod inhabitation;
 pub mod normal_completion;
 pub mod plain_affine;
 pub mod references;
+pub mod scalar_qualifications;
 pub mod scalars;
 pub mod storage;
 pub mod structural;
@@ -658,6 +659,7 @@ pub use structural::zeroed_structural::{
     zeroed_projected_byte_qualifications_hold, zeroed_structural_fields_satisfy,
     zeroed_structural_leaves, zeroed_structural_leaves_modulo_references,
     zeroed_structural_leaves_with_established_erased_fields, zeroed_structural_shape,
+    zeroed_structural_types_and_fields_satisfy,
 };
 
 pub use descriptors::descriptor_lifetimes;

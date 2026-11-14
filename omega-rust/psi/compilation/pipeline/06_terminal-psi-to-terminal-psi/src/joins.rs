@@ -403,6 +403,17 @@ fn describe(
         parts.push(defined);
     }
     for (justification, proposition, path) in &available {
+        // A dominating fact about an argument is not yet a fact about the
+        // destination's fresh parameter. Carry its exact renaming even when
+        // the original fact dominates this join (including read premises
+        // supplied by operation semantics). Every arrival still proves the
+        // inferred predicate; no storage observation is re-read here.
+        if let Some(stated) = rename(proposition, &renaming)
+            && stated != **proposition
+            && in_scope(lowered, tables, join.id, &stated)
+        {
+            parts.push(stated);
+        }
         if matches!(justification, Justification::OperationSemantics(_)) {
             continue;
         }

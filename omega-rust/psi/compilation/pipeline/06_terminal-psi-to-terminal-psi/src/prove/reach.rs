@@ -79,6 +79,13 @@ impl Prover<'_> {
                     if !matches!(subject, ScalarTerm::Value { id, .. } if *id == value) {
                         continue;
                     }
+                    // A checked arrival can retain an exact operation's
+                    // denotation inside its predicate. Moving that equation
+                    // from an operation axiom to a block assumption does not
+                    // add integer rules for wrapping or saturating arithmetic.
+                    if !within_rules(definition) {
+                        return true;
+                    }
                     if let Some(axiom) = fact.axiom
                         && !self.reaches(axiom, definition)
                     {

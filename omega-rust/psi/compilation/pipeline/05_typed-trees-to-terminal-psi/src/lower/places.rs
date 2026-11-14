@@ -660,6 +660,13 @@ pub(crate) fn borrowed_access(access: language_core::ReferenceAccess) -> Option<
 }
 
 impl Records<'_> {
+    pub(crate) fn primitive_types(
+        &self,
+    ) -> impl Iterator<Item = (ValueType, StructuralTypeId)> + '_ {
+        self.primitives
+            .iter()
+            .map(|(value_type, _, id)| (*value_type, *id))
+    }
     pub(super) fn multiplicity(
         &self,
         record: StructuralTypeId,
@@ -2355,6 +2362,7 @@ impl<'a> Lowering<'a> {
                             },
                         );
                         self.parameter(block, value, scalar_type)?;
+                        self.qualify(value, field.value_type.qualification())?;
                         payload_fields.push(field.id);
                         Some(value)
                     }

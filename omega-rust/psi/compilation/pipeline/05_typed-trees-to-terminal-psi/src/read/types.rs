@@ -889,6 +889,13 @@ impl Program<'_> {
         // A domain's predicates are judged where the place declared in it
         // has a contract to join (`predicates`); each place without one
         // refuses them there by name.
+        if !self
+            .declared_domains
+            .iter()
+            .any(|(symbol, _)| *symbol == domain)
+        {
+            self.declared_domains.push((domain, plain));
+        }
         Ok(())
     }
 

@@ -127,10 +127,19 @@ pub(crate) fn machine(
     outcomes: &IdTable<MachineId, Outcome>,
     records: &Records<'_>,
     requirement: bool,
+    qualifications: &mut crate::qualifications::Qualifications,
 ) -> Checked<Lowered> {
     let body = terminal_check_tables::row(bodies, id, id, Construct::Machine)?;
     let signature = signatures.get(id.into(), id)?;
-    let mut lowering = Lowering::new(id, signature, signatures, outcomes, records, &body.slots);
+    let mut lowering = Lowering::new(
+        id,
+        signature,
+        signatures,
+        outcomes,
+        records,
+        &body.slots,
+        qualifications,
+    );
     let entry = lowering.block(SourceOrigin::Unpositioned(Unpositioned::MachineEntry));
     let (formals, result) = lowering.formals()?;
     lowering.enter(entry);
@@ -174,6 +183,7 @@ pub(crate) fn boundary(
         terminal_psi::CheckedBoundaryCallable,
     ),
     service: semantic_vocabulary::ServiceId,
+    qualifications: &mut crate::qualifications::Qualifications,
 ) -> Checked<terminal_psi::BoundaryMachineDeclaration> {
     let signature = signatures.get(
         semantic_vocabulary::TargetMachineCallable::Boundary(id),
@@ -201,8 +211,28 @@ pub(crate) fn boundary(
         outcomes,
         records,
         &signature.parameters,
+        qualifications,
     );
-    let (formals, result) = lowering.formals()?;
+    let (mut formals, mut result) = lowering.formals()?;
+    for formal in &mut formals.scalars {
+        lowering.qualify_declaration(formal)?;
+    }
+    if let TerminalMachineResult::Scalar(result) = &mut result {
+        lowering.qualify_declaration(result)?;
+    }
+    let mut scalar_domain_requirements = Vec::new();
+    for (index, formal) in formals.scalars.iter().enumerate() {
+        for domain in lowering
+            .qualifications
+            .members(caller, formal.qualifications)?
+        {
+            scalar_domain_requirements.push(terminal_psi::ScalarDomainRequirement {
+                argument_index: u32::try_from(index)
+                    .map_err(|_| unavailable("boundary scalar formal ordinal overflow"))?,
+                domain: *domain,
+            });
+        }
+    }
     // effects.md: a boundary requirement "publishes one stable interface
     // across providers", so its written ceiling is both what it may reach
     // and what a caller is charged.
@@ -221,7 +251,10 @@ pub(crate) fn boundary(
     let result = match result {
         TerminalMachineResult::Unit => terminal_psi::BoundaryMachineResult::Unit,
         TerminalMachineResult::Scalar(result) => {
-            terminal_psi::BoundaryMachineResult::Scalar(result.scalar_type.into())
+            terminal_psi::BoundaryMachineResult::Scalar(semantic_vocabulary::QualifiedScalarType {
+                scalar_type: result.scalar_type,
+                qualifications: result.qualifications,
+            })
         }
         TerminalMachineResult::Structural(result) => {
             terminal_psi::BoundaryMachineResult::Structural(
@@ -257,12 +290,11 @@ pub(crate) fn boundary(
         crash_routes: crash_routes.to_vec(),
         scalar_requires: signature.requires.clone(),
         scalar_ensures: signature.ensures.clone(),
-        // The shared signature reader refuses declared domains, reference
-        // results, suspension and blocking before this point. Those
-        // actual unsupported dimensions cannot be replaced by empty claims.
+        // Scalar qualifications and predicates belong to this interface,
+        // independently of any selected provider's implementation.
         requires: Vec::new(),
         normal_qualifications: Vec::new(),
-        scalar_domain_requirements: Vec::new(),
+        scalar_domain_requirements,
         reference_outputs: Vec::new(),
         program_local_root_introductions: Vec::new(),
         content_guarantees: Vec::new(),
@@ -339,6 +371,7 @@ pub(crate) fn declaration_contract(
     signatures: Signatures<'_>,
     outcomes: &IdTable<MachineId, Outcome>,
     records: &Records<'_>,
+    qualifications: &mut crate::qualifications::Qualifications,
 ) -> Checked<MachineContract> {
     let selected = selected_body
         .map(|body| terminal_check_tables::row(outcomes, body, caller, Construct::Machine))
@@ -373,6 +406,7 @@ pub(crate) fn declaration_contract(
         outcomes,
         records,
         &signature.parameters,
+        qualifications,
     );
     let (formals, result) = lowering.formals()?;
     let ensures = signature
@@ -391,9 +425,9 @@ pub(crate) fn declaration_contract(
             })
         })
         .collect::<Checked<Vec<_>>>()?;
-    Ok(contract_header(
-        id, signature, formals, result, ensures, &outcome,
-    ))
+    let mut contract = contract_header(id, signature, formals, result, ensures, &outcome);
+    lowering.qualify_contract(&mut contract)?;
+    Ok(contract)
 }
 
 impl<'a> Lowering<'a> {
@@ -404,6 +438,7 @@ impl<'a> Lowering<'a> {
         outcomes: &'a IdTable<MachineId, Outcome>,
         records: &'a Records<'a>,
         slot_types: &'a [ValueType],
+        qualifications: &'a mut crate::qualifications::Qualifications,
     ) -> Self {
         Self {
             id,
@@ -426,6 +461,8 @@ impl<'a> Lowering<'a> {
             slots: vec![None; slot_types.len()],
             selected: Vec::new(),
             slot_types,
+            qualifications,
+            value_qualifications: Vec::new(),
             published: Vec::new(),
             heads: Vec::new(),
             invariants: Vec::new(),
@@ -514,6 +551,7 @@ impl Lowering<'_> {
                         return Err(self.internal("scalar formals are not the first values"));
                     }
                     formals.scalars.push(declaration(value, scalar_type));
+                    self.qualify(value, value_type.qualification())?;
                     formals.order.push(BoundaryParameterKind::Scalar);
                     *self.slot_mut(position)? = Some(Bound::Scalar(value));
                 }
@@ -559,6 +597,7 @@ impl Lowering<'_> {
                 if value.get() != formals.scalars.len() as u64 + 1 {
                     return Err(self.internal("the result does not follow the scalar formals"));
                 }
+                self.qualify(value, value_type.qualification())?;
                 TerminalMachineResult::Scalar(declaration(value, scalar_type))
             }
             Some(ValueType::Record(record, _, _)) => {
@@ -597,6 +636,7 @@ impl Lowering<'_> {
                 return Err(self.internal("erased formals do not follow the result"));
             }
             formals.erased.push(declaration(value, scalar_type));
+            self.qualify(value, signature.parameters[*position].qualification())?;
             *self.slot_mut(*position)? = Some(Bound::Erased(Witness::Value(value, scalar_type)));
         }
         let bindings: Vec<_> = formals
@@ -624,6 +664,11 @@ struct Lowering<'a> {
     signatures: Signatures<'a>,
     outcomes: &'a IdTable<MachineId, Outcome>,
     records: &'a Records<'a>,
+    qualifications: &'a mut crate::qualifications::Qualifications,
+    /// Complete declared types indexed by the values this lowering minted.
+    /// Synthetic proof temporaries have no qualification; expression results
+    /// and formals set theirs through the same owner before publication.
+    value_qualifications: Vec<Option<crate::body::Qualification>>,
     /// What each root place is and the record type it holds, indexed by its
     /// `PlaceId`: the machine's structural place declarations.
     roots: IdTable<PlaceId, (StructuralPlaceKind, StructuralTypeId)>,
@@ -758,6 +803,56 @@ impl<'a> Lowering<'a> {
         })
     }
 
+    fn qualify(
+        &mut self,
+        value: ValueId,
+        qualification: crate::body::Qualification,
+    ) -> Checked<()> {
+        self.value_qualifications
+            .resize(self.tables.values.len(), None);
+        let slot = usize::try_from(value.get() - 1)
+            .ok()
+            .and_then(|index| self.value_qualifications.get_mut(index))
+            .ok_or_else(|| terminal_check_tables::Refusal {
+                reason: RefusalReason::ForeignIdentity,
+                machine: self.id,
+                concerns: Construct::Machine,
+                detail: "a qualification names a value outside this lowering".into(),
+            })?;
+        if slot.is_some_and(|previous| previous != qualification) {
+            return Err(self.internal("a qualification change reused its operand's value identity"));
+        }
+        *slot = Some(qualification);
+        Ok(())
+    }
+
+    fn qualify_declaration(&mut self, value: &mut ValueDeclaration) -> Checked<()> {
+        let qualification = self
+            .value_qualifications
+            .get((value.id.get() - 1) as usize)
+            .copied()
+            .flatten()
+            .unwrap_or(crate::body::Qualification::NONE);
+        value.qualifications =
+            self.qualifications
+                .scalar(self.id, value.scalar_type, qualification)?;
+        Ok(())
+    }
+
+    fn qualify_contract(&mut self, contract: &mut MachineContract) -> Checked<()> {
+        for value in contract
+            .parameters
+            .iter_mut()
+            .chain(&mut contract.erased_scalar_formals)
+        {
+            self.qualify_declaration(value)?;
+        }
+        if let TerminalMachineResult::Scalar(value) = &mut contract.result {
+            self.qualify_declaration(value)?;
+        }
+        Ok(())
+    }
+
     /// Lowers one body's statements into the open block, and the implicit
     /// Unit completion when they fall off the end.
     ///
@@ -855,6 +950,7 @@ impl<'a> Lowering<'a> {
                 let value =
                     self.value(scalar_type, ValueOrigin::BlockParameter { block, position });
                 self.parameter(block, value, scalar_type)?;
+                self.qualify(value, value_type.qualification())?;
                 parameters.push(value);
             }
             if !signature.requires.is_empty() {
@@ -1085,7 +1181,7 @@ impl<'a> Lowering<'a> {
         }
         let outcome =
             terminal_check_tables::row(self.outcomes, self.id, self.id, Construct::Machine)?;
-        let contract = contract_header(
+        let mut contract = contract_header(
             contract_id,
             self.signature,
             formals,
@@ -1093,6 +1189,17 @@ impl<'a> Lowering<'a> {
             ensures,
             outcome,
         );
+        self.qualify_contract(&mut contract)?;
+        for block in &mut blocks {
+            for value in &mut block.parameters {
+                self.qualify_declaration(value)?;
+            }
+            for operation in &mut block.operations {
+                if let terminal_psi::OperationResult::Scalar(value) = &mut operation.result {
+                    self.qualify_declaration(value)?;
+                }
+            }
+        }
         let structural_places = self
             .roots
             .iter()
@@ -1133,6 +1240,7 @@ impl<'a> Lowering<'a> {
             machine.ranked_scc =
                 ranking::rank(&machine, head, &mut self.tables, &mut self.sources)?;
         }
+        self.qualifications.complete(&machine)?;
         // A scalar machine has no structural place, so its place, root and
         // write tables are empty; `places` filled them for every record.
         Ok(Lowered {
