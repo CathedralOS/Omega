@@ -103,3 +103,6 @@ pub use terminal_psi_to_abstract_operations::{
     TerminalIntegerComparisonOccurrenceProposal, TerminalNativeBoundaryApplications,
     TerminalNativeOccurrences, TerminalNativeProviders, TerminalNativeRealizationProposal,
 };
+
+// The actual invocation records retained by source and failure reports.
+pub use build_time_evaluation::SourceCompletionAccounting;

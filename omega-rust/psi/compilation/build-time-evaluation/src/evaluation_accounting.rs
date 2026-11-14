@@ -182,8 +182,8 @@ pub(crate) use canonical_scalar::CanonicalScalarScope;
 /// Only actual canonical-artifact execution contributes an evaluation receipt.
 #[derive(Debug, Clone)]
 pub enum PureEvaluationRecord {
-    CanonicalScalar(CanonicalScalarEvaluationReceipt),
-    Invocation(PureTerminalEvaluationReceipt),
+    CanonicalScalar(Arc<CanonicalScalarEvaluationReceipt>),
+    Invocation(Arc<PureTerminalEvaluationReceipt>),
 }
 
 impl compiler_storage::Record for PureEvaluationRecord {
@@ -219,6 +219,14 @@ impl compiler_storage::Record for PureEvaluationRecord {
 }
 
 impl PureEvaluationRecord {
+    // A transient ordering of actual immutable occurrences, never a semantic
+    // cache key. Output order remains the incoming account's own order.
+    fn occurrence(&self) -> (u8, usize) {
+        match self {
+            Self::CanonicalScalar(receipt) => (0, Arc::as_ptr(receipt) as usize),
+            Self::Invocation(receipt) => (1, Arc::as_ptr(receipt) as usize),
+        }
+    }
     fn has_complete_usage(&self) -> bool {
         match self {
             Self::CanonicalScalar(receipt) => receipt.returned(),
@@ -527,16 +535,15 @@ pub(crate) fn pure_terminal_invocation_account()
 
 #[derive(Debug, Clone, Default, compiler_storage::Record)]
 pub struct SourceCompletionAccounting {
-    receipts: Arc<[PureEvaluationRecord]>,
+    receipts: Arc<Vec<PureEvaluationRecord>>,
     reused: bool,
 }
 
 impl SourceCompletionAccounting {
     pub(crate) fn append_invocation(&mut self, receipt: PureTerminalEvaluationReceipt) {
-        self.append(Self {
-            receipts: vec![PureEvaluationRecord::Invocation(receipt)].into(),
-            reused: false,
-        });
+        // This constructor just completed one actual run, so its receipt is
+        // fresh. Share it when accounts later join; do not recopy its payload.
+        Arc::make_mut(&mut self.receipts).push(PureEvaluationRecord::Invocation(Arc::new(receipt)));
     }
 
     pub fn was_reused(&self) -> bool {
@@ -578,23 +585,51 @@ impl SourceCompletionAccounting {
         if records.is_empty() {
             return;
         }
-        self.append(Self {
-            receipts: records
+        Arc::make_mut(&mut self.receipts).extend(
+            records
                 .into_iter()
-                .map(PureEvaluationRecord::CanonicalScalar)
-                .collect::<Vec<_>>()
-                .into(),
-            reused: false,
-        });
+                .map(|receipt| PureEvaluationRecord::CanonicalScalar(Arc::new(receipt))),
+        );
     }
 
     pub fn append(&mut self, other: Self) {
+        self.reused |= other.reused;
         if self.receipts.is_empty() {
-            *self = other;
-        } else if !other.receipts.is_empty() {
-            let mut receipts = self.receipts.to_vec();
-            receipts.extend(other.receipts.iter().cloned());
-            self.receipts = receipts.into();
+            self.receipts = other.receipts;
+        } else if !other.receipts.is_empty() && !Arc::ptr_eq(&self.receipts, &other.receipts) {
+            // Prepare membership over these actual occurrences, not the
+            // universe of possible IDs. None sorts before any incoming
+            // position, so an existing occurrence always wins the union.
+            let mut occurrences = self
+                .receipts
+                .iter()
+                .map(|receipt| (receipt.occurrence(), None))
+                .chain(
+                    other
+                        .receipts
+                        .iter()
+                        .enumerate()
+                        .map(|(position, receipt)| (receipt.occurrence(), Some(position))),
+                )
+                .collect::<Vec<_>>();
+            occurrences.sort_unstable();
+            occurrences.dedup_by_key(|(occurrence, _)| *occurrence);
+            let mut incoming = vec![false; other.receipts.len()];
+            for (_, position) in occurrences {
+                if let Some(position) = position {
+                    incoming[position] = true;
+                }
+            }
+            if incoming.iter().any(|include| *include) {
+                Arc::make_mut(&mut self.receipts).extend(
+                    other
+                        .receipts
+                        .iter()
+                        .zip(incoming)
+                        .filter(|(_, include)| *include)
+                        .map(|(receipt, _)| receipt.clone()),
+                );
+            }
         }
     }
 }

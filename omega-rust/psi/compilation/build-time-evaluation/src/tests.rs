@@ -1238,18 +1238,19 @@ fn a_later_constant_admission_failure_keeps_the_work_of_earlier_jobs() {
 
 #[test]
 fn an_exhausted_constant_job_keeps_its_failed_invocation_usage() {
-    let (_, _, base, pending) = constant_base(&[(
-        "main.omg",
-        r#"
-        const VALUE:u64 = countdown(20000u64);
-        machine countdown(remaining:u64)->u64 terminates by remaining {
-            transition remaining > 0 {
-                true -> countdown(remaining - 1u64)
-                _ -> 4u64
-            }
-        }
-    "#,
-    )]);
+    let mut text = String::from("machine leaf() {}\n");
+    let mut previous = String::from("leaf");
+    for level in 0..18 {
+        let name = format!("branch_{level}");
+        text.push_str(&format!(
+            "machine {name}() {{ {previous}(); {previous}(); }}\n"
+        ));
+        previous = name;
+    }
+    text.push_str(&format!(
+        "machine answer()->u64 {{ {previous}(); 4u64 }} const VALUE:u64=answer();"
+    ));
+    let (_, _, base, pending) = constant_base(&[("main.omg", &text)]);
     let mut program = base.typed().clone();
     pending.evaluate_or_defer_recorded(&mut program).unwrap();
     let mut accounting = crate::SourceCompletionAccounting::default();
@@ -1285,4 +1286,59 @@ fn an_exhausted_constant_job_keeps_its_failed_invocation_usage() {
     ));
     accounting.validate_charges().unwrap();
     assert!(program.const_declarations()[0].evaluated_value.is_none());
+}
+
+#[test]
+fn shared_account_joins_retain_one_record_per_actual_invocation() {
+    let (_, _, base, pending) = constant_base(&[(
+        "main.omg",
+        "const VALUE:u64=answer(); machine answer()->u64 { 4u64 }",
+    )]);
+    let mut program = base.typed().clone();
+    let recorded = pending.evaluate_requested_constants(&mut program).unwrap();
+    let mut accounting = recorded.accounting.clone();
+    accounting.append(recorded.accounting.clone());
+    assert_eq!(accounting.receipts().len(), 1);
+    let requester = program.const_declarations()[0].symbol;
+    let answer = program.realized_machine_named("answer").unwrap().symbol;
+    let prepared = crate::PreparedBuildMachineProgram::prepare(&program, None).unwrap();
+    let entry = prepared.entry(requester, answer, &[]).unwrap();
+    let mut separate = crate::SourceCompletionAccounting::default();
+    for _ in 0..2 {
+        entry
+            .invoke_recorded(
+                crate::InvocationTarget {
+                    name: None,
+                    layout_target: None,
+                    carrier_layout: None,
+                    address_model: None,
+                },
+                &mut separate,
+            )
+            .unwrap();
+    }
+    assert_eq!(
+        separate.receipts().len(),
+        2,
+        "equal invocations are genuinely separate executions"
+    );
+    let mut projected = recorded.accounting.clone();
+    projected.append(separate);
+    accounting.append(projected.clone());
+    accounting.append(projected.clone());
+    assert_eq!(accounting.receipts().len(), 3);
+    for (actual, expected) in accounting.receipts().iter().zip(projected.receipts()) {
+        let (
+            crate::PureEvaluationRecord::Invocation(actual),
+            crate::PureEvaluationRecord::Invocation(expected),
+        ) = (actual, expected)
+        else {
+            panic!("actual invocations")
+        };
+        assert!(
+            std::sync::Arc::ptr_eq(actual, expected),
+            "joins preserve the incoming order after retained occurrences"
+        );
+    }
+    accounting.validate_charges().unwrap();
 }

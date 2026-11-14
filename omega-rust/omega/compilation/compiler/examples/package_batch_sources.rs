@@ -437,7 +437,9 @@ fn measure_component_scalars(
             assert_eq!(target, expected_target, "target order and identity");
             match expected_failure {
                 Some(reason) => {
-                    let diagnostics = output.expect_err("false component contract must reject");
+                    let diagnostics = output
+                        .expect_err("false component contract must reject")
+                        .into_diagnostics();
                     assert!(
                         diagnostics
                             .iter()

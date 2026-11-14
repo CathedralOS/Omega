@@ -140,7 +140,42 @@ impl From<crate::CompileFailure> for CompilationProductError {
     }
 }
 
+impl From<CompilationProductError> for crate::CompileFailure {
+    fn from(error: CompilationProductError) -> Self {
+        match error {
+            CompilationProductError::ProductionAttempt {
+                diagnostics,
+                accounting,
+            } => Self::source_completion(diagnostics, accounting),
+            other => Self::Diagnostics(other.into_diagnostics()),
+        }
+    }
+}
+
 impl CompilationProductError {
+    pub fn with_source_completion_accounting(
+        self,
+        mut accounting: build_time_evaluation::SourceCompletionAccounting,
+    ) -> Self {
+        match self {
+            Self::ProductionAttempt {
+                diagnostics,
+                accounting: attempted,
+            } => {
+                accounting.append(attempted);
+                Self::ProductionAttempt {
+                    diagnostics,
+                    accounting,
+                }
+            }
+            other if accounting.receipts().is_empty() => other,
+            other => Self::ProductionAttempt {
+                diagnostics: other.into_diagnostics(),
+                accounting,
+            },
+        }
+    }
+
     pub fn into_diagnostics(self) -> Vec<Diagnostic> {
         match self {
             Self::TrustAdmission(diagnostics) | Self::Production(diagnostics) => diagnostics,
