@@ -1572,7 +1572,7 @@ mod tests {
                     .map(|(index, name)| crate::RecordField {
                         id: StructuralFieldId::new(index as u64 + 1).unwrap(),
                         identity: name.into(),
-                        value_type: ValueType::plain(ScalarType::Bool),
+                        value_type: ValueType::plain(ScalarType::Boolean),
                         byte_predicates: Default::default(),
                     })
                     .collect(),
