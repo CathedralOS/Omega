@@ -11,15 +11,15 @@ twin changes its producer to `0xFF80_0124u32` without changing the consuming obl
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| local | [program](local/main.omg) | [twin](local/invalid/main.omg) |
-| field | [program](field/main.omg) | [twin](field/invalid/main.omg) |
-| parameter | [program](parameter/main.omg) | [twin](parameter/invalid/main.omg) |
-| call result | [program](call_result/main.omg) | [twin](call_result/invalid/main.omg) |
-| match join | [program](match_join/main.omg) | [twin](match_join/invalid/main.omg) |
-| const name | [program](const_name/main.omg) | [twin](const_name/invalid/main.omg) |
-| nested machine | [program](other_state/main.omg) | [twin](other_state/invalid/main.omg) |
-| other machine | [program](other_machine/main.omg) | [twin](other_machine/invalid/main.omg) |
-| target body | [program](target_body/main.omg) | [twin](target_body/invalid/main.omg) |
+| local | [program](local/main.omg) | [twin](invalid_local/main.omg) |
+| field | [program](field/main.omg) | [twin](invalid_field/main.omg) |
+| parameter | [program](parameter/main.omg) | [twin](invalid_parameter/main.omg) |
+| call result | [program](call_result/main.omg) | [twin](invalid_call_result/main.omg) |
+| match join | [program](match_join/main.omg) | [twin](invalid_match_join/main.omg) |
+| const name | [program](const_name/main.omg) | [twin](invalid_const_name/main.omg) |
+| nested machine | [program](other_state/main.omg) | [twin](invalid_other_state/main.omg) |
+| other machine | [program](other_machine/main.omg) | [twin](invalid_other_machine/main.omg) |
+| target body | [program](target_body/main.omg) | [twin](invalid_target_body/main.omg) |
 
 The [original bit-wrapper rung](bit_wrapper_rung/main.omg) isolates the ordinary
 call contract before generic library admission. All positives declare exit 0

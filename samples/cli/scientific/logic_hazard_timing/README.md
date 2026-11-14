@@ -18,7 +18,7 @@ Read one mode byte from stdin (the remaining stream is unused):
 | `0` | 1 tick | transport | low at 12, high at 15, width 3 |
 | `1` | 4 ticks | transport | low at 15, high at 18, width 3 |
 | `2` | 4 ticks | inertial | no output pulse |
-| `d` | 0 ticks | invalid netlist control | rejection, exit 3 |
+| `d` | 0 ticks | ../invalid_logic_hazard_timing netlist control | rejection, exit 3 |
 
 Unknown bytes and EOF reject with exit 2. Valid modes exit 0 only when all
 truth checks, the entire waveform digest, output-change/glitch counts and final
@@ -48,7 +48,7 @@ python3 samples/cli/independent/logic_hazard_timing/reference.py
 python3 samples/cli/independent/logic_hazard_timing/validate.py --omega "$OMEGA"
 ```
 
-Check `invalid/main.omg` directly; checking reports the obligation before
+Check `../invalid_logic_hazard_timing/main.omg` directly; checking reports the obligation before
 requiring an accepted deployable entry. Its complete separate entrypoint calls `positive_delay(0)` in violation of a
 positive-delay precondition. Validation requires that intended diagnostic;
 unrelated compilation refusal is not accepted as evidence.
@@ -72,7 +72,7 @@ All numerical tolerances are exactly zero.
 
 Assignment record: ADD08; namespace and isolated branch owned end to end;
 acceptance is check/native/Terminal, frozen truth/trace outputs and independent
-invalid controls; active-worker dependencies none. ADD08 was absent from the
+../invalid_logic_hazard_timing controls; active-worker dependencies none. ADD08 was absent from the
 board at assignment time, so no unrelated board item was claimed or modified.
 The registry status request timed out with exit 3; ownership remains recorded
 here while work proceeds in isolation.

@@ -21,15 +21,15 @@ through both writes and subsequent readback.
 | Place | Positive | Reject twin | Control twin | Fact transport |
 | --- | --- | --- | --- | --- |
 | root | [`main.omg`](main.omg) | — | — | literal disjoint windows in root main |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | `local/controls/overlap/` | local scalar initialized to 2 |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | `field/controls/overlap/` | record field initialized to 2 |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | `parameter/controls/overlap/` | parameter requiring equality to 2 |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `call_result/controls/overlap/` | result guaranteeing equality to 2 |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `match_join/controls/overlap/` | both arms establish 2; caller exercises both |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `const_name/controls/overlap/` | named constant 2 |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `other_state/controls/overlap/` | successor parameter requiring 2 |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `other_machine/controls/overlap/` | forwarding call to machine requiring 2 |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `target_body/controls/overlap/` | four target-scoped bodies requiring 2 |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | `local/controls/overlap/` | local scalar initialized to 2 |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | `field/controls/overlap/` | record field initialized to 2 |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | `parameter/controls/overlap/` | parameter requiring equality to 2 |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | `call_result/controls/overlap/` | result guaranteeing equality to 2 |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | `match_join/controls/overlap/` | both arms establish 2; caller exercises both |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | `const_name/controls/overlap/` | named constant 2 |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | `other_state/controls/overlap/` | successor parameter requiring 2 |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | `other_machine/controls/overlap/` | forwarding call to machine requiring 2 |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | `target_body/controls/overlap/` | four target-scoped bodies requiring 2 |
 
 Every project has an `invalid/` twin (and matching `controls/overlap/`). That twin
 changes only the transported boundary to 1 (and consistent argument/contract occurrences).

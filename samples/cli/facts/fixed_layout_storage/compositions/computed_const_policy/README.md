@@ -6,7 +6,7 @@ it available when checking the supplied argument.
 The policy does not use `Marker` in its plan; unused arguments must still be valid.
 
 This [program](main.omg) writes a two-field payload through the selected layout
-and checks that its value byte is 7. The [control](invalid/main.omg) removes only
+and checks that its value byte is 7. The [control](../invalid_computed_const_policy/main.omg) removes only
 the bound from the requirement and its implementation. It must reject for
 unproved arithmetic even though the executable caller supplies 7.
 

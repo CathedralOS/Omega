@@ -18,15 +18,15 @@ remain usable without granting reference preservation on its return.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| local | [source](local/main.omg) | [weakened work](local/invalid/main.omg) |
-| field | [source](field/main.omg) | [weakened work](field/invalid/main.omg) |
-| parameter | [source](parameter/main.omg) | [weakened work](parameter/invalid/main.omg) |
-| call result | [source](call_result/main.omg) | [weakened work](call_result/invalid/main.omg) |
-| match join | [source](match_join/main.omg) | [weakened work](match_join/invalid/main.omg) |
-| const name | [source](const_name/main.omg) | [weakened work](const_name/invalid/main.omg) |
-| nested machine | [source](other_state/main.omg) | [weakened work](other_state/invalid/main.omg) |
-| another machine | [source](other_machine/main.omg) | [weakened work](other_machine/invalid/main.omg) |
-| target body | [source](target_body/main.omg) | [weakened work](target_body/invalid/main.omg) |
+| local | [source](local/main.omg) | [weakened work](invalid_local/main.omg) |
+| field | [source](field/main.omg) | [weakened work](invalid_field/main.omg) |
+| parameter | [source](parameter/main.omg) | [weakened work](invalid_parameter/main.omg) |
+| call result | [source](call_result/main.omg) | [weakened work](invalid_call_result/main.omg) |
+| match join | [source](match_join/main.omg) | [weakened work](invalid_match_join/main.omg) |
+| const name | [source](const_name/main.omg) | [weakened work](invalid_const_name/main.omg) |
+| nested machine | [source](other_state/main.omg) | [weakened work](invalid_other_state/main.omg) |
+| another machine | [source](other_machine/main.omg) | [weakened work](invalid_other_machine/main.omg) |
+| target body | [source](target_body/main.omg) | [weakened work](invalid_target_body/main.omg) |
 
 Each twin changes only the producing invocation's work domain from `> 0` to
 `>= 0`. The guards, callback contract and consuming arithmetic remain unchanged.

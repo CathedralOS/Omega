@@ -16,15 +16,15 @@ and the selected against the other live element (`selected == first`,
 
 | Place | Positive | Fact-sensitive reject twin |
 | --- | --- | --- |
-| local | `local/main.omg` | `local/invalid/main.omg` (`local/controls/held_element/main.omg`) |
-| field | `field/main.omg` | `field/invalid/main.omg` (`field/controls/held_element/main.omg`) |
-| parameter | `parameter/main.omg` | `parameter/invalid/main.omg` (`parameter/controls/held_element/main.omg`) |
-| call result | `call_result/main.omg` | `call_result/invalid/main.omg` (`call_result/controls/held_element/main.omg`) |
-| match join | `match_join/main.omg` | `match_join/invalid/main.omg` (`match_join/controls/held_element/main.omg`) |
-| const name | `const_name/main.omg` | `const_name/invalid/main.omg` (`const_name/controls/held_element/main.omg`) |
-| a nested machine | `other_state/main.omg` | `other_state/invalid/main.omg` (`other_state/controls/held_element/main.omg`) |
-| another machine | `other_machine/main.omg` | `other_machine/invalid/main.omg` (`other_machine/controls/held_element/main.omg`) |
-| another target body | `target_body/main.omg` | `target_body/invalid/main.omg` (`target_body/controls/held_element/main.omg`) |
+| local | `local/main.omg` | `invalid_local/main.omg` (`local/controls/held_element/main.omg`) |
+| field | `field/main.omg` | `invalid_field/main.omg` (`field/controls/held_element/main.omg`) |
+| parameter | `parameter/main.omg` | `invalid_parameter/main.omg` (`parameter/controls/held_element/main.omg`) |
+| call result | `call_result/main.omg` | `invalid_call_result/main.omg` (`call_result/controls/held_element/main.omg`) |
+| match join | `match_join/main.omg` | `invalid_match_join/main.omg` (`match_join/controls/held_element/main.omg`) |
+| const name | `const_name/main.omg` | `invalid_const_name/main.omg` (`const_name/controls/held_element/main.omg`) |
+| a nested machine | `other_state/main.omg` | `invalid_other_state/main.omg` (`other_state/controls/held_element/main.omg`) |
+| another machine | `other_machine/main.omg` | `invalid_other_machine/main.omg` (`other_machine/controls/held_element/main.omg`) |
+| another target body | `target_body/main.omg` | `invalid_target_body/main.omg` (`target_body/controls/held_element/main.omg`) |
 
 Every positive place and the root `main.omg` probe binds `ProgramEntry` for
 `windows_x86_64`, `linux_x86_64`, `macos_arm64` and `linux_arm64` and declares

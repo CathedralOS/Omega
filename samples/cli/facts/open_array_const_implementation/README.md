@@ -32,15 +32,15 @@ element) is the implementation's identity.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| local | [source](local/main.omg) | [invalid](local/invalid/main.omg) |
-| field | [source](field/main.omg) | [invalid](field/invalid/main.omg) |
-| parameter | [source](parameter/main.omg) | [invalid](parameter/invalid/main.omg) |
-| call result | [source](call_result/main.omg) | [invalid](call_result/invalid/main.omg) |
-| match join | [source](match_join/main.omg) | [invalid](match_join/invalid/main.omg) |
-| const name | [source](const_name/main.omg) | [invalid](const_name/invalid/main.omg) |
-| nested machine | [source](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
-| other machine | [source](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
-| target body | [source](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
+| local | [source](local/main.omg) | [invalid](invalid_local/main.omg) |
+| field | [source](field/main.omg) | [invalid](invalid_field/main.omg) |
+| parameter | [source](parameter/main.omg) | [invalid](invalid_parameter/main.omg) |
+| call result | [source](call_result/main.omg) | [invalid](invalid_call_result/main.omg) |
+| match join | [source](match_join/main.omg) | [invalid](invalid_match_join/main.omg) |
+| const name | [source](const_name/main.omg) | [invalid](invalid_const_name/main.omg) |
+| nested machine | [source](other_state/main.omg) | [invalid](invalid_other_state/main.omg) |
+| other machine | [source](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) |
+| target body | [source](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
 Each twin changes only the selected implementation's second element from
 `Base + 4` to `Base + 3`; the required argument `[Base, Base + 4]`, the bound

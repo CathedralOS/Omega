@@ -1,0 +1,18 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "owner_target_body");
+    let mut shared_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../library" });
+    dependency::with_alias(&mut shared_dependency, "shared");
+    let shared_registration: DependencyRegistration = Build::dependency(builder, shared_dependency);
+    Build::bind(builder, windows_x86_64::ProgramEntry, x86_entry);
+    Build::bind(builder, linux_x86_64::ProgramEntry, x86_entry);
+    Build::bind(builder, macos_arm64::ProgramEntry, arm_entry);
+    Build::bind(builder, linux_arm64::ProgramEntry, arm_entry);
+    Build::select_provider<SelectedBodyCheck, X86BodyCheck>(builder, windows_x86_64);
+    Build::select_provider<SelectedReceive, X86Receive>(builder, windows_x86_64);
+    Build::select_provider<SelectedBodyCheck, X86BodyCheck>(builder, linux_x86_64);
+    Build::select_provider<SelectedReceive, X86Receive>(builder, linux_x86_64);
+    Build::select_provider<SelectedBodyCheck, ArmBodyCheck>(builder, macos_arm64);
+    Build::select_provider<SelectedReceive, ArmReceive>(builder, macos_arm64);
+    Build::select_provider<SelectedBodyCheck, ArmBodyCheck>(builder, linux_arm64);
+    Build::select_provider<SelectedReceive, ArmReceive>(builder, linux_arm64);
+}

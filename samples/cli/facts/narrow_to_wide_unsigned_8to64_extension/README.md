@@ -14,15 +14,15 @@ Subsequent exact 64-bit subtractions `180u64 - wide` and `wide - 50u64` are prov
 | Place | Positive Program | Reject Twin (invalid) | Transport Mechanism |
 | --- | --- | --- | --- |
 | root | [`main.omg`](main.omg) | — | canonical root witness with bounded u8 zero-extended to u64 and dual margin subtractions |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | zero-extended 64-bit value is copied into a local binding before exact subtractions |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | zero-extended 64-bit value is stored into and read from a record field before exact subtractions |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | zero-extended 64-bit value is passed as an explicit machine parameter before exact subtractions |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | zero-extended 64-bit value is returned from a dedicated helper machine |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both arms of a match expression unify the zero-extended 64-bit value |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constants supply upper and lower ceilings for exact subtractions |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition carries the zero-extended 64-bit value into a successor machine |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an independent forwarding machine transports the zero-extended 64-bit value |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target provides a target-scoped machine body performing the zero extension and subtractions |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | zero-extended 64-bit value is copied into a local binding before exact subtractions |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | zero-extended 64-bit value is stored into and read from a record field before exact subtractions |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | zero-extended 64-bit value is passed as an explicit machine parameter before exact subtractions |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | zero-extended 64-bit value is returned from a dedicated helper machine |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | both arms of a match expression unify the zero-extended 64-bit value |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | named constants supply upper and lower ceilings for exact subtractions |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | a state transition carries the zero-extended 64-bit value into a successor machine |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | an independent forwarding machine transports the zero-extended 64-bit value |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | each hosted target provides a target-scoped machine body performing the zero extension and subtractions |
 
 ## Execution
 

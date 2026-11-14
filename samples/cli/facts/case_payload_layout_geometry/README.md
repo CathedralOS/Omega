@@ -12,15 +12,15 @@ accompanied by `<place>/invalid/` reject twins:
 | Place | Positive Program | Invalid Reject Twin | Carrier / Transport |
 | --- | --- | --- | --- |
 | root | [main.omg](main.omg) | — | layout queries evaluate discriminant-plus-payload size and alignment directly |
-| local | [local/main.omg](local/main.omg) | [local/invalid/main.omg](local/invalid/main.omg) | case payload size and alignment bound to local variables |
-| field | [field/main.omg](field/main.omg) | [field/invalid/main.omg](field/invalid/main.omg) | case payload size and alignment stored in and projected from record fields |
-| parameter | [parameter/main.omg](parameter/main.omg) | [parameter/invalid/main.omg](parameter/invalid/main.omg) | case payload size and alignment passed as explicit machine parameters |
-| call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | case payload size and alignment returned across machine call boundaries |
-| match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | case payload size and alignment preserved across match join convergence |
-| const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | case payload size and alignment evaluated in named compile-time constants |
-| a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | case payload size and alignment forwarded as arguments across state transition |
-| another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | case payload layout geometry computed in and delegated through an intermediate machine |
-| another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | case payload layout geometry computed across target-scoped machine bodies |
+| local | [local/main.omg](local/main.omg) | [invalid_local/main.omg](invalid_local/main.omg) | case payload size and alignment bound to local variables |
+| field | [field/main.omg](field/main.omg) | [invalid_field/main.omg](invalid_field/main.omg) | case payload size and alignment stored in and projected from record fields |
+| parameter | [parameter/main.omg](parameter/main.omg) | [invalid_parameter/main.omg](invalid_parameter/main.omg) | case payload size and alignment passed as explicit machine parameters |
+| call result | [call_result/main.omg](call_result/main.omg) | [invalid_call_result/main.omg](invalid_call_result/main.omg) | case payload size and alignment returned across machine call boundaries |
+| match join | [match_join/main.omg](match_join/main.omg) | [invalid_match_join/main.omg](invalid_match_join/main.omg) | case payload size and alignment preserved across match join convergence |
+| const name | [const_name/main.omg](const_name/main.omg) | [invalid_const_name/main.omg](invalid_const_name/main.omg) | case payload size and alignment evaluated in named compile-time constants |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [invalid_other_state/main.omg](invalid_other_state/main.omg) | case payload size and alignment forwarded as arguments across state transition |
+| another machine | [other_machine/main.omg](other_machine/main.omg) | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | case payload layout geometry computed in and delegated through an intermediate machine |
+| another target body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) | case payload layout geometry computed across target-scoped machine bodies |
 
 Run each place with `omega run <place>/main.omg`.
 

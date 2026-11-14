@@ -14,15 +14,15 @@ Every positive place and the root witness bind `ProgramEntry` across all four ho
 | Place | Project | Transport | Positive Witness | Reject Twin |
 | --- | --- | --- | --- | --- |
 | root | `.` | canonical root witness creating Carrier pairing zero-byte Token with value 100u64 | [`main.omg`](main.omg) | - |
-| local | `local/` | the carrier record is bound to a local variable before calling verify_carrier | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) |
-| field | `field/` | the carrier record is wrapped in a nominal Holder record field before extraction | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) |
-| parameter | `parameter/` | a helper probe machine receives the carrier record as an explicit parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) |
-| call result | `call_result/` | a producer machine returns the carrier record under guaranteed contract postcondition | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) |
-| match join | `match_join/` | both branches of a boolean match expression yield the carrier record before verification | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) |
-| const name | `const_name/` | a named constant INIT_VALUE initializes the carrier value before verification | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) |
-| a nested machine | `other_state/` | an terminal machine transfer transfers the carrier record to a successor machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) |
-| another machine | `other_machine/` | an associated Relay machine forwards the carrier record to verify_carrier | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) |
-| another target body | `target_body/` | each of the four hosted target bodies receives the carrier record to verify | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) |
+| local | `local/` | the carrier record is bound to a local variable before calling verify_carrier | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) |
+| field | `field/` | the carrier record is wrapped in a nominal Holder record field before extraction | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) |
+| parameter | `parameter/` | a helper probe machine receives the carrier record as an explicit parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) |
+| call result | `call_result/` | a producer machine returns the carrier record under guaranteed contract postcondition | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) |
+| match join | `match_join/` | both branches of a boolean match expression yield the carrier record before verification | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) |
+| const name | `const_name/` | a named constant INIT_VALUE initializes the carrier value before verification | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) |
+| a nested machine | `other_state/` | an terminal machine transfer transfers the carrier record to a successor machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) |
+| another machine | `other_machine/` | an associated Relay machine forwards the carrier record to verify_carrier | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) |
+| another target body | `target_body/` | each of the four hosted target bodies receives the carrier record to verify | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) |
 
 ## Execution
 
@@ -46,15 +46,15 @@ All 10 samples report `native exit 0` and `interp exit: 0`.
 Each place carries a fact-sensitive reject twin at `<place>/invalid/main.omg` where the carrier's value is weakened to `99u64`, violating the contract precondition `carrier.value >= 100u64 && carrier.value <= 100u64`. Check each twin with:
 
 ```sh
-omega --check samples/cli/facts/zero_byte_erased_carrier/local/invalid/main.omg
-omega --check samples/cli/facts/zero_byte_erased_carrier/field/invalid/main.omg
-omega --check samples/cli/facts/zero_byte_erased_carrier/parameter/invalid/main.omg
-omega --check samples/cli/facts/zero_byte_erased_carrier/call_result/invalid/main.omg
-omega --check samples/cli/facts/zero_byte_erased_carrier/match_join/invalid/main.omg
-omega --check samples/cli/facts/zero_byte_erased_carrier/const_name/invalid/main.omg
-omega --check samples/cli/facts/zero_byte_erased_carrier/other_state/invalid/main.omg
-omega --check samples/cli/facts/zero_byte_erased_carrier/other_machine/invalid/main.omg
-omega --check samples/cli/facts/zero_byte_erased_carrier/target_body/invalid/main.omg
+omega --check samples/cli/facts/zero_byte_erased_carrier/invalid_local/main.omg
+omega --check samples/cli/facts/zero_byte_erased_carrier/invalid_field/main.omg
+omega --check samples/cli/facts/zero_byte_erased_carrier/invalid_parameter/main.omg
+omega --check samples/cli/facts/zero_byte_erased_carrier/invalid_call_result/main.omg
+omega --check samples/cli/facts/zero_byte_erased_carrier/invalid_match_join/main.omg
+omega --check samples/cli/facts/zero_byte_erased_carrier/invalid_const_name/main.omg
+omega --check samples/cli/facts/zero_byte_erased_carrier/invalid_other_state/main.omg
+omega --check samples/cli/facts/zero_byte_erased_carrier/invalid_other_machine/main.omg
+omega --check samples/cli/facts/zero_byte_erased_carrier/invalid_target_body/main.omg
 ```
 
 Every reject twin fails closed with:

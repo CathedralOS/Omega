@@ -9,15 +9,15 @@ Every positive and reject twin copies that fact sentence. The bound is 64 and th
 | Place | Positive Program | Reject Twin (invalid) | Transport Mechanism |
 | --- | --- | --- | --- |
 | root | [`main.omg`](main.omg) | — | canonical root witness with caller-local record and state-local line owners |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | caller-local record and state-local line owners |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | the line owner is a `Holder` record field |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | an extra ordinary invocation forwards the mutable `Application` parameter |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the shared line reference is returned from a lifetime-related call |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield the shared line reference |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named `INDEX` is exactly zero for the same write and read |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | an extra state transports both references |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a separate machine performs the same record store and read |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | all four hosted target bodies perform that operation |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | caller-local record and state-local line owners |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | the line owner is a `Holder` record field |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | an extra ordinary invocation forwards the mutable `Application` parameter |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | the shared line reference is returned from a lifetime-related call |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | both match arms yield the shared line reference |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | named `INDEX` is exactly zero for the same write and read |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | an extra state transports both references |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | a separate machine performs the same record store and read |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | all four hosted target bodies perform that operation |
 
 ## Execution
 
@@ -64,15 +64,15 @@ assignment cannot write `application` because it is not mutable in this state
 Restoring the mutable borrow restores clean compilation and execution.
 
 ```sh
-omega --check samples/cli/facts/guarded_record_line_loan/local/invalid/main.omg
-omega --check samples/cli/facts/guarded_record_line_loan/field/invalid/main.omg
-omega --check samples/cli/facts/guarded_record_line_loan/parameter/invalid/main.omg
-omega --check samples/cli/facts/guarded_record_line_loan/call_result/invalid/main.omg
-omega --check samples/cli/facts/guarded_record_line_loan/match_join/invalid/main.omg
-omega --check samples/cli/facts/guarded_record_line_loan/const_name/invalid/main.omg
-omega --check samples/cli/facts/guarded_record_line_loan/other_state/invalid/main.omg
-omega --check samples/cli/facts/guarded_record_line_loan/other_machine/invalid/main.omg
-omega --check samples/cli/facts/guarded_record_line_loan/target_body/invalid/main.omg
+omega --check samples/cli/facts/guarded_record_line_loan/invalid_local/main.omg
+omega --check samples/cli/facts/guarded_record_line_loan/invalid_field/main.omg
+omega --check samples/cli/facts/guarded_record_line_loan/invalid_parameter/main.omg
+omega --check samples/cli/facts/guarded_record_line_loan/invalid_call_result/main.omg
+omega --check samples/cli/facts/guarded_record_line_loan/invalid_match_join/main.omg
+omega --check samples/cli/facts/guarded_record_line_loan/invalid_const_name/main.omg
+omega --check samples/cli/facts/guarded_record_line_loan/invalid_other_state/main.omg
+omega --check samples/cli/facts/guarded_record_line_loan/invalid_other_machine/main.omg
+omega --check samples/cli/facts/guarded_record_line_loan/invalid_target_body/main.omg
 ```
 
 ## Requirements and Evidence

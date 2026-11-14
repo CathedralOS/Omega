@@ -74,7 +74,7 @@ oracle, not the delivered application. `data/` contains five valid studies and
 17 malformed-input controls. The valid studies cover unsigned threshold ties,
 signed ties after nonidentity calibration, fractional calibration, 8-bit extrema,
 and a 2-bit signed converter. They include rail endpoints and saturation on
-both sides. `intended_invalid/` is a separate complete build-bound Omega project
+both sides. `../invalid_adc_quantization_intended/` is a separate complete build-bound Omega project
 with a constant-zero division; it must be rejected independently.
 
 ## Commands

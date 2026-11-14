@@ -17,12 +17,12 @@ The nine places are [local](local/main.omg), [field](field/main.omg),
 [nested machine](other_state/main.omg), [other machine](other_machine/main.omg),
 and [target body](target_body/main.omg). Each invalid example removes only the
 right token reference's `Fair` requirement:
-[local](local/invalid/main.omg), [field](field/invalid/main.omg),
-[parameter](parameter/invalid/main.omg), [call result](call_result/invalid/main.omg),
-[match join](match_join/invalid/main.omg), [const name](const_name/invalid/main.omg),
-[nested machine](other_state/invalid/main.omg),
-[other machine](other_machine/invalid/main.omg), and
-[target body](target_body/invalid/main.omg). The corresponding corpus fixtures
+[local](invalid_local/main.omg), [field](invalid_field/main.omg),
+[parameter](invalid_parameter/main.omg), [call result](invalid_call_result/main.omg),
+[match join](invalid_match_join/main.omg), [const name](invalid_const_name/main.omg),
+[nested machine](invalid_other_state/main.omg),
+[other machine](invalid_other_machine/main.omg), and
+[target body](invalid_target_body/main.omg). The corresponding corpus fixtures
 are `tests/omega/{pass,fail}/facts/progress_selector_through_*`. Four existing
 controls replace a slot, replace the entire array, introduce an unknown
 alternative or write the referenced contents; each must reject reuse of the

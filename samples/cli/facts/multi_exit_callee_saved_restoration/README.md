@@ -15,15 +15,15 @@ The nine places carry the preserved caller-live sum through each language constr
 | Place | Positive | Reject Twin | Transport |
 | --- | --- | --- | --- |
 | root | [main.omg](main.omg) | — | original witness: multi-return callee with interior call pressure preserves caller live sum |
-| local | [local/main.omg](local/main.omg) | [local/invalid/main.omg](local/invalid/main.omg) | caller live scalar transported via local variable |
-| field | [field/main.omg](field/main.omg) | [field/invalid/main.omg](field/invalid/main.omg) | caller live scalar transported via record field |
-| parameter | [parameter/main.omg](parameter/main.omg) | [parameter/invalid/main.omg](parameter/invalid/main.omg) | caller live scalar passed as machine parameter |
-| call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | caller live scalar returned by call |
-| match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | caller live scalar converged across match branches |
-| const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | caller live scalar defined by named constant |
-| a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | caller live scalar transitioned to successor machine |
-| another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | caller live scalar forwarded through another machine |
-| another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | caller live scalar handled across target-scoped bodies |
+| local | [local/main.omg](local/main.omg) | [invalid_local/main.omg](invalid_local/main.omg) | caller live scalar transported via local variable |
+| field | [field/main.omg](field/main.omg) | [invalid_field/main.omg](invalid_field/main.omg) | caller live scalar transported via record field |
+| parameter | [parameter/main.omg](parameter/main.omg) | [invalid_parameter/main.omg](invalid_parameter/main.omg) | caller live scalar passed as machine parameter |
+| call result | [call_result/main.omg](call_result/main.omg) | [invalid_call_result/main.omg](invalid_call_result/main.omg) | caller live scalar returned by call |
+| match join | [match_join/main.omg](match_join/main.omg) | [invalid_match_join/main.omg](invalid_match_join/main.omg) | caller live scalar converged across match branches |
+| const name | [const_name/main.omg](const_name/main.omg) | [invalid_const_name/main.omg](invalid_const_name/main.omg) | caller live scalar defined by named constant |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [invalid_other_state/main.omg](invalid_other_state/main.omg) | caller live scalar transitioned to successor machine |
+| another machine | [other_machine/main.omg](other_machine/main.omg) | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | caller live scalar forwarded through another machine |
+| another target body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) | caller live scalar handled across target-scoped bodies |
 
 All positive places and root bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and pass `omega run --both` with exit 0 (Terminal Psi and native execution agreement):
 

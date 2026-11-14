@@ -10,15 +10,15 @@ return `0` as `i32` to exit `0`. Only the transport of the quotient changes.
 | Place | Positive Project | Reject Twin | Transport Mechanism |
 | --- | --- | --- | --- |
 | root | [`main.omg`](main.omg) with [`build.omg`](build.omg) | — | canonical root witness computing signed division quotient `(-300i64) / (-3i64)` |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | the quotient is copied into a local binding |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | a record field carries the quotient into the subtraction check |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | the quotient is passed as an explicit machine parameter |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | a call returns the quotient into the subtraction check |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms produce the quotient and join into the subtraction check |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | a named constant carries the quotient into the subtraction check |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the quotient and performs the subtraction check |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine forwards the quotient to the verifying machine |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target bodies performs the division and verifies the quotient |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | the quotient is copied into a local binding |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | a record field carries the quotient into the subtraction check |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | the quotient is passed as an explicit machine parameter |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | a call returns the quotient into the subtraction check |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | both match arms produce the quotient and join into the subtraction check |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | a named constant carries the quotient into the subtraction check |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | a successor machine receives the quotient and performs the subtraction check |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | a forwarding machine forwards the quotient to the verifying machine |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | each of four target bodies performs the division and verifies the quotient |
 
 ## Execution
 
@@ -48,15 +48,15 @@ Each place has an `invalid/` reject twin with authored `sample.json` (`"role": "
 
 | Place | Twin | Pinned Diagnostic Fragment |
 | --- | --- | --- |
-| local | [`local/invalid/main.omg`](local/invalid/main.omg) | `may overflow \`u64\`` |
-| field | [`field/invalid/main.omg`](field/invalid/main.omg) | `may overflow \`u64\`` |
-| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | `may overflow \`u64\`` |
-| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `may overflow \`u64\`` |
-| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `may overflow \`u64\`` |
-| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `may overflow \`u64\`` |
-| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `may overflow \`u64\`` |
-| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `may overflow \`u64\`` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `may overflow \`u64\`` |
+| local | [`invalid_local/main.omg`](invalid_local/main.omg) | `may overflow \`u64\`` |
+| field | [`invalid_field/main.omg`](invalid_field/main.omg) | `may overflow \`u64\`` |
+| parameter | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | `may overflow \`u64\`` |
+| call result | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | `may overflow \`u64\`` |
+| match join | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | `may overflow \`u64\`` |
+| const name | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | `may overflow \`u64\`` |
+| a nested machine | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | `may overflow \`u64\`` |
+| another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | `may overflow \`u64\`` |
+| another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | `may overflow \`u64\`` |
 
 ## Pinned Fixtures
 

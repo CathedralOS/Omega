@@ -15,15 +15,15 @@ specified by
 
 | Place | Positive | Reject twin | Corpus pass | Corpus fail |
 | --- | --- | --- | --- | --- |
-| Local | [local](local/main.omg) | [invalid](local/invalid/main.omg) | `pass/facts/domain_carrier_identity_through_local_exit` | `fail/facts/domain_carrier_identity_through_local_rejected` |
-| Field | [field](field/main.omg) | [invalid](field/invalid/main.omg) | `pass/facts/domain_carrier_identity_through_field_exit` | `fail/facts/domain_carrier_identity_through_field_rejected` |
-| Parameter | [parameter](parameter/main.omg) | [invalid](parameter/invalid/main.omg) | `pass/facts/domain_carrier_identity_through_parameter_exit` | `fail/facts/domain_carrier_identity_through_parameter_rejected` |
-| Call result | [call_result](call_result/main.omg) | [invalid](call_result/invalid/main.omg) | `pass/facts/domain_carrier_identity_through_call_result_exit` | `fail/facts/domain_carrier_identity_through_call_result_rejected` |
-| Match join | [match_join](match_join/main.omg) | [invalid](match_join/invalid/main.omg) | `pass/facts/domain_carrier_identity_through_match_join_exit` | `fail/facts/domain_carrier_identity_through_match_join_rejected` |
-| Const name | [const_name](const_name/main.omg) | [invalid](const_name/invalid/main.omg) | `pass/facts/domain_carrier_identity_through_const_name_exit` | `fail/facts/domain_carrier_identity_through_const_name_rejected` |
-| Nested machine | [other_state](other_state/main.omg) | [invalid](other_state/invalid/main.omg) | `pass/facts/domain_carrier_identity_through_other_state_exit` | `fail/facts/domain_carrier_identity_through_other_state_rejected` |
-| Other machine | [other_machine](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) | `pass/facts/domain_carrier_identity_through_other_machine_exit` | `fail/facts/domain_carrier_identity_through_other_machine_rejected` |
-| Selected implementation | [target_body](target_body/main.omg) | [invalid](target_body/invalid/main.omg) | `pass/facts/domain_carrier_identity_through_target_body_exit` | `fail/facts/domain_carrier_identity_through_target_body_rejected` |
+| Local | [local](local/main.omg) | [invalid](invalid_local/main.omg) | `pass/facts/domain_carrier_identity_through_local_exit` | `fail/facts/domain_carrier_identity_through_local_rejected` |
+| Field | [field](field/main.omg) | [invalid](invalid_field/main.omg) | `pass/facts/domain_carrier_identity_through_field_exit` | `fail/facts/domain_carrier_identity_through_field_rejected` |
+| Parameter | [parameter](parameter/main.omg) | [invalid](invalid_parameter/main.omg) | `pass/facts/domain_carrier_identity_through_parameter_exit` | `fail/facts/domain_carrier_identity_through_parameter_rejected` |
+| Call result | [call_result](call_result/main.omg) | [invalid](invalid_call_result/main.omg) | `pass/facts/domain_carrier_identity_through_call_result_exit` | `fail/facts/domain_carrier_identity_through_call_result_rejected` |
+| Match join | [match_join](match_join/main.omg) | [invalid](invalid_match_join/main.omg) | `pass/facts/domain_carrier_identity_through_match_join_exit` | `fail/facts/domain_carrier_identity_through_match_join_rejected` |
+| Const name | [const_name](const_name/main.omg) | [invalid](invalid_const_name/main.omg) | `pass/facts/domain_carrier_identity_through_const_name_exit` | `fail/facts/domain_carrier_identity_through_const_name_rejected` |
+| Nested machine | [other_state](other_state/main.omg) | [invalid](invalid_other_state/main.omg) | `pass/facts/domain_carrier_identity_through_other_state_exit` | `fail/facts/domain_carrier_identity_through_other_state_rejected` |
+| Other machine | [other_machine](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) | `pass/facts/domain_carrier_identity_through_other_machine_exit` | `fail/facts/domain_carrier_identity_through_other_machine_rejected` |
+| Selected implementation | [target_body](target_body/main.omg) | [invalid](invalid_target_body/main.omg) | `pass/facts/domain_carrier_identity_through_target_body_exit` | `fail/facts/domain_carrier_identity_through_target_body_rejected` |
 
 Where the membership sits at each place: a `requires` on the parameter, on a
 record field (`reading.level`), on a constant (`LEVEL`), on a nested machine's

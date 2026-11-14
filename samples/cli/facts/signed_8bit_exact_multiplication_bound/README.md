@@ -9,15 +9,15 @@ Every place performs the same operation: define bounded signed 8-bit inputs `lhs
 | Place | Positive Project | Reject Twin | Transport Mechanism |
 | --- | --- | --- | --- |
 | (root) | [`main.omg`](main.omg) | — | root 8-bit signed exact multiplication evaluation |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | both the bounded signed i8 operands and their product result are transported through local bindings |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | the product result is stored and loaded through a record field |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | the product result is forwarded as a machine parameter |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the product result is returned from a callee invocation |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield the product result so the joined binding preserves the bounds |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | a named constant rhs multiplies the bounded lhs |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the product result to a successor machine |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine transports the product result through an intermediate machine call |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target body computes the 8-bit signed exact multiplication and verifies the bounds |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | both the bounded signed i8 operands and their product result are transported through local bindings |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | the product result is stored and loaded through a record field |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | the product result is forwarded as a machine parameter |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | the product result is returned from a callee invocation |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | both match arms yield the product result so the joined binding preserves the bounds |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | a named constant rhs multiplies the bounded lhs |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | a state transition forwards the product result to a successor machine |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | a forwarding machine transports the product result through an intermediate machine call |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | each hosted target body computes the 8-bit signed exact multiplication and verifies the bounds |
 
 Every positive place and the root `main.omg` probe binds `ProgramEntry` for
 `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` and declares
@@ -63,7 +63,7 @@ per-place twin, and its `build.omg` differs only in its `Build::application` nam
 
 ```sh
 omega run --both samples/cli/facts/signed_8bit_exact_multiplication_bound/main.omg
-omega --check samples/cli/facts/signed_8bit_exact_multiplication_bound/local/invalid/main.omg
+omega --check samples/cli/facts/signed_8bit_exact_multiplication_bound/invalid_local/main.omg
 ```
 
 Each positive place and the root exits 0 in both Terminal Psi and native execution; each

@@ -95,15 +95,15 @@ accompanied by `<place>/invalid/` reject twins:
 | Place | Positive Program | Invalid Reject Twin | Carrier / Transport |
 | --- | --- | --- | --- |
 | root | [main.omg](main.omg) | — | mutable borrow writeback establishes bound and discharges subtraction directly |
-| local | [local/main.omg](local/main.omg) | [local/invalid/main.omg](local/invalid/main.omg) | post-writeback field value bound to a local variable |
-| field | [field/main.omg](field/main.omg) | [field/invalid/main.omg](field/invalid/main.omg) | record containing counter mutated through nested borrow |
-| parameter | [parameter/main.omg](parameter/main.omg) | [parameter/invalid/main.omg](parameter/invalid/main.omg) | counter passed as an explicit mutable reference parameter |
-| call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | post-writeback record returned across call boundary |
-| match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | post-writeback record preserved across match convergence join |
-| const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | post-writeback bound constrained against named constant |
-| a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | post-writeback record passed as an argument across state machine transition |
-| another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | post-writeback record forwarded through another machine |
-| another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | post-writeback record consumed across target-scoped machine bodies |
+| local | [local/main.omg](local/main.omg) | [invalid_local/main.omg](invalid_local/main.omg) | post-writeback field value bound to a local variable |
+| field | [field/main.omg](field/main.omg) | [invalid_field/main.omg](invalid_field/main.omg) | record containing counter mutated through nested borrow |
+| parameter | [parameter/main.omg](parameter/main.omg) | [invalid_parameter/main.omg](invalid_parameter/main.omg) | counter passed as an explicit mutable reference parameter |
+| call result | [call_result/main.omg](call_result/main.omg) | [invalid_call_result/main.omg](invalid_call_result/main.omg) | post-writeback record returned across call boundary |
+| match join | [match_join/main.omg](match_join/main.omg) | [invalid_match_join/main.omg](invalid_match_join/main.omg) | post-writeback record preserved across match convergence join |
+| const name | [const_name/main.omg](const_name/main.omg) | [invalid_const_name/main.omg](invalid_const_name/main.omg) | post-writeback bound constrained against named constant |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [invalid_other_state/main.omg](invalid_other_state/main.omg) | post-writeback record passed as an argument across state machine transition |
+| another machine | [other_machine/main.omg](other_machine/main.omg) | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | post-writeback record forwarded through another machine |
+| another target body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) | post-writeback record consumed across target-scoped machine bodies |
 
 Run each place with `omega run --both <place>/main.omg`.
 

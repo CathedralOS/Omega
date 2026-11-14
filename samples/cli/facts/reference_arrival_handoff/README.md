@@ -16,15 +16,15 @@ moved reference is the place:
 
 | Place | Positive | Reject Twin (`invalid`) | Control (`held_source`) | Receiving binding |
 | --- | --- | --- | --- | --- |
-| local | [program](local/main.omg) | [invalid](local/invalid/main.omg) | [control](local/controls/held_source/main.omg) | a second local |
-| field | [program](field/main.omg) | [invalid](field/invalid/main.omg) | [control](field/controls/held_source/main.omg) | a record field carrying the loan |
-| parameter | [program](parameter/main.omg) | [invalid](parameter/invalid/main.omg) | [control](parameter/controls/held_source/main.omg) | a callee parameter |
-| call result | [program](call_result/main.omg) | [invalid](call_result/invalid/main.omg) | [control](call_result/controls/held_source/main.omg) | a result binding returned by `hand` |
-| match join | [program](match_join/main.omg) | [invalid](match_join/invalid/main.omg) | [control](match_join/controls/held_source/main.omg) | a `match` join binding |
-| const name | [program](const_name/main.omg) | [invalid](const_name/invalid/main.omg) | [control](const_name/controls/held_source/main.omg) | a binding written with a named constant |
-| a nested machine | [program](other_state/main.omg) | [invalid](other_state/invalid/main.omg) | [control](other_state/controls/held_source/main.omg) | a state parameter |
-| another machine | [program](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) | [control](other_machine/controls/held_source/main.omg) | a parameter forwarded to `write` |
-| another target body | [program](target_body/main.omg) | [invalid](target_body/invalid/main.omg) | [control](target_body/controls/held_source/main.omg) | a parameter of each target’s `write` |
+| local | [program](local/main.omg) | [invalid](invalid_local/main.omg) | [control](local/controls/held_source/main.omg) | a second local |
+| field | [program](field/main.omg) | [invalid](invalid_field/main.omg) | [control](field/controls/held_source/main.omg) | a record field carrying the loan |
+| parameter | [program](parameter/main.omg) | [invalid](invalid_parameter/main.omg) | [control](parameter/controls/held_source/main.omg) | a callee parameter |
+| call result | [program](call_result/main.omg) | [invalid](invalid_call_result/main.omg) | [control](call_result/controls/held_source/main.omg) | a result binding returned by `hand` |
+| match join | [program](match_join/main.omg) | [invalid](invalid_match_join/main.omg) | [control](match_join/controls/held_source/main.omg) | a `match` join binding |
+| const name | [program](const_name/main.omg) | [invalid](invalid_const_name/main.omg) | [control](const_name/controls/held_source/main.omg) | a binding written with a named constant |
+| a nested machine | [program](other_state/main.omg) | [invalid](invalid_other_state/main.omg) | [control](other_state/controls/held_source/main.omg) | a state parameter |
+| another machine | [program](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) | [control](other_machine/controls/held_source/main.omg) | a parameter forwarded to `write` |
+| another target body | [program](target_body/main.omg) | [invalid](invalid_target_body/main.omg) | [control](target_body/controls/held_source/main.omg) | a parameter of each target’s `write` |
 
 Each twin keeps the source binding or backing writable while the receiving
 loan is live; it must reject at the pinned borrow-active obligation.

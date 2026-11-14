@@ -20,15 +20,15 @@ field corruption and confusing schema identity with the zero discriminator.
 
 | Place | Positive | Reject twin | Transport |
 | --- | --- | --- | --- |
-| local | [main](local/main.omg) | [invalid](local/invalid/main.omg) | local value binding |
-| field | [main](field/main.omg) | [invalid](field/invalid/main.omg) | record field with two canaries |
-| parameter | [main](parameter/main.omg) | [invalid](parameter/invalid/main.omg) | declared Reading parameter |
-| call result | [main](call_result/main.omg) | [invalid](call_result/invalid/main.omg) | returned Reading value |
-| match join | [main](match_join/main.omg) | [invalid](match_join/invalid/main.omg) | distinct Sample and Empty values through both arms |
-| const name | [main](const_name/main.omg) | [invalid](const_name/invalid/main.omg) | named Sample and Empty constants |
-| nested machine | [main](other_state/main.omg) | [invalid](other_state/invalid/main.omg) | explicit Reading parameter to nested consume |
-| another machine | [main](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) | separate consuming machine |
-| selected target body | [main](target_body/main.omg) | [invalid](target_body/invalid/main.omg) | one ordinary SelectedEntry implementation selected by Build |
+| local | [main](local/main.omg) | [invalid](invalid_local/main.omg) | local value binding |
+| field | [main](field/main.omg) | [invalid](invalid_field/main.omg) | record field with two canaries |
+| parameter | [main](parameter/main.omg) | [invalid](invalid_parameter/main.omg) | declared Reading parameter |
+| call result | [main](call_result/main.omg) | [invalid](invalid_call_result/main.omg) | returned Reading value |
+| match join | [main](match_join/main.omg) | [invalid](invalid_match_join/main.omg) | distinct Sample and Empty values through both arms |
+| const name | [main](const_name/main.omg) | [invalid](invalid_const_name/main.omg) | named Sample and Empty constants |
+| nested machine | [main](other_state/main.omg) | [invalid](invalid_other_state/main.omg) | explicit Reading parameter to nested consume |
+| another machine | [main](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) | separate consuming machine |
+| selected target body | [main](target_body/main.omg) | [invalid](invalid_target_body/main.omg) | one ordinary SelectedEntry implementation selected by Build |
 
 Every build binds all four hosted ProgramEntry targets. Each twin changes only
 the PayloadValue bound from 50 to 80, preserving the numbers, ordering, tombstone,

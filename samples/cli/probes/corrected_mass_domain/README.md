@@ -9,7 +9,7 @@ that total, and returns it again through `carried`.
 On agreement it prints `MASS 2` and exits 0. The mass is 2 and the fraction
 is 2/6.
 
-`invalid/` assigns `0.0 - 1.0` to `f64 in NonnegativeMass` and must be
+`../invalid_corrected_mass_domain/` assigns `0.0 - 1.0` to `f64 in NonnegativeMass` and must be
 rejected because the annotation does not establish the predicate.
 
 ```sh

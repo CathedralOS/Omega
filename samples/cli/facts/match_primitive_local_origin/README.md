@@ -21,15 +21,15 @@ prove requires contract for call read_origin`.
 | Place | Positive Project | Reject Twin | Transport Mechanism |
 | --- | --- | --- | --- |
 | root | [`main.omg`](main.omg) with [`build.omg`](build.omg) | — | canonical root witness |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | the selected primitive is a local `let` |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | the selected primitive is a record field (`Seed.chosen`) |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | the selected primitive arrives as a parameter |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `select()` returns the joined primitive (`ensures result == 17`) |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | the selected primitive itself arrives from a match join |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | the primitives are named constants (`CHOSEN`, `SPARE`) |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the primitives and consumes the join |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine supplies the primitives |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target bodies performs the sequence |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | the selected primitive is a local `let` |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | the selected primitive is a record field (`Seed.chosen`) |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | the selected primitive arrives as a parameter |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | `select()` returns the joined primitive (`ensures result == 17`) |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | the selected primitive itself arrives from a match join |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | the primitives are named constants (`CHOSEN`, `SPARE`) |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | a successor machine receives the primitives and consumes the join |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | a forwarding machine supplies the primitives |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | each of four target bodies performs the sequence |
 
 ## Execution
 
@@ -72,15 +72,15 @@ Compile-time verification fails closed with:
 
 | Place | Twin | Pinned Diagnostic Fragment |
 | --- | --- | --- |
-| local | [`local/invalid/main.omg`](local/invalid/main.omg) | `cannot prove requires contract for call read_origin` |
-| field | [`field/invalid/main.omg`](field/invalid/main.omg) | `cannot prove requires contract for call read_origin` |
-| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | `cannot prove requires contract for call read_origin` |
-| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `cannot prove ensures contract for exit from select` |
-| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `cannot prove requires contract for call read_origin` |
-| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `cannot prove requires contract for call read_origin` |
-| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `cannot prove requires contract for call read_origin` |
-| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `cannot prove requires contract for call read_origin` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `cannot prove requires contract for call read_origin` |
+| local | [`invalid_local/main.omg`](invalid_local/main.omg) | `cannot prove requires contract for call read_origin` |
+| field | [`invalid_field/main.omg`](invalid_field/main.omg) | `cannot prove requires contract for call read_origin` |
+| parameter | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | `cannot prove requires contract for call read_origin` |
+| call result | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | `cannot prove ensures contract for exit from select` |
+| match join | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | `cannot prove requires contract for call read_origin` |
+| const name | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | `cannot prove requires contract for call read_origin` |
+| a nested machine | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | `cannot prove requires contract for call read_origin` |
+| another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | `cannot prove requires contract for call read_origin` |
+| another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | `cannot prove requires contract for call read_origin` |
 
 ## Pinned Fixtures
 

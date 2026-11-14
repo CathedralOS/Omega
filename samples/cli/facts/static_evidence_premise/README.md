@@ -12,15 +12,15 @@ The same sentence is copied through local, field, parameter, call result, match 
 
 | Place | Positive | Reject twin | Transport |
 | --- | --- | --- | --- |
-| local | [local/main.omg](local/main.omg) | [local/invalid/main.omg](local/invalid/main.omg) | the subject is a local binding (`let kept: bool = true`) read at the call |
-| field | [field/main.omg](field/main.omg) | [field/invalid/main.omg](field/invalid/main.omg) | a copyable record field carries the subject (`project<YesKept>(holder.kept)`) |
-| parameter | [parameter/main.omg](parameter/main.omg) | [parameter/invalid/main.omg](parameter/invalid/main.omg) | `observe` receives the subject as a parameter whose `requires kept == true` premise is discharged and calls `project<YesKept>(kept)` |
-| call_result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | the subject is a call result (`let kept: bool = produced()`) |
-| match_join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | both match arms keep the subject (`match flag { true -> true, false -> true }`) so the joined value still satisfies the premise |
-| const_name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | the named constant `KEPT` supplies the subject |
-| other_state | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | a successor machine `check(kept)` receives the subject and calls `project` there |
-| other_machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | a forwarding machine `relay` transports the subject to `observe` |
-| target_body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | each of the four target bodies (`observe` for `linux_x86_64`, `linux_arm64`, `macos_arm64`, `windows_x86_64`) performs the call |
+| local | [local/main.omg](local/main.omg) | [invalid_local/main.omg](invalid_local/main.omg) | the subject is a local binding (`let kept: bool = true`) read at the call |
+| field | [field/main.omg](field/main.omg) | [invalid_field/main.omg](invalid_field/main.omg) | a copyable record field carries the subject (`project<YesKept>(holder.kept)`) |
+| parameter | [parameter/main.omg](parameter/main.omg) | [invalid_parameter/main.omg](invalid_parameter/main.omg) | `observe` receives the subject as a parameter whose `requires kept == true` premise is discharged and calls `project<YesKept>(kept)` |
+| call_result | [call_result/main.omg](call_result/main.omg) | [invalid_call_result/main.omg](invalid_call_result/main.omg) | the subject is a call result (`let kept: bool = produced()`) |
+| match_join | [match_join/main.omg](match_join/main.omg) | [invalid_match_join/main.omg](invalid_match_join/main.omg) | both match arms keep the subject (`match flag { true -> true, false -> true }`) so the joined value still satisfies the premise |
+| const_name | [const_name/main.omg](const_name/main.omg) | [invalid_const_name/main.omg](invalid_const_name/main.omg) | the named constant `KEPT` supplies the subject |
+| other_state | [other_state/main.omg](other_state/main.omg) | [invalid_other_state/main.omg](invalid_other_state/main.omg) | a successor machine `check(kept)` receives the subject and calls `project` there |
+| other_machine | [other_machine/main.omg](other_machine/main.omg) | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | a forwarding machine `relay` transports the subject to `observe` |
+| target_body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) | each of the four target bodies (`observe` for `linux_x86_64`, `linux_arm64`, `macos_arm64`, `windows_x86_64`) performs the call |
 
 Each positive place binds `ProgramEntry` for all four hosted targets and declares `Expected exit: 0`, carries `expected_native_exit.txt` = 0 and `expected_interpreter_exit.txt` = 0, and passes `omega run --both` â€” Terminal Psi and native execution agreeing:
 
@@ -35,15 +35,15 @@ Each place has an `invalid/` twin that supplies `NoKept` instead of `YesKept` â€
 
 | Place | Reject twin | Observed diagnostic (verbatim, `gen-9d9ba4fb625` omega, 2026-10-22) |
 | --- | --- | --- |
-| local | [local/invalid/main.omg](local/invalid/main.omg) | error: machine `main` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false |
-| field | [field/invalid/main.omg](field/invalid/main.omg) | error: machine `main` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false |
-| parameter | [parameter/invalid/main.omg](parameter/invalid/main.omg) | error: machine `observe` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false |
-| call_result | [call_result/invalid/main.omg](call_result/invalid/main.omg) | error: machine `main` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false |
-| match_join | [match_join/invalid/main.omg](match_join/invalid/main.omg) | error: machine `main` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false |
-| const_name | [const_name/invalid/main.omg](const_name/invalid/main.omg) | error: machine `main` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false |
-| other_state | [other_state/invalid/main.omg](other_state/invalid/main.omg) | error: machine `main` state `check` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false |
-| other_machine | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | error: machine `observe` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false |
-| target_body | [target_body/invalid/main.omg](target_body/invalid/main.omg) | error: machine `observe` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false |
+| local | [invalid_local/main.omg](invalid_local/main.omg) | error: machine `main` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false |
+| field | [invalid_field/main.omg](invalid_field/main.omg) | error: machine `main` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false |
+| parameter | [invalid_parameter/main.omg](invalid_parameter/main.omg) | error: machine `observe` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false |
+| call_result | [invalid_call_result/main.omg](invalid_call_result/main.omg) | error: machine `main` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false |
+| match_join | [invalid_match_join/main.omg](invalid_match_join/main.omg) | error: machine `main` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false |
+| const_name | [invalid_const_name/main.omg](invalid_const_name/main.omg) | error: machine `main` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false |
+| other_state | [invalid_other_state/main.omg](invalid_other_state/main.omg) | error: machine `main` state `check` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false |
+| other_machine | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | error: machine `observe` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false |
+| target_body | [invalid_target_body/main.omg](invalid_target_body/main.omg) | error: machine `observe` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false |
 
 ## Pinned Fixtures
 

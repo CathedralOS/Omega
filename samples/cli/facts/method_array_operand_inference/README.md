@@ -16,15 +16,15 @@ Only how the `[u8; 3]` actual reaches the call changes.
 
 | Place | Positive | Reject twin | Transport |
 | --- | --- | --- | --- |
-| local | [positive](local/main.omg) | [Count 4](local/invalid/main.omg) | array copied into a second local |
-| field | [positive](field/main.omg) | [Count 4](field/invalid/main.omg) | `Packet::items` between `before`/`after` canaries |
-| parameter | [positive](parameter/main.omg) | [Count 4](parameter/invalid/main.omg) | `consume(bytes: [u8; 3])` makes the call |
-| call_result | [positive](call_result/main.omg) | [Count 4](call_result/invalid/main.omg) | `make_bytes()` result |
-| match_join | [positive](match_join/main.omg) | [Count 4](match_join/invalid/main.omg) | both arms join one `[u8; 3]`; each arm has its own last element |
-| const_name | [positive](const_name/main.omg) | [Count 4](const_name/invalid/main.omg) | `const BYTES: [u8; 3]` |
-| other_state | [positive](other_state/main.omg) | [Count 4](other_state/invalid/main.omg) | nested `arrived(bytes: [u8; 3])` |
-| other_machine | [positive](other_machine/main.omg) | [Count 4](other_machine/invalid/main.omg) | `forward` relays to `consume` |
-| target_body | [positive](target_body/main.omg) | [Count 4](target_body/invalid/main.omg) | Build selects `X86Bytes` or `ArmBytes`, each behind a tag check (17 / 29) |
+| local | [positive](local/main.omg) | [Count 4](invalid_local/main.omg) | array copied into a second local |
+| field | [positive](field/main.omg) | [Count 4](invalid_field/main.omg) | `Packet::items` between `before`/`after` canaries |
+| parameter | [positive](parameter/main.omg) | [Count 4](invalid_parameter/main.omg) | `consume(bytes: [u8; 3])` makes the call |
+| call_result | [positive](call_result/main.omg) | [Count 4](invalid_call_result/main.omg) | `make_bytes()` result |
+| match_join | [positive](match_join/main.omg) | [Count 4](invalid_match_join/main.omg) | both arms join one `[u8; 3]`; each arm has its own last element |
+| const_name | [positive](const_name/main.omg) | [Count 4](invalid_const_name/main.omg) | `const BYTES: [u8; 3]` |
+| other_state | [positive](other_state/main.omg) | [Count 4](invalid_other_state/main.omg) | nested `arrived(bytes: [u8; 3])` |
+| other_machine | [positive](other_machine/main.omg) | [Count 4](invalid_other_machine/main.omg) | `forward` relays to `consume` |
+| target_body | [positive](target_body/main.omg) | [Count 4](invalid_target_body/main.omg) | Build selects `X86Bytes` or `ArmBytes`, each behind a tag check (17 / 29) |
 
 The [root](main.omg) and its [twin](invalid/main.omg) repeat the operation.
 Each positive binds `ProgramEntry` for Windows x86-64, Linux x86-64, macOS ARM64

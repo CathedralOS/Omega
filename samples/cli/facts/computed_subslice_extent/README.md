@@ -19,15 +19,15 @@ The match place still executes both choices at both low values. One arm writes a
 | Place | Positive | Reject twin | Transport |
 | --- | --- | --- | --- |
 | root | [source](main.omg) | — | root entry subslice extent and offset read |
-| local | [source](local/main.omg) | [source](local/invalid/main.omg) | the computed subslice view is bound in a local |
-| field | [source](field/main.omg) | [source](field/invalid/main.omg) | the computed subslice view is stored in a record field |
-| parameter | [source](parameter/main.omg) | [source](parameter/invalid/main.omg) | the computed subslice view arrives as an explicit parameter |
-| call result | [source](call_result/main.omg) | [source](call_result/invalid/main.omg) | a helper call returns the computed subslice view with `result.len == 2` |
-| match join | [source](match_join/main.omg) | [source](match_join/invalid/main.omg) | both match arms produce the computed subslice view |
-| const name | [source](const_name/main.omg) | [source](const_name/invalid/main.omg) | named constants `ZERO` and `SPAN` supply the subslice endpoint offsets |
-| other state | [source](other_state/main.omg) | [source](other_state/invalid/main.omg) | a successor machine receives the computed subslice view |
-| other machine | [source](other_machine/main.omg) | [source](other_machine/invalid/main.omg) | another machine receives and inspects the computed subslice view |
-| target body | [source](target_body/main.omg) | [source](target_body/invalid/main.omg) | one ordinary implementation selected by four Build rows constructs and reads the view |
+| local | [source](local/main.omg) | [source](invalid_local/main.omg) | the computed subslice view is bound in a local |
+| field | [source](field/main.omg) | [source](invalid_field/main.omg) | the computed subslice view is stored in a record field |
+| parameter | [source](parameter/main.omg) | [source](invalid_parameter/main.omg) | the computed subslice view arrives as an explicit parameter |
+| call result | [source](call_result/main.omg) | [source](invalid_call_result/main.omg) | a helper call returns the computed subslice view with `result.len == 2` |
+| match join | [source](match_join/main.omg) | [source](invalid_match_join/main.omg) | both match arms produce the computed subslice view |
+| const name | [source](const_name/main.omg) | [source](invalid_const_name/main.omg) | named constants `ZERO` and `SPAN` supply the subslice endpoint offsets |
+| other state | [source](other_state/main.omg) | [source](invalid_other_state/main.omg) | a successor machine receives the computed subslice view |
+| other machine | [source](other_machine/main.omg) | [source](invalid_other_machine/main.omg) | another machine receives and inspects the computed subslice view |
+| target body | [source](target_body/main.omg) | [source](invalid_target_body/main.omg) | one ordinary implementation selected by four Build rows constructs and reads the view |
 
 The bundled slice API also still depended on retired top-level boundary operators and an empty data namespace. Its public `slice_index` and `slice_range` helpers now have ordinary checked bodies delegating to the existing private slice-view module. Array syntax keeps the catalog’s builtin geometry; imports select no provider or alternative operator. Named callers migrate to the free helpers. Index copyability, range bounds, returned length and original backing lifetime remain explicit. The unused `SliceAccess` boundary requirements remain separate library work.
 

@@ -24,15 +24,15 @@ the arm took traps.
 
 | Place | Positive | Reject twin | Transport |
 | --- | --- | --- | --- |
-| local | [main](local/main.omg) | [invalid](local/invalid/main.omg) | both tokens are locals of `exercise` |
-| field | [main](field/main.omg) | [invalid](field/invalid/main.omg) | both tokens are fields of a `Pair` record |
-| parameter | [main](parameter/main.omg) | [invalid](parameter/invalid/main.omg) | both tokens arrive as owned parameters of `apply` |
-| call result | [main](call_result/main.omg) | [invalid](call_result/invalid/main.omg) | both tokens are produced by `make` calls |
-| match join | [main](match_join/main.omg) | [invalid](match_join/invalid/main.omg) | both tokens are produced by `match true` joins |
-| const name | [main](const_name/main.omg) | [invalid](const_name/invalid/main.omg) | the token marks are the constants `SLOT_MARK` and `OTHER_MARK` |
-| other state | [main](other_state/main.omg) | [invalid](other_state/invalid/main.omg) | the nested machine `pick` performs the match over tokens its parent built |
-| other machine | [main](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) | `forward` passes the tokens to the top-level `apply` |
-| target body | [main](target_body/main.omg) | [invalid](target_body/invalid/main.omg) | Build selects `X86Apply` or `ArmApply` for `SelectedApply::exercise`; each checks its target tag (17 / 29) first |
+| local | [main](local/main.omg) | [invalid](invalid_local/main.omg) | both tokens are locals of `exercise` |
+| field | [main](field/main.omg) | [invalid](invalid_field/main.omg) | both tokens are fields of a `Pair` record |
+| parameter | [main](parameter/main.omg) | [invalid](invalid_parameter/main.omg) | both tokens arrive as owned parameters of `apply` |
+| call result | [main](call_result/main.omg) | [invalid](invalid_call_result/main.omg) | both tokens are produced by `make` calls |
+| match join | [main](match_join/main.omg) | [invalid](invalid_match_join/main.omg) | both tokens are produced by `match true` joins |
+| const name | [main](const_name/main.omg) | [invalid](invalid_const_name/main.omg) | the token marks are the constants `SLOT_MARK` and `OTHER_MARK` |
+| other state | [main](other_state/main.omg) | [invalid](invalid_other_state/main.omg) | the nested machine `pick` performs the match over tokens its parent built |
+| other machine | [main](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) | `forward` passes the tokens to the top-level `apply` |
+| target body | [main](target_body/main.omg) | [invalid](invalid_target_body/main.omg) | Build selects `X86Apply` or `ArmApply` for `SelectedApply::exercise`; each checks its target tag (17 / 29) first |
 
 Pinned fixtures: `tests/omega/pass/facts/match_effectful_subject_custody_through_<place>_exit`
 and `tests/omega/fail/facts/match_effectful_subject_custody_through_<place>_rejected`.

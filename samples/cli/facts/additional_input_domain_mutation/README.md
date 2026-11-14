@@ -16,15 +16,15 @@ and [write-only authority](../../../../wiki/spec/terminal-psi/structural_access.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| Local | [source](local/main.omg) | [source](local/invalid/main.omg) |
-| Field | [source](field/main.omg) | [source](field/invalid/main.omg) |
-| Parameter | [source](parameter/main.omg) | [source](parameter/invalid/main.omg) |
-| Call result | [source](call_result/main.omg) | [source](call_result/invalid/main.omg) |
-| Match join | [source](match_join/main.omg) | [source](match_join/invalid/main.omg) |
-| Const name | [source](const_name/main.omg) | [source](const_name/invalid/main.omg) |
-| A nested machine | [source](other_state/main.omg) | [source](other_state/invalid/main.omg) |
-| Another machine | [source](other_machine/main.omg) | [source](other_machine/invalid/main.omg) |
-| Target body | [source](target_body/main.omg) | [source](target_body/invalid/main.omg) |
+| Local | [source](local/main.omg) | [source](invalid_local/main.omg) |
+| Field | [source](field/main.omg) | [source](invalid_field/main.omg) |
+| Parameter | [source](parameter/main.omg) | [source](invalid_parameter/main.omg) |
+| Call result | [source](call_result/main.omg) | [source](invalid_call_result/main.omg) |
+| Match join | [source](match_join/main.omg) | [source](invalid_match_join/main.omg) |
+| Const name | [source](const_name/main.omg) | [source](invalid_const_name/main.omg) |
+| A nested machine | [source](other_state/main.omg) | [source](invalid_other_state/main.omg) |
+| Another machine | [source](other_machine/main.omg) | [source](invalid_other_machine/main.omg) |
+| Target body | [source](target_body/main.omg) | [source](invalid_target_body/main.omg) |
 
 Each twin changes only `overwrite`'s contract by adding `ensures cell in Before`.
 It must reject that promise after writing 73, rather than fail parsing, entry

@@ -63,7 +63,7 @@ output. Validation logs and their executable hashes live under `build/validation
 Ten valid fixtures cover analytic rectangles, triangles, scaled normals,
 a diamond, eight active edges, redundant constraints, inconsistency,
 micro-unit boundary separation and window truncation. Twelve invalid
-runtime inputs exercise parser/admission limits. `intended_invalid/` is a
+runtime inputs exercise parser/admission limits. `../invalid_operating_envelope_intended/` is a
 separate complete application requiring -1 to inhabit a positive radius
 type; check must reject it independently of the runtime-invalid cases.
 

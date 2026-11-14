@@ -13,15 +13,15 @@ fact in the [parent folder](../README.md).
 
 | Place | Positive | Missing predicate | Unfinished restoration |
 | --- | --- | --- | --- |
-| Local | [program](local/main.omg) | [control](local/invalid/main.omg) | [control](local/invalid_window/main.omg) |
-| Field | [program](field/main.omg) | [control](field/invalid/main.omg) | [control](field/invalid_window/main.omg) |
-| Parameter | [program](parameter/main.omg) | [control](parameter/invalid/main.omg) | [control](parameter/invalid_window/main.omg) |
-| Call result | [program](call_result/main.omg) | [control](call_result/invalid/main.omg) | [control](call_result/invalid_window/main.omg) |
-| Match join | [program](match_join/main.omg) | [control](match_join/invalid/main.omg) | [control](match_join/invalid_window/main.omg) |
-| Const name | [program](const_name/main.omg) | [control](const_name/invalid/main.omg) | [control](const_name/invalid_window/main.omg) |
-| Nested machine | [program](other_state/main.omg) | [control](other_state/invalid/main.omg) | [control](other_state/invalid_window/main.omg) |
-| Other machine | [program](other_machine/main.omg) | [control](other_machine/invalid/main.omg) | [control](other_machine/invalid_window/main.omg) |
-| Selected body | [program](target_body/main.omg) | [control](target_body/invalid/main.omg) | [control](target_body/invalid_window/main.omg) |
+| Local | [program](local/main.omg) | [control](invalid_local/main.omg) | [control](invalid_local_window/main.omg) |
+| Field | [program](field/main.omg) | [control](invalid_field/main.omg) | [control](invalid_field_window/main.omg) |
+| Parameter | [program](parameter/main.omg) | [control](invalid_parameter/main.omg) | [control](invalid_parameter_window/main.omg) |
+| Call result | [program](call_result/main.omg) | [control](invalid_call_result/main.omg) | [control](invalid_call_result_window/main.omg) |
+| Match join | [program](match_join/main.omg) | [control](invalid_match_join/main.omg) | [control](invalid_match_join_window/main.omg) |
+| Const name | [program](const_name/main.omg) | [control](invalid_const_name/main.omg) | [control](invalid_const_name_window/main.omg) |
+| Nested machine | [program](other_state/main.omg) | [control](invalid_other_state/main.omg) | [control](invalid_other_state_window/main.omg) |
+| Other machine | [program](other_machine/main.omg) | [control](invalid_other_machine/main.omg) | [control](invalid_other_machine_window/main.omg) |
+| Selected body | [program](target_body/main.omg) | [control](invalid_target_body/main.omg) | [control](invalid_target_body_window/main.omg) |
 
 The first control removes only the record's predicate. The unfinished-restoration
 control keeps that predicate but lets the helper return 61 under a matching,

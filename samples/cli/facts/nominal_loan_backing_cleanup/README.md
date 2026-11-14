@@ -31,15 +31,15 @@ The nine places carry the nominal loan and its cleanup obligation through each l
 | Place | Positive | Reject twin | Transport |
 | --- | --- | --- | --- |
 | root | [main.omg](main.omg) | — | original reproduction: nominal hook writes 99, successor observes 10 |
-| local | [local/main.omg](local/main.omg) | [local/invalid/main.omg](local/invalid/main.omg) | owned local |
-| field | [field/main.omg](field/main.omg) | [field/invalid/main.omg](field/invalid/main.omg) | owned record member |
-| parameter | [parameter/main.omg](parameter/main.omg) | [parameter/invalid/main.omg](parameter/invalid/main.omg) | owned machine parameter |
-| call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | checked result guarantee |
-| match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | common completed owned-member fact |
-| const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | named COUNT |
-| a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | state-local owned backing |
-| another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | helper observation under loan |
-| another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | four hosted source bodies |
+| local | [local/main.omg](local/main.omg) | [invalid_local/main.omg](invalid_local/main.omg) | owned local |
+| field | [field/main.omg](field/main.omg) | [invalid_field/main.omg](invalid_field/main.omg) | owned record member |
+| parameter | [parameter/main.omg](parameter/main.omg) | [invalid_parameter/main.omg](invalid_parameter/main.omg) | owned machine parameter |
+| call result | [call_result/main.omg](call_result/main.omg) | [invalid_call_result/main.omg](invalid_call_result/main.omg) | checked result guarantee |
+| match join | [match_join/main.omg](match_join/main.omg) | [invalid_match_join/main.omg](invalid_match_join/main.omg) | common completed owned-member fact |
+| const name | [const_name/main.omg](const_name/main.omg) | [invalid_const_name/main.omg](invalid_const_name/main.omg) | named COUNT |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [invalid_other_state/main.omg](invalid_other_state/main.omg) | state-local owned backing |
+| another machine | [other_machine/main.omg](other_machine/main.omg) | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | helper observation under loan |
+| another target body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) | four hosted source bodies |
 
 Twins retain valid loans and reachable normal cleanup, but fail the count-10
 hook prerequisite at automatic cleanup. The parameter twin enters with count 10
@@ -99,7 +99,7 @@ No cleanup successor exists for a crash.
 
 ```sh
 omega run --both samples/cli/facts/nominal_loan_backing_cleanup/local/main.omg
-omega --check samples/cli/facts/nominal_loan_backing_cleanup/local/invalid/main.omg
+omega --check samples/cli/facts/nominal_loan_backing_cleanup/invalid_local/main.omg
 python3 tools/sample_gate.py --filter cli/facts/nominal_loan_backing_cleanup --cli <omega>
 python3 tools/sample_native_gate.py --filter cli/facts/nominal_loan_backing_cleanup --cli <omega>
 python3 tools/corpus_gate.py --filter nominal_loan_backing_cleanup

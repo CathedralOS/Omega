@@ -9,15 +9,15 @@ Every place performs the same operation: construct or transport a 9-level nested
 | Place | Positive Project | Reject Twin | Transport Mechanism |
 | --- | --- | --- | --- |
 | (root) | [`main.omg`](main.omg) | — | root 9-level nested record construction, leaf projection, and exact subtraction discharge |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | the 9-level nested record is copied to a local variable before leaf projection and interval discharge |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | the 9-level nested record is stored in a container record field before leaf projection and interval discharge |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | explicit machine parameters receive the 9-level nested record before leaf projection and interval discharge |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | contracted helper calls return the 9-level nested record before leaf projection and interval discharge |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield a 9-level nested record and join before leaf projection and interval discharge |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constants supply the leaf value of a 9-level nested record before projection and interval discharge |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the 9-level nested record before leaf projection and interval discharge |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an intermediate forwarding machine receives and passes the 9-level nested record to leaf projection |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target-scoped machine bodies receives the 9-level nested record and discharges leaf bound |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | the 9-level nested record is copied to a local variable before leaf projection and interval discharge |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | the 9-level nested record is stored in a container record field before leaf projection and interval discharge |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | explicit machine parameters receive the 9-level nested record before leaf projection and interval discharge |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | contracted helper calls return the 9-level nested record before leaf projection and interval discharge |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | both match arms yield a 9-level nested record and join before leaf projection and interval discharge |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | named constants supply the leaf value of a 9-level nested record before projection and interval discharge |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | a successor machine receives the 9-level nested record before leaf projection and interval discharge |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | an intermediate forwarding machine receives and passes the 9-level nested record to leaf projection |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | each of four target-scoped machine bodies receives the 9-level nested record and discharges leaf bound |
 
 Every positive place and the root `main.omg` probe binds `ProgramEntry` for
 `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` and declares

@@ -18,15 +18,15 @@ missing declaration fact.
 
 | Place | Transport into the common update | Positive | Reject |
 | --- | --- | --- | --- |
-| Local | Mutable local `Counter` | [source](local/main.omg) | [twin](local/invalid/main.omg) |
-| Field | Borrowed `Holder.counter`, with outer canaries | [source](field/main.omg) | [twin](field/invalid/main.omg) |
-| Parameter | Owned `Counter` parameter, updated and returned | [source](parameter/main.omg) | [twin](parameter/invalid/main.omg) |
-| Call result | Completed constructed `Counter` result | [source](call_result/main.omg) | [twin](call_result/invalid/main.omg) |
-| Match join | Two distinct `Counter` arms joined before return | [source](match_join/main.omg) | [twin](match_join/invalid/main.omg) |
-| Const name | Named `[copy]` `Counter` constants copied into mutable storage | [source](const_name/main.omg) | [twin](const_name/invalid/main.omg) |
-| Nested machine | `Counter` passed into the nested `nested` machine | [source](other_state/main.omg) | [twin](other_state/invalid/main.omg) |
-| Another machine | Owned `Counter` relayed through two top-level machines | [source](other_machine/main.omg) | [twin](other_machine/invalid/main.omg) |
-| Selected target body | `Counter` produced by a named implementation selected in Build | [source](target_body/main.omg) | [twin](target_body/invalid/main.omg) |
+| Local | Mutable local `Counter` | [source](local/main.omg) | [twin](invalid_local/main.omg) |
+| Field | Borrowed `Holder.counter`, with outer canaries | [source](field/main.omg) | [twin](invalid_field/main.omg) |
+| Parameter | Owned `Counter` parameter, updated and returned | [source](parameter/main.omg) | [twin](invalid_parameter/main.omg) |
+| Call result | Completed constructed `Counter` result | [source](call_result/main.omg) | [twin](invalid_call_result/main.omg) |
+| Match join | Two distinct `Counter` arms joined before return | [source](match_join/main.omg) | [twin](invalid_match_join/main.omg) |
+| Const name | Named `[copy]` `Counter` constants copied into mutable storage | [source](const_name/main.omg) | [twin](invalid_const_name/main.omg) |
+| Nested machine | `Counter` passed into the nested `nested` machine | [source](other_state/main.omg) | [twin](invalid_other_state/main.omg) |
+| Another machine | Owned `Counter` relayed through two top-level machines | [source](other_machine/main.omg) | [twin](invalid_other_machine/main.omg) |
+| Selected target body | `Counter` produced by a named implementation selected in Build | [source](target_body/main.omg) | [twin](invalid_target_body/main.omg) |
 
 Each place copies the same public update body and fact sentence. Each Build binds
 `ProgramEntry` for Windows x86-64, Linux x86-64, macOS arm64 and Linux arm64. The

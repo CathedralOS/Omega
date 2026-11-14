@@ -15,15 +15,15 @@ and carries an authored `expected_native_exit.txt` containing `0` beside its ent
 | Place | Positive Program | Fact-sensitive Reject Twin | Carrier / Transport Mechanism |
 | --- | --- | --- | --- |
 | root | [`main.omg`](main.omg) | — | root witness exercising `combine_fixed` with all 8 widths and `read_slice` view |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | all 8 width indices copied to local variables before indexing |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | width indices packaged into and projected from `Indices` record fields |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | width indices passed as explicit machine parameters |
-| call_result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | contracted helper call results supply each width index |
-| match_join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | match arms join on bounded width indices before indexing |
-| const_name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constant indices bound and index the array |
-| other_state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | state transition passes bounded width indices to successor machine |
-| other_machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | forwarding machine routes bounded width indices to indexing machine |
-| target_body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | target-scoped machine bodies execute indexing across all hosted targets |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | all 8 width indices copied to local variables before indexing |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | width indices packaged into and projected from `Indices` record fields |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | width indices passed as explicit machine parameters |
+| call_result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | contracted helper call results supply each width index |
+| match_join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | match arms join on bounded width indices before indexing |
+| const_name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | named constant indices bound and index the array |
+| other_state | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | state transition passes bounded width indices to successor machine |
+| other_machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | forwarding machine routes bounded width indices to indexing machine |
+| target_body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | target-scoped machine bodies execute indexing across all hosted targets |
 
 ## Execution
 

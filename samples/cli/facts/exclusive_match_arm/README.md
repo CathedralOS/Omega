@@ -22,15 +22,15 @@ borrow checker (``while local borrow `selected` is still active``).
 | Place | Positive Project | Reject Twin | Transport Mechanism |
 | --- | --- | --- | --- |
 | root | [`main.omg`](main.omg) with [`build.omg`](build.omg) | — | canonical root witness |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | the primitives are local `let`s |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | the primitives are record fields (`Pair.left`, `Pair.right`) |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | the primitives arrive as `&mut i64` parameters |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `select(&mut chosen, &mut other, …)` returns the exclusive loan |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | the copyable flag arrives from a match join |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | the flag is the named constant `DECIDE` |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the primitives and returns the loan |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine supplies the primitives |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target bodies performs the sequence |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | the primitives are local `let`s |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | the primitives are record fields (`Pair.left`, `Pair.right`) |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | the primitives arrive as `&mut i64` parameters |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | `select(&mut chosen, &mut other, …)` returns the exclusive loan |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | the copyable flag arrives from a match join |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | the flag is the named constant `DECIDE` |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | a successor machine receives the primitives and returns the loan |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | a forwarding machine supplies the primitives |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | each of four target bodies performs the sequence |
 
 A nonstandard probe at [`case_payload/main.omg`](case_payload/main.omg)
 (positive + twin) transports the same sentence through a case payload
@@ -78,15 +78,15 @@ of the write through the loan; everything else is identical to its positive
 
 | Place | Twin | Pinned Diagnostic Fragment |
 | --- | --- | --- |
-| local | [`local/invalid/main.omg`](local/invalid/main.omg) | ``while local borrow `selected` is still active`` |
-| field | [`field/invalid/main.omg`](field/invalid/main.omg) | ``while local borrow `selected` is still active`` |
-| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | ``while local borrow `selected` is still active`` |
-| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | ``while local borrow `selected` is still active`` |
-| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | ``while local borrow `selected` is still active`` |
-| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | ``while local borrow `selected` is still active`` |
-| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | ``while local borrow `selected` is still active`` |
-| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | ``while local borrow `selected` is still active`` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | ``while local borrow `selected` is still active`` |
+| local | [`invalid_local/main.omg`](invalid_local/main.omg) | ``while local borrow `selected` is still active`` |
+| field | [`invalid_field/main.omg`](invalid_field/main.omg) | ``while local borrow `selected` is still active`` |
+| parameter | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | ``while local borrow `selected` is still active`` |
+| call result | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | ``while local borrow `selected` is still active`` |
+| match join | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | ``while local borrow `selected` is still active`` |
+| const name | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | ``while local borrow `selected` is still active`` |
+| a nested machine | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | ``while local borrow `selected` is still active`` |
+| another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | ``while local borrow `selected` is still active`` |
+| another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | ``while local borrow `selected` is still active`` |
 
 ## Pinned Fixtures
 

@@ -13,15 +13,15 @@ close either parent outcome.
 
 | Place | Positive | Reject twin | Transport at the consuming operation |
 | --- | --- | --- | --- |
-| local | [local/main.omg](local/main.omg) | [local/invalid/main.omg](local/invalid/main.omg) | Copies the two fields into named locals before subtracting. |
-| field | [field/main.omg](field/main.omg) | [field/invalid/main.omg](field/invalid/main.omg) | Subtracts the two field projections directly. |
-| parameter | [parameter/main.omg](parameter/main.omg) | [parameter/invalid/main.omg](parameter/invalid/main.omg) | Checks the relation on the subtraction machine's parameters. |
-| call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | Subtracts the actual `used_amount(main)` result under its exact result postcondition. |
-| match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | Subtracts a match result justified on both arms; the runtime entry exercises both arms. |
-| const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | Subtracts `USED` directly under its relation to the field. |
-| another state | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | Carries count and used to `finish`, whose arrival contract justifies subtraction there. |
-| another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | `copied_used` transports the relation through its result contract into the consuming machine call. |
-| another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | Each of the four authored target bodies proves the same parameter subtraction. |
+| local | [local/main.omg](local/main.omg) | [invalid_local/main.omg](invalid_local/main.omg) | Copies the two fields into named locals before subtracting. |
+| field | [field/main.omg](field/main.omg) | [invalid_field/main.omg](invalid_field/main.omg) | Subtracts the two field projections directly. |
+| parameter | [parameter/main.omg](parameter/main.omg) | [invalid_parameter/main.omg](invalid_parameter/main.omg) | Checks the relation on the subtraction machine's parameters. |
+| call result | [call_result/main.omg](call_result/main.omg) | [invalid_call_result/main.omg](invalid_call_result/main.omg) | Subtracts the actual `used_amount(main)` result under its exact result postcondition. |
+| match join | [match_join/main.omg](match_join/main.omg) | [invalid_match_join/main.omg](invalid_match_join/main.omg) | Subtracts a match result justified on both arms; the runtime entry exercises both arms. |
+| const name | [const_name/main.omg](const_name/main.omg) | [invalid_const_name/main.omg](invalid_const_name/main.omg) | Subtracts `USED` directly under its relation to the field. |
+| another state | [other_state/main.omg](other_state/main.omg) | [invalid_other_state/main.omg](invalid_other_state/main.omg) | Carries count and used to `finish`, whose arrival contract justifies subtraction there. |
+| another machine | [other_machine/main.omg](other_machine/main.omg) | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | `copied_used` transports the relation through its result contract into the consuming machine call. |
+| another target body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) | Each of the four authored target bodies proves the same parameter subtraction. |
 
 The root [main.omg](main.omg) is a runnable representative. Every positive and
 the root bind `ProgramEntry` for `windows_x86_64`, `linux_x86_64`,
@@ -45,7 +45,7 @@ Run a place and its control:
 
 ```sh
 omega run --both samples/cli/facts/dependent_subtract/call_result/main.omg
-omega --check --verify samples/cli/facts/dependent_subtract/call_result/invalid/main.omg
+omega --check --verify samples/cli/facts/dependent_subtract/invalid_call_result/main.omg
 ```
 
 A positive must report actual native exit 0 and Terminal exit 0. A reject must

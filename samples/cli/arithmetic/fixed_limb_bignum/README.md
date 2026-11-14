@@ -16,7 +16,7 @@ The program runs a scripted sequence on carry-heavy inputs
 
 On agreement it prints `PASS` and exits `0`.
 
-An intended-invalid control in `invalid/` stores a carry limb at index `8` of
+An intended-invalid control in `../invalid_fixed_limb_bignum/` stores a carry limb at index `8` of
 the fixed `[u32; 8]` record and is rejected at compile time
 (`cannot prove index `8` is within length 8`).
 

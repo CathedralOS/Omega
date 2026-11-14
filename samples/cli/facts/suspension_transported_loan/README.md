@@ -19,15 +19,15 @@ carries its own entry permission and already ran on the base.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| local | [source](local/main.omg) | [invalid](local/invalid/main.omg) |
-| field | [source](field/main.omg) | [invalid](field/invalid/main.omg) |
-| parameter | [source](parameter/main.omg) | [invalid](parameter/invalid/main.omg) |
-| call result | [source](call_result/main.omg) | [invalid](call_result/invalid/main.omg) |
-| match join | [source](match_join/main.omg) | [invalid](match_join/invalid/main.omg) |
-| constant | [source](const_name/main.omg) | [invalid](const_name/invalid/main.omg) |
-| nested machine | [source](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
-| other machine | [source](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
-| target body | [source](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
+| local | [source](local/main.omg) | [invalid](invalid_local/main.omg) |
+| field | [source](field/main.omg) | [invalid](invalid_field/main.omg) |
+| parameter | [source](parameter/main.omg) | [invalid](invalid_parameter/main.omg) |
+| call result | [source](call_result/main.omg) | [invalid](invalid_call_result/main.omg) |
+| match join | [source](match_join/main.omg) | [invalid](invalid_match_join/main.omg) |
+| constant | [source](const_name/main.omg) | [invalid](invalid_const_name/main.omg) |
+| nested machine | [source](other_state/main.omg) | [invalid](invalid_other_state/main.omg) |
+| other machine | [source](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) |
+| target body | [source](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
 The [stored-reference recast production](recast/README.md) carries the same fact
 through all nine places after forming a compatible record view. It preserves
