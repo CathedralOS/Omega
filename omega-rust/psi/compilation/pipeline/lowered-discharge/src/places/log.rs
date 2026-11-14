@@ -42,8 +42,8 @@ returns as `Err`:
 - the place table must hold one place per path, since a place identity
   stands for its path wherever a table names one
   (`places_are_interned`);
-- an entry content value must be of a scalar leaf of a formal, with that
-  leaf's declared type (`Storage::entry_contents_are_of_formals`).
+- an initial-content value must name a scalar leaf of an invocation formal
+  or the exact result of its declared producing call, with the leaf's type (`Storage::initial_contents_are_declared`).
 */
 
 use semantic_vocabulary::{
@@ -626,12 +626,12 @@ impl Storage<'_> {
         Ok(())
     }
 
-    /// Refuses an entry content value that is not of a scalar leaf of a
-    /// formal, typed as that leaf is declared. Only a formal holds anything
-    /// at entry, and the walk hands such a value to every read no store
-    /// reaches.
-    pub(super) fn entry_contents_are_of_formals(&self, tables: &MachineTables) -> Checked<()> {
-        for (slot, value) in self.entry_contents.iter().enumerate() {
+    /// A logical initial-content value must name a real scalar leaf, with
+    /// its declared type. Only formals and results of actual declared calls
+    /// supply such values. The reaching-write walk exposes a call result's
+    /// identity only after that producing call, never at machine entry.
+    pub(super) fn initial_contents_are_declared(&self, tables: &MachineTables) -> Checked<()> {
+        for (slot, value) in self.initial_contents.iter().enumerate() {
             let Some(value) = value else {
                 continue;
             };
@@ -639,18 +639,32 @@ impl Storage<'_> {
             let place = ExactPlaceId::new(slot as u64 + 1)
                 .ok_or_else(|| self.foreign(concerns, "a place identity out of range"))?;
             let leaf = lineage(self.machine, &tables.places, place)?;
-            let declared = match self.root_kind(leaf.root, concerns)? {
-                StructuralPlaceKind::Parameter { .. } => match self.shape(&leaf, concerns)? {
+            let supported = match self.root_kind(leaf.root, concerns)? {
+                StructuralPlaceKind::Parameter { .. } => true,
+                StructuralPlaceKind::OperationResult { producer, .. } => {
+                    let operation = self.operation(producer, concerns)?;
+                    operation.kind.declared_invocation().is_some()
+                        && operation.result.as_structural().is_some_and(|result| {
+                            result.place == leaf.root
+                                && self.lowered.structural_place_type(leaf.root)
+                                    == Some(result.structural_type)
+                        })
+                }
+                _ => false,
+            };
+            let declared = if supported {
+                match self.shape(&leaf, concerns)? {
                     Shape::Scalar(scalar_type) => Some(scalar_type),
                     Shape::Typed(_) | Shape::View | Shape::Payload(_) => None,
-                },
-                _ => None,
+                }
+            } else {
+                None
             };
             let stated = tables.values.get(*value).map(|row| row.scalar_type);
             if declared.is_none() || declared != stated {
                 return Err(self.foreign(
                     concerns,
-                    "an entry content value of storage that is no scalar leaf of a formal",
+                    "an initial content value of storage that is no scalar leaf of a formal or declared call result",
                 ));
             }
         }

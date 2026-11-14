@@ -933,7 +933,6 @@ fn fill_knowledge(
             InvocationSite::InvokeNoNormal(_) | InvocationSite::ExternalCompletion(_) => continue,
         };
         let callee = callee(module, id, invocation, row)?;
-        let actuals = scalar_actuals(&row.actuals);
         let erased = callable_erased_actuals(module, lowered, callee, id, invocation, row.site)?;
         let ensures = module.callable_ensures(callee).ok_or_else(|| {
             refusal(
@@ -948,11 +947,28 @@ fn fill_knowledge(
                 ensures,
                 &mut ErasedTerms {
                     terms: &erased,
-                    runtime: &mut ScalarActuals {
-                        actuals: &actuals,
-                        result: operation_result(lowered, operation),
+                    runtime: &mut storage.after_call(
                         tables,
-                    },
+                        &row.actuals,
+                        module
+                            .callable_structural_parameters(callee)
+                            .ok_or_else(|| {
+                                refusal(
+                                    RefusalReason::ForeignIdentity,
+                                    id,
+                                    Construct::Invocation(invocation),
+                                    "callee has no canonical structural formals",
+                                )
+                            })?,
+                        match callee {
+                            semantic_vocabulary::TargetMachineCallable::Machine(machine) => {
+                                module.machine(machine).map(|machine| &machine.result)
+                            }
+                            semantic_vocabulary::TargetMachineCallable::Boundary(_) => None,
+                        },
+                        operation,
+                        Construct::Invocation(invocation),
+                    )?,
                 },
             )
             .map_err(|unbound| unbound.refusal(id, Construct::Invocation(invocation)))?;
@@ -1659,15 +1675,11 @@ fn stated_goal(
                         "machine has no such ensures clause",
                     )
                 })?;
-            // On a return edge the result pseudo-value stands for the value
-            // that edge returns (state_contracts.md: "Synthetic `result`
-            // denotes the exact returned value").
-            Ok(match (&lowered.result, returned(lowered, exit)) {
-                (terminal_psi::TerminalMachineResult::Scalar(result), Some(value)) => {
-                    returned_for_result(&clause.proposition, result.id, value)
-                }
-                _ => clause.proposition.clone(),
-            })
+            substitute(
+                &clause.proposition,
+                &mut storage.at_return(tables, exit, concerns)?,
+            )
+            .map_err(|unbound| unbound.refusal(id, concerns))
         }
         ObligationKind::PublishedGuarantee { .. } => Err(refusal(
             RefusalReason::Unsupported,

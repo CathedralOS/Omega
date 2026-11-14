@@ -275,7 +275,7 @@ impl<'a> Lowering<'a> {
             outcomes,
             records,
             roots: IdTable::default(),
-            entry_contents: Vec::new(),
+            initial_contents: Vec::new(),
             path: Vec::new(),
             tables: MachineTables::default(),
             sources: MachineSources::default(),
@@ -468,7 +468,7 @@ struct Lowering<'a> {
     roots: IdTable<PlaceId, (StructuralPlaceKind, StructuralTypeId)>,
     /// The entry content value minted for a formal's scalar leaf, indexed by
     /// that leaf's `ExactPlaceId`; `None` until the leaf is first read.
-    entry_contents: Vec<Option<ValueId>>,
+    initial_contents: Vec<Option<ValueId>>,
     /// The branch decisions on the path to the open block, in program order:
     /// each the branch value equal to the Boolean its edge took. Every arm
     /// completes the machine, and a short-circuit or `match` rejoins its

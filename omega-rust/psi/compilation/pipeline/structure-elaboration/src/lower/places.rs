@@ -49,7 +49,7 @@ nothing else: lowering never asks what a place holds.
   (`local-without-initializer`: a builtin scalar admits zero, so the zero is
   an established value).
 - What a formal holds at entry is not a write. It is one value per scalar
-  leaf with `ValueOrigin::EntryContent { place }`, minted the first time an
+  leaf with `ValueOrigin::InitialContent { place }`, minted the first time an
   operation names the leaf or a place above it, whatever is stored there
   later.
 */
@@ -814,21 +814,20 @@ impl<'a> Lowering<'a> {
         Ok(())
     }
 
-    /// The value a formal's scalar leaf holds at entry, minted the first
-    /// time it is asked for. fact_validity.md: "a valid initialized ordinary
-    /// storage place at entry may supply its exact reaching value version; it
-    /// need not have a store inside the current body."
-    fn entry_content(&mut self, leaf: ExactPlaceId, scalar_type: ScalarType) -> Checked<ValueId> {
+    /// A scalar leaf's initial logical value: supplied at entry for a formal,
+    /// or produced by the exact declared call that establishes its root.
+    /// The checker authenticates that origin and follows later writes separately.
+    fn initial_content(&mut self, leaf: ExactPlaceId, scalar_type: ScalarType) -> Checked<ValueId> {
         let index = usize::try_from(leaf.get() - 1)
             .map_err(|_| self.internal("place identity exceeds the address space"))?;
-        if self.entry_contents.len() <= index {
-            self.entry_contents.resize(index + 1, None);
+        if self.initial_contents.len() <= index {
+            self.initial_contents.resize(index + 1, None);
         }
-        if let Some(value) = self.entry_contents[index] {
+        if let Some(value) = self.initial_contents[index] {
             return Ok(value);
         }
-        let value = self.value(scalar_type, ValueOrigin::EntryContent { place: leaf });
-        self.entry_contents[index] = Some(value);
+        let value = self.value(scalar_type, ValueOrigin::InitialContent { place: leaf });
+        self.initial_contents[index] = Some(value);
         Ok(value)
     }
 
@@ -845,7 +844,7 @@ impl<'a> Lowering<'a> {
         let (kind, _) =
             *terminal_check_tables::row(&self.roots, root, self.id, Construct::Place(place))?;
         match kind {
-            StructuralPlaceKind::Parameter { .. } => self.entry_leaves(place, value_type),
+            StructuralPlaceKind::Parameter { .. } => self.initial_leaves(place, value_type),
             StructuralPlaceKind::BlockParameter { .. }
             | StructuralPlaceKind::Result
             | StructuralPlaceKind::OperationResult { .. }
@@ -855,21 +854,21 @@ impl<'a> Lowering<'a> {
         }
     }
 
-    fn entry_leaves(&mut self, place: ExactPlaceId, value_type: ValueType) -> Checked<()> {
+    pub(super) fn initial_leaves(&mut self, place: ExactPlaceId, value_type: ValueType) -> Checked<()> {
         match value_type {
             ValueType::Rigid(_) => Err(self.internal("a field of a rigid type")),
-            ValueType::Scalar(scalar_type, _) => self.entry_content(place, scalar_type).map(drop),
+            ValueType::Scalar(scalar_type, _) => self.initial_content(place, scalar_type).map(drop),
             ValueType::Record(record, _, _) => {
                 let data = self.record_type(record)?;
                 if matches!(data.shape, StorageShape::FixedArray { .. }) {
                     return Ok(());
                 }
                 if let StorageShape::PrimitiveScalar { scalar_type, .. } = data.shape {
-                    return self.entry_content(place, scalar_type).map(drop);
+                    return self.initial_content(place, scalar_type).map(drop);
                 }
                 for field in data.fields() {
                     let leaf = self.project(place, Segment::Field(field.id))?;
-                    self.entry_leaves(leaf, field.value_type)?;
+                    self.initial_leaves(leaf, field.value_type)?;
                 }
                 // Which case a formal holds is not known, so every case's
                 // payload leaves get their entry content; the checker lets
@@ -878,7 +877,7 @@ impl<'a> Lowering<'a> {
                     let payload = self.project(place, Segment::Case(case.id))?;
                     for field in &case.fields {
                         let leaf = self.project(payload, Segment::Field(field.id))?;
-                        self.entry_leaves(leaf, field.value_type)?;
+                        self.initial_leaves(leaf, field.value_type)?;
                     }
                 }
                 Ok(())

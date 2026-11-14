@@ -234,11 +234,11 @@ fn asked_root(asked: Asked<'_>) -> PlaceId {
 /// rows of the same type could exchange their leaves and be read as each
 /// other's contents. A second value for one place is out of order too: it
 /// would be a second identity for one content.
-fn entry_contents(machine: MachineId, tables: &MachineTables) -> Checked<Vec<Option<ValueId>>> {
+fn initial_contents(machine: MachineId, tables: &MachineTables) -> Checked<Vec<Option<ValueId>>> {
     let mut contents = vec![None; tables.places.len()];
     let mut previous: Option<ExactPlaceId> = None;
     for (value, row) in tables.values.iter() {
-        let ValueOrigin::EntryContent { place } = row.origin else {
+        let ValueOrigin::InitialContent { place } = row.origin else {
             continue;
         };
         if previous.is_some_and(|previous| previous >= place) {
@@ -246,7 +246,7 @@ fn entry_contents(machine: MachineId, tables: &MachineTables) -> Checked<Vec<Opt
                 RefusalReason::ForeignIdentity,
                 machine,
                 Construct::Value(value),
-                "entry content values are not in the order of the leaves they belong to",
+                "initial content values are not in the order of the leaves they belong to",
             ));
         }
         previous = Some(place);
@@ -261,6 +261,19 @@ fn entry_contents(machine: MachineId, tables: &MachineTables) -> Checked<Vec<Opt
         *slot = Some(value);
     }
     Ok(contents)
+}
+
+/// Only invocation formals have invocation-wide initial contents. A call
+/// result's fresh contents cannot become a block predicate's entry premise.
+pub(crate) fn input_content(
+    lowered: &TerminalMachine,
+    tables: &MachineTables,
+    place: ExactPlaceId,
+) -> bool {
+    lineage(lowered.id, &tables.places, place)
+        .ok()
+        .and_then(|source| lowered.structural_place(source.root))
+        .is_some_and(|root| matches!(root.kind, StructuralPlaceKind::Parameter { .. }))
 }
 
 /// What one scalar leaf holds on every path to a point.
@@ -462,7 +475,7 @@ pub(crate) struct Storage<'a> {
     lowered: &'a TerminalMachine,
     types: &'a [StructuralTypeDeclaration],
     graph: &'a Graph,
-    entry_contents: Vec<Option<ValueId>>,
+    initial_contents: Vec<Option<ValueId>>,
     log: Vec<Logged>,
     /// The `requires` clauses of each data type, by its identity
     /// (`Elaboration::domains`).
@@ -487,11 +500,11 @@ impl<'a> Storage<'a> {
             lowered,
             types,
             graph,
-            entry_contents: entry_contents(machine, tables)?,
+            initial_contents: initial_contents(machine, tables)?,
             log: Vec::new(),
             domains,
         };
-        storage.entry_contents_are_of_formals(tables)?;
+        storage.initial_contents_are_declared(tables)?;
         storage.log = storage.stores(value_types)?;
         storage.log_is_stated(tables)?;
         Ok(storage)
@@ -815,6 +828,112 @@ impl<'a> Storage<'a> {
             callee_formals,
             block,
             up_to: before,
+            concerns,
+        })
+    }
+
+    /// A normal call guarantee observes the actual returned root after its
+    /// producer, while input names keep their before-call values.
+    pub(crate) fn after_call<'s>(
+        &'s self,
+        tables: &'s MachineTables,
+        actuals: &[Actual],
+        formals: &'s [terminal_psi::StructuralParameterDeclaration],
+        result: Option<&TerminalMachineResult>,
+        site: OperationId,
+        concerns: Construct,
+    ) -> Checked<Returned<'s, 'a, AtCall<'s, 'a>>> {
+        let inputs = self.at_call(tables, actuals, formals, site, concerns)?;
+        let operation = self.operation(site, concerns)?;
+        let structural = match (result, operation.result.as_structural()) {
+            (Some(TerminalMachineResult::Structural(declared)), Some(actual)) => {
+                if declared.structural_type != actual.structural_type {
+                    return Err(self.foreign(
+                        concerns,
+                        "call result has another structural type than its contract",
+                    ));
+                }
+                Some((
+                    declared.place,
+                    Lineage {
+                        root: actual.place,
+                        segments: Vec::new(),
+                    },
+                ))
+            }
+            _ => None,
+        };
+        let scalar = operation.result.as_scalar().map(|actual| {
+            let formal = match result {
+                Some(TerminalMachineResult::Scalar(declared)) => declared.id,
+                _ => ValueId::new(inputs.scalars.len() as u64 + 1)
+                    .expect("a scalar result follows its formals"),
+            };
+            (formal, actual.id)
+        });
+        Ok(Returned {
+            inputs,
+            storage: self,
+            tables,
+            structural,
+            scalar,
+            point: ProgramPoint::AfterOperation(site),
+            concerns,
+        })
+    }
+
+    /// A published guarantee must hold of the storage this exact exit returns,
+    /// including all writes before the exit. Input names still denote entry
+    /// snapshots; they do not read a moved or mutated formal at return time.
+    pub(crate) fn at_return<'s>(
+        &'s self,
+        tables: &'s MachineTables,
+        exit: EdgeId,
+        concerns: Construct,
+    ) -> Checked<Returned<'s, 'a, AtEntry<'s, 'a>>> {
+        let (block, _) = self.graph.locate(ProgramPoint::Edge(exit))?;
+        let (structural, scalar) = match (&self.lowered.result, &self.block(block)?.terminator) {
+            (
+                TerminalMachineResult::Structural(declared),
+                Terminator::ReturnStructural { edge, source, .. },
+            ) if *edge == exit => (
+                Some((
+                    declared.place,
+                    Lineage {
+                        root: *source,
+                        segments: Vec::new(),
+                    },
+                )),
+                None,
+            ),
+            (
+                TerminalMachineResult::Scalar(declared),
+                Terminator::Return {
+                    edge,
+                    value: Some(actual),
+                    ..
+                },
+            ) if *edge == exit => (None, Some((declared.id, *actual))),
+            (
+                TerminalMachineResult::Unit,
+                Terminator::Return {
+                    edge, value: None, ..
+                },
+            ) if *edge == exit => (None, None),
+            _ => {
+                return Err(self.foreign(
+                    concerns,
+                    "guarantee exit does not return the declared result",
+                ));
+            }
+        };
+        Ok(Returned {
+            inputs: self.at_entry(tables),
+            storage: self,
+            tables,
+            structural,
+            scalar,
+            point: ProgramPoint::Edge(exit),
             concerns,
         })
     }
@@ -1484,7 +1603,21 @@ impl<'a> Storage<'a> {
                     .zero_case(row.lineage.root, beneath, concerns)?
                     .map_or(Reached::Unknown, Reached::Case),
                 (Stored::Zeroed, Asked::Contents(_)) => Reached::Unknown,
-                (Stored::Established, Asked::Contents(_)) => Reached::Returned,
+                (Stored::Established, Asked::Contents(leaf)) => {
+                    let is_producer = matches!(self.root_kind(leaf.root, concerns)?,
+                        StructuralPlaceKind::OperationResult { producer, .. }
+                            if producer == row.operation && row.lineage.segments.is_empty());
+                    if is_producer {
+                        self.interned(tables, leaf, concerns)?
+                            .and_then(|place| {
+                                self.initial_contents.get(index(place.get())).copied()
+                            })
+                            .flatten()
+                            .map_or(Reached::Returned, Reached::Value)
+                    } else {
+                        Reached::Returned
+                    }
+                }
                 (Stored::Established, Asked::Case(_)) => Reached::Unknown,
                 // A window is answered by the row alone, above.
                 (Stored::Zeroed | Stored::Established, Asked::Window { .. }) => {
@@ -1672,7 +1805,9 @@ impl<'a> Storage<'a> {
                         // has a value identity when elaboration minted one.
                         (Asked::Contents(leaf), StructuralPlaceKind::Parameter { .. }) => self
                             .interned(tables, leaf, concerns)?
-                            .and_then(|place| self.entry_contents.get(index(place.get())).copied())
+                            .and_then(|place| {
+                                self.initial_contents.get(index(place.get())).copied()
+                            })
                             .flatten()
                             .map_or(Reached::Unknown, Reached::Value),
                         // Which case a formal holds at entry is not known, and
@@ -1893,7 +2028,7 @@ impl<'a> Storage<'a> {
                 match terminal_check_tables::row(&tables.values, held, self.machine, concerns)?
                     .origin
                 {
-                    ValueOrigin::EntryContent { place } => {
+                    ValueOrigin::InitialContent { place } => {
                         Some(lineage(self.machine, &tables.places, place)?)
                     }
                     ValueOrigin::MachineParameter { .. }
@@ -2961,6 +3096,95 @@ impl Held<'_, '_> {
     }
 }
 
+/// Input substitution and returned storage share the existing clause binding
+/// interface. Only the declared result root is redirected to the actual result;
+/// every field read uses the same checked reaching-write walk as data clauses.
+pub(crate) struct Returned<'s, 'a, Inputs> {
+    inputs: Inputs,
+    storage: &'s Storage<'a>,
+    tables: &'s MachineTables,
+    structural: Option<(PlaceId, Lineage)>,
+    scalar: Option<(ValueId, ValueId)>,
+    point: ProgramPoint,
+    concerns: Construct,
+}
+
+impl<Inputs: crate::Bindings<Error = crate::Unbound>> Returned<'_, '_, Inputs> {
+    fn held(&self) -> Result<Held<'_, '_>, crate::Unbound> {
+        let (_, place) = self.structural.as_ref().ok_or(crate::Unbound::Unsupported(
+            "no structural result correspondence",
+        ))?;
+        let (block, up_to) = self
+            .storage
+            .graph
+            .locate(self.point)
+            .map_err(crate::Unbound::Refused)?;
+        Ok(Held {
+            storage: self.storage,
+            tables: self.tables,
+            place,
+            block,
+            up_to,
+            concerns: self.concerns,
+        })
+    }
+}
+
+impl<Inputs: crate::Bindings<Error = crate::Unbound>> crate::Bindings for Returned<'_, '_, Inputs> {
+    type Error = crate::Unbound;
+    fn value(
+        &mut self,
+        id: ValueId,
+        scalar_type: ScalarType,
+    ) -> Result<ScalarTerm, crate::Unbound> {
+        if let Some((formal, actual)) = self.scalar
+            && id == formal
+        {
+            if self.tables.values.get(actual).map(|row| row.scalar_type) != Some(scalar_type) {
+                return Err(crate::Unbound::Unsupported(
+                    "returned scalar type differs from its contract",
+                ));
+            }
+            return Ok(ScalarTerm::value(actual, scalar_type));
+        }
+        self.inputs.value(id, scalar_type)
+    }
+    fn field(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        scalar_type: ScalarType,
+    ) -> Result<ScalarTerm, crate::Unbound> {
+        if self
+            .structural
+            .as_ref()
+            .is_some_and(|(declared, _)| *declared == root)
+        {
+            let subject = structure_elaboration::self_place()
+                .ok_or(crate::Unbound::Unsupported("data subject identity"))?;
+            return self.held()?.field(subject, path, scalar_type);
+        }
+        self.inputs.field(root, path, scalar_type)
+    }
+    fn case(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        case: StructuralCaseId,
+    ) -> Result<bool, crate::Unbound> {
+        if self
+            .structural
+            .as_ref()
+            .is_some_and(|(declared, _)| *declared == root)
+        {
+            let subject = structure_elaboration::self_place()
+                .ok_or(crate::Unbound::Unsupported("data subject identity"))?;
+            return self.held()?.case(subject, path, case);
+        }
+        self.inputs.case(root, path, case)
+    }
+}
+
 /// See `Storage::at_entry`.
 pub(crate) struct AtEntry<'s, 'a> {
     storage: &'s Storage<'a>,
@@ -3013,7 +3237,7 @@ impl crate::Bindings for AtEntry<'_, '_> {
         let held = storage
             .interned(self.tables, &leaf, concerns)
             .map_err(crate::Unbound::Refused)?
-            .and_then(|place| storage.entry_contents.get(index(place.get())).copied())
+            .and_then(|place| storage.initial_contents.get(index(place.get())).copied())
             .flatten()
             .ok_or(crate::Unbound::Unproved(
                 "no operation names the field, so its entry content has no value identity",

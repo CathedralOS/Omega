@@ -1440,12 +1440,12 @@ impl<'t> Program<'t> {
                 Some(ValueType::Scalar(..)) => {
                     ResultTerm::Absent("result that carries a declared domain")
                 }
-                // A clause over a record result projects it
-                // (`result.field`), which a later slice serves from the
-                // result place.
-                Some(ValueType::Record(_, _, _)) => {
-                    ResultTerm::Absent("result of a record machine")
-                }
+                // A returned field belongs to the declared result root,
+                // allocated after the structural formals by lowering.
+                Some(value_type @ ValueType::Record(_, _, _)) => ResultTerm::Structural(
+                    super::contracts::formal_place(id, &slots, slots.len())?,
+                    value_type,
+                ),
                 Some(ValueType::Rigid(_)) => ResultTerm::Absent("result of a rigid type"),
                 None => ResultTerm::Absent("result of a Unit machine"),
             },

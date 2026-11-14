@@ -49,6 +49,7 @@ mod ranges;
 mod reach;
 mod references;
 mod result_summaries;
+mod result_fields;
 mod sequence_regions;
 mod stored_views;
 mod type_parameters;
@@ -2009,7 +2010,7 @@ fn a_formal_leaf_reads_as_its_one_entry_content_value() {
     assert_eq!(read_equals(tables, *second), Some(held));
     assert!(matches!(
         tables.values.get(held).unwrap().origin,
-        ValueOrigin::EntryContent { .. }
+        ValueOrigin::InitialContent { .. }
     ));
     let (obligation, verdict) = verdicts(&elaboration, &result, 1, safety)[0];
     assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
@@ -4819,7 +4820,7 @@ fn an_entry_clause_over_a_formals_field_is_known_of_its_entry_content() {
     let entry = read_equals(tables, observed).unwrap();
     assert!(matches!(
         tables.values.get(entry).unwrap().origin,
-        ValueOrigin::EntryContent { .. }
+        ValueOrigin::InitialContent { .. }
     ));
     let stated: Vec<_> = tables
         .knowledge

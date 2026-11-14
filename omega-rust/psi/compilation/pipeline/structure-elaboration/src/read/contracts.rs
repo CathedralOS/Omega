@@ -24,7 +24,7 @@ use crate::canonical::{self, Repeated};
 use crate::{ClauseText, Piece, Unserved, refuse};
 
 /// What a contract clause may name: the formals, and the result pseudo-value
-/// only in a normal-return guarantee of a scalar machine.
+/// only in a normal-return guarantee of its owning callable.
 #[derive(Clone, Copy)]
 pub(super) struct ClauseScope<'s> {
     pub(super) slots: &'s [Slot],
@@ -99,8 +99,28 @@ pub(super) enum ResultTerm {
     /// The result pseudo-value's identity and stored type, and the
     /// arithmetic policy the declared result type carries.
     Named(ValueId, ScalarType, Option<Policy>),
+    /// The declared result root, shared with structural result lowering.
+    Structural(PlaceId, ValueType),
     /// Why this clause cannot name `result`.
     Absent(&'static str),
+}
+
+impl Program<'_> {
+    /// An applied body keeps its declaration's clause trees. Both a whole
+    /// scalar result and a projected result must name that exact owner.
+    fn require_result_owner(
+        &self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        owner: SymbolHandle,
+    ) -> Checked<()> {
+        let declared = self.typed.symbols.get(scope.owner).generated_from;
+        if owner == scope.owner || (declared.is_valid() && owner == declared) {
+            Ok(())
+        } else {
+            Err(refuse(id, Construct::Machine, Unserved::Contract("result of another callable")))
+        }
+    }
 }
 
 /// The mathematical integer `magnitude`, negated when `negative`; zero has
@@ -113,7 +133,7 @@ fn mathematical_literal(negative: bool, magnitude: u64) -> Option<IntegerMathLit
 /// places first, in position order (a record formal, and a borrowed formal
 /// of any referent), so the `k`-th of them is place `k + 1`
 /// (`Signature::is_place`).
-fn formal_place(id: MachineId, slots: &[Slot], slot: usize) -> Checked<PlaceId> {
+pub(super) fn formal_place(id: MachineId, slots: &[Slot], slot: usize) -> Checked<PlaceId> {
     let earlier = slots[..slot]
         .iter()
         .filter(|formal| {
@@ -412,18 +432,13 @@ impl Program<'_> {
             // result occurrence belongs to its contract owner, not any local
             // or parameter spelled `result`."
             ExpressionNode::Name(path) if path.reserved_result_of.is_valid() => {
-                // A machine stage 04 generated for a static application
-                // keeps its declaration's clause trees, whose result is
-                // recorded against that declaration.
-                let declared = typed.symbols.get(scope.owner).generated_from;
-                if path.reserved_result_of != scope.owner
-                    && !(declared.is_valid() && path.reserved_result_of == declared)
-                {
-                    return unserved("result of another callable");
-                }
+                self.require_result_owner(id, scope, path.reserved_result_of)?;
                 match scope.result {
                     ResultTerm::Named(id, scalar_type, _) => {
                         Ok((ScalarTerm::Value { id, scalar_type }, scalar_type))
+                    }
+                    ResultTerm::Structural(..) => {
+                        unserved("whole structural result in a scalar clause")
                     }
                     ResultTerm::Absent(why) => unserved(why),
                 }
@@ -502,14 +517,9 @@ impl Program<'_> {
                 if !qualification.domains.is_empty() {
                     return unserved("formal that carries a declared domain named in a clause");
                 }
-                // A `mut` formal names two things by the end of the body:
-                // the argument the caller passed and whatever the body
-                // last assigned. An entry `requires` can only mean the
-                // first. Which one a guarantee or a crash route guard
-                // means the specification does not say
-                // (`OWNER_QUESTIONS.md`, decision
-                // `mutable-parameter-contract-name`), so such a clause is
-                // refused rather than read as either.
+                // Contract inputs retain the supplied value even when the
+                // working binding changes. This reader has no correspondence
+                // for that mutable binding outside entry clauses yet.
                 if scope.slots[slot].assignable && !scope.formal_fields {
                     return unserved("clause that names a mutable parameter outside requires");
                 }
@@ -535,12 +545,13 @@ impl Program<'_> {
             }
             // `p.first == 7` in an entry `requires`: the field of a record
             // formal's place.
-            ExpressionNode::Member(_) if scope.formal_fields => {
+            ExpressionNode::Member(_)
+                if scope.formal_fields || matches!(scope.result, ResultTerm::Structural(..)) =>
+            {
                 self.field_term(id, scope, expression)
             }
-            // `result.count <= 5`, and a formal's field in any other
-            // clause: a term over the result root or over entry content
-            // that no slice serves yet.
+            // Other formal projections need their own input or completion
+            // storage correspondence; a readable spelling does not supply it.
             ExpressionNode::Member(_) => unserved("clause that projects a formal or result"),
             ExpressionNode::Integer(literal) => {
                 let (value, integer) = self.literal(id, literal, expected)?;
@@ -674,7 +685,7 @@ impl Program<'_> {
             ExpressionNode::Name(path) if path.reserved_result_of.is_valid() => {
                 Ok(match scope.result {
                     ResultTerm::Named(_, _, policy) => policy,
-                    ResultTerm::Absent(_) => None,
+                    ResultTerm::Structural(..) | ResultTerm::Absent(_) => None,
                 })
             }
             ExpressionNode::Name(path)
@@ -953,7 +964,10 @@ impl Program<'_> {
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
     ) -> Checked<Option<(PlaceId, Vec<CanonicalStructuralPathSegment>, ValueType)>> {
-        if scope.subject.is_none() && !scope.formal_fields {
+        if scope.subject.is_none()
+            && !scope.formal_fields
+            && !matches!(scope.result, ResultTerm::Structural(..))
+        {
             return Ok(None);
         }
         let spelling = |what| refuse(id, Construct::Machine, Unserved::Spelling(what));
@@ -978,7 +992,20 @@ impl Program<'_> {
                     // record formals' places first, so the `k`-th record
                     // formal is place `k + 1` (`Signature::parameters`).
                     if path.reserved_result_of.is_valid() {
-                        return Ok(None);
+                        self.require_result_owner(id, scope, path.reserved_result_of)?;
+                        return Ok(match scope.result {
+                            ResultTerm::Structural(root, value_type) => {
+                                Some((root, Vec::new(), value_type))
+                            }
+                            _ => None,
+                        });
+                    }
+                    if !scope.formal_fields {
+                        return Err(refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Contract("formal field in a postcondition"),
+                        ));
                     }
                     let slot = self.slot_of(id, scope.slots, path)?;
                     // A clause that names a field of a formal reads inside

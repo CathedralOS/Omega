@@ -869,7 +869,7 @@ fn entry_values(tables: &MachineTables) -> Vec<ValueId> {
     tables
         .values
         .iter()
-        .filter(|(_, row)| matches!(row.origin, ValueOrigin::EntryContent { .. }))
+        .filter(|(_, row)| matches!(row.origin, ValueOrigin::InitialContent { .. }))
         .map(|(value, _)| value)
         .collect()
 }
@@ -944,11 +944,11 @@ fn an_entry_content_of_storage_that_is_no_formal_is_refused() {
         let tables = entry_tables(elaboration);
         let place = projected(tables, local, &[1]);
         let held = entry_values(tables)[0];
-        value_mut(tables, held).origin = ValueOrigin::EntryContent { place };
+        value_mut(tables, held).origin = ValueOrigin::InitialContent { place };
     });
     assert_refused(
         verdict,
-        "an entry content value of storage that is no scalar leaf of a formal",
+        "an initial content value of storage that is no scalar leaf of a formal or declared call result",
     );
 }
 
@@ -988,7 +988,7 @@ fn entry_content_values_that_exchange_their_leaves_are_refused() {
     });
     assert_refused(
         verdict,
-        "entry content values are not in the order of the leaves they belong to",
+        "initial content values are not in the order of the leaves they belong to",
     );
 }
 
