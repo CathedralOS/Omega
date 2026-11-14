@@ -6,9 +6,9 @@ We separate the package review surface into three distinct owners so compiler
 representation never leaks into persisted lock or admission state:
 1. `record` defines the inert, target-neutral review vocabulary (`PackagePolicyBaseline`,
    `PackageReviewEvidence`, and canonical `PackagePolicyRow` items).
-2. `capture` retains genuine typed/source metadata and semantic-binding
-   nominations. Policy projections explicitly refuse until the accepted route
-   publishes their contract custody; no retired checker facts are projected.
+2. `capture` borrows the source and module the Product judgment accepted.
+   Ordinary public data and scalar domain predicates retain their declaration
+   meaning; unserved nonempty contract and authority inventories refuse.
 3. `encoding` serializes and recovers canonical policy bytes and policy rows
    with bounded accounting.
 */

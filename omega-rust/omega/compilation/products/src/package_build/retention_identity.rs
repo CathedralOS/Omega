@@ -87,6 +87,7 @@ impl BuildOutputIdentity<'_> {
 
     fn computed(&mut self, value: &ComputedBuildConfig) -> Result<(), String> {
         let ComputedBuildConfig {
+            accepted_build: _, // Custody is not another Build-output identity.
             config,
             root_binding_requests,
             declared_product_selections,

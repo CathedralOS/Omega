@@ -1481,11 +1481,13 @@ dependencies = [
  "optimization-core",
  "package-compilation",
  "provider-planning",
+ "psi-compiler",
  "selected-dispatch",
  "semantic-vocabulary",
  "source",
  "symbols",
  "target",
+ "terminal-check-tables",
  "terminal-psi",
  "typed-trees",
 ]

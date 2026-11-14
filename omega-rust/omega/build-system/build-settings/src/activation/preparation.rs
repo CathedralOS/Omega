@@ -25,6 +25,7 @@ use std::sync::Arc;
 pub struct PreparedBuildExecution {
     execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose,
     produced: Arc<psi_compiler::ProducedTerminalProgram>,
+    accepted: Arc<psi_compiler::AcceptedTerminalSource>,
     providers: Arc<crate::admission::provider_execution::BuildProviderInstallation>,
     account: evaluation_accounting::EvaluationInvocationAccount,
     machine: Arc<package_compilation::build_execution::SelectedBuildMachine>,
@@ -82,6 +83,7 @@ impl PreparedBuildExecution {
         Ok(Self {
             execution_purpose,
             produced: Arc::new(produced),
+            accepted: prepared,
             providers: Arc::new(providers),
             account,
             machine: Arc::new(machine),
@@ -181,6 +183,7 @@ impl PreparedBuildExecution {
             ..Default::default()
         };
         Ok(ComputedBuildConfig {
+            accepted_build: Some(self.accepted),
             config,
             root_binding_requests: completed.root_bindings,
             declared_product_selections: completed.declared_product_selections,
