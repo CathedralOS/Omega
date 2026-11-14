@@ -5385,7 +5385,7 @@ pub(crate) mod function_structure {
             };
             types.get(element).is_some_and(|row| matches!(row.shape,
         StructuralTypeShape::PrimitiveScalar(semantic_vocabulary::ScalarType::Integer(integer))
-        if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 8 && !integer.is_address()))
+        if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == Some(8) && !integer.is_address()))
         }
         use terminal_psi::structural_access_covers as covers;
 
@@ -12086,7 +12086,7 @@ pub(crate) mod operation_contracts {
             }
             let selectors_match = paths.into_iter().flatten()
         .filter_map(terminal_psi::StructuralPathSegment::runtime_index).all(|(index, _)| {
-        matches!(scalar(index), Some(ScalarType::Integer(integer)) if integer.bits() <= 64)
+        matches!(scalar(index), Some(ScalarType::Integer(integer)) if integer.bits().is_some_and(|bits| bits <= 64))
     });
             if !selectors_match {
                 return false;
@@ -12097,7 +12097,7 @@ pub(crate) mod operation_contracts {
                     committed_at: committed,
                     ..
                 } => {
-                    matches!(scalar(*committed), Some(ScalarType::Integer(integer)) if fixed(integer) && integer.bits() == 64 && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned)
+                    matches!(scalar(*committed), Some(ScalarType::Integer(integer)) if fixed(integer) && integer.bits() == Some(64) && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned)
                 }
                 O::ReleaseActivationClaim { .. } | O::MergeActivationClaim { .. } => true,
                 O::StorageAddress { result, .. } => {
@@ -12110,9 +12110,9 @@ pub(crate) mod operation_contracts {
                     entries,
                     ..
                 } => {
-                    let unsigned = |ty, bits| {
+                    let unsigned = |ty, bits: u16| {
                         matches!(ty, ScalarType::Integer(integer)
-                if fixed(integer) && integer.bits() == bits && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned)
+                if fixed(integer) && integer.bits() == Some(bits) && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned)
                     };
                     (2..=8192).contains(entries)
                         && unsigned(result.scalar_type, 8)
@@ -12125,9 +12125,9 @@ pub(crate) mod operation_contracts {
                     entries,
                     ..
                 } => {
-                    let unsigned = |ty, bits| {
+                    let unsigned = |ty, bits: u16| {
                         matches!(ty, ScalarType::Integer(integer)
-                if fixed(integer) && integer.bits() == bits && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned)
+                if fixed(integer) && integer.bits() == Some(bits) && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned)
                     };
                     (1..=8192).contains(entries)
                         && unsigned(result.scalar_type, 8)
@@ -12136,7 +12136,7 @@ pub(crate) mod operation_contracts {
                 }
                 O::ReadTaskRegister { result, .. } | O::ReadSegmentSelector { result, .. } => {
                     matches!(result.scalar_type, ScalarType::Integer(integer)
-            if fixed(integer) && integer.bits() == 16 && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned)
+            if fixed(integer) && integer.bits() == Some(16) && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned)
                         && scalar(result.value) == Some(result.scalar_type)
                 }
                 O::GlobalDescriptorTable { .. } => true,
@@ -12146,9 +12146,9 @@ pub(crate) mod operation_contracts {
                     result,
                     ..
                 } => {
-                    let matches_carrier = |scalar, bits| {
+                    let matches_carrier = |scalar, bits: u16| {
                         matches!(scalar, ScalarType::Integer(integer)
-                if fixed(integer) && integer.bits() == bits
+                if fixed(integer) && integer.bits() == Some(bits)
                     && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned)
                     };
                     let signature = event.operation();
@@ -12174,12 +12174,12 @@ pub(crate) mod operation_contracts {
                 O::EstablishReference { storage, .. } => storage.as_ref().is_none_or(|view| {
                     matches!(scalar(view.byte_offset), Some(ScalarType::Integer(integer))
                 if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
-                    && integer.bits() == 64 && fixed(integer))
+                    && integer.bits() == Some(64) && fixed(integer))
                 }),
                 O::SelectImplementation { result, table, .. } => {
                     matches!(result.scalar_type, ScalarType::Integer(integer)
                 if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
-                    && integer.bits() == 64 && fixed(integer))
+                    && integer.bits() == Some(64) && fixed(integer))
                         && unit.dynamic_dispatch.table(*table).is_some()
                 }
                 O::CallStructural {
@@ -12206,7 +12206,7 @@ pub(crate) mod operation_contracts {
                     };
                     matches!(scalar(*selector), Some(ScalarType::Integer(integer))
                 if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
-                    && integer.bits() == 64 && fixed(integer))
+                    && integer.bits() == Some(64) && fixed(integer))
                         && arguments.len() == signature.scalar_parameters.len()
                         && arguments
                             .iter()
