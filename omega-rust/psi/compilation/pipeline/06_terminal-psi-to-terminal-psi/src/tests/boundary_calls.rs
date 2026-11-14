@@ -1717,3 +1717,46 @@ fn generic_named_map_invokes_its_closed_own_telescope() {
     eprintln!("direct generic map verdicts: {verdicts:?}");
     assert_named_invocation_value(verdicts, semantic_vocabulary::IntegerValue::Unsigned(7));
 }
+
+#[test]
+fn generic_named_map_body_uses_its_own_rigid_telescope() {
+    let program = typed(generic_named_map_source());
+    let call = generic_named_map_call(&program);
+    let (_, row, _) = program
+        .named_conformance_call_member(call)
+        .unwrap()
+        .unwrap();
+    let mut form =
+        typed_trees_to_terminal_psi::elaborate_generic(&program, row.realization_machine).unwrap();
+    let discharged = discharge(&mut form).unwrap();
+    let root = discharged
+        .machines
+        .get(id(1))
+        .expect("the actual generic body was judged");
+    assert!(root.conflicts.is_empty(), "{:?}", root.conflicts);
+    assert!(root.unestablished().next().is_none());
+    assert!(
+        root.verdicts.values().all(Result::is_ok),
+        "{:?}",
+        root.verdicts
+    );
+}
+
+#[test]
+fn generic_named_map_body_cannot_be_an_unapplied_runtime_entry() {
+    let program = typed(generic_named_map_source());
+    let call = generic_named_map_call(&program);
+    let (_, row, _) = program
+        .named_conformance_call_member(call)
+        .unwrap()
+        .unwrap();
+    let refusal = typed_trees_to_terminal_psi::elaborate_closure(&program, row.realization_machine)
+        .unwrap_err();
+    assert_eq!(refusal.reason, RefusalReason::Unsupported);
+    assert!(
+        refusal
+            .detail
+            .contains("generic map body needs its complete selected application"),
+        "{refusal:?}"
+    );
+}

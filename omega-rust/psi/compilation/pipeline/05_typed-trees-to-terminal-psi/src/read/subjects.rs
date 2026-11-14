@@ -270,7 +270,7 @@ impl Program<'_> {
             // A generic machine is checked once as written, as its own check
             // form, not as a closed body (`Elaboration::generic_templates`).
             // One whose only parameters are implementations is generic too.
-            if !machine.has_specialization_parameters() {
+            if !self.is_generic_template(machine) {
                 let id = self.subject_machine(machine.symbol)?;
                 self.subject_machines.push(id);
             } else {

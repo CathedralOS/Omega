@@ -282,6 +282,34 @@ impl<'t> Program<'t> {
         else {
             return Ok(None);
         };
+        self.named_owned_body_target(id, requirement, owner, row)
+            .map(Some)
+    }
+
+    fn named_owned_expression_target(
+        &self,
+        id: MachineId,
+        call: &TableCallExpression,
+    ) -> Checked<Option<SymbolHandle>> {
+        let Some((owner, row, _)) = self
+            .typed
+            .named_conformance_call_member(call)
+            .map_err(|what| refuse(id, Construct::Machine, Unserved::Call(what)))?
+        else {
+            return Ok(None);
+        };
+        self.named_owned_body_target(id, call.target_symbol, owner, row)
+            .map(Some)
+    }
+
+    fn named_owned_body_target(
+        &self,
+        id: MachineId,
+        requirement: SymbolHandle,
+        owner: &typed_trees::trait_definition::Conformance,
+        row: &typed_trees::trait_definition::ConformanceRow,
+    ) -> Checked<SymbolHandle> {
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Call(what));
         if !row.source.owns_realization() {
             return Err(unserved("named reference-row invocation"));
         }
@@ -307,7 +335,7 @@ impl<'t> Program<'t> {
         }
         self.visible_to(id, requirement)?;
         self.visible_declaration_to(id, owner.symbol, owner.is_public)?;
-        Ok(Some(row.realization_machine))
+        Ok(row.realization_machine)
     }
 
     /// A call is direct only when its authored selection, if recorded,
@@ -540,12 +568,7 @@ impl<'t> Program<'t> {
         // A receiver that is the callee's data type by name is part of the
         // callee's name (`names_carrier`); any other is a value passed
         // outside the argument list.
-        let namespace = self
-            .typed
-            .expression_table
-            .name_path_node(call.receiver)
-            .map_or_else(SymbolHandle::invalid, |path| path.symbol);
-        let named = self.named_owned_call_target(id, namespace, call.target_symbol)?;
+        let named = self.named_owned_expression_target(id, call)?;
         let qualified = named.is_some()
             || (call.receiver.is_valid()
                 && matches!(
@@ -553,7 +576,7 @@ impl<'t> Program<'t> {
                     ExpressionNode::Name(path) if self.names_carrier(call.target_symbol, path.symbol)
                 ));
         if (call.receiver.is_valid() && !qualified)
-            || call.requirement_application.is_valid()
+            || (call.requirement_application.is_valid() && named.is_none())
             || call.exact_coercion_target.is_valid()
         {
             return unserved("receiver, requirement or coercion call");
