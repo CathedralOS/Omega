@@ -6,7 +6,7 @@ edition = "2024"
 [workspace]
 
 [dependencies]
-compilation-products = { path = "../../../../../../omega-rust/omega/compilation/products" }
+products = { path = "../../../../../../omega-rust/omega/compilation/products" }
 compiler = { path = "../../../../../../omega-rust/omega/compilation/compiler" }
 terminal-runtime = { path = "../../../../../../omega-rust/omega/interpreter/terminal-runtime" }
 package-manager = { path = "../../../../../../omega-rust/omega/packages/package-manager" }

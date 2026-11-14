@@ -56,7 +56,7 @@ machine build(builder: &mut Build) crashes Trap {
     let observed = Arc::new(Mutex::new(0));
     let mut expected = Vec::new();
     for resume in [false, true] {
-        let preparation = compilation_products::SourcePreparation::default();
+        let preparation = products::SourcePreparation::default();
         let mut timings = CompileTimings::default();
         let checkpoint = {
             let mut catalogue = preparation.catalogue().unwrap();

@@ -210,7 +210,7 @@ fn the_default_compile_builds_the_application_from_the_routes_module() {
     .expect("the selected target's authenticated entry declaration");
     let mut roster = checked.terminal_publication().roster().unwrap().clone();
     roster.declaration_metadata.push(boundary);
-    let executable = compilation_products::ProductTerminalPublication::judge(
+    let executable = products::ProductTerminalPublication::judge(
         std::sync::Arc::clone(accepted.source()),
         roster,
         checked.terminal_publication().optimizations().clone(),

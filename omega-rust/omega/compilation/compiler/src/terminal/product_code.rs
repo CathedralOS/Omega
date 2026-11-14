@@ -1,9 +1,9 @@
 // Every product consumes the same accepted source and its published module.
 // No old producer can replace a failed publication or a different root selection.
 
-use compilation_products::ProductTerminalPublication;
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationSelections;
+use products::ProductTerminalPublication;
 use source_compiler::{PortableTerminalProgram, PsiCompilationObserver};
 use std::sync::Arc;
 

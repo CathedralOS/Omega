@@ -5,8 +5,8 @@
 // assumed bindings, wire demands, and behavior exclusions) populate
 // `ComputedBuildConfig`.
 
-use compilation_products::ComputedBuildConfig;
 use diagnostics::Diagnostic;
+use products::ComputedBuildConfig;
 
 pub(super) fn admit(
     source: &mut source_compiler::SourceContinuation,

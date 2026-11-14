@@ -4,8 +4,8 @@ At consumption the same source must have an accepted Product judgment, and its
 complete supported policy inventory supplies the consent comparison rows.
 */
 
-use compilation_products::CheckedProductSource;
 use diagnostics::Diagnostic;
+use products::CheckedProductSource;
 use std::sync::Arc;
 use typed_trees::ProductSourceIdentity;
 

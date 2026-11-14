@@ -9,11 +9,11 @@ name = "abstract_operations_to_target_operations"
 path = "src/lib.rs"
 
 [dependencies]
-verified-optimization-input = { path = "../../representations/abstract-operations/verified-input" }
+verified-optimization-input = { path = "../../representations/abstract-operations/verified-optimization-input" }
 language-core = { path = "../../../../psi/foundation/language-core" }
 provider-admission = { path = "../../realization/provider-admission" }
 optimization-unit = { path = "../../representations/abstract-operations/optimization-unit" }
-optimization-unit-semantics = { path = "../../representations/abstract-operations/optimization-unit/semantics" }
+optimization-unit-semantics = { path = "../../representations/abstract-operations/optimization-unit-semantics" }
 optimization-core = { path = "../../../foundation/optimization-core" }
 calling-conventions = { path = "../../backend/calling-conventions" }
 runtime-abi = { path = "../../backend/runtime/runtime-abi" }

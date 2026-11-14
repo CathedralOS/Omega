@@ -191,7 +191,6 @@ dependencies = [
  "build-output",
  "build-time-evaluation",
  "calling-conventions",
- "compilation-products",
  "diagnostics",
  "effects",
  "evaluation-accounting",
@@ -201,6 +200,7 @@ dependencies = [
  "layout-plans",
  "optimization-core",
  "package-compilation",
+ "products",
  "provider-admission",
  "provider-planning",
  "runtime-abi",
@@ -352,49 +352,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "compilation-products"
-version = "0.1.0"
-dependencies = [
- "artifacts",
- "backend-plan",
- "build-declarations",
- "build-output",
- "build-time-evaluation",
- "calling-conventions",
- "compiler-storage",
- "component-description",
- "diagnostics",
- "effects",
- "image",
- "image-emission",
- "image-macho",
- "language-semantics",
- "native-artifact",
- "object-file",
- "optimization-core",
- "package-compilation",
- "platform-custody",
- "program-entry-plan",
- "provider-planning",
- "provider-selection",
- "runtime-abi",
- "selected-dispatch",
- "semantic-vocabulary",
- "source",
- "source-compiler",
- "symbols",
- "target",
- "target-operations",
- "task-plans",
- "terminal-codec",
- "terminal-installation",
- "terminal-psi",
- "terminal-psi-to-abstract-operations",
- "trust-model",
- "typed-trees",
-]
-
-[[package]]
 name = "compiler"
 version = "0.1.0"
 dependencies = [
@@ -412,7 +369,6 @@ dependencies = [
  "build-time-evaluation",
  "calling-conventions",
  "cap-std",
- "compilation-products",
  "compiler-storage",
  "component-description",
  "diagnostics",
@@ -446,6 +402,7 @@ dependencies = [
  "package-manager",
  "package-source",
  "platform-custody",
+ "products",
  "program-entry-plan",
  "proof-admission",
  "provider-planning",
@@ -779,7 +736,7 @@ dependencies = [
  "terminal-work",
  "tokens-to-syntax-trees",
  "verified-optimization-input",
- "x86-encoding",
+ "x86_64-encoding",
 ]
 
 [[package]]
@@ -823,7 +780,6 @@ version = "0.1.0"
 dependencies = [
  "build-declarations",
  "build-time-evaluation",
- "compilation-products",
  "compiler",
  "diagnostics",
  "effects",
@@ -835,6 +791,7 @@ dependencies = [
  "package-evidence",
  "package-manager",
  "package-source",
+ "products",
  "provider-planning",
  "semantic-vocabulary",
  "source-files-to-tokens",
@@ -941,7 +898,7 @@ dependencies = [
  "target-operations",
  "task-plans",
  "terminal-psi",
- "x86-encoding",
+ "x86_64-encoding",
 ]
 
 [[package]]
@@ -1072,7 +1029,7 @@ dependencies = [
  "function-identity",
  "optimization-core",
  "optimization-unit",
- "physical-instructions",
+ "post-allocation-machine",
  "register-homes",
  "register-model",
  "selected-instructions",
@@ -1101,7 +1058,7 @@ dependencies = [
  "machine-code",
  "optimization-core",
  "optimization-unit",
- "physical-instructions",
+ "post-allocation-machine",
  "post-allocation-machine-to-selected-form-encoding",
  "provider-admission",
  "register-environment",
@@ -1191,7 +1148,7 @@ dependencies = [
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
  "terminal-semantics",
- "x86-encoding",
+ "x86_64-encoding",
 ]
 
 [[package]]
@@ -1329,7 +1286,6 @@ version = "0.1.0"
 dependencies = [
  "artifacts",
  "bounded-process",
- "compilation-products",
  "compiler",
  "diagnostics",
  "mimalloc",
@@ -1338,6 +1294,7 @@ dependencies = [
  "package-manager",
  "package-source",
  "platform-custody",
+ "products",
  "resolver-execution",
  "semantic-vocabulary",
  "target",
@@ -1416,7 +1373,6 @@ dependencies = [
  "bounded-process",
  "build-declarations",
  "build-settings",
- "compilation-products",
  "compiler",
  "diagnostics",
  "image-emission",
@@ -1425,6 +1381,7 @@ dependencies = [
  "package-compilation",
  "package-manager",
  "platform-custody",
+ "products",
  "semantic-vocabulary",
  "sha2",
  "target",
@@ -1472,7 +1429,6 @@ name = "package-evidence"
 version = "0.1.0"
 dependencies = [
  "calling-conventions",
- "compilation-products",
  "diagnostics",
  "effects",
  "flow-effects",
@@ -1482,6 +1438,7 @@ dependencies = [
  "numerics",
  "optimization-core",
  "package-compilation",
+ "products",
  "provider-planning",
  "selected-dispatch",
  "semantic-vocabulary",
@@ -1506,7 +1463,6 @@ dependencies = [
  "build-settings",
  "cap-fs-ext",
  "cap-std",
- "compilation-products",
  "compiler",
  "diagnostics",
  "effects",
@@ -1519,6 +1475,7 @@ dependencies = [
  "package-evidence",
  "package-source",
  "platform-custody",
+ "products",
  "proof-admission",
  "semantic-vocabulary",
  "sha2",
@@ -1553,7 +1510,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "physical-instructions"
+name = "platform-custody"
+version = "0.1.0"
+dependencies = [
+ "cap-fs-ext",
+ "cap-primitives",
+ "cap-std",
+]
+
+[[package]]
+name = "post-allocation-machine"
 version = "0.1.0"
 dependencies = [
  "optimization-core",
@@ -1569,15 +1535,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "platform-custody"
-version = "0.1.0"
-dependencies = [
- "cap-fs-ext",
- "cap-primitives",
- "cap-std",
-]
-
-[[package]]
 name = "post-allocation-machine-to-selected-form-encoding"
 version = "0.1.0"
 dependencies = [
@@ -1585,7 +1542,7 @@ dependencies = [
  "isa-aarch64",
  "isa-x86_64",
  "machine-code",
- "physical-instructions",
+ "post-allocation-machine",
  "register-homes",
  "register-model",
  "selected-instructions",
@@ -1609,6 +1566,49 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "985e7ec9bb745e6ce6535b544d84d6cd6f7ad8bd711c398938ae983b91a766d9"
 dependencies = [
  "unicode-ident",
+]
+
+[[package]]
+name = "products"
+version = "0.1.0"
+dependencies = [
+ "artifacts",
+ "backend-plan",
+ "build-declarations",
+ "build-output",
+ "build-time-evaluation",
+ "calling-conventions",
+ "compiler-storage",
+ "component-description",
+ "diagnostics",
+ "effects",
+ "image",
+ "image-emission",
+ "image-macho",
+ "language-semantics",
+ "native-artifact",
+ "object-file",
+ "optimization-core",
+ "package-compilation",
+ "platform-custody",
+ "program-entry-plan",
+ "provider-planning",
+ "provider-selection",
+ "runtime-abi",
+ "selected-dispatch",
+ "semantic-vocabulary",
+ "source",
+ "source-compiler",
+ "symbols",
+ "target",
+ "target-operations",
+ "task-plans",
+ "terminal-codec",
+ "terminal-installation",
+ "terminal-psi",
+ "terminal-psi-to-abstract-operations",
+ "trust-model",
+ "typed-trees",
 ]
 
 [[package]]
@@ -1795,7 +1795,7 @@ version = "0.1.0"
 dependencies = [
  "isa-x86_64",
  "optimization-core",
- "physical-instructions",
+ "post-allocation-machine",
  "register-environment",
  "register-homes",
  "register-model",
@@ -1820,7 +1820,7 @@ dependencies = [
  "isa-x86_64",
  "machine-code",
  "optimization-core",
- "physical-instructions",
+ "post-allocation-machine",
  "register-model",
  "selected-instructions",
  "semantic-vocabulary",
@@ -1914,7 +1914,7 @@ dependencies = [
  "isa-x86_64",
  "machine-code",
  "optimization-core",
- "physical-instructions",
+ "post-allocation-machine",
  "register-model",
  "selected-instructions",
  "semantic-vocabulary",
@@ -2960,7 +2960,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "x86-encoding"
+name = "x86_64-encoding"
 version = "0.1.0"
 
 [[package]]

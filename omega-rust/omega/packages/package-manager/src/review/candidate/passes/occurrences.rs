@@ -15,7 +15,7 @@
 */
 
 use crate::build_session::dependency_first_package_order;
-use compilation_products::CompileFailure;
+use products::CompileFailure;
 
 use super::super::semantic_bindings::projection_error;
 use super::super::{
@@ -95,15 +95,15 @@ pub struct RetainedPackageReviews {
 }
 
 impl RetainedPackageReviews {
-    pub fn source_completion_accounting(&self) -> compilation_products::SourceCompletionAccounting {
+    pub fn source_completion_accounting(&self) -> products::SourceCompletionAccounting {
         occurrence_accounting(&self.occurrences)
     }
 }
 
 fn occurrence_accounting(
     occurrences: &[RetainedOccurrenceCompile],
-) -> compilation_products::SourceCompletionAccounting {
-    let mut accounting = compilation_products::SourceCompletionAccounting::default();
+) -> products::SourceCompletionAccounting {
+    let mut accounting = products::SourceCompletionAccounting::default();
     for occurrence in occurrences {
         if let OccurrenceCompile::Live(source) = &occurrence.compilation {
             accounting.append(source.source_completion_accounting().clone());
@@ -695,12 +695,12 @@ impl<'pass> PackageReviewRound<'pass> {
             None => Err(CompileResolvedPackageReviewsError::new(
                 crate::review::CompileResolvedPackageReviewCause::Compilation {
                     package: occurrence.key.clone(),
-                    failure: compilation_products::CompileFailure::Diagnostics(vec![
-                        Diagnostic::error(format!(
+                    failure: products::CompileFailure::Diagnostics(vec![Diagnostic::error(
+                        format!(
                             "an independent provider selection names dependency package `{}`, which this closure never compiled",
                             inputs.package_name(component).unwrap_or("<unnamed>"),
-                        )),
-                    ]),
+                        ),
+                    )]),
                 },
             )),
         }
@@ -879,7 +879,7 @@ impl<'pass> PackageReviewRound<'pass> {
         Ok(cache_write)
     }
 
-    pub fn source_completion_accounting(&self) -> compilation_products::SourceCompletionAccounting {
+    pub fn source_completion_accounting(&self) -> products::SourceCompletionAccounting {
         occurrence_accounting(&self.occurrences)
     }
 

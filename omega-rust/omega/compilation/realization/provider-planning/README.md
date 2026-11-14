@@ -11,6 +11,6 @@ without granting provider, signature, package or execution admission. Canonical
 callback geometry, ABI, placement, movement and receipt checks remain in their
 existing owners. Shared provider choice lives in `provider-selection`.
 
-Explicit source inspection is retained by `compilation-products`, with the same
+Explicit source inspection is retained by `products`, with the same
 frozen source allocation and inventory. It is not an alternate proof or native
 planning path.

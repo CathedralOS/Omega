@@ -7,8 +7,8 @@
 // bytes and the typed-frontier reuse key without manufacturing a Build result.
 
 use super::{ProductQueries, build_continuation, prepare_build_source_invocation};
-use compilation_products::{CheckedExecutionRequest, CompileFailure, PreparedCheckedSource};
 use package_compilation::PackageCompilationInputs;
+use products::{CheckedExecutionRequest, CompileFailure, PreparedCheckedSource};
 use std::path::Path;
 
 pub(super) struct SourceBuild {
@@ -73,7 +73,7 @@ impl SourceBuild {
         returned: Option<build_settings::ReturnedBuild>,
         joined_inputs: Option<&PackageCompilationInputs>,
         product_target: Option<target::TargetProfile>,
-    ) -> Result<compilation_products::SettledBuildSource, CompileFailure> {
+    ) -> Result<products::SettledBuildSource, CompileFailure> {
         self.invocation
             .settle(returned, joined_inputs, product_target)
     }
@@ -83,7 +83,7 @@ impl SourceBuild {
         returned: Option<build_settings::ReturnedBuild>,
         joined_inputs: Option<&PackageCompilationInputs>,
         product_target: Option<target::TargetProfile>,
-    ) -> Result<compilation_products::PreparedBuild, CompileFailure> {
+    ) -> Result<products::PreparedBuild, CompileFailure> {
         self.invocation
             .complete(returned, joined_inputs, product_target)
     }

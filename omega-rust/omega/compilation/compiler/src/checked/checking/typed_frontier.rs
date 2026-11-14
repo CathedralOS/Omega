@@ -4,7 +4,7 @@
 // product path copies it only when a caller supplies an optional capture slot.
 // A captured frontier is source data, not a second judgment or an acceptance.
 
-use compilation_products::{CheckedCompilation, CompileFailure};
+use products::{CheckedCompilation, CompileFailure};
 
 /// What to check: either form the session already checks.
 pub enum TypedFrontierRequest {

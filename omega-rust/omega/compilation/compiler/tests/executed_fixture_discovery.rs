@@ -15,7 +15,7 @@ fn native_fixture_admission_does_not_upgrade_a_package_check() {
     let root = repo_root()
         .join("tests/fixtures/pass/build/explicit_provider_readiness_exit/backing/main.omg");
     let discovered = discover_fixture(&root, Default::default()).expect("backing source");
-    let product = CompilationProduct::Native(compilation_products::NativeProductRequest {
+    let product = CompilationProduct::Native(products::NativeProductRequest {
         installation_assumptions: Vec::new(),
         retain_native_inputs: false,
         image: Default::default(),
@@ -92,7 +92,7 @@ fn completed_outputs_keep_exact_bytes_after_package_staging_closes() {
         root.parent().unwrap(),
     )
     .join("publication");
-    compilation_products::publication::publish_compilation(report, &directory)
+    products::publication::publish_compilation(report, &directory)
         .expect("publication owns its bytes after package completion");
     let sets = std::fs::read_dir(directory.join("completed"))
         .unwrap()

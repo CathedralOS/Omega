@@ -19,7 +19,7 @@ The crate is organized into three subsystems around `build.rs` and `build_sessio
   dependency-first review passes (`package_review.rs`), and multi-package
   compilation (`package_compilation.rs`).
 - `compile/`: steps `build.omg` activations and dependency frontiers
-  (`build_execution.rs` and `source_resolution/`), runs one-shot standalone
+  (`build_execution.rs` and `source_resolution_readiness.rs`), runs one-shot standalone
   compilations (`source_compilation.rs`), and completes post-Terminal native
   products and scalar constant demands (`native_completion.rs`).
 
@@ -98,8 +98,8 @@ pub enum ProjectProduct {
     },
     Native {
         destination: NativeDestination,
-        private_entry_ram: Vec<compilation_products::PrivateEntryRamInitialization>,
-        installation_assumptions: Vec<compilation_products::InstallationEnvironmentAssumption>,
+        private_entry_ram: Vec<products::PrivateEntryRamInitialization>,
+        installation_assumptions: Vec<products::InstallationEnvironmentAssumption>,
     },
 }
 
@@ -111,10 +111,10 @@ pub enum NativeDestination {
 }
 
 impl NativeDestination {
-    const fn image_demand(self) -> compilation_products::NativeImageDemand {
+    const fn image_demand(self) -> products::NativeImageDemand {
         match self {
-            Self::Retained | Self::Published => compilation_products::NativeImageDemand::Emit,
-            Self::RuntimeAdmission => compilation_products::NativeImageDemand::RuntimeAdmissionOnly,
+            Self::Retained | Self::Published => products::NativeImageDemand::Emit,
+            Self::RuntimeAdmission => products::NativeImageDemand::RuntimeAdmissionOnly,
         }
     }
 }

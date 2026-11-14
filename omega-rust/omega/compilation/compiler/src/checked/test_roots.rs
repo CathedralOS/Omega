@@ -12,10 +12,10 @@ Terminal program retains, so each copy publishes its own Terminal program and
 none of its test-only machines join the application's roots.
 */
 
-use compilation_products::{
+use diagnostics::Diagnostic;
+use products::{
     CheckedProductSource, TestFilesystem, TestRootIdentity, TestRosterEntry, TestRosterStatus,
 };
-use diagnostics::Diagnostic;
 use std::sync::Arc;
 
 pub(crate) struct TestRootSource {

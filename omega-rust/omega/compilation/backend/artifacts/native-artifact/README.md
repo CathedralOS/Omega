@@ -27,18 +27,18 @@ removal is tracked by `TWO-AXIS-TERMINAL-AUTHORITY-REVIEW`.
 
 Follow its subordinate owners for:
 
-- [dynamic_elf.rs](src/native_artifact/dynamic_elf.rs): the distinct,
+- [dynamic_elf.rs](src/dynamic_elf.rs): the distinct,
   non-installable dynamic-ELF product and its own reconstruction and validation.
-- [provider_execution.rs](src/native_artifact/provider_execution.rs): reconstruct
+- [provider_execution.rs](src/provider_execution.rs): reconstruct
   required provider executions from Terminal boundaries and foreign calls,
   validate exact stack contributions, then compare the complete selected-plan
   report set. Direct artifacts supply image rows; dynamic ELF supplies object
   rows after its own image replay. Both use the same requirement checks.
-- [identity.rs](src/native_artifact/identity.rs): exact identity-field
+- [identity.rs](src/identity.rs): exact identity-field
   serialization, including foreign-call custody. This is not a substitute for
   replaying those fields.
 - [native_artifact.rs](src/native_artifact.rs) and
-  [mixed_structural_scalar.rs](src/native_artifact/mixed_structural_scalar.rs):
+  [mixed_structural_scalar.rs](src/mixed_structural_scalar.rs):
   focused semantic-to-object checks used by both products.
 
 [publication.rs](src/publication.rs) owns the executable publication digest

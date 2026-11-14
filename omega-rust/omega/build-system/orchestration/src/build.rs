@@ -133,7 +133,7 @@ fn validate_request(request: &BuildRequest, profiles: &[TargetProfile]) -> Resul
         ..
     } = &request.product
     {
-        compilation_products::compile_request::validate_installation_assumption_targets(
+        ::products::compile_request::validate_installation_assumption_targets(
             installation_assumptions,
             profiles,
         )

@@ -252,11 +252,8 @@ pub fn produce_fixture_products(
                     cause:
                         package_manager::review::CompileResolvedPackageReviewCause::Compilation {
                             failure:
-                                compilation_products::CompileFailure::Diagnostics(diagnostics)
-                                | compilation_products::CompileFailure::SourceCompletion {
-                                    diagnostics,
-                                    ..
-                                },
+                                products::CompileFailure::Diagnostics(diagnostics)
+                                | products::CompileFailure::SourceCompletion { diagnostics, .. },
                             ..
                         },
                     ..

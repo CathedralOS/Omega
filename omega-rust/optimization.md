@@ -17,7 +17,7 @@ the exact vocabulary. Shared Build declarations project the
 into the toolchain prelude from one mapping. The
 [checked result](omega/compilation/products/src/checked_compilation.rs)
 retains the complete evaluated Build, including selection and report requests.
-[Rollback settlement](omega/foundation/optimization-core/src/optimization_core/rollback.rs)
+[Rollback settlement](omega/foundation/optimization-core/src/rollback.rs)
 owns exact-name validation, subtractive selection and the resulting receipt.
 The compiler consumes its effective selection before artifact production without
 changing the authored selection; product-specific phase admission remains in
@@ -205,5 +205,5 @@ Before deployment, run the affected target/workload checks and retain command,
 log, compiler identity, target, and output digest. Restore only the affected
 argument after semantic/corruption, differential, determinism, target,
 measurement, and rollback coverage passes; do not replace exact selection with
-a broad optimization level. [Promotion evidence](omega/foundation/optimization-core/promotions/README.md)
+a broad optimization level. [Promotion evidence](omega/foundation/optimization-core/README.md#exact-rule-promotion-records)
 remains a separate owner-reviewed requirement.

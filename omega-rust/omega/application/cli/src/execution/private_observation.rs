@@ -11,7 +11,7 @@ use std::process::{Command, Output};
 
 pub(super) fn capture(
     command: Command,
-    provisions: Option<&compilation_products::TerminalRuntimeProvisions>,
+    provisions: Option<&products::TerminalRuntimeProvisions>,
 ) -> io::Result<(Output, Vec<(u32, Vec<u8>)>, Vec<u8>)> {
     let recipes = provisions
         .map(|provisions| provisions.private_entry_ram())

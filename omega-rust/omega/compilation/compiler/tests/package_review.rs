@@ -811,7 +811,7 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
     )
     .expect("discover the exact closed registrar binding");
     let product =
-        compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
+        compiler::CompilationProduct::Native(products::NativeProductRequest {
             installation_assumptions: Vec::new(),
             retain_native_inputs: true,
             image: Default::default(),
@@ -1123,11 +1123,9 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
     }
     native_entry_controls::inspect(&report, &scratch)
         .expect("preserve the original native entry readback falsifiers");
-    let published = compilation_products::publication::publish_compilation(
-        report,
-        &scratch.join("native-output"),
-    )
-    .expect("publish the checked native executable");
+    let published =
+        products::publication::publish_compilation(report, &scratch.join("native-output"))
+            .expect("publish the checked native executable");
     let observed = std::process::Command::new(published.checked_native_executable_path().unwrap())
         .env("DYLD_LIBRARY_PATH", &provider)
         .output()
@@ -1142,7 +1140,7 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
 
 /// Use a genuine accepted constant invocation; cleanup must retain its cost
 /// even though the successful caller result contains no receipt fields.
-fn build_constant_cleanup_history() -> compilation_products::SourceCompletionAccounting {
+fn build_constant_cleanup_history() -> products::SourceCompletionAccounting {
     let text =
         "const VALUE:u64=answer(); machine answer()->u64 {4u64} machine build()->u64 {VALUE}";
     let mut sources = source::SourceMap::default();
@@ -1237,14 +1235,13 @@ fn build_constant_cleanup_failure_preserves_the_primary_typed_cause() {
     session.resources().record_source_completion(history);
     let staging = force_build_cleanup_failure(workspace.path());
     let primary = package_manager::operations::PackageInspectionError::from(
-        compilation_products::CompileFailure::Diagnostics(vec![diagnostics::Diagnostic::error(
+        products::CompileFailure::Diagnostics(vec![diagnostics::Diagnostic::error(
             "actual primary inspection failure",
         )]),
     );
     assert!(primary.source_completion_accounting().receipts().is_empty());
     let failure = session.dispose_inspection::<()>(Err(primary)).unwrap_err();
-    let Some(compilation_products::CompileFailure::Diagnostics(diagnostics)) =
-        failure.compilation_failure()
+    let Some(products::CompileFailure::Diagnostics(diagnostics)) = failure.compilation_failure()
     else {
         panic!("cleanup must preserve the original typed compilation cause")
     };
@@ -1416,7 +1413,7 @@ fn captured_review_compilation(
 ) -> (
     platform_custody::temporary_directory::TemporaryDirectory,
     orchestration::BuildSession,
-    Result<compilation_products::CheckedCompilation, Vec<diagnostics::Diagnostic>>,
+    Result<products::CheckedCompilation, Vec<diagnostics::Diagnostic>>,
 ) {
     let workspace = platform_custody::temporary_directory::TemporaryDirectory::create(
         "accepted-package-review",
@@ -1569,20 +1566,20 @@ machine main() {}
     let roster = checked.terminal_publication().roster().unwrap().clone();
     let other_judgment = roster.judge(std::sync::Arc::clone(&source)).unwrap();
     let publication = std::sync::Arc::new(
-        compilation_products::ProductTerminalPublication::judge(
+        products::ProductTerminalPublication::judge(
             source,
             roster,
             checked.terminal_publication().optimizations().clone(),
         )
         .unwrap(),
     );
-    let inspection = std::sync::Arc::new(compilation_products::SelectedProviderSource::new(
+    let inspection = std::sync::Arc::new(products::SelectedProviderSource::new(
         std::sync::Arc::clone(checked.source_inspection().inventory()),
         std::sync::Arc::clone(checked.execution().shared_plans()),
     ));
     let rewrap = |build| {
-        compilation_products::CheckedCompilation::from_settled_execution(
-            compilation_products::CheckedCompilationInputs {
+        products::CheckedCompilation::from_settled_execution(
+            products::CheckedCompilationInputs {
                 settled: checked.execution().clone(),
                 source_inspection: std::sync::Arc::clone(&inspection),
                 build: std::sync::Arc::new(build),

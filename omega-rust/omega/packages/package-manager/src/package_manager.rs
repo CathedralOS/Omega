@@ -668,7 +668,7 @@ pub struct PackageCommandOutcome {
 #[derive(Debug)]
 pub struct PackageCommandError {
     cause: PackageCommandCause,
-    accounting: compilation_products::SourceCompletionAccounting,
+    accounting: products::SourceCompletionAccounting,
 }
 
 #[derive(Debug)]
@@ -676,26 +676,24 @@ enum PackageCommandCause {
     Message(String),
     Review(Box<CompileResolvedPackageReviewsError>),
     Change(Box<crate::operations::PackageChangeError>),
-    Compilation(compilation_products::CompileFailure),
+    Compilation(products::CompileFailure),
     Preparation(Box<crate::operations::PrepareLocalProjectError>),
 }
 
 impl PackageCommandError {
-    pub fn source_completion_accounting(
-        &self,
-    ) -> &compilation_products::SourceCompletionAccounting {
+    pub fn source_completion_accounting(&self) -> &products::SourceCompletionAccounting {
         &self.accounting
     }
 
     pub fn with_source_completion_accounting(
         mut self,
-        accounting: compilation_products::SourceCompletionAccounting,
+        accounting: products::SourceCompletionAccounting,
     ) -> Self {
         self.accounting.append(accounting);
         self
     }
 
-    pub fn compilation_failure(&self) -> Option<&compilation_products::CompileFailure> {
+    pub fn compilation_failure(&self) -> Option<&products::CompileFailure> {
         match &self.cause {
             PackageCommandCause::Compilation(failure) => Some(failure),
             _ => None,
@@ -743,8 +741,8 @@ impl PackageCommandError {
     }
 }
 
-impl From<compilation_products::CompileFailure> for PackageCommandError {
-    fn from(error: compilation_products::CompileFailure) -> Self {
+impl From<products::CompileFailure> for PackageCommandError {
+    fn from(error: products::CompileFailure) -> Self {
         let accounting = error
             .source_completion_accounting()
             .cloned()

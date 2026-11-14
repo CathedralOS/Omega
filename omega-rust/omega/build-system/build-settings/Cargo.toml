@@ -17,7 +17,7 @@ source-compiler = { path = "../../../psi/compilation/source-compiler" }
 evaluation-accounting = { path = "../../../psi/foundation/evaluation-accounting" }
 filesystem-authority = { path = "../../../psi/foundation/filesystem-authority" }
 artifacts = { path = "../../foundation/artifacts" }
-compilation-products = { path = "../../compilation/products" }
+products = { path = "../../compilation/products" }
 arena = { path = "../../../psi/foundation/arena" }
 language-core = { path = "../../../psi/foundation/language-core" }
 build-output = { path = "../../packages/build-output" }

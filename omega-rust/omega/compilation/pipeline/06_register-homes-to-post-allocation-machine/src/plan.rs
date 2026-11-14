@@ -23,7 +23,7 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use optimization_core::PostAllocationOptimizationManifestIdentity;
-use physical_instructions::{
+use post_allocation_machine::{
     MachineAlternativeChoiceRule, PhysicalAddressOperation as Address, PhysicalOperandFootprint,
     PostAllocationMachineBlock, PostAllocationMachineFunction, PostAllocationMachineIdentity,
     PostAllocationMachineInstruction, PostAllocationMachinePlan, post_allocation_machine_identity,
@@ -674,7 +674,7 @@ fn is_applicable(
 
 #[cfg(test)]
 mod tests {
-    use physical_instructions::PhysicalOperandFootprint;
+    use post_allocation_machine::PhysicalOperandFootprint;
     use register_model::{
         RegisterClassId, RegisterOperandAccess, RegisterViewId, ValidatedPhysicalRegisterModel,
         validate_physical_register_model,

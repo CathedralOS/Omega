@@ -1,5 +1,5 @@
 [package]
-name = "compilation-products"
+name = "products"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
@@ -43,4 +43,4 @@ trust-model = { path = "../realization/trust-model" }
 [dev-dependencies]
 image = { path = "../backend/images/image" }
 image-macho = { path = "../backend/images/image-macho" }
-object-file = { path = "../backend/object/object-file" }
+object-file = { path = "../backend/object-file" }

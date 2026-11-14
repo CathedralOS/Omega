@@ -31,8 +31,8 @@ const TERMINAL_PRODUCTION_STAGE: StageMeta = StageMeta::new(
 );
 
 pub(crate) struct TerminalProductionView<'a> {
-    source_identity: compilation_products::ProductSourceIdentity,
-    publication: &'a compilation_products::ProductTerminalPublication,
+    source_identity: products::ProductSourceIdentity,
+    publication: &'a products::ProductTerminalPublication,
     sources: &'a package_compilation::CheckedSourceCustody,
     execution: &'a selected_dispatch::SelectedExecution,
     timings: &'a mut CompileTimings,
@@ -51,7 +51,7 @@ impl<'a> TerminalProductionView<'a> {
 
     pub(crate) fn selection(selection: &'a mut SelectedProviderCustody) -> Self {
         Self {
-            source_identity: compilation_products::ProductSourceIdentity::new(
+            source_identity: products::ProductSourceIdentity::new(
                 selection.source_inspection.program(),
             ),
             publication: &selection.terminal_publication,

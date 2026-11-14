@@ -6,10 +6,8 @@
 // production inside the compiler.
 
 use super::CompilationSession;
-use compilation_products::{
-    CheckedCompileRequest, CompileFailure, NativeProductRequest, PreparedPackageBuild,
-};
 use diagnostics::Diagnostic;
+use products::{CheckedCompileRequest, CompileFailure, NativeProductRequest, PreparedPackageBuild};
 
 pub struct PackageCompilationRequest {
     pub occurrences: Vec<PackageSourceRequest>,
@@ -104,7 +102,7 @@ impl SourceBuildDeclaration {
 }
 
 pub struct CompletedBuild {
-    source: compilation_products::SettledPackageBuild,
+    source: products::SettledPackageBuild,
     products: Vec<PreparedPackageBuild>,
 }
 
@@ -217,9 +215,7 @@ impl PackageBuildInvocation {
 }
 
 impl PackageBuild {
-    pub fn source_completion_accounting(
-        &self,
-    ) -> &compilation_products::SourceCompletionAccounting {
+    pub fn source_completion_accounting(&self) -> &products::SourceCompletionAccounting {
         self.source.source_completion_accounting()
     }
 
@@ -385,7 +381,7 @@ impl CompilationSession {
             if !roster.supplies.contains(&supply) {
                 roster.supplies.push(supply);
             }
-            let supplied = compilation_products::ProductTerminalPublication::judge(
+            let supplied = products::ProductTerminalPublication::judge(
                 std::sync::Arc::clone(accepted.source()),
                 roster,
                 publication.optimizations().clone(),
@@ -482,7 +478,7 @@ impl CompilationSession {
                     crate::CompilationProduct::Native(request) => {
                         Some(crate::CompilationProduct::Native(NativeProductRequest {
                             retain_native_inputs: false,
-                            image: compilation_products::NativeImageDemand::Emit,
+                            image: products::NativeImageDemand::Emit,
                             private_entry_ram: Vec::new(),
                             ..request.clone()
                         }))
@@ -555,28 +551,26 @@ impl CompilationSession {
                             pending.tests = identities
                                 .into_iter()
                                 .zip(tests)
-                                .map(|(identity, product)| {
-                                    compilation_products::PendingTestProduct {
-                                        identity,
-                                        product: match product {
-                                            Ok(crate::CompilationOutput::Native(pending)) => {
-                                                Ok(pending)
-                                            }
-                                            Ok(crate::CompilationOutput::Report(report)) => {
-                                                Err(CompileFailure::source_completion(
-                                                    vec![Diagnostic::error(
-                                                        "test root lost its native product",
-                                                    )],
-                                                    report.source_completion_accounting().clone(),
-                                                ))
-                                            }
-                                            Ok(_) => Err(vec![Diagnostic::error(
-                                                "test root lost its native product",
-                                            )]
-                                            .into()),
-                                            Err(error) => Err(CompileFailure::from(error)),
-                                        },
-                                    }
+                                .map(|(identity, product)| products::PendingTestProduct {
+                                    identity,
+                                    product: match product {
+                                        Ok(crate::CompilationOutput::Native(pending)) => {
+                                            Ok(pending)
+                                        }
+                                        Ok(crate::CompilationOutput::Report(report)) => {
+                                            Err(CompileFailure::source_completion(
+                                                vec![Diagnostic::error(
+                                                    "test root lost its native product",
+                                                )],
+                                                report.source_completion_accounting().clone(),
+                                            ))
+                                        }
+                                        Ok(_) => Err(vec![Diagnostic::error(
+                                            "test root lost its native product",
+                                        )]
+                                        .into()),
+                                        Err(error) => Err(CompileFailure::from(error)),
+                                    },
                                 })
                                 .collect();
                             crate::CompilationOutput::Native(pending)
