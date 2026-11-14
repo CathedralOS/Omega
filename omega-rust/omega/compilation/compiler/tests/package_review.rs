@@ -750,7 +750,7 @@ fn completed_scalar_call_preserves_wrapping_index_guard() {
 fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
     use std::sync::Arc;
     let root = fixture_package_inputs::repo_root();
-    let fixture = root.join("tests/omega/pass/layouts/private_callback_inherited_policy_exit");
+    let fixture = root.join("tests/fixtures/pass/layouts/private_callback_inherited_policy_exit");
     let scratch = root.join("build").join(format!(
         "omega-closed-native-callback-{}-{}",
         std::process::id(),
@@ -912,40 +912,19 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
             module.identities.text(declaration.owner.identity()),
             module.identities.text(declaration.identity),
         ));
-        for (label, plans) in [
-            (
-                "selected",
-                proposal
-                    .providers()
-                    .selection
-                    .plans()
-                    .iter()
-                    .collect::<Vec<_>>(),
-            ),
-            (
-                "declarations",
-                proposal
-                    .providers()
-                    .declarations
-                    .iter()
-                    .map(|row| &row.plan)
-                    .collect(),
-            ),
-        ] {
-            for plan in plans {
-                for row in plan.rows.iter().filter(|row| {
-                    plan.identities.text(row.declared_requirement_identity)
-                        == abi.requirement_identity
-                }) {
-                    binding_context.push_str(&format!(
-                        "{label} target={} root={:?} selected={:?} declared={:?} abi={:?}\n",
-                        plan.target,
-                        plan.schema.root_application_identity(),
-                        plan.identities.text(row.requirement_identity),
-                        plan.identities.text(row.declared_requirement_identity),
-                        row.calling_signature,
-                    ));
-                }
+        for plan in proposal.providers().selection.plans() {
+            for row in plan.rows.iter().filter(|row| {
+                plan.identities.text(row.declared_requirement_identity) == abi.requirement_identity
+            }) {
+                binding_context.push_str(&format!(
+                    "selected target={} root={:?} declaration={:?} selected={:?} declared={:?} abi={:?}\n",
+                    plan.target,
+                    plan.schema.root_application_identity(),
+                    plan.provider_declaration,
+                    plan.identities.text(row.requirement_identity),
+                    plan.identities.text(row.declared_requirement_identity),
+                    row.calling_signature,
+                ));
             }
         }
     }
@@ -957,16 +936,14 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
                     target.target,
                     selection.plans.len()
                 ));
-                for selected in &selection.plans {
-                    for row in &selected.plan.rows {
+                for plan in &selection.plans {
+                    for row in &plan.rows {
                         if row.calling_signature.is_some() {
                             binding_context.push_str(&format!(
-                                "publication selected={:?} declared={:?} abi={:?}\n",
-                                selected.plan.identities.text(row.requirement_identity),
-                                selected
-                                    .plan
-                                    .identities
-                                    .text(row.declared_requirement_identity),
+                                "publication declaration={:?} selected={:?} declared={:?} abi={:?}\n",
+                                plan.provider_declaration,
+                                plan.identities.text(row.requirement_identity),
+                                plan.identities.text(row.declared_requirement_identity),
                                 row.calling_signature,
                             ));
                         }
