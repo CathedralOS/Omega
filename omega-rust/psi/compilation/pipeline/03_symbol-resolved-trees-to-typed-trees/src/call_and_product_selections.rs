@@ -2701,6 +2701,28 @@ pub(crate) mod product_selections {
         evidence_count: usize,
         span: source::SourceSpan,
     ) -> Result<Option<typed_trees::expression::BuildSelectionRequest>, Diagnostic> {
+        // The Build prelude's operations live in its module `Build`, and
+        // static normalization folds a module qualifier into the written
+        // name. A designated operation has no declaration for that name to
+        // resolve to, so its call arrives as `Build::bind` with no namespace
+        // symbol at all. Read the qualifier back as the prelude module it
+        // names, the same lookup the testing facet uses; any other qualifier
+        // names no Build operation and stays an ordinary unresolved call.
+        let (namespace, name) = match name.rsplit_once("::") {
+            Some((qualifier, operation)) if !namespace.is_valid() && !target.is_valid() => (
+                source
+                    .symbols
+                    .find_top_level_by_name_and_kinds_from_source_matching(
+                        qualifier,
+                        &[symbols::SymbolKind::Module],
+                        span,
+                        |namespace| source.symbols.is_build_prelude_symbol(namespace),
+                    )
+                    .unwrap_or_else(symbols::SymbolHandle::invalid),
+                operation,
+            ),
+            _ => (namespace, name),
+        };
         if target.is_valid() && source.symbols.is_build_prelude_symbol(target) {
             use language_semantics::declaration_selection::{
                 EnumExclusionRequest, ExclusionVocabulary,
