@@ -19,13 +19,6 @@
 //! that artifact and its seals stay beside it for Omega 00. An executable
 //! child requests its calling declarations before publication and receives a
 //! new judgment over the same source and full roster.
-#[path = "support/fixture_package_inputs.rs"]
-mod fixture_package_inputs;
-
-use fixture_package_inputs::{
-    FixtureProductCheck, check_fixture_keeping_typed_frontier, discover_fixture,
-    fixture_build_snapshot, produce_fixture, repo_root, review_fixture,
-};
 use psi_work::WorkMeter;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
@@ -52,21 +45,27 @@ fn published_fixture(
     RoutePublication,
     terminal_psi::PreparedNominalRoot,
     [u8; 32],
-    Box<compiler::CheckedCompilation>,
+    compiler::CheckedCompilation,
 ) {
     let main = repo_root().join(fixture).join("main.omg");
     let checked = std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
-            check_fixture_keeping_typed_frontier(&main, "linux_x86_64")
+            orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&main, Some("linux_x86_64")),
+            )
+            .result
+            .unwrap_or_else(|failure| {
+                panic!(
+                    "{fixture}: the program must check: {:?}",
+                    failure.into_diagnostics()
+                )
+            })
         })
         .expect("compiler worker")
         .join()
         .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
     });
-    let checked = match checked {
-        FixtureProductCheck::Accepted { checked, .. } => checked,
-        _ => panic!("{fixture}: the program must check"),
-    };
     let accepted = checked
         .terminal_publication()
         .accepted()
@@ -251,42 +250,35 @@ fn the_default_compile_builds_the_application_from_the_routes_module() {
 
 /// The Terminal product the default compile builds for `fixture`.
 fn default_product(fixture: &str) -> terminal_psi_to_abstract_operations::RetainedTerminalArtifact {
-    let target = "linux_x86_64";
     let main = repo_root().join(fixture).join("main.omg");
     std::thread::scope(|scope| {
-        compiler::checked::spawn_compile_worker(
-            scope,
-            || -> Result<_, Vec<diagnostics::Diagnostic>> {
-                let discovered = discover_fixture(
-                    &main,
-                    package_compilation::BuildExecutionInputs {
-                        snapshot: fixture_build_snapshot(&main)?,
-                        ..Default::default()
-                    },
-                )?;
-                let profile = target::TargetProfile::from_omega_target_name(Some(target))
-                    .map_err(|error| vec![error])?;
-                let mut prepared = review_fixture(
-                    discovered,
-                    &[profile],
-                    compiler::CompilationProduct::Terminal(Default::default()),
-                )?;
-                produce_fixture(&mut prepared, Some(target))?
-                    .into_report()
-                    .map_err(compiler::CompilationProductError::into_diagnostics)?
-                    .into_retained_terminal_artifact()
-                    .ok_or_else(|| {
-                        vec![diagnostics::Diagnostic::error(
-                            "the Terminal product retained no artifact",
-                        )]
-                    })
-            },
-        )
+        compiler::checked::spawn_compile_worker(scope, || {
+            orchestration::produce_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&main, Some("linux_x86_64")),
+                compiler::CompilationProduct::Terminal(Default::default()),
+            )
+            .and_then(compiler::CompilationOutput::into_report)
+            .map_err(compiler::CompilationProductError::into_diagnostics)?
+            .into_retained_terminal_artifact()
+            .ok_or_else(|| {
+                vec![diagnostics::Diagnostic::error(
+                    "the Terminal product retained no artifact",
+                )]
+            })
+        })
         .expect("compiler worker")
         .join()
         .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
     })
     .unwrap_or_else(|diagnostics| panic!("{fixture} must reach Terminal Psi: {diagnostics:#?}"))
+}
+
+fn repo_root() -> &'static std::path::Path {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(4)
+        .expect("compiler crate is nested four levels under the repository")
 }
 
 /// Every source machine keeps its exact declaration and nonempty contract
