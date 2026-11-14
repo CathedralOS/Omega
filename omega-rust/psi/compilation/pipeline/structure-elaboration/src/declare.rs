@@ -65,14 +65,17 @@ impl Hasher for Commitment {
     }
 }
 
-/// States the declaration identity of every machine of `elaboration` that
-/// `machines` gives a typed-tree declaration, in machine order.
+/// Callable headers retain exact source identities after source is released.
+/// Prepare the source and service identities once, then stamp real bodies and
+/// requirement descriptions without giving a requirement an executable body.
 pub(crate) fn declare(
     typed: &TypedTrees,
     machines: &IdTable<MachineId, SymbolHandle>,
     signatures: &IdTable<MachineId, Signature>,
+    requirement_symbols: &IdTable<semantic_vocabulary::ContractId, SymbolHandle>,
+    requirement_signatures: &IdTable<semantic_vocabulary::ContractId, Signature>,
     elaboration: &mut Elaboration,
-) {
+) -> Result<(), &'static str> {
     let sources =
         source::source_identity::toolchain_source_identities(typed.symbols.source_files());
     // A service is committed to by its portable identity, never by its
@@ -93,6 +96,18 @@ pub(crate) fn declare(
             )
         })
         .collect();
+    let identities_of = |row: &[semantic_vocabulary::ServiceId]| {
+        row.iter()
+            .map(|service| {
+                services
+                    .iter()
+                    .find(|(id, _)| id == service)
+                    .map(|(_, identity)| identity.as_str())
+                    .filter(|identity| !identity.is_empty())
+                    .ok_or("a published service has no identity")
+            })
+            .collect::<Result<Vec<_>, _>>()
+    };
     let mut identities = std::mem::take(&mut elaboration.module.identities).into_builder();
     for machine in &mut elaboration.module.machines {
         // A requirement stands for a contract, not a source-produced body.
@@ -105,18 +120,6 @@ pub(crate) fn declare(
             signatures.get(machine.id),
         ) {
             (Ok(sources), Some(symbol), Some(signature)) => {
-                let identities_of = |row: &[semantic_vocabulary::ServiceId]| {
-                    row.iter()
-                        .map(|service| {
-                            services
-                                .iter()
-                                .find(|(id, _)| id == service)
-                                .map(|(_, identity)| identity.as_str())
-                                .filter(|identity| !identity.is_empty())
-                                .ok_or("a published service has no identity")
-                        })
-                        .collect::<Result<Vec<_>, _>>()
-                };
                 identities_of(&machine.published_service_ceiling).and_then(|reach| {
                     let entries = identities_of(&machine.published_synchronous_entries)?;
                     declaration(
@@ -141,59 +144,29 @@ pub(crate) fn declare(
             Err(reason) => elaboration.undeclared.push((machine.id, reason)),
         }
     }
-    elaboration.module.identities = identities.build();
-}
-
-/// Retain the exact source declaration of each subject requirement. These rows
-/// have no body or acceptance marker; retaining a promise does not prove it.
-pub(crate) fn public_requirements(
-    typed: &TypedTrees,
-    symbols: &IdTable<semantic_vocabulary::ContractId, SymbolHandle>,
-    signatures: &IdTable<semantic_vocabulary::ContractId, Signature>,
-    elaboration: &mut Elaboration,
-) -> Result<(), &'static str> {
-    let services = elaboration
-        .module
-        .services
-        .iter()
-        .map(|service| {
-            elaboration
-                .module
-                .identities
-                .text(service.identity)
-                .filter(|identity| !identity.is_empty())
-                .map(|identity| (service.id, identity.to_owned()))
-                .ok_or("a public contract service has no exact identity")
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let names = |row: &[semantic_vocabulary::ServiceId]| {
-        row.iter()
-            .map(|id| {
-                services
-                    .iter()
-                    .find(|(service, _)| service == id)
-                    .map(|(_, identity)| identity.as_str())
-                    .ok_or("a public contract names an unknown service")
-            })
-            .collect::<Result<Vec<_>, _>>()
-    };
-    let mut identities = std::mem::take(&mut elaboration.module.identities).into_builder();
     let result = (|| {
+        if elaboration.module.declaration_contracts.is_empty() {
+            return Ok(());
+        }
+        let sources = sources
+            .as_ref()
+            .map_err(|_| "a public requirement toolchain source has no exact identity")?;
         for contract in &mut elaboration.module.declaration_contracts {
-            let symbol = *symbols
+            let symbol = *requirement_symbols
                 .get(contract.id)
                 .ok_or("public contract lost its source declaration coordinate")?;
-            let signature = signatures
+            let signature = requirement_signatures
                 .get(contract.id)
                 .ok_or("public contract lost its exact source signature")?;
             let (_, requirement) = typed
                 .trait_machine_signature(symbol)
                 .filter(|(_, requirement)| requirement.symbol == symbol)
                 .ok_or("public contract no longer names its declaring requirement")?;
-            let reach = names(&contract.published_service_ceiling)?;
-            let entries = names(&contract.published_synchronous_entries)?;
+            let reach = identities_of(&contract.published_service_ceiling)?;
+            let entries = identities_of(&contract.published_synchronous_entries)?;
             let (_, declaration, _) = trait_requirement(
                 typed,
+                sources,
                 requirement,
                 signature,
                 Published {
@@ -442,8 +415,17 @@ pub(crate) fn boundary(
     if signature.declared_crash_routes().is_none() {
         return Err("boundary declaration has no published crash ceiling");
     }
-    let (owner, source, method_arguments) =
-        trait_requirement(typed, requirement, signature, published, identities)?;
+    let sources =
+        source::source_identity::toolchain_source_identities(typed.symbols.source_files())
+            .map_err(|_| "a boundary toolchain source has no exact identity")?;
+    let (owner, source, method_arguments) = trait_requirement(
+        typed,
+        &sources,
+        requirement,
+        signature,
+        published,
+        identities,
+    )?;
     Ok((
         owner,
         terminal_psi::CheckedBoundaryCallable {
@@ -458,6 +440,7 @@ pub(crate) fn boundary(
 // identity must not be borrowed from the body that happens to implement it.
 pub(crate) fn trait_requirement(
     typed: &TypedTrees,
+    sources: &[(source::SourceId, [u8; 32])],
     requirement: &typed_trees::signature::StateSignature,
     signature: &Signature,
     published: Published<'_>,
@@ -477,11 +460,8 @@ pub(crate) fn trait_requirement(
     if !requirement.type_parameters.is_empty() || !requirement.lifetime_parameters.is_empty() {
         return Err("requirement declaration needs its complete applied arguments");
     }
-    let sources =
-        source::source_identity::toolchain_source_identities(typed.symbols.source_files())
-            .map_err(|_| "a boundary toolchain source has no exact identity")?;
-    let owner_identity = nominal(typed, &sources, owner.symbol, identities)?;
-    let requirement_identity = nominal(typed, &sources, declared.symbol, identities)?;
+    let owner_identity = nominal(typed, sources, owner.symbol, identities)?;
+    let requirement_identity = nominal(typed, sources, declared.symbol, identities)?;
     let semantic = match invocation_local(typed, requirement.symbol, identities)? {
         Some(identity) => identity,
         None => identities.intern(
@@ -524,7 +504,7 @@ pub(crate) fn trait_requirement(
         match typed.closed_requirement_application(requirement.symbol) {
             Some(closed) => {
                 let (specialization, arguments) =
-                    requirement_application(typed, &sources, &closed, identities)?;
+                    requirement_application(typed, sources, &closed, identities)?;
                 (Some(specialization), arguments)
             }
             None => (None, Vec::new()),

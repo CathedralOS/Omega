@@ -709,12 +709,6 @@ fn finish_reading(
             typed,
             &program.symbols,
             &program.signatures,
-            &mut elaboration,
-        );
-    }
-    if let Some(typed) = declared {
-        declare::public_requirements(
-            typed,
             &program.declaration_symbols,
             &program.declaration_signatures,
             &mut elaboration,

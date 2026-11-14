@@ -1057,6 +1057,8 @@ impl<'t> Program<'t> {
             &[],
             &bound,
         )?;
+        signature.termination =
+            self.published_termination(id, &requirement.termination_guarantee)?;
         signature.invokes =
             self.entry_ceiling(id, self.typed.state_signature_invokes(requirement), true)?;
         names.machine = requirement.name.as_str().to_owned();
@@ -1376,8 +1378,8 @@ impl<'t> Program<'t> {
                 // tables and read omission differently.
                 invokes: crate::Ceiling::Inferred,
                 crashes,
-                // A requirement's termination is its selected member's to
-                // keep; a machine's is read from its plan by its caller.
+                // The owning header's reader fills its termination promise
+                // after these shared parameter and clause rules are read.
                 termination: Termination::Silent,
             },
             names,
@@ -1390,27 +1392,35 @@ impl<'t> Program<'t> {
     /// as rendered text, which this reader never resolves.
     fn termination(&self, id: MachineId, machine: &Machine) -> Checked<Termination> {
         let plan = &machine.termination_plan;
-        let promised = match &plan.interface {
-            TerminationInterface::InternalDerived
-            | TerminationInterface::Published(TerminationGuarantee::NoGuarantee) => false,
-            TerminationInterface::Published(TerminationGuarantee::Terminates { premises }) => {
-                // termination.md, "Opaque progress profiles": a premise
-                // attaches a provider's progress profile to a subject.
-                if !premises.is_empty() {
-                    return Err(refuse(
-                        id,
-                        Construct::Machine,
-                        Unserved::Contract("termination under a progress premise"),
-                    ));
-                }
-                true
+        let promise = match &plan.interface {
+            TerminationInterface::InternalDerived => Termination::Silent,
+            TerminationInterface::Published(guarantee) => {
+                self.published_termination(id, guarantee)?
             }
         };
-        Ok(match (&plan.implementation_witness, promised) {
-            (Some(_), _) => Termination::Witnessed,
-            (None, true) => Termination::Promised,
-            (None, false) => Termination::Silent,
+        Ok(if plan.implementation_witness.is_some() {
+            Termination::Witnessed
+        } else {
+            promise
         })
+    }
+
+    fn published_termination(
+        &self,
+        id: MachineId,
+        guarantee: &TerminationGuarantee,
+    ) -> Checked<Termination> {
+        match guarantee {
+            TerminationGuarantee::NoGuarantee => Ok(Termination::Silent),
+            TerminationGuarantee::Terminates { premises } if premises.is_empty() => {
+                Ok(Termination::Promised)
+            }
+            TerminationGuarantee::Terminates { .. } => Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("termination under a progress premise"),
+            )),
+        }
     }
 
     /// Whether the type parameter `rigid` of `machine` is declared `[copy]`.

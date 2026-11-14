@@ -190,8 +190,9 @@ pub(crate) mod contracts {
         pub structural_parameters: Vec<crate::StructuralParameterDeclaration>,
         pub result: crate::TerminalMachineResult,
         pub entry_claims: Vec<crate::EntryClaim>,
-        // A missing clause leaves a requirement open; an explicit empty
-        // clause promises no effect. Keep that distinction after source ends.
+        // Omitted reach and crash clauses can leave requirements open;
+        // an explicit empty clause promises none. Entries follow their own
+        // rule: omitted requirement invokes means the empty semantic ceiling.
         pub declared_service_reach: Option<Vec<semantic_vocabulary::ServiceId>>,
         pub declared_synchronous_entries: Option<Vec<semantic_vocabulary::ServiceId>>,
         pub declared_crash_routes: Option<Vec<CrashRouteBucket>>,
