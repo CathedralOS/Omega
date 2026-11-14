@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 267`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 268`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -4762,6 +4762,7 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
+// Marker 268 retains the declared public result lifetime groups separately from body origins.
 // Marker 267 lets the existing record-invariant wrapper retain any record
 // storage shape. Earlier packed-only tag17 bytes cannot supply that nested shape.
 // Marker 266 retains the integer carrier in float semantic conversion identities.
@@ -4772,7 +4773,7 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // separately from its executable body. Marker 263 operational ceilings and call
 // acknowledgements, 262 opaque contexts, 261 write summaries and the earlier
 // numeric and finite-family identities remain part of the same format.
-pub(crate) const FORMAT_MARKER: u16 = 267;
+pub(crate) const FORMAT_MARKER: u16 = 268;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -5325,6 +5326,9 @@ mod global_descriptor_table_tests {
                 source: StructuralArgument::whole(place, StructuralAccess::MutableBorrow),
             },
         ));
+        // The fixture authors this service ceiling above; its published
+        // contract must retain that same ceiling before operand checks run.
+        machine.published_service_ceiling.push(service);
         module.machines.push(machine);
         module
     }
@@ -5374,6 +5378,16 @@ mod global_descriptor_table_tests {
             source.access = StructuralAccess::WriteOnlyBorrow;
         }
         assert!(refusal(&unreadable).contains("declared byte borrow"));
+    }
+
+    #[test]
+    fn descriptor_table_receiving_rejects_a_dropped_published_service_ceiling() {
+        let mut changed = descriptor_module(GlobalDescriptorTableOperation::Store);
+        changed.machines[0].published_service_ceiling.clear();
+        assert!(
+            refusal(&changed)
+                .contains("authored callable effects differ from their published promises")
+        );
     }
 }
 
@@ -5509,6 +5523,9 @@ mod descriptor_operation_tests {
             }),
             OperationKind::ReadTaskRegister { service },
         ));
+        // Task-register and segment fixtures inherit one explicit service
+        // ceiling, so publication must agree with its authored contract.
+        machine.published_service_ceiling.push(service);
         module.machines.push(machine);
         module
     }
@@ -5742,7 +5759,7 @@ mod format_marker_tests {
         // Neither body may be interpreted as the combined layout, regardless
         // of which payload follows their shared legacy marker. Marker 260's finite
         // float conversion ordinal also cannot supply the retained carrier identity.
-        for legacy in [250u16, 251, 252, 256, 260, 261, 264, 265, 266] {
+        for legacy in [250u16, 251, 252, 256, 260, 261, 264, 265, 266, 267] {
             for payload in [&[][..], &[0xff, 0xff, 0xff][..]] {
                 let mut bytes = MAGIC.to_vec();
                 bytes.extend_from_slice(&legacy.to_le_bytes());

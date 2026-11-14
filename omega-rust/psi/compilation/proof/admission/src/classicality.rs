@@ -48,7 +48,8 @@ impl AcceptedProofRule {
             | Self::IntegerExactAddDefinitionBound
             | Self::IntegerExactSubtractDefinitionBound
             | Self::IntegerCastBound
-            | Self::IntegerCorrelatedForbiddenRoots => ProofRuleFoundation::ConstructiveDecidable,
+            | Self::IntegerCorrelatedForbiddenRoots
+            | Self::IntegerPowerOfTwoOrder => ProofRuleFoundation::ConstructiveDecidable,
         }
     }
 
@@ -62,7 +63,9 @@ impl AcceptedProofRule {
     pub const fn is_provisional(self) -> bool {
         matches!(
             self,
-            Self::IntegerRemainderWithinDividend | Self::IntegerQuotientAtMostDividend
+            Self::IntegerRemainderWithinDividend
+                | Self::IntegerQuotientAtMostDividend
+                | Self::IntegerPowerOfTwoOrder
         )
     }
 
@@ -85,7 +88,7 @@ impl AcceptedProofRule {
 mod tests {
     use super::{AcceptedProofRule, ProofRuleFoundation};
 
-    const ALL: [AcceptedProofRule; 30] = [
+    const ALL: [AcceptedProofRule; 31] = [
         AcceptedProofRule::Primitive,
         AcceptedProofRule::SemanticAxiom,
         AcceptedProofRule::Assumption,
@@ -116,6 +119,7 @@ mod tests {
         AcceptedProofRule::IntegerExactSubtractDefinitionBound,
         AcceptedProofRule::IntegerCastBound,
         AcceptedProofRule::IntegerCorrelatedForbiddenRoots,
+        AcceptedProofRule::IntegerPowerOfTwoOrder,
     ];
 
     #[test]
@@ -170,6 +174,7 @@ mod tests {
                     rule,
                     AcceptedProofRule::IntegerRemainderWithinDividend
                         | AcceptedProofRule::IntegerQuotientAtMostDividend
+                        | AcceptedProofRule::IntegerPowerOfTwoOrder
                 ),
                 "{rule:?} provisional marking changed"
             );

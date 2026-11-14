@@ -756,10 +756,16 @@ fn replacing_a_governed_field_is_refused_by_name() {
 /// that: the lender still owns the field.
 #[test]
 fn moving_a_governed_field_out_of_an_exclusive_loan_is_not_accepted() {
-    refused_with(
-        "governed_moved_out",
-        "machine wrong(sealed: &mut Sealed) -> Seal in Issued {\n    sealed.seal\n}\n",
-        "owned extraction from borrowed storage",
+    // Through `&mut` the move opens a window that is still open where the
+    // machine returns: the one unestablished use is that return. The
+    // machines are the first judged part; the trait refinement is judged on
+    // its own and is not what the twin changes.
+    assert_eq!(
+        verdicts(
+            "governed_moved_out",
+            "machine wrong(sealed: &mut Sealed) -> Seal in Issued {\n    sealed.seal\n}\n",
+        ),
+        ["rejected: 1 unestablished; ", "accepted"]
     );
 }
 

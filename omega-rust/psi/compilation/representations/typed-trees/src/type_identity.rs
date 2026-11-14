@@ -259,7 +259,7 @@ pub(crate) mod callable_identity {
             if signature.is_empty() {
                 return Err("requirement schema has no exact original signature");
             }
-            let mut bytes = b"omega.requirement-schema.v3\0".to_vec();
+            let mut bytes = b"omega.requirement-schema.v4\0".to_vec();
             let length = |bytes: &mut Vec<u8>, value: usize| -> Result<(), &'static str> {
                 bytes.extend(
                     u64::try_from(value)
@@ -321,7 +321,83 @@ pub(crate) mod callable_identity {
                 length(&mut bytes, contract.len())?;
                 bytes.extend(contract.as_bytes());
             }
+            // Callable identity uses result domains for overload selection;
+            // it does not describe the result's reference or lifetime. Keep
+            // the declaration's complete types here before that distinction
+            // is erased, so a receiver can check the derived loan groups.
+            let types = self.requirement_definition_types(owner, requirement);
+            bytes.push(u8::from(types.is_some()));
+            if let Some((parameters, result)) = types {
+                length(&mut bytes, owner.lifetime_parameters.len())?;
+                length(&mut bytes, parameters.len())?;
+                for parameter in parameters {
+                    length(&mut bytes, parameter.len())?;
+                    bytes.extend(parameter.as_bytes());
+                }
+                length(&mut bytes, result.len())?;
+                bytes.extend(result.as_bytes());
+            }
             Ok((bytes, kinds))
+        }
+
+        fn requirement_definition_types(
+            &self,
+            owner: &TraitDefinition,
+            requirement: &StateSignature,
+        ) -> Option<(Vec<String>, String)> {
+            use super::LifetimeParameterIdentity;
+            use super::identity_context::{
+                TypeIdentityContext, TypeIdentityQualification, normalize_type_reference,
+            };
+            use std::cell::Cell;
+
+            let mut type_parameters = self.trait_type_parameters(owner).to_vec();
+            type_parameters.extend_from_slice(self.state_signature_type_parameters(requirement));
+            let parameters = self.state_signature_parameters(requirement);
+            let mut binders = super::callable_type_binders(owner.symbol, &type_parameters);
+            binders.extend(
+                parameters
+                    .iter()
+                    .enumerate()
+                    .map(|(ordinal, parameter)| (parameter.symbol, format!("$value{ordinal}"))),
+            );
+            let lifetimes = [
+                (owner.symbol, owner.lifetime_parameters.len()),
+                (requirement.symbol, requirement.lifetime_parameters.len()),
+            ]
+            .into_iter()
+            .flat_map(|(declaration, count)| {
+                (0..count).map(move |ordinal| LifetimeParameterIdentity {
+                    declaration,
+                    ordinal,
+                })
+            })
+            .enumerate()
+            .map(|(ordinal, lifetime)| (lifetime, ordinal))
+            .collect::<Vec<_>>();
+            let invalid = Cell::new(false);
+            let context = TypeIdentityContext {
+                binders: &binders,
+                lifetime_binders: &lifetimes,
+                application_owner: requirement.symbol,
+                application_argument_owner: requirement.symbol,
+                signature_owners: Some((requirement.symbol, requirement.symbol)),
+                qualification: TypeIdentityQualification::PackageQualified,
+                invalid_application: Some(&invalid),
+                invalid_index_argument: Some(&invalid),
+                encountered_elided_regions: Some(&invalid),
+                ..Default::default()
+            };
+            let declared_type = |reference| {
+                self.contains_type_reference(reference)
+                    .then(|| normalize_type_reference(self, reference, &context))
+            };
+            let parameters = parameters
+                .iter()
+                .map(|parameter| declared_type(parameter.type_reference))
+                .collect::<Option<Vec<_>>>()?;
+            let result = declared_type(requirement.return_type)?;
+            (!invalid.get()).then_some((parameters, result))
         }
 
         pub fn operator_callable_identity(
@@ -6289,9 +6365,11 @@ pub(crate) mod substitution {
                     if !program.contains_type_reference(argument.type_reference) {
                         return rejected(context);
                     }
+                    let selected = program
+                        .static_operand_from_type_reference(argument.type_reference)
+                        .ok();
                     if context.invalid_application.is_some()
-                        && let Ok(selected) =
-                            program.static_operand_from_type_reference(argument.type_reference)
+                        && let Some(selected) = &selected
                         && selected.symbol.is_valid()
                         && matches!(
                             program.symbols.get(selected.symbol).kind,
@@ -6300,14 +6378,18 @@ pub(crate) mod substitution {
                     {
                         return index_argument(
                             program,
-                            IndexIdentityArgument::StaticArgument(&selected),
+                            IndexIdentityArgument::StaticArgument(selected),
                             context,
                         );
                     }
+                    // A retained scalar reference supplies the same value as
+                    // its literal operand, not a type with a numeric name.
                     if matches!(
                         program.type_reference_node(argument.type_reference),
                         TypeReferenceNode::ConstExpression(_)
-                    ) {
+                    ) || selected.as_ref().is_some_and(|selected| {
+                        crate::static_const_argument_value(program, selected).is_some()
+                    }) {
                         return index_reference(program, argument.type_reference, context);
                     }
                     return normalize_type_reference(program, argument.type_reference, context);
@@ -6687,21 +6769,25 @@ pub(crate) mod substitution {
         }
     }
 
-    fn integer(program: &TypedTrees, symbol: SymbolHandle, spelling: &str) -> Option<i128> {
+    fn integer(
+        program: &TypedTrees,
+        symbol: SymbolHandle,
+        spelling: &str,
+    ) -> Option<numerics::bignum::BigInt> {
         if !symbol.is_valid() {
-            if let Ok(value) = spelling.parse() {
+            if let Some(value) = numerics::bignum::BigInt::from_decimal_str(spelling) {
                 return Some(value);
             }
             let value = CanonicalConstValue::from_atom(spelling)?;
             return match value.identity().decode_encoding()? {
-                DecodedCanonicalConstValue::Integer { value, .. } => value.to_i128(),
+                DecodedCanonicalConstValue::Integer { value, .. } => Some(value),
                 _ => None,
             };
         }
         let declaration = program.const_declaration_by_symbol(symbol)?;
         let encoding = declaration.evaluated_value.as_ref()?.encoding()?;
         match CanonicalConstValue::new("", encoding.to_owned(), "").decode_encoding()? {
-            DecodedCanonicalConstValue::Integer { value, .. } => value.to_i128(),
+            DecodedCanonicalConstValue::Integer { value, .. } => Some(value),
             _ => None,
         }
     }

@@ -469,7 +469,7 @@ mod contracts {
                         super::targets::assign_call_static_argument_symbol(
                             symbols,
                             machine,
-                            SymbolHandle::invalid(),
+                            state_symbol,
                             target_symbol,
                             position,
                             argument,

@@ -584,9 +584,7 @@ impl<'t> Program<'t> {
 /// Whether a data declaration declares a name and nothing else: no field or
 /// case, no parameter, no `requires`, no cleanup and no carry policy. Its
 /// multiplicity is not read: with no value of the type there is no custody.
-/// `data Counter {}` beside `machine Counter::clear()` is one: it completes
-/// machine names (`machine_shape`) and no value of it holds anything. Such a
-/// declaration has nothing to prove, so as a subject it is passed over. A
+/// Such a declaration has nothing to prove, so as a subject it is passed over. A
 /// binding, formal or field of the type resolves it where its type is read
 /// (`record`), as a record whose roster is empty.
 fn names_only(data: &typed_trees::data::DataDefinition) -> bool {

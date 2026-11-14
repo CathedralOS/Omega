@@ -930,7 +930,10 @@ pub(crate) mod const_arguments {
         ///
         /// Resolution folds a closed scalar argument to its literal, so a
         /// remaining operator, name or call is work for an evaluator and is
-        /// left as written for it. numeric_values.md: an anonymous literal
+        /// left as written for it
+        /// (`build_time_evaluation::evaluate_const_arguments`). A call of a
+        /// machine that returns another builtin scalar is the one error
+        /// found before evaluation. numeric_values.md: an anonymous literal
         /// lands in the expected carrier when its exact value is in range,
         /// and a typed literal keeps the carrier it names.
         fn literal_in_carrier(
@@ -966,12 +969,20 @@ pub(crate) mod const_arguments {
                             return Ok(None);
                         }
                     }
-                    let value = literal
-                        .value_i64()
-                        .map(i128::from)
-                        .or_else(|| literal.value_u64().map(i128::from));
-                    match value {
-                        Some(value) if landed.admits_i128(value) => Ok(Some(value.to_string())),
+                    let argument = typed_trees::expression::StaticMachineArgument {
+                        const_literal: Some(literal.clone()),
+                        ..Default::default()
+                    };
+                    match program.prepare_callable_scalar_argument(
+                        typed_trees::types::PrimitiveType::Integer(landed.value_carrier()),
+                        &argument,
+                    ) {
+                        Ok(ExpressionNode::Integer(value)) => Ok(Some(
+                            value
+                                .value_bignum()
+                                .expect("admission retained the exact integer value")
+                                .to_string(),
+                        )),
                         _ => Err(refuse(format!(
                             "`{}`, which is outside that type",
                             literal.canonical_spelling().as_str()
@@ -984,6 +995,49 @@ pub(crate) mod const_arguments {
                 }
                 (ExpressionNode::Boolean(_), Carrier::Integer(_)) => {
                     Err(refuse("a Boolean literal".to_owned()))
+                }
+                // `Buffer<capacity()>`: the evaluator gives the call its
+                // value, and that value is one of the type the machine
+                // returns. generics.md, "Generic declarations": "`const N:
+                // u64` binds a static value of the declared carrier", and
+                // "Transparent type aliases": "A computed const value
+                // retains its declared carrier". A machine that returns
+                // another builtin scalar computes no value of this carrier,
+                // whatever the number is, so the argument is wrong as
+                // written. A result of any other type is not judged here.
+                (ExpressionNode::Call(call), _) => {
+                    let result = program
+                        .machine_by_symbol(call.target_symbol)
+                        .or_else(|| program.machine_holding_state(call.target_symbol))
+                        .and_then(|machine| match program.machine_states(machine) {
+                            [state] => Some(state.return_type),
+                            _ => None,
+                        })
+                        .filter(|result| result.is_valid())
+                        .and_then(|result| {
+                            match program.type_reference_table.type_reference(result) {
+                                TypeReferenceNode::Named { symbol, .. } if symbol.is_valid() => {
+                                    program.symbols.builtin_type_atom(*symbol)
+                                }
+                                _ => None,
+                            }
+                        });
+                    use symbols::BuiltinTypeAtom as Atom;
+                    match (result, &carrier) {
+                        (Some(Atom::Bool), Carrier::Boolean) => Ok(None),
+                        (Some(Atom::Integer(returned)), Carrier::Integer(landed))
+                            if numerics::literals::LandedIntegerType::Fixed(returned)
+                                == *landed =>
+                        {
+                            Ok(None)
+                        }
+                        (Some(Atom::Bool), _) => Err(refuse("a call that returns a `bool`".into())),
+                        (Some(Atom::Integer(returned)), _) => Err(refuse(format!(
+                            "a call that returns a `{}`",
+                            numerics::literals::LandedIntegerType::Fixed(returned).name()
+                        ))),
+                        _ => Ok(None),
+                    }
                 }
                 _ => Ok(None),
             }
@@ -1052,6 +1106,12 @@ pub(crate) mod const_arguments {
                         .data_type_parameters
                         .span(alias.type_parameters)
                         .map(<[_]>::to_vec)
+                }
+                symbols::SymbolKind::Machine | symbols::SymbolKind::State => {
+                    let machine = program
+                        .machine_by_symbol(declaration)
+                        .or_else(|| program.machine_holding_state(declaration))?;
+                    Some(program.machine_callable_parameters(machine))
                 }
                 _ => None,
             }

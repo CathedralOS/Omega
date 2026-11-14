@@ -98,6 +98,7 @@ machine entry(builder: &mut Build, slot: &[u8]) -> ProductEntryRef {
 }
 ",
     );
+    build_ran(&stderr);
     assert!(
         !stderr.contains("rewritten call contradicts its original selection record"),
         "{stderr}"

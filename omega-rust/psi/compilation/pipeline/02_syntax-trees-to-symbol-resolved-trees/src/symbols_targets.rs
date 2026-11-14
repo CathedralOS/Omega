@@ -571,7 +571,7 @@ mod calls {
         other (a machine, implementation or proposition binder, a target whose
         telescope is unknown here, or a proof-position target) selects a
         declaration. `subjects` is the state whose runtime values a value
-        argument may name; contracts pass none.
+        argument may name, including the owning contract's explicit parameters.
     */
     pub(in crate::symbols) fn assign_call_static_argument_symbol(
         symbols: &SymbolTable,
@@ -1675,10 +1675,15 @@ mod tests {
         );
         let hidden = "const u16: u64 = 3;\n\
                       machine count<const N: u64>() -> u64 { N }\n\
-                      machine helper(u16: u64) -> u64 { count<u16>() }";
+                      machine helper(u16: u64) -> u64\n\
+                          requires count<u16>() == 3\n\
+                      { count<u16>() }";
         assert_eq!(
             static_argument_kinds(hidden),
-            [("count", Some(SymbolKind::Parameter))]
+            [
+                ("count", Some(SymbolKind::Parameter)),
+                ("count", Some(SymbolKind::Parameter)),
+            ]
         );
         let missing = "machine count<const N: u64>() -> u64 { N }\n\
                        machine main() { let n: u64 = count<u16>(); }";

@@ -66,6 +66,7 @@ pub(in crate::checked) fn typed_frontier_without_build(
     let (typed, mut timings) = prepare_typed_frontier(source, package_inputs, child.build.profile)?;
     let evaluated = EvaluatedBuild {
         configuration: Arc::new(ComputedBuildConfig {
+            accepted_build: None,
             config: Default::default(),
             root_binding_requests: Vec::new(),
             declared_product_selections: Vec::new(),

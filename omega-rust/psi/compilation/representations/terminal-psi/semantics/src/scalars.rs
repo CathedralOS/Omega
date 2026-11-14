@@ -225,11 +225,13 @@ pub(crate) mod proof_bearing_scalar {
             Ok(canonical_conjunction(bounds))
         }
 
+        // A parameter width's endpoints are terms over its binder
+        // (`IntegerMathTerm::carrier_minimum`), so exact add and subtract
+        // owe the same range at every width the body admits.
         fn exact_subtract_representability_proposition(
             integer_type: IntegerType,
             expression: &ScalarTerm,
         ) -> Result<Proposition, OperationSemanticError> {
-            let known_integer_type = concrete_integer(integer_type)?;
             let ScalarTerm::ExactIntegerSubtract {
                 scalar_type,
                 left,
@@ -268,13 +270,13 @@ pub(crate) mod proof_bearing_scalar {
             );
             let mut bounds = Vec::with_capacity(2);
             bounds.push(Proposition::IntegerMathLessOrEqual(
-                IntegerMathTerm::literal(known_integer_type.minimum_value()),
+                IntegerMathTerm::carrier_minimum(integer_type),
                 difference.clone(),
             ));
             if integer_type.sign() == IntegerSign::Signed || left_type != integer_type {
                 bounds.push(Proposition::IntegerMathLessOrEqual(
                     difference,
-                    IntegerMathTerm::literal(known_integer_type.maximum_value()),
+                    IntegerMathTerm::carrier_maximum(integer_type),
                 ));
             }
             Ok(canonical_conjunction(bounds))
@@ -284,7 +286,6 @@ pub(crate) mod proof_bearing_scalar {
             integer_type: IntegerType,
             expression: &ScalarTerm,
         ) -> Result<Proposition, OperationSemanticError> {
-            let known_integer_type = concrete_integer(integer_type)?;
             let ScalarTerm::ExactIntegerAdd {
                 scalar_type,
                 left,
@@ -323,13 +324,13 @@ pub(crate) mod proof_bearing_scalar {
             let mut bounds = Vec::with_capacity(2);
             if integer_type.sign() == IntegerSign::Signed {
                 bounds.push(Proposition::IntegerMathLessOrEqual(
-                    IntegerMathTerm::literal(known_integer_type.minimum_value()),
+                    IntegerMathTerm::carrier_minimum(integer_type),
                     sum.clone(),
                 ));
             }
             bounds.push(Proposition::IntegerMathLessOrEqual(
                 sum,
-                IntegerMathTerm::literal(known_integer_type.maximum_value()),
+                IntegerMathTerm::carrier_maximum(integer_type),
             ));
             Ok(canonical_conjunction(bounds))
         }
@@ -519,8 +520,11 @@ pub(crate) mod proof_bearing_scalar {
             target_type: IntegerType,
             operand: &ScalarTerm,
         ) -> Result<Proposition, OperationSemanticError> {
-            let known_target_type = concrete_integer(target_type)?;
             let known_source_type = concrete_integer(source_type)?;
+            if target_type.bits().is_none() {
+                return exact_cast_to_parameter_width(source_type, target_type, operand);
+            }
+            let known_target_type = concrete_integer(target_type)?;
             if !source_type.can_exact_cast_to(target_type) {
                 return Err(OperationSemanticError::ExactCastUnsupportedCarriers {
                     source: source_type,
@@ -571,6 +575,53 @@ pub(crate) mod proof_bearing_scalar {
                 1 => bounds.pop().expect("one exact-cast bound"),
                 _ => Proposition::Conjunction(bounds),
             })
+        }
+
+        /// An exact conversion from a closed carrier into a parameter width
+        /// owes the target's range at every width the body admits: `value
+        /// <= 2^N - 1` (or `2^(N-1) - 1`), and the target's least value
+        /// from a signed source. This is also how a literal
+        /// lands at a parameter width (`numeric_values.md`, "A symbolic
+        /// width uses an expected `u<N>`/`i<N>` type or an explicit exact
+        /// conversion").
+        fn exact_cast_to_parameter_width(
+            source_type: IntegerType,
+            target_type: IntegerType,
+            operand: &ScalarTerm,
+        ) -> Result<Proposition, OperationSemanticError> {
+            if !source_type.can_exact_cast_to(target_type) {
+                return Err(OperationSemanticError::ExactCastUnsupportedCarriers {
+                    source: source_type,
+                    target: target_type,
+                });
+            }
+            if operand.scalar_type() != ScalarType::Integer(source_type) {
+                return Err(OperationSemanticError::ExactCastOperandTypeMismatch {
+                    declared: source_type,
+                    actual: operand.scalar_type(),
+                });
+            }
+            let ScalarTerm::Value { id, .. } = operand else {
+                return Err(OperationSemanticError::ExactCastRequiresValueOrLiteralOperand);
+            };
+            let value = IntegerMathTerm::MathValue {
+                source_type,
+                value: *id,
+            };
+            let mut bounds = Vec::with_capacity(2);
+            // An unsigned value is at least zero, which is at least every
+            // carrier's least value.
+            if source_type.sign() == IntegerSign::Signed {
+                bounds.push(Proposition::IntegerMathLessOrEqual(
+                    IntegerMathTerm::carrier_minimum(target_type),
+                    value.clone(),
+                ));
+            }
+            bounds.push(Proposition::IntegerMathLessOrEqual(
+                value,
+                IntegerMathTerm::carrier_maximum(target_type),
+            ));
+            Ok(canonical_conjunction(bounds))
         }
 
         fn compare_math_literals(left: IntegerMathLiteral, right: IntegerMathLiteral) -> Ordering {

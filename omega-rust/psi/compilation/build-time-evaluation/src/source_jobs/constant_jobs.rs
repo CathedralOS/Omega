@@ -14,7 +14,7 @@ use typed_trees::references::TypedReferences;
 
 use crate::{BuildTimeValue, InvocationTarget, SourceCompletionAccounting};
 
-fn key(symbol: SymbolHandle) -> (u32, u64) {
+pub(super) fn key(symbol: SymbolHandle) -> (u32, u64) {
     (symbol.arena_index(), u64::from(symbol.generation()))
 }
 
@@ -25,7 +25,7 @@ fn family_position(family: &[SymbolHandle], symbol: SymbolHandle) -> Option<usiz
         .binary_search_by_key(&key(symbol), |symbol| key(*symbol))
         .ok()
 }
-fn insert(family: &mut Vec<SymbolHandle>, symbol: SymbolHandle) -> bool {
+pub(super) fn insert(family: &mut Vec<SymbolHandle>, symbol: SymbolHandle) -> bool {
     match family.binary_search_by_key(&key(symbol), |symbol| key(*symbol)) {
         Ok(_) => false,
         Err(index) => {
@@ -321,7 +321,7 @@ fn request_references(program: &TypedTrees, expression: ExpressionHandle) -> Ref
 /// A returned scalar keeps its declared carrier, including the u64 bit pattern
 /// transported by BuildTimeValue::Int. Reference and authority-bearing values
 /// are not constant snapshots; further carriers need their actual materializer.
-fn decoded(
+pub(super) fn decoded(
     program: &TypedTrees,
     carrier: typed_trees::types::TypeReferenceHandle,
     value: &BuildTimeValue,
@@ -437,6 +437,19 @@ fn demanded_constants(
     program: &TypedTrees,
     request: psi_terminal_production::TerminalSourceCompilation<'_>,
 ) -> Result<Vec<SymbolHandle>, String> {
+    let mut constants = demanded_declarations(program, request)?;
+    constants.retain(|symbol| program.const_declaration_by_symbol(*symbol).is_some());
+    Ok(constants)
+}
+
+/// Every declaration the request reaches from its entries, selections,
+/// bindings, subjects and supplies through the declarations each one names,
+/// sorted. A const argument is demanded when one of these declarations
+/// holds it (`const_argument_jobs`).
+pub(super) fn demanded_declarations(
+    program: &TypedTrees,
+    request: psi_terminal_production::TerminalSourceCompilation<'_>,
+) -> Result<Vec<SymbolHandle>, String> {
     let mut rows = typed_trees::references::collect_computation_symbol_dependencies(program);
     rows.sort_unstable_by_key(|(symbol, _)| key(*symbol));
     let mut pending = request
@@ -495,15 +508,13 @@ fn demanded_constants(
         }
     }
     let mut visited = vec![false; rows.len()];
-    let mut constants = Vec::new();
+    let mut declarations = Vec::new();
     while let Some(symbol) = pending.pop() {
         if !program.symbols.symbols().nodes().is_valid(symbol) {
             return Err("constant demand contains a stale source declaration".into());
         }
         let symbol = program.refusal_declaration(symbol);
-        if program.const_declaration_by_symbol(symbol).is_some() {
-            insert(&mut constants, symbol);
-        }
+        insert(&mut declarations, symbol);
         if let Ok(index) = rows.binary_search_by_key(&key(symbol), |(symbol, _)| key(*symbol))
             && !std::mem::replace(&mut visited[index], true)
         {
@@ -516,7 +527,7 @@ fn demanded_constants(
             );
         }
     }
-    Ok(constants)
+    Ok(declarations)
 }
 
 pub fn evaluate(

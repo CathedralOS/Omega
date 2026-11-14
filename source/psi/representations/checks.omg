@@ -57,7 +57,7 @@ public data CheckDiagnosticCode [copy] {
     // An exit returning a loan of storage the body owns.
     case LoanEscapes;
     // A recast's target representation does not follow from its source's
-    // (checking/recasts.omg).
+    // (pipeline/04_typed-trees-to-checked-trees/recasts.omg).
     case RepresentationUnproven;
     // A read, a shared or exclusive borrow, or an inspection of a place
     // reached through a `&write` reference
