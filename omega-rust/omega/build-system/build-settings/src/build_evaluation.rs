@@ -146,8 +146,8 @@ pub fn prepare_build_evaluation(
         pure_build_compilation: _,
         root_path,
         typed,
-        // Admission evaluates no constant, so the Product's pending work is
-        // left whole (`admission/checking.rs`).
+        // Build admission prepares its own captured source request; the
+        // Product's pending work stays whole (`admission/checking.rs`).
         pre_checks: _,
         build_source,
         sources,
