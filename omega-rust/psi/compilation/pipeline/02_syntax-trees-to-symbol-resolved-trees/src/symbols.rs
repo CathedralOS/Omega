@@ -2073,9 +2073,10 @@ mod lookup {
         ordinary qualified/import path lookup unioned with the attached-domain
         exposure law (`domain_name_reaches`), which admits a carrier-qualified or
         leaf spelling through a declaring-module or exact-domain import.
-        Module-local owners outrank every other tier, and declarations sharing one
-        complete logical path are one semantic candidate. Expression membership,
-        proof-fact membership, and token homes all read this pool.
+        Module-local owners outrank every other tier. The same symbol found by
+        both routes is one candidate. Two different symbols stay contested even
+        when their display paths match. Expression membership, proof-fact
+        membership, and token homes all read this pool.
     */
     pub(crate) fn membership_domain_lookup(
         symbols: &SymbolTable,
@@ -2107,19 +2108,15 @@ mod lookup {
             }
         }
         let candidates = prefer_module_local_domain(symbols, candidates, reference);
-        let mut unique: Vec<(String, SymbolHandle)> = Vec::new();
-        'next: for candidate in candidates {
-            let path = symbols.display_path(candidate, "::");
-            for (existing, _) in &unique {
-                if *existing == path {
-                    continue 'next;
-                }
+        let mut distinct = Vec::new();
+        for candidate in candidates {
+            if !distinct.contains(&candidate) {
+                distinct.push(candidate);
             }
-            unique.push((path, candidate));
         }
-        match unique.as_slice() {
+        match distinct.as_slice() {
             [] => DomainMembership::NotFound,
-            [(_, symbol)] => DomainMembership::Unique(*symbol),
+            [symbol] => DomainMembership::Unique(*symbol),
             _ => DomainMembership::Contested,
         }
     }

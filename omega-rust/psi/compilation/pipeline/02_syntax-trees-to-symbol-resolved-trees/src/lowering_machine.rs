@@ -828,9 +828,9 @@ mod token_bindings {
 
     /*
         Resolve a token's domain home with the membership pool. A signature-free
-        unique hit used to return before module-local preference, so an exact
-        root spelling could hide the declaring module's own leaf. Equal display
-        paths stay one candidate; a contested pool stays unresolved.
+        unique hit does not return before module-local preference. The same
+        symbol reached by lookup and by the exposure scan is one home. Two
+        different symbols stay unresolved even when they print the same.
     */
     fn domain_named(program: &SymbolResolvedTrees, name: &DiagnosticName) -> Option<SymbolHandle> {
         match crate::symbols::membership_domain_lookup(
@@ -846,12 +846,11 @@ mod token_bindings {
     }
 
     /*
-        Equal unsourced display paths are one membership candidate, so two rows
-        spelled `Quantity` select the first. A signature-free ambiguous hit no
-        longer declines before that collapse.
+        Two unsourced `Quantity` rows are different symbols. A shared display
+        path does not choose one of them.
     */
     #[test]
-    fn domain_home_lookup_collapses_equal_unsourced_paths() {
+    fn domain_home_lookup_keeps_unsourced_ambiguity() {
         use symbols::{SymbolNameRef, SymbolTableBuilder};
 
         for count in [1, 2] {
@@ -867,9 +866,62 @@ mod token_bindings {
             };
             assert_eq!(
                 domain_named(&program, &DiagnosticName::generated_static("Quantity")),
-                Some(domains.start()),
+                (count == 1).then_some(domains.start()),
             );
         }
+    }
+
+    /*
+        Ordinary lookup and the exposure scan can both name one domain. That
+        repeated handle is one candidate.
+    */
+    #[test]
+    fn one_domain_symbol_reached_through_two_routes_is_one_candidate() {
+        use std::path::PathBuf;
+        use std::sync::Arc;
+
+        use source::{SourceMap, SourceSpan, Span};
+        use symbols::{SymbolKind, SymbolLookup, SymbolNameRef, SymbolTableBuilder};
+
+        let mut sources = SourceMap::default();
+        let local = sources
+            .add(PathBuf::from("pkg/local.omg"), "Quantity".to_owned())
+            .source_id;
+        let sources = Arc::new(sources);
+        let reference = SourceSpan::new(local, Span::new(0, 8));
+        let mut builder = SymbolTableBuilder::with_sources(Some(sources));
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let quantity = builder.insert_children(
+            root,
+            [(
+                SymbolKind::Domain,
+                SymbolNameRef::OwnedSource {
+                    value: "Quantity",
+                    source_span: reference,
+                },
+            )],
+        );
+        let quantity = SymbolTableBuilder::child_handles(quantity)
+            .next()
+            .expect("one domain");
+        let mut symbols = builder.finish();
+        symbols
+            .register_source_module(local, [("here", reference)])
+            .expect("one module");
+        assert_eq!(
+            symbols.lookup_top_level_by_name_and_kinds_from_source_matching(
+                "Quantity",
+                &[SymbolKind::Domain],
+                reference,
+                |_| true,
+            ),
+            SymbolLookup::Unique(quantity),
+        );
+        assert!(symbols.domain_name_reaches(quantity, "Quantity", reference));
+        assert!(matches!(
+            crate::symbols::membership_domain_lookup(&symbols, "Quantity", reference),
+            crate::symbols::DomainMembership::Unique(symbol) if symbol == quantity
+        ));
     }
 
     /*
