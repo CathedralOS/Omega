@@ -218,6 +218,7 @@ struct Capture<'a> {
     admitted: &'a DeclarationSelection,
     completed_operators: &'a CompletedOperators,
     signature_views: &'a [typed_trees::signature::StateSignature],
+    closed_signature_templates: Vec<SymbolHandle>,
     output: RawSelectionQuestions,
     owner: SymbolHandle,
     scopes: Vec<SymbolHandle>,
@@ -652,7 +653,18 @@ impl TypedReferences for Capture<'_> {
             .filter(|view| view.symbol == signature.symbol);
         match views.next() {
             Some(first) => first == signature || views.any(|view| view == signature),
-            None => true,
+            // A closed requirement has its own symbol. Its admitted parent
+            // also exposes the template, whose clauses are a separate read.
+            None => self
+                .closed_signature_templates
+                .binary_search_by_key(
+                    &(
+                        signature.symbol.arena_index(),
+                        signature.symbol.generation(),
+                    ),
+                    |symbol| (symbol.arena_index(), symbol.generation()),
+                )
+                .is_err(),
         }
     }
     fn enter_lexical_scope(&mut self, owner: SymbolHandle) {
@@ -936,11 +948,20 @@ pub(crate) fn capture(
             ));
         }
     }
+    let mut closed_signature_templates = signature_views
+        .iter()
+        .filter_map(|view| typed.closed_requirement_application(view.symbol))
+        .map(|closed| closed.template)
+        .collect::<Vec<_>>();
+    closed_signature_templates
+        .sort_unstable_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+    closed_signature_templates.dedup();
     let mut capture = Capture {
         typed,
         admitted,
         completed_operators,
         signature_views,
+        closed_signature_templates,
         output: RawSelectionQuestions {
             declarations: roots.to_vec(),
             ..RawSelectionQuestions::default()
