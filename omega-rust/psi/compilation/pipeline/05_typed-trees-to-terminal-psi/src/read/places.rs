@@ -250,7 +250,7 @@ impl Program<'_> {
         record_shape(id, data, application.as_ref(), members, |variant| {
             typed.data_payload_fields(variant)
         })?;
-        lifetime_binders(id, &data.lifetime_parameters)?;
+        lifetime_binders(id, &data.lifetime_parameters, self.declared_at(data.symbol))?;
         // Terminal Psi's declaration needs a text identity; the typed trees
         // render it. Without one the declaration cannot be emitted.
         let identity = match &application {
@@ -1052,11 +1052,18 @@ impl Program<'_> {
     /// pattern must name every payload field unless it ends in `..`; the
     /// deleted checker enforced that law in validation, after the typed
     /// trees this route reads are frozen, so it is enforced here too.
+    ///
+    /// A pattern that lists payload fields and names one twice, or misses
+    /// one without `..`, is wrong in every program and rejected at `at`:
+    /// "Named patterns account for every field once" (patterns.md, "Data and
+    /// case decomposition"). A pattern that lists none may be a case named as
+    /// a value, which this reader does not tell apart, and stays refused.
     pub(super) fn case_pattern(
         &self,
         id: MachineId,
         record: StructuralTypeId,
         pattern: &TableDestructurePattern,
+        at: SourceOrigin,
     ) -> Checked<usize> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Transition(what));
         if pattern.application_type.is_valid() {
@@ -1074,7 +1081,8 @@ impl Program<'_> {
         let case = self.case_position(id, record, symbol)?;
         let payload = self.source(id, record)?.cases[case].1.len();
         let mut seen = vec![false; payload];
-        for field in self.typed.expression_table.match_fields(pattern.fields) {
+        let listed = self.typed.expression_table.match_fields(pattern.fields);
+        for field in listed {
             match field.component {
                 language_core::PatternComponent::Fields => {}
                 language_core::PatternComponent::Case => {
@@ -1105,18 +1113,30 @@ impl Program<'_> {
                 }
             };
             if std::mem::replace(&mut seen[position], true) {
-                return Err(refuse(
+                return Err(crate::reject(
                     id,
-                    Construct::Machine,
-                    Unserved::Typing("pattern names a field twice"),
+                    at,
+                    format!(
+                        "this pattern names the payload field `{}` twice: a case pattern names \
+                         each payload field once",
+                        field.member.as_str()
+                    ),
                 ));
             }
         }
         if !pattern.has_rest && seen.contains(&false) {
-            return Err(refuse(
+            if listed.is_empty() {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Typing("pattern misses a payload field"),
+                ));
+            }
+            return Err(crate::reject(
                 id,
-                Construct::Machine,
-                Unserved::Typing("pattern misses a payload field"),
+                at,
+                "this pattern leaves a payload field out without `..`: a case pattern mentions \
+                 every payload field, or ends in `..` to waive the rest",
             ));
         }
         Ok(case)
@@ -1230,7 +1250,11 @@ pub(super) fn with_regions(value_type: ValueType, regions: crate::body::Regions)
 /// binders with one tag would be one parameter to every lookup. A use that
 /// names an undeclared tag is refused where its type is read
 /// (`lifetime_application`).
-pub(super) fn lifetime_binders(id: MachineId, binders: &[Identifier]) -> Checked<()> {
+pub(super) fn lifetime_binders(
+    id: MachineId,
+    binders: &[Identifier],
+    at: SourceOrigin,
+) -> Checked<()> {
     for (position, binder) in binders.iter().enumerate() {
         if binder.as_str().is_empty() {
             return Err(refuse(
@@ -1239,14 +1263,19 @@ pub(super) fn lifetime_binders(id: MachineId, binders: &[Identifier]) -> Checked
                 Unserved::Spelling("lifetime parameter without a tag"),
             ));
         }
+        // Wrong in every program, not a form left unread: a rejection.
         if binders[..position]
             .iter()
             .any(|earlier| earlier.as_str() == binder.as_str())
         {
-            return Err(refuse(
+            return Err(crate::reject(
                 id,
-                Construct::Machine,
-                Unserved::Typing("declaration that states a lifetime twice"),
+                at,
+                format!(
+                    "this declaration states the lifetime `'{}` twice: duplicate lifetime \
+                     binders reject",
+                    binder.as_str().trim_start_matches('\'')
+                ),
             ));
         }
     }
@@ -1471,21 +1500,28 @@ mod tests {
         tags.iter().copied().map(Identifier::generated).collect()
     }
 
-    /// `data Pair<'a, 'b>` is served; a binder repeated, or one the typed
-    /// trees hold without a tag, is refused. lifetimes.md: "Duplicate
-    /// binders and undeclared tags reject."
+    /// `data Pair<'a, 'b>` is served; a binder repeated is rejected
+    /// (lifetimes.md: "Duplicate binders and undeclared tags reject"), and
+    /// one the typed trees hold without a tag is refused.
     #[test]
     fn a_data_declaration_states_each_lifetime_binder_once() {
-        assert_eq!(lifetime_binders(machine(), &[]), Ok(()));
-        assert_eq!(lifetime_binders(machine(), &tags(&["a", "b"])), Ok(()));
+        let nowhere = SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
+        assert_eq!(lifetime_binders(machine(), &[], nowhere), Ok(()));
         assert_eq!(
-            lifetime_binders(machine(), &tags(&["a", "b", "a"]))
-                .unwrap_err()
-                .detail,
-            "typing declaration that states a lifetime twice"
+            lifetime_binders(machine(), &tags(&["a", "b"]), nowhere),
+            Ok(())
+        );
+        let repeated = lifetime_binders(machine(), &tags(&["a", "b", "a"]), nowhere).unwrap_err();
+        assert_eq!(
+            repeated.reason,
+            terminal_check_tables::RefusalReason::Violation(None)
         );
         assert_eq!(
-            lifetime_binders(machine(), &[Identifier::default()])
+            repeated.detail,
+            "this declaration states the lifetime `'a` twice: duplicate lifetime binders reject"
+        );
+        assert_eq!(
+            lifetime_binders(machine(), &[Identifier::default()], nowhere)
                 .unwrap_err()
                 .detail,
             "spelling lifetime parameter without a tag"

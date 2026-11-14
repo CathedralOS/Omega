@@ -881,7 +881,12 @@ mod tests {
         };
         let detail = |pattern: TableDestructurePattern| {
             let refusal = program
-                .case_pattern(machine(), record, &pattern)
+                .case_pattern(
+                    machine(),
+                    record,
+                    &pattern,
+                    crate::SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent),
+                )
                 .unwrap_err();
             assert_eq!(
                 refusal.reason,

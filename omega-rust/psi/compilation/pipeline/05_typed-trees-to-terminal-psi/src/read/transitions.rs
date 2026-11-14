@@ -181,7 +181,12 @@ impl Program<'_> {
                             subject = Some(read.clone());
                         }
                     }
-                    let case = self.case_pattern(id, record, &pattern.pattern)?;
+                    let case = self.case_pattern(
+                        id,
+                        record,
+                        &pattern.pattern,
+                        SourceOrigin::of(transition.source_span),
+                    )?;
                     // The arm's test is stored twice, as the transition
                     // guard and as the pattern's condition `test && true`.
                     // Both must read to this arm's own case test.
