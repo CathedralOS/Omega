@@ -500,6 +500,12 @@ pub(crate) mod proof_kernel {
             IntegerCorrelatedForbiddenRoots {
                 witness: IntegerCorrelatedForbiddenRootWitness,
             },
+            /// `c <= k |- 2^c <= 2^k` for a nonnegative literal `c`: a
+            /// parameter width's range endpoints are powers of two of the
+            /// width, and its declared lower bound orders them.
+            IntegerPowerOfTwoOrder {
+                order: Box<ProofNode>,
+            },
         }
     }
     pub(crate) mod witnesses {

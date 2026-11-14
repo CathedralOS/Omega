@@ -54,6 +54,7 @@ use terminal_check_tables::values::ValueRow;
 
 mod ranges;
 mod reach;
+mod widths;
 
 use crate::known::{Fact, is_branch_fact};
 
@@ -116,6 +117,10 @@ fn covered(goal: &Proposition, fixed: &dyn Fn(ValueId) -> bool) -> bool {
         Proposition::IntegerMathLessOrEqual(left, right) => {
             if closed_mathematical(left, fixed) && closed_mathematical(right, fixed) {
                 return true;
+            }
+            // A range at a parameter width (`widths`).
+            if widths::mentions_parameter_width(left) || widths::mentions_parameter_width(right) {
+                return widths::covered(left, right);
             }
             // `Prover::arithmetic_interval` bounds one operation over values
             // of one carrier and literals, the shape an exact operation's
@@ -1029,6 +1034,10 @@ impl<'a> Prover<'a> {
             Proposition::IntegerMathLessOrEqual(left, right) => {
                 if let Some(proof) = self.closed(goal.clone()) {
                     return Ok(proof);
+                }
+                if widths::mentions_parameter_width(left) || widths::mentions_parameter_width(right)
+                {
+                    return self.width_goal(left, right);
                 }
                 self.arithmetic(left, right)
             }

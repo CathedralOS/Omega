@@ -341,6 +341,19 @@ impl Lowering<'_> {
         result: Option<ScalarType>,
         source: SourceOrigin,
     ) -> Checked<Value> {
+        // Wrapping reduces modulo `2^N` and saturating clamps to the
+        // carrier's range (`numeric_values.md`, "Width-indexed integers");
+        // at a parameter width no term states either yet.
+        if result
+            .and_then(|scalar| scalar.as_integer())
+            .is_some_and(|integer| integer.bits().is_none())
+        {
+            return Err(refuse(
+                self.id,
+                self.current.map_or(Construct::Machine, Construct::Block),
+                Unserved::Expression("policy arithmetic at a parameter width"),
+            ));
+        }
         let operation = self.operation_identity(source);
         // The total operations are the ones a clause's term names too.
         if let Some(kind) = crate::policy::total(strict, policy, left, right) {

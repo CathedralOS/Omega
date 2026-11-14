@@ -65,6 +65,8 @@ pub enum AcceptedProofRule {
     IntegerExactSubtractDefinitionBound,
     IntegerCastBound,
     IntegerCorrelatedForbiddenRoots,
+    /// `c <= k |- 2^c <= 2^k`; provisional (`power_of_two_order`).
+    IntegerPowerOfTwoOrder,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1509,7 +1511,9 @@ pub(crate) mod integer_order_rules {
     }
 }
 pub(crate) mod order_discreteness {
-    use semantic_vocabulary::{IntegerCarrier, IntegerValue, Proposition, ScalarTerm};
+    use semantic_vocabulary::{
+        IntegerCarrier, IntegerMathTerm, IntegerValue, Proposition, ScalarTerm,
+    };
 
     use super::ProofError;
 
@@ -1517,6 +1521,30 @@ pub(crate) mod order_discreteness {
         relation: &Proposition,
         conclusion: &Proposition,
     ) -> Result<(), ProofError> {
+        // The same law with open endpoints, stated over the mathematical
+        // integers: `a < b` gives `a + 1 <= b`. A scalar `a < b` is cited in
+        // its mathematical reading. A rigid width's range is this shape:
+        // `value < limit` keeps `value + 1` at most `limit`.
+        if let Proposition::IntegerMathLessOrEqual(IntegerMathTerm::Add(left, one), right) =
+            conclusion
+        {
+            let lifted = super::integer_math_normalization::lift_fixed_integer_relation(relation);
+            let Some(Proposition::IntegerMathLessThan(strict_left, strict_right)) =
+                (match relation {
+                    Proposition::IntegerMathLessThan(..) => Some(relation),
+                    _ => lifted.as_ref(),
+                })
+            else {
+                return Err(ProofError::RulePremiseMismatch(
+                    "integer order discreteness",
+                ));
+            };
+            return (strict_left == left.as_ref()
+                && strict_right == right
+                && **one == IntegerMathTerm::literal(IntegerValue::Unsigned(1)))
+            .then_some(())
+            .ok_or(ProofError::IntegerOrderConclusionMismatch);
+        }
         match (relation, conclusion) {
             (
                 Proposition::LessOrEqual(left, right),
@@ -1818,6 +1846,252 @@ mod propositional_rules {
         (&proof.conclusion == conclusion.as_ref())
             .then_some(())
             .ok_or(ProofError::ImplicationConclusionMismatch)
+    }
+}
+/*
+`c <= k |- 2^c <= 2^k` for a nonnegative literal `c`, stated with `2^x` as
+`1 << x`. A parameter width's range endpoints are powers of two of the width
+(`wiki/spec/language/numeric_values.md`, "Width-indexed integers"), and the
+width's declared lower bound orders them: from `1 <= N`, `2 <= 2^N`, so
+positive one inhabits `u<N>`; nothing orders `2^(N-1)` above one, so it need
+not inhabit `i<N>`. With `c` nonnegative, `k` is too, and both powers are
+the ordinary ones. The premise may be a scalar order, cited in its
+mathematical reading.
+
+The mathematical core does not derive this row; it is admitted provisionally
+(`AcceptedProofRule::is_provisional`), tested against computed powers.
+*/
+pub(crate) mod power_of_two_order {
+    use semantic_vocabulary::{IntegerMathTerm, IntegerValue, Proposition};
+
+    use super::ProofError;
+    use super::integer_math_normalization::lift_fixed_integer_relation;
+
+    /// `1 << count`.
+    pub(crate) fn power(count: IntegerMathTerm) -> IntegerMathTerm {
+        IntegerMathTerm::ShiftLeft {
+            value: Box::new(IntegerMathTerm::literal(IntegerValue::Unsigned(1))),
+            count: Box::new(count),
+        }
+    }
+
+    pub(crate) fn check(order: &Proposition, conclusion: &Proposition) -> Result<(), ProofError> {
+        let lifted = lift_fixed_integer_relation(order);
+        let Some(Proposition::IntegerMathLessOrEqual(low, high)) = (match order {
+            Proposition::IntegerMathLessOrEqual(..) => Some(order),
+            _ => lifted.as_ref(),
+        }) else {
+            return Err(ProofError::RulePremiseMismatch("power-of-two order"));
+        };
+        let IntegerMathTerm::IntegerLiteral(literal) = low else {
+            return Err(ProofError::RulePremiseMismatch(
+                "power-of-two order from a literal exponent",
+            ));
+        };
+        if literal.negative() {
+            return Err(ProofError::RulePremiseMismatch(
+                "power-of-two order from a negative exponent",
+            ));
+        }
+        (conclusion
+            == &Proposition::IntegerMathLessOrEqual(power(low.clone()), power(high.clone())))
+        .then_some(())
+        .ok_or(ProofError::IntegerOrderConclusionMismatch)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::power;
+        use crate::proof::assumption_proof;
+        use crate::{AcceptedProofRule, PrimitiveJudgment, ProofNode, ProofRule, accept_certificate};
+        use semantic_vocabulary::{
+            IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, MachineId, Proposition,
+            PropositionContext, ScalarTerm, ScalarType, ValueId, WidthParameter,
+        };
+
+        fn width() -> ValueId {
+            ValueId::new(1).unwrap()
+        }
+
+        fn binder() -> IntegerMathTerm {
+            IntegerMathTerm::MathValue {
+                source_type: IntegerType::width_binder(),
+                value: width(),
+            }
+        }
+
+        fn number(value: i128) -> IntegerMathTerm {
+            IntegerMathTerm::literal(IntegerValue::Signed(value))
+        }
+
+        fn order(low: IntegerMathTerm, high: IntegerMathTerm) -> Proposition {
+            Proposition::IntegerMathLessOrEqual(low, high)
+        }
+
+        fn context() -> PropositionContext {
+            PropositionContext::from_value_types([(
+                width(),
+                ScalarType::Integer(IntegerType::width_binder()),
+            )])
+            .unwrap()
+        }
+
+        fn rule(premise: Proposition, conclusion: Proposition) -> ProofNode {
+            ProofNode {
+                conclusion,
+                rule: ProofRule::IntegerPowerOfTwoOrder {
+                    order: Box::new(assumption_proof(premise, 0)),
+                },
+            }
+        }
+
+        /// From `1 <= N`, `2^1 <= 2^N`; the scalar `1 <= N` is the same
+        /// premise. The row is recorded provisional.
+        #[test]
+        fn a_lower_exponent_orders_its_powers() {
+            let context = context();
+            let premise = order(number(1), binder());
+            let goal = order(power(number(1)), power(binder()));
+            accept_certificate(
+                &context,
+                &goal,
+                std::slice::from_ref(&premise),
+                &[],
+                &rule(premise, goal.clone()),
+            )
+            .unwrap();
+            assert!(AcceptedProofRule::IntegerPowerOfTwoOrder.is_provisional());
+            let one =
+                ScalarTerm::integer(IntegerType::width_binder(), IntegerValue::Unsigned(1)).unwrap();
+            let scalar = Proposition::LessOrEqual(
+                one,
+                ScalarTerm::value(width(), ScalarType::Integer(IntegerType::width_binder())),
+            );
+            accept_certificate(
+                &context,
+                &goal,
+                std::slice::from_ref(&scalar),
+                &[],
+                &rule(scalar, goal.clone()),
+            )
+            .unwrap();
+        }
+
+        /// The twins: a reversed conclusion, an exponent the premise does
+        /// not bound, a negative or open low exponent, and a strict premise
+        /// are each refused.
+        #[test]
+        fn no_other_order_of_powers_follows() {
+            let context = context();
+            let premise = order(number(1), binder());
+            for (premise, conclusion) in [
+                (premise.clone(), order(power(binder()), power(number(1)))),
+                (premise.clone(), order(power(number(2)), power(binder()))),
+                (
+                    order(number(-1), binder()),
+                    order(power(number(-1)), power(binder())),
+                ),
+                (
+                    order(binder(), binder()),
+                    order(power(binder()), power(binder())),
+                ),
+                (
+                    Proposition::IntegerMathLessThan(number(1), binder()),
+                    order(power(number(1)), power(binder())),
+                ),
+            ] {
+                assert!(
+                    accept_certificate(
+                        &context,
+                        &conclusion,
+                        std::slice::from_ref(&premise),
+                        &[],
+                        &rule(premise.clone(), conclusion.clone()),
+                    )
+                    .is_err(),
+                    "{premise:?} |- {conclusion:?}"
+                );
+            }
+        }
+
+        /// A value of `u<N>` lies in `0..=2^N - 1` and one of `i<N>` in
+        /// `-2^(N-1)..=2^(N-1) - 1`, by its type alone; no other endpoint is
+        /// a carrier bound.
+        #[test]
+        fn a_parameter_width_bounds_its_values_by_powers_of_two() {
+            let parameter = WidthParameter {
+                owner: MachineId::new(1).unwrap(),
+                value: width(),
+            };
+            for sign in [IntegerSign::Unsigned, IntegerSign::Signed] {
+                let carrier = IntegerType::parameterized(sign, parameter);
+                let value_id = ValueId::new(2).unwrap();
+                let context = PropositionContext::from_value_types([
+                    (width(), ScalarType::Integer(IntegerType::width_binder())),
+                    (value_id, ScalarType::Integer(carrier)),
+                ])
+                .unwrap();
+                let value = IntegerMathTerm::MathValue {
+                    source_type: carrier,
+                    value: value_id,
+                };
+                let bound = |proposition: &Proposition| {
+                    crate::decide_primitive(
+                        &context,
+                        proposition,
+                        PrimitiveJudgment::IntegerCarrierBound,
+                    )
+                };
+                bound(&order(value.clone(), IntegerMathTerm::carrier_maximum(carrier))).unwrap();
+                bound(&order(IntegerMathTerm::carrier_minimum(carrier), value.clone())).unwrap();
+                for wrong in [
+                    order(value.clone(), power(binder())),
+                    order(value.clone(), number(1)),
+                    order(IntegerMathTerm::carrier_maximum(carrier), value.clone()),
+                ] {
+                    assert!(bound(&wrong).is_err(), "{wrong:?}");
+                }
+            }
+        }
+
+        /// `a < b |- a + 1 <= b` over open terms; not `a + 2`.
+        #[test]
+        fn a_strict_order_of_open_terms_gains_one() {
+            let context = context();
+            let premise = Proposition::IntegerMathLessThan(number(3), binder());
+            let step = |addend| {
+                let conclusion = order(
+                    IntegerMathTerm::Add(Box::new(number(3)), Box::new(number(addend))),
+                    binder(),
+                );
+                ProofNode {
+                    conclusion,
+                    rule: ProofRule::IntegerOrderDiscreteness {
+                        relation: Box::new(assumption_proof(premise.clone(), 0)),
+                    },
+                }
+            };
+            let good = step(1);
+            accept_certificate(
+                &context,
+                &good.conclusion,
+                std::slice::from_ref(&premise),
+                &[],
+                &good,
+            )
+            .unwrap();
+            let bad = step(2);
+            assert!(
+                accept_certificate(
+                    &context,
+                    &bad.conclusion,
+                    std::slice::from_ref(&premise),
+                    &[],
+                    &bad,
+                )
+                .is_err()
+            );
+        }
     }
 }
 pub(crate) mod strict_order_transitivity {
@@ -2328,7 +2602,8 @@ mod traversal {
             }
             ProofRule::IntegerMathOrderTranslation { relation, .. }
             | ProofRule::IntegerOrderWeakening { relation }
-            | ProofRule::IntegerOrderDiscreteness { relation } => {
+            | ProofRule::IntegerOrderDiscreteness { relation }
+            | ProofRule::IntegerPowerOfTwoOrder { order: relation } => {
                 pending.push(Action::Enter(relation));
             }
             ProofRule::EqualityTransitivity {
@@ -2478,6 +2753,12 @@ fn check_node_locally(
         }
         ProofRule::IntegerCorrelatedForbiddenRoots { .. } => {
             integer_bound_rules::check_integer_correlated_forbidden_roots(&scope, proof, acceptance)
+        }
+        ProofRule::IntegerPowerOfTwoOrder { order } => {
+            acceptance
+                .rules
+                .insert(AcceptedProofRule::IntegerPowerOfTwoOrder);
+            power_of_two_order::check(&order.conclusion, &proof.conclusion)
         }
     }
 }
