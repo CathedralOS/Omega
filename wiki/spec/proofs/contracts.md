@@ -576,37 +576,74 @@ apply distributivity with a large operand without expanding it.
 
 Proof compatibility does not merge declarations, choose an overload or
 conformance, infer an otherwise ambiguous generic argument, or rename a
-specialization key. A conformance targeting one exact symbolic form does not
-automatically match another solely through a distributivity proof. Authors
-requiring exact identity use a shared canonical expression or transparent alias,
-or parameterize their declarations by the common index and state the required
-relationships in contracts. Value admission can then consume evidence.
+specialization key. Declaration matching stays canonical; admission of an
+explicitly supplied value may use checked compatibility. Authors requiring
+exact identity can use a shared canonical expression or transparent alias.
 
-One generic conformance relates two index forms for a trait. Its telescope
-takes both indices and the selected base evidence, and a
-[`requires` clause](../language/state_contracts.md#requirement-clauses) on the
-declaration admits the application; under that premise the members forward
-arguments and results to the base through proved compatibility with no
-conversion:
+Named decision: `same-family-record-transport`, ratified 2026-11-14. Once a
+record value is explicitly selected, checked index compatibility may admit it
+at another application of the same originating record schema. This applies to
+ordinary data and [implementation records](../language/conformances.md#implementations-are-operation-records),
+through existing typed initializers, assignments, arguments (including explicit
+static arguments), and returns. It adds no transport keyword, implicit
+implementation search, or forwarding-machine declaration. For example, a
+selected ordering for buffers indexed by `N + N` can serve the same ordering
+schema at `2 * N` when the index relationship and the complete receiving record
+contract are proved. These applications need not have the same canonical key.
+This supersedes the requirement to construct a `Reindexed` conformance solely
+to cross compatible indices.
 
-```omega
-Reindexed<const A: u64, const B: u64, const Base: Ranked<Buffer<A>>>
-satisfies Ranked<Buffer<B>>
-requires A == B;
-{
-    machine before(left: &Buffer<B>, right: &Buffer<B>) -> bool {
-        Base::before(left, right)
-    }
-}
-```
+Corresponding fields are identified by their originating declarations, not
+names or similar signatures. Transport checks the whole dependent record in
+dependency order: later field types, evidence and schema constraints refer to
+the actual transported earlier fields. A law about the selected comparator
+remains about that comparator, not a hypothetical replacement selected for the
+destination. Identity-sensitive fields, layout facts, access provenance and
+custody obligations require their own justification; index compatibility does
+not identify unrelated domains, resource occurrences, schemas or declarations.
+A user-defined equality supplies transport only through its checked identity
+correspondence, not merely a true Boolean result.
 
-Each remaining row forwards the same way. The adapter's members are new
-declarations, so laws stated on the trait are obligations on them; they follow
-from the base conformance's laws under the same equality, and a law observing
-exact type identity may stay unproved, in which case the adapter rejects.
-Selection stays explicit: a generic body under `requires A == B` selects
-`Reindexed<A, B, Order>` by name, and no compatibility proof admits `Order` at
-`Ranked<Buffer<B>>` on its own.
+Callable fields keep their selected machine, static application and
+requirement binding. Receiving arguments must be admissible to that operation,
+and its results and guarantees must satisfy the receiving contract, including
+preconditions, effects, progress, loans and resource obligations. A selection
+[bound](../language/conformances.md#binding-a-machine-to-a-requirement) at one
+application of a requirement is admitted at a provably equal application of the
+same requirement declaration and stays bound to that requirement. This is not a
+rebinding: the machine and the requirement declaration are unchanged, and only
+the application crosses, by the same checked compatibility as any indexed type.
+[Authority routes](../resources/authority.md#requirement-and-exact-machine-routes)
+name requirement declarations, not applications, so transport neither grants
+nor removes route authority. Transport never crosses between different
+requirement declarations, however similar their contracts.
+
+A generic body transports only under index relationships its own premises
+prove. It is checked before specialization, so a favorable later specialization
+cannot repair a transport its premises do not justify.
+
+Owned transport obeys normal move/copy and cleanup rules. It does not by itself
+authorize a mutable loan under the receiving type. A mutable view retains the
+source owner's validity, dependent evidence, requirement bindings and custody
+obligations; writes must preserve or restore them before handback under ordinary
+[restoration rules](../language/ownership.md#borrowed-storage-invariant-windows).
+A replacement callable fitting only the receiving view cannot remain in the
+source's storage. If compatibility or restoration cannot be established, that
+view rejects.
+
+Transport requires compatible representations and callable calling shapes.
+It inserts no runtime test, allocation, representation conversion or forwarding
+call. If satisfying the destination requires such adaptation or changed runtime
+behavior, use an ordinary checked adapter instead. Closed runtime-selected
+callables retain their descriptors; open families remain subject to the normal
+runtime-materialization restrictions.
+
+The destination record's identity is its destination schema application and
+actual relevant field values. Its callable selections keep their machines and
+requirement bindings. Proof discovery adds no hidden brand and never merges
+canonical keys; proof-relevant evidence fields retain their ordinary identity
+rules, including any relevant transported evidence. Transport does not make
+all equality witnesses interchangeable.
 
 Different symbolic forms may create separate specializations. Fully closed
 indices can still evaluate to the same canonical value and share a key.
@@ -617,7 +654,10 @@ declaration selection or existing specialization identity.
 Inside one compilation, retain the checked compatibility judgment through exact
 generic substitution and lowering. Specialization consumes that judgment instead
 of rediscovering the generic proof. It remains bound to its proposition, subjects,
-selected operations/laws and premises.
+selected operations/laws and premises. Record transport additionally retains
+the source and destination applications, dependent-field correspondence and any
+mutable handback obligations. A further transport keeps the same selections and
+bindings; an intermediate application is not a new binding.
 
 Published Psi retains the judgment's semantic question, definitions and exact
 dependencies. Under [Psi admission](../terminal-psi/product.md#publication-and-separate-consumption),
@@ -626,6 +666,32 @@ rediscovery or certificate replay. A theorem identity or recorded success cannot
 authorize that trust. A smaller receiving discovery budget does not invalidate
 reuse; loading/preparation exhaustion remains a separate resource refusal.
 Publication changes neither canonical identity nor declaration selection.
+
+Acceptance for same-family record transport:
+
+- Equal-index records with compatible operations and laws pass through static
+  aliases, explicit generic arguments, ordinary calls/returns and closed
+  runtime selections without replacement member declarations.
+- Dependent evidence remains tied to the actual selected fields. Wrong-operation
+  laws, unproved index relationships and conflicting exact machine/type-key
+  promises reject unless their full obligations are independently established.
+- A transported member still invokes through its original requirement, and a
+  domain route naming that requirement accepts the call as it did before
+  transport. Presenting a selection under a different requirement declaration
+  rejects, even with an identical contract.
+- A generic body whose premises prove the index relationship transports; the
+  same body without that premise rejects, even when every specialization it
+  later receives would satisfy it.
+- Valid mutable handback accepts; leaving a destination-only replacement or
+  stale dependent evidence in source storage rejects. Linear custody is neither
+  copied nor dropped by transport.
+- Unrelated schemas, distinct resource identities and incompatible layouts or
+  calling shapes gain no admission from this rule. Existing checked adaptation
+  remains available outside its scope.
+- Serialized and separately consumed Psi retains the same selections,
+  requirement bindings and dependent relationships. Missing or altered evidence rejects;
+  proof-search budgets do not rename keys. Admitted executable cases agree
+  between native and Psi execution.
 
 ### Bounded canonical index normalization
 

@@ -16,6 +16,14 @@ ordinary fields and constraints to trait schemas, not special law, lemma or
 brand declarations. The examples specify the required source behavior, not
 compiler execution results.
 
+The 2026-11-14 [same-family record transport](../../spec/proofs/contracts.md#exact-matching-and-evidence-transport)
+decision admits explicitly selected records across proved-compatible indices
+without replacement members. A generated requirement field keeps its binding
+to the same requirement at a provably equal application; that is not a
+rebinding. Dependent evidence and mutable handback follow the complete record
+contract. Its implementation acceptance is tracked
+by `SAME-FAMILY-RECORD-TRANSPORT`, not claimed by the earlier construction cases.
+
 ## Context
 
 Runtime dispatch became ordinary records with machine-valued fields on
@@ -42,7 +50,7 @@ reflection selection contexts because conformance evidence was not a value.
 3. Selection rows return. `Trait::member = Existing::machine;` in a `satisfies`
    block, or a field in a record literal, selects an existing machine and keeps
    its identity. An inline body still declares a new machine.
-4. Every `machine` member contributes a selection bound to its exact named
+4. Every `machine` member contributes a selection bound to its named
   requirement, even when resultless or used as a theorem. An ordinary typed
   field stores a value of its type; `[erased]` removes runtime storage only.
   A schema `requires` clause constrains the assembled record. Callable binding,
