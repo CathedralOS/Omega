@@ -1396,6 +1396,110 @@ mod tests {
         );
     }
 
+    /*
+        `operator kit::combine` stores the joined path. `kit.combine()` asks
+        the module receiver for that spelling and keeps the operator itself.
+    */
+    #[test]
+    fn module_receiver_call_resolves_a_qualified_operator() {
+        let call = resolved_call(
+            r#"
+            module kit;
+            operator kit::combine(left: i32, right: i32) -> i32;
+            machine caller() -> i32 { kit.combine() }
+            "#,
+            "combine",
+        );
+        assert!(call.target_symbol.is_valid());
+        assert_eq!(call.symbols_kind, SymbolKind::Operator);
+        assert_eq!(call.state_name, "kit::combine");
+    }
+
+    /*
+        `operator combine` inside `module kit` stores the leaf. The same
+        receiver still finds it by the display path `kit::combine`.
+    */
+    #[test]
+    fn module_receiver_call_resolves_a_leaf_operator() {
+        let call = resolved_call(
+            r#"
+            module kit;
+            operator combine(left: i32, right: i32) -> i32;
+            machine caller() -> i32 { kit.combine() }
+            "#,
+            "combine",
+        );
+        assert!(call.target_symbol.is_valid());
+        assert_eq!(call.symbols_kind, SymbolKind::Operator);
+        assert_eq!(call.state_name, "combine");
+    }
+
+    /*
+        A proposition name is one identifier (`parse_proposition_definition`),
+        so `proposition kit::holds` never becomes a symbol. The leaf form
+        inside the module still resolves through the receiver.
+    */
+    #[test]
+    fn module_receiver_call_resolves_a_leaf_proposition() {
+        let call = resolved_call(
+            r#"
+            module kit;
+            proposition holds(a: i32, b: i32) = a == b;
+            machine caller() -> i32 { kit.holds() }
+            "#,
+            "holds",
+        );
+        assert!(call.target_symbol.is_valid());
+        assert_eq!(call.symbols_kind, SymbolKind::Proposition);
+        assert_eq!(call.state_name, "holds");
+    }
+
+    #[test]
+    fn qualified_proposition_name_is_not_a_declaration() {
+        assert!(
+            source_is_rejected(
+                r#"
+                module kit;
+                proposition kit::holds(a: i32, b: i32) = a == b;
+                "#
+            ),
+            "a proposition path parsed, so a qualified spelling can be stored"
+        );
+    }
+
+    /*
+        A mathematical `let` name is one identifier (`parse_let_definition`).
+        `let kit::holds(...)` is not a declaration. The leaf form still
+        resolves through the module receiver.
+    */
+    #[test]
+    fn module_receiver_call_resolves_a_leaf_mathematical_definition() {
+        let call = resolved_call(
+            r#"
+            module kit;
+            let holds(value: i32): i32 = value;
+            machine caller() -> i32 { kit.holds() }
+            "#,
+            "holds",
+        );
+        assert!(call.target_symbol.is_valid());
+        assert_eq!(call.symbols_kind, SymbolKind::MathematicalDefinition);
+        assert_eq!(call.state_name, "holds");
+    }
+
+    #[test]
+    fn qualified_mathematical_name_is_not_a_declaration() {
+        assert!(
+            source_is_rejected(
+                r#"
+                module kit;
+                let kit::holds(value: i32): i32 = value;
+                "#
+            ),
+            "a mathematical path parsed, so a qualified spelling can be stored"
+        );
+    }
+
     struct ResolvedCall {
         symbols_kind: SymbolKind,
         state_name: String,
@@ -1438,5 +1542,14 @@ mod tests {
                 .to_owned(),
             target_symbol,
         }
+    }
+
+    fn source_is_rejected(text: &str) -> bool {
+        let mut sources = source::SourceMap::default();
+        let source_id = sources
+            .add("kit/main.omg".into(), text.to_owned())
+            .source_id;
+        let tokens = Lexer::new(text).tokenize().expect("tokenize");
+        tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).is_err()
     }
 }
