@@ -102,18 +102,19 @@ pub use domain_preservation::{
 };
 pub use references::reference_completion::{
     ReferenceCompletionError, ReferenceCompletionOccurrence, borrowed_entry_reference_referent,
-    cleanup_disposes_reference, validate_reference_result_completion,
+    cleanup_disposes_reference, reference_call_lifetimes, reference_loan_parent,
+    validate_reference_result_completion,
 };
 pub use references::reference_origins::{
     BorrowedResultLeaf, BorrowedResultLeafKind, ReferenceCallContract, ReferenceCallOrigin,
     ReferenceCallResult, ReferenceCallSource, ReferenceLeaf, ReferenceOriginBinding,
     ReferenceResultMemberships, bind_public_reference_call_results, bind_reference_call_results,
     bind_reference_origin, borrowed_result_leaves, captured_reference_origin_type,
-    collection_element_type, reference_call_preserved_memberships, reference_leaves,
-    reference_origin_is_covered, reference_origin_paths_may_overlap, reference_origin_type,
-    reference_result_memberships_weaken, reference_result_refines_regions,
-    validate_boundary_reference_regions, validate_descriptor_result_regions,
-    validate_dynamic_reference_regions,
+    collection_element_type, descriptor_input_origin_path, reference_call_preserved_memberships,
+    reference_leaves, reference_origin_is_covered, reference_origin_paths_may_overlap,
+    reference_origin_type, reference_result_memberships_weaken, reference_result_refines_regions,
+    reference_result_sources, validate_boundary_reference_regions,
+    validate_descriptor_result_regions, validate_dynamic_reference_regions,
 };
 pub use references::reference_storage_geometry::{
     RecordStorageResolver, ReferenceArrayWindow, ReferenceRecordField, ReferenceRepeatedField,
@@ -603,7 +604,9 @@ pub use storage::storage_regions::{
 };
 pub use storage::zero_valid_storage::{scalar_declaration_accepts_zero, zero_valid_record_storage};
 pub use structural::atomic_cell::atomic_cell_type;
-pub use structural::partial_affine::{partial_affine_residuals, structural_region_is_vacant};
+pub use structural::partial_affine::{
+    partial_affine_residuals, partial_affine_residuals_in_regions, structural_region_is_vacant,
+};
 pub use structural::primitive_place::{
     Position, StructuralStorageSelection, borrowed_primitive_projection_declaration,
     byte_carrier_geometry_matches, canonical_primitive_path, canonical_primitive_read_path,
@@ -611,8 +614,8 @@ pub use structural::primitive_place::{
     primitive_place_type, primitive_projection_declaration, primitive_projection_restriction,
     primitive_projection_type, primitive_read_field, primitive_read_projection_type,
     primitive_read_requirement, projection_stays_in_inline_storage,
-    projection_storage_dependencies, runtime_structural_copy_type, runtime_structural_path_tip,
-    stored_descriptor_paths,
+    projection_storage_dependencies, runtime_read_projection_tip, runtime_structural_copy_type,
+    runtime_structural_path_tip, stored_descriptor_paths,
 };
 pub use structural::record_field::{
     CasePayloadCarrier, RecordFieldCarrier, SequenceFieldObservation, case_payload_carrier,

@@ -46,6 +46,18 @@ pub(super) fn source_byte_view(
     if !typed.type_reference_table.contains_type_reference(*referee) {
         return Err(fail("byte view lost its slice reference"));
     }
+    // Only slice references belong to the byte-view operation. A domain
+    // on an ordinary referent is judged by that referent's type owner.
+    if !matches!(
+        typed.type_reference_table.type_reference(
+            typed
+                .type_reference_table
+                .unconstrained_type_reference(*referee)
+        ),
+        TypeReferenceNode::Slice { .. }
+    ) {
+        return Ok(None);
+    }
     // `&[u8] in Utf8`: the domains are displayed on the referent, and a
     // reference's domains are its referent's (domains.md, "Mutable views").
     // Read them before the slice beneath.

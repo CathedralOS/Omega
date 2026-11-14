@@ -89,6 +89,9 @@ pub enum Segment {
     /// Replacing any ancestor descriptor replaces this observation's
     /// reaching content, just as a store replaces a scalar field's.
     Extent,
+    /// Cross a live permission descriptor into its separately owned backing.
+    /// It is never an inline field, a claim transfer or a disjointness fact.
+    Referent,
 }
 
 /// One write, in program order: within a block, `WriteId`s increase in

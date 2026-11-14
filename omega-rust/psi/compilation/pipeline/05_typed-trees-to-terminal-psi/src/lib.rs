@@ -60,6 +60,7 @@ mod outcome;
 mod policy;
 mod proof_scope;
 mod read;
+mod reference_results;
 
 pub use body::{
     Axis, Body, Borrowed, CaseType, Ceiling, CrashCeiling, DomainSet, Expression, ExpressionKind,
@@ -533,6 +534,7 @@ fn finish_reading(
         })?;
     }
     source.records = program.source_record_correspondence(diagnostic)?;
+    reference_results::publish(&mut elaboration)?;
     elaboration.machines = program.symbols;
     elaboration.boundaries = program.boundary_symbols;
     elaboration.private_inputs = private_inputs;
@@ -728,11 +730,38 @@ fn lower_generic_for(
     for machine in &mut module.machines {
         let plan = terminal_semantics::plain_affine::plan(machine, &module.structural_types)
             .map_err(|error| {
+                let (concerns, operation, origin) = match error.site() {
+                    Some(terminal_semantics::plain_affine::Site::Operation(at)) => (
+                        Construct::Operation(at),
+                        machine
+                            .operations()
+                            .find(|operation| operation.id == at)
+                            .map(|operation| {
+                                terminal_semantics::OperationSemanticTag::for_operation(
+                                    &operation.kind,
+                                )
+                                .name()
+                            }),
+                        sources
+                            .get(machine.id)
+                            .and_then(|source| source.operations.get(at))
+                            .copied(),
+                    ),
+                    Some(terminal_semantics::plain_affine::Site::Edge(at)) => (
+                        Construct::Edge(at),
+                        Some("control-flow edge"),
+                        sources
+                            .get(machine.id)
+                            .and_then(|source| source.edges.get(at))
+                            .copied(),
+                    ),
+                    None => (Construct::Machine, None, None),
+                };
                 let (reason, detail) = match error {
-                    terminal_semantics::plain_affine::Error::Unsupported(detail) => {
+                    terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
                         (terminal_check_tables::RefusalReason::Unsupported, detail)
                     }
-                    terminal_semantics::plain_affine::Error::Malformed(detail) => (
+                    terminal_semantics::plain_affine::Error::Malformed { detail, .. } => (
                         terminal_check_tables::RefusalReason::ForeignIdentity,
                         detail,
                     ),
@@ -740,8 +769,15 @@ fn lower_generic_for(
                 terminal_check_tables::Refusal {
                     reason,
                     machine: machine.id,
-                    concerns: Construct::Machine,
-                    detail: detail.to_owned(),
+                    concerns,
+                    detail: match (operation, origin) {
+                        (Some(operation), Some(SourceOrigin::Authored(span))) => format!(
+                            "while checking {operation} at source {} bytes {}..{}: {detail}",
+                            span.source_id.0, span.span.start, span.span.end,
+                        ),
+                        (Some(operation), _) => format!("while checking {operation}: {detail}"),
+                        (None, _) => detail.to_owned(),
+                    },
                 }
             })?;
         // Receiving storage may be intact or exactly vacated by a preceding
