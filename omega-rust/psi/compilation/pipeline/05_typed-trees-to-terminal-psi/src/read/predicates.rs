@@ -72,8 +72,17 @@ impl Program<'_> {
             ScalarDomainDeclaration, ScalarDomainPredicate, StructuralDomainDeclaration,
             StructuralDomainPredicate,
         };
+        if self.declared_domains.is_empty() {
+            return Ok(());
+        }
         let sources =
-            source::source_identity::toolchain_source_identities(self.typed.symbols.source_files());
+            source::source_identity::toolchain_source_identities(self.typed.symbols.source_files())
+                .map_err(|reason| terminal_check_tables::Refusal {
+                    reason: terminal_check_tables::RefusalReason::ForeignIdentity,
+                    machine: diagnostic,
+                    concerns: Construct::Machine,
+                    detail: format!("domain declaration source identity: {reason}"),
+                })?;
         let mut identities = std::mem::take(&mut module.identities).into_builder();
         let unavailable =
             |what| refuse(diagnostic, Construct::Machine, Unserved::Declaration(what));
