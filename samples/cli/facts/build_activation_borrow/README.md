@@ -6,7 +6,11 @@ A borrowed configuration preserves exclusive access to the original Build
 activation, so binding through its stored view selects the authored entry
 without copying or replacing the activation.
 
-`Configuration` holds `&mut Build`, not an owned activation. Its ordinary
+`Configuration` holds `&'activation mut Build<'storage>`, not an owned
+activation. A field states the lifetime arguments of every data it names, so
+the record binds `Build`'s own `'storage` as well as the borrow's lifetime
+([lifetimes](../../../../wiki/spec/language/lifetimes.md#binders-and-source-applications));
+a field that leaves `Build`'s out is refused by name. Its ordinary
 construction, projection and helper calls must retain the compiler-issued
 receiver. Each Build binds all four hosted ProgramEntry slots through that
 stored view. The target-body place binds `SelectedEntry::enter`, an ordinary

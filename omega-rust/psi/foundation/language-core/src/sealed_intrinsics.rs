@@ -43,6 +43,8 @@ pub enum SealedIntrinsic {
     LayoutStorageData,
     /// Core `layout.omg`'s `layout_target_facts` snapshot query.
     LayoutTargetFacts,
+    /// Core's ordinary identity body also records an exact private-slot placement.
+    PrivateLayoutPlacement,
     /// Core `layout.omg`'s free placed `read` or `write` primitive.
     PlacedPrimitive(PlacedPrimitiveOperation),
     /// A sealed placement-lifecycle operation over an `Access` or `Run` profile.
@@ -438,6 +440,12 @@ const ROWS: &[SealedIntrinsicRow] = &[
     ),
     row(
         "layout.omg",
+        "LayoutPlan::place_private",
+        CORE_LAYOUT,
+        SealedIntrinsic::PrivateLayoutPlacement,
+    ),
+    row(
+        "layout.omg",
         "read",
         CORE_LAYOUT,
         SealedIntrinsic::PlacedPrimitive(PlacedPrimitiveOperation::Read),
@@ -662,6 +670,22 @@ mod tests {
 
     #[test]
     fn rows_match_only_their_exact_file_declaration_and_source() {
+        assert_eq!(
+            SealedIntrinsicCatalog::classify(site(
+                "layout.omg",
+                "LayoutPlan::place_private",
+                CORE_LAYOUT
+            )),
+            Some(SealedIntrinsic::PrivateLayoutPlacement)
+        );
+        assert_eq!(
+            SealedIntrinsicCatalog::classify(site(
+                "layout.omg",
+                "LayoutPlan::place_private",
+                b"authored lookalike"
+            )),
+            None
+        );
         assert_eq!(
             SealedIntrinsicCatalog::classify(site("task.omg", "TaskRuntime::start", CORE_TASK)),
             Some(SealedIntrinsic::TaskRuntimeStart)

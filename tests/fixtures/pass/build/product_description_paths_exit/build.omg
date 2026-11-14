@@ -10,7 +10,7 @@ machine build(builder: &mut Build) {
     let schema: ProductTypeSchema = BuildProduct::schema(&builder.product, "payload::Packet");
     let provider: ProductProviderRef = BuildProduct::provider(&builder.product, "payload::Provider");
     let ordinary: OrdinaryPath = OrdinaryPath {};
-    let mut visits: Visits = Visits { value: 0 };
+    let mut visits: Visits = Visits { value: 0 as +Wrapping };
     let schema_path: &[u8] = ProductTypeSchema::path(&schema);
     let provider_path: &[u8] = ProductProviderRef::path(&provider);
     let ordinary_path: u64 = path(&ordinary, &mut visits);

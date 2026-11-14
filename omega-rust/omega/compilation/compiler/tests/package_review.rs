@@ -873,8 +873,15 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
         .unwrap(),
     );
     let (recovered, recovered_permissions, installation_assumptions) =
-        terminal_psi_to_abstract_operations::recover_native_derivation_inputs(artifact, bytes)
-            .expect("reload the closed binding from its canonical artifact and saved inputs");
+        terminal_psi_to_abstract_operations::recover_native_derivation_inputs(
+            {
+                let authorization = pending.terminal.authorization().clone();
+                authorization.require_artifact(&artifact).unwrap();
+                authorization
+            },
+            bytes,
+        )
+        .expect("reload the closed binding from its canonical artifact and saved inputs");
     assert_eq!(recovered, pending.terminal);
     assert_eq!(recovered_permissions, pending.accepted_package_permissions);
     assert!(installation_assumptions.is_empty());

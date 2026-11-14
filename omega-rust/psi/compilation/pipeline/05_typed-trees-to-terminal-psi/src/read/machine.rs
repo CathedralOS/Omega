@@ -921,9 +921,11 @@ impl<'t> Program<'t> {
         if machine.generic_data_template.is_valid() {
             return unserved("generic data template");
         }
-        if machine.spelling.is_some() {
-            return unserved("operator spelling");
-        }
+        // A token spelling associates this ordinary declaration with a source
+        // operator occurrence. Typing prepares its unique closed selection as
+        // a call, retaining the authored choice and ordered operands. The
+        // spelling contributes no receiver or checking evidence: read this
+        // complete machine's signature, contracts and body by the same path.
         // An unselected target family is also a boundary. Report the missing
         // target decision before the generic boundary-body refusal.
         if machine.target.is_some()
@@ -1981,22 +1983,18 @@ impl<'t> Program<'t> {
                         if self.fact_restates_formal_domain(formals, fact) {
                             continue;
                         }
-                        let expression = self.fact(id, fact)?;
-                        if self.states_nothing(id, expression)? {
-                            continue;
+                        if let Some((clause, text)) = self.contract_clause(id, &required, fact)? {
+                            requires.push(clause);
+                            requires_text.push(text);
                         }
-                        requires.push(self.clause(id, &required, expression)?);
-                        requires_text.push(self.clause_text(&slots, expression));
                     }
                 }
                 SignatureContractKind::Ensures => {
                     for fact in facts {
-                        let expression = self.fact(id, fact)?;
-                        if self.states_nothing(id, expression)? {
-                            continue;
+                        if let Some((clause, text)) = self.contract_clause(id, &exit, fact)? {
+                            ensures.push(clause);
+                            ensures_text.push(text);
                         }
-                        ensures.push(self.clause(id, &exit, expression)?);
-                        ensures_text.push(self.clause_text(&slots, expression));
                     }
                 }
                 SignatureContractKind::EnsuresForResultCase { .. } => {

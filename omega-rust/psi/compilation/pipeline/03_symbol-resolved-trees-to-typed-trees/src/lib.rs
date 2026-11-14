@@ -41,12 +41,16 @@ mod domain_cast_accounting;
 mod equality_and_exhaustiveness;
 mod expression_lowering;
 mod lowerer;
+mod operator_calls;
 mod statement_lowering;
 mod type_reference;
 mod typing_queries;
 
 #[cfg(test)]
 mod ranking_defaults_tests;
+
+#[cfg(test)]
+mod qualified_operator_home_tests;
 
 pub(crate) use contracts_and_signatures::{contracts, signatures};
 

@@ -281,6 +281,11 @@ impl Lowering<'_> {
                 left: left_expression,
                 right,
             } => {
+                // The one strict operator over storage: `==` of two byte
+                // views, which the reader forms for no other operand type.
+                if matches!(left_expression.result, Some(ValueType::Record(..))) {
+                    return self.byte_equal(left_expression, right, source);
+                }
                 let left = continuing!(self.scalar(left_expression));
                 let right = continuing!(self.scalar(right));
                 let operand_type = self.result_type(left_expression)?;

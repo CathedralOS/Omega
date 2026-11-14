@@ -1665,6 +1665,7 @@ fn outcomes_follow_the_ceiling_or_the_body() {
             },
             &[],
             None,
+            &Default::default(),
         )
         .unwrap();
         [1, 2].map(|raw| table.get(id(raw)).unwrap().clone())
@@ -1725,6 +1726,7 @@ fn a_body_that_declares_crashes_none_publishes_no_route() {
             },
             &[],
             None,
+            &Default::default(),
         )
         .map(|table| table.get(id(1)).unwrap().clone())
     };
@@ -1797,6 +1799,7 @@ fn a_skipped_operand_cannot_end_the_machine() {
         },
         &[],
         None,
+        &Default::default(),
     )
     .unwrap();
     assert_eq!(

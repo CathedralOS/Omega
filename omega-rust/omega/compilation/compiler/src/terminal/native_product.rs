@@ -12,6 +12,24 @@ use psi_compiler::ProducedTerminalApplication;
 
 use super::ProducedTerminalProduct;
 
+/// This receiving host is consuming its own in-process Psi producer, not a
+/// caller-supplied module. Record that host decision once for the actual
+/// producer and bind each exact product without encoding or checking it again.
+fn authorize_produced_artifact(
+    program: &psi_compiler::PortableTerminalProgram,
+) -> Result<terminal_installation::AuthorizedTerminalArtifact, Vec<Diagnostic>> {
+    static PRODUCER: std::sync::OnceLock<terminal_installation::HostProducerTrust> =
+        std::sync::OnceLock::new();
+    let producer = PRODUCER.get_or_init(|| {
+        terminal_installation::HostProducerTrust::accept("this host's in-process Psi compiler")
+    });
+    terminal_installation::authorize_terminal_artifact(
+        std::sync::Arc::clone(program.artifact()),
+        Some(producer),
+    )
+    .map_err(|error| vec![Diagnostic::error(error.to_string())])
+}
+
 pub(crate) fn prepare(
     checked: &CheckedCompilation,
     produced: ProducedTerminalProduct,
@@ -143,7 +161,7 @@ pub(crate) fn prepare(
         })
         .transpose()?;
     let terminal = native_compiler::TerminalApplication {
-        artifact: std::sync::Arc::clone(program.artifact()),
+        artifact: authorize_produced_artifact(&program)?,
         receipt: receipt.clone(),
         provider_proposals: proposals,
         physical_entry_adapter: false,

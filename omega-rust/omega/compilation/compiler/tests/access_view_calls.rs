@@ -1,6 +1,8 @@
 //! Source-produced access-view helpers reborrow one host-established backing.
 //! Import adapters model the exact authored external operations on that backing;
 //! they reject a detached carrier, so a staged copy cannot satisfy the oracle.
+#[path = "support/artifact_trust.rs"]
+mod artifact_trust;
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 
@@ -169,7 +171,7 @@ fn qualify_helper(machine: &str, writes: bool) {
     };
     if machine == "delegate" {
         terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput::prepare(
-            &artifact,
+            &artifact_trust::authorize(&artifact),
             target::TargetProfile::host(),
             module.entry.expect("fixture default entry"),
             std::slice::from_ref(&establishment),
