@@ -85,6 +85,7 @@ pub(super) fn lower_lending(
             })
             .collect();
         signatures.push(Signature {
+            operational: Default::default(),
             parameters: machine.parameters,
             erased: Vec::new(),
             borrowed,
@@ -102,6 +103,7 @@ pub(super) fn lower_lending(
 
 fn of(kind: ExpressionKind, result: ValueType) -> Expression {
     Expression {
+        call_context: None,
         kind,
         result: Some(result),
         source: nowhere(),
@@ -137,6 +139,7 @@ pub(super) fn lend(access: ReferenceAccess, place: Expression, home: bool) -> Ex
 
 pub(super) fn invoke(callee: u64, arguments: Vec<Expression>) -> Statement {
     Statement::Evaluate(Expression {
+        call_context: None,
         kind: ExpressionKind::Call {
             callee: semantic_vocabulary::TargetMachineCallable::Machine(id(callee)),
             arguments,
@@ -149,12 +152,14 @@ pub(super) fn invoke(callee: u64, arguments: Vec<Expression>) -> Statement {
 
 pub(super) fn store(slot: usize, path: Vec<usize>, value: Expression) -> Statement {
     let mut destination = Expression {
+        call_context: None,
         kind: ExpressionKind::Slot(slot),
         result: None,
         source: nowhere(),
     };
     for field in path {
         destination = Expression {
+            call_context: None,
             kind: ExpressionKind::Field {
                 base: Box::new(destination),
                 field,
@@ -653,6 +658,7 @@ fn a_home_a_loan_gives_a_local_in_an_arm_is_not_the_continuations() {
                 Statement::Arm {
                     guard: Some(named(0, ScalarType::Boolean.into())),
                     target: Target::Value(Expression {
+                        call_context: None,
                         kind: ExpressionKind::Call {
                             callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
                             arguments: vec![lend(

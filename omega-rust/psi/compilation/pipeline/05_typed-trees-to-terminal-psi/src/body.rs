@@ -367,9 +367,28 @@ pub struct RecordField {
     pub byte_predicates: semantic_vocabulary::ByteSequencePredicateSet,
 }
 
+/// A private omitted may-ceiling is inferred. Public interfaces and
+/// requirements publish false when omitted; a written false stays explicit.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct OperationalCeilings {
+    pub suspension: Option<bool>,
+    pub blocking: Option<bool>,
+}
+
+impl OperationalCeilings {
+    pub(crate) fn published(self, contributes: [bool; 2]) -> [bool; 2] {
+        [
+            self.suspension.unwrap_or(contributes[0]),
+            self.blocking.unwrap_or(contributes[1]),
+        ]
+    }
+}
+
 /// A machine's published signature as lowering and its callers need it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Signature {
+    /// Independent suspension and worker-blocking bounds.
+    pub operational: OperationalCeilings,
     /// Formal types in position order. Lowering mints the scalar formals
     /// first: the `k`-th scalar formal, counting from zero and skipping
     /// record formals, is the machine's value `k + 1`, so clause propositions
@@ -781,6 +800,8 @@ pub enum Target {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Expression {
+    /// Source acknowledgements survive primitive folding until position checking.
+    pub call_context: Option<terminal_psi::CallAcknowledgement>,
     pub kind: ExpressionKind,
     /// `None` only for a call of a Unit machine.
     pub result: Option<ValueType>,

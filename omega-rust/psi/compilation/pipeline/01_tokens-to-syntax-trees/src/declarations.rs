@@ -3063,13 +3063,7 @@ pub(crate) mod trait_definition {
                     .suspends_keyword_source_spans
                     .push(input.current_source_span());
                 input = input.take_contextual("suspends")?;
-                if input.at_keyword(KeywordKind::True) || input.at_keyword(KeywordKind::False) {
-                    let (value, rest) = parse_refinement_axis_bool(input)?;
-                    signature.suspends = value;
-                    input = rest;
-                } else {
-                    signature.suspends = true;
-                }
+                (signature.suspends, input) = crate::grammar::contracts::operational_bound(input)?;
                 continue;
             }
             if input.at_contextual("blocks") {
@@ -3083,13 +3077,7 @@ pub(crate) mod trait_definition {
                     .blocks_keyword_source_spans
                     .push(input.current_source_span());
                 input = input.take_contextual("blocks")?;
-                if input.at_keyword(KeywordKind::True) || input.at_keyword(KeywordKind::False) {
-                    let (value, rest) = parse_refinement_axis_bool(input)?;
-                    signature.blocks = value;
-                    input = rest;
-                } else {
-                    signature.blocks = true;
-                }
+                (signature.blocks, input) = crate::grammar::contracts::operational_bound(input)?;
                 continue;
             }
             if input.at_contextual("terminates") {
@@ -3121,18 +3109,6 @@ pub(crate) mod trait_definition {
             || input.at_contract_continuation_keyword()
             || input.at_contextual("requires")
             || input.at_contextual("ensures")
-    }
-
-    fn parse_refinement_axis_bool<'tokens, 'source>(
-        input: Input<'tokens, 'source>,
-    ) -> ParseResult<'tokens, 'source, bool> {
-        if input.at_keyword(KeywordKind::True) {
-            return Ok((true, input.take_keyword(KeywordKind::True, "true")?));
-        }
-        if input.at_keyword(KeywordKind::False) {
-            return Ok((false, input.take_keyword(KeywordKind::False, "false")?));
-        }
-        Err(input.error_here("expected `true` or `false`"))
     }
 
     fn parse_proposition_parameter_contracts<'tokens, 'source>(

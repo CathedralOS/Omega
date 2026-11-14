@@ -266,6 +266,7 @@ fn an_indexed_match_reuses_its_captured_selector_in_the_arm() {
     });
     let mut signatures = IdTable::default();
     signatures.push(Signature {
+        operational: Default::default(),
         parameters: invalid.parameters,
         erased: Vec::new(),
         borrowed: Vec::new(),

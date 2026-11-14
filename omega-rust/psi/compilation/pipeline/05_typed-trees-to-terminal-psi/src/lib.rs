@@ -56,6 +56,7 @@ mod components;
 mod declare;
 mod lower;
 
+mod operational;
 mod outcome;
 mod policy;
 mod proof_scope;
@@ -436,6 +437,7 @@ fn elaborate_witness_call(
     }
     let source = SourceOrigin::Unpositioned(Unpositioned::ConformanceWitness);
     let call = Expression {
+        call_context: Some(terminal_psi::CallAcknowledgement::generated()),
         kind: ExpressionKind::Call {
             callee: callee.into(),
             arguments: required
@@ -443,6 +445,7 @@ fn elaborate_witness_call(
                 .iter()
                 .enumerate()
                 .map(|(slot, value_type)| Expression {
+                    call_context: None,
                     kind: ExpressionKind::Slot(slot),
                     result: Some(*value_type),
                     source,
@@ -642,6 +645,9 @@ fn lower_generic_for(
                 Unserved::Machine("requirement with a body"),
             ));
         }
+    }
+    for (machine, body) in bodies.iter() {
+        operational::positions(machine, body)?;
     }
     let components = components::components(bodies, signatures.machines)?;
     let outcomes = outcome::outcomes(bodies, signatures, requirements)?;
@@ -910,6 +916,7 @@ mod publication_scope_tests {
         });
         let mut signatures = IdTable::default();
         signatures.push(Signature {
+            operational: Default::default(),
             parameters: Vec::new(),
             erased: Vec::new(),
             borrowed: Vec::new(),

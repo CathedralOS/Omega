@@ -149,6 +149,7 @@ impl Program<'_> {
             elements.push(element);
         }
         Ok(Expression {
+            call_context: None,
             kind: ExpressionKind::Array { elements },
             result: Some(ValueType::Record(array, Qualification::NONE, regions)),
             source,
@@ -211,6 +212,7 @@ impl Program<'_> {
             ));
         }
         Ok(Expression {
+            call_context: None,
             kind: ExpressionKind::Index {
                 base: Box::new(base),
                 index: Box::new(index),

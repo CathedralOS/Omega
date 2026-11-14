@@ -192,45 +192,73 @@ pub(crate) fn judge(module: &TerminalModule, tables: &CheckTables) -> Checked<Ve
                     ));
                 }
             };
-            for axis in Axis::ALL {
-                let contributes = match callee {
-                    TargetMachineCallable::Machine(callee) => {
-                        module.machine(callee).map(|callee| axis.of_machine(callee))
-                    }
-                    TargetMachineCallable::Boundary(callee) => module
-                        .boundary_machine(callee)
-                        .map(|callee| axis.of_boundary(callee)),
+            let at = match call.site {
+                InvocationSite::Operation(operation) => Construct::Operation(operation),
+                InvocationSite::ExternalCompletion(edge) | InvocationSite::InvokeNoNormal(edge) => {
+                    Construct::Edge(edge)
                 }
-                .ok_or_else(|| {
-                    refusal(
-                        RefusalReason::ForeignIdentity,
-                        caller.id,
-                        concerns,
-                        "callee declaration is unavailable",
-                    )
-                })?;
-                let ceiling = axis.of_machine(caller);
-                let outside: Vec<_> = contributes
-                    .iter()
-                    .copied()
-                    .filter(|service| ceiling.binary_search(service).is_err())
-                    .collect();
-                if !outside.is_empty() {
-                    found.push(Excess {
-                        axis,
-                        machine: caller.id,
-                        at: match call.site {
-                            InvocationSite::Operation(operation) => Construct::Operation(operation),
-                            InvocationSite::ExternalCompletion(edge)
-                            | InvocationSite::InvokeNoNormal(edge) => Construct::Edge(edge),
-                        },
-                        callee,
-                        contributes: contributes.to_vec(),
-                        outside,
-                    });
-                }
+            };
+            contribution(module, caller, callee, at, &mut found)?;
+        }
+        for formation in &caller.call_formations {
+            if let (terminal_psi::CallSite::Edge(edge), Some(callee)) =
+                (formation.site, formation.tail_callee)
+            {
+                contribution(
+                    module,
+                    caller,
+                    callee.into(),
+                    Construct::Edge(edge),
+                    &mut found,
+                )?;
             }
         }
     }
     Ok(found)
+}
+
+/// Frame reuse changes execution into a jump, not the published interface
+/// charged to the caller. Every retained call uses the same containment.
+fn contribution(
+    module: &TerminalModule,
+    caller: &TerminalMachine,
+    callee: TargetMachineCallable,
+    at: Construct,
+    found: &mut Vec<Excess>,
+) -> Checked<()> {
+    for axis in Axis::ALL {
+        let contributes = match callee {
+            TargetMachineCallable::Machine(id) => {
+                module.machine(id).map(|machine| axis.of_machine(machine))
+            }
+            TargetMachineCallable::Boundary(id) => module
+                .boundary_machine(id)
+                .map(|boundary| axis.of_boundary(boundary)),
+        }
+        .ok_or_else(|| {
+            refusal(
+                RefusalReason::ForeignIdentity,
+                caller.id,
+                at,
+                "callee declaration is unavailable",
+            )
+        })?;
+        let ceiling = axis.of_machine(caller);
+        let outside: Vec<_> = contributes
+            .iter()
+            .copied()
+            .filter(|service| ceiling.binary_search(service).is_err())
+            .collect();
+        if !outside.is_empty() {
+            found.push(Excess {
+                axis,
+                machine: caller.id,
+                at,
+                callee,
+                contributes: contributes.to_vec(),
+                outside,
+            });
+        }
+    }
+    Ok(())
 }

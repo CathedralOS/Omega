@@ -476,6 +476,7 @@ mod evidence_seal_tests {
 
     fn slot(slot: usize) -> Expression {
         Expression {
+            call_context: None,
             kind: ExpressionKind::Slot(slot),
             result: Some(u32_type().into()),
             source: SourceOrigin::Unpositioned(Unpositioned::SpanAbsent),
@@ -499,6 +500,7 @@ mod evidence_seal_tests {
     /// discharged and sealed.
     fn sealed_add() -> (terminal_psi::TerminalModule, Vec<ObligationEvidenceSeal>) {
         let sum = Expression {
+            call_context: None,
             kind: ExpressionKind::Strict {
                 operation: Strict::Add,
                 left: Box::new(slot(0)),
@@ -518,6 +520,7 @@ mod evidence_seal_tests {
         });
         let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
         signatures.push(Signature {
+            operational: Default::default(),
             parameters: vec![u32_type().into(), u32_type().into()],
             erased: Vec::new(),
             borrowed: Vec::new(),

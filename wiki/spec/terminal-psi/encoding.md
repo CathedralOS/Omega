@@ -931,6 +931,26 @@ The affine cleanup actions a terminator carries are a closed `u8` space:
 
 ## Machine rows
 
+Marker 263 retains each callable's declared suspension and blocking bounds as
+optional Boolean fields, followed by its published suspension and blocking
+flags. An omitted bound requests inference; a written bound fixes publication.
+The checker independently derives omitted bounds from the canonical calls.
+
+Each machine also stores a counted, strictly increasing list of call formations
+after its block-entry claims. A site is tag 0 and an operation identity, or tag
+1 and an edge identity. Each row then stores acknowledgement origin (0 authored,
+1 compiler-generated), suspend and block flags, whether the original call has a
+legal suspension position, and an optional tail-callee machine identity. The
+callee is present only for a source call whose frame reuse became a jump; its
+loop head carries the callable's formal telescope. Other calls name their
+callee on their operation or terminator. Missing acknowledgement metadata means
+no source markers. Duplicate sites or a site naming no call reject.
+
+Acknowledgements do not encode a suspension crossing, alter the published
+envelope, or enter normalized callable identity. The module retains them for
+checking and audit; its semantic bytes therefore change when they change.
+Actual suspension still owes its independent continuation and carry evidence.
+
 A boundary declaration stores its counted runtime parameter-order tags after
 the optional attachment and before scalar parameter types: `u8` 0 selects the
 next scalar, 1 the next structural parameter. Unknown tags, missing entries, and

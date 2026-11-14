@@ -201,6 +201,11 @@ pub(crate) mod contracts {
         pub declared_service_reach: Option<Vec<semantic_vocabulary::ServiceId>>,
         pub declared_synchronous_entries: Option<Vec<semantic_vocabulary::ServiceId>>,
         pub declared_crash_routes: Option<Vec<CrashRouteBucket>>,
+        /// Private omissions infer; explicit/public false forbids the effect.
+        pub declared_suspension: Option<bool>,
+        pub declared_blocking: Option<bool>,
+        pub published_may_suspend: bool,
+        pub published_may_block: bool,
         pub closed_reach_application: Option<crate::ClosedReachApplication>,
         pub published_service_ceiling: Vec<semantic_vocabulary::ServiceId>,
         /// Exact published synchronous entries, strictly increasing. Empty
@@ -268,6 +273,10 @@ pub(crate) mod contracts {
                 declared_service_reach: None,
                 declared_synchronous_entries: None,
                 declared_crash_routes: None,
+                declared_suspension: None,
+                declared_blocking: None,
+                published_may_suspend: false,
+                published_may_block: false,
                 closed_reach_application: None,
                 published_service_ceiling: Vec::new(),
                 published_synchronous_entries: Vec::new(),

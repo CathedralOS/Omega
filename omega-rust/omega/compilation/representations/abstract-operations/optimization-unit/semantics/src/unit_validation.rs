@@ -1052,6 +1052,7 @@ pub(crate) mod affine_authority {
                     result: abstract_operations::AbstractFunctionResult::Unit,
                     declared_places: BTreeSet::from([id(1)]),
                     entry_claim_declarations: Vec::new(),
+                    call_formations: Vec::new(),
                     block_entry_claims: Vec::new(),
                     content_entry_claims: Vec::new(),
                     verified_contract: None,

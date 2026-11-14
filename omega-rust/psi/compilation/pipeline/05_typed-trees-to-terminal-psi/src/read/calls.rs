@@ -443,6 +443,17 @@ impl<'t> Program<'t> {
         slots: &[Slot],
         call: &TableCall,
     ) -> Checked<Expression> {
+        let mut read = self.call_statement_body(id, slots, call)?;
+        crate::operational::retain(&mut read, call.operational_acknowledgement, true);
+        Ok(read)
+    }
+
+    fn call_statement_body(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        call: &TableCall,
+    ) -> Checked<Expression> {
         self.bound_target(id, call.target_symbol)?;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         if let Some(read) = self.rigid_call(
@@ -483,11 +494,6 @@ impl<'t> Program<'t> {
         if call.static_machine_parameter.is_valid() || !call.evidence_arguments.is_empty() {
             return unserved("machine parameter or evidence");
         }
-        if call.operational_acknowledgement.acknowledges_suspend
-            || call.operational_acknowledgement.acknowledges_block
-        {
-            return unserved("suspend or block acknowledgement");
-        }
         let arguments = self
             .typed
             .statement_table
@@ -515,6 +521,19 @@ impl<'t> Program<'t> {
     }
 
     pub(super) fn call_expression(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        call: &TableCallExpression,
+        handle: ExpressionHandle,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        let mut read = self.call_expression_body(id, slots, call, handle, source)?;
+        crate::operational::retain(&mut read, call.operational_acknowledgement, false);
+        Ok(read)
+    }
+
+    fn call_expression_body(
         &mut self,
         id: MachineId,
         slots: &[Slot],
@@ -602,11 +621,6 @@ impl<'t> Program<'t> {
         }
         if call.static_machine_parameter.is_valid() || !call.evidence_arguments.is_empty() {
             return unserved("machine parameter or evidence");
-        }
-        if call.operational_acknowledgement.acknowledges_suspend
-            || call.operational_acknowledgement.acknowledges_block
-        {
-            return unserved("suspend or block acknowledgement");
         }
         let arguments = self
             .typed
@@ -717,8 +731,6 @@ impl<'t> Program<'t> {
             || call.exact_coercion_target.is_valid()
             || call.static_machine_parameter.is_valid()
             || !call.evidence_arguments.is_empty()
-            || call.operational_acknowledgement.acknowledges_suspend
-            || call.operational_acknowledgement.acknowledges_block
         {
             return unserved("requirement dispatch with another call feature");
         }
@@ -947,8 +959,6 @@ impl<'t> Program<'t> {
             || call.exact_coercion_target.is_valid()
             || call.static_machine_parameter.is_valid()
             || !call.evidence_arguments.is_empty()
-            || call.operational_acknowledgement.acknowledges_suspend
-            || call.operational_acknowledgement.acknowledges_block
         {
             return unserved("type application with another call feature");
         }
@@ -1013,9 +1023,7 @@ impl<'t> Program<'t> {
                         || call.requirement_application.is_valid()
                         || call.exact_coercion_target.is_valid()
                         || call.static_machine_parameter.is_valid()
-                        || !call.evidence_arguments.is_empty()
-                        || call.operational_acknowledgement.acknowledges_suspend
-                        || call.operational_acknowledgement.acknowledges_block,
+                        || !call.evidence_arguments.is_empty(),
                 ),
                 StaticArgumentCall::Statement(call) => (
                     call.target_symbol,
@@ -1030,9 +1038,7 @@ impl<'t> Program<'t> {
                         || call.static_requirement_dispatch.is_some()
                         || call.reflected_field_origin.is_some()
                         || call.static_machine_parameter.is_valid()
-                        || !call.evidence_arguments.is_empty()
-                        || call.operational_acknowledgement.acknowledges_suspend
-                        || call.operational_acknowledgement.acknowledges_block,
+                        || !call.evidence_arguments.is_empty(),
                 ),
             };
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Call(what));
@@ -1395,6 +1401,7 @@ impl<'t> Program<'t> {
             ));
         }
         Ok(Expression {
+            call_context: None,
             kind: ExpressionKind::Call {
                 callee,
                 arguments: read,
@@ -1438,6 +1445,7 @@ impl<'t> Program<'t> {
             let place = self.expression(id, slots, argument, Some(expected))?;
             return Ok((
                 Expression {
+                    call_context: None,
                     result: place.result,
                     kind: ExpressionKind::Borrow {
                         access: ReferenceAccess::Shared,
@@ -1472,6 +1480,7 @@ impl<'t> Program<'t> {
             && let Some((referent, _)) = self.reference_referent(id, value_type)?
         {
             place = Expression {
+                call_context: None,
                 source: place.source,
                 kind: ExpressionKind::Referent(Box::new(place)),
                 result: Some(referent),
@@ -1526,6 +1535,7 @@ impl<'t> Program<'t> {
         };
         Ok((
             Expression {
+                call_context: None,
                 result: place.result,
                 kind: ExpressionKind::Borrow {
                     access,
@@ -1858,6 +1868,7 @@ mod tests {
             IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
         ));
         let slot = |slot| Expression {
+            call_context: None,
             kind: ExpressionKind::Slot(slot),
             result: Some(if slot == 1 {
                 scalar
@@ -1869,6 +1880,7 @@ mod tests {
             source,
         };
         let saved = |capture| Expression {
+            call_context: None,
             kind: ExpressionKind::SavedSubject(capture),
             result: Some(record),
             source,
@@ -1876,6 +1888,7 @@ mod tests {
         let borrow = |place: Expression| {
             let result = place.result;
             Expression {
+                call_context: None,
                 kind: ExpressionKind::Borrow {
                     access: ReferenceAccess::Mutable,
                     place: Box::new(place),
@@ -1886,6 +1899,7 @@ mod tests {
             }
         };
         let payload = |capture| Expression {
+            call_context: None,
             kind: ExpressionKind::Payload {
                 base: Box::new(saved(capture)),
                 case: 0,
@@ -1897,6 +1911,7 @@ mod tests {
         let captures = vec![(
             capture,
             Expression {
+                call_context: None,
                 kind: ExpressionKind::Index {
                     base: Box::new(slot(0)),
                     index: Box::new(slot(1)),

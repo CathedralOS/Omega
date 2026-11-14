@@ -53,6 +53,8 @@ use crate::{Unserved, refuse};
 /// What a machine publishes about how it may leave.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Outcome {
+    /// Published suspension and blocking, independently bounded by the header.
+    pub operational: [bool; 2],
     /// Some path of the body reaches a normal return. When none does, a call
     /// of the machine has no normal successor (`Terminator::InvokeNoNormal`).
     pub completes_normally: bool,
@@ -90,18 +92,21 @@ pub(crate) fn outcomes(
         reached: bodies.map(|_, _| Reached::default()),
         causes: BTreeSet::new(),
         contributed: Default::default(),
+        operational: [false; 2],
     };
     loop {
         let mut changed = false;
         for (machine, body) in bodies.iter() {
             walk.causes.clear();
             walk.contributed = Default::default();
+            walk.operational = [false; 2];
             let completes_normally = if requirements.contains(&machine) {
                 true
             } else {
                 walk.statements(machine, &body.statements)?
             };
             let found = Reached {
+                operational: walk.operational,
                 completes_normally,
                 causes: std::mem::take(&mut walk.causes),
                 contributed: std::mem::take(&mut walk.contributed).map(|mut row| {
@@ -129,6 +134,10 @@ pub(crate) fn outcomes(
     let mut table = IdTable::default();
     for (machine, reached) in walk.reached.iter() {
         table.push(Outcome {
+            operational: signatures
+                .get(machine.into(), machine)?
+                .operational
+                .published(reached.operational),
             completes_normally: reached.completes_normally,
             crash_routes: walk.published(machine, &reached.causes)?,
             service_reach: walk.published_row(machine, Axis::Reach, reached, true)?,
@@ -141,6 +150,7 @@ pub(crate) fn outcomes(
 /// What structure reaches in one body, against the table as it stands.
 #[derive(Clone, Default, PartialEq)]
 struct Reached {
+    operational: [bool; 2],
     completes_normally: bool,
     /// Every cause a path of the body may crash with, from a `crash`
     /// statement or from a callee that may.
@@ -171,6 +181,7 @@ struct Walk<'b> {
     /// What the calls of the body being walked contribute on each axis, in
     /// the order met; sorted when the body's walk ends.
     contributed: [Contributed; 2],
+    operational: [bool; 2],
 }
 
 impl Walk<'_> {
@@ -399,6 +410,10 @@ impl Walk<'_> {
                 }
                 let semantic_vocabulary::TargetMachineCallable::Machine(callee) = callee else {
                     let signature = self.signatures.get(*callee, machine)?;
+                    let published = signature.operational.published([false; 2]);
+                    for (contributes, published) in self.operational.iter_mut().zip(published) {
+                        *contributes |= published;
+                    }
                     let routes = signature.declared_crash_routes().ok_or_else(|| {
                         refuse(
                             machine,
@@ -460,6 +475,10 @@ impl Walk<'_> {
                 let completes = reached.completes_normally;
                 let causes = reached.causes.clone();
                 let signature = self.signatures.get((*callee).into(), machine)?;
+                let published = signature.operational.published(reached.operational);
+                for (contributes, published) in self.operational.iter_mut().zip(published) {
+                    *contributes |= published;
+                }
                 let mut joins = Vec::with_capacity(Axis::ALL.len());
                 for axis in Axis::ALL {
                     let row = self.published_row(*callee, axis, reached, false)?;

@@ -1275,6 +1275,7 @@ impl<'a> Lowering<'a> {
                     *designated,
                     expression.result,
                     expression.source,
+                    expression.call_context.unwrap_or_default(),
                 )) {
                     Value::Record(root) => Ok(Reached::Value(Located {
                         root,
@@ -2767,6 +2768,7 @@ mod tests {
         let source = SourceOrigin::Unpositioned(Unpositioned::SpanAbsent);
         let mut signatures = IdTable::default();
         signatures.push(Signature {
+            operational: Default::default(),
             parameters: vec![plain],
             erased: Vec::new(),
             borrowed: vec![Borrowed {
@@ -2800,20 +2802,24 @@ mod tests {
                 Statement::Bind {
                     slot: 3,
                     value: Expression {
+                        call_context: None,
                         kind: ExpressionKind::Integer(IntegerValue::Unsigned(0)),
                         result: Some(plain),
                         source,
                     },
                 },
                 Statement::Evaluate(Expression {
+                    call_context: None,
                     kind: ExpressionKind::Call {
                         callee: semantic_vocabulary::TargetMachineCallable::Machine(
                             MachineId::new(2).unwrap(),
                         ),
                         arguments: vec![Expression {
+                            call_context: None,
                             kind: ExpressionKind::Borrow {
                                 access: language_core::ReferenceAccess::Shared,
                                 place: Box::new(Expression {
+                                    call_context: None,
                                     kind: ExpressionKind::Slot(3),
                                     result: Some(plain),
                                     source,
@@ -2831,6 +2837,7 @@ mod tests {
                 Statement::Arm {
                     guard: None,
                     target: Target::Value(Expression {
+                        call_context: None,
                         kind: ExpressionKind::Slot(0),
                         result: Some(plain),
                         source,
@@ -2845,6 +2852,7 @@ mod tests {
             statements: vec![Statement::Arm {
                 guard: None,
                 target: Target::Value(Expression {
+                    call_context: None,
                     kind: ExpressionKind::Slot(0),
                     result: Some(plain),
                     source,

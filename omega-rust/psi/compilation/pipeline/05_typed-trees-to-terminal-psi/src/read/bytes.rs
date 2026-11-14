@@ -267,6 +267,7 @@ impl Program<'_> {
             semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
                 .expect("u64 is valid");
         Ok(Expression {
+            call_context: None,
             kind: ExpressionKind::CollectionMeasure {
                 base: Box::new(base),
                 measure,
@@ -408,6 +409,7 @@ impl Program<'_> {
             None => (self.literal_byte_type(carrier), crate::body::Regions::NONE),
         };
         Ok(Expression {
+            call_context: None,
             kind: ExpressionKind::ByteLiteral(bytes.to_vec()),
             result: Some(ValueType::Record(row, Qualification::NONE, regions)),
             source,

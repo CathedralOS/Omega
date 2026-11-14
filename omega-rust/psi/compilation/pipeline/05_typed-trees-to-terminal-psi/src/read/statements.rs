@@ -57,11 +57,13 @@ impl Program<'_> {
                         return Err(unserved("write through a reference without mutable access"));
                     }
                     let descriptor = crate::Expression {
+                        call_context: None,
                         kind: ExpressionKind::Slot(slot),
                         result: Some(slots[slot].value_type),
                         source,
                     };
                     let destination = crate::Expression {
+                        call_context: None,
                         kind: ExpressionKind::Referent(Box::new(descriptor)),
                         result: Some(referent),
                         source,
@@ -102,6 +104,7 @@ impl Program<'_> {
                 Ok(if slots[slot].homed {
                     Statement::Store {
                         destination: crate::Expression {
+                            call_context: None,
                             kind: ExpressionKind::Slot(slot),
                             result: Some(value_type),
                             source,
@@ -335,7 +338,8 @@ impl Program<'_> {
         } else {
             None
         };
-        let value = self.expression(id, slots, local.initial_value, declared)?;
+        let mut value = self.expression(id, slots, local.initial_value, declared)?;
+        crate::operational::boundary(&mut value);
         let Some(value_type) = value.result else {
             return Err(refuse(
                 id,

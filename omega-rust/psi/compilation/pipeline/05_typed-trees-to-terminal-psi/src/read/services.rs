@@ -301,6 +301,7 @@ impl<'t> Program<'t> {
                 *symbol,
                 signature,
                 crate::declare::Published {
+                    operational: signature.operational.published([false; 2]),
                     reach: &reach,
                     entries: &entries,
                 },

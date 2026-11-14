@@ -37,6 +37,7 @@ fn nowhere() -> SourceOrigin {
 
 fn expression(kind: ExpressionKind, result: Option<ScalarType>) -> Expression {
     Expression {
+        call_context: None,
         kind,
         result: result.map(ValueType::plain),
         source: nowhere(),
@@ -91,6 +92,7 @@ fn returns(value: Expression) -> Statement {
 
 fn signature(parameters: Vec<ScalarType>, result: Option<ScalarType>) -> Signature {
     Signature {
+        operational: Default::default(),
         parameters: scalars(parameters),
         erased: Vec::new(),
         borrowed: Vec::new(),
@@ -1838,6 +1840,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
 
 fn of_type(kind: ExpressionKind, result: ValueType) -> Expression {
     Expression {
+        call_context: None,
         kind,
         result: Some(result),
         source: nowhere(),
@@ -1868,6 +1871,7 @@ fn bind(slot: usize, value: Expression) -> Statement {
 
 fn shaped(parameters: Vec<ValueType>, result: Option<ValueType>) -> Signature {
     Signature {
+        operational: Default::default(),
         parameters,
         erased: Vec::new(),
         result,
@@ -2372,12 +2376,14 @@ fn a_module_with_records_declares_them_and_encodes() {
 
 fn store(slot: usize, path: &[usize], value: Expression) -> Statement {
     let mut destination = Expression {
+        call_context: None,
         kind: ExpressionKind::Slot(slot),
         result: None,
         source: nowhere(),
     };
     for field in path {
         destination = Expression {
+            call_context: None,
             kind: ExpressionKind::Field {
                 base: Box::new(destination),
                 field: *field,

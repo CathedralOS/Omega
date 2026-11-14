@@ -126,6 +126,7 @@ impl<'t> Program<'t> {
             _ => return unserved("erased term other than a literal or a binding"),
         };
         Ok(Expression {
+            call_context: None,
             kind,
             result: Some(ValueType::Scalar(result, Qualification::NONE)),
             source,
@@ -170,6 +171,7 @@ impl<'t> Program<'t> {
                     return self.borrow_value(id, slots, handle, expected, source);
                 }
                 let value = Expression {
+                    call_context: None,
                     kind: ExpressionKind::Slot(slot),
                     result: Some(slots[slot].value_type),
                     source,
@@ -182,6 +184,7 @@ impl<'t> Program<'t> {
                     && let Some((referent, _)) = self.reference_referent(id, slots[slot].value_type)?
                 {
                     return Ok(Expression {
+                        call_context: None,
                         kind: ExpressionKind::Referent(Box::new(value)),
                         result: Some(referent),
                         source,
@@ -337,6 +340,7 @@ impl<'t> Program<'t> {
                     .find(|(capture, _)| *capture == saved.capture)
                 {
                     Some((_, subject)) => Ok(Expression {
+                        call_context: None,
                         kind: ExpressionKind::SavedSubject(saved.capture),
                         result: subject.result,
                         source,
@@ -368,6 +372,7 @@ impl<'t> Program<'t> {
             ExpressionNode::ZeroValue(_) => return unserved("zero value"),
         };
         Ok(Expression {
+            call_context: None,
             kind,
             result: Some(ValueType::Scalar(result, Qualification::NONE)),
             source,
@@ -422,6 +427,7 @@ impl<'t> Program<'t> {
         }
         self.captures.push((matched.capture, subject.clone()));
         let saved = Expression {
+            call_context: None,
             kind: ExpressionKind::SavedSubject(matched.capture),
             result: subject.result,
             source: subject.source,
@@ -430,6 +436,7 @@ impl<'t> Program<'t> {
         self.captures.pop();
         let (arms, default, result) = read?;
         Ok(Expression {
+            call_context: None,
             kind: ExpressionKind::Match {
                 capture: Some(matched.capture),
                 subject: Box::new(subject),
@@ -703,6 +710,7 @@ impl<'t> Program<'t> {
             let named = |truth: bool| {
                 arms.iter().any(|(selector, _)| {
                     matches!(selector, Selector::Value(Expression {
+                        call_context: None,
                         kind: ExpressionKind::Boolean(value), ..
                     }) if *value == truth)
                 })
@@ -721,6 +729,7 @@ impl<'t> Program<'t> {
         }
         let result = result.ok_or_else(|| unserved("match without an arm"))?;
         Ok(Expression {
+            call_context: None,
             kind: ExpressionKind::Match {
                 capture: None,
                 subject: Box::new(subject),
@@ -736,6 +745,7 @@ impl<'t> Program<'t> {
 /// `subject in case`, the test of a case arm, as the reader reads it.
 pub(super) fn case_test_of(subject: &Expression, case: usize) -> Expression {
     Expression {
+        call_context: None,
         kind: ExpressionKind::IsCase {
             subject: Box::new(subject.clone()),
             case,
@@ -749,10 +759,12 @@ pub(super) fn case_test_of(subject: &Expression, case: usize) -> Expression {
 /// pattern with no guard of its own.
 pub(super) fn case_condition(subject: &Expression, case: usize) -> Expression {
     Expression {
+        call_context: None,
         kind: ExpressionKind::ShortCircuit {
             conjunction: true,
             left: Box::new(case_test_of(subject, case)),
             right: Box::new(Expression {
+                call_context: None,
                 kind: ExpressionKind::Boolean(true),
                 result: Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE)),
                 source: subject.source,
@@ -860,6 +872,7 @@ fn binary_expression(
                 return Err(typing("short-circuit operand is not bool"));
             }
             return Ok(Expression {
+                call_context: None,
                 kind: ExpressionKind::ShortCircuit {
                     conjunction: operator == BinaryOperator::And,
                     left: Box::new(left),
@@ -939,6 +952,7 @@ fn binary_expression(
         }
     };
     Ok(Expression {
+        call_context: None,
         kind: ExpressionKind::Strict {
             operation,
             left: Box::new(left),
@@ -981,6 +995,7 @@ fn suffixed_expression(
     let under_policy = |operand: Expression| match operand.result {
         Some(ValueType::Scalar(carrier @ ScalarType::Integer(_), Qualification::NONE)) => {
             Ok(Expression {
+                call_context: None,
                 kind: ExpressionKind::Requalify(Box::new(operand)),
                 result: Some(ValueType::Scalar(carrier, Qualification::of_policy(policy))),
                 source,
@@ -1010,6 +1025,7 @@ fn suffixed_expression(
         ));
     }
     Ok(Expression {
+        call_context: None,
         kind: ExpressionKind::Requalify(Box::new(computed)),
         result: Some(ValueType::Scalar(carrier, Qualification::NONE)),
         source,
@@ -1219,6 +1235,7 @@ mod tests {
     ) -> Result<ValueType, String> {
         let source = SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
         let operand = |slot, value_type| Expression {
+            call_context: None,
             kind: ExpressionKind::Slot(slot),
             result: Some(value_type),
             source,

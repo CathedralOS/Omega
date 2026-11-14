@@ -765,9 +765,6 @@ impl<'t> Program<'t> {
         {
             return unserved("service reach bound by an installation");
         }
-        if machine.suspends || machine.blocks {
-            return unserved("suspends or blocks");
-        }
         // A lifetime parameter selects no type, layout or monomorphized
         // copy (lifetimes.md: "Lifetime arguments are erased regions,
         // separate from runtime generic arity"): the body is read once with
@@ -1024,6 +1021,20 @@ impl<'t> Program<'t> {
             &binders,
             &[],
         )?;
+        // A private omission requests inference; public omission and an
+        // explicitly written false promise that the effect is absent.
+        let bound =
+            |allowed, written: bool| (machine.is_public || written || allowed).then_some(allowed);
+        signature.operational = crate::body::OperationalCeilings {
+            suspension: bound(
+                machine.suspends,
+                !machine.suspends_keyword_source_spans.is_empty(),
+            ),
+            blocking: bound(
+                machine.blocks,
+                !machine.blocks_keyword_source_spans.is_empty(),
+            ),
+        };
         signature.termination = self.termination(id, machine)?;
         self.inherit_requirement_contract(id, machine, &mut signature, &mut names)?;
         // A machine's header clauses belong to the machine declaration; its
@@ -1053,6 +1064,7 @@ impl<'t> Program<'t> {
                 signature.reaches = routed.reaches;
             }
             signature.invokes = routed.invokes;
+            signature.operational = routed.operational;
             signature.termination = routed.termination;
             if !matches!(routed.crashes, CrashCeiling::Inferred) {
                 signature.crashes = routed.crashes;
@@ -1347,22 +1359,13 @@ impl<'t> Program<'t> {
         arguments: &[semantic_vocabulary::ScalarTerm],
     ) -> Checked<(Signature, MachineNames)> {
         let (signature, names) = self.declared_requirement_signature(id, requirement, arguments)?;
-        // These callable and witness uses cannot yet carry operational proof.
-        // Do not treat declared suspension or blocking as absent.
-        if requirement.suspends || requirement.blocks {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Machine("suspends or blocks"),
-            ));
-        }
         Ok((signature, names))
     }
 
     /// Read the types, logical clauses and ceilings of a requirement.
     /// Boundary publication retains its suspension and blocking flags on the
     /// checked declaration, and an actual call still owes their proof. Other
-    /// consumers use `requirement_signature`, which refuses unsupported effects.
+    /// consumers use the same operational ceilings on their callable contract.
     pub(super) fn declared_requirement_signature(
         &mut self,
         id: MachineId,
@@ -1391,6 +1394,10 @@ impl<'t> Program<'t> {
             *count = (*count).max(previous_elisions.unwrap_or(0));
         }
         let (mut signature, names) = read?;
+        signature.operational = crate::body::OperationalCeilings {
+            suspension: Some(requirement.suspends),
+            blocking: Some(requirement.blocks),
+        };
         signature.termination = self.requirement_termination(id, requirement)?;
         Ok((signature, names))
     }
@@ -1781,6 +1788,7 @@ impl<'t> Program<'t> {
         };
         Ok((
             Signature {
+                operational: Default::default(),
                 parameters,
                 erased,
                 borrowed,

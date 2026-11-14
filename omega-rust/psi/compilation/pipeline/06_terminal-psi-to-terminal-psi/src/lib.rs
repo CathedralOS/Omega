@@ -60,6 +60,7 @@ mod graph;
 mod joins;
 mod known;
 mod minted;
+mod operational;
 mod places;
 mod prove;
 mod result_summaries;
@@ -380,6 +381,7 @@ fn discharge_inner(
     knowledge: Knowledge,
     carried: &[Carried<'_>],
 ) -> Checked<Discharge> {
+    operational::judge(elaboration)?;
     // A caller may retain old contents only outside the callee's actual
     // writes. Check every published frame before summaries or knowledge can
     // use it. Low-level proof reconstruction still states a conditional
@@ -1471,11 +1473,13 @@ pub(crate) fn callee(
                     ));
                 }
             }
-            if declaration.declaration.as_ref().is_some_and(|checked| {
-                checked.source.published_may_suspend || checked.source.published_may_block
-            }) {
+            if declaration
+                .declaration
+                .as_ref()
+                .is_some_and(|checked| checked.source.published_may_suspend)
+            {
                 return Err(unavailable(
-                    "boundary call needs its suspension and blocking proof",
+                    "boundary call needs its continuation, carry and loan preservation proof",
                 ));
             }
             if !declaration.requires.is_empty()

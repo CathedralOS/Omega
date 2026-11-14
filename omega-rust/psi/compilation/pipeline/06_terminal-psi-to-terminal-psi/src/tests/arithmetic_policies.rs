@@ -31,6 +31,7 @@ fn plain() -> ValueType {
 
 fn of(kind: ExpressionKind, result: ValueType) -> Expression {
     Expression {
+        call_context: None,
         kind,
         result: Some(result),
         source: nowhere(),
