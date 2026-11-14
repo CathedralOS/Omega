@@ -2347,7 +2347,7 @@ pub mod descriptor_results {
                 let address = steps[..count]
                     .iter()
                     .map(|step| match step {
-                        DescriptorContentsStep::Address(step) => Some(step.clone()),
+                        DescriptorContentsStep::Address(step) => Some(*step),
                         _ => None,
                     })
                     .collect::<Option<Vec<_>>>()?;

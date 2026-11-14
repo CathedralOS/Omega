@@ -2387,9 +2387,9 @@ pub mod borrowed_storage {
             stored_scalar: None,
         };
         let suffix = StructuralPathSegment::FixedIndex(3);
-        let projection = Projection::new(&[prefix.clone()])
-            .then(&Projection::new(&[view.clone()]))
-            .then(&Projection::new(&[suffix.clone()]));
+        let projection = Projection::new(std::slice::from_ref(&prefix))
+            .then(&Projection::new(std::slice::from_ref(&view)))
+            .then(&Projection::new(std::slice::from_ref(&suffix)));
         assert!(projection.exact);
         assert!(!projection.indirect);
         assert_eq!(projection.path, [prefix, view, suffix]);

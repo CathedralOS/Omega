@@ -1736,7 +1736,7 @@ pub(crate) mod reference_origins {
             let mut exact = Vec::new();
             for step in steps {
                 match step {
-                    DescriptorContentsStep::Address(segment) => exact.push(segment.clone()),
+                    DescriptorContentsStep::Address(segment) => exact.push(*segment),
                     DescriptorContentsStep::AnyElement { element } => {
                         let collection = descriptor_location_type(types, root, &exact)
                             .ok_or("returned view contents have no typed collection")?;
