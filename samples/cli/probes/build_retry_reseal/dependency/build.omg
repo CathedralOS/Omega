@@ -9,12 +9,12 @@ machine build(builder: &mut Build) {
     let template: BuildPath = BuildSource::resolve(&builder.source, "template.txt");
     let reader: i32 = BuildSource::open(&builder.source, template, 0);
     let mut bytes: [u8; 38];
-    _ = BuildSource::read(&builder.source, reader, &mut bytes, 38);
+    _ = BuildSource::read(&builder.source, reader, &mut bytes[..], 38);
     let _closed_reader: i32 = BuildSource::close(&builder.source, reader);
     let obligation: RequiredOutput = BuildOutput::require(&mut builder.output, "generated.omg");
     let generated: BuildPath = BuildOutput::resolve(&builder.output, "generated.omg");
     let writer: i32 = BuildOutput::create(&mut builder.output, generated, 0);
-    _ = BuildOutput::write(&mut builder.output, writer, &bytes);
+    _ = BuildOutput::write(&mut builder.output, writer, &bytes[..]);
     let first: OutputCompletion = BuildOutput::complete(&mut builder.output, obligation, generated);
     settle_first(builder, first, writer, generated);
 }

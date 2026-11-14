@@ -201,6 +201,12 @@ impl<'t> Program<'t> {
                     ) => (ExpressionKind::Not(Box::new(operand)), ScalarType::Boolean),
                     (
                         UnaryOperator::BitwiseNot,
+                        Some(ValueType::Scalar(ScalarType::Integer(address), Qualification::NONE)),
+                    ) if address.is_address() => {
+                        return unserved("arithmetic on an address");
+                    }
+                    (
+                        UnaryOperator::BitwiseNot,
                         Some(ValueType::Scalar(
                             integer @ ScalarType::Integer(_),
                             Qualification::NONE,
@@ -302,6 +308,28 @@ impl<'t> Program<'t> {
                     self.wholly_anonymous(binary.left),
                     self.wholly_anonymous(binary.right),
                 );
+                // An address is compared, never computed with here: address
+                // arithmetic relates counts to addresses under a fit proof
+                // (counts_and_addresses.md), which this reader does not form.
+                let address = |operand: &Expression| {
+                    matches!(
+                        operand.result.and_then(ValueType::scalar),
+                        Some(ScalarType::Integer(integer)) if integer.is_address()
+                    )
+                };
+                if (address(&left) || address(&right))
+                    && !matches!(
+                        binary.operator,
+                        BinaryOperator::Equal
+                            | BinaryOperator::NotEqual
+                            | BinaryOperator::Less
+                            | BinaryOperator::LessOrEqual
+                            | BinaryOperator::Greater
+                            | BinaryOperator::GreaterOrEqual
+                    )
+                {
+                    return unserved("arithmetic on an address");
+                }
                 return match suffix {
                     None => binary_expression(id, binary.operator, left, right, anonymous, source),
                     Some(policy) => suffixed_expression(

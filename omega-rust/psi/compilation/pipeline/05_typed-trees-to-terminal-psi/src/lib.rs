@@ -666,6 +666,7 @@ fn finish_reading<'source>(
             )
         })?;
     source.records = program.source_record_correspondence(diagnostic)?;
+    source.readiness = program.publish_readiness(diagnostic, &mut elaboration.module)?;
     for selected in &mut program.selections {
         if let Some(required) = selected.required_contract {
             selected.required_contract =

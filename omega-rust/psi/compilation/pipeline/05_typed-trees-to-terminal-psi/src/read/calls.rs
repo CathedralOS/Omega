@@ -939,7 +939,7 @@ impl<'t> Program<'t> {
     /// one: the Build host hands the reference to no other callee. Publication
     /// joins native bindings to their checked structural locator carrier.
     fn designate(
-        &self,
+        &mut self,
         id: MachineId,
         selection: arena::Handle<typed_trees::expression::BuildSelectionRequest>,
         read: &mut Expression,
@@ -955,9 +955,8 @@ impl<'t> Program<'t> {
         };
         let ExpressionKind::Call {
             callee: semantic_vocabulary::TargetMachineCallable::Boundary(boundary),
-            designated,
             ..
-        } = &mut read.kind
+        } = &read.kind
         else {
             return unserved("Build selection on a call that is no boundary operation");
         };
@@ -975,19 +974,59 @@ impl<'t> Program<'t> {
         if !protocol {
             return unserved("Build selection outside the toolchain's selection protocol");
         }
-        match request {
-            // Its host row names the requirement's application and the
-            // boundaries that application covers.
-            BuildSelectionRequest::ProviderReadiness(_) => {
-                return unserved("Build provider readiness needs its requirement application");
-            }
+        // Provider readiness names a boundary trait application. Its host
+        // row states that application and the boundaries it covers, so the
+        // application is retained as the same service row a call of one of
+        // its requirements uses (provider_selection.md, "Build provider
+        // readiness"). The route declares boundaries only of traits with no
+        // parameters (`boundary`), so an applied requirement stays refused.
+        let readiness = match request {
+            BuildSelectionRequest::ProviderReadiness(readiness) => Some(readiness.requirement),
             BuildSelectionRequest::Entry(_)
             | BuildSelectionRequest::Declaration(_)
-            | BuildSelectionRequest::Exclusion(_) => {}
-        }
+            | BuildSelectionRequest::Exclusion(_) => None,
+        };
+        let readiness = match readiness {
+            Some(requirement) => {
+                let typed = self.typed;
+                let lexical_owner = *self.symbols.get(id).ok_or_else(|| {
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Call("Build provider readiness without its selecting machine"),
+                    )
+                })?;
+                let scope = typed
+                    .build_provider_requirement_scope(requirement, lexical_owner)
+                    .map_err(|reason| refuse(id, Construct::Machine, Unserved::Call(reason)))?;
+                if !typed.trait_type_parameters(scope.declaration).is_empty()
+                    || !scope.declaration.lifetime_parameters.is_empty()
+                {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Call(
+                            "Build provider readiness for a requirement applied to arguments",
+                        ),
+                    ));
+                }
+                let service = self.service(id, scope)?;
+                self.awaits(service);
+                Some(service)
+            }
+            None => None,
+        };
+        let ExpressionKind::Call { designated, .. } = &mut read.kind else {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Call("Build selection on a call that is no boundary operation"),
+            ));
+        };
         *designated = Some(crate::body::DesignatedOperands {
             request: selection,
             selecting: id,
+            readiness,
         });
         Ok(())
     }

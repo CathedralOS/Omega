@@ -213,13 +213,6 @@ framework or a list of features that remain unimplemented.
 - Cost: an overflow or zero divisor that native code would trap on shows up as "the verified artifact is malformed" with no reason, so a native and Psi disagreement reads as an interpreter failure and the cause must be found by hand
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### Architecture rules are enforced by searching source text for substrings
-- Category: tests that pin the bug
-- Where: `omega-rust/omega/compilation/realization/provider-planning/src/source_guards.rs`, `omega-rust/omega/compilation/backend/plans/program-entry-plan/src/source_guards.rs`, `omega-rust/psi/foundation/access-plans/src/tests.rs`, `omega-rust/psi/interpreter/terminal-interpreter/src/embedding.rs`
-- Saw: remaining tests count function names, identity-field spellings, FNV constructors or shared-reader call text instead of checking retained identity, commitment or observation behavior.
-- Cost: formatting and harmless renaming break tests while equivalent forbidden behavior can pass under another spelling. Replace these semantic claims with behavior controls at their actual owners; dependency direction belongs to the existing Cargo-graph boundary checker.
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
 ### Typing refuses its own questions as if they waited for the checker
 - Category: a stage reaching across a boundary
 - Where: `03_symbol-resolved-trees-to-typed-trees/src/lib.rs` (`unavailable_judgment`) and its 26 callers, such as `typing_queries.rs` ("constructor field type", "call entry parameter types") and `type_reference.rs` ("closed const argument declaration custody")
@@ -247,13 +240,6 @@ framework or a list of features that remain unimplemented.
 - Saw: at fixed base `44ed2132219fb20261abeab4ef3e61b4ab0f845a`, `mbx test -p typed-trees --lib type_system::types::tests::instantiation_` passes the unchanged-row case and fails these two tests. They expect a bound array extent to refuse; `TypeReferenceTable::instantiate` explicitly forwards a valid named argument as an extent binder instead. The table has no symbol table with which to distinguish that forwarded value binder from the tests' named data type
 - Cost: the crate's unit suite is red independently of generated-machine ownership changes; the tests and the substitution owner's contract need to agree without weakening source-level value-index eligibility
 - Reported: 2026-11-14, Codex, while attributing the focused generated-application validation failures against its unchanged base
-
-### Provenance can audit another active Codex session
-- Category: an association discarded before its consumer
-- Where: `tools/xtask/src/provenance.rs`, Codex harness selection in `run`
-- Saw: `CODEX_THREAD_ID` selects the Codex harness, but the next step calls `find_latest_codex_transcript` instead of retaining that thread's transcript. In this concurrent run the default command reported `gpt-daybreak-blue-latest`; `provenance --transcript` with the file matching the actual `CODEX_THREAD_ID` reported `gpt-6.1-sol`
-- Cost: another worker's activity can change the model, token and time audit written on this worker's commit; an explicit matching `--transcript` is the current workaround
-- Reported: 2026-11-14, Codex, while generating the generated-application PR's final audit line
 
 ### The parser still accepts a boundary requirement with no `crashes` clause
 - Category: a verdict with nothing behind it
@@ -289,10 +275,3 @@ framework or a list of features that remain unimplemented.
 - Saw: `omega run --both` on the unchanged fixture reports `cannot prove requires contract for call settle from main: inferred input condition`, with `kernel Certificate(IntegerOrderMiddleMismatch)`, before either engine runs. Observed on Windows x86-64 with the scalar receiving-type diagnostic repair, then reproduced at the same line after restoring all changed production files exactly to `44ed2132219fb20261abeab4ef3e61b4ab0f845a` and rebuilding `omega` through `mbx`. The fixture is unchanged, and its contracts and guards were not weakened.
 - Cost: a simple scalar contract program cannot provide native/Psi execution evidence, and an invalid proof certificate is surfaced as a caller fact it should establish instead of identifying the proof producer's disagreement with the kernel
 - Reported: 2026-11-14, Codex, while checking scalar receiving-type diagnostics
-
-### Model-audit attribution ignores the active Codex thread
-- Category: ownership is recovered from unrelated ambient state
-- Where: `tools/xtask/src/provenance.rs` (`find_latest_codex_transcript` and `run`)
-- Saw: even when `CODEX_THREAD_ID` identifies the active worker, the default command chooses the most recently modified transcript anywhere under `.codex/sessions`. During concurrent work it selected another session; explicitly passing this worker's transcript produced different token, step and time totals. The explicit transcript's session metadata confirms the active thread and `/root/result_type_diagnostics` owner.
-- Cost: an ordinary generated model-audit footer can attribute another agent's work to a commit; locate the active thread's transcript before considering a latest-file fallback
-- Reported: 2026-11-14, Codex, while generating provider-plan cleanup provenance; used the explicit active transcript for this PR
