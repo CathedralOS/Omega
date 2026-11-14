@@ -541,10 +541,13 @@ impl<'t> Program<'t> {
             None => return Err(unserved("match with a Unit arm")),
         };
         if result.is_some_and(|result| result != value_type) {
-            return Err(refuse(
+            return Err(self.mistyped(
                 id,
-                Construct::Machine,
-                Unserved::Typing("match arm value type"),
+                value.source,
+                super::rejections::Destination::MatchArm,
+                result.map(ValueType::plain),
+                value.result,
+                "match arm value type",
             ));
         }
         *result = Some(value_type);

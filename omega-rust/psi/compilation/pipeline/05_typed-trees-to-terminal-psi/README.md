@@ -44,6 +44,15 @@ Calls, projections and constructors propagate that outcome in evaluation order;
 branch owners retain whichever paths still reach their join. A genuine refusal
 stays an error, independent of its diagnostic text.
 
+The reader also knows each supplied value's type. The shared
+[receiving-type diagnostics](src/read/rejections.rs) reject different scalar
+carriers, incompatible declared domains and unrelated declared result
+lifetimes at the supplied expression. Match arms use that same owner rather
+than treating a known carrier mismatch as an unsupported construct. A type or
+region relationship the reader cannot decide still refuses by name; no
+second expression-typing pass or source-text diagnostic classification is
+involved.
+
 ## The subset
 
 Machines with one state and a complete body whose formals, locals and result
