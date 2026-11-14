@@ -94,16 +94,24 @@ pub fn conventional_atomic_once_layout(
     integer: semantic_vocabulary::IntegerType,
     custody: language_core::atomic::AtomicCompareExchangeOnceResultCustody,
 ) -> Option<ConventionalSumLayout> {
+    let integer = semantic_vocabulary::ClosedIntegerType::try_from(integer).ok()?;
+    conventional_atomic_once_layout_closed(declaration, integer, custody)
+}
+
+pub fn conventional_atomic_once_layout_closed(
+    declaration: &StructuralTypeDeclaration,
+    integer: semantic_vocabulary::ClosedIntegerType,
+    custody: language_core::atomic::AtomicCompareExchangeOnceResultCustody,
+) -> Option<ConventionalSumLayout> {
     terminal_psi::types::atomic_once_outcome_cases(
         declaration,
-        ScalarType::Integer(integer),
+        ScalarType::Integer(integer.as_checking()),
         custody,
     )?;
-    if integer.is_address() || !matches!(integer.bits(), 8 | 16 | 32 | 64) {
+    if integer.is_address() {
         return None;
     }
-    let bytes = u32::from(integer.bits() / 8);
-    let field = ValueShape::integer(bytes, bytes as u16);
+    let field = ValueShape::for_closed_integer(integer)?;
     let cases = custody
         .outcome_identity
         .cases()
