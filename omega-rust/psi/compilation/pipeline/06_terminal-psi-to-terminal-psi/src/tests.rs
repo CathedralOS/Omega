@@ -28,6 +28,7 @@ mod arithmetic_policies;
 mod arrays;
 mod borrowed_restoration;
 mod boundary_calls;
+mod branch_warnings;
 mod build_purpose;
 mod byte_domains;
 mod byte_view_elements;

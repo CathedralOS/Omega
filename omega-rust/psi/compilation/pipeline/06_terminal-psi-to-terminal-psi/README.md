@@ -29,6 +29,10 @@ checks that the rows to decide are the ones the lowered form owes;
 [places.rs](src/places.rs) says what a place holds when a field read observes
 it, from the stores [places/log.rs](src/places/log.rs) derives from the
 operations; [prove.rs](src/prove.rs) is the one prover.
+[branch_warnings.rs](src/branch_warnings.rs) reports impossible authored arms
+from kernel-accepted refutations and their actual premise citations. Queries
+share results only within that machine's immutable advisory analysis; warning
+explanations neither retry assumption subsets nor decide program obligations.
 [joins.rs](src/joins.rs) infers and checks join predicates;
 [crashes.rs](src/crashes.rs) states crash-site coverage;
 [arrivals.rs](src/arrivals.rs) admits a loop head's declared invariant.
