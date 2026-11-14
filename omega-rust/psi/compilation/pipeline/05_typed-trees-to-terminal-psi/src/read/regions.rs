@@ -53,8 +53,132 @@ pub(crate) enum Region {
     Variable(u32),
 }
 
+/// One region variable. Undecided, it is some region no rule has pinned
+/// yet; a typing rule that needs it to be another region decides it
+/// (`decide`).
+///
+/// A variable that stands for a loan also has a ceiling. loans.md lists a
+/// loan resource's "captured place" and "parent lifetime" separately: the
+/// loan is formed where the program forms it and lives within the storage it
+/// lends, so its own region is some region inside the lent place's, not that
+/// place's region itself. That is what lets one lifetime take the loans of
+/// two places (`selected(left, right, first)` for `selected<'storage>(left:
+/// &'storage mut Cell, right: &'storage mut Cell, ..)`, a record literal in
+/// each arm of a `match`, a reference field assigned from another formal):
+/// lifetimes.md, "Returned views": "every reference leaf carrying the
+/// selected lifetime remains a possible source". The one region those loans
+/// share is within each lent place. Nothing here orders two named regions:
+/// a variable is decided as a named region only if that region is every
+/// ceiling it has, so a loan of one formal still never passes for a
+/// reference of another formal's lifetime.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RegionVariable {
+    /// What the variable was decided as, if it was: a named region, or the
+    /// variable it was made one with.
+    decided: Option<Region>,
+    /// The region the loan this variable stands for is within.
+    within: Option<Region>,
+    /// The next variable decided to be this same region: a cycle through
+    /// every variable made one with this one, so deciding the region asks
+    /// each member's ceiling without a search of the table.
+    peer: u32,
+}
+
 /// One substitution: each listed parameter stands for the region beside it.
 pub(crate) type Substitution = Vec<(LifetimeParameterIdentity, Region)>;
+
+impl Program<'_> {
+    /// A region nothing has decided yet.
+    pub(crate) fn fresh_region(&mut self) -> Region {
+        self.bounded_region(None)
+    }
+
+    /// The region of a loan of storage that is valid for `within`: some
+    /// region inside it, which the places the loan is given to decide.
+    pub(crate) fn loan_region(&mut self, within: Region) -> Region {
+        self.bounded_region(Some(within))
+    }
+
+    fn bounded_region(&mut self, within: Option<Region>) -> Region {
+        let variable = self.region_variables.len() as u32;
+        self.region_variables.push(RegionVariable {
+            decided: None,
+            within,
+            peer: variable,
+        });
+        Region::Variable(variable)
+    }
+
+    /// Decides the undecided `variable` as `other`, which is resolved and is
+    /// not `variable`. Two variables become one region with the ceilings of
+    /// both. A named region is admitted only when it is every ceiling of the
+    /// variable's members: a ceiling that is itself undecided is decided as
+    /// that region too, and any other ceiling refuses. On `false` the table
+    /// holds partial decisions, which the caller restores.
+    fn decide(&mut self, variable: u32, other: Region) -> bool {
+        self.region_variables[variable as usize].decided = Some(other);
+        if let Region::Variable(joined) = other {
+            let peer = self.region_variables[variable as usize].peer;
+            self.region_variables[variable as usize].peer =
+                self.region_variables[joined as usize].peer;
+            self.region_variables[joined as usize].peer = peer;
+            return true;
+        }
+        let mut member = variable;
+        loop {
+            if let Some(ceiling) = self.region_variables[member as usize].within {
+                let admitted = match self.resolved(ceiling) {
+                    ceiling if ceiling == other => true,
+                    Region::Variable(open) => self.decide(open, other),
+                    Region::Parameter(_) | Region::Fixed(_) => false,
+                };
+                if !admitted {
+                    return false;
+                }
+            }
+            member = self.region_variables[member as usize].peer;
+            if member == variable {
+                return true;
+            }
+        }
+    }
+
+    /// `region` as a diagnostic should name it: an undecided loan stands
+    /// for the one named region it is within, when there is exactly one.
+    pub(super) fn named_ceiling(&self, region: Region) -> Region {
+        self.ceiling_within(region, self.region_variables.len())
+    }
+
+    /// `named_ceiling`, following at most `depth` ceilings: two variables
+    /// made one region can each be the other's ceiling.
+    fn ceiling_within(&self, region: Region, depth: usize) -> Region {
+        let Region::Variable(variable) = self.resolved(region) else {
+            return self.resolved(region);
+        };
+        if depth == 0 {
+            return Region::Variable(variable);
+        }
+        let mut found = None;
+        let mut member = variable;
+        loop {
+            let row = self.region_variables[member as usize];
+            if let Some(ceiling) = row.within {
+                let ceiling = self.ceiling_within(ceiling, depth - 1);
+                match found {
+                    // Its own class adds no ceiling.
+                    _ if ceiling == Region::Variable(variable) => {}
+                    None => found = Some(ceiling),
+                    Some(known) if known == ceiling => {}
+                    Some(_) => return Region::Variable(variable),
+                }
+            }
+            member = row.peer;
+            if member == variable {
+                return found.unwrap_or(Region::Variable(variable));
+            }
+        }
+    }
+}
 
 impl Program<'_> {
     /// The tuple a `Regions` names.
@@ -309,12 +433,7 @@ impl Program<'_> {
                     ),
                 )),
             },
-            Elision::Variables => {
-                self.region_variables.push(None);
-                Ok(Some(Region::Variable(
-                    (self.region_variables.len() - 1) as u32,
-                )))
-            }
+            Elision::Variables => Ok(Some(self.fresh_region())),
         }
     }
 
@@ -388,8 +507,7 @@ impl Program<'_> {
             match self
                 .region_variables
                 .get(variable as usize)
-                .copied()
-                .flatten()
+                .and_then(|row| row.decided)
             {
                 Some(decided) => region = decided,
                 None => break,
@@ -404,6 +522,17 @@ impl Program<'_> {
     /// asks whether a value fits a place asks this, so a local whose type
     /// elides a lifetime takes the region of the first value that meets it.
     pub(crate) fn agrees(&mut self, actual: Option<ValueType>, expected: ValueType) -> bool {
+        if let Some(actual) = actual
+            && self.type_excludes_values(actual)
+        {
+            return true;
+        }
+        self.same_type(actual, expected)
+    }
+
+    /// Storage correspondence still requires the exact carrier, domains
+    /// and regions. An empty value supplies no right to reinterpret a place.
+    pub(crate) fn same_type(&mut self, actual: Option<ValueType>, expected: ValueType) -> bool {
         let Some(actual) = actual else {
             return false;
         };
@@ -424,17 +553,31 @@ impl Program<'_> {
             if left == right {
                 continue;
             }
-            match (left, right) {
+            let decided = match (left, right) {
                 (Region::Variable(variable), other) | (other, Region::Variable(variable)) => {
-                    self.region_variables[variable as usize] = Some(other);
+                    self.decide(variable, other)
                 }
-                _ => {
-                    self.region_variables = saved;
-                    return false;
-                }
+                _ => false,
+            };
+            if !decided {
+                self.region_variables = saved;
+                return false;
             }
         }
         true
+    }
+
+    pub(super) fn type_excludes_values(&mut self, actual: ValueType) -> bool {
+        if !matches!(actual, ValueType::Record(..)) {
+            return false;
+        }
+        let contracts = crate::inhabitation::SourceContracts(&self.records);
+        if self.inhabitation.extend(&contracts).is_err() {
+            // Missing type metadata supplies no coercion. Ordinary typing
+            // will retain its exact-type rule and refuse a mismatch.
+            return false;
+        }
+        crate::inhabitation::excludes_result(&self.inhabitation, Some(actual))
     }
 }
 
@@ -461,8 +604,12 @@ impl Program<'_> {
         match (left, right) {
             _ if left == right => true,
             (Region::Variable(variable), other) | (other, Region::Variable(variable)) => {
-                self.region_variables[variable as usize] = Some(other);
-                true
+                let saved = self.region_variables.clone();
+                let decided = self.decide(variable, other);
+                if !decided {
+                    self.region_variables = saved;
+                }
+                decided
             }
             _ => false,
         }
@@ -636,8 +783,7 @@ impl Program<'_> {
             {
                 continue;
             }
-            let variable = Region::Variable(self.region_variables.len() as u32);
-            self.region_variables.push(None);
+            let variable = self.fresh_region();
             contextual.push((parameter, variable));
         }
         self.substitute(value_type, &contextual)

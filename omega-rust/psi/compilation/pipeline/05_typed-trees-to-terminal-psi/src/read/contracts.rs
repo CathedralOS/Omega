@@ -196,6 +196,31 @@ impl Program<'_> {
         }
     }
 
+    /// Read one authored callable predicate at the observation its contract
+    /// chooses. Both ordinary and projected refinement signatures use this
+    /// owner; naming a logical membership never introduces its own evidence.
+    pub(super) fn contract_clause(
+        &self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        fact: &ProofFact,
+        requirement: bool,
+    ) -> Checked<Option<(Proposition, ClauseText)>> {
+        if let Some(logical) = scope.logical
+            && let ProofFact::Membership(membership) = fact
+        {
+            return logical.membership_clause(self, scope, membership).map(Some);
+        }
+        let expression = self.fact(id, fact)?;
+        if self.states_nothing(id, expression, requirement)? {
+            return Ok(None);
+        }
+        Ok(Some((
+            self.clause(id, scope, expression)?,
+            self.clause_text(scope.slots, expression),
+        )))
+    }
+
     pub(super) fn clause(
         &self,
         id: MachineId,
@@ -443,6 +468,16 @@ impl Program<'_> {
 
     fn clause_operand_type(&self, id: MachineId, value_type: ValueType) -> Checked<ScalarType> {
         match value_type {
+            // structural_predicates.md, "Equality expansion": "IEEE leaves
+            // retain the exact format and IEEE comparison kind: NaN is not
+            // reflexive and signed zeros compare equal. Do not replace them
+            // with mathematical equality." A clause comparison here is the
+            // mathematical one, so a float operand has no reader yet.
+            ValueType::Scalar(ScalarType::IeeeFloat(_), _) => Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("comparison of floats in a clause"),
+            )),
             ValueType::Scalar(scalar, qualification) if qualification.domains.is_empty() => {
                 Ok(scalar)
             }
@@ -753,6 +788,11 @@ impl Program<'_> {
             ));
         }
         let argument = self.old_argument(id, call)?;
+        if let Some(logical) = scope.logical
+            && let Some((term, scalar)) = logical.old_term(self.typed, argument)?
+        {
+            return Ok((term, ValueType::plain(scalar)));
+        }
         let inputs = ClauseScope {
             result: ResultTerm::Absent("result has no callable-entry value"),
             formal_fields: true,

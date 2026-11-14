@@ -2,11 +2,14 @@
 //! Targets and composition come from execution; source supplies the exact slot,
 //! provider, and lexical author. Nothing here executes or accepts a provider body.
 
-use super::provider_declarations::{ProviderPlanningContext, ProviderSelection, form, identity};
+use super::provider_declarations::{
+    ProviderPlanningContext, ProviderSelection, ProviderSelectionIdentity, form, identity,
+};
 use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::product_operands::ProductStaticEnvironment;
 use language_semantics::declaration_selection::{
-    BuildOperation, BuildSelectionOrigin, ExecutedProductSelection, ProductDeclarationRequest,
-    ProductOperandRole,
+    BuildOperation, BuildSelectionOrigin, ExecutedProductSelection, ProductDeclarationOperand,
+    ProductDeclarationRequest, ProductOperandRole,
 };
 use std::sync::Arc;
 use symbols::SymbolHandle;
@@ -19,7 +22,9 @@ use typed_trees::product_operand::{
 struct Formation<'request> {
     request: &'request ProductDeclarationRequest,
     author: SymbolHandle,
-    selection: ProviderSelection,
+    /// `None` for a request authored inside a generic helper: each executed
+    /// choice forms its own selection from the helper's arguments.
+    selection: Option<ProviderSelection>,
 }
 
 type OccurrenceKey = (usize, usize, usize);
@@ -69,11 +74,111 @@ fn author(
     Ok(owner)
 }
 
+/// One operand of a request as the declaration it names and, when it is
+/// applied to static arguments, the application typed preparation formed
+/// for it (`typed_trees_to_typed_trees::prepare_product_operand_application`).
+struct Operand {
+    identity: ProviderSelectionIdentity,
+    /// The operand names a parameter of the generic helper that wrote it,
+    /// and this reading has no environment: the request as authored.
+    open: bool,
+}
+
+fn operand(
+    context: ProviderPlanningContext<'_>,
+    request: &ProductDeclarationRequest,
+    operand: &ProductDeclarationOperand,
+    role: ProductOperandRole,
+    author: SymbolHandle,
+    environment: Option<&ProductStaticEnvironment>,
+) -> Result<Operand, Vec<Diagnostic>> {
+    let typed = context.typed;
+    let symbol = resolve_product_path(typed, &operand.path, operand.source_span, role)
+        .ok_or_else(|| {
+            refusal(
+                request,
+                format!(
+                    "cannot select provider operand `{}` here; it must name one visible declaration of the required kind",
+                    operand.path,
+                ),
+            )
+        })?;
+    let mut identity = identity(context, symbol, &operand.path);
+    if operand.application.is_none() {
+        return Ok(Operand {
+            identity,
+            open: false,
+        });
+    }
+    let Some(application) = typed.prepared_product_operand(operand, environment, author, role)
+    else {
+        // Only the authored request of a generic helper is read without
+        // its application: an executed choice always has one.
+        return if environment.is_none() {
+            Ok(Operand {
+                identity,
+                open: true,
+            })
+        } else {
+            Err(refusal(
+                request,
+                "executed provider choice lost the application of its operand",
+            ))
+        };
+    };
+    let text = typed
+        .product_operand_application_identity(application)
+        .map_err(|reason| refusal(request, reason))?
+        .map(|identity| {
+            typed
+                .type_identity_text(identity)
+                .ok_or_else(|| refusal(request, "provider application lost its canonical identity"))
+        })
+        .transpose()?;
+    identity.application = application;
+    identity.applied = text.is_some();
+    identity.application_identity = text;
+    Ok(Operand {
+        identity,
+        open: false,
+    })
+}
+
+/// The application of its trait a provider satisfies: the one typed
+/// preparation retained for an applied provider, the declared one for a
+/// provider with no parameters of its own.
+fn satisfied_application(
+    typed: &TypedTrees,
+    provider: &ProviderSelectionIdentity,
+) -> Option<(SymbolHandle, String)> {
+    let scope = if provider.applied {
+        typed
+            .product_operand_applications
+            .get(provider.application)
+            .scope
+            .scope(typed)?
+    } else {
+        typed_trees::trait_definition::AppliedTraitScope::from_conformance(
+            typed,
+            typed.conformance_by_symbol(provider.symbol)?,
+        )?
+    };
+    let identity = scope.portable_application_identity(typed)?;
+    Some((
+        scope.declaration.symbol,
+        typed.type_identity_text(identity)?,
+    ))
+}
+
+/// The selection a request describes under `environment`, or `None` for a
+/// request authored inside a generic helper and read without the helper's
+/// arguments: its operands name no application yet.
 fn formation(
     context: ProviderPlanningContext<'_>,
     request: &ProductDeclarationRequest,
     author: SymbolHandle,
-) -> Result<ProviderSelection, Vec<Diagnostic>> {
+    environment: Option<&ProductStaticEnvironment>,
+) -> Result<Option<ProviderSelection>, Vec<Diagnostic>> {
     request
         .validate_shape()
         .map_err(|reason| refusal(request, reason))?;
@@ -83,35 +188,63 @@ fn formation(
             "provider request needs an exact slot and provider",
         ));
     };
-    if request
-        .operands
-        .iter()
-        .any(|operand| operand.application.is_some())
-    {
-        return Err(refusal(
-            request,
-            "no product route yet: provider choices with compile-time arguments",
-        ));
+    let slot = operand(
+        context,
+        request,
+        slot,
+        ProductOperandRole::BoundarySubject,
+        author,
+        environment,
+    )?;
+    let provider = operand(
+        context,
+        request,
+        provider,
+        ProductOperandRole::Provider,
+        author,
+        environment,
+    )?;
+    if slot.open || provider.open {
+        return Ok(None);
     }
-    let resolve =
-        |operand: &language_semantics::declaration_selection::ProductDeclarationOperand, role| {
-            resolve_product_path(context.typed, &operand.path, operand.source_span, role)
-            .map(|symbol| identity(context, symbol, &operand.path))
-            .ok_or_else(|| refusal(request, format!(
-                "cannot select provider operand `{}` here; it must name one visible declaration of the required kind",
-                operand.path,
-            )))
-        };
-    let slot = resolve(slot, ProductOperandRole::BoundarySubject)?;
-    let provider = resolve(provider, ProductOperandRole::Provider)?;
+    // provider_selection.md, "Generic selected requirements": "Keep
+    // concrete generic arguments in the closure keys rather than collapsing
+    // `Stage<1>` and `Stage<2>` to one trait or provider declaration." A
+    // provider chosen for `Stage<1>` must therefore satisfy `Stage<1>`
+    // itself, not only the trait `Stage`.
+    if let Some(selected) = &slot.identity.application_identity {
+        let satisfied = satisfied_application(context.typed, &provider.identity);
+        if satisfied.as_ref().is_none_or(|(declaration, application)| {
+            *declaration != slot.identity.symbol || application != selected
+        }) {
+            return Err(refusal(
+                request,
+                format!(
+                    "provider `{}` does not satisfy the selected application of `{}`: it satisfies `{}` and the choice selects `{selected}`",
+                    provider.identity.authored_path,
+                    slot.identity.authored_path,
+                    satisfied
+                        .map_or_else(|| "no complete application".to_owned(), |(_, text)| text),
+                ),
+            ));
+        }
+    }
     let span = context
         .typed
         .symbols
         .rejoin_product_occurrence(request.source_span);
     let origin = BuildSelectionOrigin::capture(&context.typed.symbols, author, author, span, None)
         .map_err(|reason| refusal(request, reason))?;
-    form(context, slot, provider, origin, None, Default::default())
-        .map_err(|diagnostic| vec![diagnostic.with_source_span(request.source_span)])
+    form(
+        context,
+        slot.identity,
+        provider.identity,
+        origin,
+        None,
+        Default::default(),
+    )
+    .map(Some)
+    .map_err(|diagnostic| vec![diagnostic.with_source_span(request.source_span)])
 }
 
 pub(super) fn collect(
@@ -145,7 +278,7 @@ pub(super) fn collect(
         formations.push(Formation {
             request,
             author,
-            selection: formation(context, request, author)?,
+            selection: formation(context, request, author, None)?,
         });
     }
     let mut selections: Vec<ProviderSelection> = Vec::new();
@@ -177,7 +310,29 @@ pub(super) fn collect(
             .take_while(|row| key(typed, row.request) == selected)
             .find(|row| row.author == author && typed.same_product_request_source(row.request, request))
             .ok_or_else(|| refusal(request, "executed provider choice does not match its declared source occurrence and author"))?;
-        let mut selection = formation.selection.clone();
+        // A choice whose operands are applied is formed from what this
+        // execution gave the helper that made it: two calls of one helper
+        // share the authored request and differ in their arguments.
+        let applied = request
+            .operands
+            .iter()
+            .any(|operand| operand.application.is_some());
+        let formed = if applied {
+            self::formation(
+                context,
+                request,
+                author,
+                event.static_environment.as_deref(),
+            )?
+        } else {
+            formation.selection.clone()
+        };
+        let mut selection = formed.ok_or_else(|| {
+            refusal(
+                request,
+                "executed provider choice names a helper parameter with no value",
+            )
+        })?;
         selection.target = Some(event.target.ok_or_else(|| {
             refusal(
                 request,

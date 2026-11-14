@@ -52,23 +52,29 @@ fn usage() -> &'static str {
     "\
 usage: cargo xtask <command> [options]
 
-commands:
-  fmt              Format all workspace targets in bounded rustfmt chunks
-  check-boundary   Verify native/runtime production dependency and Psi/Omega boundaries
-  check-rules      Verify commit lane, PR provenance, ratchets, and board hygiene
-  rust-producer-omission  Audit declared bootstrap dependencies (developer-only)
-  sample-gate      Run differential native + Terminal Psi sample verification
-  qualify          Run exact sample selections with retained producer evidence
-  doctor           Run host toolchain and repository preflight checks
-  claims           Inspect or update the cross-session work-claim registry
-  provenance       Emit the canonical model-audit footer from the active session transcript
-  worktree         List, acquire/recycle, release, or clean isolated `.agents/worktree/` checkouts
-  managed-cache-retention  Retain the managed session's shared worker pool in mbx
+verification and gates:
+  check-rules               Verify commit lane, PR provenance, ratchets, and board hygiene
+  check-boundary            Verify native/runtime production dependency and Psi/Omega boundaries
+  sample-gate               Run differential native + Psi sample verification
+  qualify                   Run exact sample selections with retained producer evidence
+  sweep                     Run omega --check over the programs and group where each one stops
+  rust-producer-omission    Audit declared bootstrap dependencies (developer-only)
+
+formatting and migration:
+  fmt                       Format all workspace targets in bounded rustfmt chunks
   retire-attached-machines  Rewrite retired `machine Data::member` declarations as free machines
-  alpha-forge      Resolve an Alpha Windows .hex listing into the seed image
-  gamma-invoke     Frame Gamma source and run one evaluator
-  source-closure   Check and concatenate an ordered source-closure manifest
-  sweep            Run omega --check over the programs and group where each one stops"
+
+coordination and workspace:
+  doctor                    Run host toolchain and repository preflight checks
+  claims                    Inspect or update the cross-session work-claim registry
+  worktree                  List, acquire/recycle, release, or clean isolated `.agents/worktree/` checkouts
+  managed-cache-retention   Retain the managed session's shared worker pool in mbx
+  provenance                Emit the canonical model-audit footer from the active session transcript
+
+bootstrap tools:
+  alpha-forge               Resolve an Alpha Windows .hex listing into the seed image
+  gamma-invoke              Frame Gamma source and run one evaluator
+  source-closure            Check and concatenate an ordered source-closure manifest"
 }
 
 fn main() -> ExitCode {
@@ -103,5 +109,39 @@ fn main() -> ExitCode {
     match result {
         Ok(()) => ExitCode::SUCCESS,
         Err(code) => ExitCode::from(code),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::usage;
+
+    #[test]
+    fn usage_uses_public_psi_name_and_lists_all_subcommands() {
+        let help = usage();
+        assert!(
+            !help.contains("Terminal Psi"),
+            "user-facing usage must use Psi, not Terminal Psi"
+        );
+        for cmd in [
+            "fmt",
+            "check-boundary",
+            "check-rules",
+            "rust-producer-omission",
+            "sample-gate",
+            "qualify",
+            "doctor",
+            "claims",
+            "provenance",
+            "worktree",
+            "managed-cache-retention",
+            "retire-attached-machines",
+            "alpha-forge",
+            "gamma-invoke",
+            "source-closure",
+            "sweep",
+        ] {
+            assert!(help.contains(cmd), "usage missing subcommand `{cmd}`");
+        }
     }
 }

@@ -591,9 +591,12 @@ pub mod provider_declarations {
             )));
         }
         let slot_kind = typed.symbols.get(slot.symbol).kind;
-        if typed
-            .trait_definition_by_symbol(slot.symbol)
-            .is_some_and(|definition| !definition.type_parameters.is_empty())
+        // A slot or provider with parameters is selected only as one
+        // closed application of them, which its identity then states.
+        if slot.application_identity.is_none()
+            && typed
+                .trait_definition_by_symbol(slot.symbol)
+                .is_some_and(|definition| !definition.type_parameters.is_empty())
         {
             return Err(Diagnostic::error(format!(
                 "no product route yet: provider slot `{}` requires its complete static application",
@@ -642,7 +645,10 @@ pub mod provider_declarations {
                 provider.authored_path
             )));
         }
-        if implementation.is_some_and(|implementation| !implementation.type_parameters.is_empty()) {
+        if provider.application_identity.is_none()
+            && implementation
+                .is_some_and(|implementation| !implementation.type_parameters.is_empty())
+        {
             return Err(Diagnostic::error(format!(
                 "no product route yet: provider `{}` requires its complete static application",
                 provider.authored_path,
