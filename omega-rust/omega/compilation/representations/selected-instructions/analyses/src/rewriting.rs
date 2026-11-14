@@ -122,12 +122,12 @@ pub mod operand_probes {
     use register_model::RegisterOperandAccess;
     use selected_instructions::{
         MachineBarrier, MachineCallEffect, MachineCleanupEffect, MachineEffectDeclaration,
-        MachineMemoryEffect, MachineSemanticKind, MachineTrapBehavior, SelectedInstruction,
-        ValidatedMachineEffectCatalog, VirtualRegisterId,
+        MachineMemoryEffect, MachineSemanticKind, MachineTrapBehavior,
+        PreparedMachineEffectCatalog, SelectedInstruction, VirtualRegisterId,
     };
 
     pub fn effect_declaration(
-        catalog: &ValidatedMachineEffectCatalog,
+        catalog: &PreparedMachineEffectCatalog,
         semantic: MachineSemanticKind,
         constraint: register_model::RegisterConstraintKey,
     ) -> Option<&MachineEffectDeclaration> {
