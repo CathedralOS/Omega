@@ -6169,7 +6169,7 @@ pub(crate) mod portable_machine_applications {
         }
     }
 
-    fn static_binding_operand<'a>(
+    pub(super) fn static_binding_operand<'a>(
         kind: &TypeParameterKind,
         value: &'a StaticMachineBindingValue,
     ) -> Result<(&'static str, IndexIdentityArgument<'a>), String> {
@@ -8214,9 +8214,15 @@ impl TypedTrees {
         &self,
         symbol: SymbolHandle,
     ) -> Result<String, String> {
-        let symbol = self.data_field_declaration_symbol(symbol)?;
         if !symbol.is_valid() {
             return Err("a hermetic identity contains an unresolved declaration".to_owned());
+        }
+        if !self.symbols.symbols().nodes().is_valid(symbol) {
+            return Err("a hermetic identity contains a stale declaration".to_owned());
+        }
+        let symbol = self.data_field_declaration_symbol(symbol)?;
+        if let Some(application) = self.closed_requirement_application(symbol) {
+            return self.closed_requirement_declaration_identity(symbol, application);
         }
         if let Some(identity) = derived_declarations::nominal_name(
             self,
@@ -8252,6 +8258,122 @@ impl TypedTrees {
                 "declaration `{path}` has no retained source/package provenance"
             )),
         }
+    }
+
+    fn closed_requirement_declaration_identity(
+        &self,
+        symbol: SymbolHandle,
+        application: crate::ClosedRequirementApplication<'_>,
+    ) -> Result<String, String> {
+        let live = |symbol| self.symbols.symbols().nodes().is_valid(symbol);
+        if !live(application.template)
+            || !live(application.declaring_trait)
+            || self.symbols.get(symbol).generated_from != application.template
+            || application.signature.symbol != symbol
+        {
+            return Err("a closed requirement identity lost its declaration origin".into());
+        }
+        let owner = self
+            .trait_definition_by_symbol(application.declaring_trait)
+            .ok_or("a closed requirement identity lost its declaring trait")?;
+        let declared = self
+            .trait_machine_signatures(owner)
+            .iter()
+            .find(|signature| signature.symbol == application.template)
+            .ok_or("a closed requirement identity lost its original requirement")?;
+        if !self
+            .expression_table
+            .static_machine_application_is_valid(application.application)
+        {
+            return Err("a closed requirement identity has a stale application".into());
+        }
+        let source = self.static_machine_application(application.application);
+        if source.registration_operation != application.template
+            || source.binding_declaration != application.template
+            || !live(source.lexical_owner)
+        {
+            return Err("a closed requirement identity applies another declaration".into());
+        }
+        let parameters = self.state_signature_type_parameters(declared);
+        let bindings = self.static_machine_application_bindings(application.application);
+        if parameters.len() != bindings.len()
+            || parameters.len()
+                != self
+                    .static_machine_application_arguments(application.application)
+                    .len()
+            || parameters.len() != application.local_arguments.len()
+            || parameters.len() != application.portable_local_arguments.len()
+            || parameters.len() != application.invocation_contract_parameters.len()
+            || self.trait_type_parameters(owner).len() != application.trait_arguments.len()
+        {
+            return Err("a closed requirement identity has an incomplete argument tuple".into());
+        }
+        if application
+            .trait_arguments
+            .iter()
+            .copied()
+            .chain(
+                application
+                    .local_arguments
+                    .iter()
+                    .map(|argument| argument.type_reference()),
+            )
+            .any(|reference| !self.contains_type_reference(reference))
+        {
+            return Err("a closed requirement identity has a stale argument".into());
+        }
+        let outer = self
+            .type_identity_text(application.portable_trait_application_identity)
+            .filter(|identity| !identity.is_empty())
+            .ok_or("a closed requirement identity lost its portable trait application")?;
+        let mut arguments = Vec::with_capacity(parameters.len());
+        for (ordinal, parameter) in parameters.iter().enumerate() {
+            let binding = &bindings[ordinal];
+            if !live(parameter.symbol) || binding.parameter != parameter.symbol {
+                return Err("a closed requirement identity binds another parameter".into());
+            }
+            let (kind, _) = portable_machine_applications::static_binding_operand(
+                &parameter.kind,
+                &binding.value,
+            )?;
+            if matches!(
+                application.local_arguments[ordinal],
+                crate::RequirementLocalArgument::RuntimeValue { .. }
+            ) != matches!(
+                binding.value,
+                crate::static_applications::StaticMachineBindingValue::RuntimeValue { .. }
+            ) {
+                return Err("a closed requirement identity changes an argument's category".into());
+            }
+            let identity = application.portable_local_arguments[ordinal];
+            if self
+                .type_identities
+                .text(identity)
+                .is_none_or(|text| text.is_empty())
+            {
+                return Err("a closed requirement identity lost a portable argument".into());
+            }
+            let argument = self
+                .requirement_argument_identity_text(application.local_arguments[ordinal], identity)
+                .ok_or("a closed requirement identity lost a portable argument")?;
+            arguments.push(compound(
+                CoordinateTag::Parameter,
+                [atom(Label::Kind, kind), argument],
+            ));
+        }
+        // Generated roots share a display name. Their declaration identity must
+        // retain the original owner and every applied argument instead.
+        Ok(compound(
+            CoordinateTag::ClosedRequirement,
+            [
+                atom(
+                    CoordinateTag::Template,
+                    &self.normalized_hermetic_symbol_identity(application.template)?,
+                ),
+                atom(CoordinateTag::TraitApplication, &outer),
+                compound(CoordinateTag::LocalArguments, arguments),
+            ],
+        ))
     }
 
     pub fn normalized_type_identity(
@@ -8931,4 +9053,188 @@ where
     values.push(value.clone());
     slots.insert(value, interned);
     interned
+}
+#[cfg(test)]
+mod closed_requirement_declaration_tests {
+    use super::package_policy_reading_tests::fixture::Fixture;
+    use crate::data::{TypeParameter, TypeParameterKind};
+    use crate::expression::StaticMachineArgument;
+    use crate::name::Identifier;
+    use crate::signature::StateSignature;
+    use crate::static_applications::{StaticMachineBinding, StaticMachineBindingValue};
+    use crate::trait_definition::{AppliedTraitScope, TraitDefinition};
+    use symbols::{SymbolHandle, SymbolKind};
+
+    #[test]
+    fn closed_requirement_identities_retain_template_and_all_arguments() {
+        let mut fixture = Fixture::new();
+        let receiver = fixture.symbol("Hooks");
+        let other_type = fixture.named("Payload");
+        let seven = fixture.integer(7);
+        let seven = fixture.index(seven);
+        let eight = fixture.integer(8);
+        let eight = fixture.index(eight);
+        let scalar = fixture.u64_type;
+        let program = &mut fixture.program;
+        let template = program
+            .symbols
+            .insert_generated_children(receiver, [(SymbolKind::State, "send")])
+            .start();
+        let binders = program.symbols.insert_generated_children(
+            template,
+            [
+                (SymbolKind::TypeParameter, "T"),
+                (SymbolKind::TypeParameter, "N"),
+                (SymbolKind::TypeParameter, "V"),
+            ],
+        );
+        let kinds = [
+            TypeParameterKind::Type,
+            TypeParameterKind::Const {
+                type_reference: scalar,
+            },
+            TypeParameterKind::Value {
+                type_reference: scalar,
+            },
+        ];
+        let parameters =
+            program.data_type_parameters.insert_many(
+                ["T", "N", "V"].into_iter().zip(kinds).enumerate().map(
+                    |(ordinal, (name, kind))| TypeParameter {
+                        symbol: binders.handle_at(u32::try_from(ordinal).unwrap()),
+                        name: Identifier::generated(name),
+                        kind,
+                        ..Default::default()
+                    },
+                ),
+            );
+        let mut declaration = TraitDefinition {
+            symbol: receiver,
+            name: Identifier::generated("Hooks"),
+            is_boundary: true,
+            ..Default::default()
+        };
+        program.push_trait_machine_signature(
+            &mut declaration,
+            StateSignature {
+                symbol: template,
+                name: Identifier::generated("send"),
+                type_parameters: parameters,
+                return_type: scalar,
+                ..Default::default()
+            },
+        );
+        let environment = AppliedTraitScope::abstract_scope(&declaration).environment();
+        program.push_trait_definition(declaration);
+        let close = |program: &mut crate::TypedTrees, values: [StaticMachineBindingValue; 3]| {
+            let actuals = values.each_ref().map(|value| StaticMachineArgument {
+                type_reference: match value {
+                    StaticMachineBindingValue::Type(reference)
+                    | StaticMachineBindingValue::Const(reference)
+                    | StaticMachineBindingValue::RuntimeValue {
+                        type_reference: reference,
+                        ..
+                    } => *reference,
+                    _ => unreachable!("the fixture supplies only types and values"),
+                },
+                ..Default::default()
+            });
+            let application = program.expression_table.retain_static_machine_application(
+                template,
+                Identifier::generated("send"),
+                &actuals,
+            );
+            let source = program
+                .expression_table
+                .static_machine_application_mut(application);
+            source.binding_declaration = template;
+            source.lexical_owner = receiver;
+            let bindings = values
+                .into_iter()
+                .enumerate()
+                .map(|(ordinal, value)| StaticMachineBinding {
+                    parameter: binders.handle_at(u32::try_from(ordinal).unwrap()),
+                    value,
+                })
+                .collect::<Vec<_>>();
+            program
+                .expression_table
+                .set_static_machine_application_bindings(application, &bindings);
+            program
+                .expression_table
+                .set_static_machine_application_lifetimes(application, template, &[]);
+            let instance = program
+                .instantiate_requirement_application(&environment, template, &[], application)
+                .unwrap();
+            (instance, application)
+        };
+        use StaticMachineBindingValue::{Const, RuntimeValue, Type};
+        let (first, source) = close(program, [Type(scalar), Const(seven), Const(seven)]);
+        assert_eq!(
+            first,
+            close(program, [Type(scalar), Const(seven), Const(seven)]).0
+        );
+        let second_type = close(program, [Type(other_type), Const(seven), Const(seven)]).0;
+        let second_const = close(program, [Type(scalar), Const(eight), Const(seven)]).0;
+        let runtime = close(
+            program,
+            [
+                Type(scalar),
+                Const(seven),
+                RuntimeValue {
+                    type_reference: scalar,
+                    subject: SymbolHandle::invalid(),
+                    expression: Default::default(),
+                },
+            ],
+        )
+        .0;
+        let identities = [first, second_type, second_const, runtime].map(|symbol| {
+            assert_eq!(
+                program.symbols.symbol_provenance_source_span(symbol),
+                program.symbols.symbol_provenance_source_span(template)
+            );
+            program.normalized_hermetic_symbol_identity(symbol).unwrap()
+        });
+        for (ordinal, identity) in identities.iter().enumerate() {
+            assert!(
+                identity.contains(
+                    &program
+                        .normalized_hermetic_symbol_identity(template)
+                        .unwrap()
+                )
+            );
+            assert!(
+                identities[..ordinal]
+                    .iter()
+                    .all(|previous| previous != identity)
+            );
+        }
+        assert!(identities[0].contains("kind(4:type)"));
+        assert!(identities[0].contains("kind(5:const)"));
+        assert!(identities[3].contains("runtime-value-carrier"));
+        program
+            .expression_table
+            .static_machine_application_mut(source)
+            .binding_declaration = receiver;
+        assert!(program.normalized_hermetic_symbol_identity(first).is_err());
+        program
+            .expression_table
+            .static_machine_application_mut(source)
+            .binding_declaration = template;
+        program
+            .expression_table
+            .set_static_machine_application_bindings(source, &[]);
+        assert!(program.normalized_hermetic_symbol_identity(first).is_err());
+        assert!(
+            program
+                .normalized_hermetic_symbol_identity(SymbolHandle::invalid())
+                .is_err()
+        );
+        assert!(
+            program
+                .normalized_hermetic_symbol_identity(SymbolHandle::from_parts(u32::MAX, 1))
+                .is_err()
+        );
+    }
 }

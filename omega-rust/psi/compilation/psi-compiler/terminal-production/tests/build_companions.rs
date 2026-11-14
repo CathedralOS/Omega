@@ -811,6 +811,92 @@ machine build(builder: &mut Build) { Probe::send<u64>(9u64); Probe::send(11u64);
 }
 
 #[test]
+fn distinct_closed_boundary_arguments_keep_distinct_source_declarations() {
+    let prelude = PRELUDE.replace(
+        "machine poke(value: u64) reaches none crashes none;",
+        "machine poke(value: u64) reaches none crashes none;\n    machine send<T>(value: T) reaches none crashes none;",
+    );
+    let accepted = accepted_frontier(
+        typed_with_prelude(
+            r#"
+machine build(builder: &mut Build) {
+    Probe::send<u64>(9u64);
+    Probe::send(11u64);
+    Probe::send<u32>(9u32);
+    Probe::send(11u32);
+}
+"#,
+            &prelude,
+        ),
+        terminal_codec::TerminalPublication::Invocation,
+    )
+    .unwrap_or_else(|refused| panic!("both closed applications must be checked: {refused:?}"));
+    let program = accepted
+        .produce(
+            TerminalProductionCustody::default(),
+            &mut UnmeasuredProduction,
+        )
+        .unwrap();
+    let view = program.view();
+    let module = view.module();
+    assert_eq!(module.boundary_machines.len(), 2);
+    let identities = module
+        .boundary_machines
+        .iter()
+        .map(|boundary| {
+            module
+                .identities
+                .text(
+                    boundary
+                        .declaration
+                        .as_ref()
+                        .unwrap()
+                        .source
+                        .semantic_declaration,
+                )
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+    assert_ne!(identities[0], identities[1]);
+    let selections = program.source_selections().unwrap();
+    let packet = selections.questions_for(view).unwrap();
+    for identity in identities {
+        let declarations = packet
+            .declarations
+            .iter()
+            .filter(|(_, declaration)| declaration.identity == identity)
+            .collect::<Vec<_>>();
+        assert_eq!(declarations.len(), 1);
+        assert_eq!(
+            declarations[0].1.custody,
+            semantic_vocabulary::compiler_evaluation::DeclarationCustody::Package(package())
+        );
+        assert_eq!(
+            declarations[0].1.purpose,
+            semantic_vocabulary::source_selections::SelectionPurpose::Build
+        );
+    }
+    selections
+        .admit(
+            view,
+            &terminal_installation::selection_questions::SelectionAuthorities {
+                build: None,
+                product: None,
+            },
+        )
+        .unwrap();
+
+    let mut repeated = packet.clone();
+    let duplicate = repeated.declarations.values().next().unwrap().clone();
+    repeated.declarations.push(duplicate);
+    assert!(
+        terminal_installation::selection_questions::validate_selection_questions(module, &repeated)
+            .unwrap_err()
+            .contains("dictionary repeats a declaration in one purpose")
+    );
+}
+
+#[test]
 fn inferred_const_arguments_still_have_to_fit_their_declared_carriers() {
     let prelude = PRELUDE.replace(
         "machine poke(value: u64) reaches none crashes none;",
