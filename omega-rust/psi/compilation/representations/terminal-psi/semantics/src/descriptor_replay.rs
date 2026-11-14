@@ -847,59 +847,6 @@ pub(crate) mod analysis {
             self.prepare_flow(identity, Some(rules))
         }
 
-        fn reference_transport_source(
-            &self,
-            machine: &DescriptorMachine,
-            source: &DescriptorLocation,
-            destination: &DescriptorLocation,
-        ) -> Option<Option<DescriptorLocation>> {
-            if !self.replay.slot_kind.tracks_references() {
-                return Some(None);
-            }
-            let destination_type = descriptor_location_type(
-                self.replay.types,
-                *machine.place_types.get(&destination.root)?,
-                &destination.path,
-            )?;
-            let StructuralTypeShape::Reference { access, .. } =
-                find_structural_type(self.replay.types, destination_type)?.shape
-            else {
-                return Some(None);
-            };
-            let Some(crossing) = source
-                .path
-                .iter()
-                .rposition(|segment| *segment == DescriptorPathSegment::Referent)
-            else {
-                return Some(None);
-            };
-            let root_type = *machine.place_types.get(&source.root)?;
-            let parent_type =
-                descriptor_location_type(self.replay.types, root_type, &source.path[..crossing])?;
-            let StructuralTypeShape::Reference {
-                access: parent_access,
-                ..
-            } = find_structural_type(self.replay.types, parent_type)?.shape
-            else {
-                return None;
-            };
-            let path = descriptor_path(self.replay.types, root_type, &source.path)?;
-            if !access.admits_referent(parent_access)
-                || !crate::reference_source_projection_compatible(
-                    self.replay.types.iter(),
-                    root_type,
-                    &path,
-                    destination_type,
-                )
-            {
-                return None;
-            }
-            Some(Some(DescriptorLocation {
-                root: source.root,
-                path: source.path[..crossing].to_vec(),
-            }))
-        }
-
         fn prepare_flow(
             &mut self,
             identity: MachineId,
@@ -1134,36 +1081,6 @@ pub(crate) mod analysis {
                                 source
                             }
                         };
-                        // Returning a reborrow must also keep the supplying
-                        // reference occurrence live. The backing projection
-                        // still describes storage; it cannot transport the
-                        // descriptor's loan identity by itself.
-                        let reference_source = match origin {
-                            DescriptorStoredOrigin::Parameter { projection, .. } => {
-                                let parent = self.reference_transport_source(
-                                    machine,
-                                    &source,
-                                    &destination,
-                                )?;
-                                if parent.is_some()
-                                    && (!projection.exact
-                                        || projection.indirect
-                                        || projection.window.is_some()
-                                        || projection.captured_at.is_some())
-                                {
-                                    return None;
-                                }
-                                parent
-                            }
-                            _ => None,
-                        };
-                        let reference_pair = match reference_source {
-                            Some(source) => Some((
-                                self.replay.canonical_storage(machine, before, &source)?,
-                                destination.clone(),
-                            )),
-                            None => None,
-                        };
                         let pair = (
                             self.replay.canonical_storage(machine, before, &source)?,
                             destination.clone(),
@@ -1183,9 +1100,6 @@ pub(crate) mod analysis {
                             }
                         }
                         step.derivations.push(pair.clone());
-                        if let Some(pair) = &reference_pair {
-                            step.derivations.push(pair.clone());
-                        }
                         if strong
                             && match origin {
                                 DescriptorStoredOrigin::Parameter { projection, .. } => {
@@ -1198,8 +1112,7 @@ pub(crate) mod analysis {
                                 _ => false,
                             }
                         {
-                            step.authority_derivations
-                                .push(reference_pair.unwrap_or(pair));
+                            step.authority_derivations.push(pair);
                         }
                     }
                 }
