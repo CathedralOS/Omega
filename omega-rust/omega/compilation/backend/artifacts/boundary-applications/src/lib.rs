@@ -26,7 +26,7 @@ them into physical execution evidence.
 #![forbid(unsafe_code)]
 
 use effects::{CompilerNumericType, CompilerPrimitiveIntegerComparisonOperation};
-use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
+use semantic_vocabulary::{IntegerType, ScalarType};
 
 pub(crate) use optimization_core::digest_encoder;
 
@@ -282,19 +282,10 @@ impl TerminalIntegerComparisonOccurrenceProposal {
     }
 
     fn scalar_type(&self) -> Option<ScalarType> {
-        use CompilerNumericType::*;
-        let (sign, bits) = match self.integer_type {
-            I8 => (IntegerSign::Signed, 8),
-            I16 => (IntegerSign::Signed, 16),
-            I32 => (IntegerSign::Signed, 32),
-            I64 => (IntegerSign::Signed, 64),
-            U8 => (IntegerSign::Unsigned, 8),
-            U16 => (IntegerSign::Unsigned, 16),
-            U32 => (IntegerSign::Unsigned, 32),
-            U64 => (IntegerSign::Unsigned, 64),
-            F32 | F64 => return None,
+        let CompilerNumericType::Integer(carrier) = self.integer_type else {
+            return None;
         };
-        IntegerType::new(sign, bits).ok().map(ScalarType::Integer)
+        IntegerType::from_fixed(carrier).map(ScalarType::Integer)
     }
 
     pub fn validate_roster(
@@ -582,7 +573,9 @@ mod comparison_tests {
             provider_plan_index: 0,
             provider_plan_commitment: plans[0].identity_digest(),
             comparison: Authored::NotEqual,
-            integer_type: CompilerNumericType::I64,
+            integer_type: CompilerNumericType::Integer(
+                numerics::integer_carrier::FixedInteger::signed(64),
+            ),
         };
         let execution_machines = [module.machines[0].id];
         assert_eq!(
@@ -629,7 +622,9 @@ mod comparison_tests {
             Err("Terminal integer comparison changed operand type or identity")
         );
         let wrong_type = IntegerOccurrence {
-            integer_type: CompilerNumericType::U64,
+            integer_type: CompilerNumericType::Integer(
+                numerics::integer_carrier::FixedInteger::unsigned(64),
+            ),
             ..occurrence
         };
         assert_eq!(
@@ -647,14 +642,18 @@ mod comparison_tests {
                 provider_plan_index: 0,
                 provider_plan_commitment: ProviderPlan::default().identity_digest(),
                 comparison,
-                integer_type: CompilerNumericType::I64,
+                integer_type: CompilerNumericType::Integer(
+                    numerics::integer_carrier::FixedInteger::signed(64),
+                ),
             };
             assert_eq!(
                 occurrence.execution_identity(),
                 Some(
                     CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison {
                         operation: comparison,
-                        integer_type: CompilerNumericType::I64,
+                        integer_type: CompilerNumericType::Integer(
+                            numerics::integer_carrier::FixedInteger::signed(64)
+                        ),
                     }
                 )
             );

@@ -305,7 +305,7 @@ pub fn compiler_intrinsic_execution_identity_bytes(
         } => {
             bytes[0] = 7;
             bytes[1] = primitive_integer_comparison_operation_tag(operation);
-            bytes[2] = numeric_type_tag(integer_type);
+            bytes.extend_from_slice(&integer_type.canonical_encoding());
         }
         CompilerIntrinsicExecutionIdentity::NamedFloatNegation(format) => {
             bytes[0] = 3;
@@ -317,9 +317,9 @@ pub fn compiler_intrinsic_execution_identity_bytes(
             domain,
         } => {
             bytes[0] = 4;
-            bytes[1] = numeric_type_tag(source);
-            bytes[2] = numeric_type_tag(target);
             bytes[3] = arithmetic_domain_tag(domain);
+            bytes.extend_from_slice(&source.canonical_encoding());
+            bytes.extend_from_slice(&target.canonical_encoding());
         }
     }
     bytes
@@ -601,7 +601,7 @@ pub use language_semantics::numeric_intrinsics::{
     NumericType as CompilerNumericType,
     PrimitiveFloatBinaryOperation as CompilerPrimitiveFloatBinaryOperation,
     PrimitiveIntegerComparisonOperation as CompilerPrimitiveIntegerComparisonOperation,
-    numeric_type_tag, primitive_float_operation_tag, primitive_integer_comparison_operation_tag,
+    primitive_float_operation_tag, primitive_integer_comparison_operation_tag,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
