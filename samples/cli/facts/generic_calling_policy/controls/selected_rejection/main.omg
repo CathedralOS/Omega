@@ -64,7 +64,7 @@ machine scalar_plan(signature: BoundarySignature, allow_vectors: bool, width: u6
         BoundaryPlanResult::Accepted { plan: plan }
     }
     machine reject() -> BoundaryPlanResult {
-        BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "one scalar result" } }
+        BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "one scalar result" as +Utf8 } }
     }
 }
 
@@ -89,6 +89,6 @@ AcquireCode satisfies Acquire { machine acquire() -> u64 reaches LocalEntry { Lo
 
 RejectingValuePlan satisfies ValuePlan {
     machine plan(signature: BoundarySignature, allow_vectors: bool, width: u64) -> BoundaryPlanResult {
-        BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "selected policy helper denied this signature" } }
+        BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "selected policy helper denied this signature" as +Utf8 } }
     }
 }

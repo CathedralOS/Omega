@@ -3434,7 +3434,7 @@ pub(crate) mod initializer_normalization {
                     return Err("materialized initializer conflicts with integer carrier".into());
                 };
                 if literal.landing().is_some_and(|landing| {
-                    landing.landed_type.name() != carrier
+                    landing.landed_type.name() != carrier.as_ref()
                         || landing.domain != numerics::arithmetic::ArithmeticDomain::Exact
                 }) {
                     return Err("materialized initializer conflicts with integer landing".into());
@@ -3444,7 +3444,7 @@ pub(crate) mod initializer_normalization {
                     .map(i128::from)
                     .or_else(|| literal.value_u64().map(i128::from))
                     .ok_or("materialized initializer integer exceeds canonical storage")?;
-                let integer_type = numerics::literals::LandedIntegerType::from_name(carrier)
+                let integer_type = numerics::literals::LandedIntegerType::from_name(&carrier)
                     .ok_or("materialized integer initializer lost its selected carrier")?;
                 if !integer_type.admits_i128(value) {
                     return Err(format!(
@@ -3452,7 +3452,7 @@ pub(crate) mod initializer_normalization {
                     ));
                 }
                 Ok(Value::Integer {
-                    type_name: carrier.to_owned(),
+                    type_name: carrier.into_owned(),
                     value,
                 })
             }

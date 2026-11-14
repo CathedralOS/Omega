@@ -5,7 +5,8 @@
     We re-decide closed primitive judgments (`kernel`), check explicit bounded
     `ProofNode` certificates (`proof`), verify integer affine, cast, shift, and
     forbidden-root witnesses (`integer_rules` and `integer_affine`), check
-    predicate and value-equality denotations (`predicate_denotation`), and
+    predicate and value-equality denotations (`predicate_denotation`), decide a
+    closed crash guard once (`closed_proposition`), and
     denote accepted bounded certificates into our dependent term calculus
     (`mathematical_core`, `mathematical_typing`, and `bounded_denotation`) so
     the kernel independently re-decides every judgment.
@@ -27,7 +28,9 @@
     judgments; `bounded_denotation` denotes bounded certificates into core
     terms; `integer_rules` and `integer_affine` replay integer normalizations
     and witnesses; `predicate_denotation` checks boolean predicate denotations;
-    `kernel` decides closed primitive judgments; and `classicality` classifies
+    `kernel` decides closed primitive judgments; `closed_proposition` decides a
+    closed crash guard for build-time admission and the interpreter and is not
+    the predicate-denotation conversion; and `classicality` classifies
     proof-rule foundations.
 */
 
@@ -306,6 +309,7 @@ pub(crate) mod admission {
     }
 }
 mod classicality;
+mod closed_proposition;
 mod integer_rules;
 mod kernel;
 mod mathematical_core;
@@ -361,6 +365,7 @@ pub use admission::evidence::{
     ProofSystemMarker, verify_obligation, verify_obligation_with_machine_parameters,
 };
 pub use classicality::ProofRuleFoundation;
+pub use closed_proposition::{closed_guard, closed_guard_with};
 pub use integer_rules::closed_integer::{
     ClosedIntegerEvaluationError, ClosedIntegerEvaluator, big_integer_literal,
     compare_integer_math_terms,
@@ -397,14 +402,13 @@ pub use mathematical_core::{
     QUOTIENT_IS_SET, QUOTIENT_LIFT, QUOTIENT_LIFT_PRECONDITION, QUOTIENT_PROJECT,
     QUOTIENT_PROP_IS_SET, QUOTIENT_SET, QUOTIENT_SOUND, QUOTIENT_TRANSPORT,
     QUOTIENT_TRANSPORT_CONST, QUOTIENT_UNIQUE, QuotientFamily, Signature, SignatureCheckError,
-    Sort, SourceContentTheory, SourceIntegerTheory, SourceIntegerVocabulary, Term, TermArena,
-    TermHandle, assumption_closure, certificate_assumption_closure, check_signature,
-    check_signature_with_attribution, check_type, convertible, convertible_retaining,
-    denote_bounded_certificate, identity_substitution, indexed_correctness, indexed_scheme,
-    infer_sort, infer_type, instantiate_levels, judgment_assumption_closure, quotient_scheme,
-    shift, substitute, universe_parameter_arity, verify_bounded_certificate,
-    verify_mathematical_certificate, verify_mathematical_certificates, weak_head_normalize,
-    weak_head_normalize_retaining,
+    Sort, SourceContentTheory, Term, TermArena, TermHandle, assumption_closure,
+    certificate_assumption_closure, check_signature, check_signature_with_attribution, check_type,
+    convertible, convertible_retaining, denote_bounded_certificate, identity_substitution,
+    indexed_correctness, indexed_scheme, infer_sort, infer_type, instantiate_levels,
+    judgment_assumption_closure, quotient_scheme, shift, substitute, universe_parameter_arity,
+    verify_bounded_certificate, verify_mathematical_certificate, verify_mathematical_certificates,
+    weak_head_normalize, weak_head_normalize_retaining,
 };
 pub use predicate_denotation::{
     CheckedPredicateDenotations, PredicateDenotationError, check_predicate_denotations,

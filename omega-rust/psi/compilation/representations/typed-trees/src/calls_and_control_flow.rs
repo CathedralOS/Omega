@@ -406,7 +406,7 @@ pub mod calls {
                     }
                     ExpressionNode::Member(member) => {
                         self.collect_expression_symbols(member.receiver, symbols);
-                        symbols.push(member.member_symbol);
+                        symbols.push(member.selection.field_symbol());
                     }
                     ExpressionNode::Name(path) => {
                         symbols.push(path.head_symbol);

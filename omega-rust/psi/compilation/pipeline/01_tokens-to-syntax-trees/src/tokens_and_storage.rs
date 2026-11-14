@@ -316,7 +316,7 @@ pub(crate) mod tokens {
                 letter, which no digit of any radix can be, then its width.
             */
             if let Some(start) = text.rfind(['i', 'u'])
-                && let Some(carrier) = FixedInteger::from_builtin_name(&text[start..])
+                && let Some(carrier) = FixedInteger::from_decimal_spelling(&text[start..])
             {
                 return Ok((&text[..start], Some(LandedIntegerType::Fixed(carrier))));
             }
@@ -378,6 +378,15 @@ pub(crate) mod tokens {
                         FixedInteger::unsigned(32),
                     ),
                     ("0b101i64", NumericBase::Binary, 5, FixedInteger::signed(64)),
+                    /* Any width is a suffix; whether the value fits is typing's question. */
+                    ("7u13", NumericBase::Decimal, 7, FixedInteger::unsigned(13)),
+                    ("7i1", NumericBase::Decimal, 7, FixedInteger::signed(1)),
+                    (
+                        "0x1fu257",
+                        NumericBase::Hexadecimal,
+                        31,
+                        FixedInteger::unsigned(257),
+                    ),
                 ] {
                     let literal = suffixed(text, base).unwrap();
                     assert_eq!(literal.value_i64(), Some(value), "{text}");
@@ -393,7 +402,7 @@ pub(crate) mod tokens {
                         .landing()
                         .is_none()
                 );
-                for text in ["7u13", "7i1", "7u0", "7u", "7i", "7u128", "7q8", "7u08"] {
+                for text in ["7u0", "7i0", "7u", "7i", "7q8", "7u08"] {
                     assert_eq!(
                         suffixed(text, NumericBase::Decimal).unwrap_err(),
                         "unknown integer literal suffix",

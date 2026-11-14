@@ -226,11 +226,13 @@ impl<'t> Program<'t> {
         reading: Reading,
     ) -> Checked<()> {
         let outer = std::mem::take(&mut self.scope);
-        // The machine owns the lifetimes its signature names, as a data
-        // declaration owns those of its fields (`lifetime_owner`).
-        let enclosing = std::mem::replace(&mut self.lifetime_owner, symbol);
+        // An elided lifetime in the signature is a fresh parameter of this
+        // machine, which each call instantiates (`regions::Elision`).
+        let elision = std::mem::replace(&mut self.elision, super::regions::Elision::Inputs(symbol));
+        let owner = std::mem::replace(&mut self.lifetime_owner, symbol);
         let read = self.signature(id, symbol, &reading);
-        self.lifetime_owner = enclosing;
+        self.lifetime_owner = owner;
+        self.elision = elision;
         let scope = std::mem::replace(&mut self.scope, outer);
         let (signature, names, value_parameters) = read?;
         self.symbols.push(symbol);
@@ -591,12 +593,12 @@ impl<'t> Program<'t> {
         if machine.suspends || machine.blocks {
             return unserved("suspends or blocks");
         }
-        // Lifetime parameters make no second machine: lifetimes.md,
-        // "Lifetime arguments are erased regions, separate from runtime
-        // generic arity, layout and monomorphization". The machine is read
-        // once with each binder as a region of its own, which a view's type
-        // names (`bytes`), and a call gives each one the region of the view
-        // it is passed (`calls`, `view_regions`).
+        // A lifetime parameter selects no type, layout or monomorphized
+        // copy (lifetimes.md: "Lifetime arguments are erased regions,
+        // separate from runtime generic arity"): the body is read once with
+        // each parameter as a region of its own, and a call instantiates them
+        // with the caller's (`regions`, `call_of`). Its binders are checked
+        // as a data declaration's are.
         super::places::lifetime_binders(id, &machine.lifetime_parameters)?;
         // An implementation parameter binds no type and no value: the body
         // only calls through it. A value parameter (`const Units: u64`) is a
@@ -873,8 +875,10 @@ impl<'t> Program<'t> {
         }
         let requirement = self.declared_requirement(id, row.declaring_trait, row.requirement)?;
         let (inherited, inherited_names) = self.requirement_signature(id, requirement, &[])?;
-        if signature.parameters != inherited.parameters
-            || signature.result != inherited.result
+        // The member names its lifetimes under its own symbol, the
+        // requirement under its: the two are one signature when the member's
+        // are instantiated with the requirement's (`regions::same_signature`).
+        if !self.same_signature(id, &inherited, signature, machine.symbol)?
             || signature.erased != inherited.erased
             || signature.borrowed != inherited.borrowed
         {
@@ -972,6 +976,23 @@ impl<'t> Program<'t> {
     /// clauses are read with each binder standing for its literal, so the
     /// contract is the one a call with those static arguments is held to.
     pub(super) fn requirement_signature(
+        &mut self,
+        id: MachineId,
+        requirement: &'t StateSignature,
+        arguments: &[semantic_vocabulary::ScalarTerm],
+    ) -> Checked<(Signature, MachineNames)> {
+        // As a machine's: an elided lifetime is a fresh parameter of the
+        // requirement, which each call instantiates (`regions::Elision`).
+        let elision = std::mem::replace(
+            &mut self.elision,
+            super::regions::Elision::Inputs(requirement.symbol),
+        );
+        let read = self.read_requirement_signature(id, requirement, arguments);
+        self.elision = elision;
+        read
+    }
+
+    fn read_requirement_signature(
         &mut self,
         id: MachineId,
         requirement: &'t StateSignature,
@@ -1103,7 +1124,15 @@ impl<'t> Program<'t> {
                 borrowed: None,
             });
         }
-        let result = self.result_type(id, return_type)?;
+        // An elided lifetime in the result is the one its inputs carry
+        // (`regions::Elision::Result`).
+        let inputs = self.elision;
+        if let super::regions::Elision::Inputs(owner) = inputs {
+            self.elision = super::regions::Elision::Result(owner);
+        }
+        let result = self.result_type(id, return_type);
+        self.elision = inputs;
+        let result = result?;
         let values = crate::body::formal_values(
             slots
                 .iter()
@@ -1159,7 +1188,9 @@ impl<'t> Program<'t> {
                 // A clause over a record result projects it
                 // (`result.field`), which a later slice serves from the
                 // result place.
-                Some(ValueType::Record(_, _)) => ResultTerm::Absent("result of a record machine"),
+                Some(ValueType::Record(_, _, _)) => {
+                    ResultTerm::Absent("result of a record machine")
+                }
                 Some(ValueType::Rigid(_)) => ResultTerm::Absent("result of a rigid type"),
                 None => ResultTerm::Absent("result of a Unit machine"),
             },
@@ -1298,7 +1329,14 @@ impl<'t> Program<'t> {
             // only crash-free members.
             (Declarer::Requirement { .. }, false) => CrashCeiling::Inferred,
         };
-        let reaches = self.reach_ceiling(id, owner)?;
+        // A requirement closed at an application keeps the reach its
+        // requirement wrote: the typed trees hold authored reach rows
+        // against the declaration the author wrote them on.
+        let reach_author = self
+            .typed
+            .closed_requirement_application(owner)
+            .map_or(owner, |closed| closed.template);
+        let reaches = self.reach_ceiling(id, reach_author)?;
         let authored = requires.clone();
         let requires = canonical::clauses(requires, Repeated::Refuse, id)?;
         // Each clause's text follows it into canonical order. A repeated
@@ -1508,6 +1546,14 @@ impl<'t> Program<'t> {
         if named_lifetime && !is_view {
             return unserved("reference parameter with a named lifetime");
         }
+        // The loan itself is an unnamed carried reference beside whatever
+        // its referent carries, so it is one more input lifetime an elided
+        // result could have meant (lifetimes.md: "Several unnamed carried
+        // references do not become one source merely because they occupy
+        // one parameter"). No type names it; it is counted, not read.
+        if !is_view {
+            self.elided_region(id)?;
+        }
         // Stage 01 sets `is_mutable` for an exclusive reference; a shared
         // one marked mutable would be a `mut` binding of the carrier.
         match access {
@@ -1525,10 +1571,13 @@ impl<'t> Program<'t> {
         } else {
             self.value_type(id, referee)?
         };
-        // A data type with `requires` may be stored into by the callee, so
-        // its domain is owed again where the loan returns; no slice follows
-        // a domain across a call yet.
-        if let ValueType::Record(record, _) = value_type
+        // A data type with `requires` may be stored into by the callee of an
+        // exclusive loan, so its domain is owed again where the loan
+        // returns; no slice follows a domain across a call yet. A shared
+        // loan admits no store, so the value behind it is the one its owner
+        // established.
+        if let ValueType::Record(record, _, _) = value_type
+            && access == language_core::ReferenceAccess::Mutable
             && self.restricted(record)
         {
             return unserved("reference to data with requires");
@@ -1540,7 +1589,7 @@ impl<'t> Program<'t> {
             ValueType::Scalar(_, qualification) if !qualification.is_none() => {
                 return unserved("reference to a qualified scalar");
             }
-            ValueType::Record(_, _) => None,
+            ValueType::Record(_, _, _) => None,
             ValueType::Scalar(..) => Some(
                 Some(self.typed.normalized_type_identity_text(referee))
                     .filter(|identity| !identity.is_empty())
@@ -1582,7 +1631,7 @@ impl<'t> Program<'t> {
                 .iter()
                 .chain(data.cases().iter().flat_map(|case| &case.fields))
             {
-                if let ValueType::Record(nested, _) = field.value_type {
+                if let ValueType::Record(nested, _, _) = field.value_type {
                     pending.push(nested);
                 }
             }
@@ -1590,9 +1639,19 @@ impl<'t> Program<'t> {
         false
     }
 
+    /// Machine `id`'s body, read with the machine as the owner of the
+    /// lifetimes its types name (lifetimes.md: a named data application
+    /// must "use binders declared in the lexical owner").
     pub fn body(&mut self, id: MachineId) -> Checked<Body> {
-        let typed = self.typed;
         let symbol = *terminal_check_tables::row(&self.symbols, id, id, Construct::Machine)?;
+        let owner = std::mem::replace(&mut self.lifetime_owner, symbol);
+        let read = self.read_body(id, symbol);
+        self.lifetime_owner = owner;
+        read
+    }
+
+    fn read_body(&mut self, id: MachineId, symbol: SymbolHandle) -> Checked<Body> {
+        let typed = self.typed;
         let signature =
             terminal_check_tables::row(&self.signatures, id, id, Construct::Machine)?.clone();
         // A requirement has no statement to read: its formals and nothing.
@@ -1604,7 +1663,6 @@ impl<'t> Program<'t> {
         }
         let (machine, state) = self.declaration(id, symbol)?;
         self.scope = self.scopes.get(id).cloned().unwrap_or_default();
-        self.lifetime_owner = symbol;
         let formals = span(
             &typed.state_parameters,
             state.parameters,
@@ -1730,7 +1788,7 @@ impl<'t> Program<'t> {
                     let expression = self.expression(id, &slots, *expression, expected)?;
                     match (last, signature.result) {
                         (true, Some(result)) => {
-                            if expression.result != Some(result) {
+                            if !self.agrees(expression.result, result) {
                                 return Err(refuse(
                                     id,
                                     Construct::Machine,

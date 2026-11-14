@@ -5,6 +5,7 @@
 
 use super::{SymbolKind, SymbolNameRef};
 use numerics::integer_carrier::FixedInteger;
+use std::borrow::Cow;
 
 pub const BUILTIN_TYPE_COUNT: usize = 21;
 
@@ -18,9 +19,12 @@ pub const BUILTIN_TYPE_COUNT: usize = 21;
 pub enum BuiltinTypeAtom {
     Bool,
     /*
-        A fixed-width integer is its sign and width. The root roster installs
-        a symbol for each conventional spelling (`i8` through `u64`); the
-        identity is the carrier, not which spelling named it.
+        A fixed-width integer is its sign and width, at every width. The
+        symbol table holds one `BuiltinType` symbol per carrier a compilation
+        names: eight have fixed root slots that published positions depend
+        on, the others are installed beside the program's declarations
+        (`SymbolTable::integer_type_symbol`). Either way the identity is this
+        carrier, never the slot or the spelling.
     */
     Integer(FixedInteger),
     /* Pointer-width address, distinct from integer counts. */
@@ -75,9 +79,10 @@ impl BuiltinTypeAtom {
     pub const U64: Self = Self::Integer(FixedInteger::U64);
 
     /*
-        The atom's slot ordinal: its position in [`Self::ALL`]. Only roster
-        members have a root slot; an integer carrier outside the installed
-        spellings has none, so asking for its slot is a compiler defect.
+        The fixed root slot of an atom written in compiler source: its
+        position in [`Self::ALL`]. An integer carrier a program names may
+        have no fixed slot, so code holding an arbitrary atom asks
+        [`Self::roster_ordinal`] or the symbol table instead.
     */
     pub const fn ordinal(self) -> usize {
         match self.roster_ordinal() {
@@ -195,12 +200,28 @@ impl BuiltinTypeAtom {
         (Self::AtomicU64, "atomic-u64", "AtomicU64"),
     ];
 
-    pub const fn identity(self) -> &'static str {
-        Self::SPELLINGS[self.ordinal()].1
+    /*
+        The diagnostic identity of any atom. An integer's is its decimal
+        spelling at every width, so it needs no roster row.
+    */
+    pub fn identity(self) -> Cow<'static, str> {
+        self.spelling(|row| row.1)
     }
 
-    pub const fn symbol_name(self) -> &'static str {
-        Self::SPELLINGS[self.ordinal()].2
+    /* The name the atom's symbol is installed under. */
+    pub fn symbol_name(self) -> Cow<'static, str> {
+        self.spelling(|row| row.2)
+    }
+
+    fn spelling(
+        self,
+        column: fn(&(Self, &'static str, &'static str)) -> &'static str,
+    ) -> Cow<'static, str> {
+        match (self.roster_ordinal(), self) {
+            (Some(ordinal), _) => Cow::Borrowed(column(&Self::SPELLINGS[ordinal])),
+            (None, Self::Integer(carrier)) => Cow::Owned(carrier.to_string()),
+            (None, _) => unreachable!("every atom but an integer carrier is a roster member"),
+        }
     }
 }
 
@@ -790,12 +811,8 @@ impl BuiltinFunction {
 }
 
 pub fn builtin_type_symbols() -> [(SymbolKind, SymbolNameRef<'static>); BUILTIN_TYPE_COUNT] {
-    BuiltinTypeAtom::ALL.map(|atom| {
-        (
-            SymbolKind::BuiltinType,
-            SymbolNameRef::Static(atom.symbol_name()),
-        )
-    })
+    BuiltinTypeAtom::SPELLINGS
+        .map(|(_, _, symbol_name)| (SymbolKind::BuiltinType, SymbolNameRef::Static(symbol_name)))
 }
 
 pub fn builtin_function_symbols() -> [(SymbolKind, SymbolNameRef<'static>); BuiltinFunction::COUNT]
@@ -956,11 +973,8 @@ mod builtin_ordinal_tests {
         }
         for atom in BuiltinTypeAtom::ALL {
             assert_eq!(
-                table[atom.ordinal()],
-                (
-                    SymbolKind::BuiltinType,
-                    SymbolNameRef::Static(atom.symbol_name()),
-                ),
+                (table[atom.ordinal()].0, table[atom.ordinal()].1.as_str()),
+                (SymbolKind::BuiltinType, atom.symbol_name().as_ref()),
                 "closed builtin atom {:?} must retain its exact root slot",
                 atom,
             );
@@ -989,7 +1003,7 @@ mod builtin_ordinal_tests {
             assert_eq!(atom.symbol_name(), carrier.to_string());
             assert_eq!(atom.identity(), carrier.to_string());
             assert_eq!(
-                FixedInteger::from_builtin_name(atom.symbol_name()),
+                FixedInteger::from_decimal_spelling(&atom.symbol_name()),
                 Some(carrier)
             );
         }
@@ -1000,6 +1014,8 @@ mod builtin_ordinal_tests {
         let odd = BuiltinTypeAtom::Integer(FixedInteger::unsigned(13));
         assert!(odd.is_fixed_integer());
         assert_eq!(odd.roster_ordinal(), None);
+        assert_eq!(odd.symbol_name(), "u13");
+        assert_eq!(odd.identity(), "u13");
         assert_ne!(
             BuiltinTypeAtom::Integer(FixedInteger::signed(32)).roster_ordinal(),
             BuiltinTypeAtom::Integer(FixedInteger::unsigned(32)).roster_ordinal()

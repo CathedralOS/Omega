@@ -64,7 +64,7 @@ machine HookProcedurePolicy::plan(signature: BoundarySignature) -> BoundaryPlanR
 
     machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
-            reason: CallingPolicyRejection { reason: "invalid callback procedure telescope" },
+            reason: CallingPolicyRejection { reason: "invalid callback procedure telescope" as +Utf8 },
         }
     }
 }
@@ -158,7 +158,7 @@ machine HookRegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanR
 
     machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
-            reason: CallingPolicyRejection { reason: "invalid direct callback telescope" },
+            reason: CallingPolicyRejection { reason: "invalid direct callback telescope" as +Utf8 },
         }
     }
 }

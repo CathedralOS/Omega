@@ -30,7 +30,7 @@ impl LandedIntegerType {
         if name == "addr" {
             return Some(Self::Addr);
         }
-        FixedInteger::from_builtin_name(name).map(Self::Fixed)
+        FixedInteger::from_decimal_spelling(name).map(Self::Fixed)
     }
 
     /* The integer whose range and word operations the landed value has. */
@@ -817,7 +817,8 @@ mod tests {
 
     #[test]
     fn integer_carrier_names_round_trip_and_bound_their_width() {
-        let carriers = [8, 16, 32, 64]
+        /* Every width is a name; the conventional ones are not special. */
+        let carriers = [1, 8, 13, 16, 32, 64, 65]
             .into_iter()
             .flat_map(|width| [FixedInteger::signed(width), FixedInteger::unsigned(width)])
             .map(LandedIntegerType::Fixed)
@@ -835,7 +836,7 @@ mod tests {
         assert_eq!(LandedIntegerType::Addr.name(), "addr");
         assert!(!LandedIntegerType::Addr.is_signed());
         for spelling in [
-            "bool", "f32", "f64", "address", "usize", "U8", "u13", "i1", "",
+            "bool", "f32", "f64", "address", "usize", "U8", "u0", "i08", "u", "",
         ] {
             assert_eq!(LandedIntegerType::from_name(spelling), None);
         }

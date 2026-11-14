@@ -216,7 +216,7 @@ pub(crate) fn declared_place_type(
                                 program,
                                 reference,
                                 member.member.as_str(),
-                                member.member_symbol,
+                                member.selection.field_symbol(),
                             )?
                         }
                         ExpressionNode::Indexed(_) => collection_element_type(program, reference)?,
@@ -741,7 +741,9 @@ mod tests {
                     .expression_table
                     .insert(ExpressionNode::Member(TableMemberExpression {
                         receiver,
-                        member_symbol: row_members.handle_at(1),
+                        selection: typed_trees::expression::MemberSelection::Field(
+                            row_members.handle_at(1),
+                        ),
                         member: Identifier::generated("items"),
                         case_variant: None,
                     }));
@@ -781,7 +783,7 @@ mod tests {
         else {
             panic!("member")
         };
-        member.member_symbol = foreign_field;
+        member.selection = typed_trees::expression::MemberSelection::Field(foreign_field);
         assert!(
             declared_place_type(
                 &program,
@@ -896,7 +898,7 @@ mod tests {
         else {
             panic!("member")
         };
-        member.member_symbol = symbol;
+        member.selection = typed_trees::expression::MemberSelection::Field(symbol);
     }
 
     use super::*;

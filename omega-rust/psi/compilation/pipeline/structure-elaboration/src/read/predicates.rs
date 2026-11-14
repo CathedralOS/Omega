@@ -300,6 +300,13 @@ impl Program<'_> {
         if !has_predicates(definition) {
             return Ok(());
         }
+        // `domain [u8]::Utf8 requires valid_utf8(self)`: a primitive byte
+        // predicate of a byte slice is decided by a view's bytes, where a
+        // field of the domain is stored (`read::bytes`), not stated as a
+        // clause.
+        if super::bytes::primitive_byte_domain(self.typed, definition, id) {
+            return Ok(());
+        }
         let carrier = self.value_type(id, definition.target_type)?;
         self.declared_domain(id, definition.symbol, carrier)?;
         let (ValueType::Scalar(scalar_type, _), Some(domains)) = (
@@ -333,6 +340,19 @@ impl Program<'_> {
         value_type: ValueType,
     ) -> Checked<Vec<Proposition>> {
         let qualification = value_type.qualification();
+        // A byte view's domains are its primitive byte predicates, which
+        // the lowered form carries on the field's own type
+        // (`StructuralFieldType::PredicateByteSequence`) and the checker
+        // judges at every store from the bytes supplied, not as a clause of
+        // the owner (`byte_view_domains`).
+        if let ValueType::Record(row, _, _) = value_type
+            && matches!(
+                self.data_type(id, row)?.shape,
+                crate::StorageShape::ByteSequence(_)
+            )
+        {
+            return Ok(Vec::new());
+        }
         let predicates = self.predicates(id, qualification)?;
         if predicates.is_empty() {
             return Ok(Vec::new());

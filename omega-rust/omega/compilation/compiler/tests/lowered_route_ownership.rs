@@ -237,7 +237,7 @@ machine main() crashes Trap {
                 purpose: source::DependencyScope::Product,
                 selected: &frontier.selected,
                 bindings: &frontier.bindings,
-                supplies: &[], // This source-only check runs no Build provider selections.
+                supplies: &[],
             },
         );
         if wrong_sibling {
@@ -390,6 +390,7 @@ fn whole_owned_transfers_consume_their_homes_once() {
             id: id(1),
             identity: "number".into(),
             value_type: scalar,
+            byte_predicates: semantic_vocabulary::ByteSequencePredicateSet::EMPTY,
         }]),
         requires: Vec::new(),
     });
@@ -571,6 +572,7 @@ mod transferred_on_one_path {
             id: id(raw),
             identity: identity.into(),
             value_type,
+            byte_predicates: semantic_vocabulary::ByteSequencePredicateSet::EMPTY,
         };
         let mut records = IdTable::default();
         records.push(RecordType {

@@ -1814,15 +1814,25 @@ pub(crate) mod structural_encoding {
             declaration.required_memberships.as_ref(),
             |bytes, required| encode_ids(bytes, required),
         );
-        bytes.slice(&declaration.establishment_routes, |bytes, route| {
-            bytes.u8(match route {
-                terminal_psi::StructuralEstablishmentRoute::CheckedRequirement { .. } => 1,
-                terminal_psi::StructuralEstablishmentRoute::ExactMachine { .. } => 2,
-                terminal_psi::StructuralEstablishmentRoute::BoundaryRequirement { .. } => 3,
-            });
-            bytes.u32(route.declaration().identity().0);
-            bytes.u32(route.identity().0);
-        });
+        encode_optional(
+            bytes,
+            declaration.establishment_routes.as_ref(),
+            |bytes, routes| {
+                bytes.slice(routes, |bytes, route| {
+                    bytes.u8(match route {
+                        terminal_psi::StructuralEstablishmentRoute::CheckedRequirement {
+                            ..
+                        } => 1,
+                        terminal_psi::StructuralEstablishmentRoute::ExactMachine { .. } => 2,
+                        terminal_psi::StructuralEstablishmentRoute::BoundaryRequirement {
+                            ..
+                        } => 3,
+                    });
+                    bytes.u32(route.declaration().identity().0);
+                    bytes.u32(route.identity().0);
+                });
+            },
+        );
         encode_optional(bytes, declaration.predicate.as_ref(), |bytes, predicate| {
             bytes.id(predicate.subject);
             encode_proposition(bytes, &predicate.proposition);

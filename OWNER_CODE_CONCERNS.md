@@ -97,7 +97,7 @@ framework or a list of features that remain unimplemented.
 - Category: one idea, several implementations
 - Where: `typed-trees/src/type_system.rs` (`TypeReferenceNode::primitive_type` calls `PrimitiveType::from_name(name)`; `type_symbol` returns no symbol when the name spells a primitive); `structure-elaboration/src/read/types.rs` (`atom_type` through `SymbolTable::builtin_type_atom`); `symbol-resolved-trees/src/type_system_and_names.rs` (a second `PrimitiveType` with its own `from_name`)
 - Saw: typing reads `u32` as an integer because the text of the name is `u32`, with `AtomicU32` and `AtomicU32#AccessField<` mapped to the same carrier by string prefix; the lowered-form checker reads it as an integer because its symbol sits in a compiler-installed root slot. Two enums named `PrimitiveType` restate the answer for the two tree representations
-- Cost: a package type spelled like a primitive and the width-indexed spellings (`u13`, `u<N>`) each have to be taught to both routes, and the two can disagree about one type reference
+- Cost: a package type spelled like a primitive has to be taught to both routes, and the two can disagree about one type reference. The width spellings were taught to both (`u13` is a name to typing and an installed builtin symbol to the checker), which made them agree without removing the second route. Typing still lets two mismatches through that only the checker stops, as `not-supported` instead of a typing error: `machine f(value: u1) -> bool { value }` (`typing arm value type`) and a suffixed literal outside its carrier such as `1i1` or `8192u13` (`integer literal outside its type`)
 - Reported: 2026-11-13, Claude Code, while replacing the eight integer names with a sign and a width
 
 ### Three vocabularies still list eight integer widths by name
@@ -217,20 +217,6 @@ framework or a list of features that remain unimplemented.
 - Where: `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation.rs:17909` and `:17846`, against `omega-rust/psi/compilation/representations/terminal-psi/codec/src/foundation_validation.rs:8566` and `:11744`
 - Saw: `attachment_storage_types` differs between the two files in two lines (visibility and one `use`); `validate_structural_type_graph` is the same walk with a different error type and lookup
 - Cost: the type-graph rules live once on each side of the Psi/Omega boundary, so a fix on one side leaves the other accepting or rejecting something different, with no test found tying them together
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
-### "Is this domain exposed to this reference" has a shared predicate and two private rewrites
-- Category: one idea, several implementations
-- Where: `omega-rust/psi/foundation/symbols/src/table.rs:963` (comment at `:937-942` calls it "this shared predicate"), `omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/selection.rs:2598`, `omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/type_reference.rs:482`
-- Saw: the shared one checks visibility, same package and module, ambient toolchain symbols and what each import binding exposes; the stage 02 copy compares module names and import paths as strings with no visibility or package test; the stage 03 copy compares module symbols, matches import paths as strings and answers false when there is no reference span
-- Cost: a change to import or visibility rules made in the symbol table does not reach operator-home selection in stage 02 or domain lookup in stage 03, so the stages can disagree on which domain a name selects
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
-### `match_pattern_dependencies` is written three times and two copies leave out the destructure fields
-- Category: one idea, several implementations
-- Where: `omega-rust/psi/compilation/representations/syntax-trees/src/values_and_types.rs:1507-1534`, `.../symbol-resolved-trees/src/values.rs:2831-2860`, `.../typed-trees/src/values.rs:3113-3142`
-- Saw: the syntax-trees copy passes `pattern.fields` and lists every field `Equal` value; the symbol-resolved and typed-trees copies pass `HandleSpan::empty()` for a destructure pattern, so their loop over fields never yields anything, although both pattern structs carry `fields` (`symbol-resolved-trees/src/values.rs:3635`, `typed-trees/src/values.rs:4986`)
-- Cost: a caller asking "which expressions does this pattern depend on" gets a different answer depending on which tree it holds, and the leftover field loop makes the two short copies look complete
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
 ### The default ranking view is derived differently in resolution and typing
@@ -407,3 +393,10 @@ framework or a list of features that remain unimplemented.
 - Saw: `Sealed { seal: Seal { } }` is refused by typing ("record literal field type") because a literal is the bare carrier, but `builder.seal = BuildSeal { };` passes typing. The program is stopped only because the lowered-form checker refuses every replacement of a policy-governed value. For a domain with no policy the store of a bare carrier into a qualified field would reach the checker with nothing refusing it
 - Cost: the rule "the supplied expression's static type must carry exactly the domains the destination declares" has two owners for construction and one accidental owner for assignment; when plans are evaluated and a writer is admitted, the assignment form loses its only guard
 - Reported: 2026-11-13, Claude Code, while declaring the seal that protects the compiler-owned `Build`
+
+### Build selection calls are found and published by the spelling of their protocol operation
+- Category: one idea built twice
+- Where: `03_symbol-resolved-trees-to-typed-trees/src/call_and_product_selections.rs` (finds `BuildBindingOperations` and `bind_native` by name); `psi-compiler/terminal-production/src/build_companions.rs` (`binding`, matches the same names again)
+- Saw: typing picks the protocol operation of a Build selection by comparing strings, and publication recovers which operation a boundary call is by comparing the requirement's name a second time. The typed call also carries no static application, so `bind_native<Locator>` reaches the checker as an open requirement although typing knows the locator argument it was written with
+- Cost: the host row's operation is decided twice from text, and the native binding cannot be closed at its locator type by the pass that closes every other application until typing records that application on the call
+- Reported: 2026-11-13, Claude Code, while closing boundary requirements at the types their calls apply

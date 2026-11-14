@@ -319,10 +319,9 @@ pub(crate) mod domain_constraints {
             let qualified = source.symbols.display_path(domain.symbol, "::");
             index
                 .by_qualified
-                .entry(qualified.clone().into_boxed_str())
+                .entry(qualified.into_boxed_str())
                 .or_default()
                 .push(position as u32);
-            index.qualified.push(qualified.into_boxed_str());
             let local = domain.name.as_str();
             let mut spellings = vec![local.to_owned()];
             if let Some((_, members)) = local.split_once("::") {
@@ -413,28 +412,27 @@ pub(crate) mod domain_constraints {
                 .collect()
         } else {
             with_domain_candidate_index(source, program, |index| {
-                let mut merged: Vec<(u32, bool)> = Vec::new();
+                let mut merged = Vec::new();
                 if let Some(bucket) = index.by_qualified.get(authored_name) {
-                    merged.extend(bucket.iter().map(|position| (*position, false)));
+                    merged.extend_from_slice(bucket);
                 }
                 if let Some(bucket) = index.by_relative.get(authored_name) {
-                    merged.extend(bucket.iter().map(|position| (*position, true)));
+                    merged.extend_from_slice(bucket);
                 }
-                merged.sort_by_key(|(position, _)| *position);
-                merged.dedup_by_key(|(position, _)| *position);
+                merged.sort_unstable();
+                merged.dedup();
                 merged
                     .into_iter()
-                    .filter_map(|(position, needs_exposure)| {
+                    .filter_map(|position| {
                         let domain = &definitions[position as usize];
                         (visible(domain)
-                            && (!needs_exposure
-                                || domain_exposed_to(
-                                    source,
-                                    domain,
-                                    &index.qualified[position as usize],
+                            && reference.is_some_and(|reference| {
+                                source.symbols.domain_name_reaches(
+                                    domain.symbol,
                                     authored_name,
                                     reference,
-                                ))
+                                )
+                            })
                             && accepts(domain))
                         .then(|| domain.clone())
                     })
@@ -478,31 +476,10 @@ pub(crate) mod domain_constraints {
             .collect::<Vec<_>>();
         if local.is_empty() { candidates } else { local }
     }
-
-    fn domain_exposed_to(
-        source: &SymbolResolvedTrees,
-        domain: &typed_trees::domain::DomainDefinition,
-        qualified: &str,
-        authored: &str,
-        reference: Option<source::SourceSpan>,
-    ) -> bool {
-        let domain_module = source.symbols.symbol_module(domain.symbol);
-        if !domain_module.is_valid() {
-            return true;
-        }
-        let Some(reference) = reference else {
-            return false;
-        };
-        if source.symbols.source_module(reference.source_id) == domain_module {
-            return true;
-        }
-        !authored.contains("::")
-            && source
-                .symbols
-                .source_module_import_paths(reference.source_id)
-                .any(|path| path == qualified)
-    }
 }
+#[cfg(test)]
+#[path = "type_reference_domain_exposure_tests.rs"]
+mod domain_exposure_tests;
 
 use crate::lowerer::Lowerer;
 use diagnostics::Diagnostic;

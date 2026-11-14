@@ -128,7 +128,7 @@ machine make_registrar_plan(signature: BoundarySignature) -> BoundaryPlanResult 
 
     machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
-            reason: CallingPolicyRejection { reason: "invalid callback catalog" },
+            reason: CallingPolicyRejection { reason: "invalid callback catalog" as +Utf8 },
         }
     }
 }

@@ -56,13 +56,17 @@ machine pick<'a, 'b>(view: &'a [u8], other: &'b [u8]) -> &'a [u8] { other }
 /// The call gives the lifetime the region of the view it passes, and the
 /// result is a view of that region: a view taken from a record's field comes
 /// back as a value of that field, and a view of any other region does not.
+/// The two formals state that they are at one region; elided, each would be
+/// at its own (lifetimes.md: "Several unnamed carried references do not
+/// become one source merely because they occupy one parameter"), and
+/// `other`'s view would not be a value of `session`'s field.
 #[test]
 fn a_call_gives_a_lifetime_the_region_of_the_view_it_passes() {
     assert_eq!(
         verdict(
             r#"
 data Session<'storage> { ready: bool; name: &'storage [u8]; }
-machine build_entry(session: &mut Session, other: &Session) { session.name = same(other.name); }
+machine build_entry<'s>(session: &mut Session<'s>, other: &Session<'s>) { session.name = same(other.name); }
 machine same<'a>(view: &'a [u8]) -> &'a [u8] { view }
 "#
         ),
@@ -72,11 +76,21 @@ machine same<'a>(view: &'a [u8]) -> &'a [u8] { view }
         verdict(
             r#"
 data Session<'storage> { ready: bool; name: &'storage [u8]; }
+machine build_entry(session: &mut Session, other: &Session) { session.name = same(other.name); }
+machine same<'a>(view: &'a [u8]) -> &'a [u8] { view }
+"#
+        ),
+        "typing call that gives one lifetime two regions"
+    );
+    assert_eq!(
+        verdict(
+            r#"
+data Session<'storage> { ready: bool; name: &'storage [u8]; }
 machine build_entry(session: &mut Session, name: &[u8]) { session.name = same(name); }
 machine same<'a>(view: &'a [u8]) -> &'a [u8] { view }
 "#
         ),
-        "typing assigned value type"
+        "typing call that gives one lifetime two regions"
     );
 }
 
@@ -90,7 +104,7 @@ fn one_lifetime_is_not_given_two_regions() {
         verdict(&format!(
             r#"
 data Session<'storage> {{ ready: bool; name: &'storage [u8]; }}
-machine build_entry(session: &mut Session, other: &Session) {{ session.name = both(other.name, "literal"); }}
+machine build_entry<'s>(session: &mut Session<'s>, other: &Session<'s>) {{ session.name = both(other.name, "literal"); }}
 {both}
 "#
         )),
@@ -100,39 +114,38 @@ machine build_entry(session: &mut Session, other: &Session) {{ session.name = bo
         verdict(&format!(
             r#"
 data Session<'storage> {{ ready: bool; name: &'storage [u8]; }}
-machine build_entry(session: &mut Session, other: &Session, name: &[u8]) {{ session.name = both(other.name, name); }}
+machine build_entry<'s>(session: &mut Session<'s>, other: &Session<'s>, name: &[u8]) {{ session.name = both(other.name, name); }}
 {both}
 "#
         )),
-        "typing views of two regions passed for one lifetime"
+        "typing call that gives one lifetime two regions"
     );
 }
 
 /// "For an elided output, one unambiguous reference input supplies the
-/// relation." A machine that names no lifetime may return any view it was
-/// passed, so its result is a view of the one region all of them are views
-/// of; a call that passes two has no such region.
+/// relation. ... Ambiguous elision requires an explicit relation, not a guess
+/// by name or position." A machine with one input view returns a view of it;
+/// one with two must say which, or its result is refused wherever it is
+/// declared.
 #[test]
-fn a_result_without_a_lifetime_needs_one_region_among_the_views_passed() {
-    let pick = "machine pick(view: &[u8], other: &[u8]) -> &[u8] { other }";
+fn a_result_without_a_lifetime_needs_one_input_lifetime() {
     assert_eq!(
-        verdict(&format!(
+        verdict(
             r#"
-machine build_entry(name: &[u8], second: &[u8]) {{ let kept: &[u8] = pick(name, second); }}
-{pick}
+machine build_entry(name: &[u8]) { let kept: &[u8] = same(name); }
+machine same(view: &[u8]) -> &[u8] { view }
 "#
-        )),
+        ),
         "accepted"
     );
     assert_eq!(
-        verdict(&format!(
+        verdict(
             r#"
-data Session<'storage> {{ ready: bool; name: &'storage [u8]; }}
-machine build_entry(session: &Session, name: &[u8]) {{ let kept: &[u8] = pick(session.name, name); }}
-{pick}
+machine build_entry(name: &[u8], second: &[u8]) { let kept: &[u8] = pick(name, second); }
+machine pick(view: &[u8], other: &[u8]) -> &[u8] { other }
 "#
-        )),
-        "typing result without a lifetime of a call passed views of two regions"
+        ),
+        "typing result without a lifetime of a signature with several input lifetimes"
     );
     // Two regions among the views passed matter to nothing else.
     assert_eq!(
@@ -242,11 +255,12 @@ machine whole(alias: &[u8], description: Description) {{ }}
     );
 }
 
-/// Not served yet: a machine's lifetime applied to data does not make the
-/// data's stored views views of that lifetime, so `dependency::with_alias`
-/// is refused where it stores its formal.
+/// A machine's lifetime applied to data makes the data's stored views views
+/// of that lifetime, so `dependency::with_alias` stores a view of its own
+/// lifetime into a description at it. Data applied at another lifetime does
+/// not take it.
 #[test]
-fn a_view_of_a_machine_lifetime_is_not_stored_in_data_applied_at_it() {
+fn a_view_of_a_machine_lifetime_is_stored_in_data_applied_at_it() {
     assert_eq!(
         verdict(
             r#"
@@ -254,6 +268,18 @@ data Description<'storage> { explicit_alias: bool; alias: &'storage [u8]; }
 machine build_entry() { }
 machine with_alias<'storage>(description: &mut Description<'storage>, alias: &'storage [u8]) {
     description.explicit_alias = true;
+    description.alias = alias;
+}
+"#
+        ),
+        "accepted"
+    );
+    assert_eq!(
+        verdict(
+            r#"
+data Description<'storage> { explicit_alias: bool; alias: &'storage [u8]; }
+machine build_entry() { }
+machine with_alias<'storage, 'other>(description: &mut Description<'storage>, alias: &'other [u8]) {
     description.alias = alias;
 }
 "#
