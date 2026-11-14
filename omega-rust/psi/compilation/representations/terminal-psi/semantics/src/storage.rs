@@ -1789,12 +1789,252 @@ pub(crate) mod arrival_storage {
 }
 pub mod borrowed_storage {
     use crate::scalars::scalar_ordering::ScalarOrdering;
-    use semantic_vocabulary::{BlockId, PlaceId, ValueId};
+    use semantic_vocabulary::{BlockId, IdTable, MachineId, PlaceId, ValueId};
     use std::collections::{BTreeMap, BTreeSet};
     use terminal_psi::StructuralPathSegment;
 
     pub type Position = (BlockId, u32);
     pub type AliasSources = BTreeMap<PlaceId, Vec<(PlaceId, Projection)>>;
+
+    /// Prepare each body's frame once from the same canonical storage flow
+    /// used for captured aliases and descriptor custody. A missing analysis
+    /// leaves the ownership ceiling intact; it never means no writes.
+    pub fn inferred_write_frames(
+        module: &terminal_psi::TerminalModule,
+    ) -> Result<IdTable<MachineId, terminal_psi::PublishedWriteFrame>, String> {
+        use crate::descriptor_results::{
+            DescriptorAnalysis, DescriptorGraphError, DescriptorSlotKind,
+        };
+        use crate::descriptors::descriptor_lifetimes::DescriptorPathSegment;
+
+        let mut frames = IdTable::default();
+        for machine in &module.machines {
+            if frames.push(None) != machine.id {
+                return Err("write-frame machines are not at their declared positions".to_owned());
+            }
+        }
+        let mut graph = match crate::descriptor_results::terminal_graph_closure(
+            module,
+            module.machines.iter().map(|machine| machine.id),
+            DescriptorSlotKind::BorrowedStorage,
+            &[],
+        ) {
+            Ok(graph) => graph,
+            Err(DescriptorGraphError::IncompleteMachine(_)) => return Ok(frames),
+            Err(DescriptorGraphError::MissingOrAmbiguousMachine(machine)) => {
+                return Err(format!("write frame has no unique machine {machine:?}"));
+            }
+        };
+        // Later local summaries may strengthen scalar entry and result facts.
+        // They must not silently narrow a published storage-effect contract.
+        // Retain the actual alias/custody flow and infer a conservative frame
+        // without those scalar premises on either producer or receiver.
+        for machine in &mut graph {
+            machine.payload_entry_predicates = None;
+            machine.payload_scalar_postconditions.clear();
+            machine.scalar_payload_writes.clear();
+        }
+        let mut analysis =
+            DescriptorAnalysis::with_borrowed_storage_slots(&module.structural_types, &graph);
+        for machine in &module.machines {
+            let Some(written) = analysis
+                .write_frame(machine.id)
+                .map_err(|detail| format!("write frame for {:?}: {detail}", machine.id))?
+            else {
+                continue;
+            };
+            let mut paths = Vec::with_capacity(written.len());
+            for region in written {
+                let mut parameters = machine
+                    .structural_parameters
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, parameter)| parameter.place == region.root);
+                let (position, _) = parameters
+                    .next()
+                    .ok_or("write frame names storage outside its structural formals")?;
+                if parameters.next().is_some() {
+                    return Err("write frame has an ambiguous structural formal".to_owned());
+                }
+                let position = u32::try_from(position)
+                    .map_err(|_| "write-frame formal ordinal cannot be represented")?;
+                let mut fields = Vec::with_capacity(region.path.len());
+                for segment in &region.path {
+                    let DescriptorPathSegment::Field(field) = segment else {
+                        return Err("published write frame contains a non-field step".to_owned());
+                    };
+                    fields.push(*field);
+                }
+                paths.push((position, fields));
+            }
+            paths.sort_unstable();
+            paths.dedup();
+            *frames
+                .get_mut(machine.id)
+                .ok_or("write-frame owner disappeared")? = Some(paths);
+        }
+        Ok(frames)
+    }
+
+    /// A supplied frame is usable only when the canonical body derives it.
+    /// Omitting a summary keeps the ceiling and grants no precision. A
+    /// bodyless header cannot invent an empty or narrowed write promise.
+    pub fn validate_write_frames(module: &terminal_psi::TerminalModule) -> Result<(), String> {
+        if module
+            .declaration_contracts
+            .iter()
+            .any(|contract| contract.published_writes.is_some())
+        {
+            return Err("a bodyless contract claims an inferred write frame".to_owned());
+        }
+        if module
+            .machines
+            .iter()
+            .all(|machine| machine.contract.published_writes.is_none())
+        {
+            return Ok(());
+        }
+        let inferred = inferred_write_frames(module)?;
+        for machine in &module.machines {
+            let Some(published) = &machine.contract.published_writes else {
+                continue;
+            };
+            if inferred.get(machine.id).and_then(Option::as_ref) != Some(published) {
+                return Err(format!(
+                    "published write frame for {:?} differs from its body",
+                    machine.id
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    /// Substitute a published frame through the call's already evaluated
+    /// operands. These are invalidation regions, not new borrows or move
+    /// permissions. An unserved reference origin retains the call ceiling.
+    pub fn call_write_regions(
+        module: &terminal_psi::TerminalModule,
+        caller: &terminal_psi::TerminalMachine,
+        operation: &terminal_psi::Operation,
+    ) -> Result<Option<Vec<Region>>, String> {
+        use semantic_vocabulary::CanonicalStructuralPathSegment;
+
+        let Some(call) = terminal_psi::direct_call_parts(&operation.kind) else {
+            return Ok(None);
+        };
+        let mut callees = module
+            .machines
+            .iter()
+            .filter(|callee| callee.id == call.callee);
+        let callee = callees.next().ok_or("write-frame call has no callee")?;
+        if callees.next().is_some() {
+            return Err("write-frame call has an ambiguous callee".to_owned());
+        }
+        let Some(frame) = &callee.contract.published_writes else {
+            return Ok(None);
+        };
+        if call.structural_arguments.len() != callee.structural_parameters.len() {
+            return Err("write-frame actuals do not match the structural telescope".to_owned());
+        }
+        let mut regions = Vec::with_capacity(frame.len());
+        for (parameter, fields) in frame {
+            let parameter = usize::try_from(*parameter)
+                .map_err(|_| "write-frame formal ordinal cannot be represented")?;
+            let formal = callee
+                .structural_parameters
+                .get(parameter)
+                .ok_or("write frame names a missing structural formal")?;
+            let actual = call
+                .structural_arguments
+                .get(parameter)
+                .ok_or("write frame has no evaluated actual")?;
+            let root = caller
+                .structural_place_type(actual.place)
+                .ok_or("write-frame actual has no declared root")?;
+            let selected = crate::runtime_structural_path_tip(
+                module.structural_types.iter(),
+                root,
+                &actual.path,
+            )
+            .map(|declaration| declaration.id)
+            .or_else(|| {
+                crate::borrowed_primitive_projection_declaration(
+                    module.structural_types.iter(),
+                    root,
+                    &actual.path,
+                    Some(formal.structural_type),
+                )
+            });
+            if selected != Some(formal.structural_type) {
+                return Err("write-frame actual does not have its formal's exact type".to_owned());
+            }
+            let mut path = actual.path.clone();
+            if let Some((last, prefix)) = fields.split_last() {
+                let prefix: Vec<_> = prefix
+                    .iter()
+                    .copied()
+                    .map(CanonicalStructuralPathSegment::Field)
+                    .collect();
+                let relative = crate::canonical_field_storage_region(
+                    module.structural_types.iter(),
+                    formal.structural_type,
+                    &prefix,
+                    *last,
+                );
+                if relative.len() != fields.len() {
+                    return Err(
+                        "write frame does not follow its formal's declared fields".to_owned()
+                    );
+                }
+                path.extend(relative);
+            }
+            let field_path: Vec<_> = fields
+                .iter()
+                .copied()
+                .map(CanonicalStructuralPathSegment::Field)
+                .collect();
+            if crate::shared_mutation(
+                module.structural_types.iter(),
+                formal.structural_type,
+                &field_path,
+            ) == crate::SharedMutation::Unbounded
+                || crate::canonical_structural_path_tip(
+                    module.structural_types.iter(),
+                    formal.structural_type,
+                    &field_path,
+                )
+                .is_some_and(|declaration| {
+                    matches!(
+                        declaration.shape,
+                        terminal_psi::StructuralTypeShape::Reference { .. }
+                            | terminal_psi::StructuralTypeShape::ElementView { .. }
+                            | terminal_psi::StructuralTypeShape::ByteSequence(_)
+                    )
+                })
+            {
+                return Ok(None);
+            }
+            if path.iter().any(|step| {
+                matches!(
+                    step,
+                    StructuralPathSegment::Referent
+                        | StructuralPathSegment::RepresentationView { .. }
+                )
+            }) {
+                return Ok(None);
+            }
+            let region =
+                crate::projected_storage_region(module.structural_types.iter(), root, &path, None);
+            if region.indirect {
+                return Ok(None);
+            }
+            regions.push(Region {
+                root: Some(actual.place),
+                projection: Projection::new(&region.path),
+            });
+        }
+        Ok(Some(regions))
+    }
 
     #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
     pub struct Projection {

@@ -121,7 +121,7 @@ fn describe_calls(
     let storage = crate::places::Storage::new(
         id,
         lowered,
-        &elaboration.module.structural_types,
+        &elaboration.module,
         &elaboration.domains,
         &prepared.graph,
         &tables,

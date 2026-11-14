@@ -176,8 +176,13 @@ pub(crate) mod contracts {
     use crate::{CrashCause, EvidenceInterfaceIdentity};
     use semantic_vocabulary::{
         ContractId, EvidenceTermId, MachineId, ObligationId, PlaceId, Proposition, PropositionId,
-        StructuralCaseId, StructuralTypeId,
+        StructuralCaseId, StructuralFieldId, StructuralTypeId,
     };
+
+    /// A structural-formal ordinal followed by zero or more field identities.
+    /// `None` retains the ownership ceiling; `Some([])` is a complete empty
+    /// frame. The owning contract supplies every parameter's exact type.
+    pub type PublishedWriteFrame = Option<Vec<(u32, Vec<StructuralFieldId>)>>;
 
     /// One declaration's signature and published obligations. Keeping them
     /// together lets a requirement retain its contract without inventing a body.
@@ -201,6 +206,12 @@ pub(crate) mod contracts {
         /// Exact published synchronous entries, strictly increasing. Empty
         /// enters nothing; a boundary's parents are not added implicitly.
         pub published_synchronous_entries: Vec<semantic_vocabulary::ServiceId>,
+        /// A call may invalidate only the existing storage it can write.
+        /// Each row names a structural-formal ordinal and its field path.
+        /// `None` retains the conservative ceiling; `Some([])` establishes
+        /// an empty frame. This records effects, never invocation permission
+        /// or a promise about the values left there.
+        pub published_writes: PublishedWriteFrame,
         pub termination: semantic_vocabulary::Termination,
         pub content_entry_claims: Vec<crate::ContentEntryClaim>,
         pub crash_routes: Vec<CrashRouteBucket>,
@@ -260,6 +271,7 @@ pub(crate) mod contracts {
                 closed_reach_application: None,
                 published_service_ceiling: Vec::new(),
                 published_synchronous_entries: Vec::new(),
+                published_writes: None,
                 termination: semantic_vocabulary::Termination::NoGuarantee,
                 content_entry_claims: Vec::new(),
                 crash_routes: Vec::new(),
@@ -844,7 +856,7 @@ pub use contracts::{
     OutcomeSpecificCallArgumentSubstitution, OutcomeSpecificCallEvidence,
     OutcomeSpecificCallEvidenceValidity, OutcomeSpecificCallResultSubstitution,
     OutcomeSpecificEnsure, OutcomeSpecificEvidence, OutcomeSpecificEvidenceUse,
-    OutcomeSpecificGuard,
+    OutcomeSpecificGuard, PublishedWriteFrame,
 };
 pub use declarations::{
     EvidenceArgumentSubject, EvidenceContractLane, EvidenceContractLaneKind,
