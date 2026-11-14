@@ -2020,7 +2020,19 @@ mod lookup {
         name: &str,
         index: i64,
     ) -> SymbolHandle {
-        child_symbol_by_kinds_matching(symbols, parent, kinds, &format!("{name}[{index}]"))
+        child_symbol_by_kinds_matching(symbols, parent, kinds, &indexed_member_name(name, index))
+    }
+
+    /*
+        One spelling for an indexed member: the name, then the canonical decimal
+        of the index. The receiver walk supplies that index from
+        `IntegerLiteral::value_i64`, and `i64` displays it without a leading
+        `+`, leading zeros, or spaces. Declaration names are identifiers, and
+        the lexer keeps `[` a separate token, so no stored name is written in
+        another bracket spelling.
+    */
+    fn indexed_member_name(name: &str, index: i64) -> String {
+        format!("{name}[{index}]")
     }
 
     pub(super) fn call_target_for_attached_data(
@@ -2196,6 +2208,97 @@ mod lookup {
                 }))
             }
             (DomainMembership::NotFound, SymbolLookup::NotFound) => Ok(None),
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use numerics::literals::{IntegerLiteral, IntegerRadix};
+        use symbol_resolved_trees::name::DiagnosticName;
+        use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+        use super::super::scoped_paths::resolve_state_scoped_members;
+        use super::child_indexed_symbol_by_kinds;
+
+        /*
+            A constant index selects the child whose name is the canonical
+            `{member}[{i64}]` spelling. Source spellings `07` and `0_7` are the
+            same i64 before that lookup; `+7` and ` 7 ` are not integer literals.
+        */
+        #[test]
+        fn indexed_member_resolves_through_the_canonical_spelling() {
+            let mut builder = SymbolTableBuilder::new();
+            let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+            let machine = builder.insert_children(
+                root,
+                [(SymbolKind::Machine, SymbolNameRef::Borrowed("reader"))],
+            );
+            let machine = SymbolTableBuilder::child_handles(machine)
+                .next()
+                .expect("machine");
+            let state = builder.insert_children(
+                machine,
+                [(SymbolKind::State, SymbolNameRef::Borrowed("entry"))],
+            );
+            let state = SymbolTableBuilder::child_handles(state)
+                .next()
+                .expect("state");
+            let canonical = super::indexed_member_name("items", 7);
+            let parameters = builder.insert_children(
+                state,
+                [
+                    (
+                        SymbolKind::Parameter,
+                        SymbolNameRef::Borrowed(canonical.as_str()),
+                    ),
+                    (SymbolKind::Parameter, SymbolNameRef::Borrowed("items[07]")),
+                ],
+            );
+            let mut parameters = SymbolTableBuilder::child_handles(parameters);
+            let canonical_symbol = parameters.next().expect("canonical parameter");
+            let padded_symbol = parameters.next().expect("padded parameter");
+            let symbols = builder.finish();
+
+            let found = child_indexed_symbol_by_kinds(
+                &symbols,
+                state,
+                &[SymbolKind::Parameter],
+                "items",
+                7,
+            );
+            assert_eq!(found, canonical_symbol);
+            assert_ne!(found, padded_symbol);
+            assert_eq!(symbols.name(found), "items[7]");
+
+            let (head, leaf) = resolve_state_scoped_members(
+                &symbols,
+                machine,
+                state,
+                &[DiagnosticName::generated("items")],
+                Some(7),
+            );
+            assert_eq!(head, canonical_symbol);
+            assert_eq!(leaf, canonical_symbol);
+
+            for spelling in ["7", "07", "007", "0_7"] {
+                let literal =
+                    IntegerLiteral::from_parts(false, IntegerRadix::Decimal, spelling).unwrap();
+                let index = literal.value_i64().expect(spelling);
+                assert_eq!(index, 7, "{spelling}");
+                assert_eq!(
+                    child_indexed_symbol_by_kinds(
+                        &symbols,
+                        state,
+                        &[SymbolKind::Parameter],
+                        "items",
+                        index,
+                    ),
+                    canonical_symbol,
+                    "{spelling}",
+                );
+            }
+            assert!(IntegerLiteral::from_parts(false, IntegerRadix::Decimal, "+7").is_err());
+            assert!(IntegerLiteral::from_parts(false, IntegerRadix::Decimal, " 7 ").is_err());
         }
     }
 }

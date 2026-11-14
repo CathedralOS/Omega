@@ -103,20 +103,27 @@ mod calls {
 
             let receiver_kind = symbols.get(receiver_symbol).kind;
             if receiver_kind == SymbolKind::Module {
-                let callable = child_symbol_by_kinds(
-                    symbols,
-                    receiver_symbol,
-                    SOURCE_CALL_KINDS,
-                    target.as_str(),
+                /*
+                    The same declaration the static pass selects. A child whose
+                    stored name is only the leaf misses `machine kit::work`,
+                    whose name is the qualified spelling and whose state is
+                    `work`; asking that miss for `entry` was a third answer.
+                */
+                let qualified = format!(
+                    "{}::{}",
+                    symbols.display_path(receiver_symbol, "::"),
+                    target.as_str()
                 );
+                let callable = symbols
+                    .find_top_level_by_name_and_kinds_from_source(
+                        &qualified,
+                        SOURCE_CALL_KINDS,
+                        target.source_span(),
+                    )
+                    .unwrap_or_else(SymbolHandle::invalid);
                 match symbols.get(callable).kind {
                     SymbolKind::Machine => {
-                        return child_symbol_by_kinds(
-                            symbols,
-                            callable,
-                            &[SymbolKind::State],
-                            "entry",
-                        );
+                        return machine_entry_symbol(symbols, callable, target.as_str());
                     }
                     SymbolKind::Operator
                     | SymbolKind::Proposition
@@ -1283,5 +1290,153 @@ mod tests {
                 .name(program.symbols.get(call.target_symbol).parent),
             "kit::work"
         );
+    }
+
+    /*
+        `kit.work()` resolves its receiver to the module. The old arm looked
+        for a child stored as `work`, then a state named `entry`.
+        `machine kit::work` is stored as `kit::work`, so the call had no
+        target, while `kit::work()` kept the state `work`. Both calls now
+        keep that state.
+    */
+    #[test]
+    fn module_receiver_call_keeps_the_state_named_the_call_target() {
+        let text = r#"
+            module kit;
+            machine kit::work() -> i32 { 1 }
+            machine caller() -> i32 { kit.work() }
+        "#;
+        let call = resolved_call(text, "work");
+        assert!(
+            call.target_symbol.is_valid(),
+            "the module receiver dropped the state named the call target"
+        );
+        assert_eq!(call.symbols_kind, SymbolKind::State);
+        assert_eq!(call.state_name, "work");
+        assert_eq!(call.machine_name, "kit::work");
+    }
+
+    /*
+        A one-segment machine in the same module still has the generated
+        `entry` state. The module receiver and the static pass both keep it.
+    */
+    #[test]
+    fn module_receiver_call_keeps_the_generated_entry_state() {
+        let text = r#"
+            module kit;
+            machine work() -> i32 { 1 }
+            machine caller() -> i32 { kit.work() }
+        "#;
+        let call = resolved_call(text, "work");
+        assert_eq!(call.symbols_kind, SymbolKind::State);
+        assert_eq!(call.state_name, "entry");
+        assert_eq!(call.machine_name, "work");
+
+        let text = r#"
+            module kit;
+            machine work() -> i32 { 1 }
+            machine caller() -> i32 { kit::work() }
+        "#;
+        let call = resolved_call(text, "kit::work");
+        assert_eq!(call.symbols_kind, SymbolKind::State);
+        assert_eq!(call.state_name, "entry");
+        assert_eq!(call.machine_name, "work");
+    }
+
+    /*
+        A statement call uses the same module receiver as an expression call.
+        `kit.work();` keeps the state named `work`.
+    */
+    #[test]
+    fn module_receiver_statement_matches_the_static_pass() {
+        let text = r#"
+            module kit;
+            machine kit::work() -> i32 { 1 }
+            machine caller() { kit.work(); }
+        "#;
+        let mut sources = source::SourceMap::default();
+        let source_id = sources
+            .add("kit/main.omg".into(), text.to_owned())
+            .source_id;
+        let tokens = Lexer::new(text).tokenize().expect("tokenize");
+        let syntax =
+            tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).expect("parse");
+        let program = resolve(ResolutionRequest {
+            syntax,
+            sources: Some(std::sync::Arc::new(sources)),
+            top_level_bindings: Vec::new(),
+            retained_base: None,
+        })
+        .expect("resolve");
+        let call = program
+            .tables
+            .declarations
+            .state_statements
+            .iter()
+            .find_map(|(_, statement)| match statement {
+                symbol_resolved_trees::statement::Statement::Call(call)
+                    if call.target.as_str() == "work" =>
+                {
+                    Some(call)
+                }
+                _ => None,
+            })
+            .expect("the statement call");
+        assert!(call.target_symbol.is_valid());
+        assert_eq!(
+            program.symbols.get(call.target_symbol).kind,
+            SymbolKind::State
+        );
+        assert_eq!(program.symbols.name(call.target_symbol), "work");
+        assert_eq!(
+            program
+                .symbols
+                .name(program.symbols.get(call.target_symbol).parent),
+            "kit::work"
+        );
+    }
+
+    struct ResolvedCall {
+        symbols_kind: SymbolKind,
+        state_name: String,
+        machine_name: String,
+        target_symbol: symbols::SymbolHandle,
+    }
+
+    fn resolved_call(text: &str, target: &str) -> ResolvedCall {
+        let mut sources = source::SourceMap::default();
+        let source_id = sources
+            .add("kit/main.omg".into(), text.to_owned())
+            .source_id;
+        let tokens = Lexer::new(text).tokenize().expect("tokenize");
+        let syntax =
+            tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).expect("parse");
+        let program = resolve(ResolutionRequest {
+            syntax,
+            sources: Some(std::sync::Arc::new(sources)),
+            top_level_bindings: Vec::new(),
+            retained_base: None,
+        })
+        .expect("resolve");
+        let call = program
+            .tables
+            .bodies
+            .expressions
+            .iter_expressions()
+            .find_map(|(_, expression)| match expression {
+                ExpressionNode::Call(call) if call.target.as_str() == target => Some(call.clone()),
+                _ => None,
+            })
+            .expect("the call");
+        let target_symbol = call.target_symbol;
+        ResolvedCall {
+            symbols_kind: program.symbols.get(target_symbol).kind,
+            state_name: program.symbols.name(target_symbol).to_owned(),
+            machine_name: program
+                .symbols
+                .name(program.symbols.get(target_symbol).parent)
+                .to_owned(),
+            target_symbol,
+        }
     }
 }
