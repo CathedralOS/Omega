@@ -2035,6 +2035,9 @@ fn a_copy_reads_as_what_its_source_held_and_an_unknown_content_reads_as_nothing(
     //     let t = make();            // a call's result: values unknown here
     //     bounded(t.y)
     // }
+    // The executable whole-result value is not a scalar leaf fact. A caller
+    // may name result leaves logically, but needs a checked guarantee to know
+    // their contents; this model's producer publishes none.
     let caller = Shaped {
         parameters: Vec::new(),
         locals: vec![point(), point(), point()],

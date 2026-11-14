@@ -564,8 +564,8 @@ struct Lowering<'a> {
     /// What each root place is and the record type it holds, indexed by its
     /// `PlaceId`: the machine's structural place declarations.
     roots: IdTable<PlaceId, (StructuralPlaceKind, StructuralTypeId)>,
-    /// The entry content value minted for a formal's scalar leaf, indexed by
-    /// that leaf's `ExactPlaceId`; `None` until the leaf is first read.
+    /// The initial value of a formal's scalar leaf or a produced call result's
+    /// leaf, indexed by `ExactPlaceId`; `None` until its identity is needed.
     initial_contents: Vec<Option<ValueId>>,
     /// The branch decisions on the path to the open block, in program order:
     /// each the branch value equal to the Boolean its edge took. Every arm

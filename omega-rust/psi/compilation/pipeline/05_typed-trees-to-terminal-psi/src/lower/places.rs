@@ -888,14 +888,14 @@ impl<'a> Lowering<'a> {
                         )
                         .expect("u64 is valid"),
                     );
-                    return self.entry_content(extent, scalar_type).map(drop);
+                    return self.initial_content(extent, scalar_type).map(drop);
                 }
                 for field in data.fields() {
                     let leaf = self.project(place, Segment::Field(field.id))?;
                     self.initial_leaves(leaf, field.value_type)?;
                 }
-                // Which case a formal holds is not known, so every case's
-                // payload leaves get their entry content; the checker lets
+                // Which case an input or call result holds is not known, so
+                // every payload leaf gets an initial identity; the checker lets
                 // a read reach one only where that case is established.
                 for case in data.cases() {
                     let payload = self.project(place, Segment::Case(case.id))?;

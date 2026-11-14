@@ -848,7 +848,8 @@ impl<'a> Storage<'a> {
     }
 
     /// A normal call guarantee observes the actual returned root after its
-    /// producer, while input names keep their before-call values.
+    /// producer. Owned input names keep their before-call values; borrowed
+    /// completion observations need a separate, current-storage correspondence.
     pub(crate) fn after_call<'s>(
         &'s self,
         tables: &'s MachineTables,
@@ -888,6 +889,7 @@ impl<'a> Storage<'a> {
         });
         Ok(Returned {
             inputs,
+            input_formals: formals,
             storage: self,
             tables,
             structural,
@@ -898,8 +900,8 @@ impl<'a> Storage<'a> {
     }
 
     /// A published guarantee must hold of the storage this exact exit returns,
-    /// including all writes before the exit. Input names still denote entry
-    /// snapshots; they do not read a moved or mutated formal at return time.
+    /// including all writes before the exit. Owned input names denote entry
+    /// snapshots. Borrowed postconditions cannot use those stale snapshots.
     pub(crate) fn at_return<'s>(
         &'s self,
         tables: &'s MachineTables,
@@ -949,6 +951,7 @@ impl<'a> Storage<'a> {
         };
         Ok(Returned {
             inputs: self.at_entry(tables),
+            input_formals: &self.lowered.structural_parameters,
             storage: self,
             tables,
             structural,
@@ -3165,6 +3168,7 @@ impl Held<'_, '_> {
 /// every field read uses the same checked reaching-write walk as data clauses.
 pub(crate) struct Returned<'s, 'a, Inputs> {
     inputs: Inputs,
+    input_formals: &'s [terminal_psi::StructuralParameterDeclaration],
     storage: &'s Storage<'a>,
     tables: &'s MachineTables,
     structural: Option<(PlaceId, Lineage)>,
@@ -3174,6 +3178,20 @@ pub(crate) struct Returned<'s, 'a, Inputs> {
 }
 
 impl<Inputs: crate::Bindings<Error = crate::Unbound>> Returned<'_, '_, Inputs> {
+    fn owned_inputs(&mut self, root: PlaceId) -> Result<&mut Inputs, crate::Unbound> {
+        let formal =
+            terminal_psi::StructuralParameterDeclaration::find_by_place(self.input_formals, root)
+                .ok_or(crate::Unbound::Unsupported(
+                "a completion clause names storage that is no formal",
+            ))?;
+        if formal.access != terminal_psi::StructuralAccess::Owned {
+            return Err(crate::Unbound::Unsupported(
+                "borrowed completion storage has no post-call observation",
+            ));
+        }
+        Ok(&mut self.inputs)
+    }
+
     fn held(&self) -> Result<Held<'_, '_>, crate::Unbound> {
         let (_, place) = self.structural.as_ref().ok_or(crate::Unbound::Unsupported(
             "no structural result correspondence",
@@ -3228,7 +3246,24 @@ impl<Inputs: crate::Bindings<Error = crate::Unbound>> crate::Bindings for Return
                 .ok_or(crate::Unbound::Unsupported("data subject identity"))?;
             return self.held()?.field(subject, path, scalar_type);
         }
-        self.inputs.field(root, path, scalar_type)
+        self.owned_inputs(root)?.field(root, path, scalar_type)
+    }
+    fn extent(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        scalar_type: semantic_vocabulary::IntegerType,
+    ) -> Result<ScalarTerm, crate::Unbound> {
+        if self
+            .structural
+            .as_ref()
+            .is_some_and(|(declared, _)| *declared == root)
+        {
+            let subject = terminal_check_tables::program::self_place()
+                .ok_or(crate::Unbound::Unsupported("data subject identity"))?;
+            return self.held()?.extent(subject, path, scalar_type);
+        }
+        self.owned_inputs(root)?.extent(root, path, scalar_type)
     }
     fn case(
         &mut self,
@@ -3245,7 +3280,7 @@ impl<Inputs: crate::Bindings<Error = crate::Unbound>> crate::Bindings for Return
                 .ok_or(crate::Unbound::Unsupported("data subject identity"))?;
             return self.held()?.case(subject, path, case);
         }
-        self.inputs.case(root, path, case)
+        self.owned_inputs(root)?.case(root, path, case)
     }
 }
 
