@@ -157,12 +157,12 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
     }
 
     fn retain_source_accounting<T>(&mut self, result: &Result<T, ProjectSourceResolutionError>) {
-        if let Err(failure) = result {
-            if let Some(accounting) = failure.source_completion_accounting() {
-                self.session
-                    .packages
-                    .record_source_completion(accounting.clone());
-            }
+        if let Err(failure) = result
+            && let Some(accounting) = failure.source_completion_accounting()
+        {
+            self.session
+                .packages
+                .record_source_completion(accounting.clone());
         }
     }
 
