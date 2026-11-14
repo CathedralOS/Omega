@@ -6700,6 +6700,20 @@ const OPERAND_SUBSTITUTION_RULES: &[OperandSubstitutionRule] = &[
             constant_law_shape(&operands, operands.scalar_type.one(), None)
         }
 
+        pub(super) fn accepted_operation_obligation_evidence(
+            input: &PsiOptimizationUnit,
+            function: &PsiOptimizationFunction,
+            shape: &IndependentIntegerConstantLawShape,
+            candidate: &PsiRewriteCandidate,
+        ) -> Result<(), OptimizationUnitValidationError> {
+            let expected_fact = accepted_law_obligation(input, function, shape)?;
+            if candidate.accepted_obligation_witness() != Some(expected_fact) {
+                return Err(
+                    OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch,
+                );
+            }
+            Ok(())
+        }
         #[cfg(test)]
         mod width_closure_tests {
             use super::*;
@@ -6737,21 +6751,6 @@ const OPERAND_SUBSTITUTION_RULES: &[OperandSubstitutionRule] = &[
                     assert!(!shape(IntegerType::parameterized(sign, parameter)));
                 }
             }
-        }
-
-        pub(super) fn accepted_operation_obligation_evidence(
-            input: &PsiOptimizationUnit,
-            function: &PsiOptimizationFunction,
-            shape: &IndependentIntegerConstantLawShape,
-            candidate: &PsiRewriteCandidate,
-        ) -> Result<(), OptimizationUnitValidationError> {
-            let expected_fact = accepted_law_obligation(input, function, shape)?;
-            if candidate.accepted_obligation_witness() != Some(expected_fact) {
-                return Err(
-                    OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch,
-                );
-            }
-            Ok(())
         }
     }
     mod unit_divisor {
