@@ -71,7 +71,11 @@ Existing claim and note fields remain intact. Historical future expiries,
 including `2099-01-01`, retain their recorded meaning; the command does not infer
 a replacement expiry from `claimed_utc` or `lease_minutes`.
 
-Every command fetches only the advertised registry commit (`--depth=1`): each
+Help and malformed requests are handled before workspace discovery or Git access.
+A help flag after the subcommand is supported too. A consumed value, such as
+`claims note --ticket t --text --help`, remains ordinary text.
+
+A formed command fetches only the advertised registry commit (`--depth=1`): each
 commit's message holds the whole record, and the reference's history runs to
 tens of thousands of them, so a full fetch could exhaust a cloud session's
 memory. The history stays on the remote. The fetch requests the exact advertised
@@ -84,7 +88,10 @@ Claims and worktree fetches share an OS-owned lock in the repository's common
 Git directory. Linked worktrees therefore serialize updates to shared fetch and
 shallow metadata, while independent repositories proceed separately. Ownership
 lasts only for the fetch and ends on return or process exit; the persistent lock
-file stays in place. Worktree network access still precedes the pool-state lock.
+file stays in place. The shared fetch operation disables automatic maintenance
+and caps packing and indexing at one thread for that process and its Git
+children. It never changes repository or global Git settings. Worktree network
+access still precedes the pool-state lock.
 Direct Git commands and older xtask binaries do not participate in this protocol.
 
 Mutations read the registry snapshot, create a new Git commit containing the
