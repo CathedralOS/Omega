@@ -294,6 +294,7 @@ pub mod control_flow {
                 name: DiagnosticName::generated("main"),
                 attached_data: None,
                 attached_data_symbol: SymbolHandle::invalid(),
+                operator_home_domain: SymbolHandle::invalid(),
                 attached_data_application: None,
                 spelling: None,
                 is_public: false,
