@@ -472,7 +472,12 @@ fn primitive(scalar_type: ScalarType) -> String {
             };
             match integer.carrier() {
                 IntegerCarrier::Address => format!("{sign}size"),
-                IntegerCarrier::Fixed => format!("{sign}{}", integer.bits()),
+                IntegerCarrier::Fixed => match integer.width() {
+                    semantic_vocabulary::IntegerWidth::Bits(bits) => format!("{sign}{bits}"),
+                    semantic_vocabulary::IntegerWidth::Parameter(_) => {
+                        format!("{sign}<width parameter>")
+                    }
+                },
             }
         }
     }
