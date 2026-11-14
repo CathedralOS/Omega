@@ -7035,9 +7035,9 @@ pub(crate) mod trait_scopes {
             Ok(())
         }
 
-        fn applied_callable_signature_requests(
-            &self,
-            mut roots: Vec<AppliedTraitScope<'_>>,
+        fn applied_callable_signature_requests<'program>(
+            &'program self,
+            mut roots: Vec<AppliedTraitScope<'program>>,
         ) -> Vec<CallableSignatureRequest> {
             let mut bound_roots = Vec::new();
             for root in &roots {
