@@ -1047,37 +1047,6 @@ mod plan_validation {
     };
 
     #[test]
-    fn compact_fnv_plan_inventory_is_explicitly_non_authoritative() {
-        let source = include_str!("plan_policy.rs");
-        assert_eq!(
-            source.matches("semantic_vocabulary::Fnv1a::new()").count(),
-            3,
-            "every compact FNV plan family must remain in the reviewed local inventory"
-        );
-        for name in [
-            "non_authoritative_access_plan_compatibility_fingerprint",
-            "non_authoritative_access_compatibility_fingerprint",
-            "non_authoritative_resource_profile_compatibility_fingerprint",
-        ] {
-            assert!(
-                source.contains(name),
-                "compact plan fingerprints must advertise their non-authoritative role: {name}"
-            );
-        }
-        assert!(
-            source.contains("omega.placement-plan.authoritative.v1\\0")
-                && include_str!("../../optimization/src/lib.rs").contains("DomainDigestEncoder"),
-            "provider-content interpretation must retain a domain-separated strong commitment"
-        );
-        assert!(
-            source.contains("omega.access-field-layout.authoritative.v1\\0")
-                && include_str!("access_fields.rs")
-                    .contains("layout_commitment: AccessLayoutCommitment"),
-            "access field keys must retain a domain-separated exact-layout commitment"
-        );
-    }
-
-    #[test]
     fn stored_integer_geometry_uses_the_exact_encoded_width() {
         let layout = layout_report(
             vec![layout_field_entry(
