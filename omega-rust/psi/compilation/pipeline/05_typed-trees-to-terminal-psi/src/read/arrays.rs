@@ -143,7 +143,7 @@ impl Program<'_> {
         length > 0 && actual.requires.is_empty() && self.records.get(element).is_some_and(|element|
             element.requires.is_empty() && matches!(element.shape,
                 StorageShape::PrimitiveScalar { scalar_type: ScalarType::Integer(integer), policy: None }
-                    if integer.bits() == 8 && integer.sign() == IntegerSign::Unsigned && !integer.is_address()))
+                    if integer.bits() == Some(8) && integer.sign() == IntegerSign::Unsigned && !integer.is_address()))
     }
 
     pub(super) fn array_literal(
