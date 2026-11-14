@@ -2949,7 +2949,7 @@ pub(crate) mod tests {
                     .required_contract = Some(*required);
                 let error = admit(copied).unwrap_err();
                 assert!(
-                    error.contains("public") && error.contains("contract"),
+                    error.contains("selected invocation lost its exact public/body association"),
                     "{error}"
                 );
             } else {
