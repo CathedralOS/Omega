@@ -232,9 +232,20 @@ impl Questions<'_> {
                         );
                     }
                 } else if source_target != selected {
-                    return Err(refused(
-                        "declared invocation differs from its exact source selection",
-                    ));
+                    // Source calls may name the machine's entry State, while
+                    // the published call names the machine. Only its uniquely
+                    // registered entry authenticates that same declaration.
+                    let entered_machine = match target {
+                        TargetMachineCallable::Machine(_) => typed
+                            .unique_machine_by_entry_state_symbol(source_target)
+                            .map(|(machine, _)| machine.symbol),
+                        TargetMachineCallable::Boundary(_) => None,
+                    };
+                    if entered_machine != Some(selected) {
+                        return Err(refused(
+                            "declared invocation differs from its exact source selection",
+                        ));
+                    }
                 }
                 self.declarations
                     .symbol_reference(&mut self.output, owner, selected)

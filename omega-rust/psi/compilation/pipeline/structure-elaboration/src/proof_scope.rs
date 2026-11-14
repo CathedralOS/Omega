@@ -52,11 +52,72 @@ pub(crate) fn declare(typed: &TypedTrees, elaboration: &mut Elaboration) -> Chec
         declarations.push((machine.id, id));
     }
     declarations.sort_unstable_by_key(|(machine, _)| *machine);
+    let context = elaboration
+        .module
+        .machines
+        .first()
+        .map(|machine| machine.id)
+        .unwrap_or_else(|| MachineId::new(1).expect("1 is nonzero"));
+    let mut boundary_declarations = Vec::with_capacity(elaboration.module.boundary_machines.len());
+    for boundary in &elaboration.module.boundary_machines {
+        let unavailable =
+            |reason| refuse(context, Construct::Machine, Unserved::Declaration(reason));
+        let declaration = match &boundary.declaration {
+            Some(declaration) => ProofScopeDeclaration::Callable(declaration.source.clone()),
+            None if boundary.kind == semantic_vocabulary::BoundaryRequirementKind::Operator => {
+                let symbol = elaboration.boundaries.get(boundary.id).ok_or_else(|| {
+                    unavailable("proof operator requirement lost its exact source owner")
+                })?;
+                let overload = elaboration
+                    .module
+                    .identities
+                    .text(boundary.identity)
+                    .filter(|identity| !identity.is_empty())
+                    .ok_or_else(|| {
+                        unavailable("proof operator requirement lost its exact overload")
+                    })?;
+                ProofScopeDeclaration::Operator(
+                    terminal_psi::BoundaryOperatorRequirement::new(
+                        boundary.owner.clone(),
+                        overload.to_owned(),
+                        typed.symbols.symbol_package_identity(*symbol),
+                    )
+                    .map_err(unavailable)?,
+                )
+            }
+            None => {
+                return Err(unavailable(
+                    "proof boundary requirement has no exact checked declaration",
+                ));
+            }
+        };
+        let id = u32::try_from(scope.declarations.len())
+            .ok()
+            .and_then(|position| position.checked_add(1))
+            .map(ProofDeclarationId)
+            .ok_or_else(|| unavailable("proof declaration coordinate overflow"))?;
+        scope.declarations.insert(declaration);
+        scope.callables.insert(ProofCallableAssociation::Callable {
+            declaration: id,
+            callable: TargetMachineCallable::Boundary(boundary.id),
+        });
+        // A boundary contributes its declaration, never an executable body
+        // or an invocation root. Actual call edges below activate only the
+        // realization selected for this exact requirement.
+        boundary_declarations.push((boundary.id, id));
+    }
+    boundary_declarations.sort_unstable_by_key(|(boundary, _)| *boundary);
     let declaration_for = |machine: MachineId| -> Result<ProofDeclarationId, String> {
         let position = declarations
             .binary_search_by_key(&machine, |(machine, _)| *machine)
             .map_err(|_| "proof call has no exact emitted declaration")?;
         Ok(declarations[position].1)
+    };
+    let boundary_declaration_for = |boundary| -> Result<ProofDeclarationId, &'static str> {
+        let position = boundary_declarations
+            .binary_search_by_key(&boundary, |(boundary, _)| *boundary)
+            .map_err(|_| "proof call has no exact emitted boundary declaration")?;
+        Ok(boundary_declarations[position].1)
     };
     for machine in &elaboration.module.machines {
         let id = declaration_for(machine.id).map_err(|_| {
@@ -97,10 +158,22 @@ pub(crate) fn declare(typed: &TypedTrees, elaboration: &mut Elaboration) -> Chec
                         Err(reason) => unavailable = Some(reason),
                     }
                 }
-                if matches!(
-                    operation.kind,
-                    OperationKind::CallDynamic { .. } | OperationKind::BoundaryCall { .. }
-                ) {
+                if let OperationKind::BoundaryCall { boundary, .. } = &operation.kind {
+                    let callee = boundary_declaration_for(*boundary).map_err(|reason| {
+                        refuse(
+                            machine.id,
+                            Construct::Operation(operation.id),
+                            Unserved::Declaration(reason),
+                        )
+                    })?;
+                    calls.push(ProofApplicationCall {
+                        callee,
+                        ..ProofApplicationCall::default()
+                    });
+                    unavailable =
+                        Some("compiler evaluation needs admitted boundary execution".into());
+                }
+                if matches!(operation.kind, OperationKind::CallDynamic { .. }) {
                     unavailable = Some(
                         "proof scope needs the actual selected boundary correspondence".into(),
                     );
@@ -114,10 +187,20 @@ pub(crate) fn declare(typed: &TypedTrees, elaboration: &mut Elaboration) -> Chec
                     }),
                     Err(reason) => unavailable = Some(reason),
                 },
-                Terminator::ExternalCompletion { .. } => {
-                    unavailable = Some(
-                        "proof scope needs the actual external completion correspondence".into(),
-                    )
+                Terminator::ExternalCompletion { boundary, .. } => {
+                    let callee = boundary_declaration_for(*boundary).map_err(|reason| {
+                        refuse(
+                            machine.id,
+                            Construct::Block(block.id),
+                            Unserved::Declaration(reason),
+                        )
+                    })?;
+                    calls.push(ProofApplicationCall {
+                        callee,
+                        ..ProofApplicationCall::default()
+                    });
+                    unavailable =
+                        Some("compiler evaluation needs admitted external completion".into());
                 }
                 _ => {}
             }
@@ -273,10 +356,16 @@ pub(crate) fn declare(typed: &TypedTrees, elaboration: &mut Elaboration) -> Chec
         });
     }
     scope.calls.index_machines();
-    scope.plan.declarations = scope
-        .plan
-        .symbols
-        .insert_many(declarations.iter().map(|(_, declaration)| *declaration));
+    scope.plan.declarations = scope.plan.symbols.insert_many(
+        declarations
+            .iter()
+            .map(|(_, declaration)| *declaration)
+            .chain(
+                boundary_declarations
+                    .iter()
+                    .map(|(_, declaration)| *declaration),
+            ),
+    );
     scope.plan.obligation_owners = scope
         .plan
         .symbols
