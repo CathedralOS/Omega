@@ -1138,7 +1138,12 @@ fn type_completed_bodies(
     ).map_err(|(_, error)| vec![Diagnostic::error(format!(
         "authored-body completion could not join its retained typed selection ledger: {error:?}"
     ))])?;
-    Ok((typing.complete_bodies(source)?, frontier))
+    let mut typing = typing.complete_bodies(source)?;
+    // Completing a body can introduce evaluation work. Record it on the
+    // declaration before retained source is narrowed or activated, so unused
+    // helpers stay deferred and demanding one still raises its refusal.
+    PreCheckEvaluation::defer_declared_requests(typing.typed_mut())?;
+    Ok((typing, frontier))
 }
 
 fn complete_authored_bodies(
@@ -1395,6 +1400,81 @@ mod resolution_handoff_tests {
                 .message
                 .contains("exact retained resolved predecessor")),
             "{error:?}"
+        );
+    }
+
+    #[test]
+    fn completed_body_work_is_recorded_before_retained_source_activation() {
+        use typed_trees::deferred_refusals::DeferredRequest;
+
+        let text = "machine length() -> u64 { 4 }\n\
+                    machine helper() { let bytes: [u8; length()]; }\n";
+        let (mut typing, frontier, sources) = deferred(text);
+        let source_id = sources.files().next().unwrap().source_id;
+        let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+        let syntax =
+            tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
+        let (_, pending) = build_time_evaluation::evaluate_pre_resolution(
+            build_time_evaluation::BuildTimeEvaluationRequest {
+                syntax_trees: syntax,
+                source_context: build_time_evaluation::BuildTimeSources {
+                    sources: Some(Arc::clone(&sources)),
+                    ..Default::default()
+                },
+            },
+        )
+        .unwrap()
+        .into_syntax_and_pre_check();
+        PreCheckEvaluation::defer_declared_requests(typing.typed_mut()).unwrap();
+        let frontier = frontier
+            .with_prepared_allocations(typing.prepare_allocations().unwrap())
+            .unwrap();
+        let (frontier, activation) = frontier.activate_sources(sources, Vec::new()).unwrap();
+        typing = typing.activate_body_completion(activation).unwrap();
+        let frontier = frontier
+            .with_prepared_allocations(typing.prepare_allocations().unwrap())
+            .unwrap();
+        let helper = frontier
+            .pending_machines()
+            .find(|symbol| frontier.trees().symbols.name(*symbol) == "helper")
+            .unwrap();
+        assert!(typing.typed().deferred_refusal(helper).is_none());
+        let completed = frontier.complete_machine_bodies(&[helper]).unwrap();
+        let (typing, _) = type_completed_bodies(typing, completed).unwrap();
+
+        pending
+            .activate_sources(typing.typed())
+            .expect("new declaration-owned work is recorded before source activation");
+        assert!(
+            typing
+                .typed()
+                .deferred_refusals_of(helper)
+                .any(|row| row.request == DeferredRequest::ArrayExtentEvaluation)
+        );
+        let unserved = typing.typed().deferred_refusal(helper).unwrap().request;
+        let (program, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+            typing.typed().clone(),
+            &typed_trees_to_typed_trees::PreparationRequest::settled(),
+        )
+        .unwrap();
+        let refused = crate::AcceptedTerminalSource::judge(
+            Arc::new(program),
+            crate::TerminalSourceCompilation {
+                entries: &[helper],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .expect_err("recording the request cannot admit the helper that needs its evaluation");
+        assert!(
+            refused
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(unserved.construct())),
+            "{refused:?}"
         );
     }
 }
