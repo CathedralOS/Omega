@@ -408,12 +408,10 @@ impl<'t> Program<'t> {
             ));
         }
         if !declared.type_parameters.is_empty() {
-            if !self.generic_templates.contains(&declared.symbol) {
-                self.generic_templates.push(declared.symbol);
-            }
+            self.generic_templates.push(declared.symbol);
             return Ok(());
         }
-        self.trait_signatures(entry, declared)
+        self.trait_signatures(entry, declared, false)
     }
 
     /// A schema's generic check has no executable entry. Its actual header
@@ -445,7 +443,7 @@ impl<'t> Program<'t> {
                 )
             })
             .collect();
-        let result = self.trait_signatures(diagnostic, declared);
+        let result = self.trait_signatures(diagnostic, declared, true);
         self.scope = outer;
         result
     }
@@ -454,6 +452,7 @@ impl<'t> Program<'t> {
         &mut self,
         entry: MachineId,
         declared: &'t typed_trees::trait_definition::TraitDefinition,
+        proof_form: bool,
     ) -> Checked<()> {
         for requirement in self.typed.trait_machine_signatures(declared) {
             // A requirement with value parameters has one contract per tuple
@@ -468,6 +467,12 @@ impl<'t> Program<'t> {
                     Construct::Machine,
                     Unserved::Declaration("trait requirement with value parameters"),
                 ));
+            }
+            if proof_form {
+                // A genuine bodyless requirement stays abstract in this form;
+                // it has no executable entry and can never be published.
+                self.requirement(requirement, &[])?;
+                continue;
             }
             let (signature, _) = self.requirement_signature(entry, requirement, &[])?;
             let id = self.declaration_signatures.push(signature);

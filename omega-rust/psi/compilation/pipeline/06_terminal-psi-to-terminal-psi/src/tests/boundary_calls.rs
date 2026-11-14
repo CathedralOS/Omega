@@ -2179,10 +2179,34 @@ fn full_named_map_verdicts(typed: &typed_trees::TypedTrees) -> Vec<RouteVerdict>
 #[test]
 fn generic_named_map_full_subject_judges_its_schema_and_owning_body() {
     let prepared = prepare_named_map(generic_named_map_source());
-    assert_named_invocation_value(
-        full_named_map_verdicts(&prepared),
-        semantic_vocabulary::IntegerValue::Unsigned(7),
-    );
+    let verdicts = full_named_map_verdicts(&prepared);
+    for (position, verdict) in verdicts.iter().enumerate().skip(1) {
+        if let RouteVerdict::Accepted(proof) = verdict {
+            let rigid = proof
+                .elaboration
+                .tables
+                .machines
+                .iter()
+                .any(|(_, machine)| {
+                    machine
+                        .values
+                        .iter()
+                        .any(|(_, value)| value.rigid.is_some())
+                });
+            if position > 2 && !rigid {
+                continue; // Ordinary closed witnesses retain their existing behavior.
+            }
+            assert!(
+                proof.publish().is_err(),
+                "a generic form or witness cannot export stand-in types"
+            );
+            assert!(
+                proof.publish_invocation().is_err(),
+                "a proof form cannot become executable source"
+            );
+        }
+    }
+    assert_named_invocation_value(verdicts, semantic_vocabulary::IntegerValue::Unsigned(7));
 }
 
 #[test]

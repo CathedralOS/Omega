@@ -1457,15 +1457,6 @@ impl<'t> Program<'t> {
                 Unserved::Typing("result lifetime that no argument supplies"),
             ));
         }
-        // A value a call returns is the result of an operation, and no
-        // operation of the lowered form has a result of a rigid type.
-        if matches!(result, Some(crate::body::ValueType::Rigid(_))) {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Call("call that returns a value of a type parameter"),
-            ));
-        }
         Ok(Expression {
             kind: ExpressionKind::Call {
                 callee,

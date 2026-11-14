@@ -288,3 +288,114 @@ fn an_applied_contract_is_left_to_its_own_check_form_only_when_one_is_judged() {
     assert!(unproved.iter().all(|entry| entry.machine == id(1)));
     assert!(!unproved.is_empty());
 }
+
+fn rigid_result_transport(
+    result: RigidType,
+    declared: RigidType,
+    promises_placeholder: bool,
+) -> terminal_check_tables::Checked<typed_trees_to_terminal_psi::Elaboration> {
+    let input_type = ValueType::Rigid(declared);
+    let result_type = ValueType::Rigid(result);
+    let mut bodies = IdTable::default();
+    let call = Expression {
+        kind: ExpressionKind::Call {
+            callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
+            arguments: vec![item(input_type)],
+            designated: None,
+        },
+        result: Some(result_type),
+        source: nowhere(),
+    };
+    for returned in [call, item(input_type)] {
+        bodies.push(Body {
+            slots: vec![input_type],
+            statements: vec![returns(returned)],
+        });
+    }
+    let mut signatures = IdTable::default();
+    for (position, output) in [result_type, input_type].into_iter().enumerate() {
+        signatures.push(Signature {
+            parameters: vec![input_type],
+            erased: Vec::new(),
+            borrowed: Vec::new(),
+            result: Some(output),
+            requires: Vec::new(),
+            ensures: if position == 0 && promises_placeholder {
+                vec![Proposition::Equal(
+                    formal(2, bool_type()),
+                    ScalarTerm::Boolean(false),
+                )]
+            } else {
+                Vec::new()
+            },
+            reaches: typed_trees_to_terminal_psi::Ceiling::Inferred,
+            invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
+            crashes: CrashCeiling::DeclaredNone,
+            termination: typed_trees_to_terminal_psi::Termination::Silent,
+        });
+    }
+    typed_trees_to_terminal_psi::lower_generic(
+        id(1),
+        &bodies,
+        &signatures,
+        &IdTable::default(),
+        &[],
+    )
+}
+
+#[test]
+fn a_call_result_keeps_its_rigid_identity_without_placeholder_facts() {
+    let mut form = rigid_result_transport(RigidType(0), RigidType(0), true).unwrap();
+    let values = &form.tables.machines.get(id(1)).unwrap().values;
+    let result = values
+        .iter()
+        .find(|(_, row)| {
+            matches!(
+                row.origin,
+                terminal_check_tables::values::ValueOrigin::Operation(_)
+            )
+        })
+        .unwrap()
+        .1;
+    assert_eq!(result.rigid, Some(RigidType(0)));
+    let found = discharge(&mut form).unwrap();
+    let (_, verdict) = verdicts(&form, &found, 1, guarantee)[0];
+    assert_eq!(
+        verdict.as_ref().unwrap_err().reason,
+        RefusalReason::Unsupported
+    );
+}
+
+#[test]
+fn a_call_cannot_relabel_one_rigid_result_as_another() {
+    let refusal = rigid_result_transport(RigidType(0), RigidType(1), false).unwrap_err();
+    assert!(
+        refusal
+            .detail
+            .contains("changed its declared rigid result type"),
+        "{refusal:?}"
+    );
+}
+
+#[test]
+fn a_const_only_generic_form_cannot_publish_its_extra_formal() {
+    let source =
+        super::boundary_calls::typed("machine entry<const N: u64>() -> u64 crashes none { N }");
+    let form = typed_trees_to_terminal_psi::elaborate_generic(
+        &source,
+        super::boundary_calls::entry(&source),
+    )
+    .unwrap();
+    assert_eq!(form.value_parameters.get(id(1)), Some(&1));
+    let RouteVerdict::Accepted(accepted) = judge(Ok(form)).unwrap() else {
+        panic!("the actual const form must be judged before publication")
+    };
+    assert!(matches!(
+        accepted.publish(),
+        Err(crate::PublicationError::GenericCheckForm)
+    ));
+    assert!(matches!(
+        accepted.publish_invocation(),
+        Err(crate::PublicationError::GenericCheckForm)
+    ));
+}

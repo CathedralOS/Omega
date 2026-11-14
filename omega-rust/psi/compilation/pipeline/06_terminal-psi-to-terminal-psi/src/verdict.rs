@@ -284,7 +284,19 @@ impl AcceptedClosure {
     }
 
     fn validate_publication(&self) -> Result<(), PublicationError> {
-        if !self.elaboration.requirements.is_empty() {
+        if !self.elaboration.requirements.is_empty()
+            || self
+                .elaboration
+                .value_parameters
+                .iter()
+                .any(|(_, count)| *count != 0)
+            || self.elaboration.tables.machines.iter().any(|(_, machine)| {
+                machine
+                    .values
+                    .iter()
+                    .any(|(_, value)| value.rigid.is_some())
+            })
+        {
             return Err(PublicationError::GenericCheckForm);
         }
         if let Some((machine, reason)) = self.elaboration.undeclared.first() {

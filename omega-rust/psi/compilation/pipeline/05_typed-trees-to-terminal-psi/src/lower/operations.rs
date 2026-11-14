@@ -49,11 +49,21 @@ impl Lowering<'_> {
             }
             None => (OperationResult::Unit, Value::Unit),
         };
+        self.emit_operation(operation, result, kind)?;
+        Ok(value)
+    }
+
+    pub(super) fn emit_operation(
+        &mut self,
+        operation: OperationId,
+        result: OperationResult,
+        kind: OperationKind,
+    ) -> Checked<()> {
         self.draft()?
             .operations
             .push(Operation::unsuspended(operation, result, kind));
         self.point = Some(ProgramPoint::AfterOperation(operation));
-        Ok(value)
+        Ok(())
     }
 
     pub(super) fn scalar(&mut self, expression: &Expression) -> Evaluation<ValueId> {
@@ -112,16 +122,16 @@ impl Lowering<'_> {
                     .map(|reached| reached.map(Value::Record));
             }
             Some(ValueType::Scalar(scalar_type, _)) => Some(scalar_type),
-            // A value of a rigid type is only ever named: no operation
-            // produces one, so no result row is minted for it here.
+            // A declared call may transport an opaque result, as a slot
+            // transports its formal. Neither grants operations of its stand-in.
             Some(ValueType::Rigid(_)) => {
-                let ExpressionKind::Slot(slot) = &expression.kind else {
+                if !matches!(
+                    expression.kind,
+                    ExpressionKind::Slot(_) | ExpressionKind::Call { .. }
+                ) {
                     return Err(self.internal("an operation over a value of a rigid type"));
-                };
-                return match *self.slot_mut(*slot)? {
-                    Some(Bound::Scalar(value)) => Ok(Reached::Value(Value::Scalar(value))),
-                    _ => Err(self.internal("a rigid slot is not bound to a value")),
-                };
+                }
+                None
             }
             None => None,
         };

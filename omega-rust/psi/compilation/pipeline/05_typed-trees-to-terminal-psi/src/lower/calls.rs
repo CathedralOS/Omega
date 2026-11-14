@@ -607,6 +607,15 @@ impl Lowering<'_> {
         result: Option<ValueType>,
         source: SourceOrigin,
     ) -> Evaluation<Value> {
+        let declared_result = self.signatures.get(callable, self.id)?.result;
+        match (result, declared_result) {
+            (Some(ValueType::Rigid(actual)), Some(ValueType::Rigid(declared)))
+                if actual == declared => {}
+            (Some(ValueType::Rigid(_)), _) | (_, Some(ValueType::Rigid(_))) => {
+                return Err(self.internal("a call changed its declared rigid result type"));
+            }
+            _ => {}
+        }
         // A call with no normal completion is a terminator
         // (`invoke_no_normal`) and has no value: the path it lies on ends at
         // it, and so does the evaluation of whatever holds it
@@ -700,7 +709,9 @@ impl Lowering<'_> {
                 }
             }
             semantic_vocabulary::TargetMachineCallable::Machine(callee) => match result {
-                Some(ValueType::Scalar(..)) if structural_arguments.is_empty() => {
+                Some(ValueType::Scalar(..) | ValueType::Rigid(_))
+                    if structural_arguments.is_empty() =>
+                {
                     OperationKind::Call {
                         callee,
                         arguments: scalars,
@@ -710,16 +721,18 @@ impl Lowering<'_> {
                         crash_continuations,
                     }
                 }
-                Some(ValueType::Scalar(..)) => OperationKind::CallStructuralScalar {
-                    callee,
-                    arguments: scalars,
-                    erased_arguments,
-                    erased_proof_arguments: Vec::new(),
-                    structural_arguments,
-                    claim_transfers: Vec::new(),
-                    requirement_obligations: requirements,
-                    crash_continuations,
-                },
+                Some(ValueType::Scalar(..) | ValueType::Rigid(_)) => {
+                    OperationKind::CallStructuralScalar {
+                        callee,
+                        arguments: scalars,
+                        erased_arguments,
+                        erased_proof_arguments: Vec::new(),
+                        structural_arguments,
+                        claim_transfers: Vec::new(),
+                        requirement_obligations: requirements,
+                        crash_continuations,
+                    }
+                }
                 None => OperationKind::CallUnit {
                     callee,
                     arguments: scalars,
@@ -743,9 +756,6 @@ impl Lowering<'_> {
                         selected_evidence: Vec::new(),
                     }
                 }
-                Some(ValueType::Rigid(_)) => {
-                    return Err(self.internal("a call returns a value of a rigid type"));
-                }
             },
         };
         // The actual result keeps one constructor across both declaration
@@ -759,8 +769,22 @@ impl Lowering<'_> {
                 self.name_contents(exact, value_type)?;
                 Value::Record(root)
             }
-            Some(ValueType::Rigid(_)) => {
-                return Err(self.internal("a call returns a value of a rigid type"));
+            Some(ValueType::Rigid(rigid)) => {
+                // The ordinary call operation carries an opaque proof value.
+                // Its row retains the rigid identity, never facts of DECLARED_AS.
+                let value = self.rigid_value(
+                    rigid,
+                    terminal_check_tables::values::ValueOrigin::Operation(operation),
+                );
+                self.emit_operation(
+                    operation,
+                    terminal_psi::OperationResult::Scalar(super::declaration(
+                        value,
+                        terminal_check_tables::values::RigidType::DECLARED_AS,
+                    )),
+                    kind,
+                )?;
+                Value::Scalar(value)
             }
         };
         self.returned_loans(&arguments.loans, operation)?;
