@@ -262,7 +262,7 @@ pub(crate) mod byte_sequence_predicates {
             let domain = domains.clone().find(|domain| domain.id == *identity)?;
             if domain.carrier != carrier
                 || domain.content_projection.is_some()
-                || !domain.establishment_routes.is_empty()
+                || domain.establishment_routes.is_some()
                 || !domain.has_no_required_memberships()
             {
                 return None;
@@ -896,7 +896,7 @@ pub(crate) mod byte_sequence_predicates {
                     .is_some_and(|domain| {
                         domain.carrier == carrier
                             && domain.content_projection.is_none()
-                            && domain.establishment_routes.is_empty()
+                            && domain.establishment_routes.is_none()
                             && domain.has_no_required_memberships()
                             && domain
                                 .byte_predicate

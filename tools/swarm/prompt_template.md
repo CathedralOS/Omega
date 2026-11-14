@@ -45,17 +45,16 @@ adjacent journeys will reveal their own needs when undertaken.
 ## Host
 
 You are on Linux x86-64. `mbx` is installed when your snapshot carries the
-blueprint step (run `mbx --version` once; if absent use `cargo` everywhere
-AGENTS.md says `mbx`, per its documented fallback). `cargo nextest` is
-installed. Windows, macOS, and QEMU acceptance is unavailable on this host
-and must be reported as unavailable, never as passing.
+blueprint step (run `mbx --version` once). Windows, macOS, and QEMU
+acceptance is unavailable on this host and must be reported as unavailable,
+never as passing.
 
 ## Coordination
 
 Register your assignment before editing so other machines, waves, and local
 sessions see it:
 
-`{claim_command}`
+`mbx xtask claims claim --item <item> [--board <file>] [--owner <name>] [--path <paths>]`
 
 The claim records what you are doing so other sessions can see it; it grants
 nothing and blocks nothing. Another claim on the same customer or on overlapping
@@ -63,7 +62,7 @@ paths is information: read its note, continue in this worktree and reconcile
 at rebase. There are no handoffs; you finish this work. Renew before expiry.
 A checkpoint does not end the work.
 
-Keep a short record in the claim note (`python3 tools/claims.py note --ticket
+Keep a short record in the claim note (`mbx xtask claims note --ticket
 <ticket> --text "<finding>"`): parent task, remaining acceptance, witness and
 requirement it discharges, current failure, next action and prerequisites.
 Reread it after compaction. A new obstacle
@@ -71,19 +70,13 @@ belongs to this work: fix it rather than filing a task for someone else. When
 the sample is too large to trace, cut a smaller sample that isolates the failing
 construct, make it run and land it, then return to this one.
 
-Exit 3 means coordination timed out, not a live conflict. Keep the pending
-claim record, report the outage, and continue the assigned work in isolation.
-Do not repeatedly wait for registration. If a write timed out, inspect status
-before retrying; its outcome may be uncertain. Landing remains mandatory.
-
 ## Shared files
 
 A sample that still fails keeps its current failure in its own README. If a
 `TASKS.md` item names this sample or its root cause, update that item in the
 same commit as the repair: subtract what now works, delete it when its
-acceptance passes. Use the documented `--board-update` landing route for verified
-already-satisfied acceptance with no implementation diff; never invent code or
-an empty commit to publish closure. Ordinary repairs carry their board update
+acceptance passes. Never invent code or an empty commit to publish closure.
+Ordinary repairs carry their board update
 with the implementation. A missing owner decision goes to
 `OWNER_QUESTIONS.md` with the exact question, referenced from the sample README,
 in the commit that records the frontier. Never touch these excluded items:
@@ -101,7 +94,7 @@ Follow `tools/landing.md` and `.agents/skills/coordinator-review/SKILL.md`:
 validate the submitted source, push its branch, and open a draft PR (`gh pr create --draft`).
 When controlled by a coordinator session, stop at the draft PR and report `candidate_ready`
 so the coordinator can review the diff before landing. Only when running standalone without
-a coordinator, run `python3 tools/landing.py enqueue NUMBER --expected-head
+a coordinator, run `mbx xtask land enqueue NUMBER --expected-head
 FULL_SOURCE_SHA`. GitHub checks integration and squash-merges; never push main.
 Release local build slots before waiting. Do not rebase, rebuild or repeat
 review merely because main advances. Resolve actual conflicts and failed checks.
