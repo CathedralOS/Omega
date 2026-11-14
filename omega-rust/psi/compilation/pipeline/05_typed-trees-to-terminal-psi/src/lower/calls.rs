@@ -209,10 +209,21 @@ pub(crate) fn publish_write_frames(
                 });
             }
         }
-        tables.writes = semantic_vocabulary::IdTable::default();
-        for (_, place) in tables.places.iter_mut() {
-            place.writes.clear();
+        for (_, row) in tables.writes.iter() {
+            tables
+                .places
+                .get_mut(row.place)
+                .ok_or_else(|| {
+                    problem(
+                        id,
+                        Construct::Place(row.place),
+                        "a storage write has no exact place".to_owned(),
+                    )
+                })?
+                .writes
+                .clear();
         }
+        tables.writes = semantic_vocabulary::IdTable::default();
         for row in revised {
             bindings::record_write(id, &mut tables.places, &mut tables.writes, row)?;
         }
