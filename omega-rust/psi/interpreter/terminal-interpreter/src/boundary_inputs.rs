@@ -687,7 +687,7 @@ pub(crate) mod byte_arrays {
                         })?;
                 if array.structural_type != structural_type
                     || u64::try_from(array.len()).ok() != Some(count)
-                    || !matches!(scalar, semantic_vocabulary::ScalarType::Integer(integer) if integer.bits() == 8 && !integer.is_address() && integer.sign() == IntegerSign::Unsigned)
+                    || !matches!(scalar, semantic_vocabulary::ScalarType::Integer(integer) if integer.bits() == Some(8) && !integer.is_address() && integer.sign() == IntegerSign::Unsigned)
                 {
                     return Err(
                         malformed().in_reference_formation("frame byte array type or extent")
@@ -885,7 +885,7 @@ pub(crate) mod byte_arrays {
                 return Err(malformed());
             };
             if scalar_type.sign() != IntegerSign::Unsigned
-                || scalar_type.bits() != 8
+                || scalar_type.bits() != Some(8)
                 || scalar_type.is_address()
             {
                 return Err(malformed());
@@ -1012,8 +1012,8 @@ pub(crate) mod byte_arrays {
         };
         (!element.is_address()
             && element.sign() == semantic_vocabulary::IntegerSign::Unsigned
-            && element.bits() == 8)
-            .then_some(length)
+            && element.bits() == Some(8))
+        .then_some(length)
     }
 
     pub(crate) fn array_path_type(

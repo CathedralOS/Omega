@@ -4951,7 +4951,8 @@ pub(crate) mod element_views {
         use crate::storage::byte_sequences::{ByteSequenceView, binding::ByteSequenceBinding};
         use crate::storage::runtime_rows::RuntimeRows;
         use semantic_vocabulary::{
-            IeeeFloatFormat, IntegerSign, IntegerType, IntegerValue, ScalarType, StructuralTypeId,
+            ClosedScalarType, IeeeFloatFormat, IntegerSign, IntegerType, IntegerValue, ScalarType,
+            StructuralTypeId,
         };
         use terminal_psi::{
             StructuralAccess, StructuralArgument, StructuralPathSegment, StructuralTypeShape,
@@ -5005,6 +5006,7 @@ pub(crate) mod element_views {
                 index: usize,
                 path: &[StructuralPathSegment],
                 expected: ScalarType,
+                closed_expected: ClosedScalarType,
             ) -> Result<(usize, &'a RepresentationScalarLeaf), TerminalInterpretError> {
                 if index >= view.len() {
                     return Err(malformed());
@@ -5023,7 +5025,7 @@ pub(crate) mod element_views {
                     .ok_or_else(malformed)?;
                 let stride = usize::try_from(self.layout.size).map_err(|_| malformed())?;
                 let offset = usize::try_from(leaf.offset).map_err(|_| malformed())?;
-                let width = scalar_width(expected)?;
+                let width = scalar_width(closed_expected)?;
                 if offset.checked_add(width).is_none_or(|end| end > stride) {
                     return Err(malformed());
                 }
@@ -5140,14 +5142,20 @@ pub(crate) mod element_views {
                 let ElementViewBacking::Representation(representation) = &view.backing else {
                     return Err(malformed());
                 };
-                let (position, _) = representation.scalar_position(view, index, path, expected)?;
+                let (position, _) = representation.scalar_position(
+                    view,
+                    index,
+                    path,
+                    expected,
+                    self.closed_scalar(expected)?,
+                )?;
                 let mut bits = 0_u64;
-                for byte_index in 0..scalar_width(expected)? {
+                for byte_index in 0..scalar_width(self.closed_scalar(expected)?)? {
                     let index = position.checked_add(byte_index).ok_or_else(malformed)?;
                     let byte = self.representation_storage_byte(&representation.storage, index)?;
                     bits |= u64::from(byte) << (byte_index * 8);
                 }
-                decode_scalar(expected, bits)
+                decode_scalar(expected, self.closed_scalar(expected)?, bits)
             }
 
             fn representation_storage_byte(
@@ -5170,18 +5178,16 @@ pub(crate) mod element_views {
                         }
                         let element = index / stride;
                         let offset = index % stride;
-                        let leaf = layout
-                            .leaves
-                            .iter()
-                            .find(|leaf| {
-                                usize::try_from(leaf.offset)
-                                    .ok()
-                                    .zip(scalar_width(leaf.scalar_type).ok())
-                                    .is_some_and(|(start, width)| {
-                                        offset >= start && offset - start < width
-                                    })
-                            })
-                            .ok_or_else(malformed)?;
+                        let mut selected_leaf = None;
+                        for leaf in &layout.leaves {
+                            let start = usize::try_from(leaf.offset).map_err(|_| malformed())?;
+                            let width = scalar_width(self.closed_scalar(leaf.scalar_type)?)?;
+                            if offset >= start && offset - start < width {
+                                selected_leaf = Some(leaf);
+                                break;
+                            }
+                        }
+                        let leaf = selected_leaf.ok_or_else(malformed)?;
                         let scalar = self.read_element_view_scalar(
                             source,
                             element,
@@ -5190,7 +5196,10 @@ pub(crate) mod element_views {
                         )?;
                         let shift =
                             offset - usize::try_from(leaf.offset).map_err(|_| malformed())?;
-                        Ok((encode_scalar(scalar)? >> (shift * 8)) as u8)
+                        Ok(
+                            (encode_scalar(scalar, self.closed_scalar(scalar.scalar_type())?)?
+                                >> (shift * 8)) as u8,
+                        )
                     }
                 }
             }
@@ -5235,18 +5244,23 @@ pub(crate) mod element_views {
                 let ElementViewBacking::Representation(representation) = &view.backing else {
                     return Err(malformed());
                 };
-                let (position, _) =
-                    representation.scalar_position(view, index, path, scalar.scalar_type())?;
+                let (position, _) = representation.scalar_position(
+                    view,
+                    index,
+                    path,
+                    scalar.scalar_type(),
+                    self.closed_scalar(scalar.scalar_type())?,
+                )?;
                 let ByteStorage::Array { storage, offset } = &representation.storage else {
                     return Err(malformed());
                 };
                 let position = offset.checked_add(position).ok_or_else(malformed)?;
-                let width = scalar_width(scalar.scalar_type())?;
+                let width = scalar_width(self.closed_scalar(scalar.scalar_type())?)?;
                 let extent = self.stored_byte_array_length(storage)?;
                 if position.checked_add(width).is_none_or(|end| end > extent) {
                     return Err(malformed());
                 }
-                let bits = encode_scalar(scalar)?;
+                let bits = encode_scalar(scalar, self.closed_scalar(scalar.scalar_type())?)?;
                 for byte_index in 0..width {
                     self.stored_byte_array_write(
                         storage,
@@ -5258,19 +5272,19 @@ pub(crate) mod element_views {
             }
         }
 
-        fn scalar_width(scalar: ScalarType) -> Result<usize, TerminalInterpretError> {
+        fn scalar_width(scalar: ClosedScalarType) -> Result<usize, TerminalInterpretError> {
             match scalar {
-                ScalarType::Integer(integer)
+                ClosedScalarType::Integer(integer)
                     if !integer.is_address() && matches!(integer.bits(), 8 | 16 | 32 | 64) =>
                 {
                     Ok(usize::from(integer.bits() / 8))
                 }
-                ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => Ok(4),
-                ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => Ok(8),
+                ClosedScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => Ok(4),
+                ClosedScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => Ok(8),
                 _ => Err(malformed()),
             }
         }
-        fn bit_carrier(scalar: ScalarType) -> Result<ScalarType, TerminalInterpretError> {
+        fn bit_carrier(scalar: ClosedScalarType) -> Result<ScalarType, TerminalInterpretError> {
             let bits = u16::try_from(scalar_width(scalar)? * 8).map_err(|_| malformed())?;
             Ok(ScalarType::Integer(
                 IntegerType::new(IntegerSign::Unsigned, bits).map_err(|_| malformed())?,
@@ -5279,10 +5293,11 @@ pub(crate) mod element_views {
 
         fn decode_scalar(
             scalar: ScalarType,
+            closed_scalar: ClosedScalarType,
             bits: u64,
         ) -> Result<TerminalScalarValue, TerminalInterpretError> {
             let viewed = terminal_semantics::scalar_reference_view_value(
-                bit_carrier(scalar)?,
+                bit_carrier(closed_scalar)?,
                 scalar,
                 ScalarViewValue::Integer(IntegerValue::Unsigned(u128::from(bits))),
             )
@@ -5298,7 +5313,10 @@ pub(crate) mod element_views {
             }
         }
 
-        fn encode_scalar(scalar: TerminalScalarValue) -> Result<u64, TerminalInterpretError> {
+        fn encode_scalar(
+            scalar: TerminalScalarValue,
+            closed_scalar: ClosedScalarType,
+        ) -> Result<u64, TerminalInterpretError> {
             let value = match scalar {
                 TerminalScalarValue::Integer { value, .. } => ScalarViewValue::Integer(value),
                 TerminalScalarValue::IeeeFloat(value) => ScalarViewValue::IeeeFloat(value),
@@ -5306,7 +5324,7 @@ pub(crate) mod element_views {
             };
             let viewed = terminal_semantics::scalar_reference_view_value(
                 scalar.scalar_type(),
-                bit_carrier(scalar.scalar_type())?,
+                bit_carrier(closed_scalar)?,
                 value,
             )
             .ok_or_else(malformed)?;
