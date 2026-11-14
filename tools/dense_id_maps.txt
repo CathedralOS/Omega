@@ -74,7 +74,7 @@
 4 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/control_graph.rs
 14 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_replay.rs
 13 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors.rs
-9 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/scalars.rs
+3 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/scalars.rs
 19 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/storage.rs
 19 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/structural.rs
 9 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/substitution.rs

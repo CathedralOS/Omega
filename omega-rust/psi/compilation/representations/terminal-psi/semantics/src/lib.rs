@@ -559,11 +559,11 @@ pub use references::reference_views::{
     scalar_reference_view_value, shared_descriptor_copy_matches, stored_reference_access,
 };
 pub use scalars::proof_bearing_scalar::{
-    CanonicalScalarGoal, ProofBearingIntegerPolicyBinding, ProofBearingScalarLeafElision,
-    ProofBearingScalarLeafSchema, ProofBearingScalarLeafSemantics, ProofBearingScalarSemanticRow,
-    elidable_proof_bearing_scalar_leaf, exact_proof_bearing_scalar_semantic_row_in,
-    proof_bearing_integer_policy_binding, proof_bearing_scalar_leaf_semantics,
-    proof_bearing_scalar_semantic_row, validate_proof_bearing_scalar_semantic_rows,
+    CanonicalScalarGoal, ProofBearingIntegerPolicyBinding, ProofBearingScalarLeafSchema,
+    ProofBearingScalarLeafSemantics, ProofBearingScalarSemanticRow,
+    exact_proof_bearing_scalar_semantic_row_in, proof_bearing_integer_policy_binding,
+    proof_bearing_scalar_leaf_semantics, proof_bearing_scalar_semantic_row,
+    validate_proof_bearing_scalar_semantic_rows,
 };
 pub use scalars::scalar_array::{
     scalar_array_leaf_declaration, scalar_array_leaf_path, scalar_array_leaf_shape,
