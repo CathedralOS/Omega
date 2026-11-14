@@ -616,7 +616,6 @@ fn finish_reading<'source>(
     }
     program.finish_declarations(diagnostic)?;
     let private_inputs = program.private_input_contracts(entry, diagnostic)?;
-    let local_results = program.local_result_bodies(entry)?;
     program.begin_declaration_storage(diagnostic, bodies.len())?;
     let declarations = program.declaration_metadata.clone();
     let calling_abis = program.prepare_calling_abis(diagnostic, &declarations)?;
@@ -674,7 +673,6 @@ fn finish_reading<'source>(
     elaboration.machines = program.symbols;
     elaboration.boundaries = program.boundary_symbols;
     elaboration.private_inputs = private_inputs;
-    elaboration.local_results = local_results;
     elaboration.names = program.names;
     elaboration.selections = program.selections;
     elaboration.applications = program.applications;
@@ -772,7 +770,13 @@ fn lower_generic_for<'source>(
         operational::positions(machine, body)?;
     }
     let components = components::components(bodies, signatures.machines)?;
-    let outcomes = outcome::outcomes(bodies, signatures, requirements)?;
+    // Result facts and non-return are both checked body summaries. Their
+    // source visibility is decided once by the same verification-unit owner;
+    // a requirement or independent caller cannot borrow a selected body.
+    let local_results = declarations
+        .map(|source| source.local_result_bodies(entry))
+        .transpose()?;
+    let outcomes = outcome::outcomes(bodies, signatures, requirements, local_results.as_deref())?;
     let mut module = match entry {
         Some(entry) => TerminalModule::for_entry(entry),
         None => TerminalModule::declarations(),
@@ -1077,7 +1081,7 @@ fn lower_generic_for<'source>(
             names: IdTable::default(),
             machines: IdTable::default(),
             private_inputs: Vec::new(),
-            local_results: Vec::new(),
+            local_results: local_results.unwrap_or_default(),
             domains,
             requirements: requirements.to_vec(),
             selections: Vec::new(),
