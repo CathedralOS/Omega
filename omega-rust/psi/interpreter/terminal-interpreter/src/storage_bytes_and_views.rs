@@ -5178,16 +5178,9 @@ pub(crate) mod element_views {
                         }
                         let element = index / stride;
                         let offset = index % stride;
-                        let mut selected_leaf = None;
-                        for leaf in &layout.leaves {
-                            let start = usize::try_from(leaf.offset).map_err(|_| malformed())?;
-                            let width = scalar_width(self.closed_scalar(leaf.scalar_type)?)?;
-                            if offset >= start && offset - start < width {
-                                selected_leaf = Some(leaf);
-                                break;
-                            }
-                        }
-                        let leaf = selected_leaf.ok_or_else(malformed)?;
+                        let leaf = representation_scalar_leaf(layout, offset, |scalar| {
+                            self.closed_scalar(scalar)
+                        })?;
                         let scalar = self.read_element_view_scalar(
                             source,
                             element,
@@ -5272,6 +5265,26 @@ pub(crate) mod element_views {
             }
         }
 
+        fn representation_scalar_leaf(
+            layout: &RepresentationElementLayout,
+            offset: usize,
+            mut close: impl FnMut(ScalarType) -> Result<ClosedScalarType, TerminalInterpretError>,
+        ) -> Result<&RepresentationScalarLeaf, TerminalInterpretError> {
+            for leaf in &layout.leaves {
+                let closed = close(leaf.scalar_type)?;
+                // An unavailable descriptor is an error. A retained sibling
+                // whose codec is unsupported here is not the requested leaf.
+                let (Ok(start), Ok(width)) = (usize::try_from(leaf.offset), scalar_width(closed))
+                else {
+                    continue;
+                };
+                if offset >= start && offset - start < width {
+                    return Ok(leaf);
+                }
+            }
+            Err(malformed())
+        }
+
         fn scalar_width(scalar: ClosedScalarType) -> Result<usize, TerminalInterpretError> {
             match scalar {
                 ClosedScalarType::Integer(integer)
@@ -5332,6 +5345,115 @@ pub(crate) mod element_views {
                 return Err(malformed());
             };
             u64::try_from(bits).map_err(|_| malformed())
+        }
+        #[cfg(test)]
+        mod closed_geometry_tests {
+            use super::*;
+            use semantic_vocabulary::{StructuralFieldId, StructuralTypeId};
+            use terminal_psi::{
+                BindingRelevance, StructuralFieldDeclaration, StructuralFieldType,
+                StructuralRecordStorage, StructuralTypeDeclaration, TerminalIdentityTableBuilder,
+                TerminalModule,
+            };
+
+            #[test]
+            fn sibling_selection_keeps_real_layouts_and_unserved_codecs_distinct() {
+                let wide =
+                    ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
+                let byte = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+                let root = StructuralTypeId::new(1).unwrap();
+                let mut identities = TerminalIdentityTableBuilder::default();
+                let record = identities.intern("record");
+                let fields = [wide, byte]
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, scalar)| StructuralFieldDeclaration {
+                        inline_carrier: None,
+                        id: StructuralFieldId::new(index as u64 + 1).unwrap(),
+                        identity: identities.intern(if index == 0 { "wide" } else { "byte" }),
+                        relevance: BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Scalar(scalar),
+                        storage: None,
+                    })
+                    .collect();
+                let unserved_identity = identities.intern("unserved-wide");
+                let mut module = TerminalModule::declarations();
+                module.identities = identities.build();
+                module.structural_types.push(StructuralTypeDeclaration {
+                    quotient_carrier: None,
+                    id: root,
+                    identity: record,
+                    owns_linear_claim: false,
+                    copyable: true,
+                    no_code_affine_cleanup: false,
+                    descriptor_cleanup: false,
+                    shape: StructuralTypeShape::Record {
+                        fields,
+                        storage: StructuralRecordStorage::Packed,
+                    },
+                    scalar_restriction: None,
+                    requires: Vec::new(),
+                });
+                let unserved =
+                    ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 128).unwrap());
+                module.structural_types.push(StructuralTypeDeclaration {
+                    quotient_carrier: None,
+                    id: StructuralTypeId::new(2).unwrap(),
+                    identity: unserved_identity,
+                    owns_linear_claim: false,
+                    copyable: true,
+                    no_code_affine_cleanup: false,
+                    descriptor_cleanup: false,
+                    shape: StructuralTypeShape::PrimitiveScalar(unserved),
+                    scalar_restriction: None,
+                    requires: Vec::new(),
+                });
+                let closed = terminal_codec::ClosedTerminalModule::new(module).unwrap();
+                let layout = terminal_semantics::representation_element_layout(
+                    closed.module().structural_types.iter(),
+                    root,
+                )
+                .expect("real packed u32/u8 record has a representation layout");
+                assert_eq!(layout.leaves[0].scalar_type, wide);
+                assert_eq!(layout.leaves[1].scalar_type, byte);
+                let offset = usize::try_from(layout.leaves[1].offset).unwrap();
+                let close = |scalar| {
+                    closed.closed_types().scalar(scalar).map_err(|cause| {
+                        TerminalInterpretError::ScalarDescriptorNotRetained {
+                            scalar_type: scalar,
+                            cause,
+                        }
+                    })
+                };
+                assert_eq!(
+                    representation_scalar_leaf(&layout, offset, close)
+                        .unwrap()
+                        .scalar_type,
+                    byte
+                );
+                // The current layout producer excludes wider codecs. Preserve
+                // the private search's previous behavior for retained but
+                // unserved leaves without claiming a wider storage layout.
+                let mut unserved_layout = layout.clone();
+                unserved_layout.leaves[0].scalar_type = unserved;
+                assert_eq!(
+                    representation_scalar_leaf(&unserved_layout, offset, close)
+                        .unwrap()
+                        .scalar_type,
+                    byte,
+                );
+                assert!(representation_scalar_leaf(&unserved_layout, 0, close).is_err());
+                let mut missing = layout;
+                missing.leaves[0].scalar_type =
+                    ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 13).unwrap());
+                assert!(
+                    matches!(
+                        representation_scalar_leaf(&missing, offset, close),
+                        Err(TerminalInterpretError::ScalarDescriptorNotRetained { .. })
+                    ),
+                    "an unavailable sibling descriptor is not ignored"
+                );
+            }
         }
     }
     pub(crate) mod typed {
