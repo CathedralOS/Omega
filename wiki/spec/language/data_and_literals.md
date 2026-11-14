@@ -361,6 +361,52 @@ some cases; it is not by itself a justification for arbitrary indexed recursion.
 Checked encodings preserve the case conditions and induction/computation rules
 without selecting physical layout or merging nominal source identities.
 
+## The uninhabited type `Never`
+
+Named decision: `published-no-return`, ratified 2026-11-13.
+
+Core declares one ordinary uninhabited data type:
+
+```omega
+public data Never requires false { }
+```
+
+Its default-domain predicate is `false`, so no value of it can be established.
+Construction, zero storage, `..` omission, reflected construction,
+representation recasts and foreign boundaries each owe that predicate and cannot
+discharge it. The compiler does not recognize the name: the rules below apply to
+any type proved uninhabited through its default or named domains. Proof is
+automatic for `Never` itself and for a record, or every case of a sum, with a
+`Never` field; other uninhabitedness needs explicit evidence, and failure to
+prove a type inhabited is not proof that it is empty.
+
+**Results.** A machine declared `-> Never` cannot return normally; see
+[published no-return](state_contracts.md#published-no-return). An expression
+whose declared type is proved uninhabited is accepted wherever any type is
+expected. No value is produced or converted, because its evaluation never
+completes normally. A declared inhabited result does not gain that
+compatibility because a postcondition excludes return: such a call can end a
+statement sequence, but it cannot stand where a value is required.
+
+**Coverage.** A case whose payload is proved uninhabited needs no arm under
+[coverage](patterns.md#coverage-and-domain-tests):
+
+```omega
+data Outcome<T, E> {
+    case Ok(value: T);
+    case Err(error: E);
+}
+
+machine take_value(outcome: Outcome<u32, Never>) -> u32 {
+    match outcome {
+        Outcome::Ok { value } -> value
+    }
+}
+```
+
+A body generic over `E` still covers `Err` unless its own contract establishes
+that `E` is uninhabited; a caller's choice of `Never` does not exempt it.
+
 ## Lexical profile
 
 Source is valid UTF-8, with ASCII syntax. Identifiers match
