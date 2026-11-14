@@ -360,11 +360,11 @@ framework or a list of features that remain unimplemented.
 - Cost: a pass that sets one marker and not the other produces a machine the reader accepts and the declaration step refuses, or the reverse; a new expression node that holds a type is silently left pointing at the generic machine's type until someone adds it to the list
 - Reported: 2026-11-13, Claude Code, while rebuilding specialization as a typed preparation pass
 
-### A selected refinement witness is discharged twice, and its dispatch row keeps unused fields
-- Category: one idea, several implementations
-- Where: `06_terminal-psi-to-terminal-psi/src/verdict.rs` (`witnesses`, and the witness parts of `judge_compilation`); `typed-trees` (`StaticRequirementDispatch`); `04_typed-trees-to-typed-trees/src/passes/specialization.rs` (`selections`)
-- Saw: preparation emits each conformance witness once, but checking clones and discharges a selected witness for generic-proof reuse before judging the original witness for the compilation verdict. Separately, the dispatch a generated call carries has an application fingerprint, a commitment, a selection application and a contract signature that only the deleted checker filled, so the pass writes four of nine fields
-- Cost: every selected implementation is proved twice per compilation, and a reader of the dispatch cannot tell an empty commitment from one that was never computed
+### Static requirement dispatch retains fields its producer never fills
+- Category: stale representation and consumers
+- Where: `typed-trees` (`StaticRequirementDispatch`, `selected_conformance_applications`); `04_typed-trees-to-typed-trees/src/passes/specialization.rs` (`selections`)
+- Saw: the dispatch producer writes five of nine fields; application fingerprint, commitment, selection application and contract signature stay at their defaults, but copy walks and conformance-signature lookup still consume them
+- Cost: readers cannot distinguish an empty commitment from an uncomputed one; retirement needs to reconcile those consumers with the actual specialization evidence, not substitute unchecked defaults
 - Reported: 2026-11-13, Claude Code, while serving implementation parameters in the specialization pass
 
 ### A typing unit test is red on `main` and nothing runs it before merge
