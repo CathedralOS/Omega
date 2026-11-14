@@ -6,7 +6,8 @@
 
 use numerics::bignum::BigInt;
 use numerics::float_semantics::FloatClass;
-use numerics::float_semantics::{FloatFormat, FloatMeaning, FloatSemantics, IntegerFormat};
+use numerics::float_semantics::{FloatFormat, FloatMeaning, FloatSemantics};
+use numerics::integer_carrier::{FixedInteger, IntegerSign};
 use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue, IntegerValue, ScalarType};
 use target_operations::{
     IeeeFloatArithmeticOperation, IeeeFloatBinaryOperation, IeeeFloatRoundingDirection,
@@ -247,13 +248,22 @@ fn evaluate(
         }
         Operation::TruncateToInteger { target, domain } => {
             let target_type = target.integer_type();
-            let integer_format = IntegerFormat {
-                bits: u32::from(target.bits()),
-                signed: target.is_signed(),
-            };
+            let integer_format = FixedInteger::new(
+                if target.is_signed() {
+                    IntegerSign::Signed
+                } else {
+                    IntegerSign::Unsigned
+                },
+                u64::from(target.bits()),
+            )
+            .ok_or_else(|| rejected("numeric conversion target has zero width"))?;
             let integer = match domain {
                 IeeeFloatToIntegerDomain::Saturating => {
-                    FloatSemantics::to_integer_saturating(first, integer_format)
+                    FloatSemantics::to_integer_saturating(first, integer_format, 64).map_err(
+                        |error| TerminalEffectRejection {
+                            reason: format!("native conversion endpoint refused: {error:?}"),
+                        },
+                    )?
                 }
                 IeeeFloatToIntegerDomain::Exact => {
                     FloatSemantics::to_integer_exact(first, integer_format).map_err(|_| {
@@ -375,4 +385,68 @@ fn encode(format: IeeeFloatFormat, meaning: FloatMeaning) -> TerminalScalarValue
 
 fn rejected(reason: &'static str) -> TerminalEffectRejection {
     TerminalEffectRejection::new(reason)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use target_operations::IeeeFloatIntegerCarrier;
+
+    #[test]
+    fn integer_conversion_runtime_preserves_exact_trapping_and_saturating_outcomes() {
+        let evaluate_integer = |target, domain, value: f64| {
+            evaluate(
+                NearestIeeeFloatArithmeticRealization {
+                    operation: IeeeFloatArithmeticOperation::TruncateToInteger { target, domain },
+                    format: IeeeFloatFormat::Binary64,
+                    x86_scalar_fma: None,
+                },
+                &[TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary64(
+                    value.to_bits(),
+                ))],
+            )
+        };
+        assert!(
+            evaluate_integer(
+                IeeeFloatIntegerCarrier::I8,
+                IeeeFloatToIntegerDomain::Exact,
+                128.0
+            )
+            .is_err()
+        );
+        assert_eq!(
+            evaluate_integer(
+                IeeeFloatIntegerCarrier::I8,
+                IeeeFloatToIntegerDomain::Trapping,
+                128.0
+            )
+            .unwrap(),
+            TerminalEffectResult::Crash(CrashCause::Trap)
+        );
+        for (target, value, expected) in [
+            (
+                IeeeFloatIntegerCarrier::I8,
+                128.0,
+                IntegerValue::Signed(127),
+            ),
+            (
+                IeeeFloatIntegerCarrier::U64,
+                f64::INFINITY,
+                IntegerValue::Unsigned(u128::from(u64::MAX)),
+            ),
+            (
+                IeeeFloatIntegerCarrier::U64,
+                f64::NAN,
+                IntegerValue::Unsigned(0),
+            ),
+        ] {
+            let TerminalEffectResult::Scalar(TerminalScalarValue::Integer {
+                value: actual, ..
+            }) = evaluate_integer(target, IeeeFloatToIntegerDomain::Saturating, value).unwrap()
+            else {
+                panic!("saturation produces the target integer");
+            };
+            assert_eq!(actual, expected);
+        }
+    }
 }
