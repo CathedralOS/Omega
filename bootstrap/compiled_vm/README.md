@@ -43,6 +43,18 @@ python3 bootstrap/compiled_vm/source_test.py --compiler-only
 
 # Explicit Python-assisted development construction of the same compiler.
 python3 bootstrap/compiled_vm/source_test.py --accelerated --omega
+
+# Native differential controls and the real Delta Bytes compiler customer.
+python3 bootstrap/compiled_vm/test.py
+
+# Also construct the complete Epsilon evaluator and run its Console boundary.
+python3 bootstrap/compiled_vm/test.py --epsilon
+
+# Also feed the complete bootstrap compiler its existing Omega fixture.
+python3 bootstrap/compiled_vm/test.py --omega --omega-timeout 1800
+
+# Exercise the existing changed-source, rejection, and reset customer too.
+python3 bootstrap/compiled_vm/test.py --omega-controls --omega-timeout 1800
 ```
 
 Source construction artifacts and the exact source/request bytes go to ignored
@@ -609,8 +621,8 @@ The extracted Omega source is 12,406 bytes,
 `7f89108d7c2191eb7a932159dcec418943b37d672beef81843342787e45e01f8`;
 its 31,279-byte decoder tape is
 `ea7052722e423ccd4f6133432482879dd725b6f878d896a649181028dcd92af8`.
-Those batches used one compiler and one Epsilon customer. The differential
-harness that framed them is gone from this tree; Git history retains it.
+The validation driver retains the selector and request framing in
+[test.py](test.py); all batches use that same compiler and Epsilon customer.
 The existing native successor invocation now exposes this customer with
 `python3 bootstrap/independent/successor_test.py --omega-utf8 --seconds 14400`.
 Its default route reconstructs predecessors first; the measurements above reused
