@@ -2576,8 +2576,7 @@ pub(crate) mod identity_context {
                             .trait_definition_by_symbol(*base_symbol)
                             .is_some_and(|declaration| !declaration.lifetime_parameters.is_empty())
                 }
-                TypeReferenceNode::Named { symbol, .. }
-                | TypeReferenceNode::DynamicTrait { symbol, .. } => {
+                TypeReferenceNode::Named { symbol, .. } => {
                     program
                         .data_definition_by_symbol(*symbol)
                         .is_some_and(|declaration| !declaration.lifetime_parameters.is_empty())
@@ -2749,23 +2748,6 @@ pub(crate) mod identity_context {
             TypeReferenceNode::ConstExpression(expression) => compound(
                 TypeForm::IndexExpression,
                 [normalize_index_expression(program, *expression, context)],
-            ),
-            TypeReferenceNode::DynamicTrait {
-                symbol,
-                name,
-                arguments,
-            } => compound(
-                TypeForm::DynamicTrait,
-                std::iter::once(atom(
-                    Label::Name,
-                    &context.name(program, *symbol, name.as_str()),
-                ))
-                .chain(
-                    program
-                        .type_reference_handles(*arguments)
-                        .iter()
-                        .map(|argument| normalize_type_reference(program, *argument, context)),
-                ),
             ),
             TypeReferenceNode::Named { symbol, name: _ }
                 if context.signature_owners.is_some() && !symbol.is_valid() =>
@@ -4052,7 +4034,6 @@ pub(crate) mod package_policy_reading_tests {
             Slice => TypeReferenceNode::Slice { .. },
             Generic => TypeReferenceNode::Generic { .. },
             ConstExpression => TypeReferenceNode::ConstExpression(_),
-            DynamicTrait => TypeReferenceNode::DynamicTrait { .. },
             Named => TypeReferenceNode::Named { .. },
             Unit => TypeReferenceNode::Unit,
         });
@@ -4290,20 +4271,6 @@ pub(crate) mod package_policy_reading_tests {
             let lifetime_only = fixture.generic("Container", Vec::new());
             witnesses.push(witness("generic without operands", lifetime_only, &[1]));
 
-            let hooks = {
-                let two = fixture.integer(7);
-                let seven = fixture.index(two);
-                let arguments = fixture
-                    .program
-                    .type_reference_table
-                    .insert_type_reference_handles(vec![payload, five, seven]);
-                fixture.type_node(TypeReferenceNode::DynamicTrait {
-                    symbol: fixture.symbol("Hooks"),
-                    name: Identifier::generated("Hooks"),
-                    arguments,
-                })
-            };
-            witnesses.push(witness("dynamic trait", hooks, &[1, 3]));
             witnesses.push(witness("integer constant", five, &[]));
             witnesses.push(witness("canonical constant", canonical, &[]));
 
@@ -5845,7 +5812,6 @@ pub(crate) mod result_dispatch_terms {
             | TypeReferenceNode::Slice { .. }
             | TypeReferenceNode::Generic { .. }
             | TypeReferenceNode::ConstExpression(_)
-            | TypeReferenceNode::DynamicTrait { .. }
             | TypeReferenceNode::Named { .. }
             | TypeReferenceNode::Unit => {}
         }

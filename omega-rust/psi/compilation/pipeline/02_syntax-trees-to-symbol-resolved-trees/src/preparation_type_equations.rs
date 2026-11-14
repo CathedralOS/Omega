@@ -1158,17 +1158,6 @@ mod type_structure {
             TypeReferenceNode::ConstExpression(expression) => {
                 collect_expression_binder_mentions(syntax, *expression, parameters, mentions);
             }
-            TypeReferenceNode::DynamicTrait {
-                trait_name,
-                trait_arguments,
-            } => {
-                name_mention(trait_name.as_str(syntax));
-                for argument in
-                    syntax_type_references(syntax).type_reference_handles(*trait_arguments)
-                {
-                    collect_binder_mentions(syntax, *argument, parameters, mentions);
-                }
-            }
             TypeReferenceNode::StaticSelection(selection) => {
                 super::collect_static_argument_binder_mentions(
                     syntax, selection, parameters, mentions,

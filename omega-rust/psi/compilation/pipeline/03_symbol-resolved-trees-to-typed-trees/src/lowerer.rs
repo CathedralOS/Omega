@@ -479,10 +479,7 @@ pub(crate) mod progress {
                         .collect();
                     return Some((data, bound));
                 }
-                TypeReferenceNode::Named { symbol, .. }
-                | TypeReferenceNode::DynamicTrait { symbol, .. }
-                    if symbol.is_valid() =>
-                {
+                TypeReferenceNode::Named { symbol, .. } if symbol.is_valid() => {
                     if !substituted.contains(symbol)
                         && let Some(argument) = substitution
                             .iter()
@@ -2071,7 +2068,6 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
         captured_machine_states: _,
         trait_implementation_applications: _,
         data_implementation_applications: _,
-        dynamic_slots: _,
         target_machine_families: _,
         deferred_refusals,
         boundary_completion_declarations: _,

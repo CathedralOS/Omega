@@ -34,9 +34,6 @@ pub(crate) fn call_target_parameters(
     program: &TypedTrees,
     target: SymbolHandle,
 ) -> Result<&[StateParameter], Diagnostic> {
-    if let Some(slot) = program.dynamic_slot_by_symbol(target) {
-        return Ok(&slot.parameters);
-    }
     if let Some(state) = program.state_by_symbol(target) {
         return Ok(program.state_parameters(state));
     }

@@ -2275,10 +2275,9 @@ pub(crate) mod domain_establishment {
                 traversal.bindings.truncate(previous_binding_count);
                 return result;
             }
-            TypeReference::Slice(_)
-            | TypeReference::ConstExpression(_)
-            | TypeReference::DynamicTrait { .. }
-            | TypeReference::Unit => return Ok(()),
+            TypeReference::Slice(_) | TypeReference::ConstExpression(_) | TypeReference::Unit => {
+                return Ok(());
+            }
         };
         for constraint in program
             .tables
@@ -2878,26 +2877,6 @@ pub(crate) mod domain_operator_homes {
                         .zip(program.child_type_references(right.arguments))
                         .all(|(left, right)| type_references_match(program, symbols, left, right))
                     && left.arguments.len() == right.arguments.len()
-            }
-            (
-                TypeReference::DynamicTrait {
-                    name: left,
-                    arguments: left_arguments,
-                    ..
-                },
-                TypeReference::DynamicTrait {
-                    name: right,
-                    arguments: right_arguments,
-                    ..
-                },
-            ) => {
-                same_carrier_name(symbols, left, right)
-                    && left_arguments.count() == right_arguments.count()
-                    && program
-                        .child_type_references(*left_arguments)
-                        .iter()
-                        .zip(program.child_type_references(*right_arguments))
-                        .all(|(left, right)| type_references_match(program, symbols, left, right))
             }
             (TypeReference::Named { name: left, .. }, TypeReference::Named { name: right, .. }) => {
                 same_carrier_name(symbols, left, right)
@@ -4785,7 +4764,6 @@ macro_rules! leaf_carrier_type_reference_pattern {
             | symbol_resolved_trees::types::TypeReference::Slice(_)
             | symbol_resolved_trees::types::TypeReference::Generic(_)
             | symbol_resolved_trees::types::TypeReference::ConstExpression(_)
-            | symbol_resolved_trees::types::TypeReference::DynamicTrait { .. }
             | symbol_resolved_trees::types::TypeReference::Named { .. }
             | symbol_resolved_trees::types::TypeReference::Unit
     };

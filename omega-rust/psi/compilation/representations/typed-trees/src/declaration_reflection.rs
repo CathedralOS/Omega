@@ -371,9 +371,6 @@ pub mod reflection {
                         )?;
                     }
                 }
-                TypeReferenceNode::DynamicTrait { symbol, name, .. } => {
-                    intern(*symbol, name.as_str(), type_reference, false)?;
-                }
                 TypeReferenceNode::Constrained { base_type, .. } => {
                     collect_nominal_expectations(
                         typed,
