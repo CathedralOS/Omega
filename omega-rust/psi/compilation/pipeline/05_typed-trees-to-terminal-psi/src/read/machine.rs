@@ -1234,6 +1234,22 @@ impl<'t> Program<'t> {
     ) -> Checked<(Signature, MachineNames)> {
         self.served(id, requirement.symbol)?;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Machine(what)));
+        // Closing a signature substitutes its types; it does not prove the
+        // original binders' storage or copying requirements.
+        if self
+            .typed
+            .closed_requirement_application(requirement.symbol)
+            .is_some_and(|closed| {
+                closed
+                    .invocation_contract_parameters
+                    .iter()
+                    .any(|parameter| {
+                        parameter.bounds != typed_trees::data::DataProperties::default()
+                    })
+            })
+        {
+            return unserved("closed requirement parameter eligibility");
+        }
         if requirement.spelling.is_some() {
             return unserved("operator spelling");
         }

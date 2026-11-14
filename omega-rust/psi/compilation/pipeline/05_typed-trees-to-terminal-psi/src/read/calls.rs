@@ -520,16 +520,15 @@ impl<'t> Program<'t> {
     /// it names rides beside it to the operation lowering emits.
     ///
     /// Only an operation of the toolchain's own selection protocol receives
-    /// one: the Build host hands the reference to no other callee. The two
-    /// selections whose host row needs more than the reference are refused
-    /// by name rather than published without it.
+    /// one: the Build host hands the reference to no other callee. Publication
+    /// joins native bindings to their checked structural locator carrier.
     fn designate(
         &self,
         id: MachineId,
         selection: arena::Handle<typed_trees::expression::BuildSelectionRequest>,
         read: &mut Expression,
     ) -> Checked<()> {
-        use language_semantics::declaration_selection::{BuildOperation, BuildSelectionRequest};
+        use language_semantics::declaration_selection::BuildSelectionRequest;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         let Some(request) = self
             .typed
@@ -565,12 +564,6 @@ impl<'t> Program<'t> {
             // boundaries that application covers.
             BuildSelectionRequest::ProviderReadiness(_) => {
                 return unserved("Build provider readiness needs its requirement application");
-            }
-            // Its host row carries the locator value's shape.
-            BuildSelectionRequest::Declaration(declaration)
-                if declaration.operation == BuildOperation::NativeBinding =>
-            {
-                return unserved("native Build binding needs its locator shape");
             }
             BuildSelectionRequest::Entry(_)
             | BuildSelectionRequest::Declaration(_)
