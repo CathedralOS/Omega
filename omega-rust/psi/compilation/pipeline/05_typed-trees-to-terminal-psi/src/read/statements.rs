@@ -87,10 +87,19 @@ impl Program<'_> {
                 if !slots[slot].assignable {
                     return Err(unserved("assignment to an immutable binding"));
                 }
-                // A whole record stored through a reference replaces the
-                // caller's storage in place, a store no slice lowers yet; a
-                // record local's assignment rebinds its slot instead.
-                if slots[slot].borrowed.is_some() && !slots[slot].homed {
+                // A slice formal carries a view rather than a borrowed
+                // value's storage. Keep whole-view assignment at its existing
+                // refusal; replacing its descriptor is not this operation.
+                if slots[slot].borrowed.is_some()
+                    && !slots[slot].homed
+                    && !self
+                        .signatures
+                        .get(id)
+                        .and_then(|signature| signature.borrowed(slot))
+                        .is_some_and(|borrowed| {
+                            borrowed.referent == crate::body::BorrowedReferent::Value
+                        })
+                {
                     return Err(unserved("whole assignment through a reference"));
                 }
                 let value_type = slots[slot].value_type;
@@ -101,7 +110,10 @@ impl Program<'_> {
                     return Err(assigned(self, &value, value_type));
                 }
                 self.authorized(id, value_type, Access::Replace)?;
-                Ok(if slots[slot].homed {
+                // A borrowed formal already names the caller's storage.
+                // Replace there through the same captured-place store as a
+                // field; only an owned value binding may acquire a new root.
+                Ok(if slots[slot].homed || slots[slot].borrowed.is_some() {
                     Statement::Store {
                         destination: crate::Expression {
                             call_context: None,
