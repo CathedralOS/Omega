@@ -493,21 +493,25 @@ fn analyze(
         }
     }
     let mut contracts = vec![None; machine.structural_places.len()];
-    let mut insert_contract =
-        |place: PlaceId, structural_type, multiplicity, access| -> Result<(), Error> {
-            let slot = contracts
-                .get_mut(index(place.get())?)
-                .ok_or(Error::malformed(
-                    "custody declaration is outside the machine",
-                ))?;
-            if slot
-                .replace((structural_type, multiplicity, access))
-                .is_some()
-            {
-                return Err(Error::malformed("a place has two custody declarations"));
-            }
-            Ok(())
-        };
+    let mut insert_contract = |place: PlaceId,
+                               structural_type,
+                               multiplicity,
+                               access,
+                               required_result|
+     -> Result<(), Error> {
+        let slot = contracts
+            .get_mut(index(place.get())?)
+            .ok_or(Error::malformed(
+                "custody declaration is outside the machine",
+            ))?;
+        if slot
+            .replace((structural_type, multiplicity, access, required_result))
+            .is_some()
+        {
+            return Err(Error::malformed("a place has two custody declarations"));
+        }
+        Ok(())
+    };
     for parameter in machine
         .structural_parameters
         .iter()
@@ -518,15 +522,41 @@ fn analyze(
             parameter.structural_type,
             parameter.multiplicity,
             parameter.access,
+            None,
         )?;
     }
     for operation in machine.operations() {
         if let Some(result) = operation.result.as_structural() {
+            let required_result = crate::StructuralEffectSemanticRow::for_tag(
+                crate::OperationSemanticTag::for_operation(&operation.kind),
+            )
+            .and_then(|row| row.schema().required_result_multiplicity());
+            if required_result.is_some() {
+                // An operation-owned permission is distinct from the type's
+                // later copy permission. Bind that custody to its actual
+                // producer and reference declaration, never an arbitrary
+                // affine marking on otherwise copyable storage.
+                let place = machine.structural_places.get(index(result.place.get())?);
+                let declaration = types.get(index(result.structural_type.get())?);
+                if !place.is_some_and(|place| matches!(place.kind,
+                    StructuralPlaceKind::OperationResult { producer, structural_type }
+                        if producer == operation.id && structural_type == result.structural_type))
+                    || !declaration.is_some_and(|declaration| matches!(declaration.shape,
+                        terminal_psi::StructuralTypeShape::Reference { access, .. }
+                            if access != StructuralAccess::Owned
+                                && (!declaration.copyable || access == StructuralAccess::SharedBorrow)))
+                {
+                    return Err(Error::malformed(
+                        "permission result has no exact reference producer declaration",
+                    ));
+                }
+            }
             insert_contract(
                 result.place,
                 result.structural_type,
                 result.multiplicity,
                 StructuralAccess::Owned,
+                required_result,
             )?;
         }
     }
@@ -536,6 +566,7 @@ fn analyze(
             result.structural_type,
             result.multiplicity,
             StructuralAccess::Owned,
+            None,
         )?;
     }
     let mut roots = Vec::with_capacity(machine.structural_places.len());
@@ -546,7 +577,7 @@ fn analyze(
         }
         let (ty, owned, parameter) = match place.kind {
             StructuralPlaceKind::Parameter { .. } => {
-                let (ty, _, access) = contracts[roots.len()]
+                let (ty, _, access, _) = contracts[roots.len()]
                     .ok_or(Error::malformed("parameter place has no signature"))?;
                 (ty, access == StructuralAccess::Owned, true)
             }
@@ -612,21 +643,28 @@ fn analyze(
                 "operation-result place has no producing operation",
             ));
         }
-        if let Some((declared_type, multiplicity, access)) = contracts[roots.len()] {
-            let expected = if declaration.copyable || access != StructuralAccess::Owned {
+        let required_result = contracts[roots.len()].and_then(|(_, _, _, required)| required);
+        if let Some((declared_type, multiplicity, access, required)) = contracts[roots.len()] {
+            let type_multiplicity = if declaration.copyable || access != StructuralAccess::Owned {
                 terminal_psi::StructuralMultiplicity::Unrestricted
             } else if declaration.owns_linear_claim {
                 terminal_psi::StructuralMultiplicity::Linear
             } else {
                 terminal_psi::StructuralMultiplicity::Affine
             };
+            let expected = required.unwrap_or(type_multiplicity);
             if declared_type != ty || multiplicity != expected {
                 return Err(Error::malformed(
                     "place custody disagrees with its exact type declaration",
                 ));
             }
         }
-        let tracked = !declaration.copyable;
+        // Fresh permission ownership also owes a disposition; copyability
+        // only permits later copies, not forgetting this producing root.
+        let tracked = !declaration.copyable
+            || required_result.is_some_and(|multiplicity| {
+                multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+            });
         if tracked
             && (declaration.owns_linear_claim
                 || !declaration.no_code_affine_cleanup
@@ -637,6 +675,7 @@ fn analyze(
             ));
         }
         if owned
+            && !tracked
             && declaration.copyable
             && declaration.no_code_affine_cleanup
             && declaration.descriptor_cleanup
