@@ -398,6 +398,7 @@ impl<'t> Program<'t> {
             call.target_symbol,
             arguments,
             SourceOrigin::of(call.source_span),
+            None,
         )
     }
 
@@ -409,6 +410,8 @@ impl<'t> Program<'t> {
         handle: ExpressionHandle,
         source: SourceOrigin,
     ) -> Checked<Expression> {
+        // Taken before anything nested is read, so no argument sees it.
+        let expected = self.expected.take();
         self.bound_target(id, call.target_symbol)?;
         if let Some(description) = self.declaration_query(id, call, source)? {
             return Ok(description);
@@ -490,7 +493,7 @@ impl<'t> Program<'t> {
             .typed
             .expression_table
             .expression_handles(call.arguments);
-        let mut read = self.call(id, slots, call.target_symbol, arguments, source)?;
+        let mut read = self.call(id, slots, call.target_symbol, arguments, source, expected)?;
         if call.build_selection.is_valid() {
             self.designate(id, call.build_selection, &mut read)?;
         }
@@ -658,7 +661,7 @@ impl<'t> Program<'t> {
         } else {
             return unserved("requirement dispatch that targets another machine");
         };
-        let read = self.call(id, slots, target, arguments, source)?;
+        let read = self.call(id, slots, target, arguments, source, None)?;
         if let ExpressionKind::Call {
             callee: semantic_vocabulary::TargetMachineCallable::Machine(callee),
             ..
@@ -864,7 +867,7 @@ impl<'t> Program<'t> {
             .typed
             .expression_table
             .expression_handles(call.arguments);
-        self.call_of(id, slots, callee.into(), arguments, source)
+        self.call_of(id, slots, callee.into(), arguments, source, None)
     }
 
     /// The entry of a generic check form calling through a rigid
@@ -949,7 +952,7 @@ impl<'t> Program<'t> {
         let value_arguments =
             self.static_value_arguments(id, &binders, application, authored_arguments)?;
         let callee = self.requirement(requirement, &value_arguments)?;
-        self.call_of(id, slots, callee.into(), arguments, source)
+        self.call_of(id, slots, callee.into(), arguments, source, None)
             .map(Some)
     }
 
@@ -960,6 +963,7 @@ impl<'t> Program<'t> {
         target: SymbolHandle,
         arguments: &[ExpressionHandle],
         source: SourceOrigin,
+        expected: Option<crate::body::ValueType>,
     ) -> Checked<Expression> {
         if !target.is_valid() {
             return Err(refuse(
@@ -976,6 +980,7 @@ impl<'t> Program<'t> {
                 semantic_vocabulary::TargetMachineCallable::Boundary(boundary),
                 arguments,
                 source,
+                expected,
             );
         }
         // A call names its callee's entry state; the machine is that state's
@@ -1006,7 +1011,7 @@ impl<'t> Program<'t> {
         // The callee's formals are the arguments' expected types, so its
         // signature is read first; reading order is not evaluation order.
         let callee = self.machine(machine)?;
-        self.call_of(id, slots, callee.into(), arguments, source)
+        self.call_of(id, slots, callee.into(), arguments, source, expected)
     }
 
     /// Refuses a call from machine `id` to a machine of another package that
@@ -1058,6 +1063,19 @@ impl<'t> Program<'t> {
     }
 
     /// The call of `callee`, a machine or a requirement already read.
+    ///
+    /// A callee generic over lifetimes (`machine wrap<'a>(..)`) has a
+    /// signature in its own regions; the call instantiates them with the
+    /// caller's (`regions`). The region each of the callee's parameters
+    /// stands for is taken from `expected`, the type the caller expects of
+    /// the result, then from each argument as it is read, and every formal
+    /// is read at the regions bound so far, so a literal argument is a value
+    /// of the region its formal is at. Once every argument is read, each
+    /// must be its formal at the bound regions, and the result is the
+    /// callee's at them. A result whose region no input or expectation
+    /// supplies is refused: lifetimes.md, "A signature does not authorize
+    /// returning unrelated storage merely because its type has the same
+    /// lifetime spelling".
     fn call_of(
         &mut self,
         id: MachineId,
@@ -1065,7 +1083,27 @@ impl<'t> Program<'t> {
         callee: semantic_vocabulary::TargetMachineCallable,
         arguments: &[ExpressionHandle],
         source: SourceOrigin,
+        expected: Option<crate::body::ValueType>,
     ) -> Checked<Expression> {
+        let free: Vec<_> = match callee {
+            semantic_vocabulary::TargetMachineCallable::Machine(machine) => {
+                let symbol = self
+                    .symbols
+                    .get(machine)
+                    .copied()
+                    .unwrap_or_else(SymbolHandle::invalid);
+                self.machine_lifetimes(symbol)
+            }
+            semantic_vocabulary::TargetMachineCallable::Boundary(boundary) => {
+                let symbol = self
+                    .boundary_symbols
+                    .get(boundary)
+                    .copied()
+                    .unwrap_or_else(SymbolHandle::invalid);
+                self.machine_lifetimes(symbol)
+            }
+        };
+        let mut bound = super::regions::Substitution::new();
         let signature = crate::body::Signatures {
             machines: &self.signatures,
             boundaries: &self.boundary_signatures,
@@ -1084,12 +1122,18 @@ impl<'t> Program<'t> {
                 )
             })
             .collect();
+        let declared_result = signature.result;
         if formals.len() != arguments.len() {
             return Err(refuse(
                 id,
                 Construct::Machine,
                 Unserved::Typing("argument count"),
             ));
+        }
+        if !free.is_empty()
+            && let (Some(result), Some(expected)) = (declared_result, expected)
+        {
+            self.unify(id, &free, result, expected, &mut bound)?;
         }
         if let SourceOrigin::Authored(span) = source
             && let Some(names) = self.names.get_mut(id)
@@ -1102,7 +1146,8 @@ impl<'t> Program<'t> {
         }
         let mut read = Vec::with_capacity(arguments.len());
         let mut lenders = Vec::new();
-        for (argument, (formal, erased, borrowed)) in arguments.iter().zip(&formals) {
+        for (argument, (declared, erased, borrowed)) in arguments.iter().zip(&formals) {
+            let formal = &self.substitute(*declared, &bound);
             // The argument for an erased formal is a term, not a
             // computation; the argument for a borrowed formal is a loan of
             // a place.
@@ -1121,11 +1166,14 @@ impl<'t> Program<'t> {
             } else {
                 self.expression(id, slots, *argument, Some(*formal))?
             });
+            if !free.is_empty()
+                && let Some(actual) = read.last().and_then(|argument| argument.result)
+            {
+                self.unify(id, &free, *declared, actual, &mut bound)?;
+            }
         }
         lent_storage_is_untouched(id, &read, &self.captures, |place| {
-            place
-                .result
-                .is_some_and(|held| self.view_region(held).is_some())
+            place.result.is_some_and(|held| self.is_borrowed_view(held))
         })?;
         if let SourceOrigin::Authored(span) = source
             && let Some(names) = self.names.get_mut(id)
@@ -1134,22 +1182,57 @@ impl<'t> Program<'t> {
                 names.loans.push((span, position, lender));
             }
         }
-        let signature = crate::body::Signatures {
-            machines: &self.signatures,
-            boundaries: &self.boundary_signatures,
-            completions: &self.boundary_completions,
-        }
-        .get(callee, id)?;
-        if signature.parameters.len() != read.len() {
+        if formals.len() != read.len() {
             return Err(refuse(
                 id,
                 Construct::Machine,
                 Unserved::Typing("argument types"),
             ));
         }
-        let result = signature.result;
-        let formals: Vec<ValueType> = signature.parameters.clone();
-        let result = self.view_regions(id, &formals, &read, result)?;
+        for ((declared, _, _), actual) in formals.iter().zip(&read) {
+            let formal = self.substitute(*declared, &bound);
+            if !self.agrees(actual.result, formal) {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Typing("argument types"),
+                ));
+            }
+        }
+        // A result lifetime no formal names relates the result to no input:
+        // lifetimes.md, "Generic returned views require the complete
+        // instantiated frontier and its result-to-input relation".
+        let related: Vec<_> = free
+            .iter()
+            .copied()
+            .filter(|parameter| {
+                formals
+                    .iter()
+                    .any(|(formal, _, _)| self.names_any(*formal, &[*parameter]))
+            })
+            .collect();
+        let unrelated: Vec<_> = free
+            .iter()
+            .copied()
+            .filter(|parameter| !related.contains(parameter))
+            .collect();
+        if declared_result.is_some_and(|result| self.names_any(result, &unrelated)) {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("result lifetime that no argument is a view of"),
+            ));
+        }
+        let result = declared_result.map(|result| self.substitute(result, &bound));
+        if let Some(result) = result
+            && self.names_any(result, &free)
+        {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("result lifetime that no argument supplies"),
+            ));
+        }
         // A value a call returns is the result of an operation, and no
         // operation of the lowered form has a result of a rigid type.
         if matches!(result, Some(crate::body::ValueType::Rigid(_))) {
@@ -1168,110 +1251,6 @@ impl<'t> Program<'t> {
             result,
             source,
         })
-    }
-
-    /// Holds a call's arguments to its callee's formal types and gives the
-    /// call's result type.
-    ///
-    /// Every type but a borrowed view's is the formal's exactly. A view's type
-    /// names a region, and a region a callee's signature names is the
-    /// callee's own: a lifetime parameter it declares, or a lifetime it
-    /// left out. lifetimes.md: "Lifetime arguments are erased regions", so
-    /// the callee is one machine, judged once with each as a region it
-    /// knows nothing else about, and the call stands a region of the caller
-    /// in for it: the region of the view the caller passes. One parameter
-    /// stands for one region, so two views passed for it are views of the
-    /// same one; there are no "general authored outlives bounds" to relate
-    /// two.
-    ///
-    /// The result is read back the same way. "An explicit result lifetime
-    /// relates its reference leaves to the corresponding input lifetime":
-    /// a result view of a parameter is a view of the region the call gave
-    /// that parameter. "For an elided output, one unambiguous reference
-    /// input supplies the relation": the callee's body may return any view
-    /// it was passed without a lifetime, so the result is a view of the one
-    /// region all of those are views of, and a call that passes two is
-    /// refused. A literal is within every region and decides none.
-    fn view_regions(
-        &self,
-        id: MachineId,
-        formals: &[ValueType],
-        actuals: &[Expression],
-        result: Option<ValueType>,
-    ) -> Checked<Option<ValueType>> {
-        use super::bytes::ViewRegion;
-        let typing = |what| Err(refuse(id, Construct::Machine, Unserved::Typing(what)));
-        // What each lifetime parameter of the callee stands for at this
-        // call, and the views passed for formals without a lifetime.
-        let mut named: Vec<(ViewRegion, ValueType)> = Vec::new();
-        let mut unnamed: Vec<ValueType> = Vec::new();
-        for (formal, actual) in formals.iter().zip(actuals) {
-            // A lifetime a data declaration binds is not the callee's to
-            // be given a region for: such a view is passed only as itself.
-            let region = self.view_region(*formal).filter(|region| match region {
-                ViewRegion::Parameter(parameter) => {
-                    self.data_declaration(parameter.declaration).is_none()
-                }
-                ViewRegion::Elided | ViewRegion::Literal => true,
-            });
-            let Some(region) = region else {
-                if actual.result != Some(*formal) {
-                    return typing("argument types");
-                }
-                continue;
-            };
-            // A literal is read at the formal's own type (`byte_literal`).
-            if matches!(
-                &actual.kind,
-                ExpressionKind::Borrow { place, .. }
-                    if matches!(place.kind, ExpressionKind::ByteLiteral(_))
-            ) {
-                if actual.result != Some(*formal) {
-                    return typing("argument types");
-                }
-                continue;
-            }
-            let (ValueType::Record(formal_row, formal_domains), Some(passed)) =
-                (*formal, actual.result)
-            else {
-                return typing("argument types");
-            };
-            let ValueType::Record(row, domains) = passed else {
-                return typing("argument types");
-            };
-            if self.view_region(passed).is_none()
-                || domains != formal_domains
-                || self.data_type(id, row)?.shape != self.data_type(id, formal_row)?.shape
-            {
-                return typing("argument types");
-            }
-            match region {
-                ViewRegion::Elided | ViewRegion::Literal => unnamed.push(passed),
-                ViewRegion::Parameter(_) => {
-                    match named.iter().find(|(parameter, _)| *parameter == region) {
-                        Some((_, earlier)) if *earlier != passed => {
-                            return typing("views of two regions passed for one lifetime");
-                        }
-                        Some(_) => {}
-                        None => named.push((region, passed)),
-                    }
-                }
-            }
-        }
-        match result.and_then(|result| self.view_region(result)) {
-            None | Some(ViewRegion::Literal) => Ok(result),
-            Some(ViewRegion::Elided) => match unnamed.split_first() {
-                None => Ok(result),
-                Some((first, rest)) if rest.iter().all(|other| other == first) => Ok(Some(*first)),
-                Some(_) => {
-                    typing("result without a lifetime of a call passed views of two regions")
-                }
-            },
-            Some(region) => match named.iter().find(|(parameter, _)| *parameter == region) {
-                Some((_, stood)) => Ok(Some(*stood)),
-                None => typing("result lifetime that no argument is a view of"),
-            },
-        }
     }
 
     /// The argument for a borrowed formal: `&place` or `&mut place`, or a
@@ -1301,7 +1280,7 @@ impl<'t> Program<'t> {
         // including constructors and returned views; the call's region check
         // still authenticates the actual type and its result relation.
         if formal.access == ReferenceAccess::Shared
-            && self.view_region(expected).is_some()
+            && self.is_borrowed_view(expected)
             && !matches!(node, ExpressionNode::Borrow(_))
         {
             let place = self.expression(id, slots, argument, Some(expected))?;
@@ -1651,7 +1630,7 @@ mod tests {
         let capture = typed.expression_table.insert_match_subject(marker);
         let foreign = typed.expression_table.insert_match_subject(marker);
         let source = SourceOrigin::Unpositioned(Unpositioned::SpanAbsent);
-        let record = ValueType::Record(StructuralTypeId::new(1).unwrap(), Qualification::NONE);
+        let record = ValueType::record(StructuralTypeId::new(1).unwrap());
         let scalar = ValueType::plain(ScalarType::Integer(
             IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
         ));
@@ -1660,7 +1639,7 @@ mod tests {
             result: Some(if slot == 1 {
                 scalar
             } else if slot == 0 {
-                ValueType::Record(StructuralTypeId::new(2).unwrap(), Qualification::NONE)
+                ValueType::record(StructuralTypeId::new(2).unwrap())
             } else {
                 record
             }),

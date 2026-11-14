@@ -35,6 +35,9 @@ pub enum Error {
 #[derive(Debug, Default)]
 pub struct Plan {
     pub affine_roots: IdSet<PlaceId>,
+    /// Owned copyable storage with trivial cleanup may be discarded or retired.
+    /// Borrowed storage grants no such authority.
+    pub copyable_owned_roots: IdSet<PlaceId>,
     pub cleanup: Vec<(EdgeId, Vec<TerminalAffineCleanupAction>)>,
     /// Exact receiving regions determine whether a store fills a vacancy or
     /// replaces intact discardable contents. Sorted by operation identity.
@@ -352,6 +355,19 @@ pub fn verify(
                 {
                     return Err(Error::Malformed("cleanup root is outside the machine"));
                 }
+                // Affine cleanup must match the schedule below. Copyable
+                // storage may be discarded or retired only by its owner.
+                if !plan.affine_roots.contains(action.place())
+                    && (!matches!(
+                        action,
+                        TerminalAffineCleanupAction::RetireHome(_)
+                            | TerminalAffineCleanupAction::DiscardRoot(_)
+                    ) || !plan.copyable_owned_roots.contains(action.place()))
+                {
+                    return Err(Error::Unsupported(
+                        "disposal of storage the affine schedule does not own",
+                    ));
+                }
             }
             let actual = actions
                 .iter()
@@ -474,6 +490,7 @@ fn analyze(
         )?;
     }
     let mut roots = Vec::with_capacity(machine.structural_places.len());
+    let mut copyable_owned_roots = IdSet::new();
     for place in &machine.structural_places {
         if index(place.id.get())? != roots.len() {
             return Err(Error::Malformed("places are not in dense identity order"));
@@ -550,6 +567,13 @@ fn analyze(
                 "affine storage with nontrivial disposition",
             ));
         }
+        if owned
+            && declaration.copyable
+            && declaration.no_code_affine_cleanup
+            && declaration.descriptor_cleanup
+        {
+            copyable_owned_roots.insert(place.id);
+        }
         roots.push(tracked.then_some(Root {
             structural_type: ty,
             owned,
@@ -557,7 +581,10 @@ fn analyze(
         }));
     }
     if roots.iter().all(Option::is_none) {
-        return Ok(Plan::default());
+        return Ok(Plan {
+            copyable_owned_roots,
+            ..Plan::default()
+        });
     }
     let mut affine_roots = IdSet::new();
     for (slot, root) in roots.iter().enumerate() {
@@ -663,6 +690,7 @@ fn analyze(
     analysis.stores.sort_by_key(|(operation, _)| *operation);
     Ok(Plan {
         affine_roots,
+        copyable_owned_roots,
         cleanup,
         stores: analysis.stores,
         unavailable: analysis.unavailable,

@@ -112,7 +112,7 @@ impl Program<'_> {
     ) -> Checked<Expression> {
         // A literal constructs the bare carrier, whatever its context
         // expects: a qualified destination then refuses the plain value.
-        let Some(ValueType::Record(array, _)) = expected else {
+        let Some(ValueType::Record(array, _, regions)) = expected else {
             return Err(refuse(
                 machine,
                 Construct::Machine,
@@ -120,7 +120,12 @@ impl Program<'_> {
             ));
         };
         let (element, extent) = self.array_element(machine, array)?;
-        let declared = self.storage_value_type(machine, element)?;
+        // An array value holds its elements' regions (`array_type`).
+        let element_regions = self.collection_element_regions(machine, array, regions)?;
+        let declared = super::places::with_regions(
+            self.storage_value_type(machine, element)?,
+            element_regions,
+        );
         let supplied = self.typed.expression_table.expression_handles(supplied);
         if let CollectionExtent::Fixed(extent) = extent
             && u64::try_from(supplied.len()).ok() != Some(extent)
@@ -134,7 +139,7 @@ impl Program<'_> {
         let mut elements = Vec::with_capacity(supplied.len());
         for handle in supplied {
             let element = self.expression(machine, slots, *handle, Some(declared))?;
-            if element.result != Some(declared) {
+            if !self.agrees(element.result, declared) {
                 return Err(refuse(
                     machine,
                     Construct::Machine,
@@ -145,7 +150,7 @@ impl Program<'_> {
         }
         Ok(Expression {
             kind: ExpressionKind::Array { elements },
-            result: Some(ValueType::record(array)),
+            result: Some(ValueType::Record(array, Qualification::NONE, regions)),
             source,
         })
     }
@@ -173,7 +178,14 @@ impl Program<'_> {
                 Unserved::Typing("sequence index needs its current length and bounds judgment"),
             ));
         }
-        let result = self.storage_value_type(machine, element)?;
+        let regions = base
+            .result
+            .map_or(crate::body::Regions::NONE, ValueType::regions);
+        let element_regions = self.collection_element_regions(machine, array, regions)?;
+        let result = super::places::with_regions(
+            self.storage_value_type(machine, element)?,
+            element_regions,
+        );
         let index_type = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| {
             refuse(
                 machine,
@@ -243,7 +255,7 @@ impl Program<'_> {
                 scalar_type,
                 policy: Some(policy),
             } => ValueType::Scalar(scalar_type, Qualification::of_policy(policy)),
-            _ => ValueType::Record(storage, Qualification::NONE),
+            _ => ValueType::record(storage),
         })
     }
 
@@ -272,15 +284,22 @@ impl Program<'_> {
                 Unserved::Type("sequence selects another element occurrence"),
             ));
         }
+        let mut tuple = Vec::new();
+        if access.is_some() {
+            tuple.push(self.borrowed_view_region(
+                machine,
+                reference,
+                self.lifetime_owner,
+                &identity,
+            )?);
+        }
         let value = self.value_type(machine, element)?;
+        tuple.extend_from_slice(self.region_tuple(value.regions()));
+        let regions = self.intern_regions(tuple);
         let element = self.storage_type(machine, element, value)?;
         let shape = StorageShape::ElementView { element, access };
-        if let Some((id, _)) = self
-            .records
-            .iter()
-            .find(|(_, row)| row.shape == shape && row.identity == identity)
-        {
-            return Ok(ValueType::record(id));
+        if let Some((id, _)) = self.records.iter().find(|(_, row)| row.shape == shape) {
+            return Ok(ValueType::Record(id, Qualification::NONE, regions));
         }
         let id = self.records.push(RecordType {
             copyable: self.typed.stored_value_multiplicity(reference)
@@ -292,7 +311,7 @@ impl Program<'_> {
         let mut source = physical_source(reference);
         source.region_owner = self.lifetime_owner;
         self.record_sources.push(source);
-        Ok(ValueType::record(id))
+        Ok(ValueType::Record(id, Qualification::NONE, regions))
     }
 
     pub(super) fn array_type(
@@ -323,7 +342,7 @@ impl Program<'_> {
             matches!(&row.shape, StorageShape::FixedArray { element: known, length }
                 if *known == element && *length == extent)
         }) {
-            return Ok(ValueType::Record(id, Qualification::NONE));
+            return Ok(ValueType::Record(id, Qualification::NONE, value.regions()));
         }
         let copyable = self.data_type(machine, element)?.copyable;
         let identity = self.storage_identity(machine, reference)?;
@@ -337,7 +356,9 @@ impl Program<'_> {
             requires: Vec::new(),
         });
         self.record_sources.push(physical_source(reference));
-        Ok(ValueType::Record(id, Qualification::NONE))
+        // The row is the element's carrier; the regions its elements hold
+        // belong to the array value's type, as a record's do (`regions`).
+        Ok(ValueType::Record(id, Qualification::NONE, value.regions()))
     }
 
     fn storage_type(
@@ -357,7 +378,7 @@ impl Program<'_> {
                     Unserved::Type("array of elements that carry a declared domain"),
                 ));
             }
-            ValueType::Record(id, Qualification::NONE) => return Ok(id),
+            ValueType::Record(id, Qualification::NONE, _) => return Ok(id),
             ValueType::Record(..) => {
                 return Err(refuse(
                     machine,
@@ -474,12 +495,12 @@ mod sequence_source_tests {
         });
         let machine = MachineId::new(1).unwrap();
         let mut program = Program::new(&typed, false);
-        let ValueType::Record(first_row, _) =
+        let ValueType::Record(first_row, _, _) =
             program.sequence_type(machine, first, unsigned).unwrap()
         else {
             unreachable!()
         };
-        let ValueType::Record(second_row, _) =
+        let ValueType::Record(second_row, _, _) =
             program.sequence_type(machine, second, signed).unwrap()
         else {
             unreachable!()

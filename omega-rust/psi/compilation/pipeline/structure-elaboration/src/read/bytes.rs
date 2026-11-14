@@ -98,53 +98,23 @@ pub(super) fn source_byte_view(
     )))
 }
 
-/// The region a borrowed view's type names: what it may be used during.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum ViewRegion {
-    /// A literal's bytes, which every region is within.
-    Literal,
-    /// A view written without a lifetime, such as `&[u8]`.
-    Elided,
-    /// A lifetime parameter of the declaration the view's type was written
-    /// in, a machine or data, by its position there.
-    Parameter(typed_trees::type_identity::LifetimeParameterIdentity),
-}
-
 impl Program<'_> {
-    /// The region of `value_type` when it is a borrowed view, read from the
-    /// occurrence its row was made from. `None` for every other type, and
-    /// for a view whose lifetime its owner does not declare, which the
-    /// source view reader refused before a row was made.
-    pub(super) fn view_region(&self, value_type: ValueType) -> Option<ViewRegion> {
-        let ValueType::Record(row, _) = value_type else {
-            return None;
+    /// Whether the type is a borrowed byte or typed view. Its complete
+    /// region tuple belongs to the value type, never to its storage row.
+    pub(super) fn is_borrowed_view(&self, value_type: ValueType) -> bool {
+        let ValueType::Record(row, _, _) = value_type else {
+            return false;
         };
-        let shape = &self.records.get(row)?.shape;
-        if !matches!(
-            shape,
-            StorageShape::ByteSequence(_) | StorageShape::ElementView { .. }
-        ) {
-            return None;
-        }
-        let source = self.record_sources.get(row)?;
-        let Some(application) = &source.application else {
-            return matches!(shape, StorageShape::ByteSequence(_)).then_some(ViewRegion::Literal);
-        };
-        let table = &self.typed.type_reference_table;
-        let TypeReferenceNode::Reference { lifetime, .. } =
-            table.type_reference(application.reference)
-        else {
-            return None;
-        };
-        let Some(tag) = lifetime else {
-            return Some(ViewRegion::Elided);
-        };
-        let owner = match table.operand_lifetime_owner(application.reference) {
-            retained if retained.is_valid() => retained,
-            _ => source.region_owner,
-        };
-        typed_trees::type_identity::lifetime_parameter_identity(self.typed, owner, tag.as_str())
-            .map(ViewRegion::Parameter)
+        self.records.get(row).is_some_and(|row| {
+            matches!(
+                row.shape,
+                StorageShape::ByteSequence(_)
+                    | StorageShape::ElementView {
+                        access: Some(StructuralAccess::SharedBorrow),
+                        ..
+                    }
+            )
+        })
     }
 
     pub(super) fn view_type(
@@ -166,12 +136,21 @@ impl Program<'_> {
                 None => Ok(None),
             };
         };
+        let region = self.borrowed_view_region(machine, reference, lexical_owner, &identity)?;
+        let regions = self.intern_regions(vec![region]);
+        let typed_view = |row| Some(ValueType::Record(row, Qualification::NONE, regions));
+        // One row per carrier, whatever region: the lowered form erases
+        // regions. The row keeps the first occurrence it was read from as
+        // its source, whose identity text it carries
+        // (`source_record_correspondence`).
         let row = self.records.iter().find_map(|(id, row)| {
-            (row.shape == StorageShape::ByteSequence(carrier) && row.identity == identity)
-                .then_some(id)
+            let view = self.record_sources.get(id).is_some_and(|source| {
+                !source.declaration.is_valid() && source.application.is_some()
+            });
+            (view && row.shape == StorageShape::ByteSequence(carrier)).then_some(id)
         });
         if let Some(row) = row {
-            return Ok(Some(ValueType::Record(row, Qualification::NONE)));
+            return Ok(typed_view(row));
         }
         let row = self.records.push(RecordType {
             copyable: carrier.is_shared_readable_view(),
@@ -189,7 +168,7 @@ impl Program<'_> {
             fields: Vec::new(),
             cases: Vec::new(),
         });
-        Ok(Some(ValueType::Record(row, Qualification::NONE)))
+        Ok(typed_view(row))
     }
 
     pub(super) fn byte_literal(
@@ -202,11 +181,14 @@ impl Program<'_> {
         let carrier = ByteSequenceCarrier::BorrowedView {
             access: Some(StructuralAccess::SharedBorrow),
         };
-        let row = match expected {
-            Some(ValueType::Record(row, _))
+        // A literal's bytes are immutable program data that outlive every
+        // region, so it is a view of whichever region the place it stands
+        // for is valid for.
+        let (row, regions) = match expected {
+            Some(ValueType::Record(row, _, regions))
                 if self.data_type(machine, row)?.shape == StorageShape::ByteSequence(carrier) =>
             {
-                row
+                (row, regions)
             }
             Some(_) => {
                 return Err(refuse(
@@ -215,11 +197,11 @@ impl Program<'_> {
                     Unserved::Type("literal requires an immutable byte view"),
                 ));
             }
-            None => self.literal_byte_type(carrier),
+            None => (self.literal_byte_type(carrier), crate::body::Regions::NONE),
         };
         Ok(Expression {
             kind: ExpressionKind::ByteLiteral(bytes.to_vec()),
-            result: Some(ValueType::Record(row, Qualification::NONE)),
+            result: Some(ValueType::Record(row, Qualification::NONE, regions)),
             source,
         })
     }
@@ -338,7 +320,7 @@ mod tests {
                 .unwrap()
                 .is_empty()
         );
-        let ValueType::Record(a, _) = a else {
+        let ValueType::Record(a, _, _) = a else {
             panic!("a byte descriptor is structural")
         };
         program

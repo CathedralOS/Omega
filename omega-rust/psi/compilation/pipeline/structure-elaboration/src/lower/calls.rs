@@ -95,7 +95,7 @@ impl Lowering<'_> {
                 continue;
             }
             match argument.result {
-                Some(ValueType::Record(_, _)) => {
+                Some(ValueType::Record(_, _, _)) => {
                     let root = self.record(argument)?;
                     evaluated
                         .actuals
@@ -532,17 +532,19 @@ impl Lowering<'_> {
                     requirement_obligations: requirements,
                     crash_continuations,
                 },
-                Some(ValueType::Record(_, _)) => OperationKind::CallStructuralWithScalarArguments {
-                    callee,
-                    arguments: scalars,
-                    erased_arguments,
-                    erased_proof_arguments: Vec::new(),
-                    structural_arguments,
-                    claim_transfers: Vec::new(),
-                    requirement_obligations: requirements,
-                    crash_continuations,
-                    selected_evidence: Vec::new(),
-                },
+                Some(ValueType::Record(_, _, _)) => {
+                    OperationKind::CallStructuralWithScalarArguments {
+                        callee,
+                        arguments: scalars,
+                        erased_arguments,
+                        erased_proof_arguments: Vec::new(),
+                        structural_arguments,
+                        claim_transfers: Vec::new(),
+                        requirement_obligations: requirements,
+                        crash_continuations,
+                        selected_evidence: Vec::new(),
+                    }
+                }
                 Some(ValueType::Rigid(_)) => {
                     return Err(self.internal("a call returns a value of a rigid type"));
                 }
@@ -553,7 +555,7 @@ impl Lowering<'_> {
         let value = match result {
             Some(ValueType::Scalar(scalar, _)) => self.emit(operation, Some(scalar), kind)?,
             None => self.emit(operation, None, kind)?,
-            Some(ValueType::Record(record, _)) => {
+            Some(ValueType::Record(record, _, _)) => {
                 let (root, exact) = self.produce(operation, record, kind)?;
                 self.unknown_contents(exact, operation)?;
                 Value::Record(root)

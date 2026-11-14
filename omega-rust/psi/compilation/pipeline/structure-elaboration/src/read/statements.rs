@@ -52,7 +52,7 @@ impl Program<'_> {
                 let value_type = slots[slot].value_type;
                 self.authorized(id, value_type, Access::Replace)?;
                 let value = self.expression(id, slots, assignment.value, Some(value_type))?;
-                if value.result != Some(value_type) {
+                if !self.agrees(value.result, value_type) {
                     return Err(typing());
                 }
                 Ok(if slots[slot].homed {
@@ -121,7 +121,7 @@ impl Program<'_> {
                 self.written_through(id, &place)?;
                 self.authorized(id, stored, Access::Replace)?;
                 let value = self.expression(id, slots, assignment.value, Some(stored))?;
-                if value.result != Some(stored) {
+                if !self.agrees(value.result, stored) {
                     return Err(typing());
                 }
                 Ok(Statement::Store {
@@ -258,7 +258,7 @@ impl Program<'_> {
             if !local.type_reference.is_valid() {
                 return unserved("uninitialized local without a declared type");
             }
-            let value_type = self.value_type(id, local.type_reference)?;
+            let value_type = self.local_type(id, local.type_reference)?;
             self.zero_established(id, value_type)?;
             let home = match value_type {
                 ValueType::Rigid(_) => return unserved("local of a rigid type"),
@@ -267,7 +267,7 @@ impl Program<'_> {
                 ValueType::Scalar(_, qualification) if !qualification.is_none() => {
                     return unserved("uninitialized local of a qualified type");
                 }
-                ValueType::Record(_, _) => None,
+                ValueType::Record(_, _, _) => None,
                 ValueType::Scalar(..) => Some(
                     self.typed
                         .normalized_type_identity_text(local.type_reference),
@@ -302,7 +302,7 @@ impl Program<'_> {
         // A declared type is the initializer's expected type; without one the
         // local takes the initializer's type.
         let declared = if local.type_reference.is_valid() {
-            Some(self.value_type(id, local.type_reference)?)
+            Some(self.local_type(id, local.type_reference)?)
         } else {
             None
         };
@@ -339,7 +339,9 @@ impl Program<'_> {
                 Unserved::Typing("local initializer without the arithmetic policy of its local"),
             ));
         }
-        if declared.is_some_and(|declared| declared != value_type) {
+        if let Some(declared) = declared
+            && !self.agrees(Some(value_type), declared)
+        {
             return Err(refuse(
                 id,
                 Construct::Machine,
@@ -377,7 +379,7 @@ impl Program<'_> {
             return unserved("erased local without an initializer");
         }
         let declared = if local.type_reference.is_valid() {
-            Some(self.value_type(id, local.type_reference)?)
+            Some(self.local_type(id, local.type_reference)?)
         } else {
             None
         };

@@ -64,22 +64,4 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### Q1 - Is code after a call that never returns an error, a warning, or accepted?
-
-Decision name: `code-after-no-return-call`.
-
-**Customer.** The lowered-form checker judges calls that never return (process
-exit and machines whose every path exits) since #2890; every program that exits
-through `ProcessExit` meets the rule.
-
-**Gap.** [Process exit](wiki/spec/language/process_exit.md) says a helper may
-exit on one branch and return on another and that there is no `never` type; no
-page says what a statement written after a call that never returns means:
-whether the program is rejected, accepted with the statement unreachable, or
-accepted with a warning.
-
-**Question.** (a) Is a statement after a call that never returns a compile
-error? (b) Or is it accepted as unreachable, with or without a warning?
-
-**Until answered.** The checker refuses it as not supported (`statement after a
-call that never returns`).
+None currently.

@@ -150,7 +150,7 @@ impl Program<'_> {
                             }
                             ValueType::Scalar(..)
                             | ValueType::Rigid(_)
-                            | ValueType::Record(_, _) => None,
+                            | ValueType::Record(_, _, _) => None,
                         };
                     }
                     self.typed
@@ -338,8 +338,9 @@ impl Program<'_> {
             return self.qualified_type(id, *base_type, *constraints);
         }
         // `Inner<'a>`: data applied at lifetime arguments and nothing else
-        // is the declaration's one record type, because a lifetime argument
-        // is an erased region (`places`, `lifetime_binders`). The
+        // is the declaration's one record row, because a lifetime argument
+        // is an erased region; the regions it names are part of the value
+        // type (`places::occurrence_regions`, `regions`). The
         // application itself is checked against the declaration and the
         // owner of the lifetimes it names (`lifetime_application`). An
         // application with a type, const or machine argument, or of data

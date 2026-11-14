@@ -59,7 +59,7 @@ impl Program<'_> {
             (ValueType::Scalar(..), Some(_)) => {
                 return unserved("cast that names a policy for a type that cannot carry one");
             }
-            (ValueType::Record(_, _) | ValueType::Rigid(_), _) => {
+            (ValueType::Record(_, _, _) | ValueType::Rigid(_), _) => {
                 return unserved("cast to a type that is not a scalar");
             }
         };
@@ -86,7 +86,7 @@ impl Program<'_> {
         let operand = self.expression(id, slots, cast.value, landing.map(ValueType::plain))?;
         let source_type = match operand.result {
             Some(source_type @ ValueType::Scalar(..)) => source_type,
-            Some(ValueType::Record(_, _) | ValueType::Rigid(_)) | None => {
+            Some(ValueType::Record(_, _, _) | ValueType::Rigid(_)) | None => {
                 return unserved("cast of a non-scalar");
             }
         };

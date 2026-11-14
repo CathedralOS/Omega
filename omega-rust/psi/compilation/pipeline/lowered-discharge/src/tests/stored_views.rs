@@ -61,13 +61,14 @@ fn operations(accepted: &crate::AcceptedClosure) -> Vec<&OperationKind> {
 
 /// The field is declared as the record's own byte field, and an assignment
 /// to it replaces the descriptor with the view store, never with the
-/// replacement of a nested structural value.
+/// replacement of a nested structural value. The two formals state that
+/// their views are of one region, which is what lets one hold the other's.
 #[test]
 fn an_assigned_view_replaces_the_descriptor_of_its_byte_field() {
     let accepted = accepted(
         r#"
 data Session<'storage> { ready: bool; name: &'storage [u8]; }
-machine build_entry(session: &mut Session, other: &Session) {
+machine build_entry<'shared>(session: &mut Session<'shared>, other: &Session<'shared>) {
     session.name = other.name;
     session.ready = true;
 }
@@ -96,6 +97,26 @@ machine build_entry(session: &mut Session, other: &Session) {
             .any(|kind| matches!(kind, OperationKind::StoreStructuralField { .. }))
     );
     accepted.publish_invocation().unwrap();
+}
+
+/// The twin with both lifetimes elided: each formal is then at a region of
+/// its own, and a view of `other`'s cannot be stored where `session` keeps
+/// it, which may outlive `other`'s backing. lifetimes.md: "A signature does
+/// not authorize returning unrelated storage merely because its type has the
+/// same lifetime spelling".
+#[test]
+fn a_view_of_an_unrelated_formal_is_not_stored() {
+    assert_eq!(
+        refusal(
+            r#"
+data Session<'storage> { ready: bool; name: &'storage [u8]; }
+machine build_entry(session: &mut Session, other: &Session) {
+    session.name = other.name;
+}
+"#
+        ),
+        "typing assigned value type"
+    );
 }
 
 /// The twin: the same store through a formal the machine holds shared. The
