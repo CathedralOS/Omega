@@ -402,6 +402,7 @@ pub(crate) use target_operations::TargetOperationPlan;
 #[allow(unused_imports)]
 pub(crate) use source::derive_source_function_rosters;
 
+#[cfg(test)]
 pub(crate) fn legalize_target_operations(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
