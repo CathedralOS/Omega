@@ -378,7 +378,7 @@ mod tests {
                     target: invalid,
                     access: ReferenceAccess::Shared,
                 }),
-                "expression borrow",
+                "expression reference formation without its retained contextual type",
             ),
             (
                 ExpressionNode::Range(TableRangeExpression {
@@ -1317,7 +1317,6 @@ mod tests {
     /// each refused by name, as is a named constant.
     #[test]
     fn each_place_statement_outside_the_slice_is_refused_by_name() {
-        use semantic_vocabulary::StructuralTypeId;
         use typed_trees::expression::TableMemberExpression;
         use typed_trees::name::Identifier;
         use typed_trees::statement::{TableAssignment, TableLocalData};
@@ -1361,16 +1360,23 @@ mod tests {
                     case_variant: None,
                 }));
         let value = typed.expression_table.insert(ExpressionNode::Boolean(true));
+        let mut program = Program::new(&typed, false);
+        let record = program.records.push(crate::RecordType {
+            owns_linear_claim: false,
+            copyable: false,
+            identity: "Record".into(),
+            shape: crate::StorageShape::Record(Vec::new()),
+            requires: Vec::new(),
+        });
         let slots = [Slot {
             symbol: local,
-            value_type: ValueType::record(StructuralTypeId::new(1).unwrap()),
+            value_type: ValueType::record(record),
             assignable: true,
             homed: false,
             erased: false,
             borrowed: None,
             borrowed_regions: crate::body::Regions::NONE,
         }];
-        let mut program = Program::new(&typed, false);
         let mut assigned = |target| {
             program
                 .assignment(machine(), &slots, &TableAssignment { target, value })
@@ -1386,7 +1392,7 @@ mod tests {
         // A binding that is not `mut` is neither replaced nor stored into.
         let frozen = [Slot {
             symbol: local,
-            value_type: ValueType::record(StructuralTypeId::new(1).unwrap()),
+            value_type: ValueType::record(record),
             assignable: false,
             homed: false,
             erased: false,
