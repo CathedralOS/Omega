@@ -340,3 +340,33 @@ fn exact_result_equations_prove_open_mathematical_equalities_by_reflexivity() {
         assert_unproved(verdicts(&elaboration, &result, 1, guarantee)[0].1);
     }
 }
+
+#[test]
+fn a_callees_scalar_equality_preserves_the_enclosing_mathematical_input_relation() {
+    let callee = || Machine {
+        ensures: vec![Proposition::Equal(
+            formal(1, u32_type()),
+            formal(2, u32_type()),
+        )],
+        ..machine(vec![u32_type()], vec![returns(slot(0, u32_type()))])
+    };
+    let caller = |right| Machine {
+        requires: vec![at_most(1, 10), at_most(2, 10)],
+        ensures: vec![Proposition::IntegerMathEqual(embedded(3), right)],
+        ..machine(
+            vec![u32_type(), u32_type()],
+            vec![
+                Statement::Bind {
+                    slot: 0,
+                    value: strict(Strict::Add, slot(0, u32_type()), slot(1, u32_type())),
+                },
+                returns(call(2, vec![slot(0, u32_type())])),
+            ],
+        )
+    };
+    let (elaboration, result) = run(vec![caller(sum(embedded(1), embedded(2))), callee()]);
+    let (obligation, verdict) = verdicts(&elaboration, &result, 1, guarantee)[0];
+    assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
+    let (elaboration, result) = run(vec![caller(sum(embedded(1), integer(99))), callee()]);
+    assert_unproved(verdicts(&elaboration, &result, 1, guarantee)[0].1);
+}

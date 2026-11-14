@@ -261,6 +261,7 @@ pub(crate) struct Prover<'a> {
     /// its proof.
     equations: Vec<(Proposition, ProofNode)>,
     definitions: IdTable<ValueId, Option<usize>>,
+    transport: crate::known::TransportInputs,
     /// `[upper, lower]` per value, indexed by `ValueId - 1`.
     bounds: Vec<[Slot; 2]>,
     /// Whether relations between values are searched (off only to measure
@@ -398,6 +399,7 @@ impl<'a> Prover<'a> {
             equations,
             definitions,
         } = crate::known::Known::new(context, assumptions, axioms, values);
+        let transport = crate::known::TransportInputs::new(equations.len());
         Self {
             context,
             assumptions,
@@ -406,6 +408,7 @@ impl<'a> Prover<'a> {
             facts,
             equations,
             definitions,
+            transport,
             bounds: (0..values.len())
                 .map(|_| [Slot::Unknown, Slot::Unknown])
                 .collect(),
@@ -419,11 +422,12 @@ impl<'a> Prover<'a> {
     /// `goal` by `ValueEqualityTransport`: under the definitions the prover
     /// holds, its denotation is `Truth`, or is the denotation of a fact. The
     /// kernel recomputes both denotations from the same definitions.
-    fn by_transport(&self, goal: &Proposition) -> Option<ProofNode> {
+    fn by_transport(&mut self, goal: &Proposition) -> Option<ProofNode> {
         if self.equations.is_empty() {
             return None;
         }
-        let inputs = self.transport_inputs(goal);
+        self.select_transport_inputs(goal);
+        let inputs = &self.transport.selected;
         let denotation = |proposition: &Proposition| {
             check_value_equality_denotation(
                 self.context,
@@ -465,17 +469,13 @@ impl<'a> Prover<'a> {
 
     /// Reuse normalization's exact definition closure. Unrelated arithmetic
     /// must not consume this goal's transport budget or duplicate proof trees.
-    fn transport_inputs(&self, proposition: &Proposition) -> Vec<usize> {
-        let mut inputs = Vec::new();
+    fn select_transport_inputs(&mut self, proposition: &Proposition) {
         crate::known::Known::transport_inputs(
             &self.equations,
             proposition,
             &self.definitions,
-            &mut Vec::new(),
-            &mut inputs,
-            &mut Vec::new(),
+            &mut self.transport,
         );
-        inputs
     }
 
     /// Whether the rules cover `goal`'s form (`covered`) at this prover's
@@ -687,50 +687,54 @@ impl<'a> Prover<'a> {
     /// A closed false mathematical assumption also makes a path unreachable.
     /// Retain its exact value equations in the proof; the kernel independently
     /// evaluates the negated comparison and checks the transport back.
-    fn refute_closed_mathematical(&self, goal: &Proposition) -> Option<ProofNode> {
-        self.facts
-            .iter()
-            .filter(|fact| fact.axiom.is_none())
-            .find_map(|fact| {
-                if !matches!(
-                    &fact.proposition,
+    fn refute_closed_mathematical(&mut self, goal: &Proposition) -> Option<ProofNode> {
+        for index in 0..self.facts.len() {
+            if self.facts[index].axiom.is_some()
+                || !matches!(
+                    &self.facts[index].proposition,
                     Proposition::IntegerMathEqual(..)
                         | Proposition::IntegerMathLessThan(..)
                         | Proposition::IntegerMathLessOrEqual(..)
-                ) {
-                    return None;
-                }
-                let negation = Proposition::Implication {
-                    premise: Box::new(fact.proposition.clone()),
-                    conclusion: Box::new(Proposition::Falsehood),
-                };
-                let inputs = self.transport_inputs(&negation);
-                let closed = check_value_equality_denotation(
-                    self.context,
-                    &negation,
-                    inputs.iter().map(|&index| &self.equations[index].0),
                 )
-                .ok()?;
-                let proof = self.closed(closed)?;
-                let negation = node(
-                    negation,
-                    ProofRule::ValueEqualityTransport {
-                        premise: Box::new(proof),
-                        equalities: inputs
-                            .iter()
-                            .map(|&index| self.equations[index].1.clone())
-                            .collect(),
-                    },
-                );
-                let absurd = node(
-                    Proposition::Falsehood,
-                    ProofRule::ImplicationElimination {
-                        implication: Box::new(negation),
-                        premise: Box::new(fact.proof.clone()),
-                    },
-                );
-                Some(ex_falso(absurd, goal))
-            })
+            {
+                continue;
+            }
+            let negation = Proposition::Implication {
+                premise: Box::new(self.facts[index].proposition.clone()),
+                conclusion: Box::new(Proposition::Falsehood),
+            };
+            self.select_transport_inputs(&negation);
+            let inputs = &self.transport.selected;
+            let Ok(closed) = check_value_equality_denotation(
+                self.context,
+                &negation,
+                inputs.iter().map(|&index| &self.equations[index].0),
+            ) else {
+                continue;
+            };
+            let Some(proof) = self.closed(closed) else {
+                continue;
+            };
+            let negation = node(
+                negation,
+                ProofRule::ValueEqualityTransport {
+                    premise: Box::new(proof),
+                    equalities: inputs
+                        .iter()
+                        .map(|&index| self.equations[index].1.clone())
+                        .collect(),
+                },
+            );
+            let absurd = node(
+                Proposition::Falsehood,
+                ProofRule::ImplicationElimination {
+                    implication: Box::new(negation),
+                    premise: Box::new(self.facts[index].proof.clone()),
+                },
+            );
+            return Some(ex_falso(absurd, goal));
+        }
+        None
     }
 
     /// `goal` where the guard that was taken cannot have held: `taken` is the

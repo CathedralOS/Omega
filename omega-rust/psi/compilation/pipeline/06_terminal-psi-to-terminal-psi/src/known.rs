@@ -14,9 +14,11 @@ use std::collections::VecDeque;
 
 use proof_admission::{ProofNode, ProofRule, check_value_equality_denotation};
 use semantic_vocabulary::{
-    IdTable, Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId,
+    IdTable, IntegerCarrier, IntegerMathTerm, Proposition, PropositionContext, ScalarTerm,
+    ScalarType, ValueId,
 };
 use terminal_check_tables::values::{ValueOrigin, ValueRow};
+use terminal_psi::PrimitiveJudgment;
 
 /// One hypothesis or one conjunct of it, with the node that yields it.
 pub(crate) struct Fact {
@@ -32,6 +34,24 @@ pub(crate) struct Known {
     /// The first checked definition of each value, retained from normalization
     /// so proof transport selects the same reachable equation family.
     pub(crate) definitions: IdTable<ValueId, Option<usize>>,
+}
+
+/// One context's reusable equation traversal. Queries clear only the preceding
+/// reachable family, rather than allocating and zeroing the full roster again.
+pub(crate) struct TransportInputs {
+    used: Vec<bool>,
+    pub(crate) selected: Vec<usize>,
+    pending: Vec<ValueId>,
+}
+
+impl TransportInputs {
+    pub(crate) fn new(equations: usize) -> Self {
+        Self {
+            used: vec![false; equations],
+            selected: Vec::new(),
+            pending: Vec::new(),
+        }
+    }
 }
 
 fn flatten(
@@ -56,11 +76,55 @@ fn flatten(
             );
         }
     }
+    let mathematical = integer_equality(proposition, &proof);
     facts.push(Fact {
         proposition: proposition.clone(),
         proof,
         axiom,
     });
+    if let Some((proposition, proof)) = mathematical {
+        facts.push(Fact {
+            proposition,
+            proof,
+            axiom: None,
+        });
+    }
+}
+
+/// Integer equality and equality of its embeddings have the same meaning.
+/// Reuse the kernel's existing equality composition/normalization rule rather
+/// than treating a callee's value equality as a new definition or assumption.
+fn integer_equality(
+    proposition: &Proposition,
+    proof: &ProofNode,
+) -> Option<(Proposition, ProofNode)> {
+    let Proposition::Equal(left, right) = proposition else {
+        return None;
+    };
+    for operand in [left, right] {
+        let integer = operand.scalar_type().as_integer()?;
+        if integer.carrier() != IntegerCarrier::Fixed || integer.is_address() {
+            return None;
+        }
+    }
+    let mut first = IntegerMathTerm::embed(left.clone())?;
+    let mut second = IntegerMathTerm::embed(right.clone())?;
+    if first > second {
+        std::mem::swap(&mut first, &mut second);
+    }
+    let conclusion = Proposition::IntegerMathEqual(first, second);
+    let reflexive = ProofNode {
+        conclusion: Proposition::Equal(right.clone(), right.clone()),
+        rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
+    };
+    let lifted = ProofNode {
+        conclusion: conclusion.clone(),
+        rule: ProofRule::EqualityTransitivity {
+            left_equals_middle: Box::new(proof.clone()),
+            middle_equals_right: Box::new(reflexive),
+        },
+    };
+    Some((conclusion, lifted))
 }
 
 pub(crate) fn is_branch_fact(proposition: &Proposition) -> bool {
@@ -190,10 +254,13 @@ impl Known {
         equations: &[(Proposition, ProofNode)],
         proposition: &Proposition,
         defined: &IdTable<ValueId, Option<usize>>,
-        used: &mut Vec<bool>,
-        inputs: &mut Vec<usize>,
-        pending: &mut Vec<ValueId>,
+        scratch: &mut TransportInputs,
     ) {
+        let TransportInputs {
+            used,
+            selected: inputs,
+            pending,
+        } = scratch;
         // Reset only the preceding traversal's selected definitions. New
         // equations append, so the invocation-owned marks only grow.
         for index in inputs.drain(..) {
@@ -242,24 +309,18 @@ impl Known {
             .filter_map(|(index, queued)| queued.then_some(index))
             .collect();
         let mut users = defined.map(|_, _| Vec::new());
-        let mut used_equations = Vec::new();
-        let mut inputs = Vec::new();
-        let mut pending_values = Vec::new();
+        let mut transport = TransportInputs::new(self.equations.len());
         while let Some(index) = pending.pop_front() {
             queued[index] = false;
             let fact = &self.facts[index];
-            Self::transport_inputs(
-                &self.equations,
-                &fact.proposition,
-                defined,
-                &mut used_equations,
-                &mut inputs,
-                &mut pending_values,
-            );
+            Self::transport_inputs(&self.equations, &fact.proposition, defined, &mut transport);
             let Ok(transported) = check_value_equality_denotation(
                 context,
                 &fact.proposition,
-                inputs.iter().map(|&index| &self.equations[index].0),
+                transport
+                    .selected
+                    .iter()
+                    .map(|&index| &self.equations[index].0),
             ) else {
                 continue;
             };
@@ -282,7 +343,8 @@ impl Known {
                 conclusion: transported.clone(),
                 rule: ProofRule::ValueEqualityTransport {
                     premise: Box::new(fact.proof.clone()),
-                    equalities: inputs
+                    equalities: transport
+                        .selected
                         .iter()
                         .map(|&index| self.equations[index].1.clone())
                         .collect(),
