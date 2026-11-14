@@ -255,6 +255,19 @@ machine wrong(viewed: &mut Viewed) {
     );
 }
 
+#[test]
+fn a_record_holding_shared_access_to_the_build_cannot_bind_an_entry() {
+    rejected_with(
+        "held_shared_binding",
+        "data Viewed<'activation, 'storage> { builder: &'activation Build<'storage>; }
+machine wrong(viewed: &mut Viewed) {
+    Build::bind(viewed.builder, linux_arm64::ProgramEntry, main);
+}
+",
+        "the reference it is reached through grants shared access only",
+    );
+}
+
 /// A field that leaves out the Build's own lifetime does not say which of
 /// its owner's lifetimes the Build's views live for, and is refused by name.
 #[test]

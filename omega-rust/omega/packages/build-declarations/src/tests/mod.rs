@@ -390,3 +390,45 @@ fn every_build_host_operation_writes_its_crash_ceiling() {
         ["Host::no_crash_clause"]
     );
 }
+
+#[test]
+fn build_selection_preparation_requires_the_original_mutable_build() {
+    let prelude = crate::build_prelude_source();
+    let parsed = psi_compiler::parse_text(&prelude).expect("Build API parses");
+    let syntax = &parsed.syntax;
+    let protocol = syntax
+        .root_items()
+        .find_map(|item| match item {
+            syntax_trees::item::Item::Trait(protocol)
+                if protocol.name.as_str(syntax) == "BuildBindingOperations" =>
+            {
+                Some(protocol)
+            }
+            _ => None,
+        })
+        .expect("the Build selection protocol is declared");
+    for (name, exclusive) in [("prepare", true), ("prepare_tests", false)] {
+        let signature = syntax
+            .items
+            .state_signatures(protocol.machines)
+            .iter()
+            .map(|handle| syntax.items.state_signature(*handle))
+            .find(|signature| signature.name.as_str(syntax) == name)
+            .expect("the preparation requirement is declared");
+        let [parameter] = syntax.items.state_parameters(signature.parameters) else {
+            panic!("preparation receives exactly its activation facet");
+        };
+        let parameter = syntax.items.state_parameter(*parameter);
+        let syntax_trees::types::TypeReferenceNode::Reference { access, .. } = syntax
+            .type_references
+            .type_reference(parameter.type_reference)
+        else {
+            panic!("preparation borrows its activation facet");
+        };
+        assert_eq!(
+            (access.is_exclusive(), access.is_readable()),
+            (exclusive, true),
+            "{name}"
+        );
+    }
+}
