@@ -280,6 +280,19 @@ impl Program<'_> {
     /// A formal's, local's, result's or field's type: a record when the
     /// type is a `Named` data declaration, else whatever the scalar route
     /// says, including its refusals.
+    /// `value_type` where a byte view in a domain is served: a data field's
+    /// type and a cast's result type (`byte_view_type`).
+    pub(super) fn qualified_view_type(
+        &mut self,
+        id: MachineId,
+        handle: TypeReferenceHandle,
+    ) -> Checked<ValueType> {
+        let outer = std::mem::replace(&mut self.qualified_views, true);
+        let read = self.value_type(id, handle);
+        self.qualified_views = outer;
+        read
+    }
+
     pub(super) fn value_type(
         &mut self,
         id: MachineId,

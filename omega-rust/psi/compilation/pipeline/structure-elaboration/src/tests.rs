@@ -1396,6 +1396,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
         id: id(raw),
         identity: spelled.to_owned(),
         value_type,
+        byte_predicates: semantic_vocabulary::ByteSequencePredicateSet::EMPTY,
     };
     let mut records = IdTable::default();
     records.push(RecordType {
@@ -2382,6 +2383,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
         id: id(raw),
         identity: spelled.to_owned(),
         value_type,
+        byte_predicates: semantic_vocabulary::ByteSequencePredicateSet::EMPTY,
     };
     let case = |raw, spelled: &str, fields| CaseType {
         id: id(raw),

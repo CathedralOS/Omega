@@ -97,7 +97,7 @@ machine scalar_plan(signature: BoundarySignature, allow_vectors: bool, width: u6
         BoundaryPlanResult::Accepted { plan: plan }
     }
     machine reject() -> BoundaryPlanResult {
-        BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "one scalar result" } }
+        BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "one scalar result" as +Utf8 } }
     }
 }
 
