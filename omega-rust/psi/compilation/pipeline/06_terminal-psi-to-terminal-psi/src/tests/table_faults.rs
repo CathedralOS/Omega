@@ -983,7 +983,7 @@ fn an_initial_content_with_a_cyclic_owner_is_refused() {
     });
     assert_refused(
         verdict,
-        "a structural place lineage does not reach an owning root",
+        "a place row is not the projection its parent lists",
     );
 }
 
