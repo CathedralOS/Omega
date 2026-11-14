@@ -1719,6 +1719,18 @@ impl<'a> Storage<'a> {
                         .kernel_proposition()
                         .map_err(crate::semantics_refusal(self.machine, id));
                 }
+                if let OperationKind::ByteSequenceRead {
+                    source,
+                    index,
+                    length,
+                    obligation: owned,
+                } = &operation.kind
+                {
+                    if *owned != obligation {
+                        return Err(self.foreign(concerns, "a byte read owns another obligation"));
+                    }
+                    return self.byte_read_goal(operation, *source, *index, *length, types);
+                }
                 operation.kind.structural_projections()
             }
             ExecutionSite::Block(id) => self.block(id)?.terminator.storage_uses(),
@@ -1781,6 +1793,63 @@ impl<'a> Storage<'a> {
                 "operation owns neither this scalar safety goal nor this index bound",
             )
         })
+    }
+
+    /// What a byte read owes: `index < length`, where `length` is the view's
+    /// own extent as it stands at the read. byte_views.md, `ByteSequenceRead`:
+    /// "`u64` index and length; dominating length observation of the
+    /// identical view; checked `index < length`", and "An arbitrary
+    /// equal-valued length, other view, sibling branch, or future producer
+    /// supplies no length custody."
+    ///
+    /// The length is accepted only as the result of the operation directly
+    /// before the read, when that operation measures the same whole view.
+    /// Nothing runs between the two, so nothing can have replaced the view:
+    /// "An intervening operation capable of changing the backing extent
+    /// invalidates an earlier length witness". A measurement made earlier
+    /// than that is a valid form this derivation does not judge.
+    fn byte_read_goal(
+        &self,
+        operation: &Operation,
+        source: PlaceId,
+        index: ValueId,
+        length: ValueId,
+        types: &IdTable<ValueId, ScalarType>,
+    ) -> Checked<Proposition> {
+        let concerns = Construct::Operation(operation.id);
+        let (block, after) = self
+            .graph
+            .locate(ProgramPoint::AfterOperation(operation.id))?;
+        let measured = after
+            .checked_sub(2)
+            .and_then(|position| self.block(block).ok()?.operations.get(position))
+            .is_some_and(|measurement| {
+                matches!(
+                    &measurement.kind,
+                    OperationKind::ByteSequenceLength { source: measured }
+                        if measured.place == source && measured.path.is_empty()
+                ) && measurement
+                    .result
+                    .scalar_ref()
+                    .is_some_and(|result| result.id == length)
+            });
+        if !measured {
+            return Err(self.unsupported(
+                concerns,
+                "a byte read whose length is not its view's measurement directly before it",
+            ));
+        }
+        let count = ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .expect("u64 is valid"),
+        );
+        if types.get(index).copied() != Some(count) || types.get(length).copied() != Some(count) {
+            return Err(self.foreign(concerns, "a byte read's index or length is not a u64"));
+        }
+        Ok(Proposition::LessThan(
+            ScalarTerm::value(index, count),
+            ScalarTerm::value(length, count),
+        ))
     }
 
     fn block(&self, id: BlockId) -> Checked<&'a Block> {
@@ -2597,6 +2666,11 @@ impl<'a> Storage<'a> {
             }
             // The stored descriptor is read whole from its own root.
             OperationKind::StructuralByteViewFieldStore { source, .. } => {
+                Ok(vec![self.stored_at(*source, &[], concerns)?])
+            }
+            // A byte is read through the view's descriptor, so the whole
+            // descriptor is read where its byte is.
+            OperationKind::ByteSequenceRead { source, .. } => {
                 Ok(vec![self.stored_at(*source, &[], concerns)?])
             }
             OperationKind::StructuralCaseLeafCopy { .. } => {
