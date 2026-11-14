@@ -4065,11 +4065,11 @@ fn a_field_store_owes_the_clause_over_the_stored_value_and_the_other_fields_logg
 }
 
 #[test]
-fn a_clause_over_a_field_with_no_value_identity_is_unproved_and_says_so() {
+fn a_clause_over_a_returned_field_uses_its_initial_content_identity() {
     // f() -> u32 { let mut s = make(); s.low = 0; s.high }
-    // `s.high` is what the call returned: contents with no value identity.
-    // `0 <= high` is true of every `u32`, and still the clause cannot be
-    // stated over values, so the store is not shown to keep it; never dropped.
+    // The initialized call result gives `s.high` an immutable content
+    // identity. `0 <= high` follows from its u32 carrier, independently of
+    // the value the callee's body constructed, so this store keeps the clause.
     let (elaboration, result) = run_constrained(vec![
         closed(
             vec![data(SPAN)],
@@ -4098,10 +4098,22 @@ fn a_clause_over_a_field_with_no_value_identity_is_unproved_and_says_so() {
     ]);
     let owed = domains(&elaboration, &result);
     assert_eq!(owed.len(), 1);
-    // The store is not shown to keep the clause, so it opens a window, and
-    // the window keeps the reason.
-    let why = assert_opens_a_window(owed[0].1);
-    assert!(why.detail.contains("no value identity"), "{}", why.detail);
+    let (obligation, verdict) = owed[0];
+    let evidence = certificate(verdict);
+    assert_kernel_checked(&elaboration, 1, obligation, evidence);
+    let Proposition::LessOrEqual(_, ScalarTerm::Value { id: high, .. }) = &evidence.goal else {
+        panic!(
+            "the clause keeps the returned field's identity: {:?}",
+            evidence.goal
+        );
+    };
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    assert!(matches!(
+        tables.values.get(*high).unwrap().origin,
+        ValueOrigin::InitialContent { .. }
+    ));
+    let reads = field_reads(&elaboration);
+    assert_eq!(read_equals(tables, *reads.last().unwrap()), Some(*high));
 }
 
 /// `f() -> u32 { let mut w = Wrap { span: Span { low: 1, high: 9 }, top: 9 };
