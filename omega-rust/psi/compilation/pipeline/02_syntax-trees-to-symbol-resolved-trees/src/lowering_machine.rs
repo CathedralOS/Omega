@@ -1509,6 +1509,12 @@ fn lower_lexical_machine_parts(
             "a nested machine is a private independent lexical declaration",
         ));
     }
+    let compiler_provided = machine.target.is_none()
+        && !machine.target_family_interface
+        && crate::lowering::operator::is_bare_bodyless_signature(machine);
+    if compiler_provided {
+        crate::lowering::operator::require_catalog_signature(lowerer, syntax_trees, machine)?;
+    }
     let compiler_selection_partition = compiler_selection_partition(
         lowerer.symbol_resolved_trees.machines.len(),
         syntax_trees,
@@ -1634,7 +1640,9 @@ fn lower_lexical_machine_parts(
             .satisfies_clauses(machine.satisfies)
             .iter()
             .any(|clause| clause.via_expression.is_valid());
-        if machine.target_family_interface {
+        if compiler_provided {
+            language_semantics::MachineSupplyMode::CompilerProvided
+        } else if machine.target_family_interface {
             language_semantics::MachineSupplyMode::Requirement
         } else if crate::lowering::operator::is_token_bearing_boundary_signature(machine) {
             language_semantics::MachineSupplyMode::TopLevelRequirement
