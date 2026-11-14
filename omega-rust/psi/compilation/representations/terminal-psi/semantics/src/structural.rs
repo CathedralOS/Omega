@@ -5341,10 +5341,13 @@ pub(crate) mod zeroed_structural {
             field: semantic_vocabulary::StructuralFieldId,
             scalar_type: ScalarType,
         },
-        ByteSequenceField {
+        // The zero value of a readable descriptor is its established empty
+        // view. A typed descriptor and an inline byte field share this owner;
+        // neither creates an element or borrows unknown storage.
+        EmptyView {
             path: Vec<StructuralPathSegment>,
-            field: semantic_vocabulary::StructuralFieldId,
-            scalar_type: ScalarType,
+            field: Option<semantic_vocabulary::StructuralFieldId>,
+            carrier: StructuralFieldType,
         },
         CaseField {
             path: Vec<StructuralPathSegment>,
@@ -5393,7 +5396,7 @@ pub(crate) mod zeroed_structural {
         pub fn path(&self) -> &[StructuralPathSegment] {
             match self {
                 ZeroedStructuralLeaf::RecordField { path, .. }
-                | ZeroedStructuralLeaf::ByteSequenceField { path, .. }
+                | ZeroedStructuralLeaf::EmptyView { path, .. }
                 | ZeroedStructuralLeaf::CaseField { path, .. }
                 | ZeroedStructuralLeaf::ArrayScalar { path, .. }
                 | ZeroedStructuralLeaf::ByteArray { path, .. }
@@ -5459,6 +5462,20 @@ pub(crate) mod zeroed_structural {
                 StructuralTypeShape::PrimitiveScalar(_) => (&[][..], None),
                 StructuralTypeShape::AtomicCell(cell) => {
                     if !cell.is_supported() || !crate::scalar_field_accepts_zero(&(*cell).into()) {
+                        return false;
+                    }
+                    (&[][..], None)
+                }
+                StructuralTypeShape::ElementView {
+                    element,
+                    access: None | Some(terminal_psi::StructuralAccess::SharedBorrow),
+                } => {
+                    // Empty has no member value whose default domain needs
+                    // establishment. The element declaration must still exist.
+                    if !declarations
+                        .iter()
+                        .any(|declaration| declaration.id == *element)
+                    {
                         return false;
                     }
                     (&[][..], None)
@@ -5658,12 +5675,10 @@ pub(crate) mod zeroed_structural {
                         member_path.push(StructuralPathSegment::Field(field.identity));
                         pending.push((member, member_path));
                     } else if zeroed_byte_field(field) {
-                        leaves.push(ZeroedStructuralLeaf::ByteSequenceField {
+                        leaves.push(ZeroedStructuralLeaf::EmptyView {
                             path: path.clone(),
-                            field: field.id,
-                            scalar_type: ScalarType::Integer(
-                                IntegerType::new(IntegerSign::Unsigned, 64).ok()?,
-                            ),
+                            field: Some(field.id),
+                            carrier: field.field_type.clone(),
                         });
                     } else {
                         leaves.push(ZeroedStructuralLeaf::RecordField {
@@ -5682,6 +5697,13 @@ pub(crate) mod zeroed_structural {
                     leaves.push(ZeroedStructuralLeaf::ArrayScalar {
                         path,
                         scalar_type: cell.scalar_type(),
+                    });
+                }
+                StructuralTypeShape::ElementView { access: None | Some(terminal_psi::StructuralAccess::SharedBorrow), .. } => {
+                    leaves.push(ZeroedStructuralLeaf::EmptyView {
+                        path,
+                        field: None,
+                        carrier: StructuralFieldType::Structural(current),
                     });
                 }
                 StructuralTypeShape::PrimitiveScalar(scalar_type) => {

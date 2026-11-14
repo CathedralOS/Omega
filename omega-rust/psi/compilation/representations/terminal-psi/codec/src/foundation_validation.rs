@@ -9881,18 +9881,44 @@ pub(crate) mod value_foundations {
             || !machine.structural_places.iter().any(|place| place.id == result.place && matches!(place.kind, StructuralPlaceKind::OperationResult { producer, structural_type } if producer == operation.id && structural_type == result.structural_type)) {
             return malformed("array result custody is noncanonical");
         }
-        let Some(StructuralTypeShape::FixedArray { element, length }) = module
+        let shape = &module
             .structural_type(result.structural_type)
-            .map(|row| &row.shape)
-        else {
-            return malformed("structural array result is not a fixed array");
+            .ok_or(CodecError::MalformedStructuralFoundation(
+                "array result type is absent",
+            ))?
+            .shape;
+        let element = match shape {
+            StructuralTypeShape::FixedArray { element, length } => {
+                let Some(length) = length.literal() else {
+                    return malformed("array construction requires a closed element count");
+                };
+                if u64::try_from(elements.len()).ok() != Some(length) {
+                    return malformed("array element count differs");
+                }
+                *element
+            }
+            StructuralTypeShape::ElementView {
+                element,
+                access: None | Some(StructuralAccess::SharedBorrow),
+            } => {
+                let declaration = module.structural_type(*element).ok_or(
+                    CodecError::MalformedStructuralFoundation("sequence element type is absent"),
+                )?;
+                if !result.projected_qualifications.is_empty()
+                    || !result.qualification_establishments.is_empty()
+                    || !result.claims.is_empty()
+                    || declaration.owns_linear_claim
+                    || !declaration.no_code_affine_cleanup
+                    || !declaration.descriptor_cleanup
+                {
+                    return malformed(
+                        "immutable sequence cannot discard element custody or executable cleanup",
+                    );
+                }
+                *element
+            }
+            _ => return malformed("array construction result is not its declared collection"),
         };
-        let Some(length) = length.literal() else {
-            return malformed("array construction requires a closed element count");
-        };
-        if u64::try_from(elements.len()).ok() != Some(length) {
-            return malformed("array element count differs");
-        }
         for argument in elements {
             if argument.access != StructuralAccess::Owned || argument.place == result.place {
                 return malformed("array element is not an independent owned source");
@@ -9900,14 +9926,14 @@ pub(crate) mod value_foundations {
             let Some(root) = super::structural_place_type(machine, argument.place) else {
                 return malformed("array element source is absent");
             };
-            if super::validate_structural_path(module, root, &argument.path)? != *element {
+            if super::validate_structural_path(module, root, &argument.path)? != element {
                 return malformed("array element type differs");
             }
             validate_constructor_projection(
                 module,
                 machine,
                 argument,
-                &StructuralFieldType::Structural(*element),
+                &StructuralFieldType::Structural(element),
             )?;
         }
         Ok(())

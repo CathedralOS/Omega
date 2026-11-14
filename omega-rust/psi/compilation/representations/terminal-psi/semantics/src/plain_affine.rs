@@ -886,7 +886,7 @@ impl Analysis<'_> {
         operation: &terminal_psi::Operation,
         settled: bool,
     ) -> Result<(), Error> {
-        use terminal_psi::{OperationKind as Op, RecordFieldValue};
+        use terminal_psi::OperationKind as Op;
         let site = Site::Operation(operation.id);
         if let Op::StructuralLeafCopy { source, path } = &operation.kind
             && let Some(root) = self.root(*source)?
@@ -943,11 +943,12 @@ impl Analysis<'_> {
         }
         match &operation.kind {
             Op::MoveStructuralValue { source } => self.argument(state, source, site, true)?,
-            Op::EstablishRecord { fields } | Op::EstablishStructuralCase { fields, .. } => {
-                for field in fields {
-                    if let RecordFieldValue::Structural(argument) = &field.value {
-                        self.argument(state, argument, site, true)?;
-                    }
+            kind if kind.constructor_arguments().next().is_some() => {
+                // Every constructor transfers its actual owned children. The
+                // same roster covers records, cases and fixed/stored arrays;
+                // their moved homes must not also receive edge cleanup.
+                for argument in kind.constructor_arguments() {
+                    self.argument(state, argument, site, true)?;
                 }
             }
             Op::StoreStructuralField {

@@ -419,7 +419,7 @@ impl Program<'_> {
         // lifetimes.md: "A lifetime relates a borrowed result or stored view
         // to storage that remains valid for its use." The one view a field
         // may store is a byte view, a `Record` here, and its type is keyed
-        // by the region it names under this declaration (`byte_view_type`):
+        // by the region it names under this declaration (`view_type`):
         // a view of any other region is another type and is not a value of
         // the field. A slice that adds a field type storing a view some
         // other way adds its lifetime accounting with the arm it adds here.

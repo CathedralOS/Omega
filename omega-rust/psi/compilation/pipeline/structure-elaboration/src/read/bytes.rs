@@ -59,17 +59,16 @@ pub(super) fn source_byte_view(
     let TypeReferenceNode::Named { symbol, .. } =
         typed.type_reference_table.type_reference(*element_type)
     else {
-        return Err(fail("non-byte slice"));
+        return Ok(None);
     };
-    let atom = typed
-        .symbols
-        .builtin_type_atom(*symbol)
-        .ok_or_else(|| fail("non-byte slice"))?;
+    let Some(atom) = typed.symbols.builtin_type_atom(*symbol) else {
+        return Ok(None);
+    };
     let element = super::types::atom_type(atom, machine)?;
     if !matches!(element, semantic_vocabulary::ScalarType::Integer(integer)
         if integer.bits() == 8 && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && !integer.is_address())
     {
-        return Err(fail("non-byte slice"));
+        return Ok(None);
     }
     let access = match access {
         ReferenceAccess::Shared => StructuralAccess::SharedBorrow,
@@ -99,12 +98,12 @@ pub(super) fn source_byte_view(
     )))
 }
 
-/// The region a byte view's type names: what the view may be used during.
+/// The region a borrowed view's type names: what it may be used during.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum ViewRegion {
     /// A literal's bytes, which every region is within.
     Literal,
-    /// A view written without a lifetime, `&[u8]`.
+    /// A view written without a lifetime, such as `&[u8]`.
     Elided,
     /// A lifetime parameter of the declaration the view's type was written
     /// in, a machine or data, by its position there.
@@ -112,20 +111,24 @@ pub(super) enum ViewRegion {
 }
 
 impl Program<'_> {
-    /// The region of `value_type` when it is a byte view, read from the
+    /// The region of `value_type` when it is a borrowed view, read from the
     /// occurrence its row was made from. `None` for every other type, and
-    /// for a view whose lifetime its owner does not declare, which
-    /// `source_byte_view` refused before a row was made.
+    /// for a view whose lifetime its owner does not declare, which the
+    /// source view reader refused before a row was made.
     pub(super) fn view_region(&self, value_type: ValueType) -> Option<ViewRegion> {
         let ValueType::Record(row, _) = value_type else {
             return None;
         };
-        if !matches!(self.records.get(row)?.shape, StorageShape::ByteSequence(_)) {
+        let shape = &self.records.get(row)?.shape;
+        if !matches!(
+            shape,
+            StorageShape::ByteSequence(_) | StorageShape::ElementView { .. }
+        ) {
             return None;
         }
         let source = self.record_sources.get(row)?;
         let Some(application) = &source.application else {
-            return Some(ViewRegion::Literal);
+            return matches!(shape, StorageShape::ByteSequence(_)).then_some(ViewRegion::Literal);
         };
         let table = &self.typed.type_reference_table;
         let TypeReferenceNode::Reference { lifetime, .. } =
@@ -144,7 +147,7 @@ impl Program<'_> {
             .map(ViewRegion::Parameter)
     }
 
-    pub(super) fn byte_view_type(
+    pub(super) fn view_type(
         &mut self,
         machine: MachineId,
         reference: TypeReferenceHandle,
@@ -153,7 +156,15 @@ impl Program<'_> {
         let Some((carrier, identity)) =
             source_byte_view(self.typed, reference, lexical_owner, machine)?
         else {
-            return Ok(None);
+            return match super::arrays::source_sequence_view(
+                self.typed,
+                reference,
+                lexical_owner,
+                machine,
+            )? {
+                Some((element, _, _)) => self.sequence_type(machine, reference, element).map(Some),
+                None => Ok(None),
+            };
         };
         let row = self.records.iter().find_map(|(id, row)| {
             (row.shape == StorageShape::ByteSequence(carrier) && row.identity == identity)
@@ -316,11 +327,11 @@ mod tests {
         let missing = view(first, "missing");
         let mut program = Program::new(&typed, false);
         let machine = MachineId::new(1).unwrap();
-        let a = program.byte_view_type(machine, a).unwrap().unwrap();
-        assert_eq!(program.byte_view_type(machine, same).unwrap(), Some(a));
-        assert_ne!(program.byte_view_type(machine, b).unwrap(), Some(a));
-        assert_ne!(program.byte_view_type(machine, c).unwrap(), Some(a));
-        assert!(program.byte_view_type(machine, missing).is_err());
+        let a = program.view_type(machine, a).unwrap().unwrap();
+        assert_eq!(program.view_type(machine, same).unwrap(), Some(a));
+        assert_ne!(program.view_type(machine, b).unwrap(), Some(a));
+        assert_ne!(program.view_type(machine, c).unwrap(), Some(a));
+        assert!(program.view_type(machine, missing).is_err());
         assert!(
             program
                 .source_record_correspondence(machine)

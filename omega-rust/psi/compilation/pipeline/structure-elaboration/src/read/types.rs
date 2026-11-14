@@ -286,7 +286,7 @@ impl Program<'_> {
         handle: TypeReferenceHandle,
     ) -> Checked<ValueType> {
         if handle.is_valid()
-            && let Some(view) = self.byte_view_type(id, handle)?
+            && let Some(view) = self.view_type(id, handle)?
         {
             return Ok(view);
         }

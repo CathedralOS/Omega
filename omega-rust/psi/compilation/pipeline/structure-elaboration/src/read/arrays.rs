@@ -7,6 +7,7 @@ use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ScalarType, Struc
 use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::ArrayExtent;
+use terminal_semantics::CollectionExtent;
 use typed_trees::expression::{ExpressionHandle, TableIndexedExpression};
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle};
 
@@ -15,6 +16,90 @@ use super::{Program, Slot, places::RecordSource};
 use crate::{
     Expression, ExpressionKind, RecordType, SourceOrigin, StorageShape, Unserved, ValueType, refuse,
 };
+
+// Retain the same scoped type/region identity used by byte views. A bare
+// sequence is affine; an explicit shared loan is unrestricted. Neither kind
+// supplies elements or backing merely by appearing in a declaration.
+pub(super) fn source_sequence_view(
+    typed: &typed_trees::TypedTrees,
+    reference: TypeReferenceHandle,
+    lexical_owner: SymbolHandle,
+    machine: MachineId,
+) -> Checked<
+    Option<(
+        TypeReferenceHandle,
+        Option<terminal_psi::StructuralAccess>,
+        String,
+    )>,
+> {
+    use typed_trees::types::TypeReferenceNode;
+    let fail = |reason| refuse(machine, Construct::Machine, Unserved::Type(reason));
+    if !typed
+        .type_reference_table
+        .contains_type_reference(reference)
+    {
+        return Err(fail("sequence lost its retained type reference"));
+    }
+    let (slice, access) = match typed.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Slice { .. } => (reference, None),
+        TypeReferenceNode::Reference {
+            referee, access, ..
+        } => {
+            if !typed.type_reference_table.contains_type_reference(*referee) {
+                return Err(fail("sequence loan lost its retained referent"));
+            }
+            if !matches!(
+                typed.type_reference_table.type_reference(*referee),
+                TypeReferenceNode::Slice { .. }
+            ) {
+                return Ok(None);
+            }
+            if super::bytes::source_byte_view(typed, reference, lexical_owner, machine)?.is_some() {
+                return Ok(None);
+            }
+            if *access != language_core::ReferenceAccess::Shared {
+                return Err(fail(
+                    "mutable typed sequence requires its actual exclusive backing and loan",
+                ));
+            }
+            (*referee, Some(terminal_psi::StructuralAccess::SharedBorrow))
+        }
+        _ => return Ok(None),
+    };
+    let TypeReferenceNode::Slice { element_type } =
+        typed.type_reference_table.type_reference(slice)
+    else {
+        return Err(fail("sequence lost its exact slice declaration"));
+    };
+    if !typed
+        .type_reference_table
+        .contains_type_reference(*element_type)
+    {
+        return Err(fail("sequence lost its retained element type"));
+    }
+    let identity = if access.is_some() {
+        let retained = typed.type_reference_table.operand_lifetime_owner(reference);
+        let owner = if retained.is_valid() {
+            retained
+        } else {
+            lexical_owner
+        };
+        typed_trees::type_identity::applied_type_identity_in_region_scope(
+            typed,
+            reference,
+            owner,
+            owner,
+            &[],
+            &[],
+        )
+        .and_then(|identity| typed.type_identity_text(identity))
+    } else {
+        typed.type_identity_text(typed.normalized_type_identity(reference))
+    }
+    .filter(|identity| !identity.is_empty())
+    .ok_or_else(|| fail("sequence has no complete owned type/region identity"))?;
+    Ok(Some((*element_type, access, identity)))
+}
 
 impl Program<'_> {
     pub(super) fn array_literal(
@@ -37,7 +122,9 @@ impl Program<'_> {
         let (element, extent) = self.array_element(machine, array)?;
         let declared = self.storage_value_type(machine, element)?;
         let supplied = self.typed.expression_table.expression_handles(supplied);
-        if u64::try_from(supplied.len()).ok() != Some(extent) {
+        if let CollectionExtent::Fixed(extent) = extent
+            && u64::try_from(supplied.len()).ok() != Some(extent)
+        {
             return Err(refuse(
                 machine,
                 Construct::Machine,
@@ -78,7 +165,14 @@ impl Program<'_> {
                 Unserved::Typing("index into non-array storage"),
             ));
         };
-        let (element, _) = self.array_element(machine, array)?;
+        let (element, extent) = self.array_element(machine, array)?;
+        if !matches!(extent, CollectionExtent::Fixed(_)) {
+            return Err(refuse(
+                machine,
+                Construct::Machine,
+                Unserved::Typing("sequence index needs its current length and bounds judgment"),
+            ));
+        }
         let result = self.storage_value_type(machine, element)?;
         let index_type = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| {
             refuse(
@@ -118,12 +212,15 @@ impl Program<'_> {
         &self,
         machine: MachineId,
         array: StructuralTypeId,
-    ) -> Checked<(StructuralTypeId, u64)> {
+    ) -> Checked<(StructuralTypeId, CollectionExtent)> {
         match &self.data_type(machine, array)?.shape {
             StorageShape::FixedArray {
                 element,
                 length: ArrayExtent::Literal(length),
-            } => Ok((*element, *length)),
+            } => Ok((*element, CollectionExtent::Fixed(*length))),
+            StorageShape::ElementView { element, .. } => {
+                Ok((*element, CollectionExtent::StoredLength))
+            }
             _ => Err(refuse(
                 machine,
                 Construct::Machine,
@@ -148,6 +245,54 @@ impl Program<'_> {
             } => ValueType::Scalar(scalar_type, Qualification::of_policy(policy)),
             _ => ValueType::Record(storage, Qualification::NONE),
         })
+    }
+
+    /// A source sequence keeps its exact element and type identity. This row
+    /// supplies no elements, lifetime or backing: those belong to construction
+    /// and transport through the existing canonical ElementView operations.
+    pub(super) fn sequence_type(
+        &mut self,
+        machine: MachineId,
+        reference: TypeReferenceHandle,
+        element: TypeReferenceHandle,
+    ) -> Checked<ValueType> {
+        let Some((declared, access, identity)) =
+            source_sequence_view(self.typed, reference, self.lifetime_owner, machine)?
+        else {
+            return Err(refuse(
+                machine,
+                Construct::Machine,
+                Unserved::Type("sequence without its source declaration"),
+            ));
+        };
+        if declared != element {
+            return Err(refuse(
+                machine,
+                Construct::Machine,
+                Unserved::Type("sequence selects another element occurrence"),
+            ));
+        }
+        let value = self.value_type(machine, element)?;
+        let element = self.storage_type(machine, element, value)?;
+        let shape = StorageShape::ElementView { element, access };
+        if let Some((id, _)) = self
+            .records
+            .iter()
+            .find(|(_, row)| row.shape == shape && row.identity == identity)
+        {
+            return Ok(ValueType::record(id));
+        }
+        let id = self.records.push(RecordType {
+            copyable: self.typed.stored_value_multiplicity(reference)
+                == language_semantics::Multiplicity::Unrestricted,
+            identity,
+            shape,
+            requires: Vec::new(),
+        });
+        let mut source = physical_source(reference);
+        source.region_owner = self.lifetime_owner;
+        self.record_sources.push(source);
+        Ok(ValueType::record(id))
     }
 
     pub(super) fn array_type(
@@ -276,5 +421,94 @@ fn physical_source(reference: TypeReferenceHandle) -> RecordSource {
         region_owner: SymbolHandle::invalid(),
         fields: Vec::new(),
         cases: Vec::new(),
+    }
+}
+
+#[cfg(test)]
+mod sequence_source_tests {
+    use super::*;
+    use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+    use typed_trees::{TypedTrees, name::Identifier, types::TypeReferenceNode};
+
+    #[test]
+    fn a_sequence_cannot_rebind_its_source_or_element_to_equal_width_storage() {
+        // This is a typed-metadata falsifier, not source or authority admission.
+        let mut symbols = SymbolTableBuilder::default();
+        let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let children = symbols.insert_children(root, symbols::builtin_type_symbols());
+        let unsigned = children
+            .handles()
+            .nth(symbols::BuiltinTypeAtom::U32.ordinal())
+            .unwrap();
+        let signed = children
+            .handles()
+            .nth(symbols::BuiltinTypeAtom::I32.ordinal())
+            .unwrap();
+        let mut typed = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        let unsigned = typed.type_reference_table.insert(TypeReferenceNode::Named {
+            symbol: unsigned,
+            name: Identifier::generated("u32"),
+        });
+        let signed = typed.type_reference_table.insert(TypeReferenceNode::Named {
+            symbol: signed,
+            name: Identifier::generated("i32"),
+        });
+        let first = typed.type_reference_table.insert(TypeReferenceNode::Slice {
+            element_type: unsigned,
+        });
+        let second = typed.type_reference_table.insert(TypeReferenceNode::Slice {
+            element_type: signed,
+        });
+        let machine = MachineId::new(1).unwrap();
+        let mut program = Program::new(&typed, false);
+        let ValueType::Record(first_row, _) =
+            program.sequence_type(machine, first, unsigned).unwrap()
+        else {
+            unreachable!()
+        };
+        let ValueType::Record(second_row, _) =
+            program.sequence_type(machine, second, signed).unwrap()
+        else {
+            unreachable!()
+        };
+        assert_ne!(first_row, second_row);
+        assert!(
+            program
+                .source_record_correspondence(machine)
+                .unwrap()
+                .is_empty()
+        );
+        let original = program.records.get(first_row).unwrap().shape.clone();
+        let StorageShape::ElementView { element: wrong, .. } =
+            program.records.get(second_row).unwrap().shape
+        else {
+            unreachable!()
+        };
+        let StorageShape::ElementView { element, .. } =
+            &mut program.records.get_mut(first_row).unwrap().shape
+        else {
+            unreachable!()
+        };
+        *element = wrong;
+        assert!(
+            program.source_record_correspondence(machine).is_err(),
+            "same geometry is not an element declaration"
+        );
+        program.records.get_mut(first_row).unwrap().shape = original;
+        program
+            .record_sources
+            .get_mut(first_row)
+            .unwrap()
+            .application
+            .as_mut()
+            .unwrap()
+            .reference = second;
+        assert!(
+            program.source_record_correspondence(machine).is_err(),
+            "an unrelated retained source cannot relabel the row"
+        );
     }
 }
