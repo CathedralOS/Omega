@@ -20,6 +20,9 @@ mod values;
 #[cfg(test)]
 pub(in crate::encoding) use values::providers::encode_compiler_intrinsic_execution;
 
+#[cfg(test)]
+pub(in crate::encoding) use values::crashes::{encode_primitive_type, encode_scalar_expression};
+
 pub use policy_rows::restricted_build_request_acceptance_text;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -87,10 +87,10 @@ framework or a list of features that remain unimplemented.
 - Cost: a package type spelled like a primitive has to be taught to both routes, and the two can disagree about one type reference. The width spellings were taught to both (`u13` is a name to typing and an installed builtin symbol to the checker), which made them agree without removing the second route. Typing still lets two mismatches through that only the checker stops, as `not-supported` instead of a typing error: `machine f(value: u1) -> bool { value }` (`typing arm value type`) and a suffixed literal outside its carrier such as `1i1` or `8192u13` (`integer literal outside its type`)
 - Reported: 2026-11-13, Claude Code, while replacing the eight integer names with a sign and a width
 
-### Three vocabularies still list eight integer widths by name
+### Numeric operations still collapse integer metadata to fixed-width rosters
 - Category: branch per shape
-- Where: `language-semantics/src/numeric_intrinsics.rs` (`NumericType`, published in Terminal Psi); `numerics/src/float_semantics.rs` (the integer side of float conversions); `omega/packages/review-evidence` (`primitive_type_row`, one wire tag per width)
-- Saw: the front end now states an integer as a sign and a width, and these three convert that pair back into one of eight variants at their door, refusing the rest. Stage 02's const evaluator (`preparation_const_evaluation.rs`) keys carriers by type-name strings and folds in `i128`, so it serves widths to 64 bits for shifts and 127 for ranges
+- Where: `language-semantics/src/numeric_intrinsics.rs` (`NumericType`, published in Terminal Psi); `numerics/src/float_semantics.rs` (the integer side of float conversions)
+- Saw: the front end states an integer as a sign and a width, and these convert that pair back into one of eight variants at their door, refusing the rest. Stage 02's const evaluator (`preparation_const_evaluation.rs`) keys carriers by type-name strings and folds in `i128`, so it serves widths to 64 bits for shifts and 127 for ranges
 - Cost: every width beyond the eight stops at whichever of these it meets first, and each is a published or cross-stage vocabulary that needs its own versioned change
 - Reported: 2026-11-13, Claude Code, while replacing the eight integer names with a sign and a width
 
