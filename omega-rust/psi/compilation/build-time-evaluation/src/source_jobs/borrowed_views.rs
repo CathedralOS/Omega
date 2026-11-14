@@ -114,6 +114,52 @@ fn a_selected_reference_keeps_its_public_input_and_the_original_loan() {
 }
 
 #[test]
+fn a_named_requirement_instantiates_its_borrowed_inputs_by_owned_lifetime() {
+    let source = r#"
+trait Write {
+    machine write<'left, 'right>(left: &'left mut i64, right: &'right mut i64)
+        reaches none crashes none terminates;
+}
+public Writer satisfies Write {
+    machine write<'first, 'second>(left: &'first mut i64, right: &'second mut i64)
+        reaches none crashes none {
+        left = 41;
+        right = 43;
+    }
+}
+machine run() -> i64 crashes none {
+    let mut left: i64 = 17;
+    let mut right: i64 = 23;
+    Writer::write(&mut left, &mut right);
+    left
+}
+"#;
+    assert_eq!(
+        run(source).expect("renamed declaration binders keep two independent input regions"),
+        BuildTimeValue::Int(41),
+    );
+    let aliased = source.replace(
+        "Writer::write(&mut left, &mut right)",
+        "Writer::write(&mut left, &mut left)",
+    );
+    assert_ne!(aliased, source);
+    let refusal = run(&aliased).expect_err("fresh lifetime instantiation cannot hide an alias");
+    assert!(
+        refusal.contains(
+            "an exclusive loan of storage an earlier argument of the same call lends exclusively"
+        ),
+        "{refusal}",
+    );
+    let tied = source.replace("right: &'second mut i64", "right: &'first mut i64");
+    assert_ne!(tied, source);
+    let refusal = run(&tied).expect_err("the body cannot tie independent public lifetimes");
+    assert!(
+        refusal.contains("call that gives one lifetime two regions"),
+        "{refusal}",
+    );
+}
+
+#[test]
 fn a_closed_core_borrow_cannot_invent_a_different_view_interpretation() {
     let source = SOURCE
         .replace("-> &'owner mut i64", "-> &'owner mut u64")

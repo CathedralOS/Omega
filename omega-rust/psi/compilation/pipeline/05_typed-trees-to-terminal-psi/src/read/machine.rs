@@ -1691,7 +1691,9 @@ impl<'t> Program<'t> {
             &mut self.elision,
             super::regions::Elision::Inputs(requirement.symbol),
         );
+        let owner = std::mem::replace(&mut self.lifetime_owner, requirement.symbol);
         let read = self.read_requirement_signature(id, requirement, arguments);
+        self.lifetime_owner = owner;
         self.elision = elision;
         if let Some((_, count)) = self
             .elided_lifetimes
@@ -1736,13 +1738,10 @@ impl<'t> Program<'t> {
         if requirement.spelling.is_some() {
             return unserved("operator spelling");
         }
-        if !requirement.lifetime_parameters.is_empty() {
-            return Err(refuse_parameters(
-                id,
-                "requirement with lifetime parameters",
-                requirement.name.as_str(),
-            ));
-        }
+        // Named lifetimes belong to this declaration just as elided inputs
+        // do. The shared contract reader retains their regions; each call
+        // instantiates them and signature refinement checks their relations.
+        // Reading that relation supplies neither backing nor a result loan.
         if !requirement.conformance_bounds.is_empty() {
             return Err(refuse_parameters(
                 id,
