@@ -17,7 +17,7 @@ use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceNode;
 
 use super::contracts::{ClauseScope, MathematicalTerms, ResultTerm};
-use super::{Program, Slot, crash_cause, span};
+use super::{LocalSummaryBodies, Program, Slot, crash_cause, span};
 use crate::body::{
     Body, CrashCeiling, Expression, ExpressionKind, Signature, Statement, Target, Termination,
     ValueType,
@@ -197,24 +197,20 @@ impl<'t> Program<'t> {
         Ok(private)
     }
 
-    /// The machines whose callers in this compilation may rely on what the
-    /// body returns beyond its written `ensures`. state_contracts.md, "Local
-    /// call summaries": "An exact checked call inside the same fingerprinted
-    /// verification unit may use the callee's written contract plus checked
-    /// body-derived result and state facts", and across that boundary
-    /// "ordinary calls use the published contract".
+    /// Prepare the bodies whose checked outcomes are available to this source
+    /// unit. Public visibility does not move an exact local call across the
+    /// unit boundary (state_contracts.md, "Local call summaries"). Dependencies,
+    /// abstract requirements, selected implementations and generated generic
+    /// bodies still retain their separately checked interface contracts.
     ///
-    /// The unit here is the subject package. A private subject machine can
-    /// only be called from it (`visible_to`), so a fact derived from its body
-    /// reaches no other unit. A public machine is left out: the route states
-    /// a summary as a clause of the machine's contract, and a public
-    /// contract is what independent clients are given. A reached dependency
-    /// is another unit. An entry, a Build selection, a requirement and a
-    /// selected implementation are boundaries ("An abstract requirement,
-    /// unknown callable or replaceable boundary uses its interface
-    /// contract"), and a machine stage 04 generated keeps exactly the
-    /// contract its generic form was checked against.
-    pub(crate) fn local_result_bodies(&self, entry: Option<MachineId>) -> Checked<Vec<MachineId>> {
+    /// Scalar result inference currently adds ordinary contract clauses, so
+    /// its roster remains private-only: stronger local facts must not silently
+    /// become a public promise. That publication limitation does not restrict
+    /// local outcome inference, which does not add a contract clause.
+    pub(crate) fn local_summary_bodies(
+        &self,
+        entry: Option<MachineId>,
+    ) -> Checked<LocalSummaryBodies> {
         let mut boundary = self.symbols.map(|_, _| false);
         for id in entry
             .iter()
@@ -230,11 +226,14 @@ impl<'t> Program<'t> {
                 refuse(
                     *id,
                     Construct::Machine,
-                    Unserved::Machine("result boundary without a machine"),
+                    Unserved::Machine("local summary boundary without a machine"),
                 )
             })? = true;
         }
-        let mut local = Vec::new();
+        let mut local = LocalSummaryBodies {
+            outcomes: Vec::with_capacity(self.subject_machines.len()),
+            result_contracts: Vec::with_capacity(self.subject_machines.len()),
+        };
         for &id in &self.subject_machines {
             if boundary.get(id) == Some(&true) {
                 continue;
@@ -243,15 +242,17 @@ impl<'t> Program<'t> {
             let Some(machine) = self.typed.machine_by_symbol(symbol) else {
                 continue;
             };
-            if !machine.is_public
-                && machine.satisfies.is_empty()
+            if machine.satisfies.is_empty()
                 && self
                     .typed
                     .owned_conformance_realization(self.typed.lifetime_declaration_owner(symbol))
                     .is_none()
                 && crate::template_of(self.typed, symbol).is_none()
             {
-                local.push(id);
+                local.outcomes.push(id);
+                if !machine.is_public {
+                    local.result_contracts.push(id);
+                }
             }
         }
         Ok(local)
