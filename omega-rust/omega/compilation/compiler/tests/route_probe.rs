@@ -92,6 +92,7 @@ fn judge(
             purpose: source::DependencyScope::Product,
             selected: &frontier.selected,
             bindings: &frontier.bindings,
+            supplies: &[],
         },
     )
 }
@@ -280,6 +281,34 @@ fn a_sum_bounds_each_cases_payload_under_that_case() {
     ] {
         assert_eq!(verdicts(name, &program(value)), [expected], "{name}");
     }
+}
+
+/// A machine with a value parameter, `clamp<const Limit: u64>`, applied at a
+/// literal is judged as the machine typed preparation generates for that
+/// value (`wiki/spec/language/generics.md`, "Value binders and const
+/// requirements"): its contract and body with the literal where `Limit`
+/// stood. `clamp<7>` and `clamp<200>` are two machines, so `150` is within
+/// one and `5` within the other, and what `clamp<7>` guarantees keeps
+/// `7 - small` exact.
+///
+/// The twin differs only in one argument: `clamp<7>(9)` breaks `9 <= 7`.
+#[test]
+fn a_value_parameter_application_is_judged_at_its_value() {
+    let program = |small: &str| {
+        format!(
+            "machine clamp<const Limit: u64>(input: u64) -> u64\n\
+             requires input <= Limit\n\
+             ensures result <= Limit\n\
+             {{ input }}\n\
+             machine main() {{\n    \
+             let small: u64 = clamp<7>({small});\n    \
+             let room: u64 = 7u64 - small;\n    \
+             let large: u64 = clamp<200>(150);\n}}\n"
+        )
+    };
+    // The entry closure, then `clamp` checked once with `Limit` rigid.
+    assert_eq!(verdicts("within", &program("5")), ["accepted", "accepted"]);
+    assert_eq!(verdicts("beyond", &program("9")), ["rejected", "accepted"]);
 }
 
 #[test]
@@ -602,4 +631,117 @@ fn a_call_that_never_returns_may_not_be_lent_one_place_twice() {
         exit_verdicts("tests/fixtures/fail/borrows/non_returning_call_lends_twice"),
         ["rejected"]
     );
+}
+
+/// A machine that declares a lifetime is one machine, judged once
+/// (`wiki/spec/language/lifetimes.md`: "Lifetime arguments are erased
+/// regions"): it may return the view it was given for the lifetime its
+/// result names, and a call gives that lifetime the region of the view it
+/// passes. The twin returns the view of the other lifetime ("A signature
+/// does not authorize returning unrelated storage") and is not accepted.
+#[test]
+fn a_machine_with_a_lifetime_returns_a_view_of_that_lifetime_only() {
+    let program = |returned: &str| {
+        format!(
+            "machine pick<'a, 'b>(view: &'a [u8], other: &'b [u8]) -> &'a [u8] {{ {returned} }}\n\
+             machine relay(name: &[u8], second: &[u8]) {{ let kept: &[u8] = pick(name, second); }}\n\
+             machine main() {{ }}\n"
+        )
+    };
+    assert_eq!(verdicts("lifetime_view", &program("view")), ["accepted"]);
+    assert_eq!(
+        verdicts("lifetime_other_view", &program("other")),
+        ["not-supported"]
+    );
+}
+
+/// A case payload is a place that exists while its case is selected
+/// (`wiki/spec/language/patterns.md`: "The case fact belongs to the
+/// place"). A match arm lends the view its case holds, and a payload named
+/// directly is lent where the construction before it selected the case.
+/// The twin lends a payload of the other case and is rejected.
+#[test]
+fn a_case_payload_is_lent_only_where_its_case_is_selected() {
+    let program = |lent: &str| {
+        format!(
+            "data Source<'storage> {{\n\
+                 case Path(location: &'storage [u8]);\n\
+                 case Git(repository: &'storage [u8], revision: u32);\n\
+             }}\n\
+             machine measure(view: &[u8]) -> u32 {{ 1 }}\n\
+             machine route(source: Source) -> u32 {{\n\
+                 match source {{\n\
+                     Source::Path {{ location }} -> measure(location)\n\
+                     Source::Git {{ repository, revision }} -> measure(repository)\n\
+                 }}\n\
+             }}\n\
+             machine main() {{\n\
+                 let first: Source = Source::Path {{ location: \"here\" }};\n\
+                 let routed: u32 = route(first);\n\
+                 let held: Source = Source::Path {{ location: \"here\" }};\n\
+                 let direct: u32 = measure(held.{lent});\n\
+             }}\n"
+        )
+    };
+    assert_eq!(
+        verdicts("case_payload_lent", &program("location")),
+        ["accepted"]
+    );
+    assert_eq!(
+        verdicts("case_payload_other_case", &program("repository")),
+        ["rejected"]
+    );
+}
+
+/// A built-in integer name is a spelling of a sign and a width
+/// (`wiki/spec/language/numeric_values.md`, "Width-indexed integers": "the
+/// existing fixed-width names abbreviate those applications"), so the front
+/// end and the checker are told the carrier, never one of eight names. Each
+/// name is shown here as a parameter type, a result type and a literal
+/// suffix, and each is judged at its own range: "the unsigned range is
+/// `0 <= value < 2^N`; the signed range is `-2^(N-1) <= value < 2^(N-1)`".
+///
+/// For every name, `value + 1` is accepted when `requires` keeps `value`
+/// below that carrier's greatest value and rejected when it allows the
+/// greatest value itself; the two programs differ only in that bound. The
+/// suffixed literal has the parameter's carrier, so the Wrapping add of the
+/// two is accepted with nothing known about `value`.
+#[test]
+fn each_built_in_integer_name_is_judged_at_its_own_sign_and_width() {
+    let mut wrong = Vec::new();
+    for (carrier, greatest) in [
+        ("u8", "255"),
+        ("u16", "65535"),
+        ("u32", "4294967295"),
+        ("u64", "18446744073709551615"),
+        ("i8", "127"),
+        ("i16", "32767"),
+        ("i32", "2147483647"),
+        ("i64", "9223372036854775807"),
+    ] {
+        let bounded = |relation: &str| {
+            format!(
+                "machine next(value: {carrier}) -> {carrier} requires value {relation} {greatest} {{ value + 1 }}
+                 machine main() {{ }}
+"
+            )
+        };
+        let wrapped = format!(
+            "machine next(value: {carrier}) -> {carrier} {{ value +% 1{carrier} }}
+             machine main() {{ }}
+"
+        );
+        for (case, source, expected) in [
+            ("below_greatest", bounded("<"), "accepted"),
+            ("at_greatest", bounded("<="), "rejected"),
+            ("suffixed_literal", wrapped, "accepted"),
+        ] {
+            let name = format!("{carrier}_{case}");
+            let found = verdicts(&name, &source);
+            if found != [expected] {
+                wrong.push(format!("{name}: {found:?}, expected {expected}"));
+            }
+        }
+    }
+    assert!(wrong.is_empty(), "{wrong:#?}");
 }

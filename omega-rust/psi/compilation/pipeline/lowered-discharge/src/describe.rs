@@ -126,9 +126,11 @@ pub(crate) fn unproved(
             owner(names, site)
         ),
         ObligationKind::ArrivalInvariant { edge } => {
-            head_arrival(elaboration, machine, tables, edge, site).unwrap_or_else(|| {
-                format!("cannot prove block invariant in {}", owner(names, site))
-            })
+            head_arrival(elaboration, machine, tables, edge, site)
+                .or_else(|| membership_arrival(elaboration, machine, tables, edge, names, site))
+                .unwrap_or_else(|| {
+                    format!("cannot prove block invariant in {}", owner(names, site))
+                })
         }
         ObligationKind::CrashCoverage { site: crash, cause } => {
             crash_coverage(elaboration, tables, names, crash, cause, site)
@@ -158,6 +160,38 @@ pub(crate) fn unproved(
 /// machine's state. The calling machine is the one whose names record a
 /// call at the arrival's site. `None` for a join, whose predicate the
 /// checker inferred, and for the entry's jump, which no call made.
+/// The failed arrival at the block a cast `value as +D` continues in: the
+/// cast did not prove the predicates of `D` of its operand
+/// (`wiki/spec/language/domains.md`, "Domain-only casts": "Has predicates |
+/// Prove them for this value."). `None` for any other arrival.
+fn membership_arrival(
+    elaboration: &Elaboration,
+    machine: MachineId,
+    tables: &MachineTables,
+    edge: semantic_vocabulary::EdgeId,
+    names: Option<&MachineNames>,
+    site: SourceOrigin,
+) -> Option<String> {
+    let terminal_check_tables::edges::Destination::Block(established) =
+        tables.edges.get(edge)?.destination
+    else {
+        return None;
+    };
+    let stated = &elaboration
+        .sources
+        .get(machine)?
+        .memberships
+        .iter()
+        .find(|(block, _)| *block == established)?
+        .1;
+    Some(format!(
+        "cannot prove the value of this cast is in the domain it adds in {}: {stated} (needs \
+         that fact about the operand here; establish it before the cast via a guard, a prior \
+         contract guarantee or a `requires` of this machine)",
+        owner(names, site)
+    ))
+}
+
 fn head_arrival(
     elaboration: &Elaboration,
     machine: MachineId,

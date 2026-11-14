@@ -1,5 +1,6 @@
 // Canonical encoding for compiler intrinsic executions and primitive numeric/float operations.
 
+use crate::encoding::intrinsic_tags::IntrinsicTag;
 use crate::encoding::{PackageReviewEncodingError, encode::encoder::Encoder};
 use crate::record::PackageReviewCompilerIntrinsicExecution;
 use numerics::arithmetic::ArithmeticDomain;
@@ -9,12 +10,18 @@ pub(crate) fn encode_compiler_intrinsic_execution(
     encoder: &mut Encoder,
     execution: &PackageReviewCompilerIntrinsicExecution,
 ) -> Result<(), PackageReviewEncodingError> {
+    let tag = IntrinsicTag::of(execution);
+    encoder.tag(tag.label(), tag as u8);
     match execution {
-        PackageReviewCompilerIntrinsicExecution::EmptyRunRelease => {
-            encoder.tag("empty_run_release", 16);
-        }
+        PackageReviewCompilerIntrinsicExecution::EmptyRunRelease
+        | PackageReviewCompilerIntrinsicExecution::TaskRegisterActivate
+        | PackageReviewCompilerIntrinsicExecution::TaskRegisterRead
+        | PackageReviewCompilerIntrinsicExecution::ProgramStorageEntry
+        | PackageReviewCompilerIntrinsicExecution::ProgramImageRetainedSuffixStart
+        | PackageReviewCompilerIntrinsicExecution::HostedExitProcessI32
+        | PackageReviewCompilerIntrinsicExecution::HostedWriteByteI32
+        | PackageReviewCompilerIntrinsicExecution::HostedReadByte => {}
         PackageReviewCompilerIntrinsicExecution::StaticInterrupt(operation) => {
-            encoder.tag("static_interrupt", 17);
             encoder.field("operation", |encoder| {
                 use language_core::static_interrupts::StaticInterruptOperation;
                 encoder.tag(
@@ -30,7 +37,6 @@ pub(crate) fn encode_compiler_intrinsic_execution(
             })?;
         }
         PackageReviewCompilerIntrinsicExecution::SegmentReload(kind) => {
-            encoder.tag("segment_reload", 14);
             encoder.field("kind", |encoder| {
                 encoder.tag(
                     match kind {
@@ -43,7 +49,6 @@ pub(crate) fn encode_compiler_intrinsic_execution(
             })?;
         }
         PackageReviewCompilerIntrinsicExecution::SegmentRead(register) => {
-            encoder.tag("segment_read", 15);
             encoder.field("register", |encoder| {
                 encoder.tag(
                     match register {
@@ -59,14 +64,7 @@ pub(crate) fn encode_compiler_intrinsic_execution(
                 Ok(())
             })?;
         }
-        PackageReviewCompilerIntrinsicExecution::TaskRegisterActivate => {
-            encoder.tag("task_register_activate", 12)
-        }
-        PackageReviewCompilerIntrinsicExecution::TaskRegisterRead => {
-            encoder.tag("task_register_read", 13)
-        }
         PackageReviewCompilerIntrinsicExecution::AccessLifecycle(operation) => {
-            encoder.tag("access_lifecycle", 11);
             encoder.field("operation", |encoder| {
                 match operation {
                     TerminalAccessLifecycleOperation::Initialize => encoder.tag("initialize", 0),
@@ -77,28 +75,12 @@ pub(crate) fn encode_compiler_intrinsic_execution(
                 Ok(())
             })?;
         }
-        PackageReviewCompilerIntrinsicExecution::ProgramStorageEntry => {
-            encoder.tag("program_storage_entry", 10);
-        }
-        PackageReviewCompilerIntrinsicExecution::ProgramImageRetainedSuffixStart => {
-            encoder.tag("program_image_retained_suffix_start", 9);
-        }
-        PackageReviewCompilerIntrinsicExecution::HostedExitProcessI32 => {
-            encoder.tag("hosted_exit_process_i32", 4);
-        }
-        PackageReviewCompilerIntrinsicExecution::HostedWriteByteI32 => {
-            encoder.tag("hosted_write_byte_i32", 5);
-        }
-        PackageReviewCompilerIntrinsicExecution::HostedReadByte => {
-            encoder.tag("hosted_read_byte", 6);
-        }
         PackageReviewCompilerIntrinsicExecution::AccessorScalarAccess {
             contract,
             placement_commitment,
             access_slot,
             operation,
         } => {
-            encoder.tag("accessor_scalar_access", 8);
             encoder.fixed_bytes_field("contract", contract)?;
             encoder.fixed_bytes_field("placement_commitment", placement_commitment)?;
             encoder.u32_field("access_slot", *access_slot)?;
@@ -112,7 +94,6 @@ pub(crate) fn encode_compiler_intrinsic_execution(
             })?;
         }
         PackageReviewCompilerIntrinsicExecution::BuiltinFunction(function) => {
-            encoder.tag("builtin_function", 0);
             encoder.field("ordinal", |encoder| {
                 encoder.u16(u16::try_from(function.ordinal()).map_err(|_| {
                     PackageReviewEncodingError::new(
@@ -123,7 +104,6 @@ pub(crate) fn encode_compiler_intrinsic_execution(
             })?;
         }
         PackageReviewCompilerIntrinsicExecution::PrimitiveFloatBinary { operation, format } => {
-            encoder.tag("primitive_float_binary", 3);
             encoder.field_by(
                 "operation",
                 *operation,
@@ -135,7 +115,6 @@ pub(crate) fn encode_compiler_intrinsic_execution(
             operation,
             integer_type,
         } => {
-            encoder.tag("primitive_integer_comparison", 7);
             encoder.field_by(
                 "operation",
                 *operation,
@@ -144,7 +123,6 @@ pub(crate) fn encode_compiler_intrinsic_execution(
             encoder.field_by("integer_type", *integer_type, encode_compiler_numeric_type)?;
         }
         PackageReviewCompilerIntrinsicExecution::NamedFloatNegation(format) => {
-            encoder.tag("named_float_negation", 1);
             encoder.field_by("format", *format, encode_float_format)?;
         }
         PackageReviewCompilerIntrinsicExecution::NamedFloatConversion {
@@ -152,7 +130,6 @@ pub(crate) fn encode_compiler_intrinsic_execution(
             target,
             domain,
         } => {
-            encoder.tag("named_float_conversion", 2);
             encoder.field_by("source", *source, encode_compiler_numeric_type)?;
             encoder.field_by("target", *target, encode_compiler_numeric_type)?;
             encoder.field_by("domain", *domain, encode_compiler_arithmetic_domain)?;

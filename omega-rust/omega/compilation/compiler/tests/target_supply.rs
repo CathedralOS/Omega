@@ -39,6 +39,19 @@ fn accepted(
     supplied: &str,
     program: &str,
 ) -> (AcceptedTerminalSource, Vec<TargetProviderDefaults>) {
+    let (accepted, defaults, _) = judged(supplied, program);
+    (accepted, defaults)
+}
+
+/// The same, with the roster the judgment accepted.
+fn judged(
+    supplied: &str,
+    program: &str,
+) -> (
+    AcceptedTerminalSource,
+    Vec<TargetProviderDefaults>,
+    compilation_products::ProductRoster,
+) {
     let mut sources = source::SourceMap::default();
     let mut syntax = None;
     for (path, text, package, origin) in [
@@ -107,11 +120,99 @@ fn accepted(
             purpose: source::DependencyScope::Product,
             selected: &[],
             bindings: &[],
+            supplies: &[],
         },
         terminal_codec::TerminalPublication::Portable,
     )
     .unwrap_or_else(|refused| panic!("the route must accept the program: {refused:?}"));
-    (accepted, defaults)
+    let roster = compilation_products::ProductRoster {
+        entries: vec![entry],
+        subject: Some(package()),
+        ..Default::default()
+    };
+    (accepted, defaults, roster)
+}
+
+/// Target preparation for `program` as a product runs it: the demand of the
+/// accepted module, the chosen supplies, and the judgment of each chosen
+/// provider as a root of the same compilation.
+fn supplied_target(supplied: &str, program: &str) -> Result<compiler::SuppliedTarget, String> {
+    let (accepted, defaults, roster) = judged(supplied, program);
+    compiler::prepare_supplied_target(compiler::TargetSupplySource {
+        program: accepted.source(),
+        roster: &roster,
+        accepted: &accepted,
+        build: &[],
+        defaults: &defaults,
+        target: TARGET,
+    })
+    .map_err(first)
+}
+
+/// A provider machine for `Service::go` under each data type, and a second
+/// boundary trait the first provider can reach.
+const NATIVE_BODY: &str =
+    "machine Native::go() satisfies Service::go reaches none crashes none {\n}\n";
+const DEEPER: &str = "public boundary trait Deeper {\n    machine down() reaches none crashes none;\n}\npublic boundary trait Chained {\n    machine go() reaches Deeper crashes none;\n}\nmachine Native::chained() satisfies Chained::go reaches Deeper crashes none {\n    Deeper::down();\n}\nmachine Other::down() satisfies Deeper::down reaches none crashes none {\n}\nmachine Native::provider_defaults(defaults: &mut Native) {\n    Native::select_provider<Chained, Native>(defaults);\n    Native::select_provider<Deeper, Other>(defaults);\n}\n";
+
+/// The chosen provider of a reached requirement becomes a root of the same
+/// compilation: the module judged for the target holds the provider's
+/// machine beside the entry's, and the roster names the supply. A program
+/// that reaches nothing is not judged again.
+#[test]
+fn a_chosen_provider_is_judged_as_a_root_of_the_same_compilation() {
+    let target = supplied_target(&format!("{SLOT}{NATIVE_DEFAULT}{NATIVE_BODY}"), REACHES)
+        .expect("the provider refines the requirement");
+    assert_eq!(target.roster.supplies.len(), 1);
+    let supplied = target.accepted.expect("the chosen provider was judged");
+    assert_eq!(supplied.module().machines.len(), 2);
+    assert_eq!(target.supply.requirements().len(), 1);
+
+    let unreached = supplied_target(
+        &format!("{SLOT}{NATIVE_DEFAULT}{NATIVE_BODY}"),
+        REACHES_NOTHING,
+    )
+    .unwrap();
+    assert!(unreached.roster.supplies.is_empty());
+    assert!(unreached.accepted.is_none());
+}
+
+/// A provider that reaches a boundary requirement of its own has that
+/// requirement's chosen provider judged too: the supply is closed under
+/// what the chosen providers reach.
+#[test]
+fn a_provider_that_reaches_a_requirement_has_its_supply_judged_too() {
+    let target = supplied_target(
+        &format!("{SLOT}{DEEPER}"),
+        "machine main() {\n    Chained::go();\n}\n",
+    )
+    .expect("both providers refine their requirements");
+    assert_eq!(target.roster.supplies.len(), 2);
+    assert_eq!(target.supply.requirements().len(), 2);
+    let supplied = target.accepted.expect("the chosen providers were judged");
+    assert_eq!(supplied.module().machines.len(), 3);
+}
+
+/// The twins: a chosen provider that gives the requirement no machine, and
+/// one whose machine may crash where the requirement says `crashes none`,
+/// stop the program. Unchosen, the same declarations stop nothing.
+#[test]
+fn a_chosen_provider_that_does_not_refine_its_requirement_stops_the_program() {
+    assert_eq!(
+        supplied_target(&format!("{SLOT}{NATIVE_DEFAULT}"), REACHES).unwrap_err(),
+        "not supported yet: declaration provider that does not give a supplied requirement exactly one machine; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong"
+    );
+    let crashing = format!(
+        "{SLOT}{NATIVE_DEFAULT}machine Native::go() satisfies Service::go reaches none crashes Trap {{\n}}\n"
+    );
+    let refused = supplied_target(&crashing, REACHES).unwrap_err();
+    assert!(refused.contains("crash"), "{refused}");
+    assert!(
+        supplied_target(&crashing, REACHES_NOTHING)
+            .unwrap()
+            .accepted
+            .is_none()
+    );
 }
 
 fn prepare(

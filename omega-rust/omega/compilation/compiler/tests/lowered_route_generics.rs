@@ -79,29 +79,40 @@ fn a_bound_only_the_selected_implementations_give_is_refused_generically() {
 /// `Selected::value<const Units: u64>` applied at `7`, and
 /// `selected<Implementation satisfies Bounded>` applied at `Selected`.
 ///
-/// Typed preparation generates machines for type and implementation
-/// applications and not yet for a value application, so it records the call
-/// as one it did not specialize and the reader refuses the declaration that
-/// holds it by that name. Nothing is carried, and neither the program nor
-/// its twin is accepted. When value applications are generated, the carry
-/// to pin is: three generic obligations proved (the call's requirement and
-/// guarantee in `selected`, the guarantee in `value`) and three carried for
-/// the positive program; for the twin, whose requirement states `requires
-/// true`, the member's refinement proof and the carried requirement refused.
+/// Typed preparation generates `selected` at `Selected` and, for the call
+/// that machine makes, `Selected::value` at `7`. Three generic obligations
+/// are proved (the call's requirement and guarantee in `selected`, the
+/// guarantee in `value`) and each is carried into the generated machine.
 #[test]
-fn a_value_parameter_application_is_refused_until_one_is_generated() {
-    for fixture in [
-        "tests/fixtures/pass/facts/lexical_generic_bound_through_local_exit",
-        "tests/fixtures/fail/facts/lexical_generic_bound_through_local_rejected",
-    ] {
-        let (outcome, rows) = carried(fixture);
-        assert_eq!(
-            outcome,
-            "route=outside\tdeclaration holding a call whose static arguments no pass specializes yet",
-            "{fixture}"
-        );
-        assert!(rows.is_empty(), "{fixture}: {rows:?}");
-    }
+fn a_value_parameter_body_is_checked_once_and_carried() {
+    let (outcome, rows) =
+        carried("tests/fixtures/pass/facts/lexical_generic_bound_through_local_exit");
+    assert_eq!(outcome, "route=carried-accepted");
+    assert_eq!(count(&rows, "generic", "proved"), 3);
+    assert_eq!(count(&rows, "generic", "refused"), 0);
+    assert_eq!(count(&rows, "carried", "accepted"), 3);
+    assert_eq!(count(&rows, "carried", "refused"), 0);
+}
+
+/// Its twin's requirement states `requires true` where the member requires
+/// `input <= Units`. The member does not refine the requirement, so the
+/// refinement witness for the call's requirement is refused and nothing is
+/// carried for it; the guarantees are carried as before.
+#[test]
+fn a_value_parameter_member_that_asks_more_than_its_requirement_is_refused() {
+    let (outcome, rows) =
+        carried("tests/fixtures/fail/facts/lexical_generic_bound_through_local_rejected");
+    assert_eq!(outcome, "route=carried-refused");
+    let refused = |label: &str| {
+        rows.iter()
+            .filter(|row| row[0] == label && row[4] == "refused")
+            .map(|row| row[3].as_str())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(refused("witness"), ["requirement"]);
+    assert_eq!(refused("carried"), ["requirement"]);
+    assert_eq!(count(&rows, "generic", "refused"), 0);
+    assert_eq!(count(&rows, "carried", "accepted"), 2);
 }
 
 /// An opaque type parameter: `relay<T>` and `forward<T>` are each proved

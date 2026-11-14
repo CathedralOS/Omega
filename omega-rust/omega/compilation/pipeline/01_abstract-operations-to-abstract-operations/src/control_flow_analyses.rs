@@ -7,6 +7,9 @@ units.
 */
 
 use semantic_vocabulary::{BlockId, MachineId};
+#[cfg(test)]
+#[path = "control_flow_analyses_tests.rs"]
+mod tests;
 pub(crate) mod analysis_root {
     use optimization_core::OptimizationUnitIdentity;
     use optimization_unit::{PsiOptimizationUnit, recompute_psi_optimization_unit_identity};
@@ -288,40 +291,41 @@ pub(crate) mod graph {
     }
 
     fn function_control_flow(function: &PsiOptimizationFunction) -> FunctionControlFlow {
+        // The representation owns edge construction, including case arms and
+        // their bindings. Analyses must not infer a smaller graph from opcodes.
         let mut successors = function
             .blocks
             .iter()
-            .map(|block| (block.id, Vec::new()))
+            .map(|block| {
+                (
+                    block.id,
+                    block
+                        .successors()
+                        .map(|edge| edge.target)
+                        .collect::<Vec<_>>(),
+                )
+            })
             .collect::<BTreeMap<_, _>>();
-        let mut predecessors = successors.clone();
-        let mut exits = function
+        let mut predecessors = function
             .blocks
             .iter()
             .map(|block| (block.id, Vec::new()))
             .collect::<BTreeMap<_, _>>();
-        for block in &function.blocks {
-            if let Some(operation) = block.nodes.last().map(|node| &node.operation) {
-                match operation {
-                    O::Jump { target, .. } => successors.get_mut(&block.id).unwrap().push(*target),
-                    O::Conditional {
-                        when_true,
-                        when_false,
-                        ..
-                    } => {
-                        successors
-                            .get_mut(&block.id)
-                            .unwrap()
-                            .extend([when_true.target, when_false.target]);
-                    }
-                    abstract_operations::return_or_return_unit_pattern!()
-                    | O::ReturnStructural { .. } => {
-                        exits.get_mut(&block.id).unwrap().push(ExitKind::Normal);
-                    }
-                    O::Crash { .. } => exits.get_mut(&block.id).unwrap().push(ExitKind::Crash),
-                    _ => {}
-                }
-            }
-        }
+        let mut exits = function
+            .blocks
+            .iter()
+            .map(|block| {
+                let exits = match block.nodes.last().map(|node| &node.operation) {
+                    Some(
+                        abstract_operations::return_or_return_unit_pattern!()
+                        | O::ReturnStructural { .. },
+                    ) => vec![ExitKind::Normal],
+                    Some(O::Crash { .. }) => vec![ExitKind::Crash],
+                    _ => Vec::new(),
+                };
+                (block.id, exits)
+            })
+            .collect::<BTreeMap<_, _>>();
         for (source, targets) in &successors {
             for target in targets {
                 if let Some(incoming) = predecessors.get_mut(target) {

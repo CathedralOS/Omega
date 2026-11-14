@@ -416,7 +416,12 @@ machine fill(store: &mut Store) {
     assert_eq!(assignments.len(), 2);
     let mut receiving_types = Vec::new();
     for ((state, assignment), (field_name, primitive)) in assignments.iter().zip([
-        ("small", typed_trees::types::PrimitiveType::U32),
+        (
+            "small",
+            typed_trees::types::PrimitiveType::Integer(
+                numerics::integer_carrier::FixedInteger::unsigned(32),
+            ),
+        ),
         ("large", typed_trees::types::PrimitiveType::U64),
     ]) {
         let declared = typed.state_parameters(state)[0].type_reference;

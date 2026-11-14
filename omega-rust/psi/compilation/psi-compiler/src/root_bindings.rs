@@ -44,7 +44,12 @@ pub(crate) fn collect_root_bindings(
                     .declaration
                     .rejoin(
                         &typed.symbols,
-                        typed.machines().iter().map(|machine| machine.symbol),
+                        typed.machines().iter().filter_map(|machine| {
+                            typed
+                                .symbols
+                                .symbol_source_is_selected(machine.symbol)
+                                .then_some(machine.symbol)
+                        }),
                     )
                     .map_err(|reason| {
                         vec![Diagnostic::error(reason).with_source_span(binding.source_span)]
@@ -54,6 +59,17 @@ pub(crate) fn collect_root_bindings(
             RootBindingSelection::AuthoredPath(implementation) => {
                 let implementation = implementation.clone();
                 let occurrence = typed.symbols.rejoin_product_occurrence(binding.source_span);
+                if occurrence.span.start != occurrence.span.end
+                    && typed
+                        .symbols
+                        .source_map()
+                        .is_some_and(|sources| !sources.source_is_selected(occurrence.source_id))
+                {
+                    diagnostics.push(Diagnostic::error(
+                        "root binding's build source is absent from the selected source context",
+                    ).with_source_span(binding.source_span));
+                    continue;
+                }
                 let qualified = implementation.split_once("::");
                 let dependency = qualified.and_then(|(alias, _)| {
                     typed.symbols.product_dependency_target(occurrence, alias)
@@ -65,6 +81,10 @@ pub(crate) fn collect_root_bindings(
                 let mut candidates = typed
                     .machines()
                     .iter()
+                    // Retained declaration coordinates are not membership in
+                    // this compilation. Only its selected source generation
+                    // can supply the exact Product declaration.
+                    .filter(|machine| typed.symbols.symbol_source_is_selected(machine.symbol))
                     .filter(|machine| {
                         ((dependency.is_none() && machine.name.as_str() == declaration_path)
                             || typed.symbols.display_path(machine.symbol, "::") == declaration_path)
@@ -257,5 +277,73 @@ mod tests {
         )
         .unwrap();
         assert_eq!(bound.len(), 2);
+    }
+
+    fn source_generations(
+        selected_only: bool,
+        rejoin: bool,
+    ) -> (TypedTrees, ExecutedRootBinding, symbols::SymbolHandle) {
+        let text = "machine main() { }\n";
+        let (mut typed, original_source) = typed(text);
+        let original_machine = typed.machines()[0].clone();
+        let original_binding = binding(&typed, "linux_x86_64::ProgramEntry", "main");
+        let original_name = typed
+            .symbols
+            .symbol_source_span(original_machine.symbol)
+            .unwrap();
+        let mut sources = typed.symbols.source_map().unwrap().as_ref().clone();
+        let current_source = sources
+            .add(
+                std::path::PathBuf::from("program/main.omg"),
+                text.to_owned(),
+            )
+            .source_id;
+        if selected_only {
+            sources.retain_selected_sources(|file| file.source_id == current_source);
+        }
+        if rejoin {
+            sources
+                .retain_source_rejoin(original_source, current_source)
+                .unwrap();
+        }
+        let mut symbols = typed
+            .symbols
+            .clone()
+            .begin_extension(Some(std::sync::Arc::new(sources)), Vec::new());
+        let current = symbols.insert_top_level([(
+            symbols::SymbolKind::Machine,
+            symbols::SymbolNameRef::Source(source::SourceSpan::new(
+                current_source,
+                original_name.span,
+            )),
+        )])[0];
+        typed.symbols = symbols.finish();
+        let mut current_machine = original_machine.clone();
+        current_machine.symbol = current;
+        let row = typed.tables.machines.insert(current_machine);
+        typed.roots.machines.push_contiguous(row);
+        assert!(typed.symbols.symbol_source_is_selected(current));
+        (typed, original_binding, current)
+    }
+
+    #[test]
+    fn a_root_binding_uses_the_selected_source_generation() {
+        let (typed, original_binding, current) = source_generations(true, true);
+        let bindings = collect_root_bindings(&typed, &[original_binding]).unwrap();
+        assert_eq!(bindings[0].implementation_symbol, current);
+    }
+
+    #[test]
+    fn selected_declarations_do_not_authorize_an_unjoined_build_occurrence() {
+        let (typed, original_binding, _) = source_generations(true, false);
+        let errors = collect_root_bindings(&typed, &[original_binding]).unwrap_err();
+        assert!(errors[0].message.contains("build source is absent"));
+    }
+
+    #[test]
+    fn distinct_selected_declarations_remain_ambiguous() {
+        let (typed, original_binding, _) = source_generations(false, false);
+        let errors = collect_root_bindings(&typed, &[original_binding]).unwrap_err();
+        assert!(errors[0].message.contains("ambiguous within its package"));
     }
 }

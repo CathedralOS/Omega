@@ -484,6 +484,16 @@ pub(crate) fn lower_to_target_operations_with_settlements_and_installation(
     native_callbacks: &[crate::AdmittedNativeCallbackArgument],
     verified_input: Option<&verified_optimization_input::AdmittedLoweringFacts>,
 ) -> Result<TargetOperationPlan, LoweringError> {
+    let profile = verified_input
+        .and_then(|input| input.target_machine_selections())
+        .map(|selections| target::TargetProfile::from_canonical_target_name(selections.target()))
+        .transpose()
+        .map_err(|_| LoweringError::ForeignLoweringFacts("unknown selected deployment profile"))?;
+    if profile.is_some_and(|profile| profile.native_realization() != Some(target)) {
+        return Err(LoweringError::ForeignLoweringFacts(
+            "selected deployment profile has different native geometry",
+        ));
+    }
     if !plan
         .functions
         .iter()
@@ -589,6 +599,7 @@ pub(crate) fn lower_to_target_operations_with_settlements_and_installation(
         psi: plan.psi,
         target,
         entry: plan.entry,
+        profile,
         native_callback_arguments: native_callbacks_by_operation
             .values()
             .flat_map(|callbacks| callbacks.iter().cloned())
@@ -600,6 +611,7 @@ pub(crate) fn lower_to_target_operations_with_settlements_and_installation(
                 let mut lowered = lower_function(
                     function,
                     target,
+                    profile,
                     &functions_by_machine,
                     &plan.dynamic_dispatch,
                     borrowed_reference_sources

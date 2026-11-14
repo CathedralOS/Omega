@@ -85,19 +85,39 @@ decided by the request, not by where source lives". The roots are, in
 `MachineId` order:
 
 1. the entries, the first being the module's entry;
-2. every machine the Build's selections name (a layout scope's entry, a
-   selected provider), whichever package declares it: the closure includes
-   "the obligations of the Build's selections";
-3. every machine declared in a subject source file, in declaration order,
+2. every machine the Build's selections name (a layout scope's entry),
+   whichever package declares it: the closure includes "the obligations of
+   the Build's selections";
+3. the machine each chosen provider gives each requirement of the slot it
+   supplies (`Compilation::supplies`), whichever package declares it;
+4. every machine declared in a subject source file, in declaration order,
    including a specialization instance, whose symbol derives from its
    template's declaration;
-4. every machine those call, in discovery order, whichever package declares
+5. every machine those call, in discovery order, whichever package declares
    it.
 
 A selected data type is resolved as a record. A selection of anything else
 (a trait, a requirement, an operator family) is refused as `declaration Build
-selection that is not a machine or a data type`: the route does not judge a
-provider against what it provides.
+selection that is not a machine or a data type`: a provider is judged
+against what it provides as a supply, never as a bare selected declaration.
+
+A supply (`Supply { slot, provider }`) names a boundary trait or one of its
+requirements and the provider chosen for it: a Build selection, or the supply
+settlement chose for a requirement the compilation reaches. For each
+requirement of the slot the provider must give exactly one machine. That
+machine is a root with its declared input contract, and the statement that
+it refines the requirement is a conformance witness beside those of the
+subject's implementations, so the checker proves the refinement (signature,
+`requires` and `ensures`, service reach, callback entries, crash routes)
+before the compilation is accepted. A slot that is not a boundary trait or
+requirement, and a provider with no machine or several for a requirement,
+are refused by name.
+
+A machine that states `satisfies Trait::requirement` owes the same witness
+wherever it is judged, as a supply, a subject declaration or a callee
+(`read/machine.rs`, `satisfied_requirements`). A clause of a trait with
+parameters, of an operator or a top-level requirement, or one that carries a
+native binding or an alias, refuses the machine by name.
 
 `read/subjects.rs` decides whose a declaration is from the source file of its
 symbol: a toolchain file or a file of another admitted package is a
@@ -245,8 +265,9 @@ body that is one call of the implementation. `template_of` gives the
 declaration a generated machine came from. A callable parameter, a
 runtime-capable value binder (`Count: u32` without `const`), a value
 parameter of a carrier other than an integer, and a type parameter with a
-declared type equation are still refused as `machine generic parameters`
-or by the parameter's own refusal (findings 29 to 32).
+declared type equation are still refused by the rule the parameters broke
+and the declaration's name (`machine linear type parameter: \`relay\``) or
+by the parameter's own refusal (findings 29 to 32).
 
 A contract clause that is the literal `true` adds no clause: it asks and
 promises nothing, as an absent `requires` or `ensures` does.
@@ -337,7 +358,7 @@ Refused by name:
 
 ### Mathematical integers in a clause
 
-A machine's `requires` or `ensures` may compare mathematical integers:
+A machine's `requires`, `ensures` or crash guard may compare mathematical integers:
 `requires embed(rest) + embed(count) * 10 <= 99`. `embed` takes a runtime
 integer into the unbounded integers
 ([proof contracts](../../../../../wiki/spec/proofs/contracts.md#mathematical-values-and-quantification):
@@ -385,8 +406,14 @@ arguments.
 | a runtime value or typed literal that is not embedded, `embed(a) + b` or `embed(a) <= 99u8` | `contract runtime value in a mathematical term without embed`, `contract typed literal in a mathematical term without embed` |
 | a cast or a call inside a mathematical term, `embed(a) as Nat`, `integer::quotient(..)` | `contract cast in a mathematical term`, `contract call in a mathematical term` |
 | a literal past 64 bits, or an anonymous tree whose value is fractional | `contract mathematical literal beyond 64 bits`, `contract fractional anonymous value in a mathematical term` |
-| the comparison in a crash route guard or in a data `requires`, each restated by a substitution that knows only scalar comparisons | `contract mathematical comparison in a crash route guard`, `contract mathematical comparison in a data requires` |
-| the comparison in the `requires` of a member of a call cycle, which becomes a loop head's invariant | `contract mathematical comparison required on a call cycle` |
+| the comparison in a data `requires`, whose establishment goals do not yet serve mathematical comparisons | `contract mathematical comparison in a data requires` |
+
+Crash guards and cycle-head requirements use the same checked clause
+substitution as call requirements and guarantees. It retains mathematical
+arithmetic and total policy operations while replacing exact formal identities;
+an unbound name is refused, never retained as an accidental caller identity.
+Structural crash guards still require captured entry-storage observations before
+the source reader can admit them.
 
 ### Erased scalar bindings
 
@@ -541,9 +568,25 @@ binders declared in the lexical owner. Duplicate binders and undeclared tags
 reject."). The owner of the lifetimes an application names is the typed
 trees' answer: the declaration they retained for that occurrence of the type,
 as stage 03 does for the type of a literal nested in another literal, and
-otherwise the data declaration whose member is being read. A machine is read
-under no owner, since one that declares lifetime parameters is refused
-(`machine generic parameters`).
+otherwise the declaration being read: the data declaration whose member it
+is, or the machine whose signature or body it is.
+
+A machine that declares lifetime parameters is one machine, read once
+("Lifetime arguments are erased regions, separate from runtime generic arity,
+layout and monomorphization"). A byte view written with one of them,
+`&'a [u8]`, has a type that names that region, so the body may return or
+store it only where the same region is written. A call stands a region of
+the caller in for each lifetime the callee's signature names or leaves out:
+the region of the view passed (`read/calls.rs`, `view_regions`). Views of two
+regions passed for one lifetime are refused, a result view is a view of the
+region its lifetime was given, and a result written without a lifetime is a
+view of the one region all views passed without a lifetime are of. A place
+that holds a view, a binding or a field, is passed to a view formal as it
+stands. Still refused: a reference to anything but bytes written with a
+lifetime (`reference parameter with a named lifetime`), and storing a view of
+a machine's lifetime into data applied at it, since data applied at lifetimes
+is still the declaration's one record whose stored views name the data's own
+binders.
 
 A `mut` formal that holds its own value (`mut x: u32`, `mut p: R`) is the
 callee's own storage, initialised from the argument, and is written as a
@@ -1061,6 +1104,22 @@ and part of its identity; the current pipeline proves them on checked trees
 and its declarations state none. `Elaboration::domains` restates them by the
 type's identity for the checker, which refuses a table that differs from the
 declarations.
+
+**Domain predicates.** A named domain's `requires`
+([domains](../../../../../wiki/spec/language/domains.md#declaration-and-membership))
+is not a kind of fact of its own. `read/predicates.rs` states each clause as
+the contract the place declared in the domain already has, with the domain's
+`self` standing for that place:
+
+| Where `T in D` is written | What the predicates of `D` become |
+| --- | --- |
+| a formal | entry `requires` clauses of the callable, so a caller owes them as a `CallRequirement` and the body is given them |
+| a result | `ensures` clauses of the callable |
+| a field of a data type | `requires` clauses of that data type over `self.field`, owed by its constructions, stores and zero establishment and kept by its invariant windows |
+| the result of `value as +D` | the invariant of the block the cast continues in (`ExpressionKind::Establish`, `lower/control.rs` `prove_membership`): the jump into it owes the clauses as an `ArrivalInvariant` at the cast, and the block's one parameter is the result |
+
+Served for a scalar carrier. A domain with predicates on a data carrier, on a
+borrowed formal, on a case payload or on an array element is refused by name.
 
 Lowering mints one `DataDomain` obligation per owed clause, at the point
 before the operation that owes it

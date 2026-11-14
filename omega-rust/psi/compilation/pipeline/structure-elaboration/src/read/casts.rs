@@ -223,6 +223,44 @@ impl Program<'_> {
                         return mistyped("added domain that is not the one the entry selected");
                     }
                     self.issue(id, domain)?;
+                    // "Has predicates | Prove them for this value."
+                    let (clauses, stated) = match (
+                        result,
+                        crate::body::DomainSet::EMPTY.with(domain),
+                    ) {
+                        (ValueType::Scalar(carrier, _), Some(domains)) => self.cast_predicates(
+                            id,
+                            Qualification {
+                                policy: None,
+                                domains,
+                            },
+                            carrier,
+                        )?,
+                        // No clause is stated of a value that is not a
+                        // scalar, so a domain with predicates is not
+                        // added to one unproved.
+                        _ if self
+                            .typed
+                            .domain_definition(domain)
+                            .is_none_or(super::authority::has_predicates) =>
+                        {
+                            return unserved(
+                                "cast that adds a domain with predicates to a value that is not a scalar",
+                            );
+                        }
+                        _ => (Vec::new(), String::new()),
+                    };
+                    if !clauses.is_empty() {
+                        return Ok(Expression {
+                            kind: ExpressionKind::Establish {
+                                operand: Box::new(operand),
+                                clauses,
+                                stated,
+                            },
+                            result: Some(result),
+                            source,
+                        });
+                    }
                 }
                 // "Removal also never increases authority. Owned claims
                 // must be consumed or transferred, not cast away ... Access
@@ -272,9 +310,8 @@ impl Program<'_> {
     /// evaluates (`DomainIssuance::Planned`): nobody is shown to be one.
     ///
     /// Authorization proves no predicate ("Policy authorization cannot
-    /// prove those predicates"). Nothing here states a domain's predicates
-    /// as an obligation on the cast's operand yet, so a domain with
-    /// predicates is refused whoever asks.
+    /// prove those predicates"): the cast owes the domain's predicates of
+    /// its operand whoever issues it (`domain_entry`, `predicates`).
     fn issue(&mut self, id: MachineId, domain: symbols::SymbolHandle) -> Checked<()> {
         use language_semantics::DomainEstablishmentRoute;
         use typed_trees::domain::DomainIssuance;
@@ -298,9 +335,6 @@ impl Program<'_> {
             DomainIssuance::Planned(_) => {
                 return unserved("cast that adds a domain whose issuers are in an access plan");
             }
-        }
-        if super::authority::has_predicates(definition) {
-            return unserved("cast that adds a domain with predicates");
         }
         Ok(())
     }

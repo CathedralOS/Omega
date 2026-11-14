@@ -228,6 +228,7 @@ fn expression(value: &Expression, sites: &mut Vec<CallSite>) {
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)
         | ExpressionKind::Requalify(operand)
+        | ExpressionKind::Establish { operand, .. }
         | ExpressionKind::Field { base: operand, .. }
         | ExpressionKind::Payload { base: operand, .. }
         | ExpressionKind::IsCase {
@@ -310,7 +311,8 @@ fn uses_storage(body: &Body, signature: &Signature) -> bool {
             ExpressionKind::Not(operand)
             | ExpressionKind::BitwiseNot(operand)
             | ExpressionKind::Cast(operand)
-            | ExpressionKind::Requalify(operand) => stored(operand),
+            | ExpressionKind::Requalify(operand)
+            | ExpressionKind::Establish { operand, .. } => stored(operand),
             ExpressionKind::Strict { left, right, .. }
             | ExpressionKind::ShortCircuit { left, right, .. } => stored(left) || stored(right),
             ExpressionKind::Call { arguments, .. } => arguments.iter().any(stored),

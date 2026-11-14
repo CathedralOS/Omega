@@ -6,7 +6,6 @@
 //! - `cargo xtask rust-producer-omission --manifest <path> [--steps <path>] [--root <dir>]`
 //! - `cargo xtask check-rules [--base <rev>] [--title <title>] [--body-file <path>]`
 //! - `cargo xtask sample-gate [--filter <fragments>] [--facts]`
-//! - `cargo xtask stage-coverage [--list <file>] [--json <path>] <program>... [-- <omega-args>...]`
 //! - `cargo xtask doctor [--json <path>]`
 //! - `cargo xtask focused-test [--validate | --prepare]`
 //! - `cargo xtask land <status|enqueue|wait|land> [pr] [--expected-head <sha>]`
@@ -30,7 +29,6 @@ mod qualification;
 mod rules;
 mod rust_producer_omission;
 mod samples;
-mod stage_coverage;
 mod worktree;
 
 use std::path::{Path, PathBuf};
@@ -54,7 +52,6 @@ commands:
   check-rules      Verify commit lane, PR provenance, ratchets, and board hygiene
   rust-producer-omission  Audit declared bootstrap dependencies (developer-only)
   sample-gate      Run differential native + Terminal Psi sample verification
-  stage-coverage   Count the Psi 05, validation and Psi 06 lines a program runs
   qualify          Run exact sample selections with retained producer evidence
   doctor           Run host toolchain and repository preflight checks
   focused-test     Validate, prepare, or run a focused CI Rust test selection
@@ -79,7 +76,6 @@ fn main() -> ExitCode {
         "check-rules" => rules::run(&args),
         "rust-producer-omission" => rust_producer_omission::run(&args),
         "sample-gate" => samples::run(&args),
-        "stage-coverage" => stage_coverage::run(&args),
         "qualify" => qualification::run(&args),
         "doctor" => doctor::run(&args),
         "focused-test" => focused_test::run(&args),
