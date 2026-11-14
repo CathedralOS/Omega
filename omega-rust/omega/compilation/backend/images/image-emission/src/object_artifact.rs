@@ -3319,13 +3319,15 @@ mod normalized_foreign_calls {
             }
             ScalarType::Boolean => Some(Kind::ZeroExtendU8),
             ScalarType::Integer(integer) => match (integer.sign(), integer.bits()) {
-                (IntegerSign::Unsigned, 8) => Some(Kind::ZeroExtendU8),
-                (IntegerSign::Unsigned, 16) => Some(Kind::ZeroExtendU16),
-                (IntegerSign::Unsigned, 32) => Some(Kind::ZeroExtendU32),
-                (IntegerSign::Unsigned, 64) | (IntegerSign::Signed, 64) => Some(Kind::CopyI64),
-                (IntegerSign::Signed, 8) => Some(Kind::SignExtendI8),
-                (IntegerSign::Signed, 16) => Some(Kind::SignExtendI16),
-                (IntegerSign::Signed, 32) => Some(Kind::SignExtendI32),
+                (IntegerSign::Unsigned, Some(8)) => Some(Kind::ZeroExtendU8),
+                (IntegerSign::Unsigned, Some(16)) => Some(Kind::ZeroExtendU16),
+                (IntegerSign::Unsigned, Some(32)) => Some(Kind::ZeroExtendU32),
+                (IntegerSign::Unsigned, Some(64)) | (IntegerSign::Signed, Some(64)) => {
+                    Some(Kind::CopyI64)
+                }
+                (IntegerSign::Signed, Some(8)) => Some(Kind::SignExtendI8),
+                (IntegerSign::Signed, Some(16)) => Some(Kind::SignExtendI16),
+                (IntegerSign::Signed, Some(32)) => Some(Kind::SignExtendI32),
                 _ => None,
             },
         }
@@ -4167,13 +4169,13 @@ pub(crate) mod replay {
                         terminal_psi::StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
                             !integer.is_address()
                                 && integer.sign() == IntegerSign::Signed
-                                && integer.bits() == 32
+                                && integer.bits() == Some(32)
                         }
                         terminal_psi::StructuralFieldType::BoundedInteger(bounds) => {
                             let integer = bounds.integer_type();
                             !integer.is_address()
                                 && integer.sign() == IntegerSign::Signed
-                                && integer.bits() == 32
+                                && integer.bits() == Some(32)
                                 && bounds.contains(semantic_vocabulary::IntegerValue::Signed(0))
                                 && bounds.contains(semantic_vocabulary::IntegerValue::Signed(255))
                         }
@@ -4324,7 +4326,7 @@ pub(crate) mod replay {
                     } else {
                         return false;
                     };
-                    matches!(scalar_type, ScalarType::Integer(integer) if integer.sign() == IntegerSign::Signed && integer.bits() == 32)
+                    matches!(scalar_type, ScalarType::Integer(integer) if integer.sign() == IntegerSign::Signed && integer.bits() == Some(32))
                         && settlement.execution
                             == BoundaryExecutionRecord::CompilerBuiltin(
                                 CompilerBuiltinExecution::HostedExitProcessI32,
@@ -4505,7 +4507,7 @@ pub(crate) mod replay {
                 } else {
                     return false;
                 };
-                matches!(scalar_type, ScalarType::Integer(integer) if integer.sign() == IntegerSign::Signed && integer.bits() == 32)
+                matches!(scalar_type, ScalarType::Integer(integer) if integer.sign() == IntegerSign::Signed && integer.bits() == Some(32))
                     && settlement.byte_count == byte_count
                     && matches!(
                         settlement.execution,
