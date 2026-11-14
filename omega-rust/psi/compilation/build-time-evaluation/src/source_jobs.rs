@@ -2922,7 +2922,8 @@ pub(crate) mod tests {
         ] {
             let mut sources = source::SourceMap::default();
             let policy = "machine answer() -> u64 { 17u64 } machine request() -> u64 { 0u64 }";
-            let unused = "data NotReady<T> { value: T; }";
+            // A declaration the full check of a subject does not read yet.
+            let unused = "data NotReady<'held, T> { value: &'held T; }";
             let policy_id = sources
                 .add_with_metadata(
                     "/policy-package/policy.omg".into(),
