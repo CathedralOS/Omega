@@ -143,13 +143,6 @@ framework or a list of features that remain unimplemented.
 - Cost: a reader cannot tell which behaviours are the specification's and which were kept for agreement with a checker that no longer exists, and the knob is dead weight in every discharge signature
 - Reported: 2026-11-13, Claude Code, while removing the two-checker names
 
-### A clause the specification rejects can only be reported as not supported yet
-- Category: a verdict with nothing behind it
-- Where: `omega-rust/psi/compilation/representations/terminal-psi/check-tables/src/lib.rs` (`RefusalReason`); `05_typed-trees-to-terminal-psi/src/read/contracts.rs` (`term`, the `Trapping` arm)
-- Saw: `ensures result == left +! right` is an error of the program (`wiki/spec/proofs/contracts.md`, "Total arithmetic": an operation that can transfer control "cannot form a proof term"), but the reader's only negative result that is not a storage or ownership judgment is `Unsupported`, so the clause is refused with the same outcome as a construct nobody has built yet. A wholly anonymous `7 +% 1` and a suffix on a qualified operand are reported the same way
-- Cost: the author is told the compiler cannot judge a program that the language forbids, and a test cannot tell a rule of the language from a gap in the checker
-- Reported: 2026-11-13, Claude Code, while reading suffixed operators in contracts
-
 ### `Console::exit_process` ends the process without publishing `reaches ProcessExit`
 - Category: a verdict with nothing behind it
 - Where: `source/library/std/console.omg:66` (the requirement, `reaches Console`) and `:96` (its provider); `omega-rust/psi/compilation/representations/typed-trees/src/declarations.rs` (`exact_process_exit_requirement` with `console_adapter`, `nominate_source_completion`)

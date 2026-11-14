@@ -115,3 +115,78 @@ fn an_argument_that_lends_only_observation_is_rejected_for_a_parameter_that_writ
     accepted(&loan(""));
     rejected(&loan("mut "), rule);
 }
+
+/// Policy suffixes need an unqualified integer carrier. These restrictions
+/// are source errors, unlike a total operation whose formation proof the
+/// compiler cannot yet express. Check the actual source-to-verdict path.
+#[test]
+fn invalid_contract_arithmetic_is_not_an_implementation_gap() {
+    accepted(
+        "machine sum(left: u32, right: u32) -> u32 \
+         ensures result == left +% right { left +% right }",
+    );
+    accepted(
+        "machine sum(left: u32, right: u32) -> u32 \
+         ensures result == left +| right { left +| right }",
+    );
+    for (text, rule) in [
+        (
+            "machine sum(left: u32, right: u32) -> u32 \
+             ensures result == left +! right { left +% right }",
+            "can crash forms no proof term",
+        ),
+        (
+            "machine sum() -> u32 ensures result == 7 +% 1 { 8 }",
+            "policy operator on a wholly anonymous tree",
+        ),
+        (
+            "machine sum(left: u32 in Wrapping, right: u32) \
+             requires left +% right == right { }",
+            "not an unqualified integer",
+        ),
+        (
+            "domain u32::Tagged; machine sum(left: u32 in Tagged, right: u32) \
+             requires left +% right == right { }",
+            "not an unqualified integer",
+        ),
+        (
+            "machine sum(left: bool, right: bool) requires left +% right == left { }",
+            "not an unqualified integer",
+        ),
+        (
+            "machine sum(left: u32, right: u64) requires left +% right == left { }",
+            "policy operator operand types differ",
+        ),
+        (
+            "machine sum() -> u32 { 7 +% 1 }",
+            "policy operator on a wholly anonymous tree",
+        ),
+        (
+            "machine sum(left: u32 in Wrapping, right: u32) -> u32 { left +% right }",
+            "not an unqualified integer",
+        ),
+    ] {
+        let result = super::entryless::judged(text, false);
+        let RouteVerdict::Rejected { violations, .. } = result else {
+            panic!("{text}: {result:?}");
+        };
+        assert!(
+            violations.iter().any(|violation| {
+                violation.statement.contains(rule) && violation.site.is_some()
+            }),
+            "{text}: {violations:?}"
+        );
+    }
+
+    let valid_but_unsupported = "machine quotient(left: u32, right: u32) -> u32 \
+        requires right > 0 ensures result == left /% right { left /% right }";
+    let RouteVerdict::FallBack(refusal) = super::entryless::judged(valid_but_unsupported, false)
+    else {
+        panic!("valid quotient contract must retain its formation-support refusal");
+    };
+    assert_eq!(refusal.reason, RefusalReason::Unsupported);
+    assert_eq!(
+        refusal.detail,
+        "contract policy operator in a clause term that owes a condition before it is total"
+    );
+}

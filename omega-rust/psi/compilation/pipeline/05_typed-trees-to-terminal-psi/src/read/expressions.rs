@@ -994,7 +994,7 @@ fn suffixed_expression(
     let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
     let shift = crate::policy::shifts(crate::policy::suffixed(operator).map_err(unserved)?);
     if anonymous == (true, true) {
-        return Err(unserved(crate::policy::WHOLLY_ANONYMOUS));
+        return Err(crate::reject(id, source, crate::policy::WHOLLY_ANONYMOUS));
     }
     let under_policy = |operand: Expression| match operand.result {
         Some(ValueType::Scalar(carrier @ ScalarType::Integer(_), Qualification::NONE)) => {
@@ -1005,7 +1005,12 @@ fn suffixed_expression(
                 source,
             })
         }
-        _ => Err(unserved(crate::policy::QUALIFIED_OPERAND)),
+        Some(ValueType::Scalar(..) | ValueType::Record(..)) => {
+            Err(crate::reject(id, source, crate::policy::QUALIFIED_OPERAND))
+        }
+        // An unresolved carrier is not evidence that the source violates
+        // the integer-only rule. Keep that implementation gap distinct.
+        Some(ValueType::Rigid(_)) | None => Err(unserved(crate::policy::QUALIFIED_OPERAND)),
     };
     let left = if anonymous.0 {
         left
