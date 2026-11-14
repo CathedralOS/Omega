@@ -3028,6 +3028,56 @@ pub(crate) mod operator {
                 assert!(trees.operators.is_empty());
             }
         }
+
+        #[test]
+        fn sealed_integer_conversion_overloads_keep_distinct_machine_symbols() {
+            const FLOAT: &str = include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../../../source/library/core/float_operations.omg"
+            ));
+            let trees = resolved(FLOAT, "float_operations.omg", SourceOrigin::Toolchain)
+                .expect("the real floating-point declaration family must resolve");
+            let family = trees
+                .machines
+                .iter()
+                .filter(|machine| machine.name.as_str() == "FloatSemantics::from_integer")
+                .collect::<Vec<_>>();
+            assert_eq!(family.len(), 8, "retain every signed/unsigned integer row");
+            let mut symbols = family
+                .iter()
+                .map(|machine| machine.symbol)
+                .collect::<Vec<_>>();
+            assert!(symbols.iter().all(|symbol| symbol.is_valid()));
+            symbols.sort_unstable_by_key(|symbol| symbol.arena_index());
+            symbols.dedup();
+            assert_eq!(
+                symbols.len(),
+                8,
+                "same path must not collapse declaration owners"
+            );
+            let carriers = family
+                .iter()
+                .map(|machine| {
+                    let [entry] = trees.machine_state_handles(machine.states) else {
+                        panic!("each overload must retain its entry");
+                    };
+                    let entry = trees.machine_state(*entry);
+                    let [_, value] = trees.state_parameters(entry.parameters) else {
+                        panic!("each integer conversion needs its format and value");
+                    };
+                    let symbol_resolved_trees::types::TypeReference::Named { name, .. } =
+                        &value.type_reference
+                    else {
+                        panic!("the integer catalog row must retain its named carrier");
+                    };
+                    name.as_str()
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(
+                carriers,
+                ["i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64"]
+            );
+        }
     }
 }
 pub(crate) mod proposition {
