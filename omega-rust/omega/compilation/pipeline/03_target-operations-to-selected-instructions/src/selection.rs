@@ -671,6 +671,7 @@ pub(crate) mod construction {
         legalized: &ValidatedLegalizedOperations,
         constraints: &SelectedSelectionConstraints,
         environment: &register_environment::ValidatedTargetRegisterEnvironment,
+        closed_types: Option<&terminal_codec::ClosedTypeCatalog>,
     ) -> Result<SelectedInstructionPlan, SelectedInstructionError> {
         let target = legalized.plan();
         if target.target != environment.target() {
@@ -690,8 +691,11 @@ pub(crate) mod construction {
             }),
         )
         .map_err(|_| SelectedInstructionError::custody())?;
-        let backings =
-            super::foreign_scalar_backings::ForeignScalarBackings::new(target, &native_geometry);
+        let backings = super::foreign_scalar_backings::ForeignScalarBackings::new(
+            target,
+            &native_geometry,
+            closed_types,
+        );
         let mut functions = target
             .scalar_functions
             .iter()
@@ -700,6 +704,7 @@ pub(crate) mod construction {
                 scalar_graph::build_with_environment(
                     index,
                     source,
+                    closed_types,
                     native_geometry
                         .get(
                             source
@@ -995,6 +1000,7 @@ pub(crate) mod foreign_scalar_backings {
 
     pub(crate) struct ForeignScalarBackings<'program> {
         program: &'program LegalizedOperationPlan,
+        closed_types: Option<&'program terminal_codec::ClosedTypeCatalog>,
         geometries: &'program crate::native_geometry::NativeGeometries<'program>,
         incoming: BTreeMap<MachineId, Vec<(usize, &'program LegalizedScalarCall)>>,
         opaque_ingress: BTreeSet<MachineId>,
@@ -1009,9 +1015,11 @@ pub(crate) mod foreign_scalar_backings {
         pub(crate) fn new(
             program: &'program LegalizedOperationPlan,
             geometries: &'program crate::native_geometry::NativeGeometries<'program>,
+            closed_types: Option<&'program terminal_codec::ClosedTypeCatalog>,
         ) -> Self {
             let mut context = Self {
                 program,
+                closed_types,
                 geometries,
                 incoming: BTreeMap::new(),
                 opaque_ingress: BTreeSet::from([program.entry]),
@@ -1084,7 +1092,11 @@ pub(crate) mod foreign_scalar_backings {
                         "foreign backing query lost its prepared native geometry",
                     )
                 })?;
-                let function = &crate::native_geometry::NativeInput::new(function, geometry);
+                let function = &crate::native_geometry::NativeInput::with_types(
+                    function,
+                    geometry,
+                    self.closed_types,
+                );
                 let Some(origins) = super::storage_origin_input::scalar_storage_origins(
                     function,
                     &coordinates[cursor].source,
@@ -1841,7 +1853,16 @@ pub(crate) fn select_instructions(
     constraints: &SelectedSelectionConstraints,
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<ValidatedSelectedInstructions, SelectedInstructionError> {
-    let plan = build_plan(legalized, constraints, environment)?;
+    select_instructions_with_types(legalized, constraints, environment, None)
+}
+
+pub(crate) fn select_instructions_with_types(
+    legalized: &ValidatedLegalizedOperations,
+    constraints: &SelectedSelectionConstraints,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    closed_types: Option<&terminal_codec::ClosedTypeCatalog>,
+) -> Result<ValidatedSelectedInstructions, SelectedInstructionError> {
+    let plan = build_plan(legalized, constraints, environment, closed_types)?;
     let receipt = identity::receipt(&plan, legalized);
     Ok(ValidatedSelectedInstructions {
         plan: plan.into(),
