@@ -2465,6 +2465,54 @@ pub mod descriptor_results {
         }
 
         impl DescriptorContentsQuery {
+            /// Whether each step stays inside the selected value's own
+            /// storage. A reference, view backing or accessor crosses out.
+            pub(crate) fn inline_steps(
+                &self,
+                types: &[StructuralTypeDeclaration],
+                root_type: StructuralTypeId,
+            ) -> Option<Vec<bool>> {
+                let mut base = root_type;
+                let mut path = Vec::new();
+                let mut inline = Vec::with_capacity(self.steps.len());
+                for step in &self.steps {
+                    let container = || {
+                        let container = descriptor_location_type(types, base, &path)?;
+                        Some(&terminal_psi::find_structural_type(types, container)?.shape)
+                    };
+                    inline.push(match step {
+                        DescriptorContentsStep::Address(DescriptorPathSegment::Referent) => false,
+                        DescriptorContentsStep::Address(DescriptorPathSegment::Case(_)) => true,
+                        DescriptorContentsStep::Address(DescriptorPathSegment::Field(_)) => {
+                            matches!(path.last(), Some(DescriptorPathSegment::Case(_)))
+                                || container().is_some_and(|shape| match shape {
+                                    StructuralTypeShape::Record { storage, .. } => !matches!(
+                                        storage,
+                                        terminal_psi::StructuralRecordStorage::AccessView(_)
+                                            | terminal_psi::StructuralRecordStorage::Accessor(_)
+                                    ),
+                                    StructuralTypeShape::Mixed { .. } => true,
+                                    _ => false,
+                                })
+                        }
+                        DescriptorContentsStep::Address(DescriptorPathSegment::FixedIndex(_))
+                        | DescriptorContentsStep::AnyElement { .. } => {
+                            container().is_some_and(|shape| {
+                                matches!(shape, StructuralTypeShape::FixedArray { .. })
+                            })
+                        }
+                    });
+                    match step {
+                        DescriptorContentsStep::Address(segment) => path.push(segment.clone()),
+                        DescriptorContentsStep::AnyElement { element } => {
+                            base = *element;
+                            path.clear();
+                        }
+                    }
+                }
+                Some(inline)
+            }
+
             pub fn exact_location(&self) -> Option<DescriptorLocation> {
                 Some(DescriptorLocation {
                     root: self.root,
@@ -9672,14 +9720,19 @@ pub mod descriptor_results {
         #[cfg(test)]
         mod tests {
             use super::*;
+            use crate::descriptor_results::terminal_borrowed_storage_graph;
+            use crate::descriptors::descriptor_lifetimes::{
+                DescriptorContentsQuery, DescriptorContentsStep,
+            };
             use semantic_vocabulary::{
                 BlockId, ContractId, EdgeId, MachineId, OperationId, PlaceId,
                 ScalarQualificationSetId, StructuralTypeId,
             };
             use terminal_psi::{
-                Block, OperationResult, StructuralAccess, StructuralMultiplicity,
-                StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
-                SuccessorEdge, TerminalIdentityIndex, TerminalMachineResult, ValueDeclaration,
+                Block, ByteSequenceCarrier, OperationResult, StructuralAccess,
+                StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
+                StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
+                TerminalIdentityIndex, TerminalMachineResult, ValueDeclaration,
             };
             fn machine(id: u64) -> TerminalMachine {
                 let block = BlockId::new(1).unwrap();
@@ -9718,6 +9771,321 @@ pub mod descriptor_results {
                         content_entry_claims: Vec::new(),
                         ..terminal_psi::MachineContract::empty(ContractId::new(1).unwrap())
                     },
+                }
+            }
+
+            // Moving a borrowed sequence value retires its descriptor, not
+            // its elements. A real element write still needs a known backing
+            // and cannot publish an empty or descriptor-only write frame.
+            #[test]
+            fn moving_sequence_values_does_not_write_their_backing() {
+                let element = StructuralTypeId::new(1).unwrap();
+                let sequence = StructuralTypeId::new(2).unwrap();
+                let source = PlaceId::new(1).unwrap();
+                let destination = PlaceId::new(2).unwrap();
+                let operation = OperationId::new(1).unwrap();
+                let declaration = |id, shape| StructuralTypeDeclaration {
+                    requires: Vec::new(),
+                    quotient_carrier: None,
+                    id,
+                    identity: TerminalIdentityIndex::ABSENT,
+                    owns_linear_claim: false,
+                    no_code_affine_cleanup: true,
+                    copyable: true,
+                    descriptor_cleanup: false,
+                    shape,
+                    scalar_restriction: None,
+                };
+                for shape in [
+                    StructuralTypeShape::ElementView {
+                        element,
+                        access: None,
+                    },
+                    StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                        access: None,
+                    }),
+                ] {
+                    let mut module = TerminalModule::declarations();
+                    module.structural_types = vec![
+                        declaration(
+                            element,
+                            StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
+                        ),
+                        declaration(sequence, shape),
+                    ];
+                    let mut body = machine(1);
+                    body.parameter_order = vec![terminal_psi::BoundaryParameterKind::Structural];
+                    body.structural_parameters
+                        .push(StructuralParameterDeclaration {
+                            place: source,
+                            position: 0,
+                            structural_type: sequence,
+                            multiplicity: StructuralMultiplicity::Unrestricted,
+                            access: StructuralAccess::Owned,
+                            qualifications: Vec::new(),
+                            projected_qualifications: Vec::new(),
+                            additional_input_qualifications: Vec::new(),
+                        });
+                    body.structural_places = vec![
+                        terminal_psi::StructuralPlaceDeclaration {
+                            id: source,
+                            kind: StructuralPlaceKind::Parameter { position: 0 },
+                        },
+                        terminal_psi::StructuralPlaceDeclaration {
+                            id: destination,
+                            kind: StructuralPlaceKind::OperationResult {
+                                producer: operation,
+                                structural_type: sequence,
+                            },
+                        },
+                    ];
+                    for kind in [
+                        OperationKind::MoveStructuralValue {
+                            source: terminal_psi::StructuralArgument::whole(
+                                source,
+                                StructuralAccess::Owned,
+                            ),
+                        },
+                        OperationKind::MoveStructuralField {
+                            source,
+                            path: Vec::new(),
+                            field: None,
+                        },
+                    ] {
+                        body.blocks[0].operations = vec![Operation::unsuspended(
+                            operation,
+                            OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                                place: destination,
+                                structural_type: sequence,
+                                multiplicity: StructuralMultiplicity::Unrestricted,
+                                qualifications: Vec::new(),
+                                projected_qualifications: Vec::new(),
+                                additional_input_qualifications: Vec::new(),
+                                qualification_establishments: Vec::new(),
+                                claims: Vec::new(),
+                            }),
+                            kind,
+                        )];
+                        module.machines = vec![body.clone()];
+                        let graph = terminal_borrowed_storage_graph(&module);
+                        assert_eq!(graph.len(), 1);
+                        let position = (body.entry, 0);
+                        assert_eq!(
+                            graph[0].payload_invalidations[&position],
+                            [Some(DescriptorContentsQuery::from_location(
+                                &DescriptorLocation::whole(source)
+                            ))]
+                        );
+                        let mut analysis = crate::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
+                            &module.structural_types, &graph,
+                        );
+                        assert_eq!(
+                            analysis.storage_writes(body.id, position).unwrap(),
+                            Some(vec![
+                                DescriptorLocation::whole(source),
+                                DescriptorLocation::whole(destination),
+                            ])
+                        );
+                        let frames =
+                            crate::borrowed_storage::inferred_write_frames(&module).unwrap();
+                        assert_eq!(frames.get(body.id), Some(&Some(Vec::new())));
+                    }
+
+                    // Move a real field rather than the whole source root.
+                    // The sibling's entry contents must survive the same cut,
+                    // while the moved field cannot retain its former value.
+                    let record = StructuralTypeId::new(3).unwrap();
+                    let moved = semantic_vocabulary::StructuralFieldId::new(1).unwrap();
+                    let sibling = semantic_vocabulary::StructuralFieldId::new(2).unwrap();
+                    let field =
+                        |id, identity, field_type| terminal_psi::StructuralFieldDeclaration {
+                            id,
+                            identity: TerminalIdentityIndex(identity),
+                            inline_carrier: None,
+                            relevance: terminal_psi::BindingRelevance::Relevant,
+                            field_type,
+                            storage: None,
+                        };
+                    module.structural_types.push(declaration(
+                        record,
+                        StructuralTypeShape::Record {
+                            fields: vec![
+                                field(
+                                    moved,
+                                    1,
+                                    terminal_psi::StructuralFieldType::Structural(sequence),
+                                ),
+                                field(
+                                    sibling,
+                                    2,
+                                    terminal_psi::StructuralFieldType::Scalar(ScalarType::Boolean),
+                                ),
+                            ],
+                            storage: terminal_psi::StructuralRecordStorage::Packed,
+                        },
+                    ));
+                    let mut field_body = body.clone();
+                    field_body.structural_parameters[0].structural_type = record;
+                    field_body.blocks[0].operations[0].kind = OperationKind::MoveStructuralField {
+                        source,
+                        path: Vec::new(),
+                        field: Some(moved),
+                    };
+                    module.machines = vec![field_body.clone()];
+                    let graph = terminal_borrowed_storage_graph(&module);
+                    assert_eq!(graph.len(), 1);
+                    let frames = crate::borrowed_storage::inferred_write_frames(&module).unwrap();
+                    assert_eq!(frames.get(field_body.id), Some(&Some(Vec::new())));
+                    let mut analysis =
+                        crate::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
+                            &module.structural_types,
+                            &graph,
+                        );
+                    assert_eq!(
+                        analysis
+                            .storage_writes(field_body.id, (field_body.entry, 0))
+                            .unwrap(),
+                        Some(vec![
+                            DescriptorLocation {
+                                root: source,
+                                path: vec![
+                                    crate::descriptor_lifetimes::DescriptorPathSegment::Field(
+                                        moved
+                                    )
+                                ]
+                            },
+                            DescriptorLocation::whole(destination),
+                        ])
+                    );
+                    for (field, survives) in [(sibling, true), (moved, false)] {
+                        let payload = crate::descriptor_results::DescriptorPayloadTarget::Storage(
+                            DescriptorLocation {
+                                root: source,
+                                path: vec![
+                                    crate::descriptor_lifetimes::DescriptorPathSegment::Field(
+                                        field,
+                                    ),
+                                ],
+                            },
+                        );
+                        assert_eq!(
+                            crate::descriptor_results::require_unchanged_entry_storage(
+                                &module.structural_types,
+                                &graph,
+                                &mut analysis,
+                                field_body.id,
+                                (field_body.entry, 1),
+                                &payload,
+                            )
+                            .is_ok(),
+                            survives,
+                        );
+                    }
+
+                    // An unknown caller-supplied backing is still unknown.
+                    // Use the real element-write operation, not a forged
+                    // summary, to retain the conservative effect boundary.
+                    body.structural_places.retain(|place| place.id == source);
+                    module.structural_types[1].shape = StructuralTypeShape::ElementView {
+                        element,
+                        access: Some(StructuralAccess::MutableBorrow),
+                    };
+                    let index = ValueId::new(1).unwrap();
+                    let value = ValueId::new(2).unwrap();
+                    let length = ValueId::new(3).unwrap();
+                    let integer = ScalarType::Integer(
+                        semantic_vocabulary::IntegerType::new(
+                            semantic_vocabulary::IntegerSign::Unsigned,
+                            64,
+                        )
+                        .unwrap(),
+                    );
+                    body.parameters = vec![
+                        ValueDeclaration {
+                            id: index,
+                            scalar_type: integer,
+                            qualifications: ScalarQualificationSetId::ZERO,
+                        },
+                        ValueDeclaration {
+                            id: value,
+                            scalar_type: ScalarType::Boolean,
+                            qualifications: ScalarQualificationSetId::ZERO,
+                        },
+                        ValueDeclaration {
+                            id: length,
+                            scalar_type: integer,
+                            qualifications: ScalarQualificationSetId::ZERO,
+                        },
+                    ];
+                    body.parameter_order = vec![
+                        terminal_psi::BoundaryParameterKind::Structural,
+                        terminal_psi::BoundaryParameterKind::Scalar,
+                        terminal_psi::BoundaryParameterKind::Scalar,
+                        terminal_psi::BoundaryParameterKind::Scalar,
+                    ];
+                    body.blocks[0].operations = vec![Operation::unsuspended(
+                        operation,
+                        OperationResult::Unit,
+                        OperationKind::ElementViewWrite {
+                            destination: terminal_psi::StructuralArgument::whole(
+                                source,
+                                StructuralAccess::MutableBorrow,
+                            ),
+                            path: Vec::new(),
+                            index,
+                            value,
+                            length,
+                            obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                        },
+                    )];
+                    module.machines = vec![body.clone()];
+                    let graph = terminal_borrowed_storage_graph(&module);
+                    assert_eq!(graph.len(), 1);
+                    assert!(matches!(
+                        graph[0].payload_invalidations[&(body.entry, 0)].as_slice(),
+                        [Some(DescriptorContentsQuery { steps, .. })]
+                            if matches!(steps.as_slice(), [DescriptorContentsStep::AnyElement { .. }])
+                    ));
+                    assert_eq!(
+                        crate::borrowed_storage::inferred_write_frames(&module)
+                            .unwrap()
+                            .get(body.id),
+                        Some(&None)
+                    );
+                    // A variable array selection must not hide the later
+                    // view-backing write when it is widened to the array.
+                    let array = StructuralTypeId::new(4).unwrap();
+                    module.structural_types.push(declaration(
+                        array,
+                        StructuralTypeShape::FixedArray {
+                            element: sequence,
+                            length: terminal_psi::ArrayExtent::Literal(1),
+                        },
+                    ));
+                    body.structural_parameters[0].structural_type = array;
+                    let OperationKind::ElementViewWrite { destination, .. } =
+                        &mut body.blocks[0].operations[0].kind
+                    else {
+                        unreachable!("the same backing-write control")
+                    };
+                    destination.path = vec![StructuralPathSegment::RuntimeIndex {
+                        index,
+                        obligation: semantic_vocabulary::ObligationId::new(2).unwrap(),
+                    }];
+                    module.machines = vec![body.clone()];
+                    let graph = terminal_borrowed_storage_graph(&module);
+                    assert_eq!(graph.len(), 1);
+                    assert!(matches!(
+                        graph[0].payload_invalidations[&(body.entry, 0)].as_slice(),
+                        [Some(DescriptorContentsQuery { steps, .. })]
+                            if matches!(steps.as_slice(), [DescriptorContentsStep::AnyElement { .. }, DescriptorContentsStep::AnyElement { .. }])
+                    ));
+                    assert_eq!(
+                        crate::borrowed_storage::inferred_write_frames(&module)
+                            .unwrap()
+                            .get(body.id),
+                        Some(&None)
+                    );
                 }
             }
 
@@ -11554,14 +11922,17 @@ pub mod descriptor_results {
                             ));
                         }
                     }
-                    let payload_query = |root, path: &[StructuralPathSegment], field| {
-                        let mut query = descriptor_contents_query(
+                    let value_query = |root, path: &[StructuralPathSegment], field| {
+                        descriptor_contents_query(
                             &module.structural_types,
                             root,
                             *graph.place_types.get(&root)?,
                             path,
                             field,
-                        )?;
+                        )
+                    };
+                    let payload_query = |root, path: &[StructuralPathSegment], field| {
+                        let mut query = value_query(root, path, field)?;
                         if let Some(index) = path.iter().position(|segment| {
                             matches!(segment, StructuralPathSegment::RuntimeIndex { .. })
                         }) {
@@ -11571,6 +11942,18 @@ pub mod descriptor_results {
                                 &path[..index],
                             )?;
                             if matches!(collection.shape, StructuralTypeShape::FixedArray { .. }) {
+                                // A later reference/view step names backing
+                                // outside this array. Preserve that full query
+                                // rather than turning it into an array write.
+                                if query
+                                    .inline_steps(
+                                        &module.structural_types,
+                                        *graph.place_types.get(&root)?,
+                                    )
+                                    .is_none_or(|inline| inline[index..].contains(&false))
+                                {
+                                    return Some(query);
+                                }
                                 // Any element may be written. Keep the array
                                 // region rather than enumerating its extent;
                                 // the complete destination was checked above.
@@ -11632,11 +12015,19 @@ pub mod descriptor_results {
                         } => {
                             payload_writes.push(payload_query(*destination, path, None));
                         }
+                        // A move retires the selected value, including a
+                        // view descriptor. It does not write the backing the
+                        // descriptor names. Explicit source projections still
+                        // retain any actual referent or element selection.
                         OperationKind::MoveStructuralValue { source } => {
-                            payload_writes.push(payload_query(source.place, &source.path, None));
+                            payload_writes.push(value_query(source.place, &source.path, None));
                         }
-                        OperationKind::MoveStructuralField { source, path, .. } => {
-                            payload_writes.push(payload_query(*source, path, None));
+                        OperationKind::MoveStructuralField {
+                            source,
+                            path,
+                            field,
+                        } => {
+                            payload_writes.push(value_query(*source, path, *field));
                         }
                         OperationKind::StructuralScalarFieldStore {
                             destination,
@@ -13609,10 +14000,26 @@ pub mod descriptor_results {
         kind: DescriptorSlotKind,
         selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
     ) -> Result<Vec<DescriptorMachine>, DescriptorGraphError> {
+        terminal_graph_rows(module, roots, kind, selected_calls)
+            .into_iter()
+            .collect()
+    }
+
+    // An unsupported body must not erase useful analyses of independent
+    // bodies. Keep its failure in the same roster: complete-closure consumers
+    // still reject it, while optional summaries retain their unknown ceiling.
+    pub(crate) fn terminal_graph_rows(
+        module: &TerminalModule,
+        roots: impl IntoIterator<Item = MachineId>,
+        kind: DescriptorSlotKind,
+        selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
+    ) -> Vec<Result<DescriptorMachine, DescriptorGraphError>> {
         let mut machines = BTreeMap::new();
         for machine in &module.machines {
             if machines.insert(machine.id, machine).is_some() {
-                return Err(DescriptorGraphError::MissingOrAmbiguousMachine(machine.id));
+                return vec![Err(DescriptorGraphError::MissingOrAmbiguousMachine(
+                    machine.id,
+                ))];
             }
         }
         let mut pending: Vec<_> = roots.into_iter().collect();
@@ -13621,11 +14028,20 @@ pub mod descriptor_results {
             if reached.contains_key(&identity) {
                 continue;
             }
-            let body = *machines
-                .get(&identity)
-                .ok_or(DescriptorGraphError::MissingOrAmbiguousMachine(identity))?;
-            let graph = terminal_flow::adapt(module, body, kind, selected_calls, None)
-                .ok_or(DescriptorGraphError::IncompleteMachine(identity))?;
+            let Some(body) = machines.get(&identity).copied() else {
+                reached.insert(
+                    identity,
+                    Err(DescriptorGraphError::MissingOrAmbiguousMachine(identity)),
+                );
+                continue;
+            };
+            let Some(graph) = terminal_flow::adapt(module, body, kind, selected_calls, None) else {
+                reached.insert(
+                    identity,
+                    Err(DescriptorGraphError::IncompleteMachine(identity)),
+                );
+                continue;
+            };
             for call in graph.calls.values() {
                 match &call.target {
                     DescriptorInvocationTarget::Machine(callee) => pending.push(*callee),
@@ -13640,30 +14056,53 @@ pub mod descriptor_results {
                     DescriptorInvocationTarget::Provider { .. } => {}
                 }
             }
-            reached.insert(identity, graph);
+            reached.insert(identity, Ok(graph));
         }
-        let bodies: Vec<_> = module
+        let mut rows: Vec<_> = module
             .machines
-            .iter()
-            .filter(|body| reached.contains_key(&body.id))
-            .collect();
-        let initial: Vec<_> = bodies
             .iter()
             .filter_map(|body| reached.remove(&body.id))
             .collect();
-        if !bodies.iter().any(|body| {
-            body.operations()
-                .any(|operation| matches!(operation.kind, OperationKind::CallDynamic { .. }))
-        }) {
-            return Ok(initial);
-        }
-        bodies
-            .into_iter()
-            .map(|body| {
-                terminal_flow::adapt(module, body, kind, selected_calls, Some(&initial))
-                    .ok_or(DescriptorGraphError::IncompleteMachine(body.id))
+        // Missing call targets have no module row, but their failure must
+        // remain visible to both complete and optional consumers.
+        rows.extend(reached.into_values());
+        if !rows
+            .iter()
+            .filter_map(|row| row.as_ref().ok())
+            .any(|graph| {
+                machines.get(&graph.id).is_some_and(|body| {
+                    body.operations().any(|operation| {
+                        matches!(operation.kind, OperationKind::CallDynamic { .. })
+                    })
+                })
             })
-            .collect()
+        {
+            return rows;
+        }
+        let mut initial = Vec::with_capacity(rows.len());
+        let mut failures = Vec::new();
+        for row in rows {
+            match row {
+                Ok(graph) => initial.push(graph),
+                Err(error) => failures.push(Err(error)),
+            }
+        }
+        let mut rows = Vec::with_capacity(initial.len() + failures.len());
+        for graph in &initial {
+            let identity = graph.id;
+            let Some(body) = machines.get(&identity).copied() else {
+                rows.push(Err(DescriptorGraphError::MissingOrAmbiguousMachine(
+                    identity,
+                )));
+                continue;
+            };
+            rows.push(
+                terminal_flow::adapt(module, body, kind, selected_calls, Some(&initial))
+                    .ok_or(DescriptorGraphError::IncompleteMachine(identity)),
+            );
+        }
+        rows.extend(failures);
+        rows
     }
 
     pub fn terminal_reference_graph_from(

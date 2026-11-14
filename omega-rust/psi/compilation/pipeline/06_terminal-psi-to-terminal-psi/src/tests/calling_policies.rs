@@ -365,6 +365,20 @@ ensures result == 9
     update(&mut pair, 7);
     pair.right
 }
+public machine change_owned(mut pair: Pair) -> Pair
+reaches none crashes none terminates
+ensures result.left == 7
+{
+    pair.left = 7;
+    pair
+}
+machine owned_result(pair: Pair) -> u64
+requires pair.left == 9
+ensures result == 9
+{
+    let returned: Pair = change_owned(pair);
+    returned.left
+}
 "#;
     // A portable artifact needs actual package-owned source. Use the same
     // retained test package loader as the existing provider controls; do not
@@ -435,6 +449,63 @@ ensures result == 9
         Some(vec![(0, vec![*left])])
     );
 
+    // A failed descriptor row cannot erase an independent helper's frame.
+    // It must still reject a complete-closure request and cannot claim a
+    // precise frame of its own, even when its supplied header says otherwise.
+    let mut incomplete = received.clone();
+    let mut unserved = incomplete.machine(call.callee).unwrap().clone();
+    unserved.id = MachineId::new(incomplete.machines.len() as u64 + 1).unwrap();
+    let unserved_id = unserved.id;
+    unserved.contract.published_writes = None;
+    unserved
+        .structural_places
+        .push(unserved.structural_places[0]);
+    incomplete.machines.push(unserved);
+    let frames = terminal_semantics::borrowed_storage::inferred_write_frames(&incomplete).unwrap();
+    assert_eq!(frames.get(call.callee), Some(&Some(vec![(0, vec![*left])])));
+    assert_eq!(frames.get(unserved_id), Some(&None));
+    assert!(matches!(
+        terminal_semantics::descriptor_results::terminal_reference_graph_from(
+            &incomplete, [unserved_id]
+        ),
+        Err(terminal_semantics::descriptor_results::DescriptorGraphError::IncompleteMachine(id))
+            if id == unserved_id
+    ));
+    let mut dependent = incomplete.clone();
+    let mut changed = 0;
+    for operation in dependent.machines[0]
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.operations)
+    {
+        if let terminal_psi::OperationKind::CallUnit { callee, .. } = &mut operation.kind
+            && *callee == call.callee
+        {
+            *callee = unserved_id;
+            changed += 1;
+        }
+    }
+    assert_eq!(changed, 1);
+    let dependent_frames =
+        terminal_semantics::borrowed_storage::inferred_write_frames(&dependent).unwrap();
+    assert_eq!(dependent_frames.get(root.id), Some(&None));
+    assert_eq!(
+        dependent_frames.get(call.callee),
+        Some(&Some(vec![(0, vec![*left])]))
+    );
+
+    incomplete
+        .machines
+        .last_mut()
+        .unwrap()
+        .contract
+        .published_writes = Some(Vec::new());
+    assert!(
+        terminal_semantics::borrowed_storage::validate_write_frames(&incomplete)
+            .unwrap_err()
+            .contains("differs from its body")
+    );
+
     let mut omitted = program.clone();
     omitted
         .module
@@ -488,6 +559,57 @@ ensures result == 9
         terminal_codec::decode_module(&old),
         Err(terminal_codec::CodecError::UnsupportedFormatMarker(260))
     ));
+
+    // Private input writes must not turn a returned record into the old
+    // supplied value. The result has its own established contents, even when
+    // the helper publishes no outward write to the consumed input storage.
+    let owned = crate::judge_compilation(prepared(
+        super::build_purpose::frontier_of(source, "machine build_entry() { }"),
+        &["owned_result"],
+        terminal_codec::TerminalPublication::Portable,
+    ));
+    let [
+        Ok(RouteVerdict::Rejected {
+            unproved,
+            formations,
+            violations,
+            unestablished,
+            conflicts,
+            exceeded,
+        }),
+    ] = owned.as_slice()
+    else {
+        panic!("the changed returned value cannot retain the supplied nine: {owned:?}")
+    };
+    assert!(
+        formations.is_empty()
+            && violations.is_empty()
+            && unestablished.is_empty()
+            && conflicts.is_empty()
+            && exceeded.is_empty(),
+        "{owned:?}"
+    );
+    let [failure] = unproved.as_slice() else {
+        panic!("one wrong returned-value promise: {owned:?}")
+    };
+    assert!(matches!(
+        failure.kind,
+        terminal_check_tables::obligations::ObligationKind::NormalGuarantee { .. }
+    ));
+    assert_eq!(failure.cause, UnprovedCause::NoDerivation);
+    let correct = source.replace(
+        "ensures result == 9\n{\n    let returned",
+        "ensures result == 7\n{\n    let returned",
+    );
+    let owned = crate::judge_compilation(prepared(
+        super::build_purpose::frontier_of(&correct, "machine build_entry() { }"),
+        &["owned_result"],
+        terminal_codec::TerminalPublication::Portable,
+    ));
+    let [Ok(RouteVerdict::Accepted(accepted))] = owned.as_slice() else {
+        panic!("the caller uses the helper's actual returned-value promise: {owned:?}")
+    };
+    accepted.publish().unwrap();
 
     let changed = source.replace("pair.left = value;", "pair.right = value;");
     let rejected = crate::judge_compilation(prepared(
