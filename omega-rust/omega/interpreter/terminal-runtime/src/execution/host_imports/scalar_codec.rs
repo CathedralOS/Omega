@@ -160,3 +160,101 @@ fn integer_value_with_sign(
         (_, value) => Ok(value),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use semantic_vocabulary::{IntegerType, MachineId, ValueId, WidthParameter};
+
+    fn integer(bits: u16) -> IntegerType {
+        IntegerType::new(IntegerSign::Signed, bits).unwrap()
+    }
+
+    #[test]
+    fn symbolic_logical_and_storage_widths_are_refused_before_byte_conversion() {
+        let parameter = IntegerType::parameterized(
+            IntegerSign::Signed,
+            WidthParameter {
+                owner: MachineId::new(7).unwrap(),
+                value: ValueId::new(11).unwrap(),
+            },
+        );
+        for (logical, stored) in [
+            (parameter, integer(8)),
+            (integer(16), parameter),
+            (parameter, parameter),
+        ] {
+            assert!(
+                encode(
+                    TerminalScalarValue::Integer {
+                        scalar_type: logical,
+                        value: IntegerValue::Signed(-1),
+                    },
+                    ScalarType::Integer(stored),
+                )
+                .is_err()
+            );
+            assert!(
+                decode(
+                    &[0xff],
+                    ScalarType::Integer(stored),
+                    ScalarType::Integer(logical),
+                )
+                .is_err()
+            );
+        }
+        assert!(scalar_extent(ScalarType::Integer(parameter)).is_err());
+    }
+
+    #[test]
+    fn signed_storage_roundtrip_retains_the_logical_carrier_and_range() {
+        let logical = integer(16);
+        let storage = ScalarType::Integer(integer(8));
+        for value in [-128, -1, 0, 127] {
+            let original = TerminalScalarValue::Integer {
+                scalar_type: logical,
+                value: IntegerValue::Signed(value),
+            };
+            let bytes = encode(original, storage).unwrap();
+            assert_eq!(bytes[0], value as u8);
+            assert_eq!(
+                decode(&bytes[..1], storage, ScalarType::Integer(logical)),
+                Ok(original)
+            );
+        }
+        assert!(
+            encode(
+                TerminalScalarValue::Integer {
+                    scalar_type: logical,
+                    value: IntegerValue::Signed(128),
+                },
+                storage,
+            )
+            .is_err()
+        );
+        assert!(decode(&[0xff, 0xff], ScalarType::Integer(logical), storage).is_err());
+        assert!(decode(&[], storage, ScalarType::Integer(logical)).is_err());
+    }
+
+    #[test]
+    fn scalar_storage_still_requires_whole_bytes_and_refuses_addresses() {
+        let seven = ScalarType::Integer(integer(7));
+        let address = ScalarType::Integer(IntegerType::address(64).unwrap());
+        for storage in [seven, address] {
+            assert!(scalar_extent(storage).is_err());
+            assert!(
+                encode(
+                    TerminalScalarValue::Integer {
+                        scalar_type: integer(64),
+                        value: IntegerValue::Signed(0),
+                    },
+                    storage,
+                )
+                .is_err()
+            );
+            assert!(decode(&[0], storage, ScalarType::Integer(integer(64))).is_err());
+        }
+        assert_eq!(boundary_scalar_extent(address), Ok(8));
+        assert!(decode(&[2], ScalarType::Boolean, ScalarType::Boolean).is_err());
+    }
+}
