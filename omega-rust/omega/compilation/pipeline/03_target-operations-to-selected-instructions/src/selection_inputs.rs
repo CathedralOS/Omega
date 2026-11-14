@@ -377,18 +377,13 @@ pub(crate) mod address_join_input {
                 .filter(|parameter| permits(&parameter.semantic))
                 .map(|parameter| parameter.semantic.structural_type);
         }
-        if let Some(result) = source.instructions().find_map(|row| match &row.kind {
-            legalized_operations::LegalizedScalarInstructionKind::EstablishElementView {
-                result,
-                ..
-            }
-            | legalized_operations::LegalizedScalarInstructionKind::ElementViewSubslice {
-                result,
-                ..
-            } => (result.place == place).then_some(result),
-            _ => None,
-        }) {
-            return Some(result.structural_type);
+        // View descriptors have their own stored value, independently of their
+        // backing. Reuse the declared descriptor classifier for byte and element
+        // views; actual transport still needs their established physical home.
+        if let Some(identity) = crate::selection::established_view_input::view_type(source, place)
+            .or_else(|| crate::selection::established_view_input::element_view_type(source, place))
+        {
+            return Some(identity);
         }
         if let Some((_, result)) = crate::selection::aggregate_result_input::home(source, place) {
             return Some(result.structural_type);
