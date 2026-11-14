@@ -300,7 +300,7 @@ fn a_chosen_provider_that_does_not_refine_its_requirement_stops_the_program() {
     );
     assert_eq!(
         supplied_target(&stray, REACHES).unwrap_err(),
-        "not supported yet: declaration provider that does not give a supplied requirement exactly one machine; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong"
+        "not supported yet: declaration provider does not give the supplied requirement exactly one machine; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong"
     );
     let crashing = format!(
         "{SLOT}{NATIVE_DEFAULT}Native satisfies Service {{\n    machine go() reaches none crashes Trap {{\n    }}\n}}\n"
