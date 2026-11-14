@@ -1,10 +1,9 @@
 // The package build machine's signature is enforced by shape:
 // the first parameter must be spelled `builder: &mut Build` — the
-// parameter name itself is part of the contract. A declared return
-// type is accepted; the returned value is discarded.
+// parameter name itself is part of the contract. The entry returns
+// nothing: a Build's result is the requests it made.
 
-machine build(builder: &mut Build) -> i32 {
+machine build(builder: &mut Build) {
     Build::application(builder, "build_machine_signature");
     builder.freestanding = true;
-    0
 }
