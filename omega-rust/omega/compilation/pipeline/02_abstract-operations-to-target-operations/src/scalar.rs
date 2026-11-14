@@ -1084,8 +1084,8 @@ pub(crate) mod element_views {
         StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
         StructuralTypeShape,
     };
+    use terminal_semantics::descriptor_parameter_access;
     use terminal_semantics::descriptor_results::result_access;
-    use terminal_semantics::{borrowed_storage_parameter, descriptor_parameter_access};
 
     mod establishment {
         use super::*;
@@ -1509,7 +1509,10 @@ pub(crate) mod element_views {
                 structural_types.values().copied(),
             )?;
             if entry.block == function.entry
-                || borrowed_storage_parameter(parameter, structural_types.values().copied())
+                || !abstract_operations::control_flow::address_joins::is_descriptor_join(
+                    parameter,
+                    |identity| structural_types.get(identity).copied(),
+                )
                 || !source.access.admits_referent(descriptor_access)
                 || !parameter.projected_qualifications.is_empty()
             {

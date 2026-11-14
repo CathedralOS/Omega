@@ -14725,9 +14725,7 @@ pub mod descriptor_results {
         let Some(declaration) = declarations.next() else {
             return false;
         };
-        declarations.next().is_none()
-            && (declaration.shape.is_borrowed_byte_carrier()
-                || matches!(declaration.shape, StructuralTypeShape::ElementView { .. }))
+        declarations.next().is_none() && declaration.shape.is_view_descriptor()
     }
 
     pub fn descriptor_value_access<'a>(

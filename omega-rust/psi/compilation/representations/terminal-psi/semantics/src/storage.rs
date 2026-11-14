@@ -2641,6 +2641,50 @@ pub mod borrowed_storage {
         }
         result
     }
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use terminal_psi::TerminalIdentityIndex;
+
+        #[test]
+        fn a_slice_keeps_its_input_field_but_not_a_later_field_or_index() {
+            let first = StructuralPathSegment::Field(TerminalIdentityIndex(7));
+            let projection = Projection::new(std::slice::from_ref(&first))
+                .with_window(
+                    ValueId::new(1).unwrap(),
+                    ValueId::new(2).unwrap(),
+                    (semantic_vocabulary::BlockId::new(1).unwrap(), 0),
+                )
+                .without_runtime_coordinates();
+            assert_eq!(
+                projection.original_descriptor_path(),
+                Some(std::slice::from_ref(&first))
+            );
+            assert_eq!(
+                projection
+                    .then(&Projection::new(&[]))
+                    .original_descriptor_path(),
+                Some(std::slice::from_ref(&first))
+            );
+            for later in [
+                StructuralPathSegment::Field(TerminalIdentityIndex(8)),
+                StructuralPathSegment::FixedIndex(0),
+            ] {
+                let changed = projection
+                    .then(&Projection::new(&[later]))
+                    .without_runtime_coordinates();
+                assert_eq!(
+                    changed.path.as_slice(),
+                    std::slice::from_ref(&first),
+                    "the overlap path stays conservative"
+                );
+                assert!(
+                    changed.original_descriptor_path().is_none(),
+                    "the old overlap path cannot identify a later borrowed field"
+                );
+            }
+        }
+    }
 }
 pub(crate) mod calling_storage {
 
@@ -2905,45 +2949,6 @@ pub(crate) mod calling_storage {
             StructuralTypeDeclaration, TargetLayoutApplication, TargetLayoutFieldStorage,
             TargetLayoutRealization, TargetLayoutSchemaArgument, TerminalIdentityIndex,
         };
-
-        #[test]
-        fn a_slice_keeps_its_input_field_but_not_a_later_field_or_index() {
-            let first = StructuralPathSegment::Field(TerminalIdentityIndex(7));
-            let projection = Projection::new(std::slice::from_ref(&first))
-                .with_window(
-                    ValueId::new(1).unwrap(),
-                    ValueId::new(2).unwrap(),
-                    (semantic_vocabulary::BlockId::new(1).unwrap(), 0),
-                )
-                .without_runtime_coordinates();
-            assert_eq!(
-                projection.original_descriptor_path(),
-                Some(std::slice::from_ref(&first))
-            );
-            assert_eq!(
-                projection
-                    .then(&Projection::new(&[]))
-                    .original_descriptor_path(),
-                Some(std::slice::from_ref(&first))
-            );
-            for later in [
-                StructuralPathSegment::Field(TerminalIdentityIndex(8)),
-                StructuralPathSegment::FixedIndex(0),
-            ] {
-                let changed = projection
-                    .then(&Projection::new(&[later]))
-                    .without_runtime_coordinates();
-                assert_eq!(
-                    changed.path,
-                    [first.clone()],
-                    "the overlap path stays conservative"
-                );
-                assert!(
-                    changed.original_descriptor_path().is_none(),
-                    "the old overlap path cannot identify a later borrowed field"
-                );
-            }
-        }
 
         fn identity(value: u64) -> StructuralTypeId {
             StructuralTypeId::new(value).unwrap()

@@ -36,7 +36,7 @@ explanations neither retry assumption subsets nor decide program obligations.
 [joins.rs](src/joins.rs) infers and checks join predicates;
 [crashes.rs](src/crashes.rs) states crash-site coverage;
 [arrivals.rs](src/arrivals.rs) admits a loop head's declared invariant.
-[ranking.rs](src/ranking.rs) admits a loop's ranking and states its
+[rankings.rs](src/rankings.rs) admits a loop's ranking and states its
 comparisons.
 [prove/reach.rs](src/prove/reach.rs) says which unproved goals the integer
 rules could not have decided
@@ -54,7 +54,7 @@ rules could not have decided
 | `ArrivalInvariant` | the destination block's predicate (a loop head's declared invariant, its member's `requires`, or a join's inferred predicate), its parameters replaced by this edge's arguments (`Truth` when the join has none) | the same, on the arrival edge |
 | `CrashCoverage` | at a `Crash` terminator, its guard's clauses and the disjunction of this machine's published alternatives for the cause (`Falsehood` when it publishes none); at a call, the callee's route for the cause with the call's actuals implies that disjunction | the same, before the crashing terminator or call |
 | `RankComparison` | on an edge inside a ranked cycle, the rank the edge arrives with against the rank of the block it leaves: `<` where the edge claims strict descent, `<=` where it claims to keep the rank ([Rankings](#rankings)) | the same, on that edge |
-| `WellFoundedness` | the rank at a ranked cycle's first block is no less than the least value of the cycle's carrier | the same, at that block's entry |
+| `WellFoundedness` | a structural `FiniteIntegerRanking` judgment retaining the component's complete checked rank bindings and finite integer carriers | no prover hypotheses; graph, tuple and carrier admission must pass |
 
 A `Loan` is not proved: it is judged by structure ([Loans](#loans)). Any
 other kind is refused as `Unsupported`.
@@ -807,50 +807,41 @@ An unranked loop proves nothing about ending, and nothing here says it ends.
 
 ## Rankings
 
-A machine that calls itself and writes `terminates by remaining` promises
-that its loop ends and names the value that shows it. Elaboration states
-that claim as the machine's `ranked_scc`
-([structure elaboration](../05_typed-trees-to-terminal-psi/README.md#rankings)):
-a rank for every block of the loop's cycle, and for every edge inside the
-cycle the rank it arrives with and whether that is a strict decrease.
-[ranking.rs](src/ranking.rs) judges the claim and trusts none of it
-([control flow](../../../../../wiki/spec/terminal-psi/control_flow.md#safety-and-progress):
-"Checking establishes well-foundedness and each comparison").
+Elaboration records each loop's private measure in `ranked_scc`, including
+measures computed from borrowed slice lengths and transfers between member
+heads. [rankings.rs](src/rankings.rs) admits the complete claim before any
+proof runs (`prepare` calls `admit`). Following
+[control flow](../../../../../wiki/spec/terminal-psi/control_flow.md#safety-and-progress),
+it reconstructs the actual cyclic components and checks:
 
-The structure is admitted whole before anything is decided (`admit`, called
-from `prepare`), and a ranking that fails is a `ForeignIdentity` refusal of
-the machine:
+- Exact ordered membership, every internal edge, and exactly one shared
+  well-foundedness obligation plus a comparison obligation for each edge.
+- Nonempty integer tuples with unchanged arity and carriers. Every value has
+  its declared type and is available where compared. Addresses and unresolved
+  integer widths cannot supply a finite carrier.
+- Each successor tuple equals the target's observations under that edge's
+  exact scalar and structural arguments. Computed observations retain their
+  constants, exact subtraction and descriptor bindings.
+- Removing strict edges leaves no cycle, so every complete cycle must descend.
 
-| Rule | Sentence of the specification |
-| --- | --- |
-| the ranked blocks are one cycle of the graph, recomputed here | "The verifier derives each strongly connected component (SCC) from the actual graph" |
-| the edge rows are exactly that cycle's internal edges, in edge order | "Missing, surplus, reordered, or substituted edge claims reject." |
-| every rank is one value of one fixed-width integer type | "A rank's carrier is any fixed-width integer type" |
-| a block's rank is a machine formal or a parameter of a block that dominates it | a rank must be a value in scope where it is compared |
-| an edge's successor rank is its target's rank as the edge binds it: the argument passed for a rank that is the target's own parameter, the same value otherwise | "Rank substitution follows the actual selected scalar and structural successor arguments." |
-| the edges that do not claim strict descent form no cycle | "Removing strict edges must leave an acyclic graph: every cycle encounters descent, not just the cycles selected by a traversal." |
+The admitted associations are retained by obligation identity for discharge and
+proof reuse. `WellFoundedness` produces `FiniteIntegerRanking`, a structural
+judgment containing the checked bindings and finite carriers. It does not ask
+the prover for a carrier-floor proposition. Each edge comparison separately
+goes through the ordinary prover and kernel: strict edges owe lexicographic
+`successor < source`, and preserving edges owe `successor <= source`. A finite
+carrier cannot substitute for a missing comparison proof.
 
-A rank of several values (a lexicographic rank) and a block rank that is no
-parameter in scope are refused by name as `Unsupported`. So is a machine
-whose contract publishes `Terminates` while its graph holds a cycle with no
-ranking (`contract termination promise over an unranked cycle`):
-[termination](../../../../../wiki/spec/language/termination.md#published-guarantees-and-private-witnesses),
-"A cyclic terminating body must supply its witness".
+Storage observations relate exact captured values. Earlier reads can supply an
+equality only while their backing is unchanged and the observation remains in
+scope. Copies and block arrivals retain the loop entries crossed while tracing
+storage; a saved descriptor cannot acquire endpoint values from a later
+iteration. Partial measure operations keep their ordinary safety obligations,
+including in acyclic bodies.
 
-The comparisons are goals for the one prover. A strict edge owes
-`successor_rank < source_rank` and a preserving edge `successor_rank <=
-source_rank`, decided on the edge, so the jump back of `count_down(remaining
-- 1)` is proved from the result equation of the subtraction (`a - d < a`
-when `0 < d`, `IntegerSubtractOrder`). The shared `WellFoundedness` question
-is the floor: the rank is no less than the least value of its carrier. With
-one carrier at every row and strict descent on every cycle, an execution
-cannot stay in the loop forever. A comparison with no derivation rejects the
-program like any unproved obligation, stated as what the call owes: "cannot
-prove the `terminates by` measure decreases at this call".
-
-What is not judged here is that the other machines a loop calls end.
-Elaboration refuses a promise that reaches a cycle no member ranks, and each
-ranked cycle is judged in its own machine.
+A machine publishing `Terminates` with an unranked cycle is refused.
+Elaboration also refuses a promise that reaches another unranked call cycle;
+this judgment does not establish termination of external callees.
 
 ## The prover
 
