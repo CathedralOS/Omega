@@ -109,7 +109,7 @@ impl HandleWordAliases {
 }
 
 fn handle_word(scalar_type: ScalarType) -> bool {
-    matches!(scalar_type, ScalarType::Integer(integer) if !integer.is_address() && integer.bits() == 64)
+    matches!(scalar_type, ScalarType::Integer(integer) if !integer.is_address() && integer.bits() == Some(64))
 }
 
 /// Analysis-owned activation coordinate plus the original owned storage
