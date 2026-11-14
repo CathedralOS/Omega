@@ -715,6 +715,7 @@ pub(crate) fn defer_unbound_calls(
                 CallReceiver::Value
             };
             if let Some(request) = targets.unserved(call.target_symbol, receiver) {
+                let request = case_call(program, request, receiver, call.target.as_str());
                 // A compiler operation the call was recognized as, or a
                 // selection bound some other way, is not a bare name.
                 let bare = (matches!(receiver, CallReceiver::Absent)
@@ -750,6 +751,8 @@ pub(crate) fn defer_unbound_calls(
                             CallReceiver::Named(call.receiver_symbol)
                         };
                         if let Some(request) = targets.unserved(call.target_symbol, receiver) {
+                            let request =
+                                case_call(program, request, receiver, call.target.as_str());
                             let bare = (matches!(receiver, CallReceiver::Absent)
                                 && call.installed_interrupt_operation.is_none()
                                 && !call.static_machine_parameter.is_valid())
@@ -901,6 +904,36 @@ pub(crate) fn defer_unbound_calls(
         program.record_deferred_refusal(declaration, request, source_span);
     }
     Ok(())
+}
+
+/// A call typing left without a declared target, written `Sum::Case(..)`:
+/// its qualifier is a data declaration and its name one of that
+/// declaration's cases. That is an error in every program
+/// (`DeferredRequest::CaseCalledAsMachine`); any other request is returned
+/// as it came.
+fn case_call(
+    program: &TypedTrees,
+    request: DeferredRequest,
+    receiver: CallReceiver,
+    written: &str,
+) -> DeferredRequest {
+    let CallReceiver::Named(owner) = receiver else {
+        return request;
+    };
+    let names_case = matches!(
+        request,
+        DeferredRequest::UnresolvedCallTarget | DeferredRequest::UncallableCallTarget
+    ) && owner.is_valid()
+        && program.symbols.get(owner).kind == SymbolKind::Data
+        && program
+            .symbols
+            .find_child_by_name_and_kind(owner, written, SymbolKind::Variant)
+            .is_some();
+    if names_case {
+        DeferredRequest::CaseCalledAsMachine
+    } else {
+        request
+    }
 }
 
 /// The value spellings the compiler gives a meaning without a symbol: the

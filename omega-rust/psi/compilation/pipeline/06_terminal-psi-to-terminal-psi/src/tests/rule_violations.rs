@@ -241,3 +241,36 @@ fn a_quoted_literal_supplied_to_a_scalar_place_is_rejected() {
          to holds a `u32`",
     );
 }
+
+/// data_and_literals.md: "Case values always use their carrier-qualified
+/// member path". `Light` has the cases `On` and `Off`; `Light::Dim` names
+/// nothing it declares.
+#[test]
+fn a_case_path_its_sum_does_not_declare_is_rejected() {
+    let program = |case: &str| {
+        format!(
+            "data Light {{ case On; case Off; }}\nmachine pick() -> Light {{\n    \
+             Light::{case}\n}}\n"
+        )
+    };
+    accepted(&program("On"));
+    rejected(&program("Dim"), "data `Light` has no member `Dim`");
+}
+
+/// data_and_literals.md: "A sum value is written as a case literal", and
+/// "data does not own machine declarations. Collisions reject". The twin
+/// writes the same case as its literal.
+#[test]
+fn a_case_called_like_a_machine_is_rejected() {
+    let program = |value: &str| {
+        format!(
+            "data Level {{ case Set(value: u16); case Unset; }}\nmachine pick() -> Level {{\n    \
+             {value}\n}}\n"
+        )
+    };
+    accepted(&program("Level::Set { value: 7 }"));
+    rejected(
+        &program("Level::Set(7)"),
+        "this call names a case of a sum, and a case is not a machine",
+    );
+}

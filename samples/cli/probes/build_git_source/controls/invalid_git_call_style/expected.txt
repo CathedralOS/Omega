@@ -1,1 +1,1 @@
-cannot resolve declared package closure: cannot resolve root package: cannot project package dependencies: dependency source must be a direct `Source::Path` or `Source::Git` literal
+this call names a case of a sum, and a case is not a machine
