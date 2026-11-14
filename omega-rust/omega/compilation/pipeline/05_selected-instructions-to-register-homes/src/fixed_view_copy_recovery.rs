@@ -42,7 +42,7 @@ pub(crate) mod fixed_view_copy {
             pub(crate) fn is_i64(scalar: ScalarType) -> bool {
                 matches!(
                     scalar,
-                    ScalarType::Integer(integer) if integer.bits() == 64
+                    ScalarType::Integer(integer) if integer.bits() == Some(64)
                 )
             }
         }
