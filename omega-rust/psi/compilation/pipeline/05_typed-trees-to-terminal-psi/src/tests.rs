@@ -2304,7 +2304,7 @@ fn a_moved_owned_field_is_refilled_before_its_whole_owner_is_transferred() {
                     &forged,
                     &elaboration.module.structural_types,
                 ),
-                Err(terminal_semantics::plain_affine::Error::Malformed(_))
+                Err(terminal_semantics::plain_affine::Error::Malformed { .. })
             ),
             "the supplied disposition cannot substitute for actual vacancy"
         );

@@ -1850,6 +1850,28 @@ pub(crate) mod primitive_place {
         ByteElement,
     }
 
+    /// A scalar field is a stored leaf even without a synthetic structural
+    /// carrier row. Use the same primitive reader grammar as static paths;
+    /// callers still distinguish byte elements and enforce their own access.
+    pub fn runtime_read_projection_tip<'a>(
+        declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+        path: &[StructuralPathSegment],
+    ) -> Option<Position> {
+        match walk_primitive_projection(
+            declarations,
+            root,
+            path,
+            primitive_read_scalar_field,
+            |_| {},
+        )? {
+            ProjectionTip::Declared(declaration) => Some(Position::Declared(declaration.id)),
+            ProjectionTip::ScalarField(Some(scalar)) => Some(Position::ScalarField(scalar)),
+            ProjectionTip::ScalarField(None) => None,
+            ProjectionTip::ByteElement => Some(Position::ByteElement),
+        }
+    }
+
     pub fn runtime_structural_path_tip<'a>(
         declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
         root: StructuralTypeId,

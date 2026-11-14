@@ -1531,6 +1531,79 @@ pub(crate) mod tests {
         }
     }
 
+    // The real interpreter must replace exactly the selected owned element.
+    // A neighboring element and sibling field retain their supplied values;
+    // the same source still refuses an index beyond its declared extent.
+    #[test]
+    fn source_jobs_execute_indexed_record_replacement_without_changing_siblings() {
+        let program = program(
+            "data Item { value: u64; }\n\
+             data Table { items: [Item; 2]; side: Item; }\n\
+             machine answer(mut table: Table, index: u64) -> Table requires index < 2 {\n\
+                 table.items[index] = Item { value: 7 };\n\
+                 table\n\
+             }",
+        );
+        let item = |value| BuildTimeValue::Struct {
+            type_name: "Item".into(),
+            fields: vec![("value".into(), BuildTimeValue::Int(value))],
+        };
+        let supplied = BuildTimeValue::Struct {
+            type_name: "Table".into(),
+            fields: vec![
+                (
+                    "items".into(),
+                    BuildTimeValue::Array(vec![item(1), item(2)]),
+                ),
+                ("side".into(), item(9)),
+            ],
+        };
+        let arguments = [supplied.clone(), BuildTimeValue::Int(1)];
+        let entry = bind(&program, &arguments).expect("judge the actual owned caller");
+        let mut accounting = crate::SourceCompletionAccounting::default();
+        let result = entry
+            .invoke_recorded(target(), &mut accounting)
+            .expect("execute the indexed record store and ordinary owned return");
+        fn field<'a>(value: &'a BuildTimeValue, name: &str) -> &'a BuildTimeValue {
+            let BuildTimeValue::Struct { fields, .. } = value else {
+                panic!("actual source record")
+            };
+            &fields
+                .iter()
+                .find(|(key, _)| key == name)
+                .expect("complete returned field roster")
+                .1
+        }
+        let BuildTimeValue::Array(values) = field(result.value(), "items") else {
+            panic!("complete returned array")
+        };
+        assert_eq!(values.len(), 2);
+        assert_eq!(field(&values[0], "value"), &BuildTimeValue::Int(1));
+        assert_eq!(field(&values[1], "value"), &BuildTimeValue::Int(7));
+        assert_eq!(
+            field(field(result.value(), "side"), "value"),
+            &BuildTimeValue::Int(9)
+        );
+        let [crate::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts() else {
+            panic!("one exact call was interpreted")
+        };
+        assert_eq!(receipt.arguments(), &arguments);
+        receipt.validate_charge().unwrap();
+        accounting.validate_charges().unwrap();
+        let error = bind(&program, &[supplied, BuildTimeValue::Int(2)])
+            .err()
+            .expect("the same source requires the actual index bound before execution");
+        assert!(
+            error.contains("cannot prove requires contract") && error.contains("index < 2"),
+            "{error}"
+        );
+        assert_eq!(
+            accounting.receipts().len(),
+            1,
+            "the refused actual never executes"
+        );
+    }
+
     #[test]
     fn source_jobs_establish_record_domains_without_discarding_extra_fields() {
         let entry = program(

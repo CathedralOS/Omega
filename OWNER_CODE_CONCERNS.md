@@ -73,6 +73,13 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### Missing locked archives stop every pool acquire or release
+- Category: Re-deriving
+- Where: [tools/xtask/src/worktree.rs:532](tools/xtask/src/worktree.rs#L532), `list_worktrees`
+- Saw: the worktree list already records location, lock and prunable status. The pool skips prunable entries but then runs Git inside a missing locked archive checkout, aborting the complete acquire/release command. Locked archives deliberately retain admin, HEAD and restoration evidence; they must not be pruned or unlocked to make discovery work. Root reproduced this while extracting the borrowed-data repair and temporarily created only reversible `.git` handles for the command, then removed them without changing archive source, locks or absent restoration destinations.
+- Cost: an unavailable locked archive prevents unrelated warm pool slots from being acquired or released. Inspect retained Git admin metadata or safely skip unavailable locked checkouts without destroying their recovery evidence.
+- Reported: 2026-11-14, Codex, while isolating the checked mutable-data loan prerequisite for semantic policy normalization
+
 ### A provider default may still name a data type, which the spec says is not a provider value
 - Category: zombie machinery
 - Where: `omega-rust/psi/compilation/build-time-evaluation/src/product.rs` `ProviderForm::DefaultClosure` (from #3015) and its test `a_provider_default_may_name_the_data_type_that_owns_its_closure`
