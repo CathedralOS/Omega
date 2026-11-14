@@ -111,6 +111,39 @@ pub struct AcceptedClosure {
     pub seals: Vec<ObligationEvidenceSeal>,
 }
 
+impl AcceptedClosure {
+    /// The advisory diagnostics of this accepted closure, in machine order.
+    /// An advisory is information about a program the route accepted: it is
+    /// no part of the verdict, and nothing is proved or pruned because of
+    /// it (`wiki/spec/language/state_contracts.md`, "Unreachable branches":
+    /// "This is an advisory diagnostic, not an inherent language error").
+    ///
+    /// Each statement after a call that never returns is one warning at the
+    /// first such statement, followed by one note at the call
+    /// (state_contracts.md, "Statements after a call that never returns").
+    pub fn advisories(&self) -> Vec<Diagnostic> {
+        let located = |diagnostic: Diagnostic, origin: SourceOrigin| match origin {
+            SourceOrigin::Authored(span) => diagnostic.with_source_span(span),
+            SourceOrigin::Unpositioned(_) => diagnostic,
+        };
+        let mut advisories = Vec::new();
+        for (machine, unreachable) in self.elaboration.unreachable_statements() {
+            let owner = describe::owner(self.elaboration.names.get(machine), unreachable.call);
+            advisories.push(located(
+                Diagnostic::warning(format!(
+                    "unreachable statement in {owner}: the call before it never returns, so this statement and every statement after it never execute"
+                )),
+                unreachable.statement,
+            ));
+            advisories.push(located(
+                Diagnostic::note("this call never returns"),
+                unreachable.call,
+            ));
+        }
+        advisories
+    }
+}
+
 /// An accepted closure published as Terminal Psi: the canonical artifact of
 /// the module the route checked, and the evidence seals bound to that
 /// module's identity, which travel beside it in memory to Omega 00.

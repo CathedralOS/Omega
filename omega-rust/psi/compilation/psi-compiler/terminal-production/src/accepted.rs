@@ -13,6 +13,9 @@ pub struct AcceptedTerminalSource {
     closure: Box<AcceptedClosure>,
     correspondence: typed_trees_to_terminal_psi::SourceCorrespondence,
     publication: terminal_codec::TerminalPublication,
+    /// What the route says about the accepted source without refusing it
+    /// (`advisories`), in the order the parts were judged.
+    advisories: Vec<Diagnostic>,
 }
 
 /// One boundary requirement a machine of an accepted module calls.
@@ -38,13 +41,23 @@ impl AcceptedTerminalSource {
         let prepared =
             typed_trees_to_terminal_psi::prepare_compilation(&source, compilation, publication);
         let verdicts = terminal_psi_to_terminal_psi::judge_compilation(prepared.program);
+        let advisories = advisories(&verdicts);
         let closure = accept_compilation(verdicts)?;
         Ok(Self {
             source,
             closure,
             correspondence: prepared.source,
             publication,
+            advisories,
         })
+    }
+
+    /// The advisory diagnostics of the accepted compilation: warnings and
+    /// their notes, none of which is an error. They are data on the
+    /// accepted judgment for whoever reports the compilation; nothing here
+    /// prints them and no later stage reads them.
+    pub fn advisories(&self) -> &[Diagnostic] {
+        &self.advisories
     }
 
     /// Binds source companions to this exact accepted code owner. The Build
@@ -277,6 +290,36 @@ impl AcceptedTerminalSource {
     pub fn is_invocation(&self) -> bool {
         self.publication == terminal_codec::TerminalPublication::Invocation
     }
+}
+
+/// The advisories of every accepted part: the entry closure and each
+/// generic check form. One authored machine may be judged in more than one
+/// part, and its advisory is the same in each, so an advisory already listed
+/// is not listed again.
+fn advisories(verdicts: &[Result<RouteVerdict, CompilationRefusal>]) -> Vec<Diagnostic> {
+    let mut advisories: Vec<Diagnostic> = Vec::new();
+    for verdict in verdicts {
+        let Ok(RouteVerdict::Accepted(accepted)) = verdict else {
+            continue;
+        };
+        // A warning and the note after it are one advisory.
+        let part = accepted.advisories();
+        let mut rest = &part[..];
+        while !rest.is_empty() {
+            let length = 1 + rest[1..]
+                .iter()
+                .take_while(|diagnostic| {
+                    diagnostic.severity == diagnostics::DiagnosticSeverity::Note
+                })
+                .count();
+            let (advisory, after) = rest.split_at(length);
+            if !advisories.windows(length).any(|listed| listed == advisory) {
+                advisories.extend_from_slice(advisory);
+            }
+            rest = after;
+        }
+    }
+    advisories
 }
 
 fn accept_compilation(

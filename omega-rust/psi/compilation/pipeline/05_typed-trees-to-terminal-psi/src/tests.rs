@@ -1099,6 +1099,142 @@ fn a_no_normal_call_inside_an_expression_is_refused() {
     assert_eq!(refusal.detail, "call no-normal call inside an expression");
 }
 
+/// An authored position, so a test can tell two constructs apart.
+fn authored(start: usize) -> SourceOrigin {
+    SourceOrigin::Authored(source::SourceSpan::new(
+        source::SourceId(0),
+        source::Span::new(start, start + 1),
+    ))
+}
+
+fn never_returns() -> Outcome {
+    Outcome {
+        completes_normally: false,
+        ..returns_normally()
+    }
+}
+
+/// state_contracts.md, "Statements after a call that never returns": "the
+/// call has no normal successor", and what follows contributes "no executed
+/// continuation, no synthetic Unit result, no cleanup edge after the call".
+/// The call is the block's terminator and nothing after it is lowered: the
+/// addition that would owe its range owes nothing, the machine has one
+/// block and one edge, and the first statement left out is recorded with
+/// the call, once, however many follow.
+#[test]
+fn statements_after_a_call_that_never_returns_are_not_lowered() {
+    // machine 1(x: u32) { f(); let erased = 0; let y = x + 1; g(); }
+    let mut call_f = call(2, Vec::new(), None);
+    call_f.source = authored(10);
+    let mut sum = strict(Strict::Add, slot(0, u32_type()), integer(1), u32_type());
+    sum.source = authored(20);
+    let mut call_g = call(3, Vec::new(), None);
+    call_g.source = authored(30);
+    let body = Body {
+        slots: scalars(vec![u32_type(), u32_type(), u32_type()]),
+        statements: vec![
+            Statement::Evaluate(call_f),
+            Statement::Witness {
+                slot: 1,
+                term: integer(0),
+            },
+            Statement::Bind {
+                slot: 2,
+                value: sum,
+            },
+            Statement::Evaluate(call_g),
+        ],
+    };
+    let lowered = try_lower(
+        body,
+        vec![
+            signature(vec![u32_type()], None),
+            signature(Vec::new(), None),
+            signature(Vec::new(), None),
+        ],
+        vec![returns_normally(), never_returns(), returns_normally()],
+    )
+    .unwrap();
+    assert_module_and_tables_agree(&lowered.machine, &lowered.tables);
+    assert_eq!(lowered.machine.blocks.len(), 1);
+    let entry = block(&lowered.machine, 1);
+    assert!(entry.operations.is_empty());
+    assert!(matches!(
+        entry.terminator,
+        Terminator::InvokeNoNormal { callee, .. } if callee == id(2)
+    ));
+    assert_eq!(obligations(&lowered.tables), Vec::new());
+    assert_eq!(
+        lowered.sources.unreachable,
+        vec![crate::Unreachable {
+            statement: authored(20),
+            call: authored(10),
+        }]
+    );
+}
+
+/// "The call can return on some paths: the continuation is checked on those
+/// returning paths." The same body against a callee that may return is
+/// lowered whole: the addition owes its range and nothing is recorded as
+/// unreachable.
+#[test]
+fn statements_after_a_call_that_may_return_are_lowered() {
+    // machine 1(x: u32) { f(); let y = x + 1; }
+    let body = Body {
+        slots: scalars(vec![u32_type(), u32_type()]),
+        statements: vec![
+            Statement::Evaluate(call(2, Vec::new(), None)),
+            Statement::Bind {
+                slot: 1,
+                value: strict(Strict::Add, slot(0, u32_type()), integer(1), u32_type()),
+            },
+        ],
+    };
+    let lowered = try_lower(
+        body,
+        vec![
+            signature(vec![u32_type()], None),
+            signature(Vec::new(), None),
+        ],
+        vec![returns_normally(), returns_normally()],
+    )
+    .unwrap();
+    assert!(
+        obligations(&lowered.tables)
+            .iter()
+            .any(|kind| matches!(kind, ObligationKind::OperationSafety { .. }))
+    );
+    assert!(matches!(
+        block(&lowered.machine, 1).terminator,
+        Terminator::ReturnUnit { .. }
+    ));
+    assert!(lowered.sources.unreachable.is_empty());
+}
+
+/// A call that never returns with only an erased binding after it has no
+/// unreachable executable statement, so nothing is recorded: the warning is
+/// issued "at the first unreachable executable statement".
+#[test]
+fn an_erased_binding_after_a_call_that_never_returns_is_not_reported() {
+    let body = Body {
+        slots: scalars(vec![u32_type()]),
+        statements: vec![
+            Statement::Evaluate(call(2, Vec::new(), None)),
+            Statement::Witness {
+                slot: 0,
+                term: integer(0),
+            },
+        ],
+    };
+    let lowered = try_lower(
+        body,
+        vec![signature(Vec::new(), None), signature(Vec::new(), None)],
+        vec![returns_normally(), never_returns()],
+    )
+    .unwrap();
+    assert!(lowered.sources.unreachable.is_empty());
+}
+
 /// A Build selection's designated operands stand beside a call of the
 /// toolchain's selection protocol, which is a boundary. Lowering refuses a
 /// body that puts them on a machine call instead of dropping them: no
