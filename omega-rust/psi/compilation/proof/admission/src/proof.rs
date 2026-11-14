@@ -1637,9 +1637,11 @@ pub(crate) mod order_discreteness {
                 for sign in [IntegerSign::Signed, IntegerSign::Unsigned] {
                     let integer_type = IntegerType::new(sign, bits).unwrap();
                     let minimum =
-                        ScalarTerm::integer(integer_type, integer_type.minimum_value().unwrap()).unwrap();
+                        ScalarTerm::integer(integer_type, integer_type.minimum_value().unwrap())
+                            .unwrap();
                     let maximum =
-                        ScalarTerm::integer(integer_type, integer_type.maximum_value().unwrap()).unwrap();
+                        ScalarTerm::integer(integer_type, integer_type.maximum_value().unwrap())
+                            .unwrap();
                     assert!(adjacent(&minimum, false).is_none());
                     assert!(adjacent(&maximum, true).is_none());
                     assert!(adjacent(&minimum, true).is_some());
