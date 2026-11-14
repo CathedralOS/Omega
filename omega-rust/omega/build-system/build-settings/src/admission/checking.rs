@@ -54,7 +54,7 @@ refused before an unsupported rejoin can be treated as settled.
 */
 pub fn settle_rejoined_build_slice(
     constants: &compilation_products::BuildConstants,
-    rejoined: psi_compiler::BuildSourceInput<'_>,
+    rejoined: source_compiler::BuildSourceInput<'_>,
     entry: symbols::SymbolHandle,
     packages: Option<&PackageCompilationInputs>,
     anonymous_source: Option<&package_compilation::AnonymousSourceCapture>,
@@ -117,7 +117,7 @@ fn compare_rejoined_constants(
         .collect::<Vec<_>>();
     family
         .sort_unstable_by_key(|row| (row.0, row.1, row.2, row.3.arena_index(), row.3.generation()));
-    let resolve = |reads: &[psi_compiler::ConstantRead]| {
+    let resolve = |reads: &[source_compiler::ConstantRead]| {
         let mut values = Vec::with_capacity(reads.len());
         for read in reads {
             let declaration = read.declaration.as_ref().ok_or_else(|| {
@@ -147,6 +147,9 @@ fn compare_rejoined_constants(
             values.push(((symbol.arena_index(), symbol.generation()), value));
         }
         values.sort_unstable_by_key(|row| row.0);
+        // A staged Build names a constant once in every stage that reads
+        // it, and the Build retyped whole names it once.
+        values.dedup();
         Ok::<_, Vec<Diagnostic>>(values)
     };
     if resolve(&original.read)? != resolve(&current.read)? {
@@ -166,7 +169,7 @@ pub(crate) fn prepare_admitted_build(
     timings: &mut artifacts::compile_timings::CompileTimings,
 ) -> Result<
     (
-        Arc<psi_compiler::AcceptedTerminalSource>,
+        Arc<source_compiler::AcceptedTerminalSource>,
         super::provider_execution::BuildProviderPlans,
         compilation_products::BuildConstants,
         build_time_evaluation::SourceCompletionAccounting,
@@ -186,7 +189,7 @@ pub(crate) fn prepare_admitted_build(
         let subject =
             (!dependency_activation).then(|| packages.map(PackageCompilationInputs::root));
         let (accepted, read) = timings.record_result(BUILD_SOURCE_JUDGMENT, || {
-            let compilation = psi_compiler::TerminalSourceCompilation {
+            let compilation = source_compiler::TerminalSourceCompilation {
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: subject.as_slice(),
@@ -195,10 +198,10 @@ pub(crate) fn prepare_admitted_build(
                 bindings: &[],
                 supplies: &[],
             };
-            let source = psi_compiler::SourcePreparationRequest {
+            let source = source_compiler::SourcePreparationRequest {
                 program: typed.clone(),
                 accounting: Default::default(),
-                admission: psi_compiler::SourceAdmission {
+                admission: source_compiler::SourceAdmission {
                     invocation_sources: anonymous_source.map(|capture| {
                         Arc::new(capture.clone())
                             as Arc<dyn build_time_evaluation::InvocationSourceConsent>
@@ -218,7 +221,7 @@ pub(crate) fn prepare_admitted_build(
                     return Err(failure.diagnostics);
                 }
             };
-            psi_compiler::AcceptedTerminalSource::judge(
+            source_compiler::AcceptedTerminalSource::judge(
                 source,
                 compilation,
                 terminal_codec::TerminalPublication::Invocation,
@@ -257,7 +260,7 @@ mod tests {
         let mut pre_checks = Vec::new();
         settle_rejoined_build_slice(
             constants,
-            psi_compiler::BuildSourceInput {
+            source_compiler::BuildSourceInput {
                 typed: &mut typed,
                 pre_checks: &mut pre_checks,
             },
@@ -284,8 +287,8 @@ mod tests {
         assert_eq!(settle(&BuildConstants::default()), Ok(()));
     }
 
-    fn read(name: &str, value: Option<&str>) -> psi_compiler::ConstantRead {
-        psi_compiler::ConstantRead {
+    fn read(name: &str, value: Option<&str>) -> source_compiler::ConstantRead {
+        source_compiler::ConstantRead {
             name: name.to_owned(),
             declaration: None,
             value: value.map(|value| value.to_owned().into()),
@@ -353,13 +356,13 @@ mod tests {
 
     fn prepare(
         typed: typed_trees::TypedTrees,
-    ) -> Result<psi_compiler::FrozenSource, psi_compiler::SourcePreparationFailure> {
+    ) -> Result<source_compiler::FrozenSource, source_compiler::SourcePreparationFailure> {
         let entry = typed.realized_machine_named("build").unwrap().symbol;
-        psi_compiler::SourcePreparationRequest {
+        source_compiler::SourcePreparationRequest {
             program: typed,
             accounting: Default::default(),
             admission: Default::default(),
-            compilation: psi_compiler::TerminalSourceCompilation {
+            compilation: source_compiler::TerminalSourceCompilation {
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[],
@@ -426,7 +429,7 @@ mod tests {
             let mut pre_checks = Vec::new();
             let fresh = super::settle_rejoined_build_slice(
                 &old,
-                psi_compiler::BuildSourceInput {
+                source_compiler::BuildSourceInput {
                     typed: &mut retyped,
                     pre_checks: &mut pre_checks,
                 },

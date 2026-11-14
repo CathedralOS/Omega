@@ -35,9 +35,9 @@ pub use terminal_signature::{CanonicalCallingSignature, CanonicalOpaqueUse};
 
 use calling_conventions::ValidatedBoundaryEntryPlan;
 use evaluation_accounting::EvaluationInvocationAccount;
-use psi_work::WorkUsage;
 use terminal_codec::CanonicalTerminalArtifact;
 use terminal_psi::TargetMachineCallable;
+use terminal_work::WorkUsage;
 
 pub type TerminalCallingPolicyAdmission = terminal_installation::AdmittedCompilerEvaluation;
 
@@ -86,7 +86,7 @@ pub type CallingScalarEvaluator =
         &str,
         &[semantic_vocabulary::ScalarApplicationId],
         Option<&terminal_installation::ScalarAddressModel>,
-        &mut psi_work::WorkMeter,
+        &mut terminal_work::WorkMeter,
     )
         -> Result<terminal_installation::ScalarConditionSelection<'artifact>, String>;
 
@@ -104,13 +104,13 @@ pub struct CallingPolicyEvaluator {
 }
 
 pub(super) mod scalar_completion {
-    use psi_work::WorkMeter;
     use semantic_vocabulary::ScalarApplicationId;
     use terminal_codec::CanonicalTerminalArtifact;
     use terminal_installation::{
         AdmittedProviderSelections, AdmittedScalarApplications, CallingAbiStorageDemand,
         ScalarAddressModel, ScalarApplicationClosure, ScalarApplicationObservations,
     };
+    use terminal_work::WorkMeter;
 
     pub enum CallingScalarScope<'request> {
         Invocation {

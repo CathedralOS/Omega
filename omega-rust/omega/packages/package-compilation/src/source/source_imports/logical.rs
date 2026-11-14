@@ -8,8 +8,8 @@
 
 use super::frontier::RegisteredPackageRoot;
 use diagnostics::Diagnostic;
-use psi_compiler::{SourceInput, UnmeasuredProduction};
 use source::{DependencyScope, LoadedSource, SourceFileSystem, SourceId};
+use source_compiler::{SourceInput, UnmeasuredProduction};
 use std::path::{Path, PathBuf};
 use syntax_trees::{SyntaxTrees, item::Item};
 

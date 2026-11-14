@@ -50,6 +50,17 @@ impl SourceBuild {
         self.invocation.execution()
     }
 
+    pub(super) fn has_later_stage(&self) -> bool {
+        self.invocation.has_later_stage()
+    }
+
+    pub(super) fn prepare_next_stage(
+        &mut self,
+        prepared: Vec<package_compilation::source_imports::ProductQueryDependency>,
+    ) -> Result<(), CompileFailure> {
+        self.invocation.prepare_next_stage(prepared)
+    }
+
     pub(super) fn source_result<'result>(
         &'result mut self,
         returned: Option<&'result mut build_settings::ReturnedBuild>,

@@ -230,7 +230,7 @@ pub(crate) fn infer(
     graph: &Graph,
     context: &PropositionContext,
 ) -> Checked<()> {
-    for block in graph.reverse_postorder()? {
+    for &block in graph.reverse_postorder()? {
         let join = &lowered.blocks[usize::try_from(block.get() - 1).expect("dense block position")];
         if join.parameters.is_empty() {
             continue;

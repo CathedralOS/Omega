@@ -66,6 +66,7 @@ mod minted;
 mod operational;
 mod places;
 mod prove;
+mod ranking;
 mod result_summaries;
 mod reuse;
 mod verdict;
@@ -1124,6 +1125,9 @@ pub(crate) fn prepare_with_inhabitation(
     minted::follow_the_lowered_form(id, module, lowered, tables, &types, inhabitation)?;
     minted::domains_are_declared(id, structural_types, domains)?;
     let graph = Graph::new(id, lowered, tables)?;
+    // A ranking is admitted whole before any of its comparisons is decided,
+    // and a terminating machine may leave no cycle unranked (`ranking`).
+    ranking::admit(id, lowered, tables, &graph)?;
     let reference_graph = places::reference_graph(module, id)?;
     if fill {
         let references = std::cell::RefCell::new(
@@ -1848,13 +1852,17 @@ fn stated_goal(
         ObligationKind::CrashCoverage { site, cause } => {
             crashes::coverage_goal(module, lowered, tables, id, obligation, site, cause)
         }
+        ObligationKind::WellFoundedness { component } => {
+            ranking::floor_goal(lowered, id, obligation, component)
+        }
+        ObligationKind::RankComparison { component, edge } => {
+            ranking::comparison_goal(lowered, id, obligation, component, edge)
+        }
         ObligationKind::Claim { .. }
         | ObligationKind::Loan { .. }
         | ObligationKind::RestorationWindow { .. }
         | ObligationKind::DomainDebt { .. }
-        | ObligationKind::EstablishmentDebt { .. }
-        | ObligationKind::WellFoundedness { .. }
-        | ObligationKind::RankComparison { .. } => Err(refusal(
+        | ObligationKind::EstablishmentDebt { .. } => Err(refusal(
             RefusalReason::Unsupported,
             id,
             concerns,

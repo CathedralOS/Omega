@@ -306,6 +306,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                             queries,
                             activation,
                             dependencies,
+                            prepared: Vec::new(),
                         })));
                     } else {
                         let mut build = ExecutedSourceBuild {
@@ -405,11 +406,45 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                         )));
                     } else if step.returned {
                         let LiveBuild {
-                            invocation,
+                            acquired,
+                            mut invocation,
                             activation,
                             dependencies,
+                            prepared,
                             ..
                         } = *build;
+                        if invocation.has_later_stage() {
+                            // scoped_execution.md, "Checked Build stages":
+                            // the stage that returned ended at a dependency
+                            // preparation, and the statements after it are
+                            // resolved and checked only now, with what the
+                            // Build has prepared. They then run against the
+                            // same activation: the returned stage is not
+                            // completed, it is continued.
+                            invocation
+                                .prepare_next_stage(prepared.clone())
+                                .map_err(Compilation)?;
+                            self.source_completion_accounting
+                                .append(invocation.source_completion_accounting().clone());
+                            self.session.packages.record_source_completion(
+                                invocation.source_completion_accounting().clone(),
+                            );
+                            let queries = invocation.product_queries();
+                            let activation = invocation
+                                .execution()
+                                .ok_or_else(|| Source("staged Build lost its execution".into()))?
+                                .resume(activation)
+                                .map_err(|diagnostics| Compilation(diagnostics.into()))?;
+                            pending.push(Work::Run(Box::new(LiveBuild {
+                                acquired,
+                                invocation,
+                                queries,
+                                activation,
+                                dependencies,
+                                prepared,
+                            })));
+                            continue;
+                        }
                         let returned = Some(activation.complete().map_err(Source)?);
                         completed = Some(CompletedWork::Build(ExecutedSourceBuild {
                             build: ReturnedPackageBuild {
@@ -441,6 +476,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                                 purpose: preparation.purpose,
                                 ordinal: preparation.request_ordinal,
                                 source: None,
+                                alias: None,
                             },
                         )));
                     } else {
@@ -489,14 +525,17 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                                 pending.push(Work::Graph(resolution));
                             }
                             Demand::Preparation {
-                                ordinal, source, ..
+                                ordinal,
+                                source,
+                                alias,
+                                ..
                             } => {
-                                let source = source.ok_or_else(|| {
-                                    Source(
+                                let (Some(source), Some(alias)) = (source, alias) else {
+                                    return Err(Source(
                                         "Build dependency preparation names no issued registration"
                                             .into(),
-                                    )
-                                })?;
+                                    ));
+                                };
                                 let resolution = self.sources[source]
                                     .declared
                                     .clone()
@@ -506,6 +545,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                                     build: dependencies.build,
                                     ordinal,
                                     source,
+                                    alias,
                                 });
                                 pending.push(Work::Graph(resolution));
                             }
@@ -549,13 +589,19 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                             pending.push(Work::Dependencies(dependencies));
                         }
                         Demand::Preparation {
-                            source: selected, ..
+                            source: selected,
+                            alias,
+                            ..
                         } => {
                             if selected.replace(source).is_some() {
                                 return Err(Source(
                                     "Build dependency preparation selected two sources".into(),
                                 ));
                             }
+                            // The name the Build's sources import this
+                            // dependency by: its registered alias, or its
+                            // declared package name when it has none.
+                            *alias = Some(name);
                             pending.push(Work::Dependencies(dependencies));
                         }
                         Demand::Query { .. } => {
@@ -594,6 +640,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                             inputs: graph
                                 .compilation_inputs(declared.identity())
                                 .map_err(Source)?,
+                            generated: None,
                         },
                     );
                     ready.graphs.push(graph);
@@ -638,6 +685,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                     mut build,
                     ordinal,
                     source,
+                    alias,
                 } => {
                     // scoped_execution.md, "Dependency declarations and
                     // binding": preparation "admits and prepares that
@@ -647,7 +695,27 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                     // purpose the same way an awaited provider's is.
                     let graph = Arc::new(take_completed(&mut completed)?.graph()?);
                     self.settle_graph(&graph)?;
-                    self.prepare_product(source, DependencyPurpose::Build)?;
+                    let product = self.prepare_product(source, DependencyPurpose::Build)?;
+                    // A later stage of this Build may select the prepared
+                    // package under this alias. Preparing one package twice
+                    // under one alias mounts it once; one alias for two
+                    // packages is the conflict the final join also rejects.
+                    match build.prepared.iter().find(|mounted| mounted.alias == alias) {
+                        Some(mounted)
+                            if mounted.inputs.root() == product.package_inputs().root() => {}
+                        Some(_) => {
+                            return Err(Source(format!(
+                                "build dependency alias `{alias}` names two prepared packages"
+                            )));
+                        }
+                        None => build.prepared.push(
+                            package_compilation::source_imports::ProductQueryDependency {
+                                alias,
+                                inputs: product.package_inputs().clone(),
+                                generated: Some(product.build_handoff().clone()),
+                            },
+                        ),
+                    }
                     build
                         .activation
                         .dependency_prepared(build_settings::BuildDependencySelection {
@@ -995,6 +1063,9 @@ struct LiveBuild {
     queries: compiler::ProductQueries,
     activation: build_settings::TerminalBuildActivation,
     dependencies: Vec<Arc<ResolvedBuildSources>>,
+    /// The build dependencies this Build has prepared so far, each under the
+    /// alias a later stage of it may import the package by.
+    prepared: Vec<package_compilation::source_imports::ProductQueryDependency>,
 }
 
 enum Demand {
@@ -1013,6 +1084,7 @@ enum Demand {
         purpose: DependencyPurpose,
         ordinal: usize,
         source: Option<usize>,
+        alias: Option<String>,
     },
 }
 
@@ -1135,6 +1207,7 @@ enum Work {
         build: Box<LiveBuild>,
         ordinal: usize,
         source: usize,
+        alias: String,
     },
     Acquire(AcquiredSourceSelection),
     ExecuteAcquired,

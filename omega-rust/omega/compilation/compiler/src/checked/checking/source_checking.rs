@@ -76,7 +76,7 @@ pub(crate) fn check_product_source(
                 .iter()
                 .flat_map(|selection| [selection.opaque(), selection.application().declaration]),
         );
-        let source_admission = psi_compiler::SourceAdmission {
+        let source_admission = source_compiler::SourceAdmission {
         invocation_sources: None,
         // Roots belong to structural judgment below, rather than to a deleted
         // source-checking admission or projection.
@@ -103,7 +103,7 @@ pub(crate) fn check_product_source(
             }
             None => typed_trees::boundary_completions::SourceCompletionAdmission::None,
         },
-        representations: psi_compiler::ProductRepresentationInput {
+        representations: source_compiler::ProductRepresentationInput {
             activation: computed_build_config.selected_build_machine_symbol,
             declared: &computed_build_config.declared_product_selections,
             executed: &computed_build_config.product_selection_requests,
@@ -132,7 +132,7 @@ pub(crate) fn check_product_source(
             supplies,
         };
         let source = timings.record_result(SOURCE_PREPARATION, || {
-            psi_compiler::SourcePreparationRequest {
+            source_compiler::SourcePreparationRequest {
                 program: typed,
                 admission: source_admission,
                 compilation: roster.compilation(),

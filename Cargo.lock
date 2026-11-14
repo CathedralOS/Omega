@@ -25,7 +25,6 @@ dependencies = [
  "optimization-unit-semantics",
  "proof-admission",
  "provider-admission",
- "psi-work",
  "semantic-vocabulary",
  "terminal-codec",
  "terminal-installation",
@@ -33,6 +32,7 @@ dependencies = [
  "terminal-psi-to-abstract-operations",
  "terminal-psi-to-terminal-psi",
  "terminal-semantics",
+ "terminal-work",
  "typed-trees-to-terminal-psi",
  "verified-optimization-input",
 ]
@@ -166,7 +166,7 @@ dependencies = [
  "compiler-storage",
  "language-semantics",
  "optimization-core",
- "psi-compiler",
+ "source-compiler",
  "syntax-trees",
 ]
 
@@ -203,11 +203,10 @@ dependencies = [
  "package-compilation",
  "provider-admission",
  "provider-planning",
- "psi-compiler",
- "psi-work",
  "runtime-abi",
  "semantic-vocabulary",
  "source",
+ "source-compiler",
  "source-files-to-tokens",
  "symbol-resolved-trees-to-typed-trees",
  "symbols",
@@ -219,6 +218,7 @@ dependencies = [
  "terminal-interpreter",
  "terminal-psi",
  "terminal-runtime",
+ "terminal-work",
  "tokens-to-syntax-trees",
  "trust-model",
  "typed-trees",
@@ -240,8 +240,6 @@ dependencies = [
  "language-semantics",
  "layout-plans",
  "numerics",
- "psi-terminal-production",
- "psi-work",
  "semantic-vocabulary",
  "source",
  "source-files-to-tokens",
@@ -253,8 +251,10 @@ dependencies = [
  "terminal-codec",
  "terminal-installation",
  "terminal-interpreter",
+ "terminal-production",
  "terminal-psi",
  "terminal-semantics",
+ "terminal-work",
  "tokens-to-syntax-trees",
  "typed-trees",
  "typed-trees-to-typed-trees",
@@ -377,11 +377,11 @@ dependencies = [
  "program-entry-plan",
  "provider-planning",
  "provider-selection",
- "psi-compiler",
  "runtime-abi",
  "selected-dispatch",
  "semantic-vocabulary",
  "source",
+ "source-compiler",
  "symbols",
  "target",
  "target-operations",
@@ -450,14 +450,13 @@ dependencies = [
  "proof-admission",
  "provider-planning",
  "provider-selection",
- "psi-compiler",
- "psi-work",
  "register-model",
  "runtime-abi",
  "selected-dispatch",
  "selected-instructions",
  "semantic-vocabulary",
  "source",
+ "source-compiler",
  "source-files-to-tokens",
  "symbol-resolved-trees-to-typed-trees",
  "symbols",
@@ -474,6 +473,7 @@ dependencies = [
  "terminal-psi-to-terminal-psi",
  "terminal-runtime",
  "terminal-semantics",
+ "terminal-work",
  "tokens-to-syntax-trees",
  "trust-model",
  "typed-trees",
@@ -761,7 +761,6 @@ dependencies = [
  "optimization-unit-semantics",
  "program-entry-plan",
  "provider-admission",
- "psi-work",
  "register-model",
  "runtime-abi",
  "selected-instructions",
@@ -777,6 +776,7 @@ dependencies = [
  "terminal-installation",
  "terminal-psi",
  "terminal-semantics",
+ "terminal-work",
  "tokens-to-syntax-trees",
  "verified-optimization-input",
  "x86-encoding",
@@ -1104,7 +1104,6 @@ dependencies = [
  "physical-instructions",
  "post-allocation-machine-to-selected-form-encoding",
  "provider-admission",
- "psi-work",
  "register-environment",
  "register-homes-to-post-allocation-machine",
  "register-model",
@@ -1117,6 +1116,7 @@ dependencies = [
  "target",
  "target-operations",
  "terminal-psi",
+ "terminal-work",
  "verified-optimization-input",
 ]
 
@@ -1401,11 +1401,11 @@ dependencies = [
  "language-semantics",
  "optimization-core",
  "optimization-unit",
- "psi-work",
  "semantic-vocabulary",
  "terminal-codec",
  "terminal-psi",
  "terminal-semantics",
+ "terminal-work",
 ]
 
 [[package]]
@@ -1456,10 +1456,10 @@ dependencies = [
  "optimization-core",
  "package-source",
  "platform-custody",
- "psi-compiler",
  "semantic-vocabulary",
  "sha2",
  "source",
+ "source-compiler",
  "symbols",
  "syntax-trees",
  "target",
@@ -1483,10 +1483,10 @@ dependencies = [
  "optimization-core",
  "package-compilation",
  "provider-planning",
- "psi-compiler",
  "selected-dispatch",
  "semantic-vocabulary",
  "source",
+ "source-compiler",
  "symbols",
  "target",
  "terminal-check-tables",
@@ -1520,16 +1520,16 @@ dependencies = [
  "package-source",
  "platform-custody",
  "proof-admission",
- "psi-compiler",
- "psi-work",
  "semantic-vocabulary",
  "sha2",
  "source",
+ "source-compiler",
  "syntax-trees",
  "target",
  "terminal-codec",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
+ "terminal-work",
  "tokens",
 ]
 
@@ -1655,7 +1655,6 @@ dependencies = [
  "optimization-core",
  "optimization-unit-semantics",
  "provider-selection",
- "psi-work",
  "runtime-abi",
  "semantic-vocabulary",
  "source",
@@ -1667,6 +1666,7 @@ dependencies = [
  "terminal-installation",
  "terminal-psi",
  "terminal-semantics",
+ "terminal-work",
 ]
 
 [[package]]
@@ -1692,7 +1692,6 @@ dependencies = [
  "package-compilation",
  "program-entry-plan",
  "provider-selection",
- "psi-work",
  "runtime-abi",
  "semantic-vocabulary",
  "source",
@@ -1702,6 +1701,7 @@ dependencies = [
  "terminal-installation",
  "terminal-psi",
  "terminal-semantics",
+ "terminal-work",
 ]
 
 [[package]]
@@ -1718,69 +1718,6 @@ dependencies = [
  "semantic-vocabulary",
  "target",
  "terminal-codec",
- "terminal-psi",
-]
-
-[[package]]
-name = "psi-compiler"
-version = "0.1.0"
-dependencies = [
- "arena",
- "build-time-evaluation",
- "compiler-storage",
- "diagnostics",
- "flow-effects",
- "language-core",
- "language-semantics",
- "layout-plans",
- "optimization",
- "psi-terminal-production",
- "rayon",
- "semantic-vocabulary",
- "source",
- "source-files-to-tokens",
- "symbol-resolved-trees-to-typed-trees",
- "symbols",
- "syntax-trees",
- "syntax-trees-to-symbol-resolved-trees",
- "terminal-codec",
- "terminal-psi",
- "tokens",
- "tokens-to-syntax-trees",
- "typed-trees",
- "typed-trees-to-typed-trees",
-]
-
-[[package]]
-name = "psi-terminal-production"
-version = "0.1.0"
-dependencies = [
- "compiler-storage",
- "diagnostics",
- "language-core",
- "language-semantics",
- "semantic-vocabulary",
- "source",
- "source-files-to-tokens",
- "symbol-resolved-trees-to-typed-trees",
- "symbols",
- "syntax-trees-to-symbol-resolved-trees",
- "terminal-codec",
- "terminal-psi",
- "terminal-psi-to-terminal-psi",
- "tokens-to-syntax-trees",
- "typed-trees",
- "typed-trees-to-terminal-psi",
- "typed-trees-to-typed-trees",
-]
-
-[[package]]
-name = "psi-work"
-version = "0.1.0"
-dependencies = [
- "compiler-storage",
- "evaluation-accounting",
- "semantic-vocabulary",
  "terminal-psi",
 ]
 
@@ -2188,6 +2125,36 @@ name = "source-audit"
 version = "0.1.0"
 
 [[package]]
+name = "source-compiler"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "build-time-evaluation",
+ "compiler-storage",
+ "diagnostics",
+ "flow-effects",
+ "language-core",
+ "language-semantics",
+ "layout-plans",
+ "optimization",
+ "rayon",
+ "semantic-vocabulary",
+ "source",
+ "source-files-to-tokens",
+ "symbol-resolved-trees-to-typed-trees",
+ "symbols",
+ "syntax-trees",
+ "syntax-trees-to-symbol-resolved-trees",
+ "terminal-codec",
+ "terminal-production",
+ "terminal-psi",
+ "tokens",
+ "tokens-to-syntax-trees",
+ "typed-trees",
+ "typed-trees-to-typed-trees",
+]
+
+[[package]]
 name = "source-files-to-tokens"
 version = "0.1.0"
 dependencies = [
@@ -2435,12 +2402,35 @@ dependencies = [
  "layout-plans",
  "numerics",
  "proof-admission",
- "psi-work",
  "semantic-vocabulary",
  "terminal-codec",
  "terminal-installation",
  "terminal-psi",
  "terminal-semantics",
+ "terminal-work",
+]
+
+[[package]]
+name = "terminal-production"
+version = "0.1.0"
+dependencies = [
+ "compiler-storage",
+ "diagnostics",
+ "language-core",
+ "language-semantics",
+ "semantic-vocabulary",
+ "source",
+ "source-files-to-tokens",
+ "symbol-resolved-trees-to-typed-trees",
+ "symbols",
+ "syntax-trees-to-symbol-resolved-trees",
+ "terminal-codec",
+ "terminal-psi",
+ "terminal-psi-to-terminal-psi",
+ "tokens-to-syntax-trees",
+ "typed-trees",
+ "typed-trees-to-terminal-psi",
+ "typed-trees-to-typed-trees",
 ]
 
 [[package]]
@@ -2488,7 +2478,6 @@ dependencies = [
  "proof-admission",
  "provider-admission",
  "provider-selection",
- "psi-work",
  "runtime-abi",
  "semantic-vocabulary",
  "source",
@@ -2501,6 +2490,7 @@ dependencies = [
  "terminal-psi",
  "terminal-psi-to-terminal-psi",
  "terminal-semantics",
+ "terminal-work",
  "typed-trees-to-terminal-psi",
  "verified-optimization-input",
 ]
@@ -2513,7 +2503,6 @@ dependencies = [
  "language-core",
  "optimization",
  "proof-admission",
- "psi-work",
  "semantic-vocabulary",
  "source",
  "source-files-to-tokens",
@@ -2525,6 +2514,7 @@ dependencies = [
  "terminal-interpreter",
  "terminal-psi",
  "terminal-semantics",
+ "terminal-work",
  "tokens-to-syntax-trees",
  "typed-trees",
  "typed-trees-to-terminal-psi",
@@ -2545,7 +2535,6 @@ dependencies = [
  "orchestration",
  "platform-custody",
  "provider-admission",
- "psi-work",
  "runtime-abi",
  "semantic-vocabulary",
  "target",
@@ -2555,6 +2544,7 @@ dependencies = [
  "terminal-interpreter",
  "terminal-psi",
  "terminal-semantics",
+ "terminal-work",
 ]
 
 [[package]]
@@ -2568,6 +2558,16 @@ dependencies = [
  "numerics",
  "optimization",
  "proof-admission",
+ "semantic-vocabulary",
+ "terminal-psi",
+]
+
+[[package]]
+name = "terminal-work"
+version = "0.1.0"
+dependencies = [
+ "compiler-storage",
+ "evaluation-accounting",
  "semantic-vocabulary",
  "terminal-psi",
 ]

@@ -8,6 +8,7 @@ use crate::descriptors::descriptor_lifetimes::{DescriptorPathSegment, descriptor
 use crate::descriptors::descriptor_results::*;
 use crate::exactly_one::exactly_one;
 
+#[path = "descriptor_replay_location_map.rs"]
 mod location_map;
 use location_map::LocationMap;
 
@@ -65,6 +66,9 @@ pub(crate) mod analysis {
                     .replay
                     .cached_invocation_summary(call)
                     .ok_or("callee descriptor summary could not be reconstructed")?;
+                if !summary.unknown_results.is_empty() {
+                    return Err("callee descriptor result has no established origin");
+                }
                 let mut origins = BTreeSet::new();
                 for slot in summary
                     .result
@@ -1122,6 +1126,36 @@ pub(crate) mod analysis {
                         let mut destination = result.clone();
                         destination.path.extend_from_slice(&slot.path);
                         outputs.push((destination, slot.origins.as_slice(), true));
+                    }
+                    // A result slot of unknown origin may be any descriptor
+                    // the call was given, or reach through one: everything
+                    // passed in stays live for as long as that slot is used.
+                    // lifetimes.md, "Carried-loan transport": an unresolved
+                    // selection "conservatively retains all possible sources".
+                    for path in &summary.unknown_results {
+                        let mut destination = result.clone();
+                        destination.path.extend_from_slice(path);
+                        let destination =
+                            self.replay
+                                .canonical_storage(machine, before, &destination, None)?;
+                        if !step.definitions.contains(&destination) {
+                            step.definitions.push(destination.clone());
+                        }
+                        for (argument, contents) in
+                            call.arguments.iter().zip(&call.argument_contents)
+                        {
+                            match argument {
+                                Some(source) => step.derivations.push((
+                                    self.replay
+                                        .canonical_storage(machine, before, source, None)?,
+                                    destination.clone(),
+                                )),
+                                None => {
+                                    step.inputs.push(contents.as_ref()?.observation());
+                                    step.may_escape = true;
+                                }
+                            }
+                        }
                     }
                 }
                 for (destination, origins, strong) in outputs {
@@ -3167,6 +3201,14 @@ pub(crate) mod dispatch {
 
     pub(crate) fn join(mut joined: Summary, summaries: &[Summary]) -> Summary {
         joined.invalidates_contents |= summaries.iter().any(|summary| summary.invalidates_contents);
+        for path in summaries
+            .iter()
+            .flat_map(|summary| &summary.unknown_results)
+        {
+            if !joined.unknown_results.contains(path) {
+                joined.unknown_results.push(path.clone());
+            }
+        }
         for summary in summaries {
             for effect in &summary.effects {
                 if !joined
@@ -3239,6 +3281,12 @@ pub(crate) mod engine {
     #[derive(Clone)]
     pub(crate) struct Summary {
         pub(crate) result: Option<Vec<DescriptorResultSlot>>,
+        /// The result slots whose origin this body does not establish: it
+        /// returns a view a boundary handed it, and no declaration says what
+        /// backs that view. Such a slot has no row in `result`, so a consumer
+        /// that needs its origins finds none. The flow of a caller treats it
+        /// as possibly backed by anything the call was given.
+        pub(crate) unknown_results: Vec<Vec<DescriptorPathSegment>>,
         pub(crate) result_cases: super::case_flow::ResultCases,
         pub(crate) effects: Vec<DescriptorStoredEffect>,
         pub(crate) invalidates_contents: bool,
@@ -3258,6 +3306,7 @@ pub(crate) mod engine {
                 invalidates_contents,
             } => Some(Summary {
                 result: Some(results.clone()),
+                unknown_results: Vec::new(),
                 result_cases: Default::default(),
                 effects: effects.clone(),
                 invalidates_contents: *invalidates_contents,
@@ -3269,6 +3318,7 @@ pub(crate) mod engine {
                 ..
             } => Some(Summary {
                 result: Some(results.clone()),
+                unknown_results: Vec::new(),
                 result_cases: Default::default(),
                 effects: Vec::new(),
                 invalidates_contents: *invalidates_contents,
@@ -3693,6 +3743,7 @@ pub(crate) mod engine {
             completed: Option<(MachineId, DescriptorPosition)>,
         ) -> Option<StorageResolution> {
             let mut current = location.clone();
+            let mut captured_entry: Option<DescriptorLocation> = None;
             let mut expansions = BTreeMap::new();
             let mut expand = |equation, remaining| {
                 if expansions
@@ -3725,7 +3776,19 @@ pub(crate) mod engine {
                         StructuralTypeShape::Reference { .. }
                     )
                     || is_descriptor(self.types.iter(), root_type);
+                // An Incoming origin names the entry value, not whatever its
+                // original descriptor home holds after a later reassignment.
+                let captured_crossing = captured_entry
+                    .as_ref()
+                    .filter(|entry| {
+                        current.root == entry.root
+                            && current.path.starts_with(&entry.path)
+                            && current.path.get(entry.path.len())
+                                == Some(&DescriptorPathSegment::Referent)
+                    })
+                    .map(|entry| entry.path.len());
                 if aliases_backing
+                    && captured_crossing.is_none()
                     && let Some(Some(origins)) =
                         state.slots.get(&DescriptorLocation::whole(current.root))
                     && !origins.is_empty()
@@ -3748,8 +3811,12 @@ pub(crate) mod engine {
                     }
                 }
                 let mut next = None;
+                let mut next_entry = None;
                 for (position, segment) in current.path.iter().enumerate() {
                     if *segment != DescriptorPathSegment::Referent {
+                        continue;
+                    }
+                    if captured_crossing.is_some_and(|captured| position <= captured) {
                         continue;
                     }
                     let prefix = DescriptorLocation {
@@ -3760,9 +3827,9 @@ pub(crate) mod engine {
                         continue;
                     };
                     if origins.is_empty()
-                        || origins
-                            .iter()
-                            .any(|origin| !matches!(origin, Origin::Storage(_)))
+                        || origins.iter().any(|origin| {
+                            !matches!(origin, Origin::Storage(_) | Origin::Incoming(_))
+                        })
                     {
                         continue;
                     }
@@ -3773,20 +3840,40 @@ pub(crate) mod engine {
                     ) {
                         return None;
                     }
-                    if origins.len() == 1 && origins.contains(&Origin::Storage(prefix.clone())) {
+                    if origins.len() == 1
+                        && (origins.contains(&Origin::Storage(prefix.clone()))
+                            || origins.contains(&Origin::Incoming(prefix.clone())))
+                    {
                         continue;
                     }
                     let mut alternatives = false;
                     for origin in origins {
-                        let Origin::Storage(backing) = origin else {
-                            return None;
+                        let mut target = match origin {
+                            Origin::Storage(backing) => backing.clone(),
+                            Origin::Incoming(descriptor) => {
+                                // A returned or copied incoming reference still names
+                                // that entry descriptor's referent, not the temporary
+                                // that now stores its bits. Preserve the crossing.
+                                let source =
+                                    machine.location_type(self.types, descriptor, completed)?;
+                                if !matches!(
+                                    find_structural_type(self.types, source)?.shape,
+                                    StructuralTypeShape::Reference { .. }
+                                ) {
+                                    return None;
+                                }
+                                let mut backing = descriptor.clone();
+                                backing.path.push(DescriptorPathSegment::Referent);
+                                next_entry = Some(descriptor.clone());
+                                backing
+                            }
+                            _ => return None,
                         };
                         if !self
-                            .reference_backing_matches(machine, backing, reference, completed)?
+                            .reference_backing_matches(machine, &target, reference, completed)?
                         {
                             return None;
                         }
-                        let mut target = backing.clone();
                         target.path.extend_from_slice(&current.path[position + 1..]);
                         machine.location_path(self.types, &target, completed)?;
                         if next.as_ref().is_some_and(|previous| previous != &target) {
@@ -3798,6 +3885,9 @@ pub(crate) mod engine {
                         return Some(StorageResolution::Alternatives);
                     }
                     expand(prefix, current.path.len() - position - 1)?;
+                    if let Some(entry) = next_entry {
+                        captured_entry = Some(entry);
+                    }
                     break;
                 }
                 match next {
@@ -4572,6 +4662,12 @@ pub(crate) mod engine {
                                     known.then_some(origins),
                                 );
                             }
+                            for path in &summary.unknown_results {
+                                let mut destination = result.clone();
+                                destination.path.extend_from_slice(path);
+                                replacements
+                                    .insert(DescriptorPayloadTarget::current(destination), None);
+                            }
                         }
                         Self::install_contents(&mut after, replacements);
                         if let Some(result) = &call.result {
@@ -4974,6 +5070,7 @@ pub(crate) mod engine {
             self.summaries.insert(identity, None);
             let states = self.states(identity, depth)?;
             let mut result_cases: Option<super::case_flow::ResultCases> = None;
+            let mut unknown_results: Vec<Vec<DescriptorPathSegment>> = Vec::new();
             let result = if let Some(returns) = &machine.returns {
                 let mut slots: Option<Vec<DescriptorResultSlot>> = None;
                 let mut result_type = None;
@@ -5015,7 +5112,17 @@ pub(crate) mod engine {
                         if slot.path != location.path {
                             return None;
                         }
-                        let origins = self.read(machine, state, &location)?;
+                        // `read` has no answer where this body does not
+                        // establish what the slot holds, as for a view a
+                        // boundary returned. That is not a failed analysis
+                        // of the body: its effects are known, and only what
+                        // backs this one slot is not.
+                        let Some(origins) = self.read(machine, state, &location) else {
+                            if !unknown_results.contains(&slot.path) {
+                                unknown_results.push(slot.path.clone());
+                            }
+                            continue;
+                        };
                         if origins.is_empty() {
                             return None;
                         }
@@ -5024,11 +5131,14 @@ pub(crate) mod engine {
                         }
                     }
                 }
-                Some(slots?)
+                let mut slots = slots?;
+                slots.retain(|slot| !unknown_results.contains(&slot.path));
+                Some(slots)
             } else {
                 None
             };
-            let mut effects = Vec::new();
+            let mut written: Vec<(usize, Vec<DescriptorContentsStep>, BTreeSet<Origin>)> =
+                Vec::new();
             for row in &machine.places {
                 let DescriptorDefinition::Parameter {
                     position: parameter,
@@ -5073,18 +5183,14 @@ pub(crate) mod engine {
                     if origins == BTreeSet::from([Origin::Incoming(slot.clone())]) {
                         continue;
                     }
-                    effects.push(DescriptorStoredEffect {
+                    written.push((
                         parameter,
-                        steps: slot
-                            .path
+                        slot.path
                             .into_iter()
                             .map(DescriptorContentsStep::Address)
-                            .collect(),
-                        origins: origins
-                            .iter()
-                            .map(|origin| self.exported(machine, origin))
-                            .collect::<Option<_>>()?,
-                    });
+                            .collect::<Vec<_>>(),
+                        origins,
+                    ));
                 }
             }
             let contents = machine
@@ -5102,9 +5208,25 @@ pub(crate) mod engine {
                         origins.extend(state.incoming_contents(&query)?);
                     }
                 }
+                // A slot reached through a reference the formal holds is read
+                // above from the same replaced contents this loop publishes
+                // (`read` crosses the reference into `state.contents`). That
+                // is one destination, so it is one effect holding both
+                // readings: a caller refuses two effects of one call that
+                // write the same storage, since nothing orders them.
+                match written
+                    .iter_mut()
+                    .find(|(position, steps, _)| *position == parameter && *steps == query.steps)
+                {
+                    Some((_, _, published)) => published.extend(origins),
+                    None => written.push((parameter, query.steps, origins)),
+                }
+            }
+            let mut effects = Vec::with_capacity(written.len());
+            for (parameter, steps, origins) in written {
                 effects.push(DescriptorStoredEffect {
                     parameter,
-                    steps: query.steps,
+                    steps,
                     origins: origins
                         .iter()
                         .map(|origin| self.exported(machine, origin))
@@ -5118,6 +5240,7 @@ pub(crate) mod engine {
             });
             let summary = Summary {
                 result,
+                unknown_results,
                 result_cases: result_cases.unwrap_or_default(),
                 effects,
                 invalidates_contents,
@@ -6074,6 +6197,89 @@ pub(crate) mod engine {
         }
 
         #[test]
+        fn incoming_reference_aliases_keep_the_original_referent_and_refuse_ambiguity() {
+            let scalar = StructuralTypeId::new(1).unwrap();
+            let carrier = StructuralTypeId::new(2).unwrap();
+            let types = vec![
+                scalar_type(1),
+                reference_type(2, scalar, StructuralAccess::MutableBorrow),
+            ];
+            let original = location(1);
+            let other = location(2);
+            let returned = location(3);
+            let machine = bare_machine(
+                MachineId::new(1).unwrap(),
+                vec![
+                    DescriptorPlace {
+                        place: original.root,
+                        definition: DescriptorDefinition::Parameter {
+                            position: 0,
+                            access: StructuralAccess::Owned,
+                            structural_type: carrier,
+                        },
+                    },
+                    DescriptorPlace {
+                        place: other.root,
+                        definition: DescriptorDefinition::Parameter {
+                            position: 1,
+                            access: StructuralAccess::Owned,
+                            structural_type: carrier,
+                        },
+                    },
+                    DescriptorPlace {
+                        place: returned.root,
+                        definition: DescriptorDefinition::Local,
+                    },
+                ],
+                BTreeMap::from([
+                    (original.root, carrier),
+                    (other.root, carrier),
+                    (returned.root, carrier),
+                ]),
+                BTreeSet::new(),
+            );
+            let replay = Replay::with_slot_kind(
+                &types,
+                std::slice::from_ref(&machine),
+                DescriptorSlotKind::References,
+            );
+            let mut state = replay.initial(&machine).unwrap();
+            state.slots_mut().insert(
+                returned.clone(),
+                Some(BTreeSet::from([Origin::Incoming(original.clone())])),
+            );
+            let mut asked = returned.clone();
+            asked.path.push(DescriptorPathSegment::Referent);
+            let mut expected = original.clone();
+            expected.path.push(DescriptorPathSegment::Referent);
+            assert_eq!(
+                replay.canonical_storage(&machine, &state, &asked, None),
+                Some(expected.clone()),
+            );
+            let mut replacement = other.clone();
+            replacement.path.push(DescriptorPathSegment::Referent);
+            state.slots_mut().insert(
+                original.clone(),
+                Some(BTreeSet::from([Origin::Storage(replacement)])),
+            );
+            assert_eq!(
+                replay.canonical_storage(&machine, &state, &asked, None),
+                Some(expected),
+            );
+            state.slots_mut().insert(
+                returned,
+                Some(BTreeSet::from([
+                    Origin::Incoming(original),
+                    Origin::Incoming(other),
+                ])),
+            );
+            assert_eq!(
+                replay.canonical_storage(&machine, &state, &asked, None),
+                None
+            );
+        }
+
+        #[test]
         fn branch_selected_storage_keeps_every_backing_origin() {
             let scalar = StructuralTypeId::new(1).unwrap();
             let types = vec![scalar_type(1)];
@@ -6316,6 +6522,7 @@ pub(crate) mod summary_interface {
             }
             Some(Summary {
                 result: None,
+                unknown_results: Vec::new(),
                 result_cases: Default::default(),
                 effects: Vec::new(),
                 invalidates_contents,

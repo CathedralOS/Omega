@@ -43,7 +43,7 @@
     We consume the `SyntaxTrees` produced by stage 01
     (`tokens-to-syntax-trees`) and publish `SymbolResolvedTrees` together
     with the `SymbolTable` from the `symbols` foundation crate. Stage 03
-    (`symbol-resolved-trees-to-typed-trees`) and `psi-compiler` consume that
+    (`symbol-resolved-trees-to-typed-trees`) and `source-compiler` consume that
     result. `resolve_extension` re-enters for source a build generates after
     the base was resolved. `pre_resolution` exposes restricted lexical selection
     and initializer custody to evaluation; it grants no typing or execution

@@ -9938,7 +9938,7 @@ mod identity_indexes {
         PsiOptimizationUnit, canonical_ownership_frontier_snapshot,
         recompute_psi_optimization_unit_identity,
     };
-    use psi_work::WorkSchedule;
+    use terminal_work::WorkSchedule;
 
     pub(super) fn validate_identity_and_fact_indexes(
         unit: &PsiOptimizationUnit,

@@ -1,6 +1,6 @@
-use a::main;
-use c::main;
+use a;
+use c;
 
 machine entry() -> i64 {
-    a_value() + c_value()
+    a::a_value() + c::c_value()
 }

@@ -61,7 +61,7 @@ pub struct BuiltTypedProgram {
     pub build_accounting: build_time_evaluation::SourceCompletionAccounting,
     pub anonymous_source: Option<package_compilation::AnonymousSourceCapture>,
     pub preparation: crate::SourcePreparation,
-    pub source: psi_compiler::SourceContinuation,
+    pub source: source_compiler::SourceContinuation,
     pub base_sources: Arc<source::SourceMap>,
     pub computed_build_config: Arc<ComputedBuildConfig>,
     pub admission: BuildAdmission,

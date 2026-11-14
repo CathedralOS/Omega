@@ -196,6 +196,24 @@ impl PackageBuildInvocation {
     pub fn execution(&mut self) -> Option<&mut build_settings::PreparedBuildExecution> {
         self.source.execution()
     }
+
+    /// Whether the stage of this Build that just ran ended at a dependency
+    /// preparation with statements of the entry still to check and run
+    /// (`wiki/spec/build/scoped_execution.md`, "Checked Build stages").
+    pub fn has_later_stage(&self) -> bool {
+        self.source.has_later_stage()
+    }
+
+    /// Checks the next stage of this Build with the build dependencies its
+    /// earlier stages prepared, each under the alias it was registered by.
+    /// Afterwards `execution` is that stage's, to be resumed from the
+    /// activation that returned, and `product_queries` answers its queries.
+    pub fn prepare_next_stage(
+        &mut self,
+        prepared: Vec<package_compilation::source_imports::ProductQueryDependency>,
+    ) -> Result<(), CompileFailure> {
+        super::run_on_compile_thread(|| self.source.prepare_next_stage(prepared))
+    }
 }
 
 impl PackageBuild {
@@ -350,7 +368,7 @@ impl CompilationSession {
         &mut self,
         build: PackageBuild,
         declaration_path: &str,
-    ) -> Result<psi_compiler::ProducedBuildProvider, CompileFailure> {
+    ) -> Result<source_compiler::ProducedBuildProvider, CompileFailure> {
         super::run_on_compile_thread(|| {
             let (_, _, inputs, rollback, prepared) = build.source.into_continuation();
             let source = super::checking::complete_prepared_build(prepared, Some(&inputs))?;
@@ -358,7 +376,7 @@ impl CompilationSession {
                 super::checking::check_product_source(source, Some(&inputs), &rollback, None)?;
             let publication = &checked.terminal_publication;
             let accepted = publication.accepted()?;
-            let supply = psi_compiler::AcceptedTerminalSource::build_backing_supply(
+            let supply = source_compiler::AcceptedTerminalSource::build_backing_supply(
                 accepted.source(),
                 inputs.root(),
                 declaration_path,

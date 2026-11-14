@@ -698,6 +698,14 @@ pub(crate) fn follow_the_lowered_form(
         }
     }
 
+    // A ranked cycle owes its shared well-foundedness question and one
+    // comparison on each of its edges (control_flow.md: "a shared
+    // well-foundedness question and comparison obligations for every
+    // internal edge").
+    for (kind, point, concerns) in crate::ranking::owed(lowered) {
+        minted.owed(kind, point, concerns)?;
+    }
+
     for (obligation, row) in tables.obligations.iter() {
         let concerns = Construct::Obligation(obligation);
         match row.kind {
@@ -722,7 +730,9 @@ pub(crate) fn follow_the_lowered_form(
             | ObligationKind::PublishedGuarantee { .. }
             | ObligationKind::ArrivalInvariant { .. }
             | ObligationKind::CrashCoverage { .. }
-            | ObligationKind::IntegerWidthPositive { .. } => {
+            | ObligationKind::IntegerWidthPositive { .. }
+            | ObligationKind::WellFoundedness { .. }
+            | ObligationKind::RankComparison { .. } => {
                 if !minted.obligations[index(obligation.get())] {
                     return Err(minted.foreign(
                         concerns,
@@ -736,9 +746,7 @@ pub(crate) fn follow_the_lowered_form(
             | ObligationKind::Loan { .. }
             | ObligationKind::RestorationWindow { .. }
             | ObligationKind::DomainDebt { .. }
-            | ObligationKind::EstablishmentDebt { .. }
-            | ObligationKind::WellFoundedness { .. }
-            | ObligationKind::RankComparison { .. } => {}
+            | ObligationKind::EstablishmentDebt { .. } => {}
         }
     }
     // An invocation row is where a callee's `ensures` becomes knowledge

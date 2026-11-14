@@ -114,7 +114,7 @@ impl PackageBuildSession {
                     let evaluation_sponsor = BuildEvaluationSponsor::new_with_measurement(
                         evaluation_limits,
                         EvaluationMeasurementIdentity::TerminalPsi {
-                            work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
+                            work_schedule: terminal_work::WorkSchedule::CURRENT.identity(),
                             storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
                         },
                     )

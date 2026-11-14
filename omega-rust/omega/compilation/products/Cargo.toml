@@ -19,7 +19,7 @@ selected-dispatch = { path = "../realization/selected-dispatch" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 source = { path = "../../../psi/foundation/source" }
 symbols = { path = "../../../psi/foundation/symbols" }
-psi-compiler = { path = "../../../psi/compilation/psi-compiler" }
+source-compiler = { path = "../../../psi/compilation/source-compiler" }
 task-plans = { path = "../backend/runtime/task-plans" }
 typed-trees = { path = "../../../psi/compilation/representations/typed-trees" }
 artifacts = { path = "../../foundation/artifacts" }

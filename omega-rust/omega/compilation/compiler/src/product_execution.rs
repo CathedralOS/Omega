@@ -51,7 +51,7 @@ impl CompilationProduct {
 pub enum CompilationOutput {
     Native(Box<compilation_products::PendingNativeProduct>),
     Report(CompileReport),
-    Inspection(std::sync::Arc<psi_compiler::PortableTerminalProgram>),
+    Inspection(std::sync::Arc<source_compiler::PortableTerminalProgram>),
     Component(compilation_products::IndependentComponentProduct),
 }
 
@@ -75,7 +75,7 @@ impl CompilationOutput {
 
     pub fn into_inspection(
         self,
-    ) -> Result<std::sync::Arc<psi_compiler::PortableTerminalProgram>, CompilationProductError>
+    ) -> Result<std::sync::Arc<source_compiler::PortableTerminalProgram>, CompilationProductError>
     {
         match self {
             Self::Inspection(artifact) => Ok(artifact),

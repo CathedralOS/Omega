@@ -1165,11 +1165,11 @@ fn build_constant_cleanup_history() -> compilation_products::SourceCompletionAcc
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
     let entry = typed.realized_machine_named("build").unwrap().symbol;
-    let prepared = psi_compiler::SourcePreparationRequest {
+    let prepared = source_compiler::SourcePreparationRequest {
         program: typed,
         accounting: Default::default(),
         admission: Default::default(),
-        compilation: psi_compiler::TerminalSourceCompilation {
+        compilation: source_compiler::TerminalSourceCompilation {
             entries: &[entry],
             subjects: &[],
             purpose: source::DependencyScope::Build,

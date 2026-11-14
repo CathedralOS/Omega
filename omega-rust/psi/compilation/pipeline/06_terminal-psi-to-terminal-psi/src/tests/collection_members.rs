@@ -287,7 +287,7 @@ machine entry<'a>() -> u64 {
     let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
     let mut instance = program.instantiate(Default::default()).unwrap();
     let status = instance
-        .invoke(&mut psi_work::WorkMeter::with_budget(1_000))
+        .invoke(&mut terminal_work::WorkMeter::with_budget(1_000))
         .unwrap();
     assert!(
         matches!(
@@ -344,7 +344,7 @@ machine entry<'a>() -> u64 {
     let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
     let mut instance = program.instantiate(Default::default()).unwrap();
     let status = instance
-        .invoke(&mut psi_work::WorkMeter::with_budget(1_000))
+        .invoke(&mut terminal_work::WorkMeter::with_budget(1_000))
         .unwrap();
     assert!(
         matches!(
@@ -377,7 +377,7 @@ machine entry() crashes Trap { fail("x"); }
     let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
     let mut instance = program.instantiate(Default::default()).unwrap();
     let status = instance
-        .invoke(&mut psi_work::WorkMeter::with_budget(1_000))
+        .invoke(&mut terminal_work::WorkMeter::with_budget(1_000))
         .unwrap();
     assert!(
         matches!(status, terminal_interpreter::TerminalExecutionStatus::Crashed(ref crash)

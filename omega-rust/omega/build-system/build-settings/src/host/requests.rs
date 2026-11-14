@@ -18,7 +18,7 @@ use build_declarations::{
     BuildDependencySource, BuildRequest, DependencyPurpose, ProjectName, WorkspaceMemberPath,
 };
 use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
-use psi_compiler::{
+use source_compiler::{
     TerminalBuildRequestCall, TerminalBuildRequestOperation as Operation, TerminalBuildRequests,
 };
 use std::sync::{Arc, Mutex};
@@ -69,6 +69,20 @@ struct Registrations {
     issued: Vec<Registration>,
     /// The registration a parked `Build::prepare_dependency` waits for.
     awaiting: Option<usize>,
+    /// Whether the request this host completed last was a dependency
+    /// preparation. A stage that is not the last one must end there.
+    ended_at_preparation: bool,
+}
+
+/// What the request host of a returned stage hands to the host of the next
+/// stage of the same activation (`admission/build_stages.rs`): every
+/// registration issued so far, so later registrations keep counting from
+/// them, and the log written so far. The markers of earlier registrations
+/// name types of the earlier stage's module; no later value equals one, and
+/// no local carries one across.
+pub(crate) struct CarriedRequests {
+    registrations: Registrations,
+    log: BuildLog,
 }
 
 /// The registered dependency a parked Build waits to have prepared.
@@ -170,6 +184,45 @@ impl TerminalBuildRequestHost {
             .take()
             .ok_or("Build has no dependency preparation pause")?;
         registrations.issued[position].prepared = true;
+        Ok(())
+    }
+
+    /// Whether the stage this host served returned right after a dependency
+    /// preparation completed, with no other request after it.
+    pub(crate) fn ended_at_preparation(&self) -> Result<bool, String> {
+        Ok(self
+            .registrations
+            .lock()
+            .map_err(|_| REGISTRATIONS_POISONED)?
+            .ended_at_preparation)
+    }
+
+    pub(crate) fn carry(&self) -> Result<CarriedRequests, String> {
+        let mut registrations = self
+            .registrations
+            .lock()
+            .map_err(|_| REGISTRATIONS_POISONED)?;
+        if registrations.awaiting.is_some() {
+            return Err("a Build stage ended while it awaited a dependency preparation".into());
+        }
+        Ok(CarriedRequests {
+            registrations: std::mem::take(&mut *registrations),
+            log: self.take_log()?,
+        })
+    }
+
+    pub(crate) fn adopt(&self, carried: CarriedRequests) -> Result<(), String> {
+        let mut registrations = self
+            .registrations
+            .lock()
+            .map_err(|_| REGISTRATIONS_POISONED)?;
+        let mut log = self.log.lock().map_err(|_| "Build log lock was poisoned")?;
+        if !registrations.issued.is_empty() || !log.bytes.is_empty() {
+            return Err("a Build stage adopts earlier requests before it runs".into());
+        }
+        *registrations = carried.registrations;
+        registrations.ended_at_preparation = false;
+        *log = carried.log;
         Ok(())
     }
 
@@ -349,6 +402,13 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             .iter()
             .find(|call| crate::host::is_call_at(effect, call.site))
             .ok_or_else(|| refuse("Build request has no source-issued protocol call"))?;
+        if call.action != Operation::PrepareDependency {
+            self.host
+                .registrations
+                .lock()
+                .map_err(|_| refuse(REGISTRATIONS_POISONED))?
+                .ended_at_preparation = false;
+        }
         if call.action == Operation::LogLine {
             let [facet, _] = structural_arguments.as_slice() else {
                 return Err(refuse("Build log request has an invalid argument roster"));
@@ -401,7 +461,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             return Ok(TerminalEffectResult::Unit);
         }
         if call.action == Operation::PrepareDependency {
-            let registrations = self
+            let mut registrations = self
                 .host
                 .registrations
                 .lock()
@@ -412,6 +472,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                     "Build dependency preparation requires its completed preparation",
                 ));
             }
+            registrations.ended_at_preparation = true;
             return Ok(TerminalEffectResult::Unit);
         }
         // A registration returns the marker that names it; every other

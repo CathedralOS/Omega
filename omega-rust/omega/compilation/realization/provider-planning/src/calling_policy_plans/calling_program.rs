@@ -61,7 +61,7 @@ impl CallingProgram {
         )?;
         let policy = *policy.policy.as_ref().map_err(Clone::clone)?;
         let measurement = EvaluationMeasurementIdentity::TerminalPsi {
-            work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
+            work_schedule: terminal_work::WorkSchedule::CURRENT.identity(),
             storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
         };
         let limits = BuildEvaluationSponsorLimits::new(
@@ -227,13 +227,13 @@ impl CallingProgram {
                             declaration,
                             applications: demand.applications(),
                         },
-                        psi_work::WorkMeter::with_invocation(account.clone(), None)
+                        terminal_work::WorkMeter::with_invocation(account.clone(), None)
                             .map_err(|error| format!("calling ABI scalar work: {error:?}"))?,
                     )
                 }
                 CallingStorageScope::Description => (
                     super::scalar_completion::CallingScalarScope::AbiStorage(demand),
-                    psi_work::WorkMeter::with_budget(CALLING_EVALUATION_WORK),
+                    terminal_work::WorkMeter::with_budget(CALLING_EVALUATION_WORK),
                 ),
             };
             let completed = super::scalar_completion::complete_calling_scalar_inputs(
