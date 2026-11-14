@@ -1419,17 +1419,13 @@ fn build_constant_captured_invalid_twin_rejects_its_original_call_obligation() {
     session.close().unwrap();
 }
 
-#[test]
-fn accepted_package_review_keeps_declarations_and_refuses_detached_source() {
-    use package_evidence::record::PackagePolicyBaseline;
-    use package_evidence::{
-        PackageReviewInput, project_checked_package_policy, project_package_review,
-    };
-
-    // These are the original public Pair/Delivered declarations from the
-    // fixed-layout customer. This control isolates review from its still
-    // independently developed layout/native realization. Build and checking
-    // use the ordinary captured package route, with no fixture consent.
+fn captured_review_compilation(
+    main_source: &str,
+) -> (
+    platform_custody::temporary_directory::TemporaryDirectory,
+    orchestration::BuildSession,
+    compilation_products::CheckedCompilation,
+) {
     let workspace = platform_custody::temporary_directory::TemporaryDirectory::create(
         "accepted-package-review",
         false,
@@ -1437,15 +1433,7 @@ fn accepted_package_review_keeps_declarations_and_refuses_detached_source() {
     .unwrap();
     let project = workspace.path().join("project");
     std::fs::create_dir(&project).unwrap();
-    std::fs::write(
-        project.join("main.omg"),
-        r#"
-public domain u64::Delivered requires self >= 42u64 && self <= 42u64;
-public data Pair [copy] { lo: u64 in Delivered; hi: u64; }
-machine main() {}
-"#,
-    )
-    .unwrap();
+    std::fs::write(project.join("main.omg"), main_source).unwrap();
     std::fs::write(
         project.join("build.omg"),
         r#"
@@ -1502,6 +1490,29 @@ machine build(builder: &mut Build) {
             .cloned()
             .collect::<Vec<_>>()
     );
+    (workspace, session, checked)
+}
+
+#[test]
+fn accepted_package_review_keeps_declarations_and_refuses_detached_source() {
+    use package_evidence::record::PackagePolicyBaseline;
+    use package_evidence::{
+        PackageReviewInput, project_checked_package_policy, project_package_review,
+    };
+
+    // These are the original public Pair/Delivered declarations from the
+    // fixed-layout customer. This control isolates review from its still
+    // independently developed layout/native realization. Build and checking
+    // use the ordinary captured package route, with no fixture consent.
+    const SOURCE: &str = r#"
+public domain u64::Delivered requires self >= 42u64 && self <= 42u64;
+public data Pair [copy] { lo: u64 in Delivered; hi: u64; }
+machine main() {}
+"#;
+    let (workspace, session, checked) = captured_review_compilation(SOURCE);
+    let project = workspace.path().join("project");
+    let package = checked.sources().package_identity().unwrap();
+    let target = checked.execution().target_profile().unwrap();
     let input = PackageReviewInput::supplied(&checked, &checked).unwrap();
     assert!(std::ptr::eq(
         input.module().unwrap(),
@@ -1610,5 +1621,23 @@ machine build(builder: &mut Build) {
         target::TargetProfile::WindowsX64
     };
     assert!(project_checked_package_policy(&checked, wrong_target, package).is_err());
+    session.close().unwrap();
+
+    // An unused private local claim is still part of the reviewed subject.
+    // Loaded but unrelated core claims must not erase this distinction.
+    let claimed_source = format!(
+        "{SOURCE}\nboundary machine unproved(value: u64) -> u64 ensures result == value;\n"
+    );
+    let (_workspace, session, claimed) = captured_review_compilation(&claimed_source);
+    let refusal = project_checked_package_policy(
+        &claimed,
+        claimed.execution().target_profile().unwrap(),
+        claimed.sources().package_identity().unwrap(),
+    )
+    .unwrap_err();
+    assert!(
+        diagnostics::join_messages(&refusal).contains("public or bodyless callable contracts"),
+        "{refusal:?}"
+    );
     session.close().unwrap();
 }

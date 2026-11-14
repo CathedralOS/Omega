@@ -31,11 +31,10 @@ pub(super) fn project(
     }
     let declarations = input;
     require_supported_inventory(&declarations, package)?;
-    checked
-        .source_inspection()
-        .inventory()
-        .trust_declarations()
-        .map_err(|error| vec![error])?;
+    // The owned declaration census above refuses unserved admission claims,
+    // including unused private claims. The provider inventory's separate
+    // root-grant census also contains unrelated imported toolchain claims;
+    // it cannot substitute for this package's own review subject.
     let config = &checked.build().config;
     if !checked.execution().plans().plans().is_empty()
         || !checked.execution().plans().assumed_bindings().is_empty()
