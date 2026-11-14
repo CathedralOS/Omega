@@ -23,6 +23,24 @@ machine run() -> i64 crashes none {
 }
 "#;
 
+const SELECTED_SOURCE: &str = r#"
+trait Reborrow {
+    machine take<'owner>(source: &'owner mut i64) -> &'owner mut i64
+        reaches none crashes none terminates;
+}
+public Identity satisfies Reborrow {
+    machine take<'owner>(source: &'owner mut i64) -> &'owner mut i64
+        reaches none crashes none { source }
+}
+machine run() -> i64 crashes none {
+    let mut backing: i64 = 17;
+    let child: &mut i64 = Identity::take(&mut backing);
+    child = 41;
+    let observed: i64 = child;
+    observed
+}
+"#;
+
 fn typed(source: &str) -> TypedTrees {
     let library =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../source/library");
@@ -76,6 +94,22 @@ fn a_closed_core_borrow_returns_the_original_storage_and_excludes_its_parent() {
     assert_eq!(
         run(&restored).expect("the original home remains writable after its loan ends"),
         BuildTimeValue::Int(7),
+    );
+}
+
+#[test]
+fn a_selected_reference_keeps_its_public_input_and_the_original_loan() {
+    assert_eq!(
+        run(SELECTED_SOURCE).expect("the selected public reference retains its actual source"),
+        BuildTimeValue::Int(41),
+    );
+    let conflicting =
+        SELECTED_SOURCE.replace("    child = 41;", "    backing = 7;\n    child = 41;");
+    assert_ne!(conflicting, SELECTED_SOURCE);
+    let refusal = run(&conflicting).expect_err("selection cannot release its input loan early");
+    assert!(
+        refusal.contains("storage is changed while a conflicting reference remains live"),
+        "{refusal}",
     );
 }
 
