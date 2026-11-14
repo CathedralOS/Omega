@@ -601,15 +601,23 @@ pub fn elaborate_callable_witness<'a>(
 }
 
 fn elaborate_witness_call(
-    program: read::Program<'_>,
+    mut program: read::Program<'_>,
     entry: MachineId,
     callee: MachineId,
 ) -> Checked<Elaboration> {
     let required =
-        terminal_check_tables::row(&program.signatures, entry, entry, Construct::Machine)?;
+        terminal_check_tables::row(&program.signatures, entry, entry, Construct::Machine)?.clone();
     let supplied =
-        terminal_check_tables::row(&program.signatures, callee, entry, Construct::Machine)?;
-    if required.parameters != supplied.parameters || required.result != supplied.result {
+        terminal_check_tables::row(&program.signatures, callee, entry, Construct::Machine)?.clone();
+    let supplied_machine = program
+        .symbols
+        .get(callee)
+        .copied()
+        .unwrap_or_else(SymbolHandle::invalid);
+    // The implementation's lifetimes are its own; it refines the
+    // requirement when its signature is the requirement's once they are
+    // instantiated, as the witness's call instantiates them.
+    if !program.same_signature(entry, &required, &supplied, supplied_machine)? {
         return Err(refuse(
             entry,
             Construct::Machine,

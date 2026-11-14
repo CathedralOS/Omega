@@ -117,7 +117,7 @@ fn formal_place(id: MachineId, slots: &[Slot], slot: usize) -> Checked<PlaceId> 
     let earlier = slots[..slot]
         .iter()
         .filter(|formal| {
-            formal.borrowed.is_some() || matches!(formal.value_type, ValueType::Record(_, _))
+            formal.borrowed.is_some() || matches!(formal.value_type, ValueType::Record(_, _, _))
         })
         .count();
     PlaceId::new(earlier as u64 + 1).ok_or_else(|| {
@@ -938,7 +938,7 @@ impl Program<'_> {
             // domains.md, "Operands": a builtin comparison takes
             // unqualified operands, in `requires` and `ensures` too.
             ValueType::Scalar(..) => unserved("field that carries a declared domain in a clause"),
-            ValueType::Record(_, _) => unserved("data value compared whole in a clause"),
+            ValueType::Record(_, _, _) => unserved("data value compared whole in a clause"),
         }
     }
 
@@ -990,11 +990,7 @@ impl Program<'_> {
                         return Ok(None);
                     };
                     let root = formal_place(id, scope.slots, slot)?;
-                    return Ok(Some((
-                        root,
-                        Vec::new(),
-                        ValueType::Record(record, Qualification::NONE),
-                    )));
+                    return Ok(Some((root, Vec::new(), ValueType::record(record))));
                 };
                 if subject.symbol.is_valid() && path.symbol == subject.symbol {
                     return Ok(Some((
@@ -1004,7 +1000,7 @@ impl Program<'_> {
                     )));
                 }
                 // A field named bare is that field of `self`.
-                let ValueType::Record(record, _) = subject.value_type else {
+                let ValueType::Record(record, _, _) = subject.value_type else {
                     return Ok(None);
                 };
                 if !subject.bare_fields {

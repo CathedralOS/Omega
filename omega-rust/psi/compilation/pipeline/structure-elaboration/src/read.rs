@@ -34,6 +34,7 @@ mod machine;
 mod places;
 mod predicates;
 mod reflection;
+mod regions;
 mod services;
 mod source_records;
 mod statements;
@@ -127,6 +128,23 @@ pub(crate) struct Program<'t> {
     /// occurrence: the data declaration whose members are read, or the
     /// machine whose signature or body is (`types`, `value_type`).
     lifetime_owner: SymbolHandle,
+    /// The region tuples `body::Regions` names, by position; the first is
+    /// the empty tuple (`regions`).
+    region_tuples: Vec<Vec<regions::Region>>,
+    /// The text identities of `regions::Region::Fixed`, by position.
+    fixed_regions: Vec<String>,
+    /// What each region variable was decided as, if it was (`regions`).
+    region_variables: Vec<Option<regions::Region>>,
+    /// What an elided lifetime stands for where a type is being read.
+    elision: regions::Elision,
+    /// How many fresh lifetime parameters each machine's signature was
+    /// given for its elided applications.
+    elided_lifetimes: Vec<(SymbolHandle, usize)>,
+    /// The type the expression being read is expected to have, handed from
+    /// `expression` to the call or literal it dispatches to, which takes it
+    /// before reading anything nested (`regions`: a call instantiates its
+    /// callee's lifetimes from it first).
+    expected: Option<ValueType>,
     /// How many `StructuralFieldId`s the records above hold.
     fields_minted: u64,
     /// How many `StructuralCaseId`s the sums above hold.
@@ -212,6 +230,12 @@ impl<'t> Program<'t> {
             record_sources: IdTable::default(),
             resolving: Vec::new(),
             lifetime_owner: SymbolHandle::invalid(),
+            region_tuples: vec![Vec::new()],
+            fixed_regions: Vec::new(),
+            region_variables: Vec::new(),
+            elision: regions::Elision::Declaration,
+            elided_lifetimes: Vec::new(),
+            expected: None,
             fields_minted: 0,
             cases_minted: 0,
             captures: Vec::new(),
@@ -910,10 +934,7 @@ mod tests {
         let value = typed.expression_table.insert(ExpressionNode::Boolean(true));
         let slots = [Slot {
             symbol: local,
-            value_type: ValueType::Record(
-                StructuralTypeId::new(1).unwrap(),
-                crate::body::Qualification::NONE,
-            ),
+            value_type: ValueType::record(StructuralTypeId::new(1).unwrap()),
             assignable: true,
             homed: false,
             erased: false,
@@ -935,10 +956,7 @@ mod tests {
         // A binding that is not `mut` is neither replaced nor stored into.
         let frozen = [Slot {
             symbol: local,
-            value_type: ValueType::Record(
-                StructuralTypeId::new(1).unwrap(),
-                crate::body::Qualification::NONE,
-            ),
+            value_type: ValueType::record(StructuralTypeId::new(1).unwrap()),
             assignable: false,
             homed: false,
             erased: false,
@@ -1110,10 +1128,7 @@ mod tests {
         ]);
         let slots = [Slot {
             symbol: local,
-            value_type: ValueType::Record(
-                StructuralTypeId::new(1).unwrap(),
-                crate::body::Qualification::NONE,
-            ),
+            value_type: ValueType::record(StructuralTypeId::new(1).unwrap()),
             assignable: false,
             homed: false,
             erased: false,

@@ -357,10 +357,15 @@ impl Program<'_> {
                     path.symbol,
                     arguments,
                     SourceOrigin::of(*source_span),
+                    None,
                 )?
             }
         };
-        if target.result != result {
+        let agreed = match (target.result, result) {
+            (Some(actual), Some(expected)) => self.agrees(Some(actual), expected),
+            (actual, expected) => actual == expected,
+        };
+        if !agreed {
             return Err(refuse(
                 id,
                 Construct::Machine,

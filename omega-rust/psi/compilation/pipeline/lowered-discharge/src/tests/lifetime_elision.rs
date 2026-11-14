@@ -68,7 +68,8 @@ machine build_entry(session: &mut Session) { session.ready = true; }
     );
 }
 
-/// Eliding a lifetime relates nothing. lifetimes.md: "A signature does not
+/// Eliding a lifetime relates nothing but an elided result to its one input
+/// (`an_elided_result_is_at_the_region_of_the_one_input`). lifetimes.md: "A signature does not
 /// authorize returning unrelated storage merely because its type has the same
 /// lifetime spelling", and an elided input is not even the same spelling. A
 /// view's type carries the region it is valid for, so a view from one region
@@ -92,18 +93,37 @@ machine build_entry(session: &mut Session) { let kept: &[u8] = helper(session); 
 machine helper(session: &Session) -> &[u8] { session.name }
 "#
         ),
-        "typing arm value type"
+        "typing result without a lifetime of a signature with several input lifetimes"
     );
     assert_eq!(
         refusal(
             r#"
 data Session<'storage> { ready: bool; name: &'storage [u8]; }
-machine build_entry(name: &[u8]) { let made: Session = helper(name); }
-machine helper(name: &[u8]) -> Session { Session { ready: true, name: name } }
+machine build_entry(name: &[u8], other: &[u8]) { let made: Session = helper(name, other); }
+machine helper(name: &[u8], other: &[u8]) -> Session { Session { ready: true, name: name } }
 "#
         ),
-        "typing record literal field type"
+        "typing result without a lifetime of a signature with several input lifetimes"
     );
+}
+
+/// The one place eliding relates something: "For an elided output, one
+/// unambiguous reference input supplies the relation." With one input
+/// view, an elided result is at its region, so the result may hold it.
+#[test]
+fn an_elided_result_is_at_the_region_of_the_one_input() {
+    let verdict = judge_build(
+        r#"
+data Session<'storage> { ready: bool; name: &'storage [u8]; }
+machine build_entry(name: &[u8]) { let made: Session = helper(name); }
+machine helper(name: &[u8]) -> Session { Session { ready: true, name: name } }
+"#,
+    )
+    .unwrap();
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("{verdict:?}")
+    };
+    accepted.publish_invocation().unwrap();
 }
 
 /// The source record rows of an accepted Build program, by the name of the

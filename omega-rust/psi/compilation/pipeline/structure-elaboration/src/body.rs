@@ -38,15 +38,37 @@ use crate::SourceOrigin;
 /// an argument, a field initializer, a return, the arms of a join) tells
 /// them apart ("the supplied expression's static type must carry exactly the
 /// domains the destination declares").
+///
+/// A record type also carries the regions its views are valid for
+/// (`Regions`). `wiki/spec/language/lifetimes.md`: "Lifetime arguments are
+/// erased regions, separate from runtime generic arity, layout and
+/// monomorphization. Erasure does not remove semantic lifetime relations or
+/// loan obligations." So the regions are part of the type every typing rule
+/// compares, and nothing that stores or lowers a value reads them: a
+/// `&'a [u8]` and a `&'b [u8]` are one structural row on the lowered form
+/// and two types here.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ValueType {
     Scalar(ScalarType, Qualification),
-    Record(StructuralTypeId, Qualification),
+    Record(StructuralTypeId, Qualification, Regions),
     /// A value of a type parameter that a generic check form leaves rigid.
     /// It is neither a scalar nor a record: no operator, field or literal
     /// applies to it, so every typing rule that asks for one refuses it. It
     /// can be named, passed to a call and returned.
     Rigid(RigidType),
+}
+
+/// The regions a record type is applied at, as one interned tuple: the
+/// reader keeps the table (`read::Program::region_tuples`) and only the
+/// reader looks inside. `NONE` is the empty tuple, the regions of every type
+/// that names no lifetime. Two types are the same type only with the same
+/// tuple, so equality here is the region judgment of every typing rule that
+/// compares types.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct Regions(pub(crate) u32);
+
+impl Regions {
+    pub const NONE: Self = Self(0);
 }
 
 /// The domains a type carries, one mechanism for every kind of domain: the
@@ -163,9 +185,30 @@ impl ValueType {
         Self::Scalar(scalar_type, Qualification::NONE)
     }
 
-    /// The bare record carrier, with no domain.
+    /// The bare record carrier, with no domain and no region.
     pub const fn record(record: StructuralTypeId) -> Self {
-        Self::Record(record, Qualification::NONE)
+        Self::Record(record, Qualification::NONE, Regions::NONE)
+    }
+
+    /// The regions a record type's views are valid for; none for anything
+    /// else.
+    pub const fn regions(self) -> Regions {
+        match self {
+            Self::Record(_, _, regions) => regions,
+            Self::Scalar(..) | Self::Rigid(_) => Regions::NONE,
+        }
+    }
+
+    /// This type with its regions erased, as the lowered form sees it:
+    /// lowering compares carriers and domains, never regions, which the
+    /// reader has already judged.
+    pub const fn erased(self) -> Self {
+        match self {
+            Self::Record(record, qualification, _) => {
+                Self::Record(record, qualification, Regions::NONE)
+            }
+            other => other,
+        }
     }
 
     /// The scalar a value of this type is stored as, whatever it carries.
@@ -179,7 +222,7 @@ impl ValueType {
     /// The domains this type carries; a rigid type parameter carries none.
     pub const fn qualification(self) -> Qualification {
         match self {
-            Self::Scalar(_, qualification) | Self::Record(_, qualification) => qualification,
+            Self::Scalar(_, qualification) | Self::Record(_, qualification, _) => qualification,
             Self::Rigid(_) => Qualification::NONE,
         }
     }
@@ -189,7 +232,7 @@ impl ValueType {
     pub const fn qualified(self, qualification: Qualification) -> Option<Self> {
         match self {
             Self::Scalar(scalar_type, _) => Some(Self::Scalar(scalar_type, qualification)),
-            Self::Record(record, _) => Some(Self::Record(record, qualification)),
+            Self::Record(record, _, regions) => Some(Self::Record(record, qualification, regions)),
             Self::Rigid(_) => None,
         }
     }

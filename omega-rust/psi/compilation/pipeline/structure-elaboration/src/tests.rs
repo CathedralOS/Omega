@@ -1384,11 +1384,11 @@ use terminal_psi::{RecordFieldValue, StructuralAccess, StructuralArgument};
 use crate::body::{RecordField, RecordType};
 
 fn point() -> ValueType {
-    ValueType::Record(id(1), Qualification::NONE)
+    ValueType::record(id(1))
 }
 
 fn line() -> ValueType {
-    ValueType::Record(id(2), Qualification::NONE)
+    ValueType::record(id(2))
 }
 
 fn records() -> IdTable<StructuralTypeId, RecordType> {
@@ -2374,7 +2374,7 @@ const BOXED: usize = 2;
 const EMPTY: usize = 3;
 
 fn shape() -> ValueType {
-    ValueType::Record(id(2), Qualification::NONE)
+    ValueType::record(id(2))
 }
 
 fn sums() -> IdTable<StructuralTypeId, RecordType> {
