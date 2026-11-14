@@ -1,6 +1,6 @@
 /*
 Authoritative exact-name registry of source-visible optimizations, their
-execution phases, and the canonical selection codec (`OMGOPT\0\0` v15).
+execution phases, and the canonical selection codec (`OMGOPT\0\0` v16).
 
 We declare every optimization once in `optimization_vocabulary!`, binding its
 stable wire tag, exact `build.omg` case name, and `OptimizationExecutionPhase`.
@@ -14,10 +14,11 @@ names or tags can drift out of sync.
 Phase projection (`project_phase`, `project_psi`, `project_post_terminal`)
 routes a stage's local subset of optimizations while retaining the full
 `OptimizationSelectionIdentity` of the complete authored policy:
-- `CheckedTrees` and `Psi` execute before sealed Terminal Psi publication; rows
-  in the `Psi` phase project 1-to-1 into `optimization::PsiOptimization` via
-  `psi_projection_value!`, while `From<optimization::PsiOptimization>` is
-  checked exhaustively by the compiler in the reverse direction.
+- `Psi` executes before sealed Terminal Psi publication; its rows project
+  1-to-1 into `optimization::PsiOptimization` via `psi_projection_value!`,
+  while `From<optimization::PsiOptimization>` is checked exhaustively by the
+  compiler in the reverse direction. Phase discriminant 1 is retired and is
+  not reused.
 - `PostTerminalOptimizationSelections` (`post_terminal.rs`) admits only phases
   where `is_post_terminal()` holds (`AbstractOperations` through
   `FunctionRelativeLayout`), making pre-Terminal selections unrepresentable in
@@ -79,14 +80,13 @@ pub use post_terminal::{
 };
 
 const SELECTION_ENCODING_MAGIC: &[u8; 8] = b"OMGOPT\0\0";
-const SELECTION_ENCODING_VERSION: u32 = 15;
-const SELECTION_IDENTITY_DOMAIN: &[u8] = b"omega.optimization-selections.v15\0";
+const SELECTION_ENCODING_VERSION: u32 = 16;
+const SELECTION_IDENTITY_DOMAIN: &[u8] = b"omega.optimization-selections.v16\0";
 
 crate::tagged_vocabulary! {
-    9;
+    8;
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum OptimizationExecutionPhase {
-        CheckedTrees = 1,
         Psi = 2,
         AbstractOperations = 3,
         TargetOperations = 4,
@@ -100,7 +100,7 @@ crate::tagged_vocabulary! {
 
 impl OptimizationExecutionPhase {
     pub const fn is_post_terminal(self) -> bool {
-        !matches!(self, Self::CheckedTrees | Self::Psi)
+        !matches!(self, Self::Psi)
     }
 }
 
@@ -165,7 +165,7 @@ macro_rules! optimization_vocabulary {
 }
 
 optimization_vocabulary! {
-    55;
+    54;
     ControlFlowCleanup = 1 => {
         case: "ControlFlowCleanup",
         phase: Psi
@@ -249,10 +249,6 @@ optimization_vocabulary! {
     SelectedIncomingU12CompareImmediate = 21 => {
         case: "SelectedIncomingU12CompareImmediate",
         phase: SelectedLowering
-    },
-    CheckedTreeProductPruning = 22 => {
-        case: "CheckedTreeProductPruning",
-        phase: CheckedTrees
     },
     SelectedIncomingLiteralExtensionElimination = 23 => {
         case: "SelectedIncomingLiteralExtensionElimination",

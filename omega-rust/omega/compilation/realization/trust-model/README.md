@@ -2,7 +2,7 @@
 
 This realization package reconstructs exact trust obligations from Psi's complete
 accepted-machine declarations, explicit root grants, and selected-provider
-evidence. It has no typed-tree, checked-tree, interpreter, or compiler-driver
+evidence. It has no typed-tree, interpreter, or compiler-driver
 dependency. The declarations are invocation-owned; this boundary does not yet
 establish canonical publication or independently admitted source-discard replay.
 
@@ -12,9 +12,9 @@ resolves accepted-machine selectors, and constructs role-separated strong trust
 digests. An explicit root grant is acceptance; the operation reads no policy
 file and invents no approval.
 
-Psi's existing [provider inventory](../../../../psi/compilation/representations/checked-trees/src/providers_and_trust.rs)
+Psi's provider inventory
 owns the immutable source judgment and prepares its complete trust-declaration
-roster once. Its [producer](../../../../psi/compilation/representations/checked-trees/src/providers_and_trust.rs)
+roster once. Its producer
 records exact declaration coordinates, eligible template identities, concrete
 contract commitments, and missing or duplicate evidence. Dormant declarations
 remain present. Their evidence failures stay deferred until the selected grant

@@ -113,9 +113,8 @@ The source `Build::accept_component_assumption` approval call is removed:
 Build evaluation records no component approval. Each verified component's
 assumptions become `component_assumption` rows of the root Product occurrence,
 and root admission compares them with the consuming project's lock.
-Build evaluation decodes wire demands; Psi's
-[typed-to-checked stage](../../../psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checking.rs)
-checks their meaning before publishing checked trees. Package review reconstructs grants through
+Build evaluation decodes wire demands; Psi
+checks their meaning before publishing the checked program. Package review reconstructs grants through
 the same trust owner without calling the Build evaluator.
 
 Target-declaration preparation, provider-selection decoding and settlement belong to

@@ -1,8 +1,8 @@
 // Post-Terminal optimization selection vocabulary (`PostTerminalOptimizationSelections`)
 // and projection (`PostTerminalOptimizationSelectionProjection`).
 //
-// Sealed Terminal Psi artifacts have already executed `CheckedTrees` and `Psi`
-// optimizations prior to publication, so post-Terminal lowering accepts only
+// Sealed Terminal Psi artifacts have already executed `Psi` optimizations
+// prior to publication, so post-Terminal lowering accepts only
 // phases where `is_post_terminal()` holds while retaining `complete_selection`
 // and `complete_selections` for compiler-private custody verification.
 

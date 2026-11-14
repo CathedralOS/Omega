@@ -70,7 +70,7 @@ flush reports a command error (status 200), not a successful program result.
 Comparison runs the shared [hosted Terminal runtime](../../interpreter/terminal-runtime/README.md)
 on the native report's exact produced
 artifact and retained entry/provider provisions before publication transfers that
-payload. It never interprets checked trees, recompiles source or repeats Build.
+payload. It never interprets an earlier program, recompiles source or repeats Build.
 The current runtime establishes an isolated hosted root and buffered output.
 The standalone CLI explicitly delegates ProcessExit to that fresh private domain;
 the embedding runtime request defaults to no exit delegation. Entry Binding

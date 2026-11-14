@@ -20,7 +20,7 @@ explicit request. No target, environment variable, compiler default, build
 mode, or broad `O1`/`O2`/`O3` level implicitly enables an optimization.
 
 Every optimization has exactly one phase owner. The complete selection projects
-into closed phase-local sets for checked trees, Psi, abstract operations, target
+into closed phase-local sets for Psi, abstract operations, target
 operations/instruction selection, pre-allocation, allocation recovery,
 post-allocation, and resolved layout. A stage consumes only its projection; downstream coordinators must not
 rescan the global selection to construct another schedule. Projection retains
@@ -72,10 +72,7 @@ publication route. Disabling every selected rule yields the same identity-phase
 acceptance, diagnostics, and output as an initially empty selection, apart from
 the separately retained rollback provenance.
 
-Checked-tree pruning runs only after every declaration of the check's
-[validation subjects](validation_subjects.md) and their required dependency
-closure has been parsed, resolved, typed, and checked; deleting unreachable
-code cannot make invalid source valid within that declared scope. A root selection that changes the published product retains its
+A root selection that changes the published product retains its
 own explicit identity, not one inferred from the remaining declarations.
 Shared frontend work precedes target fan-out under the
 [target-selection contract](configuration.md).
@@ -281,8 +278,8 @@ change the catalog, or masquerade as source selection. An empty request creates
 no rollback receipt; an empty effective set executes the ordinary identity phases.
 
 A product cannot claim rollback for stages it does not execute. Check-only
-production rejects nonempty requests; Terminal production admits checked-tree
-and Psi-phase rollback, not post-Terminal names; native production admits its phase-scoped
+production rejects nonempty requests; Terminal production admits Psi-phase
+rollback, not post-Terminal names; native production admits its phase-scoped
 overlay. Invalid requests reject before frontend work or auxiliary output.
 Successful publication retains rollback provenance separately from effective
 optimization identity and reports exact requested, applied, and effective names.

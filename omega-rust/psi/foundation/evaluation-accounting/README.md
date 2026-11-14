@@ -4,10 +4,10 @@ This foundation owns source-neutral resource accounts, movable storage leases,
 and tagged measurement records. It contains no interpreter, source admission,
 Build execution, or filesystem implementation.
 
-`BuildEvaluationSponsor::new` retains the checked-tree schedule for existing
-clients. `new_with_measurement` binds an explicit supported identity immutably.
-The same account is shared across a package closure and retries; another engine
-or storage schedule cannot spend that account's ceilings. Equal numeric work
+`BuildEvaluationSponsor::new` stamps the current Terminal Psi measurement.
+`new_with_measurement` binds an explicit supported identity immutably.
+The same account is shared across a package closure and retries; another
+storage schedule cannot spend that account's ceilings. Equal numeric work
 markers never imply equal work or storage units.
 
 `EvaluationInvocationAccount::reserve_site` checks work and live storage in one
@@ -22,19 +22,17 @@ reserves copied live storage before allocation; publication charges cumulative
 result custody before exposing the completed result. Custody is not
 refunded on teardown or retry.
 
-The checked-tree measurement preserves schema 7, state/statement/expression
-work schedule 1, semantic cells and Text backing bytes. Terminal Psi measurement
-uses schema 8, semantic operation/edge work schedule 1 and distinct logical
-storage schedule 1. Terminal storage includes logical runtime rows, frame
+Terminal Psi measurement uses schema 8, semantic operation/edge work schedule
+1 and distinct logical storage schedule 1. Usage schema 7 is not a measurement
+this account accepts. Terminal storage includes logical runtime rows, frame
 headers, array/case payload elements and full retained byte backings once per
 owning backing. This is not heap capacity, allocator overhead or process memory.
 
 Usage records are telemetry, not admission or transferable sponsorship.
 In-process `EvaluationInvocationUsage` retains exact account custody for issuer
-checks. Cache records retain the explicit engine, work and storage identities
-and reject unknown versions. The tree interpreter that produced tree-measured
-usage is removed, and a tree-measured record cannot manufacture a Terminal
-observation.
+checks. Cache records retain the explicit measurement, work and storage
+identities and reject unknown versions. A record that names a removed
+measurement cannot manufacture a Terminal observation.
 
 The common Terminal work meter can retain an exact invocation account and pay
 it at each operation/selected edge before execution. Local resumable allowance

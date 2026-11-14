@@ -108,7 +108,7 @@ That owner prepares block/value rosters, visits blocks in order, dispatches
 function. Scalar, Unit and structural results share this traversal; there is no
 separate forwarding or ordinary-machine route to navigate.
 
-No checked tree, StateGraph, or caller-created module substitutes for the
+No earlier program, StateGraph, or caller-created module substitutes for the
 canonical artifact. Unsupported vocabulary rejects at admission or lowering;
 provider installation is not permission to drop an unsupported result.
 

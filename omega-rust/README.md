@@ -54,8 +54,8 @@ implies deletion.
 - [Build evaluation](omega/build-system/build-settings/README.md): Build
   activation, declaration admission, restricted-request consent and execution,
   independent of compiler coordination.
-- [Psi interpreters](psi/interpreter): separate checked-tree and Terminal Psi
-  engines. [Build-time evaluation](psi/compilation/build-time-evaluation) uses
+- [Psi interpreters](psi/interpreter): the Terminal Psi
+  engine. [Build-time evaluation](psi/compilation/build-time-evaluation) uses
   target-neutral execution without depending on the Omega compiler coordinator.
 
 Omega has five domains: `application/`, `compilation/`, `interpreter/`,

@@ -79,9 +79,8 @@ impl TerminalStorageScheduleIdentity {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EvaluationMeasurementIdentity {
-    CheckedTree,
     TerminalPsi {
         work_schedule: WorkScheduleIdentity,
         storage_schedule: TerminalStorageScheduleIdentity,
@@ -89,9 +88,15 @@ pub enum EvaluationMeasurementIdentity {
 }
 
 impl EvaluationMeasurementIdentity {
+    pub fn current() -> Self {
+        Self::TerminalPsi {
+            work_schedule: WorkScheduleIdentity::new(1).expect("schedule marker 1 is nonzero"),
+            storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
+        }
+    }
+
     pub const fn is_current(self) -> bool {
         match self {
-            Self::CheckedTree => true,
             Self::TerminalPsi {
                 work_schedule,
                 storage_schedule,
@@ -101,7 +106,6 @@ impl EvaluationMeasurementIdentity {
 
     pub const fn is_supported(self, schema: u32, schedule: u32) -> bool {
         match self {
-            Self::CheckedTree => schema == 7 && schedule == 1,
             Self::TerminalPsi {
                 work_schedule,
                 storage_schedule,
@@ -112,6 +116,42 @@ impl EvaluationMeasurementIdentity {
                     && storage_schedule.marker() == 1
             }
         }
+    }
+}
+
+impl compiler_storage::Record for EvaluationMeasurementIdentity {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        output.record(|output| {
+            // Tag 1 is the Terminal Psi coordinate. Tag 0 belonged to a removed
+            // measurement and is not written.
+            compiler_storage::Record::write(&1_u32, output)?;
+            match self {
+                Self::TerminalPsi {
+                    work_schedule,
+                    storage_schedule,
+                } => {
+                    compiler_storage::Record::write(work_schedule, output)?;
+                    compiler_storage::Record::write(storage_schedule, output)
+                }
+            }
+        })
+    }
+
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        input.record(
+            |input| match <u32 as compiler_storage::Record>::read(input)? {
+                1 => Ok(Self::TerminalPsi {
+                    work_schedule: compiler_storage::Record::read(input)?,
+                    storage_schedule: compiler_storage::Record::read(input)?,
+                }),
+                _ => Err(input.error("unknown EvaluationMeasurementIdentity variant")),
+            },
+        )
     }
 }
 
@@ -408,12 +448,9 @@ impl EvaluationInvocationAccount {
     pub fn snapshot(&self) -> Result<EvaluationInvocationUsage, EvaluationAccountingError> {
         let (shared, local) = self.account.consumption()?;
         let limits = self.account.sponsor.limits();
-        let (usage_schema_version, step_schedule_marker) = match self.account.measurement {
-            EvaluationMeasurementIdentity::CheckedTree => (7, 1),
-            EvaluationMeasurementIdentity::TerminalPsi { work_schedule, .. } => {
-                (8, work_schedule.marker())
-            }
-        };
+        let EvaluationMeasurementIdentity::TerminalPsi { work_schedule, .. } =
+            self.account.measurement;
+        let (usage_schema_version, step_schedule_marker) = (8, work_schedule.marker());
         Ok(EvaluationInvocationUsage {
             account: Arc::clone(&self.account),
             record: BuildEvaluationUsage {
@@ -534,5 +571,30 @@ impl EvaluationStorageLease {
 impl Drop for EvaluationStorageLease {
     fn drop(&mut self) {
         self.account.release_storage(self.cells, self.payload_bytes);
+    }
+}
+
+#[cfg(test)]
+mod measurement_record {
+    use super::EvaluationMeasurementIdentity;
+
+    #[test]
+    fn terminal_measurement_record_keeps_tag_one_and_rejects_tag_zero() {
+        let limits = compiler_storage::RecordLimits::default();
+        let identity = EvaluationMeasurementIdentity::current();
+        let bytes =
+            compiler_storage::encode(&identity, limits).expect("current measurement encodes");
+        assert_eq!(
+            compiler_storage::decode::<EvaluationMeasurementIdentity>(&bytes, limits).unwrap(),
+            identity
+        );
+        let retired = compiler_storage::encode(&0_u32, limits).expect("retired tag encodes");
+        let error = compiler_storage::decode::<EvaluationMeasurementIdentity>(&retired, limits)
+            .expect_err("tag 0 is not a measurement");
+        assert!(
+            error
+                .to_string()
+                .contains("unknown EvaluationMeasurementIdentity variant")
+        );
     }
 }

@@ -21,8 +21,8 @@ not call the compilation workflow back.
 The [connected pipeline](../pipeline.md) names each transformation and its
 entrance. Omega's product driver sequences compilation; Psi stages own the
 language decisions. [Terminal Psi](../../wiki/spec/terminal-psi/product.md)
-is the portable boundary. Omega consumes verified Terminal Psi, not a
-checked-tree native fallback. Psi packages must not depend on Omega backends,
+is the portable boundary. Omega consumes verified Terminal Psi.
+Psi packages must not depend on Omega backends,
 ABI, instruction, physical-storage or installation representations.
 
 Reference interpretation is not a fallback for unsupported native lowering.
