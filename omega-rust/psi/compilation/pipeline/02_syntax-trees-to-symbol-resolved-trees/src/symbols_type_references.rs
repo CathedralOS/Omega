@@ -874,15 +874,34 @@ mod assignment {
                     } else {
                         resolve_type_symbol(symbols, local_type_parameters, &generic.base_name)
                     };
-
-                assign_type_arguments_with_definitions(
-                    symbols,
-                    child_type_references,
-                    type_constraints,
-                    local_type_parameters,
-                    generic.arguments,
-                    definition_references,
-                );
+                /*
+                    The width of `u<N>` is a const argument, so its name reads a
+                    value, never a type. Each other argument takes its role from
+                    the selected declaration's binder, which the value pass knows.
+                */
+                if symbols.integer_family(generic.base_symbol).is_some() {
+                    for handle in generic.arguments.handles() {
+                        if let TypeReference::Named { symbol, name, .. } =
+                            child_type_references.get_mut(handle)
+                        {
+                            let binders = if definition_references.contains(&name.source_span()) {
+                                &[][..]
+                            } else {
+                                local_type_parameters
+                            };
+                            *symbol = resolve_value_in_type_symbol(symbols, binders, name);
+                        }
+                    }
+                } else {
+                    assign_type_arguments_with_definitions(
+                        symbols,
+                        child_type_references,
+                        type_constraints,
+                        local_type_parameters,
+                        generic.arguments,
+                        definition_references,
+                    );
+                }
             }
             TypeReference::ConstExpression(_) => {}
             TypeReference::DynamicTrait {
@@ -948,13 +967,7 @@ mod assignment {
     ) {
         match length {
             FixedArrayLength::ConstParameter { symbol, name } => {
-                *symbol = local_type_parameters
-                    .iter()
-                    .find(|parameter| parameter.name.as_str() == name.as_str())
-                    .map(|parameter| parameter.symbol)
-                    .unwrap_or_else(|| {
-                        top_level_symbol_for_source(symbols, SymbolKind::Const, name)
-                    });
+                *symbol = resolve_value_in_type_symbol(symbols, local_type_parameters, name);
             }
             FixedArrayLength::ConstCall { machine, name } => {
                 let entry = resolve_free_machine_entry_state_symbol(symbols, name);
@@ -1073,6 +1086,12 @@ mod assignment {
         );
     }
 
+    /*
+        A name in type position reads only the type role
+        (`wiki/spec/language/modules.md#builtin-type-names`): a generic binder
+        that introduces a value, such as `const N: u64`, never hides a type, so
+        with `const i: u64` in scope `i` here is still the builtin type.
+    */
     fn resolve_type_symbol(
         symbols: &SymbolTable,
         local_type_parameters: &[TypeParameter],
@@ -1080,9 +1099,40 @@ mod assignment {
     ) -> SymbolHandle {
         local_type_parameters
             .iter()
-            .find(|parameter| parameter.name.as_str() == name.as_str())
+            .find(|parameter| {
+                parameter.name.as_str() == name.as_str() && !introduces_value(&parameter.kind)
+            })
             .map(|parameter| parameter.symbol)
             .unwrap_or_else(|| top_level_type_symbol_for_source(symbols, name))
+    }
+
+    /*
+        A value named inside a type, such as an array extent or an integer
+        width, reads only the value role in the declaration's own binders and
+        then its constants. A type never stands in for a missing value. Where
+        the type sits in a machine, the value pass rebinds the same name in the
+        machine's complete lexical scope, so a parameter or local still hides a
+        same-spelled constant.
+    */
+    fn resolve_value_in_type_symbol(
+        symbols: &SymbolTable,
+        local_type_parameters: &[TypeParameter],
+        name: &DiagnosticName,
+    ) -> SymbolHandle {
+        local_type_parameters
+            .iter()
+            .find(|parameter| {
+                parameter.name.as_str() == name.as_str() && introduces_value(&parameter.kind)
+            })
+            .map(|parameter| parameter.symbol)
+            .unwrap_or_else(|| top_level_symbol_for_source(symbols, SymbolKind::Const, name))
+    }
+
+    fn introduces_value(kind: &TypeParameterKind) -> bool {
+        matches!(
+            kind,
+            TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
+        )
     }
 
     /*
@@ -1579,6 +1629,24 @@ mod value_expressions {
             TypeReference::Generic(generic) => {
                 for argument in generic.arguments.handles() {
                     child(argument);
+                }
+                /*
+                    An integer width is a const argument: like an array extent,
+                    its name is a value read in the complete lexical scope, so a
+                    runtime parameter hides a same-spelled constant and typing
+                    refuses it as a runtime width.
+                */
+                if symbols.integer_family(generic.base_symbol).is_some() {
+                    for argument in generic.arguments.handles() {
+                        if let TypeReference::Named { symbol, name, .. } =
+                            child_types.get_mut(argument)
+                            && let Some(selected) =
+                                resolve_index_subject(symbols, machine, parameters, name)
+                        {
+                            *symbol = selected;
+                        }
+                    }
+                    return;
                 }
                 let telescope = machine
                     .data_definitions

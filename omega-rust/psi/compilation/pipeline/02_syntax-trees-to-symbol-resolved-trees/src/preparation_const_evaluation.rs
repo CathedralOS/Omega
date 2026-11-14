@@ -5247,12 +5247,10 @@ mod values {
                 syntax,
                 actual_length,
                 &GenericApplicationSubstitution::new(),
-                selection,
             )? == closed_fixed_array_length(
                 syntax,
                 demanded_length,
                 substitution,
-                selection,
             )? && same_carrier_in_application(
                 syntax,
                 *actual,
@@ -5472,76 +5470,37 @@ mod values {
     }
 
     /*
-        Close structural array geometry through the same selected declaration used
-        for its value. A spelling is not an extent: source custody selects the owner,
-        canonical scalar validation establishes its carrier, and only a completed
-        literal is observable here. Calls and unresolved values remain with the
-        evaluation scheduler; reading them here would invent dependency readiness.
+        Close structural array geometry before resolution: a literal extent, or a
+        binder of the application being closed, substituted by its argument. An
+        extent that names anything else is a value read in the lexical scope the
+        type sits in, where a runtime parameter `count` hides a constant `count`
+        (`wiki/spec/language/modules.md#builtin-type-names`); only resolution
+        knows that scope, so the name stays with it and typing closes a selected
+        constant by its symbol. Calls and computed extents likewise remain with
+        the evaluation scheduler.
     */
     pub(crate) fn closed_fixed_array_length(
         syntax: &SyntaxTrees,
         length: &FixedArrayLength,
         substitution: &GenericApplicationSubstitution,
-        selection: Option<&ConstantSelection>,
     ) -> Result<usize, String> {
         match length {
             FixedArrayLength::Literal(length) => Ok(*length),
             FixedArrayLength::ConstParameter(name) => {
-                if let Some(argument) = substitution.get(name.as_str(syntax)) {
-                    return syntax_type_references(syntax)
-                        .type_reference(*argument)
-                        .as_named()
-                        .ok_or_else(|| {
-                            "array extent binding is not a completed integer literal".to_owned()
-                        })?
-                        .as_str(syntax)
-                        .parse::<usize>()
-                        .map_err(|_| {
-                            "array extent binding is not a nonnegative host-sized integer"
-                                .to_owned()
-                        });
-                }
-                let selection = selection.ok_or_else(|| {
-                    "array extent requires an exact selected constant declaration".to_owned()
+                let argument = substitution.get(name.as_str(syntax)).ok_or_else(|| {
+                    "array extent names a value that resolution reads in its scope".to_owned()
                 })?;
-                let definition = selection
-                    .select(syntax, name)
-                    .map_err(|diagnostic| diagnostic.message.to_string())?
+                syntax_type_references(syntax)
+                    .type_reference(*argument)
+                    .as_named()
                     .ok_or_else(|| {
-                        "array extent requires an exact selected constant declaration".to_owned()
-                    })?;
-                let mut carrier = definition.type_reference;
-                while let TypeReferenceNode::Constrained { base_type, .. } =
-                    syntax.type_references.type_reference(carrier)
-                {
-                    carrier = *base_type;
-                }
-                if !matches!(syntax.type_references.type_reference(carrier), TypeReferenceNode::Named(name)
-                if matches!(selection.builtin_type(syntax, name), Some(symbols::BuiltinTypeAtom::Integer(_))))
-                {
-                    return Err("array extent constant must have an integer carrier".to_owned());
-                }
-                if !matches!(
-                    syntax.expressions.expression(definition.value),
-                    ExpressionNode::Integer(_)
-                ) {
-                    return Err(
-                        "array extent constant is not a completed integer literal".to_owned()
-                    );
-                }
-                let value = super::super::canonicalize_selected_declared_const_definition(
-                    syntax,
-                    &definition,
-                    Some(selection),
-                )?;
-                let Some(DecodedCanonicalConstValue::Integer { value, .. }) =
-                    value.decode_encoding()
-                else {
-                    return Err("array extent constant must have an integer carrier".to_owned());
-                };
-                usize::try_from(value).map_err(|_| {
-                    "array extent constant is not a nonnegative host-sized integer".to_owned()
-                })
+                        "array extent binding is not a completed integer literal".to_owned()
+                    })?
+                    .as_str(syntax)
+                    .parse::<usize>()
+                    .map_err(|_| {
+                        "array extent binding is not a nonnegative host-sized integer".to_owned()
+                    })
             }
             FixedArrayLength::Expression(value) => syntax_type_references(syntax)
                 .type_reference(*value)
@@ -5743,7 +5702,7 @@ mod values {
             element_type,
             length,
         } => {
-            closed_fixed_array_length(syntax, length, substitution, selection)?;
+            closed_fixed_array_length(syntax, length, substitution)?;
             validate_selected_const_type(syntax,
                 *element_type,
                 visiting,
@@ -6006,7 +5965,7 @@ mod values {
                 element_type,
                 length,
             } => {
-                let length = closed_fixed_array_length(syntax, length, substitution, selection)?;
+                let length = closed_fixed_array_length(syntax, length, substitution)?;
                 let ExpressionNode::ArrayLiteral(values) =
                     syntax.expressions.expression(expression)
                 else {
@@ -6098,7 +6057,7 @@ mod values {
                 element_type,
                 length,
             } => {
-                let length = closed_fixed_array_length(syntax, length, substitution, selection)?;
+                let length = closed_fixed_array_length(syntax, length, substitution)?;
                 Ok(format!(
                     "[{}; {length}]",
                     substituted_type_label(syntax, *element_type, substitution, selection)?

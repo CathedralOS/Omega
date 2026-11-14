@@ -1722,6 +1722,13 @@ mod lookup {
         if local.is_empty() { candidates } else { local }
     }
 
+    /*
+        The type role among top-level declarations. A constant is a value and
+        is never read here. A builtin type spelling names only the builtin
+        type: no declaration may introduce a type with that spelling, and a
+        same-spelled machine is a value, so it competes with nothing
+        (`wiki/spec/language/modules.md#builtin-type-names`).
+    */
     pub(super) fn top_level_type_symbol_for_source(
         symbols: &SymbolTable,
         name: &DiagnosticName,
@@ -1731,21 +1738,27 @@ mod lookup {
         {
             return symbol;
         }
-        match symbols.lookup_top_level_by_name_and_kinds_from_source_matching(
-            name.as_str(),
+        let builtin = symbols::is_builtin_type_spelling(name.as_str());
+        let declared_types: &[SymbolKind] = if builtin {
+            &[SymbolKind::BuiltinType]
+        } else {
             &[
                 SymbolKind::BuiltinType,
                 SymbolKind::Data,
                 SymbolKind::TypeAlias,
                 SymbolKind::Machine,
                 SymbolKind::Trait,
-                SymbolKind::Const,
-            ],
+            ]
+        };
+        match symbols.lookup_top_level_by_name_and_kinds_from_source_matching(
+            name.as_str(),
+            declared_types,
             name.source_span(),
             |_| true,
         ) {
             symbols::SymbolLookup::Unique(symbol) => symbol,
             symbols::SymbolLookup::Ambiguous { .. } => SymbolHandle::invalid(),
+            symbols::SymbolLookup::NotFound if builtin => SymbolHandle::invalid(),
             symbols::SymbolLookup::NotFound => {
                 top_level_symbol_for_source(symbols, SymbolKind::Conformance, name)
             }

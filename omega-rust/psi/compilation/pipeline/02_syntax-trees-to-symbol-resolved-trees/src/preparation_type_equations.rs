@@ -1398,7 +1398,6 @@ mod type_structure {
                     &actual_length,
                     &crate::preparation::declaration_selection::GenericApplicationSubstitution::new(
                     ),
-                    self.selection,
                 )
                 .map_err(|reason| self.type_structure_error(&reason, span))?;
                     self.match_type_structure(element_type, actual_element, span)?;
