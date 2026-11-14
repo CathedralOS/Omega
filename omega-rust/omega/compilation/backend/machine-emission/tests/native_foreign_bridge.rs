@@ -8,7 +8,8 @@ use calling_conventions::{
     CallSignature, CallingPolicy, ValueShape, evaluate_ordinary_boundary_entry_plan,
 };
 use machine_emission::native_foreign_bridge::{
-    NativeForeignBridgeRequest, emit_native_foreign_bridge,
+    NativeForeignBridgeError, NativeForeignBridgeRequest, emit_native_foreign_bridge,
+    validate_native_foreign_bridge,
 };
 use semantic_vocabulary::{IeeeFloatFormat, IntegerSign, IntegerType, ScalarType};
 use target::{Architecture, NativeTarget, ObjectFormat};
@@ -225,5 +226,82 @@ fn another_host_calling_policy_is_rejected() {
             })
             .is_err()
         );
+    }
+}
+
+#[test]
+fn unresolved_scalar_widths_fail_at_parameter_admission() {
+    let scalar = ScalarType::Integer(IntegerType::parameterized(
+        IntegerSign::Signed,
+        semantic_vocabulary::WidthParameter {
+            owner: semantic_vocabulary::MachineId::new(7).unwrap(),
+            value: semantic_vocabulary::ValueId::new(11).unwrap(),
+        },
+    ));
+    for target in [
+        NativeTarget::macos_arm64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+    ] {
+        let foreign = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::native_for_target(target),
+            &CallSignature {
+                parameters: vec![ValueShape::integer(1, 1)],
+                result: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            emit_native_foreign_bridge(NativeForeignBridgeRequest {
+                target,
+                foreign,
+                scalar_parameters: vec![Some(scalar)],
+            }),
+            Err(NativeForeignBridgeError::ScalarParameterMismatch)
+        );
+    }
+}
+
+#[test]
+fn narrow_signed_register_arguments_extend_without_changing_request_tags() {
+    for target in [
+        NativeTarget::macos_arm64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+    ] {
+        for bits in [8, 16] {
+            let signed = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, bits).unwrap());
+            let unsigned =
+                ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, bits).unwrap());
+            let foreign = evaluate_ordinary_boundary_entry_plan(
+                CallingPolicy::native_for_target(target),
+                &CallSignature {
+                    parameters: vec![ValueShape::for_scalar(signed).unwrap()],
+                    result: None,
+                },
+            )
+            .unwrap();
+            let request = NativeForeignBridgeRequest {
+                target,
+                foreign,
+                scalar_parameters: vec![Some(signed)],
+            };
+            let signed_bridge = emit_native_foreign_bridge(request.clone()).unwrap();
+            assert_eq!(signed_bridge.request(), &request);
+            let unsigned_bridge = emit_native_foreign_bridge(NativeForeignBridgeRequest {
+                scalar_parameters: vec![Some(unsigned)],
+                ..request
+            })
+            .unwrap();
+            validate_native_foreign_bridge(&signed_bridge).unwrap();
+            validate_native_foreign_bridge(&unsigned_bridge).unwrap();
+            assert_ne!(
+                signed_bridge.bytes(),
+                unsigned_bridge.bytes(),
+                "signed {bits}-bit register transport requires its extension"
+            );
+        }
     }
 }
