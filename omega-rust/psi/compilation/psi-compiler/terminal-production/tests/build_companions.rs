@@ -890,3 +890,74 @@ fn a_case_value_pattern_cannot_discard_its_applied_type() {
         "{refused:?}"
     );
 }
+
+#[test]
+fn a_provider_selection_keeps_its_exact_generated_protocol_call() {
+    let prelude = native_binding_prelude().replace(
+        "machine bind(activation: u64) reaches none crashes none;",
+        "machine bind(activation: u64) reaches none crashes none;\n    machine select_provider(activation: u64, target: u64, independent: bool) reaches none crashes none;",
+    );
+    let accepted = accepted_frontier(
+        typed_with_prelude(
+            "machine build(builder: &mut Build) { Build::select_provider<Probe, Candidate>(builder, linux_x86_64); }",
+            &prelude,
+        ),
+        terminal_codec::TerminalPublication::Invocation,
+    ).unwrap_or_else(|refused| panic!("the Build records a provider choice for later Product resolution: {refused:?}"));
+    let program = accepted
+        .produce(
+            TerminalProductionCustody::default(),
+            &mut UnmeasuredProduction,
+        )
+        .unwrap();
+    assert!(
+        program
+            .build_bindings()
+            .calls_for(program.view())
+            .unwrap()
+            .iter()
+            .any(|call| call.action == TerminalBuildBindingOperation::SelectProvider)
+    );
+}
+
+#[test]
+fn product_queries_keep_their_selected_operation_in_value_positions() {
+    let prelude = format!(
+        "{PRELUDE}\n{}",
+        r#"
+public data BuildProduct [copy] { marker: u64; }
+public boundary trait BuildProductOperations {
+    machine entry(product: &BuildProduct) -> u64 reaches none crashes none;
+}
+"#
+    );
+    let accepted = accepted_frontier(
+        typed_with_prelude(
+            r#"
+machine build(builder: &mut Build, product: &BuildProduct) -> u64 {
+    let selected: u64 = BuildProduct::entry(product);
+    BuildProduct::entry(product)
+}
+"#,
+            &prelude,
+        ),
+        terminal_codec::TerminalPublication::Invocation,
+    )
+    .unwrap_or_else(|refused| {
+        panic!("Product query values retain the exact protocol operation: {refused:?}")
+    });
+    let program = accepted
+        .produce(
+            TerminalProductionCustody::default(),
+            &mut UnmeasuredProduction,
+        )
+        .unwrap();
+    assert_eq!(
+        program
+            .build_bindings()
+            .queries_for(program.view())
+            .unwrap()
+            .len(),
+        2
+    );
+}
