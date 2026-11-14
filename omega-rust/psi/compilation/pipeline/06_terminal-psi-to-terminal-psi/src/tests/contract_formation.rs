@@ -139,9 +139,29 @@ fn source_result(text: &str) -> RouteVerdict {
     super::build_purpose::judge_build(text).unwrap()
 }
 
-fn accepted_source(text: &str) {
+fn accepted_source(text: &str) -> crate::AcceptedClosure {
     let verdict = source_result(text);
-    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("{verdict:?}");
+    };
+    accepted
+}
+
+fn executed_source(text: &str) {
+    // A formed contract must still survive publication and execution of the
+    // same body. A bodyless boundary is checked separately without a provider.
+    let publication = accepted_source(text).publish_invocation().unwrap();
+    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    let status = instance
+        .invoke(&mut psi_work::WorkMeter::with_budget(10_000))
+        .unwrap();
+    assert_eq!(
+        status,
+        terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Unit
+        )
+    );
 }
 
 fn rejected_source(text: &str) {
@@ -161,7 +181,7 @@ requires size <= 18446744073709551615u64 - offset
 { offset + size }
 machine build_entry() { let end: u64 = append(17, 23); }
 "#;
-    accepted_source(SOURCE);
+    executed_source(SOURCE);
     rejected_source(&SOURCE.replace("append(17, 23)", "append(18446744073709551615u64, 1)"));
 }
 
@@ -174,7 +194,7 @@ requires value.first >= 1, value.first - 1 <= 4294967295u32
 { }
 machine build_entry() { let value: Pair = Pair { first: 7, second: 0 }; consume(&value); }
 "#;
-    accepted_source(SOURCE);
+    executed_source(SOURCE);
     rejected_source(&SOURCE.replace("value.first - 1", "value.second - 1"));
 }
 
@@ -188,7 +208,7 @@ ensures old(value.value) - 1 <= 4294967295u32
 { value.value = 0; }
 machine build_entry() { let mut value: Cell = Cell { value: 7 }; retain(&mut value); }
 "#;
-    accepted_source(SOURCE);
+    executed_source(SOURCE);
     rejected_source(&SOURCE.replace("old(value.value) - 1", "value.value - 1"));
 }
 
@@ -200,7 +220,7 @@ ensures result >= 1, result - 1 == 0
 { 1 }
 machine build_entry() { let value: u32 = positive(); }
 "#;
-    accepted_source(SOURCE);
+    executed_source(SOURCE);
     rejected_source(&SOURCE.replace("result >= 1, ", ""));
 }
 
@@ -210,7 +230,7 @@ fn scalar_domains_must_form_before_membership_can_supply_their_predicate() {
 domain u32::Nonzero requires self >= 1, self - 1 <= 4294967295u32;
 machine build_entry() { let value: u32 in Nonzero = 7 as +Nonzero; }
 "#;
-    accepted_source(SOURCE);
+    executed_source(SOURCE);
     rejected_source(&SOURCE.replace("self >= 1, ", ""));
 }
 
@@ -220,7 +240,7 @@ fn data_requirements_keep_each_partial_field_occurrence() {
 data Count [copy] requires value >= 1, value - 1 <= 4294967295u32 { value: u32; }
 machine build_entry() { let value: Count = Count { value: 7 }; }
 "#;
-    accepted_source(SOURCE);
+    executed_source(SOURCE);
     rejected_source(&SOURCE.replace("value >= 1, ", ""));
 }
 
@@ -251,7 +271,7 @@ ensures result == left /{policy} right
 machine build_entry() {{ let value: u32 = divide(31, 3); }}
 "#
         );
-        accepted_source(&source);
+        executed_source(&source);
         rejected_source(&source.replace("requires right > 0", "requires true"));
     }
 }
