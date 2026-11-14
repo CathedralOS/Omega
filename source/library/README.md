@@ -7,11 +7,11 @@ See [using source packages](../../wiki/language_guide/packages.md) for declarati
 dependency and identity rules. A folder or catalog label does not grant admission
 or claim that a package is complete on every target.
 
-Discover the current packages directly rather than maintaining another list:
+Discover or exercise the current packages directly via repository tooling rather than maintaining another list:
 
 ```text
-python3 tools/sample_projects.py --root source/library
-python3 tools/sample_projects.py --role library-consumer
+mbx xtask sample-gate --filter <consumer>
+mbx xtask qualify --samples <consumer-path> --output <new-directory>
 ```
 
 Consumers remain ordinary programs at their current paths. For example,
