@@ -242,7 +242,9 @@ guards, or a selected accessor's checked contract. Mutation invalidates stale
 facts under [invocation contracts](state_contracts.md#mutation-and-subject-identity).
 Range windows have the separate obligations in [numeric values](numeric_values.md#collection-bounds).
 
-A fixed array `[T; N]` has length exactly `N`. A growable collection's live length
+A fixed array `[T; N]` has length exactly `N`. A reference to it is not a view
+of its elements; [`&array[..]`](expressions.md#views-of-a-fixed-array) forms
+one, whose length is known to be `N`. A growable collection's live length
 is nonnegative and at most its capacity; indexing uses that live length, not
 unused capacity. Domain qualification does not change either rule:
 `[T; N] in D` still has length exactly `N`, while `FixedVec<T, N> in D` and
