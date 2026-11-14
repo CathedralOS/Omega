@@ -94,6 +94,14 @@ pub enum DeferredRequest {
     /// violation: "an unknown machine name ... is an error wherever it
     /// appears" (`state_contracts.md`).
     UndeclaredCallName,
+    /// A value name, in a constant's initializer or a body, that resolution
+    /// left unbound and that nothing in the program has: no declaration,
+    /// parameter, local or field of any kind. A violation, as for a call:
+    /// resolution looks through locals, parameters, imports and qualified
+    /// paths (`modules.md`, "Resolution"), and "an unknown machine name or
+    /// malformed type is an error wherever it appears"
+    /// (`state_contracts.md`) holds for a value name none of them answers.
+    UndeclaredValueName,
 }
 
 impl DeferredRequest {
@@ -101,7 +109,7 @@ impl DeferredRequest {
     /// reader that demands its declaration rejects the program rather than
     /// calling it unsupported.
     pub fn is_violation(self) -> bool {
-        matches!(self, Self::UndeclaredCallName)
+        matches!(self, Self::UndeclaredCallName | Self::UndeclaredValueName)
     }
 
     /// The construct as a refusal names it, after the word "declaration";
@@ -152,6 +160,10 @@ impl DeferredRequest {
             Self::UndeclaredCallName => {
                 "this call names nothing the program declares: an unknown machine name is an \
                  error wherever it appears, in a statement that never executes as in any other"
+            }
+            Self::UndeclaredValueName => {
+                "this expression names a value nothing the program declares: an unknown name is \
+                 an error wherever it appears"
             }
         }
     }
