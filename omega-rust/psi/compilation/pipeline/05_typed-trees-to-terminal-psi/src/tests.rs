@@ -1214,6 +1214,170 @@ fn a_right_operand_that_never_returns_ends_only_its_branch() {
     assert!(lowered.sources.unreachable.is_empty());
 }
 
+#[test]
+fn a_never_returning_argument_stops_later_arguments_and_the_outer_call() {
+    let mut first = call(3, Vec::new(), Some(u32_type()));
+    first.source = authored(10);
+    let mut later = call(4, Vec::new(), Some(u32_type()));
+    later.source = authored(20);
+    let body = Body {
+        slots: scalars(vec![u32_type()]),
+        statements: vec![
+            Statement::Bind {
+                slot: 0,
+                value: call(2, vec![first, later.clone()], Some(u32_type())),
+            },
+            Statement::Evaluate(later),
+        ],
+    };
+    let lowered = try_lower(
+        body,
+        vec![
+            signature(Vec::new(), Some(u32_type())),
+            signature(vec![u32_type(), u32_type()], Some(u32_type())),
+            signature(Vec::new(), Some(u32_type())),
+            signature(Vec::new(), Some(u32_type())),
+        ],
+        vec![
+            returns_normally(),
+            returns_normally(),
+            never_returns(),
+            returns_normally(),
+        ],
+    )
+    .unwrap();
+    assert_module_and_tables_agree(&lowered.machine, &lowered.tables);
+    assert_eq!(lowered.machine.blocks.len(), 1);
+    assert!(block(&lowered.machine, 1).operations.is_empty());
+    assert!(matches!(block(&lowered.machine, 1).terminator,
+        Terminator::InvokeNoNormal { callee, .. } if callee == id(3)));
+    assert_eq!(
+        lowered.sources.unreachable,
+        vec![crate::Unreachable {
+            statement: authored(20),
+            call: authored(10),
+        }]
+    );
+}
+
+#[test]
+fn a_never_returning_record_base_stops_its_field_projection() {
+    let body = Body {
+        slots: Vec::new(),
+        statements: vec![returns(member(
+            of_type(
+                ExpressionKind::Call {
+                    callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
+                    arguments: Vec::new(),
+                    designated: None,
+                },
+                point(),
+            ),
+            0,
+            u32_type().into(),
+        ))],
+    };
+    let mut signatures = IdTable::default();
+    signatures.push(signature(Vec::new(), Some(u32_type())));
+    signatures.push(shaped(Vec::new(), Some(point())));
+    let mut outcomes = IdTable::default();
+    outcomes.push(returns_normally());
+    outcomes.push(never_returns());
+    let lowered = lower_records(body, &signatures, &outcomes, &records()).unwrap();
+    assert_module_and_tables_agree(&lowered.machine, &lowered.tables);
+    assert!(block(&lowered.machine, 1).operations.is_empty());
+    assert!(matches!(block(&lowered.machine, 1).terminator,
+        Terminator::InvokeNoNormal { callee, .. } if callee == id(2)));
+}
+
+#[test]
+fn a_refused_operand_is_not_a_never_returning_evaluation() {
+    let body = Body {
+        slots: Vec::new(),
+        statements: vec![returns(strict(
+            Strict::Add,
+            slot(99, u32_type()),
+            call(2, Vec::new(), Some(u32_type())),
+            u32_type(),
+        ))],
+    };
+    let refusal = try_lower(
+        body,
+        vec![
+            signature(Vec::new(), Some(u32_type())),
+            signature(Vec::new(), Some(u32_type())),
+        ],
+        vec![returns_normally(), never_returns()],
+    )
+    .unwrap_err();
+    assert_eq!(
+        refusal.reason,
+        terminal_check_tables::RefusalReason::ForeignIdentity
+    );
+    assert!(refusal.detail.contains("slot is past the end"));
+}
+
+#[test]
+fn a_never_returning_later_pattern_keeps_earlier_match_arrivals() {
+    let body = Body {
+        slots: scalars(vec![u32_type()]),
+        statements: vec![returns(expression(
+            ExpressionKind::Match {
+                capture: None,
+                subject: Box::new(slot(0, u32_type())),
+                arms: vec![
+                    (Selector::Value(integer(1)), integer(7)),
+                    (
+                        Selector::Value(call(2, Vec::new(), Some(u32_type()))),
+                        integer(9),
+                    ),
+                ],
+                default: Some(Box::new(integer(11))),
+            },
+            Some(u32_type()),
+        ))],
+    };
+    let lowered = try_lower(
+        body,
+        vec![
+            signature(vec![u32_type()], Some(u32_type())),
+            signature(Vec::new(), Some(u32_type())),
+        ],
+        vec![returns_normally(), never_returns()],
+    )
+    .unwrap();
+    assert_module_and_tables_agree(&lowered.machine, &lowered.tables);
+    assert_eq!(
+        lowered
+            .machine
+            .blocks
+            .iter()
+            .filter(|block| matches!(block.terminator, Terminator::Return { .. }))
+            .count(),
+        1
+    );
+    assert_eq!(
+        lowered
+            .machine
+            .blocks
+            .iter()
+            .filter(|block| matches!(block.terminator, Terminator::InvokeNoNormal { .. }))
+            .count(),
+        1
+    );
+    let constants: Vec<_> = lowered
+        .machine
+        .operations()
+        .filter_map(|operation| match operation.kind {
+            OperationKind::IntegerConstant {
+                value: IntegerValue::Unsigned(value),
+            } => Some(value),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(constants, [1, 7]);
+}
+
 /// An authored position, so a test can tell two constructs apart.
 fn authored(start: usize) -> SourceOrigin {
     SourceOrigin::Authored(source::SourceSpan::new(
@@ -1894,7 +2058,9 @@ fn a_nested_read_interns_one_place_per_projection_and_reuses_it() {
         .values
         .iter()
         .filter_map(|(value, row)| match row.origin {
-            ValueOrigin::InitialContent { place } => Some((value, place, row.scalar_type)),
+            ValueOrigin::StorageContent { place, after: None } => {
+                Some((value, place, row.scalar_type))
+            }
             _ => None,
         })
         .collect();
@@ -2021,10 +2187,13 @@ fn a_whole_copy_logs_one_row_on_its_fresh_root_and_names_its_source() {
     for field in [1, 2] {
         let leaf = projected(&tables, formal, &[field]);
         assert!(written(&tables, leaf).is_empty());
-        let values = tables
-            .values
-            .iter()
-            .filter(|(_, row)| row.origin == ValueOrigin::InitialContent { place: leaf });
+        let values = tables.values.iter().filter(|(_, row)| {
+            row.origin
+                == ValueOrigin::StorageContent {
+                    place: leaf,
+                    after: None,
+                }
+        });
         assert_eq!(values.count(), 1);
     }
     // A call's record result has no value identity: nothing is invented.
@@ -2146,10 +2315,13 @@ fn a_projected_record_is_copied_out_by_its_path() {
     );
     for field in [1, 2] {
         let from = projected(&tables, formal, &[4, field]);
-        let values = tables
-            .values
-            .iter()
-            .filter(|(_, row)| row.origin == ValueOrigin::InitialContent { place: from });
+        let values = tables.values.iter().filter(|(_, row)| {
+            row.origin
+                == ValueOrigin::StorageContent {
+                    place: from,
+                    after: None,
+                }
+        });
         assert_eq!(values.count(), 1);
     }
 }

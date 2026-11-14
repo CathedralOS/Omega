@@ -85,12 +85,20 @@ fn a_relational_contradiction_names_both_values() {
 #[test]
 fn a_match_arm_contradicting_the_entry_requirement_warns() {
     assert_one_warning(
-        "contradictory_match_predecessor_join_exit",
-        &["the `true` arm of a match", "count >= 10"],
-    );
-    assert_one_warning(
         "contradictory_boolean_match_arm_exit",
         &["the `false` arm of a match", "count >= 10"],
+    );
+}
+
+/// The arm ruled out here feeds a join, and the subtraction after the join
+/// needs `chosen >= 100` from the live arm's `count + 100u64`. The checker
+/// does not yet carry an arithmetic arm value through a value-`match` join,
+/// so the program is rejected before any warning is printed.
+#[test]
+fn a_match_arm_ruled_out_before_a_join_warns() {
+    assert_one_warning(
+        "contradictory_match_predecessor_join_exit",
+        &["the `true` arm of a match", "count >= 10"],
     );
 }
 

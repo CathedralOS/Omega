@@ -4,11 +4,16 @@
 // chooses stateless code. Per-frame images and the final window are released.
 // Expected exit: 0. No stdin is required.
 // Expected output contains: PASS: 60 frames blitted (exit 0)
-use omega_language_std::console;
-use omega_language_std::macos_gui;
-use omega_language_std::macos_image;
-use omega_language_std::clock;
-use omega_language_std::windows_gui_host;
+use omega_language_std::Console;
+use omega_language_std::AppKit;
+use omega_language_std::CoreGraphics;
+use omega_language_std::ObjectiveC;
+use omega_language_std::Window;
+use omega_language_std::MacosImageData;
+use omega_language_std::MacosImageObjects;
+use omega_language_std::Clock;
+use omega_language_std::WindowsGuiHost;
+use omega_language_std::WindowsMessage;
 use providers;
 // Both targets select stateless implementations; the application owns every
 // native handle and the Windows message buffer throughout the render loop.

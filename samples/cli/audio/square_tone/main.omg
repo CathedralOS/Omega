@@ -13,10 +13,7 @@ use omega::language::core::FilesystemNamespaceMutation;
 // Expected output contains: square_tone: played square_tone.wav
 
 use omega::language::core::ProcessExit;
-use omega_language_std::process_exit;
-use omega_language_std::console;
-use omega_language_std::posix_filesystem_host;
-use omega_language_std::windows_filesystem_host;
+use omega_language_std::Console;
 use wav_output::wav_output::WavOutput;
 use audio_playback::audio_playback::AudioPlayback;
 use omega::language::core::narrow_i64_to_i32_wrapping;

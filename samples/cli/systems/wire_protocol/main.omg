@@ -41,7 +41,7 @@ use omega::language::core::narrow_u64_to_i64_wrapping;
 // Expected exit: 70.
 
 use omega::language::core::FixedVec;
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data RoomHeader {
     #0 room_id: u32;

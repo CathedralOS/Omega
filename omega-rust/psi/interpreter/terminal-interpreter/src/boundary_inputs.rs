@@ -2693,7 +2693,8 @@ pub(crate) mod scalar_fields {
                 | StructuralTypeShape::AtomicCell(_) => {
                     return Err(malformed());
                 }
-                StructuralTypeShape::PrimitiveScalar(_)
+                StructuralTypeShape::Opaque
+                | StructuralTypeShape::PrimitiveScalar(_)
                 | StructuralTypeShape::ByteSequence(_)
                 | StructuralTypeShape::ElementView { .. } => {}
             }
@@ -2719,7 +2720,8 @@ pub(crate) mod scalar_fields {
                     StructuralTypeShape::Reference { .. } | StructuralTypeShape::AtomicCell(_) => {
                         return true;
                     }
-                    StructuralTypeShape::PrimitiveScalar(_)
+                    StructuralTypeShape::Opaque
+                    | StructuralTypeShape::PrimitiveScalar(_)
                     | StructuralTypeShape::ByteSequence(_) => {
                         continue;
                     }

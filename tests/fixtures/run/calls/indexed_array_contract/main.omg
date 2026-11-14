@@ -1,0 +1,50 @@
+// The final element stays zero through indexed writes, mutable handback
+// and shared calls. Neighbor values make a misplaced load or store observable.
+// Expected exit: 0
+data PathBuffer [copy]
+requires self.units[4095] == 0
+{
+    before: u64;
+    units: [u16; 4096];
+    after: u64;
+}
+
+machine inspect(units: &[u16; 4096]) -> u16
+requires units[4095] == 0
+ensures result == 0
+{
+    units[4095]
+}
+
+machine forward(buffer: &PathBuffer) -> u16
+requires buffer.units[4095] == 0
+ensures result == 0
+{
+    inspect(&buffer.units)
+}
+
+machine repair(buffer: &mut PathBuffer) {
+    buffer.units[4095] = 9;
+    buffer.units[4095] = 0;
+}
+
+machine main() crashes Trap {
+    let mut buffer: PathBuffer;
+    buffer.before = 17;
+    buffer.units[0] = 19;
+    buffer.units[4094] = 37;
+    buffer.after = 53;
+    repair(&mut buffer);
+    let terminal: u16 = forward(&buffer);
+    transition terminal == 0
+        && buffer.before == 17
+        && buffer.units[0] == 19
+        && buffer.units[4094] == 37
+        && buffer.after == 53
+    {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

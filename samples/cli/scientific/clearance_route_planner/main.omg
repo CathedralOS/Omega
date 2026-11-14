@@ -1,5 +1,6 @@
 // Expected exit: 0 (input: 2 0\n).
-use omega_language_std::console;
+use omega_language_std::Console;
+use omega_language_std::LineReadResult;
 use fixtures;
 use geometry;
 use graph;

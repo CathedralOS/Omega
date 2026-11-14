@@ -64,11 +64,15 @@ pub enum ValueOrigin {
     BlockParameter { block: BlockId, position: u32 },
     /// The result of an operation, including reads and call results.
     Operation(OperationId),
-    /// The first content a scalar leaf holds: at invocation entry for a
-    /// formal, or immediately after the declared call producing its root.
-    /// Later writes supply different identities through the storage log.
-    /// This logical name is not an executable scalar operand.
-    InitialContent { place: ExactPlaceId },
+    /// The value one scalar leaf holds at an established storage boundary:
+    /// invocation entry (`None`), or the normal return of an exact call.
+    /// Different calls supply different immutable snapshots of the same leaf.
+    /// This logical name is not an executable scalar operand. The storage
+    /// checker authenticates the boundary and follows later writes separately.
+    StorageContent {
+        place: ExactPlaceId,
+        after: Option<OperationId>,
+    },
 }
 
 /// One piece of knowledge: a proposition over value identities, where it is

@@ -10,7 +10,7 @@
 // [5, 10, 15, 20, 25] the reverse sum is 75.
 // Expected exit: 75.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main
 requires self.i >= -1 && self.i <= 4

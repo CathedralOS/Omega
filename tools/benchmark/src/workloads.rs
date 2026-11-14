@@ -9,11 +9,6 @@
 use std::hint::black_box;
 use std::time::Instant;
 
-#[cfg(feature = "allocation-observation")]
-#[global_allocator]
-static ALLOCATOR: allocation_observation::ObservedAllocator<std::alloc::System> =
-    allocation_observation::ObservedAllocator::new(std::alloc::System);
-
 trait Transform {
     fn apply(&self, value: u64, position: u64) -> u64;
 }
@@ -102,12 +97,6 @@ fn run() -> Result<(), String> {
         "{{\"schema\":\"omega-timed-work/1\",\"elapsed_ns\":{elapsed},\"work_units\":{units},\"checksum\":\"{}\"}}",
         black_box(checksum)
     );
-    #[cfg(feature = "allocation-observation")]
-    if let Some(path) = std::env::var_os("OMEGA_ALLOCATION_PROFILE") {
-        ALLOCATOR
-            .write_report(std::path::Path::new(&path))
-            .map_err(|error| error.to_string())?;
-    }
     Ok(())
 }
 

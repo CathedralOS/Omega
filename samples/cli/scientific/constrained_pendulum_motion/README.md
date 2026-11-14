@@ -84,4 +84,4 @@ name the out-of-bounds selection obligation. A missing package review, type erro
 or other wrong-reason rejection does not pass. It has its own build and review.
 
 The candidate is prepared for independent review; publication must use the
-main-only workflow in `tools/landing.md`. No remote worker branch is required.
+main-only workflow in `tools/docs/landing.md`. No remote worker branch is required.

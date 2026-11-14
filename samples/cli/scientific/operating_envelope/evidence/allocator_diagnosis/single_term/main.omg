@@ -1,6 +1,6 @@
 // Keep independently produced trapping additions live until their sum.
 // The callee parameter makes the operands runtime values rather than constants.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 
 machine doubled_sum(x: u64 in Trapping) -> u64 in Trapping {

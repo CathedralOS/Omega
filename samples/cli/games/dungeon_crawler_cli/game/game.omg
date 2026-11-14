@@ -1,7 +1,8 @@
 use text::buffer;
 use commands::command_parser;
 use dungeon::dungeon;
-use omega_language_std::console;
+use omega_language_std::Console;
+use omega_language_std::LineReadResult;
 use rooms::map;
 use view::game_view;
 

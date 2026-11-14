@@ -23,9 +23,11 @@ impl<'t> Program<'t> {
     /// a machine. Its distinct target identity prevents a source declaration
     /// from standing in for an executable provider body.
     ///
-    /// A selected native binding claims this declaration without calling it.
-    /// Actual calls check visibility before reading it, even when its schema
-    /// is already cached. `diagnostic` only anchors a failure in this check.
+    /// A selected native binding claims this declaration without calling it,
+    /// and a supplied slot declares each requirement it supplies
+    /// (`supplied_slots`). Actual calls check visibility before reading it,
+    /// even when its schema is already cached. `diagnostic` only anchors a
+    /// failure in this check.
     pub(super) fn boundary_declaration(
         &mut self,
         diagnostic: MachineId,
@@ -1153,10 +1155,8 @@ impl<'t> Program<'t> {
     /// is read at the regions bound so far, so a literal argument is a value
     /// of the region its formal is at. Once every argument is read, each
     /// must be its formal at the bound regions, and the result is the
-    /// callee's at them. A result whose region no input or expectation
-    /// supplies is refused: lifetimes.md, "A signature does not authorize
-    /// returning unrelated storage merely because its type has the same
-    /// lifetime spelling".
+    /// callee's at them. A result lifetime no input carries is chosen by
+    /// the caller: by the expected type, or else by the result's first use.
     fn call_of(
         &mut self,
         id: MachineId,
@@ -1292,29 +1292,29 @@ impl<'t> Program<'t> {
                 ));
             }
         }
-        // A result lifetime no formal names relates the result to no input:
-        // lifetimes.md, "Generic returned views require the complete
-        // instantiated frontier and its result-to-input relation".
-        let related: Vec<_> = free
-            .iter()
-            .copied()
-            .filter(|parameter| {
-                formals
-                    .iter()
-                    .any(|(formal, _, _)| self.names_any(*formal, &[*parameter]))
-            })
-            .collect();
-        let unrelated: Vec<_> = free
-            .iter()
-            .copied()
-            .filter(|parameter| !related.contains(parameter))
-            .collect();
-        if declared_result.is_some_and(|result| self.names_any(result, &unrelated)) {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Typing("result lifetime that no argument is a view of"),
-            ));
+        // A lifetime the result names and no formal carries is the caller's
+        // to choose: lifetimes.md, "Caller-chosen result lifetimes": "A
+        // lifetime that a machine binds and no input carries is chosen
+        // independently by each caller: the call instantiates it from the
+        // result's use". Where the caller expected a type, that type chose
+        // it above. Otherwise it is a region the first place the result
+        // meets decides, as the region of a local written without a
+        // lifetime is. Choosing it promises nothing about the callee: its
+        // body is judged against that lifetime as a parameter it knows
+        // nothing about, so only a view valid at every choice is returned.
+        for parameter in &free {
+            let chosen_by_caller = !formals
+                .iter()
+                .any(|(formal, _, _)| self.names_any(*formal, &[*parameter]))
+                && declared_result.is_some_and(|result| self.names_any(result, &[*parameter]))
+                && !bound.iter().any(|(known, _)| known == parameter);
+            if chosen_by_caller {
+                self.region_variables.push(None);
+                bound.push((
+                    *parameter,
+                    super::regions::Region::Variable((self.region_variables.len() - 1) as u32),
+                ));
+            }
         }
         let result = declared_result.map(|result| self.substitute(result, &bound));
         // Binding is an invocation relation, even when a recursive call's

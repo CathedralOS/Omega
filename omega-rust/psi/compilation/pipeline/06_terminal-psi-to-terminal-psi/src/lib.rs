@@ -228,8 +228,8 @@ pub struct MachineDischarge {
     /// open, in block and operation order.
     pub windows: Vec<WindowUse>,
     /// Joins whose inferred predicate some arrival could not establish. Each
-    /// predicate was replaced by `Truth`, which every arrival establishes,
-    /// so the join contributes nothing downstream (`joins`).
+    /// loses its inferred facts; its original declared predicate, if any,
+    /// remains mandatory (`joins`).
     pub weakened_joins: Vec<BlockId>,
     /// Each loan that may not be formed, with what it conflicts with. Its
     /// row's verdict is the `Conflict` refusal.
@@ -380,6 +380,25 @@ fn discharge_inner(
     knowledge: Knowledge,
     carried: &[Carried<'_>],
 ) -> Checked<Discharge> {
+    // A caller may retain old contents only outside the callee's actual
+    // writes. Check every published frame before summaries or knowledge can
+    // use it. Low-level proof reconstruction still states a conditional
+    // judgment; this whole-module route owns admission of those premises.
+    terminal_semantics::borrowed_storage::validate_write_frames(&elaboration.module).map_err(
+        |detail| {
+            refusal(
+                RefusalReason::ForeignIdentity,
+                elaboration
+                    .module
+                    .machines
+                    .first()
+                    .map(|machine| machine.id)
+                    .unwrap_or_else(|| MachineId::new(1).expect("one is a machine identity")),
+                Construct::Machine,
+                &detail,
+            )
+        },
+    )?;
     // Results before inputs: what a helper returns is a fact its caller
     // may pass on to the next private helper, whose inferred input
     // condition is described from the caller's facts.
@@ -545,7 +564,6 @@ fn machine(
     branches: &[terminal_check_tables::program::Branch],
 ) -> Checked<MachineDischarge> {
     let machines = &module.machines;
-    let structural_types = &module.structural_types;
     let invariants = &module.scalar_block_invariants;
     let lowered = terminal_machine(machines, id, id)?;
     if !tables.knowledge.is_empty() {
@@ -561,15 +579,7 @@ fn machine(
         graph,
         context,
     } = prepare(module, domains, id, tables, knowledge)?;
-    let storage = places::Storage::new(
-        id,
-        lowered,
-        structural_types,
-        domains,
-        &graph,
-        tables,
-        &types,
-    )?;
+    let storage = places::Storage::new(id, lowered, module, domains, &graph, tables, &types)?;
     let mut decided: Vec<Option<Checked<Discharged>>> =
         (0..tables.obligations.len()).map(|_| None).collect();
     // Loans are judged by structure, not proved (`places::loans`).
@@ -1036,8 +1046,13 @@ fn fill_knowledge(
                     Justification::OperationSemantics(operation.id),
                 );
             }
-            // And what the type of the storage it reads says of that value.
-            for premise in storage.read_premises(tables, operation)? {
+            // A read or a returning call establishes the applicable type
+            // constraints on its exact observed storage versions.
+            for premise in storage
+                .read_premises(tables, operation)?
+                .into_iter()
+                .chain(storage.returned_type_premises(tables, operation)?)
+            {
                 push_knowledge(
                     tables,
                     premise,
@@ -1203,15 +1218,7 @@ pub(crate) fn prepare(
     minted::domains_are_declared(id, structural_types, domains)?;
     let graph = Graph::new(id, lowered, tables)?;
     if fill {
-        let storage = places::Storage::new(
-            id,
-            lowered,
-            structural_types,
-            domains,
-            &graph,
-            tables,
-            &types,
-        )?;
+        let storage = places::Storage::new(id, lowered, module, domains, &graph, tables, &types)?;
         storage.owed_are_minted(tables)?;
         fill_knowledge(module, id, lowered, tables, knowledge, &types, &storage)?;
     }

@@ -434,6 +434,38 @@ pub(crate) mod analysis {
             self.replay
                 .storage_origins(machine, states.get(&position)?, location)
         }
+
+        /// A write matters even if the old value is restored before return.
+        /// Read the operation's actual invalidations and transfers at its
+        /// pre-operation cut, rather than comparing final descriptor values.
+        /// `None` means the storage effect could not be placed; it must use
+        /// the caller's conservative ceiling, never an empty frame.
+        pub fn storage_writes(
+            &mut self,
+            identity: MachineId,
+            position: DescriptorPosition,
+        ) -> Result<Option<Vec<DescriptorLocation>>, &'static str> {
+            self.replay.storage_writes(identity, position)
+        }
+
+        /// The frame names entry storage that this body may write, including
+        /// delegated writes. It says nothing about the final values or about
+        /// permission to invoke the body. Unknown calls and unresolved origins
+        /// keep the conservative ceiling (`None`).
+        pub fn write_frame(
+            &mut self,
+            identity: MachineId,
+        ) -> Result<Option<&[DescriptorLocation]>, &'static str> {
+            self.replay.prepare_write_frame(identity)?;
+            Ok(self
+                .replay
+                .summaries
+                .get(&identity)
+                .and_then(Option::as_ref)
+                .and_then(|summary| summary.write_frame.as_ref())
+                .and_then(Option::as_deref))
+        }
+
         pub fn payload_targets(
             &mut self,
             identity: MachineId,
@@ -1923,17 +1955,10 @@ pub(crate) mod case_flow {
             .is_some_and(|cases| cases.len() == 1 && cases.contains(&predicate.case))
     }
 
-    fn written_locations(
-        replay: &Replay<'_>,
+    pub(crate) fn written_queries(
         machine: &DescriptorMachine,
-        before: &State,
-        definitions: &[DescriptorLocation],
-        position: Option<DescriptorPosition>,
-    ) -> Option<Vec<DescriptorLocation>> {
-        let mut writes = definitions.to_vec();
-        let Some(position) = position else {
-            return Some(writes);
-        };
+        position: DescriptorPosition,
+    ) -> Option<Vec<&DescriptorContentsQuery>> {
         let mut queries = Vec::new();
         for query in machine
             .payload_invalidations
@@ -1954,7 +1979,21 @@ pub(crate) mod case_flow {
                 queries.push(&transfer.source);
             }
         }
-        for query in queries {
+        Some(queries)
+    }
+
+    fn written_locations(
+        replay: &Replay<'_>,
+        machine: &DescriptorMachine,
+        before: &State,
+        definitions: &[DescriptorLocation],
+        position: Option<DescriptorPosition>,
+    ) -> Option<Vec<DescriptorLocation>> {
+        let mut writes = definitions.to_vec();
+        let Some(position) = position else {
+            return Some(writes);
+        };
+        for query in written_queries(machine, position)? {
             let targets = replay.contents_targets(machine, before, query)?;
             if targets.is_empty() {
                 return None;
@@ -2857,6 +2896,11 @@ pub(crate) mod engine {
         pub(crate) result_cases: super::case_flow::ResultCases,
         pub(crate) effects: Vec<DescriptorStoredEffect>,
         pub(crate) invalidates_contents: bool,
+        /// Outer `None` has not been prepared. `Some(None)` is an unknown
+        /// frame, also installed while visiting a recursive dependency.
+        /// Keep this derived fact with the existing per-body summary rather
+        /// than rebuilding its storage graph for every call.
+        pub(crate) write_frame: Option<Option<Vec<DescriptorLocation>>>,
     }
 
     fn direct_target_summary(target: &DescriptorInvocationTarget) -> Option<Summary> {
@@ -2871,6 +2915,7 @@ pub(crate) mod engine {
                 result_cases: Default::default(),
                 effects: effects.clone(),
                 invalidates_contents: *invalidates_contents,
+                write_frame: Some(None),
             }),
             DescriptorInvocationTarget::Public {
                 results,
@@ -2881,6 +2926,7 @@ pub(crate) mod engine {
                 result_cases: Default::default(),
                 effects: Vec::new(),
                 invalidates_contents: *invalidates_contents,
+                write_frame: Some(None),
             }),
         }
     }
@@ -2940,6 +2986,228 @@ pub(crate) mod engine {
                 arrival_snapshots: BTreeMap::new(),
             }
         }
+        pub(crate) fn storage_writes(
+            &mut self,
+            identity: MachineId,
+            position: DescriptorPosition,
+        ) -> Result<Option<Vec<DescriptorLocation>>, &'static str> {
+            let machine = self
+                .machine(identity)
+                .ok_or("storage write has no owning machine")?;
+            if !machine.flow.contains_key(&position) {
+                return Err("storage write has no operation or edge cut");
+            }
+            if self.prepare_states(identity).is_none() {
+                return Ok(None);
+            }
+            let machine = self
+                .machine(identity)
+                .ok_or("storage write owner disappeared")?;
+            let step = machine
+                .flow
+                .get(&position)
+                .ok_or("storage write cut disappeared")?;
+            if machine.unresolved_contents_writes.contains(&position) {
+                return Ok(None);
+            }
+            let states = self
+                .snapshots
+                .get(&identity)
+                .and_then(Option::as_ref)
+                .ok_or("storage write has no prepared flow")?;
+            let Some(before) = states.get(&position) else {
+                return Ok(Some(Vec::new()));
+            };
+            let Some(queries) = super::case_flow::written_queries(machine, position) else {
+                return Ok(None);
+            };
+            let mut writes = step.definitions.clone();
+            for query in queries {
+                let Some(root_type) = machine.place_types.get(&query.root) else {
+                    return Err("storage write has no declared root type");
+                };
+                if query.validate(self.types, *root_type).is_none() {
+                    return Err("storage write query does not follow its declared type");
+                }
+                // An indexed write covers its collection. Do not enumerate
+                // every possible element to infer that conservative region.
+                // A view's descriptor is not its backing, so an unresolved
+                // view element cannot be replaced by the descriptor's address.
+                let prefix = query.observation();
+                if prefix.path.len() < query.steps.len() {
+                    let Some(selected) =
+                        descriptor_location_type(self.types, *root_type, &prefix.path)
+                    else {
+                        return Err("storage write has no declared collection prefix");
+                    };
+                    if !find_structural_type(self.types, selected).is_some_and(|declaration| {
+                        matches!(declaration.shape, StructuralTypeShape::FixedArray { .. })
+                    }) {
+                        return Ok(None);
+                    }
+                }
+                let Some(targets) = self.contents_targets(
+                    machine,
+                    before,
+                    &DescriptorContentsQuery::from_location(&prefix),
+                ) else {
+                    return Ok(None);
+                };
+                if targets.is_empty() {
+                    return Ok(None);
+                }
+                for target in targets {
+                    let DescriptorPayloadTarget::Storage(location) = target else {
+                        return Ok(None);
+                    };
+                    writes.push(location);
+                }
+            }
+            let mut located = Vec::with_capacity(writes.len());
+            for write in writes {
+                let Some(write) = self.canonical_storage(machine, before, &write) else {
+                    return Ok(None);
+                };
+                located.push(write);
+            }
+            located.sort_unstable();
+            located.dedup();
+            Ok(Some(located))
+        }
+
+        pub(crate) fn prepare_write_frame(
+            &mut self,
+            identity: MachineId,
+        ) -> Result<(), &'static str> {
+            if self.machine(identity).is_none() {
+                return Err("write frame has no owning machine");
+            }
+            if self.summary(identity, 0).is_none() {
+                return Ok(());
+            }
+            let summary = self
+                .summaries
+                .get_mut(&identity)
+                .and_then(Option::as_mut)
+                .ok_or("write frame has no prepared body summary")?;
+            if summary.write_frame.is_some() {
+                return Ok(());
+            }
+            // A recursive dependency sees an unknown frame. It cannot turn
+            // incomplete inference into an empty set of writes.
+            summary.write_frame = Some(None);
+            let frame = self.infer_write_frame(identity)?;
+            self.summaries
+                .get_mut(&identity)
+                .and_then(Option::as_mut)
+                .ok_or("write frame body summary disappeared")?
+                .write_frame = Some(frame);
+            Ok(())
+        }
+
+        fn infer_write_frame(
+            &mut self,
+            identity: MachineId,
+        ) -> Result<Option<Vec<DescriptorLocation>>, &'static str> {
+            if self.prepare_states(identity).is_none() {
+                return Ok(None);
+            }
+            let machine = self
+                .machine(identity)
+                .ok_or("write frame owner disappeared")?;
+            let states = self
+                .snapshots
+                .get(&identity)
+                .and_then(Option::as_ref)
+                .ok_or("write frame has no prepared storage flow")?
+                .clone();
+            let mut frame = Vec::new();
+            for position in machine.flow.keys().copied() {
+                let Some(before) = states.get(&position) else {
+                    continue;
+                };
+                let writes = if let Some(call) = machine.calls.get(&position) {
+                    // A public requirement needs its own retained selection
+                    // and checked correspondence. A possible implementation
+                    // body is not that evidence, even for a write frame.
+                    let DescriptorInvocationTarget::Machine(callee) = &call.target else {
+                        return Ok(None);
+                    };
+                    self.prepare_write_frame(*callee)?;
+                    let Some(callee_frame) = self
+                        .summaries
+                        .get(callee)
+                        .and_then(Option::as_ref)
+                        .and_then(|summary| summary.write_frame.as_ref())
+                        .and_then(Option::as_ref)
+                    else {
+                        return Ok(None);
+                    };
+                    let callee = self
+                        .machine(*callee)
+                        .ok_or("write frame call has no callee")?;
+                    let mut writes = Vec::with_capacity(callee_frame.len());
+                    for written in callee_frame {
+                        let Some((parameter, _, _)) = self.parameter(callee, written.root) else {
+                            return Err("published write does not name a callee formal");
+                        };
+                        let Some(actual) = self.actual_slot(call, parameter, &written.path) else {
+                            return Ok(None);
+                        };
+                        let Some(actual) = self.canonical_storage(machine, before, &actual) else {
+                            return Ok(None);
+                        };
+                        writes.push(actual);
+                    }
+                    writes
+                } else {
+                    let Some(writes) = self.storage_writes(identity, position)? else {
+                        return Ok(None);
+                    };
+                    writes
+                };
+                for mut write in writes {
+                    let Some(place) =
+                        exactly_one(machine.places.iter(), |row| row.place == write.root)
+                    else {
+                        return Err("write frame has no unique storage origin");
+                    };
+                    match place.definition {
+                        DescriptorDefinition::Local => continue,
+                        DescriptorDefinition::Parameter { .. } => {}
+                        DescriptorDefinition::Literal | DescriptorDefinition::Arrival { .. } => {
+                            return Ok(None);
+                        }
+                    }
+                    // Published paths contain fields only. An indexed or sum
+                    // write covers that collection or sum as a whole. A
+                    // reference origin not yet representable here retains its
+                    // enclosing region instead of inventing a narrower path.
+                    write.path.truncate(
+                        write
+                            .path
+                            .iter()
+                            .take_while(|segment| {
+                                matches!(segment, DescriptorPathSegment::Field(_))
+                            })
+                            .count(),
+                    );
+                    frame.push(write);
+                }
+            }
+            frame.sort_unstable();
+            let mut normalized: Vec<DescriptorLocation> = Vec::with_capacity(frame.len());
+            for write in frame {
+                if !normalized
+                    .last()
+                    .is_some_and(|prior| prior.contains(&write))
+                {
+                    normalized.push(write);
+                }
+            }
+            Ok(Some(normalized))
+        }
+
         pub(crate) fn machine(&self, identity: MachineId) -> Option<&'a DescriptorMachine> {
             let mut rows = self
                 .machines
@@ -4330,6 +4598,7 @@ pub(crate) mod engine {
                 result_cases: result_cases.unwrap_or_default(),
                 effects,
                 invalidates_contents,
+                write_frame: None,
             };
             self.summaries.insert(identity, Some(summary.clone()));
             Some(summary)
@@ -5416,6 +5685,7 @@ pub(crate) mod summary_interface {
                 result_cases: Default::default(),
                 effects: Vec::new(),
                 invalidates_contents,
+                write_frame: None,
             })
         }
     }

@@ -11,7 +11,8 @@ use serde::Serialize;
 use crate::repo_root;
 
 const CLAIMS_REF: &str = "refs/coordination/omega-claims/main";
-const MBX_MINIMUM: (u32, u32, u32) = (1, 29, 0);
+/// The one mbx pin every installer reads; doctor accepts it or anything newer.
+const MBX_VERSION_FILE: &str = "tools/mbx-version";
 const NEXTEST_MINIMUM: (u32, u32, u32) = (0, 9, 140);
 
 #[derive(Debug, Clone, Serialize)]
@@ -99,7 +100,7 @@ fn check_git_repository(root: &Path) -> CheckEntry {
             "warn",
             format!("{detail}; pull.rebase is not true"),
             Some(
-                "git config pull.rebase true — publication is squash-only through the merge queue (tools/landing.md)",
+                "git config pull.rebase true — pull requests land by squash merge after `admission` (tools/docs/landing.md)",
             ),
         );
     }
@@ -208,7 +209,7 @@ fn check_rust_link_probe(root: &Path) -> CheckEntry {
 
 fn mbx_install_fix() -> &'static str {
     if cfg!(windows) {
-        r#"mbx is required (direct cargo fallback is forbidden); install/update via PowerShell: `$v = "1.29.2"; Invoke-WebRequest "https://github.com/jdx/mr-boxington/releases/download/v$v/mbx-x86_64-pc-windows-msvc.zip" -OutFile "$env:TEMP\mbx.zip"; Expand-Archive "$env:TEMP\mbx.zip" "$HOME\.cargo\bin" -Force; mbx setup --yes`"#
+        r#"mbx is required (direct cargo fallback is forbidden); install/update via PowerShell: `$v = (Get-Content tools/mbx-version).Trim(); Invoke-WebRequest "https://github.com/jdx/mr-boxington/releases/download/v$v/mbx-x86_64-pc-windows-msvc.zip" -OutFile "$env:TEMP\mbx.zip"; Expand-Archive "$env:TEMP\mbx.zip" "$HOME\.cargo\bin" -Force; mbx setup --yes`"#
     } else {
         "mbx is required (direct cargo fallback is forbidden); install/update via `bash tools/agent_setup.sh`"
     }
@@ -226,18 +227,31 @@ fn check_mbx(root: &Path) -> CheckEntry {
             Some(mbx_install_fix()),
         );
     };
-    if found < MBX_MINIMUM {
+    let Some(pinned) = pinned_mbx_version(root) else {
+        return check(
+            "mbx",
+            "fail",
+            format!("could not read an mbx version from {MBX_VERSION_FILE}"),
+            None,
+        );
+    };
+    if found < pinned {
         return check(
             "mbx",
             "fail",
             format!(
-                "mbx {}.{}.{} < {}.{}.{}",
-                found.0, found.1, found.2, MBX_MINIMUM.0, MBX_MINIMUM.1, MBX_MINIMUM.2
+                "mbx {}.{}.{} < {}.{}.{} pinned in {MBX_VERSION_FILE}",
+                found.0, found.1, found.2, pinned.0, pinned.1, pinned.2
             ),
             Some(mbx_install_fix()),
         );
     }
     check("mbx", "ok", version, None)
+}
+
+/// The pinned mbx release, so the version check and every installer agree.
+fn pinned_mbx_version(root: &Path) -> Option<(u32, u32, u32)> {
+    parse_semver_triplet(&fs::read_to_string(root.join(MBX_VERSION_FILE)).ok()?)
 }
 
 pub fn parse_semver_triplet(text: &str) -> Option<(u32, u32, u32)> {
@@ -423,6 +437,12 @@ mod tests {
             parse_semver_triplet("cargo-nextest 0.9.140 (2026-01-01)"),
             Some((0, 9, 140))
         );
+    }
+
+    #[test]
+    fn reads_pinned_mbx_version() {
+        let root = repo_root().expect("test runs in the Omega workspace");
+        assert!(pinned_mbx_version(&root).is_some());
     }
 
     #[test]

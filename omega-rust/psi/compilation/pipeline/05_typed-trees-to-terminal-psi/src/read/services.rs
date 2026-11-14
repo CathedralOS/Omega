@@ -146,6 +146,27 @@ impl<'t> Program<'t> {
                         Unserved::Machine("invokes naming a parameter path"),
                     ));
                 }
+                // "A row names a parameter path or a requirement identity",
+                // so a bare name nothing in the program has names neither,
+                // in every program. A path, or a name something has, may
+                // name one where typing does not follow it yet.
+                Named::Unresolved
+                    if !row.name.as_str().contains(['.', ':'])
+                        && !self
+                            .typed
+                            .names_nothing_has(vec![row.name.as_str()])
+                            .is_empty() =>
+                {
+                    return Err(crate::reject(
+                        caller,
+                        crate::SourceOrigin::of(row.source_span),
+                        format!(
+                            "`invokes {}` names no parameter and no requirement: a name nothing \
+                             in the program declares is an error wherever it appears",
+                            row.name.as_str()
+                        ),
+                    ));
+                }
                 Named::Unresolved => {
                     return Err(refuse(
                         caller,

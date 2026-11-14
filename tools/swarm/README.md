@@ -2,15 +2,14 @@
 
 Session transport and pool setup are the [swarm skill](../../.agents/skills/swarm/SKILL.md).
 Execution follows [advance](../../.agents/skills/advance/SKILL.md), and publication follows
-[landing](../landing.md). Pool slots are `.agents/worktree/worker-N`.
+[landing](../docs/landing.md). Pool slots are `.agents/worktree/worker-N`.
 
 `mbx xtask worktree acquire <lane>-<topic>` claims a slot.
 `mbx xtask worktree status` lists the checkouts.
 `mbx xtask claims status` shows live claims.
 Record a finding with `mbx xtask claims note --ticket <ticket> --text "<finding>"`.
 Release a finished claim with `mbx xtask claims release --ticket <ticket>`.
-Queue a pull request whose checks are already green with
-`mbx xtask land enqueue <pr> --expected-head <sha>`.
+Land a pull request by squash-merging it once `admission` passes ([landing](../docs/landing.md)).
 
 Apply the [law of completion](../../AGENTS.md#law-of-completion): each
 implementation session retains context through its complete assigned acceptance,

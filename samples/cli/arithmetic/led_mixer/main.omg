@@ -10,7 +10,7 @@
 // Each stage re-establishes the values it measures, so nothing is live across
 // a state edge and every reading is an ordinary local.
 // Expected exit: 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main { }
 machine Main::main(main: &mut Main) reaches Console {

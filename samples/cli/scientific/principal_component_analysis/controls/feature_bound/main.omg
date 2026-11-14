@@ -1,5 +1,5 @@
 // Intended invalid: a fifth feature exceeds the four-feature storage contract.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Invalid { features: [f64; 4]; }
 machine Invalid::main(main: &mut Invalid) reaches Console {
  main.features[4] = 1.0;

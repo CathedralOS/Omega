@@ -1,5 +1,4 @@
 module spectrometer::model;
-use omega_language_std::console;
 
 // Fixed capacities bound memory and work: sixteen bins and four reference lines.
 // Zero initialization means no open region and no matching candidates.

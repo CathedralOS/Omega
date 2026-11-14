@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 
 // Values are 0..81, so two decimal digits cover every emitted quantity.
 // Output uses the existing console provider and no numerics package.
