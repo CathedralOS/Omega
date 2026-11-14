@@ -17,17 +17,18 @@ Nothing on the lowered route produces those yet, so `ProductRequest::plan`
 refuses these stops by name instead of reading a retained copy of them.
 */
 
+#[path = "product_execution_inspection.rs"]
 mod inspection;
 
 use crate::execution_settlement::SelectedProductTarget;
 use crate::terminal::{ProducedTerminalProduct, TerminalProductRequest};
 use crate::{CheckedCompilation, CompileReport};
-use compilation_products::{
-    CheckedProductReport, NativeProductRequest, ProductReportPlan, ProductReportRequest,
-};
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationSelections;
 use package_evidence::permission_acceptance::TerminalPermissionAcceptance;
+use products::{
+    CheckedProductReport, NativeProductRequest, ProductReportPlan, ProductReportRequest,
+};
 use std::path::PathBuf;
 
 #[derive(Clone)]
@@ -49,10 +50,10 @@ impl CompilationProduct {
 }
 
 pub enum CompilationOutput {
-    Native(Box<compilation_products::PendingNativeProduct>),
+    Native(Box<products::PendingNativeProduct>),
     Report(CompileReport),
-    Inspection(std::sync::Arc<psi_compiler::PortableTerminalProgram>),
-    Component(compilation_products::IndependentComponentProduct),
+    Inspection(std::sync::Arc<source_compiler::PortableTerminalProgram>),
+    Component(products::IndependentComponentProduct),
 }
 
 impl CompilationOutput {
@@ -75,7 +76,7 @@ impl CompilationOutput {
 
     pub fn into_inspection(
         self,
-    ) -> Result<std::sync::Arc<psi_compiler::PortableTerminalProgram>, CompilationProductError>
+    ) -> Result<std::sync::Arc<source_compiler::PortableTerminalProgram>, CompilationProductError>
     {
         match self {
             Self::Inspection(artifact) => Ok(artifact),
@@ -91,7 +92,7 @@ impl CompilationOutput {
 
     pub(crate) fn into_component(
         self,
-    ) -> Result<compilation_products::IndependentComponentProduct, CompilationProductError> {
+    ) -> Result<products::IndependentComponentProduct, CompilationProductError> {
         match self {
             Self::Component(product) => Ok(product),
             Self::Report(_) | Self::Inspection(_) | Self::Native(_) => {
@@ -398,7 +399,7 @@ impl CheckingCompilation {
                         )?;
                     *settlement.source_completion_accounting_mut() = accounting.clone();
                     Ok(CompilationOutput::Native(Box::new(
-                        compilation_products::PendingNativeProduct {
+                        products::PendingNativeProduct {
                             terminal,
                             retained_native_inputs,
                             components: Ok(Vec::new()),
@@ -424,7 +425,7 @@ impl CheckingCompilation {
 /// (`AcceptedTerminalSource::advisories`), each placed in its source file.
 /// They are warnings about a program that was accepted, so a compilation
 /// with no retained judgment simply has none.
-fn advisories(checked: &compilation_products::CheckedCompilation) -> Vec<Diagnostic> {
+fn advisories(checked: &products::CheckedCompilation) -> Vec<Diagnostic> {
     let Ok(accepted) = checked.terminal_publication().accepted() else {
         return Vec::new();
     };

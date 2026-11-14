@@ -599,7 +599,7 @@ mod evidence_seal_tests {
     ) -> Result<Vec<[u8; 32]>, VerifiedPsiOptimizationUnitBuildError> {
         let (_, unit) = build_verified_psi_optimization_unit(
             input,
-            psi_work::WorkSchedule::CURRENT.identity(),
+            terminal_work::WorkSchedule::CURRENT.identity(),
         )?
         .into_parts();
         Ok(unit
@@ -725,7 +725,7 @@ mod qualified_cleanup_receiving_tests {
             .into_optimization_input();
         let verified = super::build_verified_psi_optimization_unit(
             input,
-            psi_work::WorkSchedule::CURRENT.identity(),
+            terminal_work::WorkSchedule::CURRENT.identity(),
         )
         .expect("construct exact unit before explicit semantic validation");
         let (_, unit) = verified.into_parts();

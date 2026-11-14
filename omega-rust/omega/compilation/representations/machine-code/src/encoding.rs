@@ -17,10 +17,11 @@ keeps the common `SelectedFormEncodingRow` stride compact without changing value
 or canonical SHA-256 identity hashing (`SelectedFormEncodingIdentity`).
 */
 
+#[path = "encoding_identity.rs"]
 mod identity;
 
 use crate::SelectedFormInternalMachineFixup;
-use physical_instructions::{
+use post_allocation_machine::{
     PostAllocationMachineIdentity, PostAllocationMachineOptimizationCustody,
 };
 use register_model::{RegisterUnitId, RegisterViewId};
@@ -226,7 +227,7 @@ pub enum SelectedFormMachineDisposition {
     },
     Aarch64FusedBranchNonZeroToCbnzV1 {
         compare: SelectedInstructionId,
-        source_read: Box<physical_instructions::QualifiedPhysicalRead>,
+        source_read: Box<post_allocation_machine::QualifiedPhysicalRead>,
     },
     Aarch64ElidedSameViewCopyI64V1 {
         consumer: SelectedInstructionId,
@@ -263,7 +264,7 @@ pub struct SelectedFormEncodingCounts {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ResolvedPhysicalAddress {
-    pub symbolic: physical_instructions::PhysicalAddressOperation,
+    pub symbolic: post_allocation_machine::PhysicalAddressOperation,
     pub displacement: i64,
     pub frame_alignment_bytes: u16,
 }

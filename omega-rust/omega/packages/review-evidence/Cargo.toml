@@ -9,8 +9,8 @@ version.workspace = true
 [dependencies]
 layout-plans = { path = "../../../psi/foundation/layout-plans" }
 optimization-core = { path = "../../foundation/optimization-core" }
-compilation-products = { path = "../../compilation/products" }
-psi-compiler = { path = "../../../psi/compilation/psi-compiler" }
+products = { path = "../../compilation/products" }
+source-compiler = { path = "../../../psi/compilation/source-compiler" }
 terminal-check-tables = { path = "../../../psi/compilation/representations/terminal-psi/check-tables" }
 package-compilation = { path = "../package-compilation" }
 provider-planning = { path = "../../compilation/realization/provider-planning" }

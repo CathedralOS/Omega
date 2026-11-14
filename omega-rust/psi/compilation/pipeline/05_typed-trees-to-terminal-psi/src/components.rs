@@ -29,6 +29,7 @@ use crate::body::{
 };
 use crate::{Unserved, refuse};
 
+#[path = "components_graph.rs"]
 mod graph;
 pub(crate) use graph::Components;
 
@@ -53,14 +54,19 @@ struct CallSite {
     required_contract: Option<semantic_vocabulary::ContractId>,
 }
 
-fn index(machine: MachineId) -> usize {
+pub(crate) fn index(machine: MachineId) -> usize {
     usize::try_from(machine.get() - 1).unwrap_or(usize::MAX)
 }
 
-pub(crate) fn components(
-    bodies: &IdTable<MachineId, Body>,
-    signatures: &IdTable<MachineId, Signature>,
-) -> Checked<Components> {
+/// The call components of the bodies read, before any cycle is judged, so a
+/// test can settle outcomes (`outcome::outcomes`) over a cycle that lowering
+/// would refuse. Compilation settles over the admitted `components` table.
+#[cfg(test)]
+pub(crate) fn discover(bodies: &IdTable<MachineId, Body>) -> Checked<Components> {
+    Ok(call_graph(bodies)?.1)
+}
+
+fn call_graph(bodies: &IdTable<MachineId, Body>) -> Checked<(CallGraph, Components)> {
     let count = bodies.len();
     let mut calls = CallGraph {
         sites: Vec::with_capacity(count),
@@ -84,21 +90,48 @@ pub(crate) fn components(
     }
     let machines: Vec<_> = bodies.keys().collect();
     let table = Components::discover(&calls, &machines);
+    Ok((calls, table))
+}
+
+pub(crate) fn components(
+    bodies: &IdTable<MachineId, Body>,
+    signatures: &IdTable<MachineId, Signature>,
+) -> Checked<Components> {
+    let (calls, mut table) = call_graph(bodies)?;
+    let witnessed: Vec<bool> = bodies
+        .keys()
+        .map(|machine| {
+            signatures
+                .get(machine)
+                .is_some_and(|signature| matches!(signature.termination, Termination::Witnessed(_)))
+        })
+        .collect();
+    table.rank(&calls, &witnessed);
     for (machine, body) in bodies.iter() {
         let this = index(machine);
         let signature =
             terminal_check_tables::row(signatures, machine, machine, Construct::Machine)?;
         let members = table.members(machine)?;
         let unserved = |what| Err(refuse(machine, Construct::Machine, what));
-        // A witness is the component's ranking, and a promise must be
-        // checked against what the machine derives. Neither is read yet, so
-        // neither is accepted where it would have to be: a witness anywhere,
-        // a promise wherever a cycle is reached.
+        // A promise holds only when every cycle the machine lies on or
+        // calls into is ranked: termination.md, "A cyclic terminating body
+        // must supply its witness; inference never chooses its subjects or
+        // silently publishes a guarantee. Unknown progress dependencies
+        // prevent a checked guarantee." A cycle of one machine is ranked by
+        // that machine's own witness (`lower::ranking` writes its ranking
+        // and the checker compares every edge). A witness on a cycle of
+        // several machines is not ranked yet: the same page leaves "the
+        // exact source spelling for differently shaped mutual participants"
+        // undetermined, so that component is refused by name.
         match signature.termination {
             Termination::Silent => {}
-            Termination::Witnessed => return unserved(Unserved::Contract("ranking witness")),
-            Termination::Promised => {
-                if table.reaches_cycle(this) {
+            Termination::Witnessed(_) if members.len() > 1 => {
+                return unserved(Unserved::Contract(
+                    "ranking witness on a call cycle of several machines",
+                ));
+            }
+            Termination::Witnessed(_) | Termination::Promised => {
+                if table.reaches_unranked_cycle(this) {
                     return unserved(Unserved::Contract("termination promise over a call cycle"));
                 }
             }

@@ -13,7 +13,7 @@ use machine_code::{
     SelectedFormMachineDisposition, SelectedFormNormalizedForeignCallFixup,
     SelectedFormNormalizedForeignCallFixupKind, SelectedFormNormalizedForeignCallFixupState,
 };
-use physical_instructions::PostAllocationMachineInstruction;
+use post_allocation_machine::PostAllocationMachineInstruction;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{
     MachineAlternativeFamily, SelectedBlock, SelectedBlockId, SelectedFunction,

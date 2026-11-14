@@ -15,6 +15,7 @@ used by execution, preventing target lowering from reconstructing authority from
 a candidate machine ID alone.
 */
 
+#[path = "provider_installation_replay.rs"]
 mod replay;
 
 use abstract_operations::{AbstractOperationPlan, CompletionClaimSource};

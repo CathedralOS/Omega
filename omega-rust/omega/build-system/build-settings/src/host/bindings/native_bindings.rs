@@ -16,8 +16,8 @@ use language_semantics::{
     },
     native_bindings::{NativeLocatorCase, NativeLocatorValue, decode_native_locator},
 };
-use psi_compiler::{TerminalBuildBindingOperation, TerminalBuildValueShape};
 use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, IntegerSign, IntegerValue};
+use source_compiler::{TerminalBuildBindingOperation, TerminalBuildValueShape};
 use terminal_interpreter::{
     TerminalBoundaryStorageBuffer, TerminalBoundaryStorageValue, TerminalEffect,
     TerminalEffectRejection, TerminalEffectResult, TerminalScalarValue, TerminalStorageContents,

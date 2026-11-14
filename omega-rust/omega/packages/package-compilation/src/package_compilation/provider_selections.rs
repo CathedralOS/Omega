@@ -59,7 +59,7 @@ impl PackageCompilationInputs {
 
     pub fn rejoin_package_provider_selections(
         &self,
-        source: &mut psi_compiler::SourceContinuation,
+        source: &mut source_compiler::SourceContinuation,
     ) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
         let mut selections = Vec::new();
         for (scope, bundle) in self.dependency_build_handoff_instances() {

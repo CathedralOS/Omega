@@ -17,7 +17,7 @@ in the linked pipeline stages. Source data and checker evidence have distinct ow
 | [Syntax trees](syntax-trees/src/lib.rs) | [01: tokens → syntax trees](../pipeline/01_tokens-to-syntax-trees/src/lib.rs) | [02: syntax → symbol-resolved trees](../pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lib.rs) |
 | [Symbol-resolved trees](symbol-resolved-trees/src/lib.rs) | [02: syntax → symbol-resolved trees](../pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lib.rs) | [03: resolved → typed trees](../pipeline/03_symbol-resolved-trees-to-typed-trees/src/lib.rs) |
 | [Typed trees](typed-trees/src/lib.rs) | [03: resolved → typed trees](../pipeline/03_symbol-resolved-trees-to-typed-trees/src/lib.rs) | [04: explicit preparation boundary](../pipeline/04_typed-trees-to-typed-trees/README.md), then [structural lowering](../pipeline/05_typed-trees-to-terminal-psi/src/lib.rs) |
-| [Terminal Psi](terminal-psi/src/lib.rs) | [structural lowering](../pipeline/05_typed-trees-to-terminal-psi/src/lib.rs), [judgment](../pipeline/06_terminal-psi-to-terminal-psi/src/lib.rs) and [accepted-source publication](../psi-compiler/terminal-production/src/accepted.rs) | [Omega 00](../../../omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/README.md) |
+| [Terminal Psi](terminal-psi/src/lib.rs) | [structural lowering](../pipeline/05_typed-trees-to-terminal-psi/src/lib.rs), [judgment](../pipeline/06_terminal-psi-to-terminal-psi/src/lib.rs) and [accepted-source publication](../terminal-production/src/accepted.rs) | [Omega 00](../../../omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/README.md) |
 
 The 04 boundary currently refuses nonempty preparation. Its empty no-work result
 preserves typed source without proving it. Structural lowering, checking and
@@ -25,7 +25,7 @@ publication name the required producer chain; default Build and native availabil
 still depend on completing the unserved work on [TASKS.md](../../../../TASKS.md).
 
 The independent
-[Terminal interpreter](../../interpreter/terminal-interpreter/README.md) consumes
+[Terminal interpreter](../../interpreter/README.md) consumes
 Terminal Psi without creating another pipeline representation.
 
 The retired facts package is removed. Checking facts now

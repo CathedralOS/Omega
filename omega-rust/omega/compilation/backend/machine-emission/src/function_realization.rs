@@ -19,7 +19,7 @@ use optimization_core::{
     OptimizationWorkBudget, PostAllocationOptimizationManifestIdentity,
     PrePhysicalOptimizationManifestIdentity, SelectedLoweringOptimizationCompletionIdentity,
 };
-use physical_instructions::PostAllocationMachineOptimizationCustody;
+use post_allocation_machine::PostAllocationMachineOptimizationCustody;
 use post_allocation_machine_to_selected_form_encoding::{
     OptimizedSelectedFormEncodingError, StagedOptimizedSelectedFormEncoding,
     validate_optimized_layout_independent_selected_form_encoding,
@@ -109,7 +109,7 @@ pub struct FunctionRelativeOptimizationRealizationManifest {
     pub post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
     pub selected: SelectedInstructionPlanIdentity,
     pub pre_allocation_machine_effects: selected_instructions::PreAllocationMachineEffectIdentity,
-    pub post_allocation_machine: physical_instructions::PostAllocationMachineIdentity,
+    pub post_allocation_machine: post_allocation_machine::PostAllocationMachineIdentity,
     pub baseline_pre_layout: SelectedFormEncodingIdentity,
     pub pre_layout: SelectedFormEncodingIdentity,
     pub baseline_resolved_layout: ResolvedSelectedFormLayoutIdentity,
@@ -215,7 +215,7 @@ impl StagedFixedFrameFunctionRelativeRealization {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StagedFixedFrameFunctionRelativeRealizationCustodyReceipt {
     source: AllocationEvidence,
-    machine: physical_instructions::PostAllocationMachineIdentity,
+    machine: post_allocation_machine::PostAllocationMachineIdentity,
     requirements: AllocatedCalleeSavedRequirementIdentity,
     storage: NonAuthoritativeCalleeSaveStorageIdentity,
     frame: TargetFrameLayoutIdentity,
@@ -227,7 +227,7 @@ pub struct StagedFixedFrameFunctionRelativeRealizationCustodyReceipt {
 optimization_core::record_views! {
     record StagedFixedFrameFunctionRelativeRealizationCustodyReceipt;
     shared {
-        machine: physical_instructions::PostAllocationMachineIdentity,
+        machine: post_allocation_machine::PostAllocationMachineIdentity,
         requirements: AllocatedCalleeSavedRequirementIdentity,
         storage: NonAuthoritativeCalleeSaveStorageIdentity,
         frame: TargetFrameLayoutIdentity,
@@ -924,7 +924,7 @@ fn decode_manifest_content(
     let pre_allocation_machine_effects =
         selected_instructions::PreAllocationMachineEffectIdentity::from_bytes(cursor.array()?);
     let post_allocation_machine =
-        physical_instructions::PostAllocationMachineIdentity::from_bytes(cursor.array()?);
+        post_allocation_machine::PostAllocationMachineIdentity::from_bytes(cursor.array()?);
     let baseline_pre_layout = SelectedFormEncodingIdentity::from_bytes(cursor.array()?);
     let pre_layout = SelectedFormEncodingIdentity::from_bytes(cursor.array()?);
     let baseline_resolved_layout = ResolvedSelectedFormLayoutIdentity::from_bytes(cursor.array()?);
@@ -1062,7 +1062,7 @@ fn decode_optional_custody(
             let post_allocation_machine_selections =
                 OptimizationSelectionIdentity::from_bytes(cursor.array()?);
             let source =
-                physical_instructions::PostAllocationMachineIdentity::from_bytes(cursor.array()?);
+                post_allocation_machine::PostAllocationMachineIdentity::from_bytes(cursor.array()?);
             let action_count =
                 usize::try_from(cursor.u64()?).map_err(|_| Error::ActionCountOverflow)?;
             let baseline_bytes = cursor.u64()?;

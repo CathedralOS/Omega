@@ -49,7 +49,10 @@ pub use entry_contract_seed::selected_program_entry_boundary;
 pub(crate) use frontier::{
     SourceStorage, ToolchainContractCustody, validate_package_source_frontier,
 };
-pub(crate) use generated::{DependencyGeneratedSource, admit_dependency_build_handoffs};
+pub(crate) use generated::{
+    DependencyGeneratedSource, admit_dependency_build_handoffs,
+    dependency_generated_source_logical_path,
+};
 pub use generated::{GeneratedSourceExtension, admit_generated_extension};
 pub(crate) use import_queue::ImportQueue;
 pub(crate) use logical::LogicalSourceDiscovery;

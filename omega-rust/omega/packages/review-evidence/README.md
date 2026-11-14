@@ -5,7 +5,7 @@ inert evidence: it is not package admission, an accepted lock, or proof that an
 audit occurred.
 
 Capture consumes the immutable `CheckedCompilation` product directly from
-`compilation-products`. Production review has no dependency on the compiler
+`products`. Production review has no dependency on the compiler
 coordinator or Build evaluator; compiler execution is a test-only dependency for
 constructing fixtures.
 

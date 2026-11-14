@@ -13,7 +13,7 @@ use provider_planning::target_supply::{
     PreparedTargetSupply, ReachedBoundaryRequirement, SettledTargetSupply, SupplyAuthority,
     SupplyPlanning, TargetSupplyRequest,
 };
-use psi_compiler::AcceptedTerminalSource;
+use source_compiler::AcceptedTerminalSource;
 use std::sync::Arc;
 
 const TARGET: &str = "linux_x86_64";
@@ -57,7 +57,7 @@ fn judged(
 ) -> (
     Arc<typed_trees::FrozenTypedTrees>,
     Vec<TargetProviderDefaults>,
-    compilation_products::ProductRoster,
+    products::ProductRoster,
 ) {
     let mut sources = source::SourceMap::default();
     let mut syntax = None;
@@ -119,7 +119,7 @@ fn judged(
         .expect("the program declares main")
         .symbol;
     let frozen: typed_trees::FrozenTypedTrees = typed.into();
-    let roster = compilation_products::ProductRoster {
+    let roster = products::ProductRoster {
         entries: vec![entry],
         subject: Some(package()),
         ..Default::default()
@@ -131,8 +131,8 @@ fn judged(
 #[derive(Debug)]
 struct Supplied {
     supply: PreparedTargetSupply,
-    roster: compilation_products::ProductRoster,
-    publication: Arc<compilation_products::ProductTerminalPublication>,
+    roster: products::ProductRoster,
+    publication: Arc<products::ProductTerminalPublication>,
     rejudged: bool,
 }
 
@@ -164,7 +164,7 @@ fn supplied_on(
     let (source, mut defaults, roster) = judged(supplied, program);
     key(&mut defaults);
     let original = Arc::new(
-        compilation_products::ProductTerminalPublication::judge(
+        products::ProductTerminalPublication::judge(
             source,
             roster,
             optimization_core::OptimizationSelections::default(),
@@ -201,7 +201,7 @@ fn a_publication_judges_its_exact_roster_including_predeclared_supplies() {
         "{SLOT}Native satisfies Service {{ machine go() reaches none crashes Trap {{ }} }}{NATIVE_DEFAULT}"
     );
     let (source, defaults, mut roster) = judged(&declarations, REACHES);
-    let original = compilation_products::ProductTerminalPublication::judge(
+    let original = products::ProductTerminalPublication::judge(
         Arc::clone(&source),
         roster.clone(),
         optimization_core::OptimizationSelections::default(),
@@ -224,11 +224,11 @@ fn a_publication_judges_its_exact_roster_including_predeclared_supplies() {
                 .is_some_and(|name| name.as_str() == "Native")
         })
         .unwrap();
-    roster.supplies.push(psi_compiler::TerminalSourceSupply {
+    roster.supplies.push(source_compiler::TerminalSourceSupply {
         slot: requirement.symbol,
         provider: native.symbol,
     });
-    let error = compilation_products::ProductTerminalPublication::judge(
+    let error = products::ProductTerminalPublication::judge(
         source,
         roster,
         optimization_core::OptimizationSelections::default(),
@@ -381,7 +381,7 @@ fn a_target_demands_what_its_own_chosen_providers_reach() {
 #[test]
 fn a_chosen_provider_the_module_does_not_hold_is_refused() {
     let (source, defaults, roster) = judged(&format!("{SLOT}{PROVIDERS}{NATIVE_DEFAULT}"), REACHES);
-    let publication = compilation_products::ProductTerminalPublication::judge(
+    let publication = products::ProductTerminalPublication::judge(
         source,
         roster,
         optimization_core::OptimizationSelections::default(),
@@ -487,7 +487,10 @@ fn execution(
 /// The Terminal artifact a product of the accepted source is checked on.
 fn produced(accepted: &AcceptedTerminalSource) -> Arc<terminal_codec::CanonicalTerminalArtifact> {
     let program = accepted
-        .produce(Default::default(), &mut psi_compiler::UnmeasuredProduction)
+        .produce(
+            Default::default(),
+            &mut source_compiler::UnmeasuredProduction,
+        )
         .expect("the accepted source publishes")
         .into_shared_portable()
         .expect("the publication is portable");
@@ -673,7 +676,7 @@ const WHOLE_SLOT: &str = "public boundary trait Service {\n    machine go() reac
 /// The settled supply of `WHOLE_SLOT`'s provider for a program that reaches
 /// `go`, and the product whose module judged the provider.
 fn whole_slot() -> (
-    Arc<compilation_products::ProductTerminalPublication>,
+    Arc<products::ProductTerminalPublication>,
     SettledTargetSupply,
 ) {
     let target = supplied_target(&format!("{WHOLE_SLOT}{NATIVE_DEFAULT}"), REACHES)

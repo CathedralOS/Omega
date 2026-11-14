@@ -279,19 +279,42 @@ machine wrap<'activation>(builder: &'activation mut Build) -> Configuration<'act
 /// `&mut` and is accepted.
 #[test]
 fn binding_an_entry_needs_the_mutable_build_value() {
-    let helper = |access: &str| {
+    let helper = |access: &str, argument: &str| {
         format!(
             "machine helper(builder: &{access}Build) {{
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind({argument}, linux_arm64::ProgramEntry, main);
 }}
 "
         )
     };
     assert_eq!(
-        refusals("bind-mutable", &helper("mut ")),
+        refusals("bind-mutable", &helper("mut ", "builder")),
         Vec::<String>::new()
     );
-    rejected_with("bind-shared", &helper(""), "root binding requires");
+    assert_eq!(
+        refusals("bind-explicit-mutable", &helper("mut ", "&mut builder")),
+        Vec::<String>::new()
+    );
+    rejected_with(
+        "bind-shared",
+        &helper("", "builder"),
+        "as mutable through a shared reference, which grants no mutation",
+    );
+    rejected_with(
+        "bind-mutable-through-shared",
+        &helper("", "&mut builder"),
+        "as mutable through a shared reference, which grants no mutation",
+    );
+    rejected_with(
+        "bind-explicit-shared",
+        &helper("mut ", "&builder"),
+        "the caller lends only immutable access to this argument",
+    );
+    rejected_with(
+        "bind-explicit-write-only",
+        &helper("mut ", "&write builder"),
+        "the caller lends write-only access to this argument",
+    );
 }
 
 /// The same rule through a record that keeps the Build it was lent
@@ -328,11 +351,39 @@ machine helper(builder: &mut Build) {{
     rejected_with(
         "stored-shared",
         &holder("", direct),
-        "root binding requires",
+        "the reference it is reached through grants shared access only",
     );
     rejected_with(
         "stored-shared-local",
         &holder("", through_local),
-        "root binding requires",
+        "the reference it is reached through grants shared access only",
+    );
+}
+
+#[test]
+fn binding_requires_the_shared_cohort_to_end_before_exclusive_access() {
+    let helper = |operations: &str| {
+        format!(
+            "machine observe(builder: &Build) -> bool {{ builder.freestanding }}
+machine helper(builder: &mut Build) -> bool {{
+    let view: &Build = builder;
+    {operations}
+}}
+"
+        )
+    };
+    assert_eq!(
+        refusals(
+            "bind-after-observation",
+            &helper(
+                "let observed: bool = observe(view); Build::bind(builder, linux_arm64::ProgramEntry, main); observed"
+            ),
+        ),
+        Vec::<String>::new()
+    );
+    rejected_with(
+        "bind-during-observation",
+        &helper("Build::bind(builder, linux_arm64::ProgramEntry, main); observe(view)"),
+        "conflicting loans",
     );
 }

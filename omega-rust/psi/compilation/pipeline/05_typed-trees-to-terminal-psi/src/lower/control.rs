@@ -219,15 +219,35 @@ impl Lowering<'_> {
     /// `wiki/spec/terminal-psi/calls_and_outcomes.md`, "Normal results":
     /// a structural result is one place, apart from the scalar lane. The
     /// plain record holds no claim, so none is returned.
-    fn return_record(&mut self, source_root: PlaceId, source: SourceOrigin) -> Checked<()> {
-        let edge = self.edge(Destination::Return, source)?;
+    pub(super) fn return_record(
+        &mut self,
+        source_root: PlaceId,
+        source: SourceOrigin,
+    ) -> Checked<()> {
+        let no_normal_value = self.empty_owned_value(source_root);
+        // Keep the actual structural expression. Its impossible owned value
+        // supplies no normal result, whatever type the destination expects,
+        // so this edge owes no normal-return guarantee or receiver value.
+        // The checker reconstructs that classification from the real root.
+        let edge = self.edge(
+            if no_normal_value {
+                Destination::NoNormal
+            } else {
+                Destination::Return
+            },
+            source,
+        )?;
         self.terminate(Terminator::ReturnStructural {
             edge,
             source: source_root,
             returned_claims: Vec::new(),
             cleanup_actions: Vec::new(),
         })?;
-        self.guarantee(edge, source)
+        if no_normal_value {
+            Ok(())
+        } else {
+            self.guarantee(edge, source)
+        }
     }
 
     pub(super) fn return_unit(&mut self, source: SourceOrigin) -> Checked<()> {

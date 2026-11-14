@@ -496,13 +496,27 @@ and no operation of the lowered form would own it, so it is refused.
 A loop in Omega is a machine whose transition arm calls it again, directly
 or through other machines. The subset serves such a call cycle between
 scalar machines when every call between its members stands in terminal
-position (an arm's target, or the body's final value) and no member promises
-termination: `machine spin(n: u32) -> u32 { transition n > 0 { true ->
-spin(n - 1) false -> 0 } }`, and the same through two or more machines.
+position (an arm's target, or the body's final value): `machine spin(n: u32)
+-> u32 { transition n > 0 { true -> spin(n - 1) false -> 0 } }`, and the
+same through two or more machines.
 [termination](../../../../../wiki/spec/language/termination.md#calls-and-productive-loops):
 "A productive terminal-transfer cycle without a termination promise may run
 forever and owes no rank". [Call cycles as loops](#call-cycles-as-loops)
 gives the lowered form.
+
+A loop that promises to end says which value shows it: `machine
+count_down(remaining: u64) -> u64 terminates by remaining`. The subset
+serves that witness on a machine that calls itself, when the subject is one
+formal of an unsigned fixed-width integer type under `Nat::Descending`, the
+view stage 03 settles for the short form
+([termination](../../../../../wiki/spec/language/termination.md#ranking):
+"Short form without `-> View` requires a carrier-declared stable canonical
+default, immediately elaborated to an explicit view"). The reader takes the
+subject from the typed expression stage 03 keeps
+(`RankingExpressionCustody`), never from the plan's rendered text.
+[Rankings](#rankings) gives what lowering writes for it. A bare `terminates`
+on a machine that calls such a loop is then served too: the loop it depends
+on is ranked.
 
 The rest of the loops lane
 (`wiki/drafts/designs/loops_recursion_termination_lane.md`) is refused by
@@ -511,8 +525,14 @@ name until the slice that serves it:
 | Construct | Refusal detail |
 | --- | --- |
 | a call of a member whose result the caller goes on to use, `1 + f(n)` | `call recursion outside a terminal position` |
-| a `terminates by` witness, on any machine | `contract ranking witness` |
-| a bare `terminates` on a machine that lies on a cycle or calls into one | `contract termination promise over a call cycle` |
+| a `terminates by` witness on a machine of a cycle of several machines | `contract ranking witness on a call cycle of several machines` |
+| a witness under a view other than `Nat::Descending` (`Slice::Length`, `Nat::IncreasingTo`, `Nat::BoundedDistance`, a declared `measure`), or a short form whose subject has no default view | `contract ranking view other than Nat::Descending` |
+| a witness with a rank range, `in lower..=upper` | `contract rank range on a ranking witness` |
+| a witness over several subjects | `contract ranking over several subjects` |
+| a subject that is not a formal (`items.len`, a field) | `contract ranking subject that is not a formal` |
+| a subject that is a signed, address or width-generic formal | `contract ranking subject that is not an unsigned fixed-width integer formal` |
+| a witness the typed trees hold only as text (no `RankingExpressionCustody`) | `spelling ranking subject kept only as text` |
+| a `terminates`, bare or witnessed, on a machine that lies on or calls into a cycle no member ranks | `contract termination promise over a call cycle` |
 | `terminates` under a progress premise | `contract termination under a progress premise` |
 | `ensures` on a member | `contract ensures on a call cycle` |
 | a `crashes Cause` clause with a route guard on a member | `contract guarded crash route on a call cycle` |
@@ -1018,7 +1038,39 @@ declaration states a crash route is refused (`call external completion that
 declares a crash route`). A call with no continuation anywhere but terminal
 position, and any statement after one, is refused, not dropped.
 
-No `ranked_scc` is written: these cycles promise nothing.
+## Rankings
+
+A cycle with no witness promises nothing and gets no `ranked_scc`. A machine
+that calls itself and supplies a witness gets one
+([lower/ranking.rs](src/lower/ranking.rs)), in the row Terminal Psi already
+has for it
+([control flow](../../../../../wiki/spec/terminal-psi/control_flow.md#safety-and-progress):
+"A ranking declaration binds a well-founded relation, block ranks, and every
+derived in-component edge."):
+
+- **One rank per block of the loop's cycle:** the head parameter that stands
+  for the witness's subject. The body is lowered beneath its head, so that
+  value is in scope in every block of the cycle.
+- **One row per edge inside the cycle.** An edge that stays beneath the head
+  keeps the rank and claims `Preserving`. A jump back to the head is the
+  recursive call: its successor rank is the argument the call passes for the
+  subject, and it claims `Strict`, because "Removing strict edges must leave
+  an acyclic graph" and every cycle of this graph closes through such a
+  jump.
+- **One `WellFoundedness` obligation** at the entry of the cycle's first
+  block, the head, and **one `RankComparison`** on each edge row, at that
+  edge.
+
+Lowering proves none of it. The checker recomputes the cycle, compares every
+row with the graph and decides each comparison
+([terminal-psi-to-terminal-psi](../06_terminal-psi-to-terminal-psi/README.md#rankings)).
+
+A promise is accepted only where nothing it depends on is unranked
+(`components`, `reaches_unranked_cycle`): termination.md, "A cyclic
+terminating body must supply its witness; inference never chooses its
+subjects or silently publishes a guarantee. Unknown progress dependencies
+prevent a checked guarantee." A witness on a machine that lies on no cycle
+has nothing to rank and stands as the promise it discharges.
 
 ## Places, roots and the write log
 
@@ -1248,6 +1300,8 @@ interpreter loads and runs both.
 | `PublishedGuarantee` | one per `ensures` clause, the identity `ContractClause` carries | the entry block |
 | `NormalGuarantee` | one per `ensures` clause per normal exit edge, naming its `PublishedGuarantee` | that edge |
 | `ArrivalInvariant` | one per edge into a block with parameters: a short-circuit join, whose predicate the checker infers, or a loop head, whose predicate is its member's `requires` | that edge |
+| `WellFoundedness` | one per ranked cycle ([Rankings](#rankings)) | the entry of the cycle's first block |
+| `RankComparison` | one per edge inside a ranked cycle | that edge |
 | `CrashCoverage` | one per crash site and cause. `CrashSite::Block`: a `Crash` terminator (its one cause), or an `InvokeNoNormal` terminator (each cause among its continuations). `CrashSite::Operation`: a `Call` or `CallUnit` whose callee may return and publishes crash routes (each cause among its continuations) | the point before the terminator or the call |
 
 ## Source correspondence
@@ -1513,13 +1567,14 @@ worked around by adding to `terminal-check-tables`.
     reader accepts a selection when both symbols enter the same machine
     (`entered_machine`: a machine, or the one state of one), comparing
     symbols only.
-37. **A ranking witness is refused wherever it stands.** The typed trees
-    hold its subjects twice, as rendered text
+37. **A ranking witness is read from its typed expressions only.** The
+    typed trees hold its subjects twice, as rendered text
     (`RankingWitness::subjects`) and as typed expressions
-    (`RankingExpressionCustody`). This slice reads neither and refuses the
-    witness, on an acyclic machine too, because whether a witness with
-    nothing to rank is an error is the ranking slice's to decide. That slice
-    reads the custody and never the text.
+    (`RankingExpressionCustody`). The reader takes the subject from the
+    custody and refuses a witness that has none as a spelling. The
+    specification does not say that a witness with nothing to rank is an
+    error, so one on a machine that lies on no cycle is accepted as the
+    promise it discharges: its machine ends because it has no cycle.
 38. **A final value counts as terminal position.** Stage 01 leaves a body's
     final expression as an expression, and the reader makes it the
     unguarded arm that completes the machine, so `machine f(n: u32) -> u32

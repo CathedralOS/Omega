@@ -55,18 +55,16 @@ pub struct PackageInspectionOutcome {
 pub struct PackageInspectionError(crate::PackageCommandError);
 
 impl PackageInspectionError {
-    pub fn source_completion_accounting(
-        &self,
-    ) -> &compilation_products::SourceCompletionAccounting {
+    pub fn source_completion_accounting(&self) -> &products::SourceCompletionAccounting {
         self.0.source_completion_accounting()
     }
     pub fn with_source_completion_accounting(
         self,
-        accounting: compilation_products::SourceCompletionAccounting,
+        accounting: products::SourceCompletionAccounting,
     ) -> Self {
         Self(self.0.with_source_completion_accounting(accounting))
     }
-    pub fn compilation_failure(&self) -> Option<&compilation_products::CompileFailure> {
+    pub fn compilation_failure(&self) -> Option<&products::CompileFailure> {
         self.0.compilation_failure()
     }
 }
@@ -90,8 +88,8 @@ impl From<String> for PackageInspectionError {
         Self(message.into())
     }
 }
-impl From<compilation_products::CompileFailure> for PackageInspectionError {
-    fn from(error: compilation_products::CompileFailure) -> Self {
+impl From<products::CompileFailure> for PackageInspectionError {
+    fn from(error: products::CompileFailure) -> Self {
         Self(error.into())
     }
 }

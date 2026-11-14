@@ -533,7 +533,12 @@ fn analyze(
             None,
         )?;
     }
+    let mut has_borrowed_windows = false;
     for operation in machine.operations() {
+        has_borrowed_windows |= matches!(
+            operation.kind,
+            terminal_psi::OperationKind::MoveStructuralField { .. }
+        );
         if let Some(result) = operation.result.as_structural() {
             let required_result = crate::StructuralEffectSemanticRow::for_tag(
                 crate::OperationSemanticTag::for_operation(&operation.kind),
@@ -699,7 +704,9 @@ fn analyze(
             exclusive,
         }));
     }
-    if roots.iter().all(Option::is_none) {
+    // Copy permission does not erase an explicitly destructive window. Even
+    // an untracked carrier's window must reach its governing check or refusal.
+    if roots.iter().all(Option::is_none) && !has_borrowed_windows {
         return Ok(Plan {
             copyable_owned_roots,
             ..Plan::default()
@@ -1214,6 +1221,43 @@ impl Analysis<'_> {
             return Err(Error::malformed("a leaf copy duplicates an affine region"));
         }
         match &operation.kind {
+            Op::MoveStructuralField {
+                source,
+                path,
+                field,
+            } => {
+                // The extracted value transfers its own custody. Its original
+                // exclusive loan retains the same storage for handback, so an
+                // empty path is a vacancy, not an ended owned home.
+                let root = self.root(*source)?.ok_or(Error::unsupported(
+                    "a borrowed move requires tracked storage contents",
+                ))?;
+                if root.owned || !root.parameter || !root.exclusive {
+                    return Err(Error::unsupported(
+                        "a borrowed move requires its incoming mutable loan",
+                    ));
+                }
+                let declared = root.structural_type;
+                let mut selected = self.canonical(*source, path)?;
+                if let Some(field) = field {
+                    selected.push(Segment::Field(*field));
+                }
+                let selected_type =
+                    crate::canonical_structural_path_tip(self.types.iter(), declared, &selected)
+                        .ok_or(Error::malformed("a borrowed move has no selected type"))?;
+                if operation
+                    .result
+                    .as_structural()
+                    .map(|result| result.structural_type)
+                    != Some(selected_type.id)
+                {
+                    return Err(Error::malformed(
+                        "a borrowed move changes its selected type",
+                    ));
+                }
+                self.read(state, *source, &selected, site)?;
+                self.vacate(state, *source, &selected)?;
+            }
             Op::ScalarStructuralField {
                 source,
                 path,
@@ -1276,7 +1320,12 @@ impl Analysis<'_> {
             }
         }
         match &operation.kind {
-            Op::MoveStructuralValue { source } => self.argument(state, source, site, true)?,
+            Op::MoveStructuralValue { source } => {
+                if self.root(source.place)?.is_some_and(|root| !root.owned) {
+                    return Err(Error::unsupported("owned extraction from borrowed storage"));
+                }
+                self.argument(state, source, site, true)?;
+            }
             Op::ReleaseReference { source, path } => self.argument(
                 state,
                 &StructuralArgument {
@@ -1742,14 +1791,22 @@ impl Analysis<'_> {
             if !owned && (!lends_window || path.is_empty()) {
                 return Err(Error::unsupported("owned extraction from borrowed storage"));
             }
-            if path.is_empty() {
-                // Whole owned transport consumes its source home as well as
-                // its value. Only a projected move leaves an allocated owner
-                // whose complement needs later disposal and retirement.
-                state.regions[index(argument.place.get())?] = None;
-            } else if let Some(region) = &mut state.regions[index(argument.place.get())?] {
-                region.set(&path, false);
-            }
+            self.vacate(state, argument.place, &path)?;
+        }
+        Ok(())
+    }
+
+    /// Only an owned whole move ends the home. A borrowed root's storage
+    /// remains allocated and owes restoration even when all its contents move.
+    fn vacate(&self, state: &mut State, place: PlaceId, path: &[Segment]) -> Result<(), Error> {
+        let root = self
+            .root(place)?
+            .ok_or(Error::malformed("a moved region has no affine home"))?;
+        let region = &mut state.regions[index(place.get())?];
+        if root.owned && path.is_empty() {
+            *region = None;
+        } else if let Some(region) = region {
+            region.set(path, false);
         }
         Ok(())
     }

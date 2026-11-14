@@ -17,7 +17,7 @@ use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceNode;
 
 use super::contracts::{ClauseScope, MathematicalTerms, ResultTerm};
-use super::{Program, Slot, crash_cause, span};
+use super::{LocalSummaryBodies, Program, Slot, crash_cause, span};
 use crate::body::{
     Body, CrashCeiling, Expression, ExpressionKind, Signature, Statement, Target, Termination,
     ValueType,
@@ -197,24 +197,20 @@ impl<'t> Program<'t> {
         Ok(private)
     }
 
-    /// The machines whose callers in this compilation may rely on what the
-    /// body returns beyond its written `ensures`. state_contracts.md, "Local
-    /// call summaries": "An exact checked call inside the same fingerprinted
-    /// verification unit may use the callee's written contract plus checked
-    /// body-derived result and state facts", and across that boundary
-    /// "ordinary calls use the published contract".
+    /// Prepare the bodies whose checked outcomes are available to this source
+    /// unit. Public visibility does not move an exact local call across the
+    /// unit boundary (state_contracts.md, "Local call summaries"). Dependencies,
+    /// abstract requirements, selected implementations and generated generic
+    /// bodies still retain their separately checked interface contracts.
     ///
-    /// The unit here is the subject package. A private subject machine can
-    /// only be called from it (`visible_to`), so a fact derived from its body
-    /// reaches no other unit. A public machine is left out: the route states
-    /// a summary as a clause of the machine's contract, and a public
-    /// contract is what independent clients are given. A reached dependency
-    /// is another unit. An entry, a Build selection, a requirement and a
-    /// selected implementation are boundaries ("An abstract requirement,
-    /// unknown callable or replaceable boundary uses its interface
-    /// contract"), and a machine stage 04 generated keeps exactly the
-    /// contract its generic form was checked against.
-    pub(crate) fn local_result_bodies(&self, entry: Option<MachineId>) -> Checked<Vec<MachineId>> {
+    /// Scalar result inference currently adds ordinary contract clauses, so
+    /// its roster remains private-only: stronger local facts must not silently
+    /// become a public promise. That publication limitation does not restrict
+    /// local outcome inference, which does not add a contract clause.
+    pub(crate) fn local_summary_bodies(
+        &self,
+        entry: Option<MachineId>,
+    ) -> Checked<LocalSummaryBodies> {
         let mut boundary = self.symbols.map(|_, _| false);
         for id in entry
             .iter()
@@ -230,11 +226,14 @@ impl<'t> Program<'t> {
                 refuse(
                     *id,
                     Construct::Machine,
-                    Unserved::Machine("result boundary without a machine"),
+                    Unserved::Machine("local summary boundary without a machine"),
                 )
             })? = true;
         }
-        let mut local = Vec::new();
+        let mut local = LocalSummaryBodies {
+            outcomes: Vec::with_capacity(self.subject_machines.len()),
+            result_contracts: Vec::with_capacity(self.subject_machines.len()),
+        };
         for &id in &self.subject_machines {
             if boundary.get(id) == Some(&true) {
                 continue;
@@ -243,15 +242,17 @@ impl<'t> Program<'t> {
             let Some(machine) = self.typed.machine_by_symbol(symbol) else {
                 continue;
             };
-            if !machine.is_public
-                && machine.satisfies.is_empty()
+            if machine.satisfies.is_empty()
                 && self
                     .typed
                     .owned_conformance_realization(self.typed.lifetime_declaration_owner(symbol))
                     .is_none()
                 && crate::template_of(self.typed, symbol).is_none()
             {
-                local.push(id);
+                local.outcomes.push(id);
+                if !machine.is_public {
+                    local.result_contracts.push(id);
+                }
             }
         }
         Ok(local)
@@ -1356,7 +1357,7 @@ impl<'t> Program<'t> {
             ),
         };
 
-        signature.termination = self.termination(id, machine)?;
+        signature.termination = self.termination(id, machine, &signature)?;
         self.inherit_requirement_contract(id, machine, &mut signature, &mut names)?;
         // A machine's header clauses belong to the machine declaration; its
         // formals belong to its one state, which `contract` was given.
@@ -2173,10 +2174,14 @@ impl<'t> Program<'t> {
     }
 
     /// What the header says about ending, from the plan stage 02 fills once
-    /// (`MachineTerminationPlan`). Only the presence of a promise and of a
-    /// witness is read here: the plan's `RankingWitness` holds its subjects
-    /// as rendered text, which this reader never resolves.
-    fn termination(&self, id: MachineId, machine: &Machine) -> Checked<Termination> {
+    /// (`MachineTerminationPlan`), and the witness's subject from the typed
+    /// expressions stage 03 keeps beside it (`ranking`).
+    fn termination(
+        &self,
+        id: MachineId,
+        machine: &Machine,
+        signature: &Signature,
+    ) -> Checked<Termination> {
         let plan = &machine.termination_plan;
         let promised = match &plan.interface {
             TerminationInterface::InternalDerived
@@ -2195,9 +2200,97 @@ impl<'t> Program<'t> {
             }
         };
         Ok(match (&plan.implementation_witness, promised) {
-            (Some(_), _) => Termination::Witnessed,
+            (Some(witness), _) => {
+                Termination::Witnessed(self.ranking(id, machine, witness, signature)?)
+            }
             (None, true) => Termination::Promised,
             (None, false) => Termination::Silent,
+        })
+    }
+
+    /// The ranking a `terminates by` witness supplies, when it is the one
+    /// form lowering ranks: one subject that is a formal of an unsigned
+    /// fixed-width integer type, under `Nat::Descending`.
+    ///
+    /// The subject is read from the typed expression stage 03 keeps for it
+    /// (`RankingExpressionCustody`), never from the plan's rendered text, and
+    /// the view from the identity stage 03 settled: termination.md,
+    /// "Ranking": "Short form without `-> View` requires a carrier-declared
+    /// stable canonical default, immediately elaborated to an explicit
+    /// view." `source/library/core/nat.omg` declares that default for
+    /// "unsigned natural values" only, so a signed subject is not ranked
+    /// here. Every form the page allows beyond this one is refused by name:
+    /// accepting a witness nobody compares would publish its guarantee
+    /// unproved.
+    fn ranking(
+        &self,
+        id: MachineId,
+        machine: &Machine,
+        witness: &language_semantics::RankingWitness,
+        signature: &Signature,
+    ) -> Checked<crate::body::Ranking> {
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
+        let Some(custody) = self.typed.ranking_expression_custody_for(machine.symbol) else {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Spelling("ranking subject kept only as text"),
+            ));
+        };
+        if witness.ranking_view != language_semantics::RankingViewId::NAT_DESCENDING
+            || !custody.view_arguments.is_empty()
+        {
+            return unserved("ranking view other than Nat::Descending");
+        }
+        if custody.rank_range.is_some() {
+            return unserved("rank range on a ranking witness");
+        }
+        let [subject] = custody.subjects[..] else {
+            return unserved("ranking over several subjects");
+        };
+        let formals = self
+            .typed
+            .machine_states(machine)
+            .first()
+            .map(|state| self.typed.state_parameters(state))
+            .unwrap_or_default();
+        let position = match self.typed.expression_table.expression(subject) {
+            typed_trees::expression::ExpressionNode::Name(path)
+                if path.symbol.is_valid() && path.head_symbol == path.symbol =>
+            {
+                formals
+                    .iter()
+                    .position(|formal| formal.symbol == path.symbol)
+            }
+            _ => None,
+        };
+        let Some(position) = position else {
+            return unserved("ranking subject that is not a formal");
+        };
+        let ranked = matches!(
+            signature.parameters.get(position),
+            Some(ValueType::Scalar(semantic_vocabulary::ScalarType::Integer(integer), _))
+                if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
+                    && !integer.is_address()
+                    && matches!(integer.width(), semantic_vocabulary::IntegerWidth::Bits(_))
+        );
+        if !ranked
+            || signature.erased.contains(&position)
+            || signature
+                .borrowed
+                .iter()
+                .any(|borrowed| borrowed.position == position)
+        {
+            return unserved("ranking subject that is not an unsigned fixed-width integer formal");
+        }
+        Ok(crate::body::Ranking {
+            subject: u32::try_from(position).map_err(|_| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Contract("ranking subject position"),
+                )
+            })?,
         })
     }
 

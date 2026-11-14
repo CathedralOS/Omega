@@ -443,6 +443,52 @@ impl Program<'_> {
                 Unserved::Typing("collection measurement of non-collection storage"),
             ));
         };
+        let integer =
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .expect("u64 is valid");
+        // `array.len` of a fixed array is the extent its type states, a
+        // number known here: generics.md, "Runtime index identity and
+        // storage", "arrays keep static extents", and domains.md, "`[u8; N]
+        // in D` is the same exact `N`-byte fixed-array carrier as `[u8; N]`;
+        // its `.len` is `N`". Nothing is measured, so no operation is
+        // lowered for it and the expression is that number, a `u64`
+        // (counts_and_addresses.md: "General lengths ... use `u64`").
+        //
+        // The array must be a place named by fields from a local or a
+        // formal: such a path evaluates nothing, so leaving it out loses
+        // nothing. A call result, an element chosen by an index or a case
+        // payload would have to be evaluated or established first, and is
+        // refused here.
+        if measure == CollectionMeasure::Length
+            && let StorageShape::FixedArray {
+                length: terminal_psi::ArrayExtent::Literal(length),
+                ..
+            } = self.data_type(machine, record)?.shape
+        {
+            let mut place = &base;
+            while let ExpressionKind::Field { base, .. } | ExpressionKind::Referent(base) =
+                &place.kind
+            {
+                place = base;
+            }
+            if !matches!(place.kind, ExpressionKind::Slot(_)) {
+                return Err(refuse(
+                    machine,
+                    Construct::Machine,
+                    Unserved::Expression("length of a fixed array that is not a field path"),
+                ));
+            }
+            return Ok(Expression {
+                call_context: None,
+                kind: ExpressionKind::Integer(semantic_vocabulary::IntegerValue::Unsigned(
+                    length.into(),
+                )),
+                result: Some(ValueType::plain(semantic_vocabulary::ScalarType::Integer(
+                    integer,
+                ))),
+                source,
+            });
+        }
         if measure != CollectionMeasure::Length
             || !matches!(
                 self.data_type(machine, record)?.shape,
@@ -457,9 +503,6 @@ impl Program<'_> {
                 Unserved::Expression("collection measurement without its descriptor operation"),
             ));
         }
-        let integer =
-            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
-                .expect("u64 is valid");
         Ok(Expression {
             call_context: None,
             kind: ExpressionKind::CollectionMeasure {

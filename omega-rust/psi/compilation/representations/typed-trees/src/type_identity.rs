@@ -6365,9 +6365,11 @@ pub(crate) mod substitution {
                     if !program.contains_type_reference(argument.type_reference) {
                         return rejected(context);
                     }
+                    let selected = program
+                        .static_operand_from_type_reference(argument.type_reference)
+                        .ok();
                     if context.invalid_application.is_some()
-                        && let Ok(selected) =
-                            program.static_operand_from_type_reference(argument.type_reference)
+                        && let Some(selected) = &selected
                         && selected.symbol.is_valid()
                         && matches!(
                             program.symbols.get(selected.symbol).kind,
@@ -6376,14 +6378,18 @@ pub(crate) mod substitution {
                     {
                         return index_argument(
                             program,
-                            IndexIdentityArgument::StaticArgument(&selected),
+                            IndexIdentityArgument::StaticArgument(selected),
                             context,
                         );
                     }
+                    // A retained scalar reference supplies the same value as
+                    // its literal operand, not a type with a numeric name.
                     if matches!(
                         program.type_reference_node(argument.type_reference),
                         TypeReferenceNode::ConstExpression(_)
-                    ) {
+                    ) || selected.as_ref().is_some_and(|selected| {
+                        crate::static_const_argument_value(program, selected).is_some()
+                    }) {
                         return index_reference(program, argument.type_reference, context);
                     }
                     return normalize_type_reference(program, argument.type_reference, context);
@@ -6763,21 +6769,25 @@ pub(crate) mod substitution {
         }
     }
 
-    fn integer(program: &TypedTrees, symbol: SymbolHandle, spelling: &str) -> Option<i128> {
+    fn integer(
+        program: &TypedTrees,
+        symbol: SymbolHandle,
+        spelling: &str,
+    ) -> Option<numerics::bignum::BigInt> {
         if !symbol.is_valid() {
-            if let Ok(value) = spelling.parse() {
+            if let Some(value) = numerics::bignum::BigInt::from_decimal_str(spelling) {
                 return Some(value);
             }
             let value = CanonicalConstValue::from_atom(spelling)?;
             return match value.identity().decode_encoding()? {
-                DecodedCanonicalConstValue::Integer { value, .. } => value.to_i128(),
+                DecodedCanonicalConstValue::Integer { value, .. } => Some(value),
                 _ => None,
             };
         }
         let declaration = program.const_declaration_by_symbol(symbol)?;
         let encoding = declaration.evaluated_value.as_ref()?.encoding()?;
         match CanonicalConstValue::new("", encoding.to_owned(), "").decode_encoding()? {
-            DecodedCanonicalConstValue::Integer { value, .. } => value.to_i128(),
+            DecodedCanonicalConstValue::Integer { value, .. } => Some(value),
             _ => None,
         }
     }

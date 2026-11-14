@@ -8,7 +8,7 @@ version.workspace = true
 language-core = { path = "../../../../psi/foundation/language-core" }
 layout = { path = "../../backend/layout" }
 runtime-abi = { path = "../../backend/runtime/runtime-abi" }
-provider-selection = { path = "../../realization/provider-selection" }
+provider-selection = { path = "../provider-selection" }
 language-semantics = { path = "../../../../psi/foundation/language-semantics" }
 component-description = { path = "../../backend/artifacts/component-description" }
 optimization-core = { path = "../../../foundation/optimization-core" }
@@ -33,5 +33,5 @@ effects = { path = "../../backend/plans/effects" }
 target = { path = "../../backend/target" }
 
 [dev-dependencies]
-optimization-unit-semantics = { path = "../../representations/abstract-operations/optimization-unit/semantics" }
-psi-work = { path = "../../../../psi/compilation/representations/terminal-psi/work" }
+optimization-unit-semantics = { path = "../../representations/abstract-operations/optimization-unit-semantics" }
+terminal-work = { path = "../../../../psi/compilation/representations/terminal-psi/work" }

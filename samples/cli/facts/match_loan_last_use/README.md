@@ -99,7 +99,7 @@ are byte-identical copies of their twins, so sample and fixture cannot drift.
 
 - **Parent outcome:** `MATCH-SELECTIVE-LOWERING` (`TASKS.md`), whose remaining
   borrowed-join acceptance names exactly this witness: "End loans at last use:
-  `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/current_ownership/address_joins.rs`
+  `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit-semantics/src/current_ownership/address_joins.rs`
   currently pins origins through the whole dominated region" and "borrowed-result
   successor lifecycle". The exact requirement this row establishes: an
   exclusive loan selected by a match dies at its last use, and the lending

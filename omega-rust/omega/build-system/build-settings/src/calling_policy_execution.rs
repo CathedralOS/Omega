@@ -35,12 +35,12 @@ use provider_planning::calling_policy_plans::{
     complete_calling_scalar_inputs, decode_boundary_plan_result, encode_calling_policy_signature,
     validate_calling_policy_result,
 };
-use psi_work::{WorkMeter, WorkUsage};
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalInstantiation, TerminalProgram,
     TerminalRuntimeSupplyRequest, TerminalStructuralInputs, TerminalStructuralValue,
 };
 use terminal_psi::TargetMachineCallable;
+use terminal_work::{WorkMeter, WorkUsage};
 
 pub const CALLING_POLICY_EVALUATOR: CallingPolicyEvaluator = CallingPolicyEvaluator {
     policy: evaluate_terminal_calling_policy,

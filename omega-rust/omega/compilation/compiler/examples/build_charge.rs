@@ -49,7 +49,7 @@ fn sponsor(limits: BuildEvaluationSponsorLimits) -> BuildEvaluationSponsor {
     BuildEvaluationSponsor::new_with_measurement(
         limits,
         evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi {
-            work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
+            work_schedule: terminal_work::WorkSchedule::CURRENT.identity(),
             storage_schedule: evaluation_accounting::TerminalStorageScheduleIdentity::CURRENT,
         },
     )
@@ -1973,7 +1973,7 @@ fn completed_build_target_fanout() {
     }));
     products.push(((host, true), compiler::PreparedPackageProduct {
         build,
-        product: compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
+        product: compiler::CompilationProduct::Native(products::NativeProductRequest {
             installation_assumptions: Vec::new(),
             retain_native_inputs: false,
             image: Default::default(),

@@ -120,7 +120,7 @@ fn present_single(
     target_name: Option<&str>,
     started: Option<Instant>,
     report_file: Option<&Path>,
-    installation_assumptions: &[compilation_products::InstallationEnvironmentAssumption],
+    installation_assumptions: &[products::InstallationEnvironmentAssumption],
 ) {
     let result = build(request).and_then(|outcomes| match outcomes.into_iter().next() {
         Some(outcome) => outcome.result.and_then(BuildOutcome::into_report),
@@ -151,7 +151,7 @@ fn present_batch(
     request: BuildRequest,
     started: Option<Instant>,
     report_file: Option<&Path>,
-    installation_assumptions: &[compilation_products::InstallationEnvironmentAssumption],
+    installation_assumptions: &[products::InstallationEnvironmentAssumption],
 ) {
     let outcomes = match build(request) {
         Ok(outcomes) => outcomes,
@@ -271,7 +271,7 @@ fn print_outcome(outcome: &BuildReport) {
     print!("{}", format_publication_lines(outcome));
 }
 
-fn assumption_text(row: &compilation_products::InstallationEnvironmentAssumption) -> String {
+fn assumption_text(row: &products::InstallationEnvironmentAssumption) -> String {
     format!(
         "Caller assumption (not proof or observation): {}; entry {:?}; installation {:?}; target {}; Psi {}; environment SHA-256 {}; source {}; caller {}",
         row.description(),
@@ -291,7 +291,7 @@ fn assumption_text(row: &compilation_products::InstallationEnvironmentAssumption
 fn report_text(
     target_name: Option<&str>,
     outcome: &BuildReport,
-    installation_assumptions: &[compilation_products::InstallationEnvironmentAssumption],
+    installation_assumptions: &[products::InstallationEnvironmentAssumption],
 ) -> String {
     let product = if outcome.executable_path.is_some() {
         "native artifact"

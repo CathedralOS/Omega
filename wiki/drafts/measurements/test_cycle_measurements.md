@@ -61,7 +61,7 @@ following roughly 72 seconds of compilation, with 7,684 passes, the same three
 reported failures, and 14 ignored tests. Neither establishes a nextest-only
 speedup or a passing baseline.
 
-An actual narrow nextest listing for an `x86-encoding/src/lib.rs` change selected
+An actual narrow nextest listing for an `x86_64-encoding/src/lib.rs` change selected
 1,067 active library tests in 20 library binaries, compared with 7,687 tests in
 117 binaries normally. This measured test-count reduction, not elapsed-time
 improvement; package-manager remained selected.

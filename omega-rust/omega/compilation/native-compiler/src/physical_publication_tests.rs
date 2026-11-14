@@ -18,6 +18,7 @@ use terminal_psi::{
     TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
 };
 
+#[path = "physical_publication_tests_callback.rs"]
 mod callback;
 
 fn authorize_fixture(

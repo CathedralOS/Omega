@@ -56,7 +56,7 @@ machine build(builder: &mut Build) crashes Trap {
     let observed = Arc::new(Mutex::new(0));
     let mut expected = Vec::new();
     for resume in [false, true] {
-        let preparation = compilation_products::SourcePreparation::default();
+        let preparation = products::SourcePreparation::default();
         let mut timings = CompileTimings::default();
         let checkpoint = {
             let mut catalogue = preparation.catalogue().unwrap();
@@ -83,7 +83,7 @@ machine build(builder: &mut Build) crashes Trap {
         let build_source = syntax.build_source;
         let sources = syntax.sources.clone();
         let generated = syntax.generated_source_custody;
-        let mut continuation = psi_compiler::SourceCompilationRequest {
+        let mut continuation = source_compiler::SourceCompilationRequest {
             syntax: syntax.syntax_trees,
             source_items: syntax.source_items,
             root_sources: syntax.root_sources,
@@ -93,7 +93,7 @@ machine build(builder: &mut Build) crashes Trap {
             top_level_bindings: syntax.source_scoped_top_level_bindings,
             selection_authority: None,
         }
-        .prepare(&mut psi_compiler::UnmeasuredProduction)
+        .prepare(&mut source_compiler::UnmeasuredProduction)
         .unwrap();
         let input = continuation.build_input();
         let before = counters::build_execution_count();

@@ -66,7 +66,7 @@ shared foundations and utilities remain independently owned. Durable IRs stay
 in `psi/compilation/representations/` and `omega/compilation/representations/`, separate
 from their producing pipeline stages. The
 independent optimization-unit checker sits beside its IR at
-[`omega/compilation/representations/abstract-operations/optimization-unit/semantics/`](omega/compilation/representations/abstract-operations/optimization-unit/semantics),
+[`omega/compilation/representations/abstract-operations/optimization-unit-semantics/`](omega/compilation/representations/abstract-operations/optimization-unit-semantics),
 with no reverse dependency from the representation to its checker.
 
 Run the product through the `omega` package in `omega/application/cli/`; repository commands and validation policy are

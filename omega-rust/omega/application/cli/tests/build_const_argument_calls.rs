@@ -9,15 +9,18 @@ and apply `Buffer` at its value. generics.md, "Transparent type aliases":
 "Closed argument expressions may execute ordinary admitted compile-time code.
 A computed const value retains its declared carrier and canonical value".
 
-Each program here writes such an argument in its Build and is wrong in one
+The first program is the Build of `samples/cli/probes/build_const_storage`
+without its record literals: a field of type `Buffer<outer()>`, where `outer`
+itself holds a `Buffer<leaf()>`, so one evaluation waits for another. The
+Build lends its `Buffer<outer()>` to a machine that takes a `Buffer<4>`, which
+only the same type satisfies. Its twin makes `leaf` return 5, and the loan is
+no longer of the type the machine takes.
+
+Each other program writes such an argument in its Build and is wrong in one
 way, so the compiler must reach the call and say what is wrong with it: a
 call returning another integer type than the parameter declares, a call
 whose value is negative where the value is an array length, and a call of a
 machine that reaches a runtime service and so has no compile-time value.
-The accepted case, where the value becomes the literal of the application,
-is pinned in `build-time-evaluation` (`a_const_argument_written_as_a_call_`
-`becomes_the_literal_of_its_value`): a Build that declares generic data is
-still refused afterwards for the declaration itself.
 
 */
 
@@ -59,6 +62,37 @@ machine build(builder: &mut Build) {{
         output.status.success(),
         String::from_utf8_lossy(&output.stderr).into_owned(),
     )
+}
+
+/// The Build that holds a `Buffer<outer()>` and lends it as a `Buffer<4>`.
+fn storage(leaf: &str) -> String {
+    format!(
+        "data Buffer<const Capacity: u64> {{ slots: [u8; Capacity]; }}
+data ComputedStorage {{ buffer: Buffer<outer()>; }}
+machine leaf() -> u64 {{ {leaf} }}
+machine outer() -> u64 {{
+    let buffer: Buffer<leaf()>;
+    leaf()
+}}
+machine four(buffer: &Buffer<4>) -> u64 {{ 4 }}"
+    )
+}
+
+const LEND: &str = "ComputedStorage;
+    let seen: u64 = four(&held.buffer)";
+
+#[test]
+fn a_type_applied_at_a_call_is_the_type_applied_at_the_call_s_value() {
+    let (compiled, stderr) = check("four", &storage("4"), LEND);
+    assert!(compiled, "{stderr}");
+}
+
+#[test]
+fn a_call_with_another_value_gives_another_type() {
+    // `leaf` returns 5, so the field is a `Buffer<5>`: not what `four` takes.
+    let (compiled, stderr) = check("five", &storage("5"), LEND);
+    assert!(!compiled);
+    assert!(stderr.contains("argument types"), "{stderr}");
 }
 
 #[test]

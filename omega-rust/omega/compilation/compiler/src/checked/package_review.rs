@@ -4,13 +4,13 @@
 // component publication (`publish_component`), never a raw checked program.
 
 use super::{CompilationSession, PackageBuild};
-use compilation_products::{CheckedCompilation, CompileFailure};
 use diagnostics::Diagnostic;
 use package_compilation::IndependentComponentDescription;
 use package_evidence::record::{
     PackageReviewEvidence, PackageReviewSourceFacts, SemanticBindingReviewCandidate,
 };
 use package_evidence::{PackageReviewProjectionError, SemanticBindingProjectionError};
+use products::{CheckedCompilation, CompileFailure};
 use std::sync::Arc;
 
 pub struct PackageReviewProduct {

@@ -28,7 +28,7 @@ use optimization_core::{
     Optimization, OptimizationExecutionPhase, OptimizationSelectionIdentity,
     OptimizationSelections, OptimizationWorkBudget, OptimizationWorkUsage,
 };
-use physical_instructions::{
+use post_allocation_machine::{
     PostAllocationMachineFunction, PostAllocationMachineIdentity, PostAllocationMachineInstruction,
     PostAllocationMachinePlan, post_allocation_machine_identity,
 };
@@ -572,7 +572,7 @@ fn rewrites_every(
 #[cfg(test)]
 mod tests {
     use optimization_core::{Optimization, OptimizationWorkUsage};
-    use physical_instructions::{
+    use post_allocation_machine::{
         PhysicalOperandFootprint, PostAllocationMachineBlock, PostAllocationMachineFunction,
         PostAllocationMachineInstruction,
     };

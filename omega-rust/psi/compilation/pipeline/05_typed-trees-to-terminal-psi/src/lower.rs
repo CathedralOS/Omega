@@ -62,6 +62,7 @@ pub(crate) use calls::publish_write_frames;
 mod control;
 mod operations;
 pub(crate) mod places;
+mod ranking;
 
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, IdTable, MachineId, ObligationId, OperationId, PlaceId,
@@ -109,6 +110,9 @@ struct Head {
     member: MachineId,
     block: BlockId,
     parameters: Vec<ValueId>,
+    /// The position in `parameters` of the subject of the member's
+    /// `terminates by` witness, when it supplies one (`ranking`).
+    subject: Option<usize>,
 }
 
 /// Lowers machine `id`. `component` holds the members of its call component
@@ -312,7 +316,7 @@ fn contract_header(
         published_synchronous_entries: outcome.synchronous_entries.clone(),
         termination: match signature.termination {
             crate::Termination::Silent => semantic_vocabulary::Termination::NoGuarantee,
-            crate::Termination::Promised | crate::Termination::Witnessed => {
+            crate::Termination::Promised | crate::Termination::Witnessed(_) => {
                 semantic_vocabulary::Termination::Terminates
             }
         },
@@ -416,6 +420,7 @@ impl<'a> Lowering<'a> {
             calls: Vec::new(),
             call_formations: Vec::new(),
             blocks: IdTable::default(),
+            operation_locations: IdTable::default(),
             current: None,
             point: None,
             slots: vec![None; slot_types.len()],
@@ -643,6 +648,9 @@ struct Lowering<'a> {
     )>,
     call_formations: Vec<terminal_psi::CallFormation>,
     blocks: IdTable<BlockId, Draft>,
+    /// Coordinates of emitted operations in this in-progress machine. A call
+    /// reads exact scalar definitions without rescanning all earlier blocks.
+    operation_locations: IdTable<OperationId, Option<(BlockId, usize)>>,
     /// The open block, `None` once it is terminated and no block is entered.
     current: Option<BlockId>,
     /// The program point after the last thing emitted in `current`.
@@ -662,7 +670,8 @@ struct Lowering<'a> {
     heads: Vec<Head>,
     invariants: Vec<ScalarBlockInvariant>,
     /// The roots of this machine's borrowed formals: storage the caller
-    /// lent, so a loan of a place beneath one reborrows the incoming loan
+    /// lent, in increasing place order. Formals allocate roots in that order.
+    /// A loan of a place beneath one reborrows the incoming loan
     /// (`Lender::Incoming`) rather than lending owned storage.
     borrowed_roots: Vec<PlaceId>,
     /// Those of `borrowed_roots` lent with `&mut`: the only borrowed storage
@@ -679,8 +688,8 @@ struct Lowering<'a> {
     fallthrough: Option<crate::Branch>,
 }
 
-/// What lowering an evaluation reached: its result, or the call that never
-/// returns at which every path of it ended.
+/// What lowering an evaluation reached: its result, or the expression with
+/// no normal result at which every path of it ended.
 #[derive(Debug)]
 pub(super) enum Reached<T> {
     Value(T),
@@ -735,6 +744,20 @@ fn successor(edge: EdgeId, target: BlockId, arguments: Vec<ValueId>) -> Successo
 }
 
 impl<'a> Lowering<'a> {
+    /// A real owned value whose declared domain excludes every inhabitant.
+    /// A borrowed referent, provider attachment or result placeholder is not
+    /// such a value and cannot eliminate its consumer's continuation.
+    fn empty_owned_value(&self, root: PlaceId) -> bool {
+        self.roots.get(root).is_some_and(|(kind, ty)| {
+            !matches!(
+                kind,
+                StructuralPlaceKind::Result | StructuralPlaceKind::ProviderAttachment { .. }
+            ) && self.borrowed_roots.binary_search(&root).is_err()
+                && self.records.inhabitation.status(*ty)
+                    == terminal_semantics::inhabitation::Status::ProvedEmpty
+        })
+    }
+
     /// Lowers one body's statements into the open block, and the implicit
     /// Unit completion when they fall off the end.
     ///
@@ -846,10 +869,21 @@ impl<'a> Lowering<'a> {
                     arrivals: Vec::new(),
                 });
             }
+            let subject = match signature.termination {
+                crate::Termination::Witnessed(ranking) => {
+                    let subject = usize::try_from(ranking.subject)
+                        .ok()
+                        .filter(|subject| *subject < parameters.len())
+                        .ok_or_else(|| self.internal("a ranking subject past the formals"))?;
+                    Some(subject)
+                }
+                crate::Termination::Silent | crate::Termination::Promised => None,
+            };
             self.heads.push(Head {
                 member: *member,
                 block,
                 parameters,
+                subject,
             });
         }
         let entered: Vec<ValueId> = formals.scalars.iter().map(|formal| formal.id).collect();
@@ -1065,7 +1099,21 @@ impl<'a> Lowering<'a> {
             .map(|(id, (kind, _))| StructuralPlaceDeclaration { id, kind: *kind })
             .collect();
         self.call_formations.sort_unstable_by_key(|row| row.site);
-        let machine = TerminalMachine {
+        // The one cycle a witness ranks is the loop of the machine that
+        // wrote it (`components` refuses a witness on a cycle of several
+        // machines), so a ranked head stands alone.
+        let ranked = match self.heads.as_slice() {
+            [head] => head.subject.map(|subject| ranking::RankedHead {
+                block: head.block,
+                subject,
+                rank: head.parameters[subject],
+            }),
+            heads if heads.iter().any(|head| head.subject.is_some()) => {
+                return Err(self.internal("a ranking on a call cycle of several machines"));
+            }
+            _ => None,
+        };
+        let mut machine = TerminalMachine {
             assembly_target_requirement: RegisterTargetApplicability::Any,
             id: self.id,
             attachment: None,
@@ -1081,6 +1129,10 @@ impl<'a> Lowering<'a> {
             blocks,
             contract,
         };
+        if let Some(head) = ranked {
+            machine.ranked_scc =
+                ranking::rank(&machine, head, &mut self.tables, &mut self.sources)?;
+        }
         // A scalar machine has no structural place, so its place, root and
         // write tables are empty; `places` filled them for every record.
         Ok(Lowered {

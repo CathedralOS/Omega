@@ -24,7 +24,7 @@ packages = {
     'terminal-runtime': 'omega-rust/omega/interpreter/terminal-runtime',
     'package-manager': 'omega-rust/omega/packages/package-manager',
     'target': 'omega-rust/omega/compilation/backend/target',
-    'terminal-interpreter': 'omega-rust/psi/interpreter/terminal-interpreter',
+    'terminal-interpreter': 'omega-rust/psi/interpreter',
 }
 manifest = '''[package]
 name = "ind02-observe"

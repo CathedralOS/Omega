@@ -54,9 +54,7 @@ fn failure(package: &PackageKey, message: impl Into<String>) -> Error {
     Error::new(
         crate::review::CompileResolvedPackageReviewCause::Compilation {
             package: package.clone(),
-            failure: compilation_products::CompileFailure::Diagnostics(vec![Diagnostic::error(
-                message.into(),
-            )]),
+            failure: products::CompileFailure::Diagnostics(vec![Diagnostic::error(message.into())]),
         },
     )
 }
@@ -81,7 +79,7 @@ impl ProjectCompilationAdmissionRequest<'_> {
 
     pub fn refuse_compilation(
         self,
-        refused: compilation_products::CompileFailure,
+        refused: products::CompileFailure,
     ) -> Vec<ProjectCompilationOutcome> {
         let accounting = refused
             .source_completion_accounting()
@@ -211,7 +209,7 @@ fn admit_project(
     let mut product = request.product;
     let groups = match &mut product {
         CompilationProduct::Native(native) => {
-            compilation_products::compile_request::partition_installation_assumptions(
+            products::compile_request::partition_installation_assumptions(
                 std::mem::take(&mut native.installation_assumptions),
                 &profiles,
             )

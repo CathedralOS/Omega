@@ -5,8 +5,8 @@ judgment. The input grants no policy acceptance; projections still owe complete
 findings from this same retained compilation.
 */
 
-use compilation_products::CheckedCompilation;
 use diagnostics::Diagnostic;
+use products::CheckedCompilation;
 use typed_trees::TypedTrees;
 
 #[derive(Clone, Copy)]

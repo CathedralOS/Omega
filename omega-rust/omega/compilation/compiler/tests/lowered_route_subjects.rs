@@ -1201,7 +1201,7 @@ fn mutable_contract_inputs_publish_and_execute_without_runtime_snapshots() {
     .into_optimization_input();
     abstract_operations_to_abstract_operations::build_verified_psi_optimization_unit(
         input,
-        psi_work::WorkSchedule::CURRENT.identity(),
+        terminal_work::WorkSchedule::CURRENT.identity(),
     )
     .expect("Omega 01 independently checks the published operations");
     let bytes = terminal_codec::encode_module(publication.artifact.semantic_module())
@@ -1211,7 +1211,7 @@ fn mutable_contract_inputs_publish_and_execute_without_runtime_snapshots() {
             .expect("the published module loads");
     let status = execution
         .resume(
-            &mut psi_work::WorkMeter::with_budget(10_000_000),
+            &mut terminal_work::WorkMeter::with_budget(10_000_000),
             &mut NoEffects,
         )
         .expect("direct, lent, terminal and affine counter calls execute");

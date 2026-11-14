@@ -107,7 +107,7 @@ fn prepare_project(
     session: &mut orchestration::BuildSession,
     preparation: package_manager::operations::LocalProjectPreparation,
     target: target::TargetProfile,
-) -> Result<Box<compilation_products::PendingNativeProduct>> {
+) -> Result<Box<products::PendingNativeProduct>> {
     let resolved = orchestration::resolve_project_sources(
         session,
         orchestration::ProjectSourceRequest {
@@ -132,13 +132,13 @@ fn prepare_project(
             snapshot: None,
             verify: false,
             timings: false,
-            product: CompilationProduct::Native(compilation_products::NativeProductRequest {
+            product: CompilationProduct::Native(products::NativeProductRequest {
                 retain_native_inputs: true,
                 installation_assumptions: Vec::new(),
                 image: Default::default(),
                 private_entry_ram: Vec::new(),
                 terminal_authority_policy:
-                    compilation_products::compile_request::current_terminal_authority_policy(),
+                    products::compile_request::current_terminal_authority_policy(),
                 terminal_authority_permission_policy: None,
                 optimization_rollback: Default::default(),
             }),
@@ -255,9 +255,10 @@ fn finish_saved_project(
     }
     let mut assumptions = Vec::new();
     for record in records {
-        assumptions.extend(compilation_products::decode_installation_assumptions(
-            &read_bounded(record, 1024 * 1024)?,
-        )?);
+        assumptions.extend(products::decode_installation_assumptions(&read_bounded(
+            record,
+            1024 * 1024,
+        )?)?);
     }
     let proposal = retained
         .native_realization_proposal()
@@ -268,8 +269,8 @@ fn finish_saved_project(
             installation_assumptions: &assumptions,
             private_entry_ram: &[],
             optimization_selections: proposal.post_terminal_optimizations().selections(),
-            terminal_authority_policy:
-                compilation_products::compile_request::current_terminal_authority_policy(),
+            terminal_authority_policy: products::compile_request::current_terminal_authority_policy(
+            ),
             accepted_package_terminal_authority_permission_policy: permissions,
             terminal_authority_permission_policy: None,
             image_request: image_emission::ExecutableImageEmissionRequest::direct(

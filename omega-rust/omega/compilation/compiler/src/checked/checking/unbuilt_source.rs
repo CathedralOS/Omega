@@ -36,12 +36,12 @@
 
 use super::typed_frontier::TypedFrontier;
 use super::{build_continuation, complete_prepared_build, prepare_typed_frontier};
-use compilation_products::{
+use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::{ExecutedRootBinding, RootBindingSelection};
+use products::{
     CheckedExecutionRequest, CompileFailure, ComputedBuildConfig, EvaluatedBuild,
     PreparedCheckedSource, PreparedProductSource,
 };
-use diagnostics::Diagnostic;
-use language_semantics::declaration_selection::{ExecutedRootBinding, RootBindingSelection};
 use std::path::Path;
 use std::sync::Arc;
 
@@ -83,7 +83,7 @@ pub(in crate::checked) fn typed_frontier_without_build(
         }),
         restricted_build_requests: Vec::new(),
         base_source_consumption_commitment: None,
-        constants: compilation_products::BuildConstants::default(),
+        constants: products::BuildConstants::default(),
         source_completion_accounting: Default::default(),
     };
     let (mut built, build_sources) = build_continuation::complete_build_source(
@@ -113,7 +113,7 @@ pub(in crate::checked) fn typed_frontier_without_build(
         source_completion_accounting,
         ..
     } = complete_prepared_build(
-        compilation_products::PreparedBuild {
+        products::PreparedBuild {
             built,
             build_sources,
             timings,
@@ -135,7 +135,7 @@ pub(in crate::checked) fn typed_frontier_without_build(
 fn frozen_frontier(
     typed: typed_trees::TypedTrees,
     accounting: build_time_evaluation::SourceCompletionAccounting,
-    build: &compilation_products::BuildConfig,
+    build: &products::BuildConfig,
     root_package: Option<semantic_vocabulary::PackageKeyIdentity>,
 ) -> Result<TypedFrontier, CompileFailure> {
     let layout_scopes = super::source_checking::layout_target_scopes(&typed, build)?;
@@ -170,10 +170,10 @@ fn frozen_frontier(
     // exactly as the product path does, and keep the real result. Entries and
     // the subject belong to subsequent structural judgment, not a deleted
     // checker projection or an interrupted source-checking request.
-    let prepared = psi_compiler::SourcePreparationRequest {
+    let prepared = source_compiler::SourcePreparationRequest {
         program: typed,
         accounting,
-        compilation: psi_compiler::TerminalSourceCompilation {
+        compilation: source_compiler::TerminalSourceCompilation {
             declaration_metadata: &[],
             entries: &entries,
             subjects: &[subject],
@@ -182,13 +182,13 @@ fn frozen_frontier(
             bindings: &bindings,
             supplies: &[],
         },
-        admission: psi_compiler::SourceAdmission {
+        admission: source_compiler::SourceAdmission {
             invocation_sources: None,
             external_roots: &[],
             layout_scopes: &layout_scopes,
             layout_selection_authority: None,
             completion: typed_trees::boundary_completions::SourceCompletionAdmission::None,
-            representations: psi_compiler::ProductRepresentationInput::default(),
+            representations: source_compiler::ProductRepresentationInput::default(),
             asm_authority: Some(
                 language_core::inline_assembly::AsmAuthorityAdmission::from_freestanding(
                     build.settings.freestanding,
@@ -218,7 +218,7 @@ fn entry_binding(
     root: &Path,
     entry: &str,
     target: target::TargetProfile,
-    built: &compilation_products::BuiltTypedProgram,
+    built: &products::BuiltTypedProgram,
 ) -> Result<ExecutedRootBinding, Vec<Diagnostic>> {
     let root = std::fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
     let typed = built.source.typed();

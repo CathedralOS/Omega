@@ -5,7 +5,7 @@
   not demand unavailable target operations. Omega 00 lowers those functions,
   establishes access to their inputs, and admits their native realization.
 
-  The shared verified-input owner supplies the complete checked native proposal
+  The shared `verified-optimization-input` crate supplies the complete checked native proposal
   and its execution scope. This stage retains source-free native inputs through
   `retained_terminal` and its codec, lowers canonical Psi with `lowering`, and
   passes the resulting plan and selections to subsequent stages. Loose bytes

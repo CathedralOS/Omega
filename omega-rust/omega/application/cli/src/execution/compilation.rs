@@ -37,7 +37,7 @@ pub(super) struct ProbeCompilation {
 }
 
 pub(super) fn compile(
-    private_entry_ram: Vec<compilation_products::PrivateEntryRamInitialization>,
+    private_entry_ram: Vec<products::PrivateEntryRamInitialization>,
     build_snapshot: Option<compiler::BuildSnapshotRequest>,
     options: CompileOptions,
     destination: NativeDestination,

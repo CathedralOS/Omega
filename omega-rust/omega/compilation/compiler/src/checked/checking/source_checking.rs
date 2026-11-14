@@ -3,9 +3,9 @@
 // tree projection participates in producing the application.
 
 use artifacts::compile_timings::StageMeta;
-use compilation_products::{CheckedProductSource, CompileFailure, PreparedProductSource};
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
+use products::{CheckedProductSource, CompileFailure, PreparedProductSource};
 use std::sync::Arc;
 
 const SOURCE_PREPARATION: StageMeta =
@@ -76,7 +76,7 @@ pub(crate) fn check_product_source(
                 .iter()
                 .flat_map(|selection| [selection.opaque(), selection.application().declaration]),
         );
-        let source_admission = psi_compiler::SourceAdmission {
+        let source_admission = source_compiler::SourceAdmission {
         invocation_sources: None,
         // Roots belong to structural judgment below, rather than to a deleted
         // source-checking admission or projection.
@@ -103,7 +103,7 @@ pub(crate) fn check_product_source(
             }
             None => typed_trees::boundary_completions::SourceCompletionAdmission::None,
         },
-        representations: psi_compiler::ProductRepresentationInput {
+        representations: source_compiler::ProductRepresentationInput {
             activation: computed_build_config.selected_build_machine_symbol,
             declared: &computed_build_config.declared_product_selections,
             executed: &computed_build_config.product_selection_requests,
@@ -123,7 +123,7 @@ pub(crate) fn check_product_source(
     };
 
         let subject = package_inputs.map(PackageCompilationInputs::root);
-        let roster = compilation_products::ProductRoster {
+        let roster = products::ProductRoster {
             declaration_metadata: Vec::new(),
             entries: external_roots,
             subject,
@@ -132,7 +132,7 @@ pub(crate) fn check_product_source(
             supplies,
         };
         let source = timings.record_result(SOURCE_PREPARATION, || {
-            psi_compiler::SourcePreparationRequest {
+            source_compiler::SourcePreparationRequest {
                 program: typed,
                 admission: source_admission,
                 compilation: roster.compilation(),
@@ -165,7 +165,7 @@ pub(crate) fn check_product_source(
                 bindings: roster.bindings.clone(),
             });
         }
-        let judged = compilation_products::ProductTerminalPublication::judge(
+        let judged = products::ProductTerminalPublication::judge(
             Arc::clone(&program),
             roster,
             rollback
@@ -239,7 +239,7 @@ pub(crate) fn check_product_source(
 
 pub(super) fn layout_target_scopes(
     typed: &typed_trees::TypedTrees,
-    build: &compilation_products::BuildConfig,
+    build: &products::BuildConfig,
 ) -> Result<Vec<build_time_evaluation::FixedLayoutTargetScope>, Vec<Diagnostic>> {
     let choices = build
         .provider_selections

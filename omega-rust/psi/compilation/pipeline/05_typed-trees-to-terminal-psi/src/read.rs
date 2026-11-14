@@ -66,6 +66,14 @@ struct WidthBinding {
     parameter: semantic_vocabulary::WidthParameter,
 }
 
+/// Source-unit permissions for local inference. Outcome inference changes
+/// executable continuations; result inference currently extends a callable's
+/// contract, so only private bodies may receive those additional clauses.
+pub(crate) struct LocalSummaryBodies {
+    pub outcomes: Vec<MachineId>,
+    pub result_contracts: Vec<MachineId>,
+}
+
 pub(crate) struct Program<'t> {
     pub publication: terminal_codec::TerminalPublication,
     pub declaration_metadata: Vec<SymbolHandle>,

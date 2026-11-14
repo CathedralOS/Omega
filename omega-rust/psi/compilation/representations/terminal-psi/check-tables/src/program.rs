@@ -276,6 +276,73 @@ pub fn self_place() -> Option<semantic_vocabulary::PlaceId> {
 }
 
 impl Elaboration {
+    /// Every machine control can pass to from `roots` through the module's
+    /// calls, the roots included, sorted. `None` when that set cannot be
+    /// read from the calls, so the caller must take every machine.
+    ///
+    /// The calls followed are the ones the reach judgment charges a caller
+    /// for (`ceilings`): each invocation row that names a machine, and each
+    /// tail call of a call formation. A machine may also be arrived at with
+    /// no call naming it: through a selector value or a dispatch table, as a
+    /// member of a per-target family, as a callback, an installed interrupt
+    /// or a task activation. A module that holds any of those gives no
+    /// answer, and neither does a root or callee with no rows here.
+    pub fn call_closure(
+        &self,
+        roots: impl IntoIterator<Item = MachineId>,
+    ) -> Option<Vec<MachineId>> {
+        use crate::edges::Callee;
+        use semantic_vocabulary::TargetMachineCallable;
+        let module = &self.module;
+        if !module.target_machine_families.is_empty()
+            || !module.callback_applications.is_empty()
+            || !module.installed_interrupt_registrations.is_empty()
+            || module.dynamic_dispatch != Default::default()
+            || module.task_activation_demands != Default::default()
+        {
+            return None;
+        }
+        let mut reached: Vec<MachineId> = roots.into_iter().collect();
+        reached.sort_unstable();
+        reached.dedup();
+        let mut pending = reached.clone();
+        while let Some(caller) = pending.pop() {
+            let machine = module.machine(caller)?;
+            if machine.operations().any(|operation| {
+                matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::CallDynamic { .. }
+                        | terminal_psi::OperationKind::SelectImplementation { .. }
+                )
+            }) {
+                return None;
+            }
+            let mut callees = Vec::new();
+            for call in self.tables.machines.get(caller)?.invocations.values() {
+                match call.callee {
+                    Callee::Declared(TargetMachineCallable::Machine(callee)) => {
+                        callees.push(callee);
+                    }
+                    Callee::Declared(TargetMachineCallable::Boundary(_)) => {}
+                    Callee::Selected { .. } => return None,
+                }
+            }
+            callees.extend(
+                machine
+                    .call_formations
+                    .iter()
+                    .filter_map(|formation| formation.tail_callee),
+            );
+            for callee in callees {
+                if let Err(position) = reached.binary_search(&callee) {
+                    reached.insert(position, callee);
+                    pending.push(callee);
+                }
+            }
+        }
+        Some(reached)
+    }
+
     /// The unreachable statements this program's authored machines hold,
     /// each with its machine, in machine order.
     ///

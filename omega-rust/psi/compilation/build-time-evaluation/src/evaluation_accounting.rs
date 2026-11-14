@@ -109,7 +109,7 @@ mod canonical_scalar {
         values: Vec<(ScalarApplicationId, TerminalScalarValue)>,
         captures: Vec<(ValueId, ScalarType)>,
         outcome: PureTerminalEvaluationOutcome,
-        usage: psi_work::WorkUsage,
+        usage: terminal_work::WorkUsage,
     }
 
     impl CanonicalScalarEvaluationReceipt {
@@ -119,7 +119,7 @@ mod canonical_scalar {
             values: Vec<(ScalarApplicationId, TerminalScalarValue)>,
             captures: Vec<(ValueId, ScalarType)>,
             outcome: PureTerminalEvaluationOutcome,
-            usage: psi_work::WorkUsage,
+            usage: terminal_work::WorkUsage,
         ) -> Self {
             Self {
                 scope,
@@ -143,7 +143,7 @@ mod canonical_scalar {
         pub fn outcome(&self) -> &PureTerminalEvaluationOutcome {
             &self.outcome
         }
-        pub fn usage(&self) -> &psi_work::WorkUsage {
+        pub fn usage(&self) -> &terminal_work::WorkUsage {
             &self.usage
         }
 
@@ -152,7 +152,7 @@ mod canonical_scalar {
         }
 
         pub fn validate_charge(&self) -> Result<(), String> {
-            if self.usage.schedule() != psi_work::WorkSchedule::CURRENT.identity()
+            if self.usage.schedule() != terminal_work::WorkSchedule::CURRENT.identity()
                 || self.usage.total_units() > PURE_PSI_WORK_BUDGET
             {
                 return Err("canonical scalar evaluation work policy changed".into());
@@ -323,19 +323,19 @@ pub struct PureTerminalEvaluationReceipt {
         semantic_vocabulary::InvocationSite,
     )>,
     arguments: Vec<BuildTimeValue>,
-    program: Arc<psi_terminal_production::ProducedTerminalProgram>,
+    program: Arc<terminal_production::ProducedTerminalProgram>,
     admission: terminal_installation::AdmittedCompilerEvaluation,
     outcome: PureTerminalEvaluationOutcome,
-    usage: psi_work::WorkUsage,
+    usage: terminal_work::WorkUsage,
 }
 
 impl PureTerminalEvaluationReceipt {
     pub(crate) fn new(
         entry: &crate::PreparedBuildMachineEntry,
-        program: Arc<psi_terminal_production::ProducedTerminalProgram>,
+        program: Arc<terminal_production::ProducedTerminalProgram>,
         admission: terminal_installation::AdmittedCompilerEvaluation,
         outcome: PureTerminalEvaluationOutcome,
-        usage: psi_work::WorkUsage,
+        usage: terminal_work::WorkUsage,
     ) -> Result<Self, String> {
         let accepted = entry.accepted();
         let call = entry.call_handle();
@@ -440,7 +440,7 @@ impl PureTerminalEvaluationReceipt {
     pub fn arguments(&self) -> &[BuildTimeValue] {
         &self.arguments
     }
-    pub fn program(&self) -> &psi_terminal_production::ProducedTerminalProgram {
+    pub fn program(&self) -> &terminal_production::ProducedTerminalProgram {
         &self.program
     }
     pub fn admission(&self) -> &terminal_installation::AdmittedCompilerEvaluation {
@@ -449,12 +449,12 @@ impl PureTerminalEvaluationReceipt {
     pub fn outcome(&self) -> &PureTerminalEvaluationOutcome {
         &self.outcome
     }
-    pub fn usage(&self) -> &psi_work::WorkUsage {
+    pub fn usage(&self) -> &terminal_work::WorkUsage {
         &self.usage
     }
 
     pub fn validate_charge(&self) -> Result<(), String> {
-        if self.usage.schedule() != psi_work::WorkSchedule::CURRENT.identity()
+        if self.usage.schedule() != terminal_work::WorkSchedule::CURRENT.identity()
             || self.usage.total_units() > PURE_PSI_WORK_BUDGET
         {
             return Err("source invocation work policy changed".into());
@@ -658,7 +658,7 @@ pub(crate) fn pure_terminal_invocation_account()
     )
     .ok_or("pure invocation limits are invalid")?;
     let measurement = evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi {
-        work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
+        work_schedule: terminal_work::WorkSchedule::CURRENT.identity(),
         storage_schedule: evaluation_accounting::TerminalStorageScheduleIdentity::CURRENT,
     };
     evaluation_accounting::BuildEvaluationSponsor::new_with_measurement(limits, measurement)

@@ -270,6 +270,47 @@ pub(crate) mod source_occurrences {
                 owner: SymbolHandle,
             ) -> Result<(), &'static str> {
                 for expression in arguments {
+                    if let Ok(mut selected) = self.declaration_operand_from_expression(*expression)
+                        && self.symbols.symbols().nodes().is_valid(selected.symbol)
+                        && matches!(
+                            self.symbols.get(selected.symbol).kind,
+                            symbols::SymbolKind::Machine | symbols::SymbolKind::State
+                        )
+                        && self.trait_machine_signature(selected.symbol).is_none()
+                    {
+                        if selected.path.is_empty() {
+                            selected.path = Box::from([crate::name::Identifier::generated(
+                                self.symbols.name(selected.symbol),
+                            )]);
+                        }
+                        selected.type_reference = self
+                            .prepare_callable_operand_application(&selected, owner)
+                            .map(|(reference, _)| reference)
+                            .unwrap_or_else(|_| crate::types::TypeReferenceHandle::invalid());
+                        if selected.type_reference.is_valid()
+                            && matches!(
+                                self.expression_table.expression(*expression),
+                                ExpressionNode::TypeExpression(_)
+                            )
+                        {
+                            *self.expression_table.expression_mut(*expression) =
+                                ExpressionNode::TypeExpression(selected.type_reference);
+                        } else {
+                            let symbol = selected.symbol;
+                            let selection = self.expression_table.insert_static_member(selected);
+                            let mut path = self
+                                .expression_table
+                                .name_path_node(*expression)
+                                .copied()
+                                .unwrap_or_default();
+                            path.symbol = symbol;
+                            path.head_symbol = symbol;
+                            path.static_application = selection;
+                            *self.expression_table.expression_mut(*expression) =
+                                ExpressionNode::Name(path);
+                        }
+                        continue;
+                    }
                     let Some(path) = self.expression_table.name_path_node(*expression) else {
                         continue;
                     };
@@ -429,6 +470,36 @@ pub(crate) mod source_occurrences {
                 self.expression_table
                     .static_machine_application_arguments_mut(application)
                     .clone_from_slice(&arguments);
+                let declaration = self
+                    .static_machine_application(application)
+                    .binding_declaration;
+                if !arguments.is_empty() && self.machine_by_symbol(declaration).is_some() {
+                    let selected = StaticMachineArgument {
+                        symbol: declaration,
+                        path: Box::from([self
+                            .static_machine_application(application)
+                            .target
+                            .clone()]),
+                        application: Some(Box::new(crate::expression::StaticSymbolApplication {
+                            member: arena::Handle::invalid(),
+                            lifetime_arguments: self
+                                .static_machine_application_lifetimes(application)
+                                .iter()
+                                .map(|binding| binding.argument.clone())
+                                .collect(),
+                            arguments: arguments.clone().into_boxed_slice(),
+                        })),
+                        ..StaticMachineArgument::default()
+                    };
+                    // Formation is shared with declaration operands. Unsupported
+                    // applications remain requests of their ordinary consumer.
+                    if let Ok((_, bindings)) =
+                        self.prepare_callable_operand_application(&selected, owner)
+                    {
+                        self.expression_table
+                            .set_static_machine_application_bindings(application, &bindings);
+                    }
+                }
                 let original = self.static_machine_application_bindings(application);
                 let mut bindings = original.to_vec();
                 for binding in &mut bindings {

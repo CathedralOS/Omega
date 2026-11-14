@@ -413,7 +413,7 @@ rewrites and promotion are not prerequisites for the first useful compiler.
   passes (doctests included; `--all-targets` is not equivalent) and the owner
   approves that exact rule. The six candidates' incomplete evidence is in the
   [promotion draft](wiki/drafts/measurements/optimizer_promotion_evidence.md);
-  [promotions/](omega-rust/omega/foundation/optimization-core/promotions/README.md)
+  [promotion records](omega-rust/omega/foundation/optimization-core/README.md#exact-rule-promotion-records)
   holds no completed record. PER-RULE-COVERAGE owns behavioral evidence,
   BENCHMARKS owns measurement.
   Acceptance: the full command passes at a recorded clean revision; every
