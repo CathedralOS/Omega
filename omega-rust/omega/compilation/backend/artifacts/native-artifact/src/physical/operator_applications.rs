@@ -36,11 +36,12 @@ pub(super) mod fragment_call {
     };
 
     pub(super) fn derive(
+        pass: crate::physical::PhysicalEvidencePass,
         occurrence: &OptimizedOperatorOccurrence,
         operation: &terminal_psi::Operation,
         target: NativeTarget,
         object: &image_emission::ObjectArtifact,
-        image: &image::EmittedImageOutput,
+        image: &[u8],
     ) -> Result<Option<OperatorPhysicalSpan>, &'static str> {
         let expected_callee = match operation.kind {
             OperationKind::Call { callee, .. }
@@ -85,7 +86,9 @@ pub(super) mod fragment_call {
             .text_bytes()
             .get(opcode..end)
             .ok_or("D29 fragment call is outside object text")?;
-        validate_destination(target.architecture, opcode, bytes, callee.text_offset)?;
+        pass.verify(|| {
+            validate_destination(target.architecture, opcode, bytes, callee.text_offset)
+        })?;
         let mut attribution = object.semantic_code_attribution().iter().filter(|row| {
             row.machine == function.machine
                 && row.attribution.site
@@ -118,6 +121,7 @@ pub(super) mod fragment_call {
             return Err("D29 resolved fragment call has ambiguous attribution or a relocation");
         }
         derive_span(
+            pass,
             function,
             row.attribution.code_offset,
             row.attribution.byte_count,
@@ -203,9 +207,10 @@ mod fragment_comparison {
     use semantic_vocabulary::{MachineId, OperationId};
 
     pub(super) fn derive(
+        pass: crate::physical::PhysicalEvidencePass,
         occurrence: &OptimizedOperatorOccurrence,
         object: &image_emission::ObjectArtifact,
-        image: &image::EmittedImageOutput,
+        image: &[u8],
     ) -> Result<Option<OperatorPhysicalSpan>, &'static str> {
         let mut functions = object
             .functions()
@@ -244,6 +249,7 @@ mod fragment_comparison {
             return Err("D29 comparison direct bytes contain a relocation");
         }
         derive_span(
+            pass,
             function,
             offset,
             length,
@@ -383,13 +389,15 @@ mod fragment_comparison {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn derive_operator_physical_span(
+    pass: crate::physical::PhysicalEvidencePass,
     occurrence: &OptimizedOperatorOccurrence,
     realization: &BoundaryApplicationRealization,
     module: &terminal_psi::TerminalModule,
     target: NativeTarget,
     object: &image_emission::ObjectArtifact,
-    image: &image::EmittedImageOutput,
+    image: &[u8],
     fragment_publication: bool,
 ) -> Result<Option<OperatorPhysicalSpan>, &'static str> {
     let operation = exact_terminal_operation(module, occurrence)?;
@@ -397,23 +405,23 @@ pub(super) fn derive_operator_physical_span(
         BoundaryApplicationRealization::NongenericCheckedBody { .. }
         | BoundaryApplicationRealization::SpecializedCheckedBody { .. } => {
             if fragment_publication {
-                fragment_call::derive(occurrence, operation, target, object, image)
+                fragment_call::derive(pass, occurrence, operation, target, object, image)
             } else {
-                derive_checked_call_span(occurrence, operation, target, object, image)
+                derive_checked_call_span(pass, occurrence, operation, target, object, image)
             }
         }
         BoundaryApplicationRealization::ExactCompilerIntrinsic { execution } => {
             if fragment_publication
                 && matches!(operation.kind, OperationKind::IeeeFloatCompare { .. })
             {
-                return fragment_comparison::derive(occurrence, object, image);
+                return fragment_comparison::derive(pass, occurrence, object, image);
             }
             if matches!(
                 operation.kind,
                 OperationKind::IntegerEqual { .. }
                     | terminal_psi::integer_less_or_equal_pair_pattern!(..)
             ) {
-                return derive_integer_comparison_span(occurrence, execution, object, image);
+                return derive_integer_comparison_span(pass, occurrence, execution, object, image);
             }
             Ok(None)
         }
@@ -430,11 +438,12 @@ fn exact_terminal_operation<'module>(
 }
 
 fn derive_checked_call_span(
+    pass: crate::physical::PhysicalEvidencePass,
     occurrence: &OptimizedOperatorOccurrence,
     operation: &terminal_psi::Operation,
     target: NativeTarget,
     object: &image_emission::ObjectArtifact,
-    image: &image::EmittedImageOutput,
+    image: &[u8],
 ) -> Result<Option<OperatorPhysicalSpan>, &'static str> {
     let expected_callee = match &operation.kind {
         OperationKind::Call { callee, .. }
@@ -515,6 +524,7 @@ fn derive_checked_call_span(
         relocation,
     )?;
     derive_span(
+        pass,
         function,
         *code_offset,
         *byte_count,
@@ -566,10 +576,11 @@ fn validate_checked_call_relocation(
 }
 
 fn derive_integer_comparison_span(
+    pass: crate::physical::PhysicalEvidencePass,
     occurrence: &OptimizedOperatorOccurrence,
     execution: &effects::CompilerIntrinsicExecutionIdentity,
     object: &image_emission::ObjectArtifact,
-    image: &image::EmittedImageOutput,
+    image: &[u8],
 ) -> Result<Option<OperatorPhysicalSpan>, &'static str> {
     if !matches!(
         execution,
@@ -604,6 +615,7 @@ fn derive_integer_comparison_span(
         return Err("D29 integer comparison overlaps a relocation");
     }
     derive_span(
+        pass,
         function,
         row.attribution.code_offset,
         row.attribution.byte_count,
@@ -615,12 +627,14 @@ fn derive_integer_comparison_span(
     .map(Some)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn derive_span(
+    pass: crate::physical::PhysicalEvidencePass,
     function: &image_emission::ObjectFunction,
     code_offset: usize,
     byte_count: usize,
     object: &image_emission::ObjectArtifact,
-    image: &image::EmittedImageOutput,
+    image: &[u8],
     disposition: PhysicalRelocationDisposition,
     relocations: &[(usize, usize)],
 ) -> Result<OperatorPhysicalSpan, &'static str> {
@@ -633,8 +647,8 @@ fn derive_span(
     let final_image = object_span;
     let machine_bytes = span(function.bytes(object), machine)?;
     let object_bytes = span(object.text_bytes(), object_span)?;
-    let final_image_bytes = span(&image.final_text_bytes, final_image)?;
-    if machine_bytes != object_bytes {
+    let final_image_bytes = span(image, final_image)?;
+    if pass.is_receiver() && machine_bytes != object_bytes {
         return Err("D29 physical child changed before object custody");
     }
     let mut windows = Vec::with_capacity(relocations.len());
@@ -650,16 +664,17 @@ fn derive_span(
         }
         windows.push((relative_start, relative_end));
     }
-    if object_bytes
-        .iter()
-        .zip(final_image_bytes)
-        .enumerate()
-        .any(|(index, (before, after))| {
-            before != after
-                && !windows
-                    .iter()
-                    .any(|&(start, end)| index >= start && index < end)
-        })
+    if pass.is_receiver()
+        && object_bytes
+            .iter()
+            .zip(final_image_bytes)
+            .enumerate()
+            .any(|(index, (before, after))| {
+                before != after
+                    && !windows
+                        .iter()
+                        .any(|&(start, end)| index >= start && index < end)
+            })
     {
         return Err(if relocations.is_empty() {
             "D29 direct physical child changed before final image custody"

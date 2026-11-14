@@ -128,9 +128,10 @@ pub(crate) fn rejoin_admitted_provider_execution(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn metadata_port_effect_custody(
+    pass: crate::physical::PhysicalEvidencePass,
     module: &terminal_psi::TerminalModule,
     object: &image_emission::ObjectArtifact,
-    image: &image::EmittedImageOutput,
+    image: &[u8],
     occurrence: &OptimizedBoundaryOccurrence,
     settlement: &machine_code::BoundarySettlementRecord,
     realization: &target_operations::MetadataOnlyPortRealization,
@@ -195,15 +196,16 @@ pub(crate) fn metadata_port_effect_custody(
     if object_effect.text_offset != expected_object_offset {
         return Err("metadata port D41 effect object span is detached");
     }
-    let expected = x86_encoding::encode_immediate_port_write(effect.port, effect.value);
     let machine_span = native_byte_span(effect.code_offset, effect.byte_count);
     let object_span = native_byte_span(object_effect.text_offset, effect.byte_count);
     let machine_bytes = span(function.bytes(object), machine_span)?;
     let object_bytes = span(object.text_bytes(), object_span)?;
-    let final_image_bytes = span(&image.final_text_bytes, object_span)?;
-    if machine_bytes != expected.as_slice()
-        || machine_bytes != object_bytes
-        || object_bytes != final_image_bytes
+    let final_image_bytes = span(image, object_span)?;
+    if pass.is_receiver()
+        && (machine_bytes
+            != x86_encoding::encode_immediate_port_write(effect.port, effect.value).as_slice()
+            || machine_bytes != object_bytes
+            || object_bytes != final_image_bytes)
     {
         return Err("metadata port D41 effect bytes changed across physical custody");
     }
@@ -220,8 +222,9 @@ pub(crate) fn metadata_port_effect_custody(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn direct_port_read_custody(
+    pass: crate::physical::PhysicalEvidencePass,
     object: &image_emission::ObjectArtifact,
-    image: &image::EmittedImageOutput,
+    image: &[u8],
     occurrence: &OptimizedBoundaryOccurrence,
     settlement: &machine_code::BoundarySettlementRecord,
     realization: &target_operations::DirectPortReadU8Realization,
@@ -297,13 +300,16 @@ pub(crate) fn direct_port_read_custody(
         .text_offset
         .checked_add(return_offset)
         .ok_or("direct port-read D41 return object span overflow")?;
-    let expected = x86_encoding::encode_immediate_port_read_u8(realization.port);
     let machine_span = native_byte_span(settlement.code_offset, settlement.byte_count);
-    if span(function.bytes(object), machine_span)? != expected.as_slice()
-        || return_attribution.text_offset != expected_return_object_offset
-        || function.bytes(object).get(return_offset) != Some(&0xc3)
-        || object.text_bytes().get(return_attribution.text_offset) != Some(&0xc3)
-        || image.final_text_bytes.get(return_attribution.text_offset) != Some(&0xc3)
+    let bytes = span(function.bytes(object), machine_span)?;
+    if return_attribution.text_offset != expected_return_object_offset {
+        return Err("direct port-read D41 return moved away from its custody");
+    }
+    if pass.is_receiver()
+        && (bytes != x86_encoding::encode_immediate_port_read_u8(realization.port).as_slice()
+            || function.bytes(object).get(return_offset) != Some(&0xc3)
+            || object.text_bytes().get(return_attribution.text_offset) != Some(&0xc3)
+            || image.get(return_attribution.text_offset) != Some(&0xc3))
     {
         return Err("direct port-read D41 custody changed across physical custody");
     }
@@ -313,9 +319,9 @@ pub(crate) fn direct_port_read_custody(
 pub(crate) fn linux_write_line_custody_is_exact(
     target: NativeTarget,
     settlement: &machine_code::BoundarySettlementRecord,
-    function_bytes: &[u8],
+    function_bytes: Option<&[u8]>,
 ) -> bool {
-    image_emission::linux_write_line_custody_is_exact(target, settlement, Some(function_bytes))
+    image_emission::linux_write_line_custody_is_exact(target, settlement, function_bytes)
 }
 
 pub(crate) fn settlement_completion_custody_is_exact(

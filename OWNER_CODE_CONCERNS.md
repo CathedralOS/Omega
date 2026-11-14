@@ -235,12 +235,12 @@ framework or a list of features that remain unimplemented.
 - Cost: harmless renaming breaks tests while equivalent forbidden behavior can pass under another spelling. Move actual dependency rules to the boundary checker and use behavior tests for custody and execution claims; do not mechanically preserve old strings or test totals.
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### Physical evidence is never derived in production, yet about 10,000 lines exist to derive and replay it
-- Category: zombie machinery
-- Where: `omega-rust/omega/compilation/backend/artifacts/native-artifact/src/fragment_object_publication.rs:161`, `.../native-artifact/src/physical/derivation/evidence.rs:78-79`, `.../native-artifact/src/physical/` (10,168 lines)
-- Saw: the only non-test place that sets a scope sets `NativePhysicalEvidenceScope::Unavailable`, and derivation returns at once for that scope; the other two scopes are built only in `native_artifact/tests.rs`; seven `#[expect(dead_code)]` markers say "unwired, not superseded" and point at a task
-- Cost: the artifact identity and validation chain carry an evidence slot that is always empty; an agent fixing custody code there is fixing code no shipped compile runs
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
+### Linked private bodies need their own physical occurrence coverage
+- Category: incomplete evidence handoff
+- Where: `omega-rust/omega/compilation/backend/artifacts/native-artifact/src/physical/derivation/evidence.rs`, `.../native-compiler/src/realization/callable_objects.rs`
+- Saw: root publication retains its staged producer and derives physical children, but separately emitted callback bodies have independent semantic namespaces; the root projection cannot stand in for their occurrence coverage, so composition reports `UncoveredPrivateFunction`.
+- Cost: linked images cannot claim complete physical coverage until each private body retains its semantic owner and its children are joined to their relocated image spans and independently replayed.
+- Reported: 2026-11-13, Codex, while connecting physical publication to retained object producers; same outcome remains owned through composed-body validation.
 
 ### `pipeline.md` says the default compile runs no stage validators; two run, and one stage header misdescribes its own
 - Category: the documents disagree
