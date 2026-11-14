@@ -15,15 +15,15 @@ Every place performs the same operation: compute the unsigned division remainder
 | Place | Positive | Reject twin | Transport |
 | --- | --- | --- | --- |
 | Root | [`main.omg`](main.omg) | — | Direct unsigned division remainder and exact subtraction check |
-| Local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | The remainder is copied into a local binding before verifying exact subtraction |
-| Field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | A record field carries the remainder into the subtraction check |
-| Parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | The remainder is passed as an explicit machine parameter |
-| Call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | A call returns the remainder into the subtraction check |
-| Match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Both match arms produce the remainder and join into the subtraction check |
-| Const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | A named constant carries the remainder into the subtraction check |
-| A nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | A successor machine receives the remainder and performs the subtraction check |
-| Another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | A forwarding machine forwards the remainder to the verifying machine |
-| Another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Each of four target bodies computes the remainder and verifies exact subtraction |
+| Local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | The remainder is copied into a local binding before verifying exact subtraction |
+| Field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | A record field carries the remainder into the subtraction check |
+| Parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | The remainder is passed as an explicit machine parameter |
+| Call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | A call returns the remainder into the subtraction check |
+| Match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | Both match arms produce the remainder and join into the subtraction check |
+| Const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | A named constant carries the remainder into the subtraction check |
+| A nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | A successor machine receives the remainder and performs the subtraction check |
+| Another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | A forwarding machine forwards the remainder to the verifying machine |
+| Another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | Each of four target bodies computes the remainder and verifies exact subtraction |
 
 Match the fact sentence beside every place: each positive place is pinned as `tests/omega/pass/facts/unsigned_division_remainder_through_<place>_exit` and each reject twin as `tests/omega/fail/facts/unsigned_division_remainder_through_<place>_rejected`, byte-equal to the place and `invalid/` programs beside them.
 

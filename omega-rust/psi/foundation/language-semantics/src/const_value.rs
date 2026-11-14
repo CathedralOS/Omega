@@ -116,6 +116,52 @@ pub enum DecodedCanonicalConstValue {
     },
 }
 
+/// A closed scalar member of an enumerable value family. Consumers retain the
+/// value; the canonical application key is an output, never a value encoding
+/// for execution to parse back.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum FiniteScalarValue {
+    Integer(i128),
+    Boolean(bool),
+}
+
+impl FiniteScalarValue {
+    pub fn from_decoded(value: &DecodedCanonicalConstValue) -> Option<Self> {
+        match value {
+            DecodedCanonicalConstValue::Integer { value, .. } => Some(Self::Integer(*value)),
+            DecodedCanonicalConstValue::Boolean(value) => Some(Self::Boolean(*value)),
+            _ => None,
+        }
+    }
+
+    pub fn canonical_identity(self) -> String {
+        match self {
+            Self::Integer(value) => format!("named(integer-const({value}))"),
+            Self::Boolean(value) => {
+                canonical_application_identity(&CanonicalConstValue::boolean(value))
+            }
+        }
+    }
+}
+
+fn canonical_application_identity(value: &CanonicalConstValue) -> String {
+    fn escape(component: &str) -> String {
+        let mut escaped = String::with_capacity(component.len());
+        for character in component.chars() {
+            if matches!(character, '\\' | '(' | ')' | ',') {
+                escaped.push('\\');
+            }
+            escaped.push(character);
+        }
+        escaped
+    }
+    format!(
+        "named(canonical-const(type({}),encoding({})))",
+        escape(&value.type_name),
+        escape(&value.encoding),
+    )
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub struct CanonicalConstValue {
     pub type_name: String,
@@ -168,6 +214,17 @@ impl CanonicalConstIdentity {
 impl CanonicalConstValue {
     pub const MAXIMUM_DEPTH: usize = MAX_DECODE_DEPTH;
     pub const MAXIMUM_NODES: usize = MAX_DECODED_NODES;
+
+    /// Preserves the established application key without a display-text
+    /// round trip. Integer carriers are supplied by the receiving binder;
+    /// other canonical atoms retain the existing typed encoding in the key.
+    pub fn application_identity(&self) -> Option<String> {
+        let decoded = self.decode_encoding()?;
+        Some(FiniteScalarValue::from_decoded(&decoded).map_or_else(
+            || canonical_application_identity(self),
+            FiniteScalarValue::canonical_identity,
+        ))
+    }
 
     pub fn from_decoded(
         value: &DecodedCanonicalConstValue,
@@ -425,6 +482,37 @@ mod tests {
     fn decode(encoding: impl Into<String>) -> Option<DecodedCanonicalConstValue> {
         CanonicalConstValue::new("ignored outer carrier", encoding, "ignored display")
             .decode_encoding()
+    }
+
+    #[test]
+    fn finite_scalar_application_keys_preserve_values_not_display_text() {
+        use super::FiniteScalarValue;
+        for value in [i128::MIN, -42, 0, 16, i128::MAX] {
+            let constant = CanonicalConstValue::new(
+                "i128",
+                framed("integer", ["i128", &value.to_string()]),
+                "not an integer spelling",
+            );
+            let expected = format!("named(integer-const({value}))");
+            assert_eq!(constant.application_identity(), Some(expected.clone()));
+            assert_eq!(
+                FiniteScalarValue::Integer(value).canonical_identity(),
+                expected
+            );
+        }
+        assert_eq!(
+            FiniteScalarValue::Boolean(false).canonical_identity(),
+            "named(canonical-const(type(bool),encoding(boolean5:false)))"
+        );
+        assert_eq!(
+            FiniteScalarValue::Boolean(true).canonical_identity(),
+            "named(canonical-const(type(bool),encoding(boolean4:true)))"
+        );
+        assert!(
+            CanonicalConstValue::new("u32", "broken", "16")
+                .application_identity()
+                .is_none()
+        );
     }
 
     #[test]

@@ -15,15 +15,15 @@ The nine places carry the `Bonus.value == 2` fact into an affine case temporary 
 | Place | Positive | Reject twin | Transport |
 | --- | --- | --- | --- |
 | root | [main.omg](main.omg) | — | original witness: short-circuiting, once-only ordered child calls, and case temporary cleanup |
-| local | [local/main.omg](local/main.omg) | [local/invalid/main.omg](local/invalid/main.omg) | Local binding |
-| field | [field/main.omg](field/main.omg) | [field/invalid/main.omg](field/invalid/main.omg) | Enclosing record field |
-| parameter | [parameter/main.omg](parameter/main.omg) | [parameter/invalid/main.omg](parameter/invalid/main.omg) | Required parameter fact |
-| call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | Guaranteed result fact |
-| match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | Both selected result arms |
-| const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | Named copyable `Bonus` constant |
-| a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | Nested machine parameter |
-| another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | Separate producer and consumer |
-| another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | Target-selected producer |
+| local | [local/main.omg](local/main.omg) | [invalid_local/main.omg](invalid_local/main.omg) | Local binding |
+| field | [field/main.omg](field/main.omg) | [invalid_field/main.omg](invalid_field/main.omg) | Enclosing record field |
+| parameter | [parameter/main.omg](parameter/main.omg) | [invalid_parameter/main.omg](invalid_parameter/main.omg) | Required parameter fact |
+| call result | [call_result/main.omg](call_result/main.omg) | [invalid_call_result/main.omg](invalid_call_result/main.omg) | Guaranteed result fact |
+| match join | [match_join/main.omg](match_join/main.omg) | [invalid_match_join/main.omg](invalid_match_join/main.omg) | Both selected result arms |
+| const name | [const_name/main.omg](const_name/main.omg) | [invalid_const_name/main.omg](invalid_const_name/main.omg) | Named copyable `Bonus` constant |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [invalid_other_state/main.omg](invalid_other_state/main.omg) | Nested machine parameter |
+| another machine | [other_machine/main.omg](other_machine/main.omg) | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | Separate producer and consumer |
+| another target body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) | Target-selected producer |
 
 Run a positive with `omega run --both <place>/main.omg`; both native and Terminal
 execution must exit 0. Check its `invalid/main.omg` and compare the authored
@@ -68,7 +68,7 @@ for non-hosted targets.
 
 ```sh
 omega run --both samples/cli/facts/temporary_case_cleanup/local/main.omg
-omega --check samples/cli/facts/temporary_case_cleanup/local/invalid/main.omg
+omega --check samples/cli/facts/temporary_case_cleanup/invalid_local/main.omg
 python3 tools/sample_gate.py --filter cli/facts/temporary_case_cleanup --cli <omega>
 python3 tools/sample_native_gate.py --filter cli/facts/temporary_case_cleanup --cli <omega>
 python3 tools/corpus_gate.py --filter temporary_case_cleanup

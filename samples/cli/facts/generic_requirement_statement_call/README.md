@@ -30,15 +30,15 @@ formal is then `&u64` and the argument is `&T`.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| local | [local](local/main.omg) | [invalid](local/invalid/main.omg) |
-| field | [field](field/main.omg) | [invalid](field/invalid/main.omg) |
-| parameter | [parameter](parameter/main.omg) | [invalid](parameter/invalid/main.omg) |
-| call result | [call result](call_result/main.omg) | [invalid](call_result/invalid/main.omg) |
-| match join | [match join](match_join/main.omg) | [invalid](match_join/invalid/main.omg) |
-| const name | [const name](const_name/main.omg) | [invalid](const_name/invalid/main.omg) |
-| nested machine | [other state](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
-| another machine | [other machine](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
-| another selected implementation | [target body](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
+| local | [local](local/main.omg) | [invalid](invalid_local/main.omg) |
+| field | [field](field/main.omg) | [invalid](invalid_field/main.omg) |
+| parameter | [parameter](parameter/main.omg) | [invalid](invalid_parameter/main.omg) |
+| call result | [call result](call_result/main.omg) | [invalid](invalid_call_result/main.omg) |
+| match join | [match join](match_join/main.omg) | [invalid](invalid_match_join/main.omg) |
+| const name | [const name](const_name/main.omg) | [invalid](invalid_const_name/main.omg) |
+| nested machine | [other state](other_state/main.omg) | [invalid](invalid_other_state/main.omg) |
+| another machine | [other machine](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) |
+| another selected implementation | [target body](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
 The match-join place picks the borrowed argument and the label in the same
 `match`, and the two instantiations take different arms, so a join that lost an

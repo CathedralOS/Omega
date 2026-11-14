@@ -15,15 +15,15 @@ and carries an authored `expected_native_exit.txt` containing `0` beside its ent
 | Place | Positive Program | Fact-sensitive Reject Twin | Carrier / Transport Mechanism |
 | --- | --- | --- | --- |
 | root | [`main.omg`](main.omg) | — | root witness transferring entry fact on `main.player` through bare `Player` alias |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | `let mut copy: Player = main.player` carries `Alive` into `inspect(copy)` |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | the alias stored in `Roster::member` still carries `Alive` into `inspect` |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | parameter alias `player: Player` carries `Alive` into callee body `inspect(player)` |
-| call_result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | call result alias `pick(main.player)` carries `Alive` onto bare local `copy` |
-| match_join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms return an alias carrying `Alive`, so the joined alias does |
-| const_name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | const bound `main.player == BASE_PLAYER` carries `Alive` into `inspect(copy)` |
-| other_state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | state transition parameter `arrived(copy)` receives the alias and its `Alive` fact |
-| other_machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | helper machine `produce(main.player)` returns alias carrying `Alive` to `consume` |
-| target_body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each target's Build-selected implementation uses the transferred `Alive` fact |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | `let mut copy: Player = main.player` carries `Alive` into `inspect(copy)` |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | the alias stored in `Roster::member` still carries `Alive` into `inspect` |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | parameter alias `player: Player` carries `Alive` into callee body `inspect(player)` |
+| call_result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | call result alias `pick(main.player)` carries `Alive` onto bare local `copy` |
+| match_join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | both match arms return an alias carrying `Alive`, so the joined alias does |
+| const_name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | const bound `main.player == BASE_PLAYER` carries `Alive` into `inspect(copy)` |
+| other_state | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | state transition parameter `arrived(copy)` receives the alias and its `Alive` fact |
+| other_machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | helper machine `produce(main.player)` returns alias carrying `Alive` to `consume` |
+| target_body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | each target's Build-selected implementation uses the transferred `Alive` fact |
 
 ## Execution
 

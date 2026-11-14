@@ -14,10 +14,12 @@
 // can say. The kernel evaluates it when every actual is a constant. One
 // operation over values of one carrier is bounded from their intervals, the
 // rule an exact operation's representability goal already uses. A deeper
-// term over values that are not constants has no rule, and the route says so
-// instead of calling the program wrong.
+// term over values that are not constants has no bound rule. An equality of
+// identical open terms is reflexive, including when checked exact result
+// equations expose those terms through value-equality transport.
 
 use semantic_vocabulary::{IntegerMathLiteral, IntegerMathTerm};
+use terminal_psi::ProofRule;
 
 use super::*;
 
@@ -257,6 +259,11 @@ fn rule_coverage_of_a_mathematical_goal_is_read_from_its_form() {
         closed.clone(),
         integer(99)
     )));
+    let open = sum(embedded(1), embedded(2));
+    assert!(crate::has_rules_for(&Proposition::IntegerMathEqual(
+        open.clone(),
+        open
+    )));
     assert!(crate::has_rules_for(&Proposition::IntegerMathLessThan(
         closed,
         integer(100)
@@ -286,4 +293,80 @@ fn rule_coverage_of_a_mathematical_goal_is_read_from_its_form() {
         embedded(1),
         integer(7)
     )));
+}
+
+#[test]
+fn exact_result_equations_prove_open_mathematical_equalities_by_reflexivity() {
+    let mathematical = |operation: Strict| match operation {
+        Strict::Add => sum(embedded(1), embedded(2)),
+        Strict::Subtract => IntegerMathTerm::Subtract(Box::new(embedded(1)), Box::new(embedded(2))),
+        Strict::Multiply => IntegerMathTerm::Multiply(Box::new(embedded(1)), Box::new(embedded(2))),
+        _ => unreachable!(),
+    };
+    for operation in [Strict::Add, Strict::Subtract, Strict::Multiply] {
+        let counter = |right| Machine {
+            requires: vec![
+                at_most(1, 10),
+                at_most(2, 10),
+                Proposition::LessOrEqual(formal(2, u32_type()), formal(1, u32_type())),
+            ],
+            ensures: vec![Proposition::IntegerMathEqual(embedded(3), right)],
+            ..machine(
+                vec![u32_type(), u32_type()],
+                vec![
+                    Statement::Bind {
+                        slot: 0,
+                        value: strict(operation, slot(0, u32_type()), slot(1, u32_type())),
+                    },
+                    returns(slot(0, u32_type())),
+                ],
+            )
+        };
+        let (elaboration, result) = run(vec![counter(mathematical(operation))]);
+        let guarantees = verdicts(&elaboration, &result, 1, guarantee);
+        let [(obligation, verdict)] = guarantees[..] else {
+            panic!("one actual return guarantee: {guarantees:?}");
+        };
+        let evidence = certificate(verdict);
+        assert!(matches!(
+            evidence.certificate.proof.rule,
+            ProofRule::ValueEqualityTransport { .. }
+        ));
+        assert_kernel_accepted(&elaboration, 1, obligation, evidence);
+
+        // A different expression cannot be made reflexive by citing the same
+        // operation's equation, even though its operands are the same inputs.
+        let (elaboration, result) = run(vec![counter(sum(embedded(1), integer(99)))]);
+        assert_unproved(verdicts(&elaboration, &result, 1, guarantee)[0].1);
+    }
+}
+
+#[test]
+fn a_callees_scalar_equality_preserves_the_enclosing_mathematical_input_relation() {
+    let callee = || Machine {
+        ensures: vec![Proposition::Equal(
+            formal(1, u32_type()),
+            formal(2, u32_type()),
+        )],
+        ..machine(vec![u32_type()], vec![returns(slot(0, u32_type()))])
+    };
+    let caller = |right| Machine {
+        requires: vec![at_most(1, 10), at_most(2, 10)],
+        ensures: vec![Proposition::IntegerMathEqual(embedded(3), right)],
+        ..machine(
+            vec![u32_type(), u32_type()],
+            vec![
+                Statement::Bind {
+                    slot: 0,
+                    value: strict(Strict::Add, slot(0, u32_type()), slot(1, u32_type())),
+                },
+                returns(call(2, vec![slot(0, u32_type())])),
+            ],
+        )
+    };
+    let (elaboration, result) = run(vec![caller(sum(embedded(1), embedded(2))), callee()]);
+    let (obligation, verdict) = verdicts(&elaboration, &result, 1, guarantee)[0];
+    assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
+    let (elaboration, result) = run(vec![caller(sum(embedded(1), integer(99))), callee()]);
+    assert_unproved(verdicts(&elaboration, &result, 1, guarantee)[0].1);
 }

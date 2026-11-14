@@ -91,7 +91,7 @@ and norm, and RMS to 1e-7 absolute. Orthogonality and determinant errors must be
 at most 1e-8. Geometry is also recomputed from the emitted R and t. All outputs,
 stderr and exit statuses are captured. Exit parity alone is insufficient.
 
-`intended_invalid/` is a separate complete source-invalid control. Its coordinate
+`../invalid_rigid_point_registration_intended/` is a separate complete source-invalid control. Its coordinate
 helper accesses a 48-element source array through an unconstrained index and
 must fail for `cannot prove index` and `within length 48`, not an admission,
 typing or cast error.

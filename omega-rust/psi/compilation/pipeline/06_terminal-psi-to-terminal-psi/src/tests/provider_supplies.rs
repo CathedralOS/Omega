@@ -76,6 +76,7 @@ fn supplied(text: &str, slot: &str) -> Result<Vec<String>, String> {
         typed_trees_to_terminal_psi::prepare_compilation(
             &typed,
             typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
                 entries: &[entry(&typed)],
                 subjects: &[],
                 purpose: source::DependencyScope::Product,
@@ -126,6 +127,22 @@ fn supplied(text: &str, slot: &str) -> Result<Vec<String>, String> {
 }
 
 const CONTRACT: &str = "requires value <= 10 ensures result <= 11 reaches none crashes none";
+
+/// An inherited-only schema must not become an empty accepted supply merely
+/// because its own declaration lists no machine signatures.
+#[test]
+fn an_unserved_inherited_whole_trait_supply_is_not_vacuously_accepted() {
+    let text = "boundary trait Parent { machine go() reaches none crashes none; }
+        boundary trait Service: Parent {}
+        data Native {}
+        machine Native::go() satisfies Parent::go reaches none crashes none {}
+        machine entry() {}";
+    let error = supplied(text, "Service").unwrap_err();
+    assert!(
+        error.contains("whole-trait supply with parameters, parents or refinements"),
+        "{error}"
+    );
+}
 
 /// A provider can keep its own ceilings while exceeding the contract it
 /// supplies, on either axis, service reach or callback invocation.
@@ -215,6 +232,7 @@ fn a_provider_that_refines_its_requirement_is_judged_as_a_root() {
         typed_trees_to_terminal_psi::prepare_compilation(
             &typed,
             typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
                 entries: &[entry(&typed)],
                 subjects: &[],
                 purpose: source::DependencyScope::Product,
@@ -299,14 +317,13 @@ fn a_supply_without_one_machine_per_requirement_is_refused_by_name() {
     // `Other` has a requirement `Native` gives no machine.
     let uncovered = supplied(&text, "Other").unwrap_err();
     assert!(
-        uncovered
-            .contains("provider that does not give a supplied requirement exactly one machine"),
+        uncovered.contains("provider does not give the supplied requirement exactly one machine"),
         "{uncovered}"
     );
     // A data type is not a slot.
     let no_slot = supplied(&text, "Native").unwrap_err();
     assert!(
-        no_slot.contains("slot that is not a boundary trait or one of its requirements"),
+        no_slot.contains("slot that is not a trait or one of its requirements"),
         "{no_slot}"
     );
 }
@@ -338,6 +355,7 @@ fn a_supplied_body_has_no_cached_or_selected_named_entry() {
         typed_trees_to_terminal_psi::prepare_compilation(
             &typed,
             typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
                 entries: &[member],
                 subjects: &[],
                 purpose: source::DependencyScope::Product,

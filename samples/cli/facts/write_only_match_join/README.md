@@ -23,15 +23,15 @@ through both arms, through a copy, or at the wrong field offset traps.
 
 | Place | Positive | Reject twin | Transport |
 | --- | --- | --- | --- |
-| local | [main](local/main.omg) | [invalid](local/invalid/main.omg) | both cells are locals of `store` |
-| field | [main](field/main.omg) | [invalid](field/invalid/main.omg) | both cells are fields of a `Pair` record (`&write pair.chosen.value`) |
-| parameter | [main](parameter/main.omg) | [invalid](parameter/invalid/main.omg) | both cells and the counter arrive as `&mut` parameters of `apply` |
-| call result | [main](call_result/main.omg) | [invalid](call_result/invalid/main.omg) | both cells are produced by `make(...)` call results |
-| match join | [main](match_join/main.omg) | [invalid](match_join/invalid/main.omg) | both cells are produced by `match true` joins |
-| const name | [main](const_name/main.omg) | [invalid](const_name/invalid/main.omg) | both cells are copies of the named constants `CHOSEN` and `UNSELECTED` |
-| other state | [main](other_state/main.omg) | [invalid](other_state/invalid/main.omg) | the nested machine `pick` performs the join over borrows of its parent's cells |
-| other machine | [main](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) | `forward` passes the cells to the top-level `apply`, which performs the join |
-| target body | [main](target_body/main.omg) | [invalid](target_body/invalid/main.omg) | Build selects `X86Apply` or `ArmApply` for `SelectedApply::apply`; each checks its target tag (17 / 29) before the join |
+| local | [main](local/main.omg) | [invalid](invalid_local/main.omg) | both cells are locals of `store` |
+| field | [main](field/main.omg) | [invalid](invalid_field/main.omg) | both cells are fields of a `Pair` record (`&write pair.chosen.value`) |
+| parameter | [main](parameter/main.omg) | [invalid](invalid_parameter/main.omg) | both cells and the counter arrive as `&mut` parameters of `apply` |
+| call result | [main](call_result/main.omg) | [invalid](invalid_call_result/main.omg) | both cells are produced by `make(...)` call results |
+| match join | [main](match_join/main.omg) | [invalid](invalid_match_join/main.omg) | both cells are produced by `match true` joins |
+| const name | [main](const_name/main.omg) | [invalid](invalid_const_name/main.omg) | both cells are copies of the named constants `CHOSEN` and `UNSELECTED` |
+| other state | [main](other_state/main.omg) | [invalid](invalid_other_state/main.omg) | the nested machine `pick` performs the join over borrows of its parent's cells |
+| other machine | [main](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) | `forward` passes the cells to the top-level `apply`, which performs the join |
+| target body | [main](target_body/main.omg) | [invalid](invalid_target_body/main.omg) | Build selects `X86Apply` or `ArmApply` for `SelectedApply::apply`; each checks its target tag (17 / 29) before the join |
 
 Pinned fixtures: `tests/omega/pass/facts/write_only_match_join_through_<place>_exit`
 and `tests/omega/fail/facts/write_only_match_join_through_<place>_rejected`.

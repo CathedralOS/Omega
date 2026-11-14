@@ -15,15 +15,15 @@ of the type-indexed contract changes.
 | Place | Positive Project | Reject Twin | Transport Mechanism |
 | --- | --- | --- | --- |
 | root | [`main.omg`](main.omg) with [`build.omg`](build.omg) | — | canonical root witness forwarding applied requirement type-index tuples |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | the applied requirement result is stored in a typed local (`Payload in Tagged<Value>` vs. `Payload in Tagged<Alt>`) |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | the type-indexed payload is projected from a generic record field (`Holder<Value, Alt>::value`) |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | the type-indexed payload arrives as an explicit machine parameter (`value: Payload in Tagged<Value>` vs. `Tagged<Alt>`) |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | a nested applied requirement call result feeds an outer applied requirement call (`paired<Inner>` vs. `paired<Alt>`) |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both arms of a `match` expression join into a type-indexed local (`let joined: Payload in Tagged<Value>` vs. `Tagged<Alt>`) |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | a named `const` (`const INITIAL: Payload in Tagged<Word>` vs. `Tagged<Other>`) supplies the initial indexed payload |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the indexed payload into `machine selected(value: Payload in Tagged<Value>)` vs. `Tagged<Alt>` |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a separate `relay` machine forwards the applied requirement result (`-> Payload in Tagged<Value>` vs. `Tagged<Alt>`) |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | four ordinary `Forwarding` implementations selected by explicit target-keyed Build rows forward the indexed contract |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | the applied requirement result is stored in a typed local (`Payload in Tagged<Value>` vs. `Payload in Tagged<Alt>`) |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | the type-indexed payload is projected from a generic record field (`Holder<Value, Alt>::value`) |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | the type-indexed payload arrives as an explicit machine parameter (`value: Payload in Tagged<Value>` vs. `Tagged<Alt>`) |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | a nested applied requirement call result feeds an outer applied requirement call (`paired<Inner>` vs. `paired<Alt>`) |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | both arms of a `match` expression join into a type-indexed local (`let joined: Payload in Tagged<Value>` vs. `Tagged<Alt>`) |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | a named `const` (`const INITIAL: Payload in Tagged<Word>` vs. `Tagged<Other>`) supplies the initial indexed payload |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | a state transition forwards the indexed payload into `machine selected(value: Payload in Tagged<Value>)` vs. `Tagged<Alt>` |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | a separate `relay` machine forwards the applied requirement result (`-> Payload in Tagged<Value>` vs. `Tagged<Alt>`) |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | four ordinary `Forwarding` implementations selected by explicit target-keyed Build rows forward the indexed contract |
 
 ## Execution
 
@@ -55,15 +55,15 @@ Each place has an `invalid/` reject twin with authored `sample.json` (`"role": "
 
 | Place | Twin | Pinned Diagnostic Fragment |
 | --- | --- | --- |
-| local | [`local/invalid/main.omg`](local/invalid/main.omg) | `index compatibility condition` |
-| field | [`field/invalid/main.omg`](field/invalid/main.omg) | `index compatibility condition` |
-| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | `index compatibility condition` |
-| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `index compatibility condition` |
-| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `index compatibility condition` |
-| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `index compatibility condition` |
-| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `index compatibility condition` |
-| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `index compatibility condition` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `index compatibility condition` |
+| local | [`invalid_local/main.omg`](invalid_local/main.omg) | `index compatibility condition` |
+| field | [`invalid_field/main.omg`](invalid_field/main.omg) | `index compatibility condition` |
+| parameter | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | `index compatibility condition` |
+| call result | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | `index compatibility condition` |
+| match join | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | `index compatibility condition` |
+| const name | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | `index compatibility condition` |
+| a nested machine | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | `index compatibility condition` |
+| another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | `index compatibility condition` |
+| another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | `index compatibility condition` |
 
 ## Pinned Fixtures
 

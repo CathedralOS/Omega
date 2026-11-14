@@ -11,15 +11,15 @@ This fact is one row of nine places. Every positive place (and root `main.omg`) 
 | Place | Positive | Fact-sensitive reject twin | Transport of the closed result |
 | --- | --- | --- | --- |
 | root | [main.omg](main.omg) | — | bound to a local before the call |
-| local | [local/main.omg](local/main.omg) | [local/invalid/main.omg](local/invalid/main.omg) | bound to a local before the call |
-| field | [field/main.omg](field/main.omg) | [field/invalid/main.omg](field/invalid/main.omg) | stored in a record field |
-| parameter | [parameter/main.omg](parameter/main.omg) | [parameter/invalid/main.omg](parameter/invalid/main.omg) | arrives as an explicit parameter |
-| call_result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | passed as the call result directly |
-| match_join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | both match arms yield it |
-| const_name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | named constant `SCALE` |
-| other_state | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | a successor machine receives it |
-| other_machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | a forwarding machine returns it |
-| target_body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | each of four target bodies uses it |
+| local | [local/main.omg](local/main.omg) | [invalid_local/main.omg](invalid_local/main.omg) | bound to a local before the call |
+| field | [field/main.omg](field/main.omg) | [invalid_field/main.omg](invalid_field/main.omg) | stored in a record field |
+| parameter | [parameter/main.omg](parameter/main.omg) | [invalid_parameter/main.omg](invalid_parameter/main.omg) | arrives as an explicit parameter |
+| call_result | [call_result/main.omg](call_result/main.omg) | [invalid_call_result/main.omg](invalid_call_result/main.omg) | passed as the call result directly |
+| match_join | [match_join/main.omg](match_join/main.omg) | [invalid_match_join/main.omg](invalid_match_join/main.omg) | both match arms yield it |
+| const_name | [const_name/main.omg](const_name/main.omg) | [invalid_const_name/main.omg](invalid_const_name/main.omg) | named constant `SCALE` |
+| other_state | [other_state/main.omg](other_state/main.omg) | [invalid_other_state/main.omg](invalid_other_state/main.omg) | a successor machine receives it |
+| other_machine | [other_machine/main.omg](other_machine/main.omg) | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | a forwarding machine returns it |
+| target_body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) | each of four target bodies uses it |
 
 Run one place or root directly:
 
@@ -36,15 +36,15 @@ Each twin keeps the operation, the record and the construction shape identical a
 
 | Place | Reject Twin | Authored diagnostic fragment |
 | --- | --- | --- |
-| local | [local/invalid/main.omg](local/invalid/main.omg) | `cannot prove requires contract for call echo from Main::main: s <= 5` |
-| field | [field/invalid/main.omg](field/invalid/main.omg) | `cannot prove requires contract for call echo from Main::main: reading.scale <= 5` |
-| parameter | [parameter/invalid/main.omg](parameter/invalid/main.omg) | `cannot prove requires contract for call deliver from Main::main: s <= 5` |
-| call_result | [call_result/invalid/main.omg](call_result/invalid/main.omg) | `the instantiated fact is structurally false (`9 <= 5`)` |
-| match_join | [match_join/invalid/main.omg](match_join/invalid/main.omg) | `cannot prove requires contract for call echo from choose: scale <= 5` |
-| const_name | [const_name/invalid/main.omg](const_name/invalid/main.omg) | `the instantiated fact is structurally false (`9 <= 5`)` |
-| other_state | [other_state/invalid/main.omg](other_state/invalid/main.omg) | `cannot prove requires contract for call hold from carry: scale <= 5` |
-| other_machine | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | `the instantiated fact is structurally false (`9 <= 5`)` |
-| target_body | [target_body/invalid/main.omg](target_body/invalid/main.omg) | `cannot prove requires contract for call take from Main::main: s <= 5` |
+| local | [invalid_local/main.omg](invalid_local/main.omg) | `cannot prove requires contract for call echo from Main::main: s <= 5` |
+| field | [invalid_field/main.omg](invalid_field/main.omg) | `cannot prove requires contract for call echo from Main::main: reading.scale <= 5` |
+| parameter | [invalid_parameter/main.omg](invalid_parameter/main.omg) | `cannot prove requires contract for call deliver from Main::main: s <= 5` |
+| call_result | [invalid_call_result/main.omg](invalid_call_result/main.omg) | `the instantiated fact is structurally false (`9 <= 5`)` |
+| match_join | [invalid_match_join/main.omg](invalid_match_join/main.omg) | `cannot prove requires contract for call echo from choose: scale <= 5` |
+| const_name | [invalid_const_name/main.omg](invalid_const_name/main.omg) | `the instantiated fact is structurally false (`9 <= 5`)` |
+| other_state | [invalid_other_state/main.omg](invalid_other_state/main.omg) | `cannot prove requires contract for call hold from carry: scale <= 5` |
+| other_machine | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | `the instantiated fact is structurally false (`9 <= 5`)` |
+| target_body | [invalid_target_body/main.omg](invalid_target_body/main.omg) | `cannot prove requires contract for call take from Main::main: s <= 5` |
 
 Check a twin with `omega --check samples/cli/facts/call_result_bound_discharge/<place>/invalid/main.omg`.
 

@@ -23,6 +23,8 @@ pub struct ProductTerminalPublication {
 /// compilation, known only after the first judgment.
 #[derive(Debug, Clone, Default)]
 pub struct ProductRoster {
+    /// Canonical declaration descriptors required by this product.
+    pub declaration_metadata: Vec<symbols::SymbolHandle>,
     /// The Build's bound program entries. The first is the module's entry.
     pub entries: Vec<symbols::SymbolHandle>,
     /// The package whose declarations the check claims; `None` for a source
@@ -42,6 +44,7 @@ impl ProductRoster {
     /// Borrow the full roster for source preparation and judgment alike.
     pub fn compilation(&self) -> psi_compiler::TerminalSourceCompilation<'_> {
         psi_compiler::TerminalSourceCompilation {
+            declaration_metadata: &self.declaration_metadata,
             entries: &self.entries,
             subjects: std::slice::from_ref(&self.subject),
             purpose: source::DependencyScope::Product,
@@ -91,14 +94,42 @@ impl ProductTerminalPublication {
         }
     }
 
-    /// Retains the judgment of `roster` and the roster it judged.
-    pub fn with_accepted(
-        mut self,
-        source: Arc<psi_compiler::AcceptedTerminalSource>,
+    /// Judge and retain one exact roster. A caller cannot attach unjudged
+    /// supplies to an independently obtained accepted source. Construction is
+    /// fresh, so a previously published artifact cannot survive a new judgment.
+    pub fn judge(
+        source: Arc<typed_trees::FrozenTypedTrees>,
         roster: ProductRoster,
-    ) -> Self {
-        self.accepted = Some((source, roster));
-        self
+        optimizations: OptimizationSelections,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let accepted = roster.judge(source)?;
+        let mut publication = Self::new(optimizations);
+        publication.accepted = Some((accepted, roster));
+        Ok(publication)
+    }
+
+    /// Judge an executable child's descriptors before publication, preserving
+    /// the original roster and every chosen supply on the same frozen owner.
+    pub fn with_declaration_metadata(
+        &self,
+        declarations: &[symbols::SymbolHandle],
+    ) -> Result<Self, Vec<Diagnostic>> {
+        if self.program.get().is_some() {
+            return Err(vec![Diagnostic::error(
+                "declaration metadata must be judged before Terminal publication",
+            )]);
+        }
+        let mut roster = self.roster()?.clone();
+        for declaration in declarations {
+            if !roster.declaration_metadata.contains(declaration) {
+                roster.declaration_metadata.push(*declaration);
+            }
+        }
+        Self::judge(
+            Arc::clone(self.accepted()?.source()),
+            roster,
+            self.optimizations.clone(),
+        )
     }
 
     /// The roster the retained judgment accepted.

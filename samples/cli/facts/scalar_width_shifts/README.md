@@ -13,15 +13,15 @@ Only the transport of the operands changes.
 | Place | Positive | Fact-sensitive reject twin | Transport |
 | --- | --- | --- | --- |
 | root | [main.omg](main.omg) | — | root wrapping u32 scalar value and shift count |
-| local | [local/main.omg](local/main.omg) | [local/invalid/main.omg](local/invalid/main.omg) | both the Wrapping u32 value and bounded shift count are copied into locals |
-| field | [field/main.omg](field/main.omg) | [field/invalid/main.omg](field/invalid/main.omg) | bounded record fields carry the Wrapping u32 value and shift count |
-| parameter | [parameter/main.omg](parameter/main.omg) | [parameter/invalid/main.omg](parameter/invalid/main.omg) | the shift machine reads its parameters directly |
-| call_result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | calls with declared types and bounds supply both operands |
-| match_join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | both arms keep the operands inside Wrapping and bounds, so the joined operands shift safely |
-| const_name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | `const SHIFT: u32 = 1` provides the named shift count |
-| other_state | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | a successor machine receives the operands and shifts there |
-| other_machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | a forwarding machine transports operands to the shift machine |
-| target_body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | each of four target bodies shifts the Wrapping u32 value and shift count |
+| local | [local/main.omg](local/main.omg) | [invalid_local/main.omg](invalid_local/main.omg) | both the Wrapping u32 value and bounded shift count are copied into locals |
+| field | [field/main.omg](field/main.omg) | [invalid_field/main.omg](invalid_field/main.omg) | bounded record fields carry the Wrapping u32 value and shift count |
+| parameter | [parameter/main.omg](parameter/main.omg) | [invalid_parameter/main.omg](invalid_parameter/main.omg) | the shift machine reads its parameters directly |
+| call_result | [call_result/main.omg](call_result/main.omg) | [invalid_call_result/main.omg](invalid_call_result/main.omg) | calls with declared types and bounds supply both operands |
+| match_join | [match_join/main.omg](match_join/main.omg) | [invalid_match_join/main.omg](invalid_match_join/main.omg) | both arms keep the operands inside Wrapping and bounds, so the joined operands shift safely |
+| const_name | [const_name/main.omg](const_name/main.omg) | [invalid_const_name/main.omg](invalid_const_name/main.omg) | `const SHIFT: u32 = 1` provides the named shift count |
+| other_state | [other_state/main.omg](other_state/main.omg) | [invalid_other_state/main.omg](invalid_other_state/main.omg) | a successor machine receives the operands and shifts there |
+| other_machine | [other_machine/main.omg](other_machine/main.omg) | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | a forwarding machine transports operands to the shift machine |
+| target_body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) | each of four target bodies shifts the Wrapping u32 value and shift count |
 
 Each positive place and the root `main.omg` binds `ProgramEntry` for all four
 hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`),
@@ -44,15 +44,15 @@ Check a twin with `omega --check samples/cli/facts/scalar_width_shifts/<place>/i
 
 | Place | Reject Twin | Authored diagnostic fragment |
 | --- | --- | --- |
-| local | [local/invalid/main.omg](local/invalid/main.omg) | `may overflow `u32`` |
-| field | [field/invalid/main.omg](field/invalid/main.omg) | `may overflow `u32`` |
-| parameter | [parameter/invalid/main.omg](parameter/invalid/main.omg) | `may overflow `u32`` |
-| call_result | [call_result/invalid/main.omg](call_result/invalid/main.omg) | `may overflow `u32`` |
-| match_join | [match_join/invalid/main.omg](match_join/invalid/main.omg) | `may overflow `u32`` |
-| const_name | [const_name/invalid/main.omg](const_name/invalid/main.omg) | `may overflow `u32`` |
-| other_state | [other_state/invalid/main.omg](other_state/invalid/main.omg) | `may overflow `u32`` |
-| other_machine | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | `may overflow `u32`` |
-| target_body | [target_body/invalid/main.omg](target_body/invalid/main.omg) | `may overflow `u32`` |
+| local | [invalid_local/main.omg](invalid_local/main.omg) | `may overflow `u32`` |
+| field | [invalid_field/main.omg](invalid_field/main.omg) | `may overflow `u32`` |
+| parameter | [invalid_parameter/main.omg](invalid_parameter/main.omg) | `may overflow `u32`` |
+| call_result | [invalid_call_result/main.omg](invalid_call_result/main.omg) | `may overflow `u32`` |
+| match_join | [invalid_match_join/main.omg](invalid_match_join/main.omg) | `may overflow `u32`` |
+| const_name | [invalid_const_name/main.omg](invalid_const_name/main.omg) | `may overflow `u32`` |
+| other_state | [invalid_other_state/main.omg](invalid_other_state/main.omg) | `may overflow `u32`` |
+| other_machine | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | `may overflow `u32`` |
+| target_body | [invalid_target_body/main.omg](invalid_target_body/main.omg) | `may overflow `u32`` |
 
 ## Requirements and Evidence
 

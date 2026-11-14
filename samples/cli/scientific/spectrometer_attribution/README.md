@@ -111,7 +111,7 @@ other bindings are portability declarations, not unexecuted test claims.
 validation route checks each engine's stdout and stderr independently against
 the same frozen files; it never substitutes checked-tree execution for Terminal.
 
-`intended_invalid/` is a separate complete executable project that must be
+`../invalid_spectrometer_attribution_intended/` is a separate complete executable project that must be
 rejected for Exact i32 overflow (`2147483647 + 1`). It has its own build metadata
 and entry binding. It is not imported by the valid application. The validation
 script checks rejection independently and requires the overflow diagnostic.

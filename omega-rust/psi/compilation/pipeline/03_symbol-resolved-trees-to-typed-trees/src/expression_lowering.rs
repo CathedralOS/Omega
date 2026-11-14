@@ -1039,14 +1039,26 @@ pub(crate) mod expression {
                         if let Some(occurrence) = own
                             && let typed::expression::ExpressionNode::Call(call) =
                                 self.target().expression(lowered)
-                            && call.build_selection.is_valid()
                         {
                             let selected = call.target_symbol;
-                            crate::call_and_product_selections::bind_generated_call_selection(
-                                self.target_trees,
-                                occurrence,
-                                selected,
-                            )?;
+                            // A generated call owns the occurrence only when
+                            // the answer the author got is that call's target.
+                            let owned = if call.build_selection.is_valid() {
+                                crate::call_and_product_selections::bind_generated_call_selection(
+                                    self.target_trees,
+                                    occurrence,
+                                    selected,
+                                )?
+                            } else {
+                                !crate::call_and_product_selections::names_replaced_prelude_operation(
+                                    self.target_trees,
+                                    occurrence,
+                                    selected,
+                                )
+                            };
+                            if !owned {
+                                own = None;
+                            }
                         }
                         if let typed::expression::ExpressionNode::Call(call) =
                             self.target().expression_mut(lowered)

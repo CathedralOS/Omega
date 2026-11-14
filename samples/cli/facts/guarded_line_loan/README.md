@@ -18,15 +18,15 @@ The nine places carry the guarded line loan across each language construct into 
 | Place | Positive | Reject twin | Transport |
 | --- | --- | --- | --- |
 | root | [main.omg](main.omg) | — | original witness: local byte owner stays live across selected case edge |
-| local | [local/main.omg](local/main.omg) | [local/invalid/main.omg](local/invalid/main.omg) | the owner is a local byte array |
-| field | [field/main.omg](field/main.omg) | [field/invalid/main.omg](field/invalid/main.omg) | the owner is a record field |
-| parameter | [parameter/main.omg](parameter/main.omg) | [parameter/invalid/main.omg](parameter/invalid/main.omg) | the shared loan is passed as a parameter |
-| call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | the owner is returned by a call |
-| match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | either match arm yields the same shared loan |
-| const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | a named constant selects the written and observed byte |
-| a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | a successor machine receives the shared loan |
-| another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | a forwarding machine performs the write |
-| another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | each target body writes through the loan |
+| local | [local/main.omg](local/main.omg) | [invalid_local/main.omg](invalid_local/main.omg) | the owner is a local byte array |
+| field | [field/main.omg](field/main.omg) | [invalid_field/main.omg](invalid_field/main.omg) | the owner is a record field |
+| parameter | [parameter/main.omg](parameter/main.omg) | [invalid_parameter/main.omg](invalid_parameter/main.omg) | the shared loan is passed as a parameter |
+| call result | [call_result/main.omg](call_result/main.omg) | [invalid_call_result/main.omg](invalid_call_result/main.omg) | the owner is returned by a call |
+| match join | [match_join/main.omg](match_join/main.omg) | [invalid_match_join/main.omg](invalid_match_join/main.omg) | either match arm yields the same shared loan |
+| const name | [const_name/main.omg](const_name/main.omg) | [invalid_const_name/main.omg](invalid_const_name/main.omg) | a named constant selects the written and observed byte |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [invalid_other_state/main.omg](invalid_other_state/main.omg) | a successor machine receives the shared loan |
+| another machine | [other_machine/main.omg](other_machine/main.omg) | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | a forwarding machine performs the write |
+| another target body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) | each target body writes through the loan |
 
 Every place carries an `invalid/` reject twin (mirrored in `controls/held_loan/`) that
 adds one construct: a competing exclusive loan of that place's owner, held live
@@ -70,7 +70,7 @@ nine places; the board's other acceptance remains open.
 
 ```sh
 omega run --both samples/cli/facts/guarded_line_loan/local/main.omg
-omega --check samples/cli/facts/guarded_line_loan/local/invalid/main.omg
+omega --check samples/cli/facts/guarded_line_loan/invalid_local/main.omg
 python3 tools/sample_gate.py --filter cli/facts/guarded_line_loan --cli <omega>
 python3 tools/sample_native_gate.py --filter cli/facts/guarded_line_loan --cli <omega>
 python3 tools/corpus_gate.py --filter facts/guarded_line_loan

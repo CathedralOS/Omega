@@ -14,15 +14,15 @@ Every positive place and the root witness bind `ProgramEntry` across all four ho
 | Place | Project | Transport | Positive Witness | Reject Twin |
 | --- | --- | --- | --- | --- |
 | root | `.` | canonical root witness creating Resource with valid == 1u64 and verifying scope exit drop | [`main.omg`](main.omg) | - |
-| local | `local/` | the resource is held in a local variable and cleaned up at function exit | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) |
-| field | `field/` | the resource is wrapped in a nominal Holder record field and cleaned up via field drop | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) |
-| parameter | `parameter/` | a helper machine receives the resource as an explicit parameter and cleans it up at return | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) |
-| call result | `call_result/` | a producer machine returns the resource which is received into a local and cleaned up | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) |
-| match join | `match_join/` | both branches of a boolean match expression yield the resource before scope exit cleanup | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) |
-| const name | `const_name/` | a named constant VALID_TAG initializes the resource tag before scope exit cleanup | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) |
-| a nested machine | `other_state/` | an terminal machine transfer transfers the resource to a successor machine before cleanup | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) |
-| another machine | `other_machine/` | an associated Relay machine receives the resource and performs deterministic drop | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) |
-| another target body | `target_body/` | each of the four hosted target bodies receives the resource and cleans it up | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) |
+| local | `local/` | the resource is held in a local variable and cleaned up at function exit | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) |
+| field | `field/` | the resource is wrapped in a nominal Holder record field and cleaned up via field drop | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) |
+| parameter | `parameter/` | a helper machine receives the resource as an explicit parameter and cleans it up at return | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) |
+| call result | `call_result/` | a producer machine returns the resource which is received into a local and cleaned up | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) |
+| match join | `match_join/` | both branches of a boolean match expression yield the resource before scope exit cleanup | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) |
+| const name | `const_name/` | a named constant VALID_TAG initializes the resource tag before scope exit cleanup | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) |
+| a nested machine | `other_state/` | an terminal machine transfer transfers the resource to a successor machine before cleanup | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) |
+| another machine | `other_machine/` | an associated Relay machine receives the resource and performs deterministic drop | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) |
+| another target body | `target_body/` | each of the four hosted target bodies receives the resource and cleans it up | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) |
 
 ## Execution
 
@@ -46,15 +46,15 @@ All 10 samples report `native exit 0` and `interp exit: 0`.
 Each place carries a fact-sensitive reject twin at `<place>/invalid/main.omg` where the resource valid tag is weakened to `0u64`, violating the drop contract precondition `resource.valid == 1u64`. Check each twin with:
 
 ```sh
-omega --check samples/cli/facts/affine_discard_root_cleanup/local/invalid/main.omg
-omega --check samples/cli/facts/affine_discard_root_cleanup/field/invalid/main.omg
-omega --check samples/cli/facts/affine_discard_root_cleanup/parameter/invalid/main.omg
-omega --check samples/cli/facts/affine_discard_root_cleanup/call_result/invalid/main.omg
-omega --check samples/cli/facts/affine_discard_root_cleanup/match_join/invalid/main.omg
-omega --check samples/cli/facts/affine_discard_root_cleanup/const_name/invalid/main.omg
-omega --check samples/cli/facts/affine_discard_root_cleanup/other_state/invalid/main.omg
-omega --check samples/cli/facts/affine_discard_root_cleanup/other_machine/invalid/main.omg
-omega --check samples/cli/facts/affine_discard_root_cleanup/target_body/invalid/main.omg
+omega --check samples/cli/facts/affine_discard_root_cleanup/invalid_local/main.omg
+omega --check samples/cli/facts/affine_discard_root_cleanup/invalid_field/main.omg
+omega --check samples/cli/facts/affine_discard_root_cleanup/invalid_parameter/main.omg
+omega --check samples/cli/facts/affine_discard_root_cleanup/invalid_call_result/main.omg
+omega --check samples/cli/facts/affine_discard_root_cleanup/invalid_match_join/main.omg
+omega --check samples/cli/facts/affine_discard_root_cleanup/invalid_const_name/main.omg
+omega --check samples/cli/facts/affine_discard_root_cleanup/invalid_other_state/main.omg
+omega --check samples/cli/facts/affine_discard_root_cleanup/invalid_other_machine/main.omg
+omega --check samples/cli/facts/affine_discard_root_cleanup/invalid_target_body/main.omg
 ```
 
 Every reject twin fails closed with:

@@ -26,15 +26,15 @@ No forwarding native declarations or counted locator helpers remain in this row.
 
 | Place | Positive | Live-loan reject twin |
 | --- | --- | --- |
-| Local | [program](local/main.omg) | [read before completion](local/invalid/main.omg) |
-| Field | [program](field/main.omg) | [read before completion](field/invalid/main.omg) |
-| Parameter | [program](parameter/main.omg) | [read before completion](parameter/invalid/main.omg) |
-| Call result | [program](call_result/main.omg) | [read before completion](call_result/invalid/main.omg) |
-| Match join | [program](match_join/main.omg) | [read before completion](match_join/invalid/main.omg) |
-| Const name | [program](const_name/main.omg) | [read before completion](const_name/invalid/main.omg) |
-| Nested machine | [program](other_state/main.omg) | [read before completion](other_state/invalid/main.omg) |
-| Other machine | [program](other_machine/main.omg) | [read before completion](other_machine/invalid/main.omg) |
-| Target body | [program](target_body/main.omg) | [read before completion](target_body/invalid/main.omg) |
+| Local | [program](local/main.omg) | [read before completion](invalid_local/main.omg) |
+| Field | [program](field/main.omg) | [read before completion](invalid_field/main.omg) |
+| Parameter | [program](parameter/main.omg) | [read before completion](invalid_parameter/main.omg) |
+| Call result | [program](call_result/main.omg) | [read before completion](invalid_call_result/main.omg) |
+| Match join | [program](match_join/main.omg) | [read before completion](invalid_match_join/main.omg) |
+| Const name | [program](const_name/main.omg) | [read before completion](invalid_const_name/main.omg) |
+| Nested machine | [program](other_state/main.omg) | [read before completion](invalid_other_state/main.omg) |
+| Other machine | [program](other_machine/main.omg) | [read before completion](invalid_other_machine/main.omg) |
+| Target body | [program](target_body/main.omg) | [read before completion](invalid_target_body/main.omg) |
 
 Every positive binds ProgramEntry on all four hosted targets. The match place
 executes both alternatives with distinct route tags. Const names seed ordinary

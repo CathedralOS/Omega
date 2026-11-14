@@ -8,15 +8,15 @@ The impossible fallthrough explicitly requires `false`. This is an incoming-edge
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| local | [program](local/main.omg) | [wrong preserved value](local/invalid/main.omg) |
-| field | [program](field/main.omg) | [wrong preserved value](field/invalid/main.omg) |
-| parameter | [program](parameter/main.omg) | [wrong preserved value](parameter/invalid/main.omg) |
-| call result | [program](call_result/main.omg) | [wrong preserved value](call_result/invalid/main.omg) |
-| match join | [program](match_join/main.omg) | [wrong preserved value](match_join/invalid/main.omg) |
-| const name | [program](const_name/main.omg) | [wrong preserved value](const_name/invalid/main.omg) |
-| other state | [program](other_state/main.omg) | [wrong preserved value](other_state/invalid/main.omg) |
-| other machine | [program](other_machine/main.omg) | [wrong preserved value](other_machine/invalid/main.omg) |
-| target body | [program](target_body/main.omg) | [wrong preserved value](target_body/invalid/main.omg) |
+| local | [program](local/main.omg) | [wrong preserved value](invalid_local/main.omg) |
+| field | [program](field/main.omg) | [wrong preserved value](invalid_field/main.omg) |
+| parameter | [program](parameter/main.omg) | [wrong preserved value](invalid_parameter/main.omg) |
+| call result | [program](call_result/main.omg) | [wrong preserved value](invalid_call_result/main.omg) |
+| match join | [program](match_join/main.omg) | [wrong preserved value](invalid_match_join/main.omg) |
+| const name | [program](const_name/main.omg) | [wrong preserved value](invalid_const_name/main.omg) |
+| other state | [program](other_state/main.omg) | [wrong preserved value](invalid_other_state/main.omg) |
+| other machine | [program](other_machine/main.omg) | [wrong preserved value](invalid_other_machine/main.omg) |
+| target body | [program](target_body/main.omg) | [wrong preserved value](invalid_target_body/main.omg) |
 
 The same sources are pinned as `tests/omega/{pass,fail}/facts/checked_asm_compare_preserves_through_*`. A reject changes only the taken label's register preservation contract, from 37 to 0. The comparison and all instructions stay unchanged.
 

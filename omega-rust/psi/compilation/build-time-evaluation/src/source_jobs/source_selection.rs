@@ -175,6 +175,7 @@ mod tests {
         );
         let request = typed.realized_machine_named("request").unwrap().symbol;
         let compilation = psi_terminal_production::TerminalSourceCompilation {
+            declaration_metadata: &[],
             entries: &[request],
             subjects: &[],
             purpose: source::DependencyScope::Build,

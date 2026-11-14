@@ -18,15 +18,15 @@ value traps.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| Local | [source](local/main.omg) | [missing marker](local/invalid/main.omg) |
-| Field | [source](field/main.omg) | [missing marker](field/invalid/main.omg) |
-| Parameter | [source](parameter/main.omg) | [missing marker](parameter/invalid/main.omg) |
-| Call result | [source](call_result/main.omg) | [missing marker](call_result/invalid/main.omg) |
-| Match join | [source](match_join/main.omg) | [missing marker](match_join/invalid/main.omg) |
-| Const name | [source](const_name/main.omg) | [missing marker](const_name/invalid/main.omg) |
-| Nested machine | [source](other_state/main.omg) | [missing marker](other_state/invalid/main.omg) |
-| Another machine | [source](other_machine/main.omg) | [missing marker](other_machine/invalid/main.omg) |
-| Target body | [source](target_body/main.omg) | [missing marker](target_body/invalid/main.omg) |
+| Local | [source](local/main.omg) | [missing marker](invalid_local/main.omg) |
+| Field | [source](field/main.omg) | [missing marker](invalid_field/main.omg) |
+| Parameter | [source](parameter/main.omg) | [missing marker](invalid_parameter/main.omg) |
+| Call result | [source](call_result/main.omg) | [missing marker](invalid_call_result/main.omg) |
+| Match join | [source](match_join/main.omg) | [missing marker](invalid_match_join/main.omg) |
+| Const name | [source](const_name/main.omg) | [missing marker](invalid_const_name/main.omg) |
+| Nested machine | [source](other_state/main.omg) | [missing marker](invalid_other_state/main.omg) |
+| Another machine | [source](other_machine/main.omg) | [missing marker](invalid_other_machine/main.omg) |
+| Target body | [source](target_body/main.omg) | [missing marker](invalid_target_body/main.omg) |
 
 Each twin removes only the `suspend` from the `fold -> sum` edge and rejects
 with ``call to `sum` has operational envelope `suspend` but acknowledges

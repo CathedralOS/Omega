@@ -9,15 +9,15 @@ Every place performs the same operation: given bounded unsigned 64-bit inputs `l
 | Place | Positive Project | Reject Twin | Transport Mechanism |
 | --- | --- | --- | --- |
 | (root) | [`main.omg`](main.omg) | — | root 64-bit unsigned wrapping subtraction evaluation |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | the wrapping difference is copied into a local binding before discharging subtraction bounds |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | the wrapping difference is stored and loaded through a `DiffContainer` record field |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | the wrapping difference is forwarded as an explicit machine parameter |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the wrapping difference is returned from a callee invocation (`sub_wrapping`) |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield the wrapping difference so the joined binding preserves the bounds |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constants `LHS` (`100u64`) and `RHS` (`30u64`) supply operands for wrapping subtraction |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the wrapping difference to successor machine `step` |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine transports the wrapping difference through an intermediate machine call (`forward`) |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target body computes the 64-bit unsigned wrapping subtraction and verifies the bounds |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | the wrapping difference is copied into a local binding before discharging subtraction bounds |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | the wrapping difference is stored and loaded through a `DiffContainer` record field |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | the wrapping difference is forwarded as an explicit machine parameter |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | the wrapping difference is returned from a callee invocation (`sub_wrapping`) |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | both match arms yield the wrapping difference so the joined binding preserves the bounds |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | named constants `LHS` (`100u64`) and `RHS` (`30u64`) supply operands for wrapping subtraction |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | a state transition forwards the wrapping difference to successor machine `step` |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | a forwarding machine transports the wrapping difference through an intermediate machine call (`forward`) |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | each hosted target body computes the 64-bit unsigned wrapping subtraction and verifies the bounds |
 
 Every positive place and the root `main.omg` probe binds `ProgramEntry` for
 `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`, carries an
@@ -56,15 +56,15 @@ omega --check samples/cli/facts/unsigned_64bit_wrapping_subtraction_bound/<place
 
 | Place | Reject Twin | Obligation Class | Authored Diagnostic Fragment |
 | --- | --- | --- | --- |
-| local | [`local/invalid/main.omg`](local/invalid/main.omg) | Arithmetic safety | `may overflow \`u64\`` |
-| field | [`field/invalid/main.omg`](field/invalid/main.omg) | Arithmetic safety | `may overflow \`u64\`` |
-| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | Arithmetic safety | `may overflow \`u64\`` |
-| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Arithmetic safety | `may overflow \`u64\`` |
-| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Arithmetic safety | `may overflow \`u64\`` |
-| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Arithmetic safety | `may overflow \`u64\`` |
-| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Arithmetic safety | `may overflow \`u64\`` |
-| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Arithmetic safety | `may overflow \`u64\`` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Arithmetic safety | `may overflow \`u64\`` |
+| local | [`invalid_local/main.omg`](invalid_local/main.omg) | Arithmetic safety | `may overflow \`u64\`` |
+| field | [`invalid_field/main.omg`](invalid_field/main.omg) | Arithmetic safety | `may overflow \`u64\`` |
+| parameter | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | Arithmetic safety | `may overflow \`u64\`` |
+| call result | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | Arithmetic safety | `may overflow \`u64\`` |
+| match join | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | Arithmetic safety | `may overflow \`u64\`` |
+| const name | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | Arithmetic safety | `may overflow \`u64\`` |
+| a nested machine | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | Arithmetic safety | `may overflow \`u64\`` |
+| another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | Arithmetic safety | `may overflow \`u64\`` |
+| another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | Arithmetic safety | `may overflow \`u64\`` |
 
 ### Acceptance Gate
 

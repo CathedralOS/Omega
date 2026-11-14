@@ -1650,6 +1650,40 @@ pub mod product_operand {
 }
 
 pub mod trait_definition {
+    /// An exact source requirement binding. Nomination supplies no proof or
+    /// execution authority; the compilation must judge the realization against
+    /// the original requirement before using it.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct Supply {
+        pub slot: symbols::SymbolHandle,
+        pub provider: symbols::SymbolHandle,
+    }
+
+    impl Supply {
+        /// Resolve only within the actual provider's nominal conformance rows.
+        pub fn realization<'a>(
+            &self,
+            typed: &'a crate::TypedTrees,
+            requirement: symbols::SymbolHandle,
+        ) -> Result<&'a crate::machine::Machine, &'static str> {
+            let mut realizing = typed.machines().iter().filter(|machine| {
+                crate::provider_declarations::satisfaction_provider_declaration(typed, machine)
+                    == Some(self.provider)
+                    && (typed
+                        .machine_trait_conformances(machine)
+                        .iter()
+                        .any(|clause| clause.requirement_symbol == requirement)
+                        || typed
+                            .owned_conformance_realization(machine.symbol)
+                            .is_some_and(|(_, row)| row.requirement == requirement))
+            });
+            match (realizing.next(), realizing.next()) {
+                (Some(machine), None) => Ok(machine),
+                _ => Err("provider does not give the supplied requirement exactly one machine"),
+            }
+        }
+    }
+
     pub(crate) mod applications {
         use super::TraitDefinition;
         use crate::TypedTrees;
@@ -3933,6 +3967,61 @@ pub mod trait_definition {
                         .application_identity(program)
                         .zip(other.application_identity(program))
                         .is_some_and(|(left, right)| left == right)
+            }
+
+            /// Nominate the closed operation record supplied to this exact
+            /// implementation binder. The retained substitution fixes source
+            /// identity; this proves no refinement, law, or body property.
+            pub fn named_implementation_argument(
+                &self,
+                program: &'program TypedTrees,
+                parameter: SymbolHandle,
+            ) -> Result<&'program super::Conformance, &'static str> {
+                let declared = program
+                    .trait_type_parameters(self.declaration)
+                    .iter()
+                    .find(|declared| declared.symbol == parameter)
+                    .ok_or("implementation binder is not declared by this trait scope")?;
+                if declared.kind != crate::data::TypeParameterKind::Implementation {
+                    return Err("trait argument is not an implementation binder");
+                }
+                let mut bounds = self
+                    .declaration
+                    .conformance_bounds
+                    .iter()
+                    .filter(|bound| bound.binder == parameter);
+                let (Some(bound), None) = (bounds.next(), bounds.next()) else {
+                    return Err("implementation binder has no unique exact bound");
+                };
+                if !bound.arguments.is_empty() || !bound.lifetime_arguments.is_empty() {
+                    return Err("applied implementation bound needs closed source preparation");
+                }
+                let argument = self.parameter_argument(program, parameter);
+                if !program
+                    .type_reference_table
+                    .contains_type_reference(argument)
+                {
+                    return Err("implementation argument is not closed in its source scope");
+                }
+                let TypeReferenceNode::Named { symbol, .. } =
+                    program.type_reference_table.type_reference(argument)
+                else {
+                    return Err("applied implementation argument needs closed source preparation");
+                };
+                let selected = program
+                    .conformance_by_symbol(*symbol)
+                    .ok_or("implementation argument does not name an exact operation record")?;
+                if selected.trait_symbol != bound.trait_symbol {
+                    return Err("implementation argument supplies another nominal trait");
+                }
+                if !selected.arguments.is_empty()
+                    || !selected.trait_lifetime_arguments.is_empty()
+                    || !selected.lifetime_parameters.is_empty()
+                    || !program.conformance_type_parameters(selected).is_empty()
+                {
+                    return Err("generic implementation argument needs closed source preparation");
+                }
+                Ok(selected)
             }
 
             pub fn parameter_identity(

@@ -15,8 +15,8 @@ use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::values::Justification;
 use terminal_check_tables::{Checked, ProgramPoint, RefusalReason};
 use typed_trees_to_terminal_psi::{
-    Body, CrashCeiling, Expression, ExpressionKind, Signature, SourceOrigin, Statement, Strict,
-    Target, Termination, Unpositioned, ValueType,
+    Body, CrashCeiling, Expression, ExpressionKind, Selector, Signature, SourceOrigin, Statement,
+    Strict, Target, Termination, Unpositioned, ValueType,
 };
 
 use crate::{Discharge, Discharged, Evidence, RouteVerdict, UnprovedObligation, discharge, judge};
@@ -1325,6 +1325,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
     };
     let mut records = IdTable::default();
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("Point"),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![
@@ -1334,6 +1335,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
         requires: Vec::new(),
     });
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("Line"),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![
@@ -1582,6 +1584,7 @@ fn a_value_transferred_on_one_path_is_not_owned_after_the_join() {
 fn an_affine_empty_case_cannot_be_moved_twice() {
     let mut records = IdTable::default();
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: false,
         identity: "EmptyCase".into(),
         shape: typed_trees_to_terminal_psi::StorageShape::Sum(vec![
@@ -2999,6 +3002,7 @@ fn every_use_of_storage_has_exactly_one_verdict() {
     // `Gated { v } requires 1 <= v` beside `Point` and `Line`.
     let mut types = records();
     types.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("Gated"),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![RecordField {
@@ -3152,6 +3156,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
     let scalar = ValueType::plain(u32_type());
     let mut records = IdTable::default();
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("Point"),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![
@@ -3161,6 +3166,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
         requires: Vec::new(),
     });
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("Shape"),
         shape: typed_trees_to_terminal_psi::StorageShape::Sum(vec![
@@ -3176,6 +3182,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
         requires: Vec::new(),
     });
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("Holder"),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![field(7, "shape", shape())]),
@@ -3219,7 +3226,10 @@ fn matching(
         ExpressionKind::Match {
             capture: None,
             subject: Box::new(subject),
-            arms,
+            arms: arms
+                .into_iter()
+                .map(|(case, arm)| (Selector::Case(case), arm))
+                .collect(),
             default: default.map(Box::new),
         },
         u32_type().into(),
@@ -3804,6 +3814,7 @@ fn constrained() -> IdTable<StructuralTypeId, RecordType> {
         byte_predicates: semantic_vocabulary::ByteSequencePredicateSet::EMPTY,
     };
     let record = |spelled: &str, fields, requires| RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: spelled.to_owned(),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(fields),
@@ -3832,6 +3843,7 @@ fn constrained() -> IdTable<StructuralTypeId, RecordType> {
         )],
     ));
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("ByteRead"),
         shape: typed_trees_to_terminal_psi::StorageShape::Sum(vec![
@@ -5333,6 +5345,7 @@ fn windowed() -> IdTable<StructuralTypeId, RecordType> {
     let at_least_one = |raw| Proposition::LessOrEqual(number(1), field_of_self(raw));
     let mut records = constrained();
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("Both"),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![
@@ -5342,6 +5355,7 @@ fn windowed() -> IdTable<StructuralTypeId, RecordType> {
         requires: vec![at_least_one(10), at_least_one(11)],
     });
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("Half"),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![
@@ -5351,6 +5365,7 @@ fn windowed() -> IdTable<StructuralTypeId, RecordType> {
         requires: vec![at_least_one(12)],
     });
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("Limits"),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![

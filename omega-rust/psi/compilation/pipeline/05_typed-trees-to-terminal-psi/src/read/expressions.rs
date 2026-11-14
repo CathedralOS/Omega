@@ -15,8 +15,8 @@ use typed_trees::expression::{
 use super::authority::Access;
 use super::storage_path::names_storage;
 use super::{Program, Slot, symbol_kind};
-use crate::body::{Expression, ExpressionKind, Policy, Strict, ValueType};
-use crate::{SourceOrigin, Unserved, refuse};
+use crate::body::{Expression, ExpressionKind, Policy, Selector, Strict, ValueType};
+use crate::{SourceOrigin, Unserved, refuse, reject};
 
 impl<'t> Program<'t> {
     pub(super) fn slot_of(
@@ -368,7 +368,7 @@ impl<'t> Program<'t> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
         let subject = self.expression(id, slots, matched.subject, None)?;
         let Some(record) = self.opened(id, subject.result, Access::Read)? else {
-            return Err(unserved("match on a scalar subject"));
+            return self.scalar_match(id, slots, matched, subject, expected, source);
         };
         if !names_storage(&subject) {
             return Err(unserved("match on a subject that is not a place"));
@@ -408,7 +408,10 @@ impl<'t> Program<'t> {
             kind: ExpressionKind::Match {
                 capture: Some(matched.capture),
                 subject: Box::new(subject),
-                arms,
+                arms: arms
+                    .into_iter()
+                    .map(|(case, value)| (Selector::Case(case), value))
+                    .collect(),
                 default,
             },
             result: Some(ValueType::Scalar(result, Qualification::NONE)),
@@ -502,28 +505,7 @@ impl<'t> Program<'t> {
             if case.is_some_and(|case| arms.iter().any(|(earlier, _)| *earlier == case)) {
                 return Err(unserved("match arm for a case an earlier arm selects"));
             }
-            let value = self.expression(id, slots, arm.value, result.map(ValueType::plain))?;
-            let value_type = match value.result {
-                Some(ValueType::Scalar(scalar_type, Qualification::NONE)) => scalar_type,
-                Some(ValueType::Record(_, _, _)) => {
-                    return Err(unserved("match with a data result"));
-                }
-                Some(ValueType::Scalar(..)) => {
-                    return Err(unserved("match with a qualified result"));
-                }
-                Some(ValueType::Rigid(_)) => {
-                    return Err(unserved("match with a result of a rigid type"));
-                }
-                None => return Err(unserved("match with a Unit arm")),
-            };
-            if result.is_some_and(|result| result != value_type) {
-                return Err(refuse(
-                    id,
-                    Construct::Machine,
-                    Unserved::Typing("match arm value type"),
-                ));
-            }
-            result = Some(value_type);
+            let value = self.arm_value(id, slots, arm.value, &mut result)?;
             match case {
                 Some(case) => arms.push((case, value)),
                 None => default = Some(Box::new(value)),
@@ -531,6 +513,172 @@ impl<'t> Program<'t> {
         }
         let result = result.ok_or_else(|| unserved("match without an arm"))?;
         Ok((arms, default, result))
+    }
+
+    /// One arm's value, which must be a plain scalar of the type every
+    /// earlier arm (or the destination) gave the match: `result` is that
+    /// type once known, and this arm's type after it.
+    fn arm_value(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        value: ExpressionHandle,
+        result: &mut Option<ScalarType>,
+    ) -> Checked<Expression> {
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
+        let value = self.expression(id, slots, value, result.map(ValueType::plain))?;
+        let value_type = match value.result {
+            Some(ValueType::Scalar(scalar_type, Qualification::NONE)) => scalar_type,
+            Some(ValueType::Record(_, _, _)) => {
+                return Err(unserved("match with a data result"));
+            }
+            Some(ValueType::Scalar(..)) => {
+                return Err(unserved("match with a qualified result"));
+            }
+            Some(ValueType::Rigid(_)) => {
+                return Err(unserved("match with a result of a rigid type"));
+            }
+            None => return Err(unserved("match with a Unit arm")),
+        };
+        if result.is_some_and(|result| result != value_type) {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("match arm value type"),
+            ));
+        }
+        *result = Some(value_type);
+        Ok(value)
+    }
+
+    /// Value-position `match` over a scalar: `match code { 0 -> a, 1 -> b,
+    /// _ -> c }` or `match flag { true -> a, false -> b }`.
+    ///
+    /// patterns.md: "Scalars use value patterns", and a dispatch "evaluates
+    /// its subject once, tests alternatives in authored order, and executes
+    /// only the selected arm". So the subject may be any scalar expression,
+    /// evaluated once by lowering; each value arm is an equality test of that
+    /// one value against a literal of the subject's carrier, and the
+    /// wildcard, which must be last, is the default.
+    ///
+    /// Coverage ("Missing runtime coverage is a compile error"): a wildcard
+    /// closes it, and so do Boolean arms naming both `true` and `false`
+    /// ("Boolean coverage includes true/false"). In that case the last arm
+    /// becomes the default: when every earlier test failed, the subject is
+    /// the one value the earlier arms left, which is the last arm's. Any
+    /// other ladder without a wildcard is rejected ("Other value/comparison
+    /// ladders ... require a wildcard").
+    ///
+    /// A pattern that is not a literal (a named constant, a range, a
+    /// destructure) and a subject that is not a plain integer or Boolean are
+    /// refused by name.
+    fn scalar_match(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        matched: &typed_trees::expression::TableMatchExpression,
+        subject: Expression,
+        expected: Option<ScalarType>,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        use typed_trees::expression::MatchPattern;
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
+        let carrier = match subject.result {
+            Some(ValueType::Scalar(
+                carrier @ (ScalarType::Integer(_) | ScalarType::Boolean),
+                qualification,
+            )) if qualification.domains.is_empty() => carrier,
+            Some(ValueType::Scalar(ScalarType::IeeeFloat(_), _)) => {
+                return Err(unserved("match on a float subject"));
+            }
+            Some(ValueType::Scalar(..)) => {
+                return Err(unserved("match on a subject that carries a domain"));
+            }
+            Some(ValueType::Rigid(_)) => {
+                return Err(unserved("match on a subject of a rigid type"));
+            }
+            Some(ValueType::Record(_, _, _)) | None => {
+                return Err(unserved(
+                    "match on a subject that is neither data nor scalar",
+                ));
+            }
+        };
+        // Stage 03 gives every match a completed subject capture, but only a
+        // destructuring arm reads it, and a scalar has none: the capture is
+        // not pushed, so a saved-subject read in an arm stays refused.
+        let mut arms: Vec<(Selector, Expression)> = Vec::new();
+        let mut default = None;
+        let mut result = expected;
+        for arm in self.typed.expression_table.match_arms(matched.arms) {
+            if default.is_some() {
+                return Err(unserved("match arm after the wildcard"));
+            }
+            let pattern = match &arm.pattern {
+                MatchPattern::Wildcard => None,
+                MatchPattern::Value(head) => {
+                    if !self.typed.expression_table.expression_is_valid(*head) {
+                        return Err(unserved("match value pattern has no retained head"));
+                    }
+                    let pattern = self.expression(
+                        id,
+                        slots,
+                        *head,
+                        Some(ValueType::Scalar(carrier, Qualification::NONE)),
+                    )?;
+                    let literal = matches!(
+                        (&pattern.kind, carrier),
+                        (ExpressionKind::Integer(_), ScalarType::Integer(_))
+                            | (ExpressionKind::Boolean(_), ScalarType::Boolean)
+                    );
+                    if !literal
+                        || !matches!(pattern.result,
+                            Some(ValueType::Scalar(found, _)) if found == carrier)
+                    {
+                        return Err(unserved("scalar match pattern that is not a literal"));
+                    }
+                    Some(pattern)
+                }
+                MatchPattern::Destructure(_) => {
+                    return Err(unserved("destructuring pattern on a scalar subject"));
+                }
+            };
+            let value = self.arm_value(id, slots, arm.value, &mut result)?;
+            match pattern {
+                Some(pattern) => arms.push((Selector::Value(pattern), value)),
+                None => default = Some(Box::new(value)),
+            }
+        }
+        if default.is_none() {
+            let named = |truth: bool| {
+                arms.iter().any(|(selector, _)| {
+                    matches!(selector, Selector::Value(Expression {
+                        kind: ExpressionKind::Boolean(value), ..
+                    }) if *value == truth)
+                })
+            };
+            if carrier != ScalarType::Boolean || !named(true) || !named(false) {
+                return Err(reject(
+                    id,
+                    source,
+                    String::from(
+                        "this match does not cover every value of its scalar subject: \
+                         add a `_` arm (only `true` and `false` together cover a `bool`)",
+                    ),
+                ));
+            }
+            default = arms.pop().map(|(_, value)| Box::new(value));
+        }
+        let result = result.ok_or_else(|| unserved("match without an arm"))?;
+        Ok(Expression {
+            kind: ExpressionKind::Match {
+                capture: None,
+                subject: Box::new(subject),
+                arms,
+                default,
+            },
+            result: Some(ValueType::Scalar(result, Qualification::NONE)),
+            source,
+        })
     }
 }
 
@@ -955,7 +1103,15 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                     && a_arms
                         .iter()
                         .zip(b_arms)
-                        .all(|((a_case, a), (b_case, b))| a_case == b_case && both(a, b))
+                        .all(|((a_case, a), (b_case, b))| {
+                            both(a, b)
+                                && match (a_case, b_case) {
+                                    (Selector::Case(a), Selector::Case(b)) => a == b,
+                                    (Selector::Value(a), Selector::Value(b)) => both(a, b),
+                                    (Selector::Case(_), Selector::Value(_))
+                                    | (Selector::Value(_), Selector::Case(_)) => false,
+                                }
+                        })
                     && match (a_default, b_default) {
                         (Some(a), Some(b)) => both(a, b),
                         (None, None) => true,

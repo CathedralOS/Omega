@@ -39,6 +39,8 @@ pub mod structural_path_encoding;
 pub mod terminal_module;
 pub mod types_and_values;
 
+pub use language_semantics::const_value::FiniteScalarValue;
+
 pub use artifacts::{
     AdmissionEvidence, AdmissionKind, CertificateEnvelope, CheckedProgramEntryTerminalReceipt,
     CorrelatedAffineBranchWitness, CorrelatedAffineStepWitness, DebugFileId, DebugSite,

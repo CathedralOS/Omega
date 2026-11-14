@@ -22,9 +22,13 @@ impl<'t> Program<'t> {
     /// Read a bodyless boundary through the same formal and contract owner as
     /// a machine. Its distinct target identity prevents a source declaration
     /// from standing in for an executable provider body.
-    pub(super) fn boundary(
+    ///
+    /// A selected native binding claims this declaration without calling it.
+    /// Actual calls check visibility before reading it, even when its schema
+    /// is already cached. `diagnostic` only anchors a failure in this check.
+    pub(super) fn boundary_declaration(
         &mut self,
-        caller: MachineId,
+        diagnostic: MachineId,
         target: SymbolHandle,
     ) -> Checked<semantic_vocabulary::BoundaryMachineId> {
         if let Some((boundary, _)) = self
@@ -34,7 +38,7 @@ impl<'t> Program<'t> {
         {
             return Ok(boundary);
         }
-        let unserved = |detail| refuse(caller, Construct::Machine, Unserved::Call(detail));
+        let unserved = |detail| refuse(diagnostic, Construct::Machine, Unserved::Call(detail));
         let (owner, requirement) = self
             .typed
             .trait_machine_signature(target)
@@ -61,8 +65,7 @@ impl<'t> Program<'t> {
         // one call path every boundary call takes.
         let completion =
             typed_trees::boundary_completions::boundary_requirement_completion(self.typed, target);
-        self.visible_to(caller, target)?;
-        let (signature, _) = self.requirement_signature(caller, requirement, &[])?;
+        let (signature, _) = self.declared_requirement_signature(diagnostic, requirement, &[])?;
         // effects.md: "Every boundary-trait machine requirement must declare
         // that ceiling, using `reaches none` when it permits no services".
         if signature.reaches == crate::Ceiling::Inferred {
@@ -79,7 +82,7 @@ impl<'t> Program<'t> {
                 "boundary requirement must declare its crash ceiling",
             ));
         }
-        let service = self.declared_service(caller, owner)?;
+        let service = self.declared_service(diagnostic, owner)?;
         let boundary = self.boundary_symbols.push(target);
         let signature_id = self.boundary_signatures.push(signature);
         let service_id = self.boundary_services.push(service);
@@ -1038,7 +1041,8 @@ impl<'t> Program<'t> {
             ));
         }
         if self.typed.trait_machine_signature(target).is_some() {
-            let boundary = self.boundary(id, target)?;
+            self.visible_to(id, target)?;
+            let boundary = self.boundary_declaration(id, target)?;
             return self.call_of(
                 id,
                 slots,

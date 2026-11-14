@@ -17,15 +17,15 @@ operation do not change between places. Only the payload's transport changes.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| local | [program](local/main.omg) | [invalid](local/invalid/main.omg) |
-| field | [program](field/main.omg) | [invalid](field/invalid/main.omg) |
-| parameter | [program](parameter/main.omg) | [invalid](parameter/invalid/main.omg) |
-| call result | [program](call_result/main.omg) | [invalid](call_result/invalid/main.omg) |
-| match join | [program](match_join/main.omg) | [invalid](match_join/invalid/main.omg) |
-| const name | [program](const_name/main.omg) | [invalid](const_name/invalid/main.omg) |
-| a nested machine | [program](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
-| another machine | [program](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
-| another target body | [program](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
+| local | [program](local/main.omg) | [invalid](invalid_local/main.omg) |
+| field | [program](field/main.omg) | [invalid](invalid_field/main.omg) |
+| parameter | [program](parameter/main.omg) | [invalid](invalid_parameter/main.omg) |
+| call result | [program](call_result/main.omg) | [invalid](invalid_call_result/main.omg) |
+| match join | [program](match_join/main.omg) | [invalid](invalid_match_join/main.omg) |
+| const name | [program](const_name/main.omg) | [invalid](invalid_const_name/main.omg) |
+| a nested machine | [program](other_state/main.omg) | [invalid](invalid_other_state/main.omg) |
+| another machine | [program](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) |
+| another target body | [program](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
 Every positive binds all four hosted `ProgramEntry` targets and declares exit
 0. Match-join execution exercises both arms. Each twin changes only its source

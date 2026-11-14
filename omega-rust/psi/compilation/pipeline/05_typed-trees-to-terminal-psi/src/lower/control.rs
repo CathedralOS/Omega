@@ -17,7 +17,7 @@ use terminal_psi::{CrashPredicateTerm, Terminator};
 
 use super::places::Bound;
 use super::{Draft, Lowering, Reached, Value, declaration, successor};
-use crate::body::{Expression, ExpressionKind, Statement, Target, ValueType};
+use crate::body::{Expression, ExpressionKind, Selector, Statement, Strict, Target, ValueType};
 use crate::canonical;
 use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
 
@@ -483,39 +483,121 @@ impl Lowering<'_> {
     pub(super) fn match_value(
         &mut self,
         subject: &Expression,
-        arms: &[(usize, Expression)],
+        arms: &[(Selector, Expression)],
         default: Option<&Expression>,
         scalar_type: ScalarType,
         source: SourceOrigin,
         capture: Option<arena::Handle<typed_trees::expression::CompletedValueCapture>>,
     ) -> Checked<Value> {
-        let cases: Vec<usize> = arms.iter().map(|(case, _)| *case).collect();
+        if let Some(ValueType::Scalar(subject_type, _)) = subject.result {
+            return self.scalar_match(subject, subject_type, arms, default, scalar_type);
+        }
+        let cases = arms
+            .iter()
+            .map(|(selector, _)| {
+                selector
+                    .case()
+                    .ok_or_else(|| self.internal("a value pattern on a sum subject"))
+            })
+            .collect::<Checked<Vec<usize>>>()?;
         let (blocks, rest) = self.select(subject, &cases, default.is_some(), source, capture)?;
         let bodies = arms
             .iter()
             .map(|(_, value)| value)
             .zip(blocks)
             .chain(default.zip(rest));
-        // An arm whose every path ends at a call that never returns ends
-        // there and does not arrive at the join. The join is made once the
-        // arms are lowered, so a `match` none of whose arms arrives has no
-        // join: its every path ended, at the last arm's call.
-        let mut arrivals = Vec::new();
-        let mut ended = None;
+        let mut arrivals = Arrivals::default();
         for (value, (block, chosen)) in bodies {
             self.enter(block);
             self.selected.push(chosen);
-            self.joining += 1;
-            let value = self.scalar(value);
-            self.joining -= 1;
+            let reached = self.arm(value, &mut arrivals);
             self.selected.pop();
-            match self.reached(value)? {
-                Reached::Value(value) => arrivals.push((self.current()?, self.here()?, value)),
-                Reached::Ended(call) => ended = Some(call),
-            }
+            reached?;
         }
-        if arrivals.is_empty() {
-            let call = ended.ok_or_else(|| self.internal("a match with no arm"))?;
+        self.join(arrivals, scalar_type)
+    }
+
+    /// Value-position `match` over a scalar: the subject's one value, then
+    /// for each value arm in authored order its equality test and a branch
+    /// to the arm's block or on to the next test; after the last test, the
+    /// default. Every arm block jumps to a join whose one parameter is the
+    /// result, as over a sum. patterns.md: a dispatch "evaluates its subject
+    /// once, tests alternatives in authored order, and executes only the
+    /// selected arm". Each branch edge carries its decision, so an arm is
+    /// checked knowing its test held and every earlier one failed.
+    fn scalar_match(
+        &mut self,
+        subject: &Expression,
+        subject_type: ScalarType,
+        arms: &[(Selector, Expression)],
+        default: Option<&Expression>,
+        scalar_type: ScalarType,
+    ) -> Checked<Value> {
+        let Some(default) = default else {
+            return Err(self.internal("a scalar match without a default arm"));
+        };
+        let tested = self.scalar(subject)?;
+        let mut arrivals = Arrivals::default();
+        for (selector, value) in arms {
+            let Selector::Value(pattern) = selector else {
+                return Err(self.internal("a case pattern on a scalar subject"));
+            };
+            let expected = self.scalar(pattern)?;
+            let Value::Scalar(condition) = self.strict(
+                Strict::Equal,
+                subject_type,
+                tested,
+                expected,
+                Some(ScalarType::Boolean),
+                pattern.source,
+            )?
+            else {
+                return Err(self.internal("an equality test without a value"));
+            };
+            let arm = self.block(value.source);
+            let rest = self.block(SourceOrigin::Unpositioned(
+                Unpositioned::DispatchContinuation,
+            ));
+            self.branch(
+                condition,
+                (arm, Vec::new()),
+                (rest, Vec::new()),
+                pattern.source,
+            )?;
+            self.enter(arm);
+            self.arm(value, &mut arrivals)?;
+            self.enter(rest);
+        }
+        self.arm(default, &mut arrivals)?;
+        self.join(arrivals, scalar_type)
+    }
+
+    /// One arm of a value-position `match`, lowered in the open block: its
+    /// value and where it arrives from, or the call at which it ended.
+    fn arm(&mut self, value: &Expression, arrivals: &mut Arrivals) -> Checked<()> {
+        self.joining += 1;
+        let value = self.scalar(value);
+        self.joining -= 1;
+        match self.reached(value)? {
+            Reached::Value(value) => {
+                arrivals.values.push((self.current()?, self.here()?, value));
+            }
+            Reached::Ended(call) => arrivals.ended = Some(call),
+        }
+        Ok(())
+    }
+
+    /// The join of a value-position `match`: one block whose one parameter
+    /// is the result, and a jump to it from each arm that arrives. An arm
+    /// whose every path ends at a call that never returns ends there and does
+    /// not arrive. The join is made once the arms are lowered, so a `match`
+    /// none of whose arms arrives has no join: its every path ended, at the
+    /// last arm's call.
+    fn join(&mut self, arrivals: Arrivals, scalar_type: ScalarType) -> Checked<Value> {
+        if arrivals.values.is_empty() {
+            let call = arrivals
+                .ended
+                .ok_or_else(|| self.internal("a match with no arm"))?;
             return Err(self.end_path(call));
         }
         let join = self.block(SourceOrigin::Unpositioned(Unpositioned::MatchJoin));
@@ -527,7 +609,7 @@ impl Lowering<'_> {
             },
         );
         self.parameter(join, result, scalar_type)?;
-        for (block, point, value) in arrivals {
+        for (block, point, value) in arrivals.values {
             self.current = Some(block);
             self.point = Some(point);
             self.jump(
@@ -651,4 +733,13 @@ impl Lowering<'_> {
         self.enter(join);
         Ok(Value::Scalar(result))
     }
+}
+
+/// The arms of a value-position `match` lowered so far: for each that
+/// arrives, its open block, program point and value; and the last call at
+/// which an arm ended instead.
+#[derive(Default)]
+struct Arrivals {
+    values: Vec<(BlockId, ProgramPoint, ValueId)>,
+    ended: Option<SourceOrigin>,
 }

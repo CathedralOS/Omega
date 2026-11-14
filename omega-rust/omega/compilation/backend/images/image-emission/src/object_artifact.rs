@@ -68,6 +68,20 @@ mod carriers {
     }
 
     impl ObjectArtifact {
+        /// Borrows the retained root producer even after private-body composition.
+        /// Linked bodies retain their own producers and are not covered by this root.
+        pub fn retained_fragment_source(
+            &self,
+        ) -> Option<&std::sync::Arc<object_file::StagedOptimizedRelocationFreeObjectContainer>>
+        {
+            self.composition_source
+                .as_deref()
+                .unwrap_or(self)
+                .fragment_replay
+                .as_ref()
+                .map(|replay| &replay.0)
+        }
+
         pub fn observe_invocation_input_sources(
             &self,
             caller: MachineId,

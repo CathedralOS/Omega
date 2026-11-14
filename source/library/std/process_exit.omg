@@ -2,14 +2,22 @@
 // library.
 //
 // The `ProcessExit` boundary trait itself is owned by core
-// (`omega::language::core::process_exit`); this module contributes only the
-// nominal provider closure. Each selected target contributes its irreducible
-// native exit leaf and its provider default. Target filtering keeps exactly
-// one implementation closure.
+// (`omega::language::core::process_exit`); this module contributes the named
+// implementation each target selects by default. Each selected target
+// contributes its irreducible native exit leaf and its provider default.
+use omega::language::core::ProcessExit;
 
-// Nominal owner of the complete selected ProcessExit provider closure.
-// Compiler-known native exit leaves attach to this type so provider selection
-// never assembles the row from unrelated implementations. Realizing the exact
+// Namespace of the exact native exit leaves. This data declaration is not a
+// whole-trait implementation and is not a provider value: a default selects
+// `NativeProcessExit` below (provider_selection.md, "Declaration and choice").
+public data ProcessExitNativeProvider { }
+
+// The selected implementation owns the complete ProcessExit map. Its one
+// member calls this target's native leaf directly. Realizing the exact
 // canonical requirement preserves the terminal outcome and the exact i32
 // status; it does not grant the caller exit authority.
-public data ProcessExitNativeProvider { }
+public NativeProcessExit satisfies ProcessExit {
+    machine exit_process(return_code: i32) reaches ProcessExit {
+        ProcessExitNativeProvider::exit_process(return_code);
+    }
+}

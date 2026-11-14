@@ -15,15 +15,15 @@ Every place performs the same operation: establish or transport a bounded scalar
 | Place | Positive | Reject twin | Transport |
 | --- | --- | --- | --- |
 | Root | [`main.omg`](main.omg) | — | Direct live-across-call scalar binding and exact subtraction |
-| Local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | The bounded value is stored in a local binding held live across two calls |
-| Field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | A record field carries the bounded value held live across two calls |
-| Parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | The bounded value is passed as a machine parameter held live across two calls |
-| Call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | A machine call returns the bounded value held live across two calls |
-| Match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Both match arms produce the bounded value joining into a live binding across two calls |
-| Const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | A named constant carries the bounded value held live across two calls |
-| A nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | A successor machine receives the bounded value held live across two calls |
-| Another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | A forwarding machine forwards the bounded value held live across two calls |
-| Another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Each of four target bodies holds the bounded value live across two calls |
+| Local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | The bounded value is stored in a local binding held live across two calls |
+| Field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | A record field carries the bounded value held live across two calls |
+| Parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | The bounded value is passed as a machine parameter held live across two calls |
+| Call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | A machine call returns the bounded value held live across two calls |
+| Match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | Both match arms produce the bounded value joining into a live binding across two calls |
+| Const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | A named constant carries the bounded value held live across two calls |
+| A nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | A successor machine receives the bounded value held live across two calls |
+| Another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | A forwarding machine forwards the bounded value held live across two calls |
+| Another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | Each of four target bodies holds the bounded value live across two calls |
 
 ### Verification commands
 

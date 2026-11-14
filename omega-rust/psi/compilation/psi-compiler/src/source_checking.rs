@@ -183,6 +183,7 @@ mod tests {
             program: typed_trees::TypedTrees::default(),
             accounting: Default::default(),
             compilation: crate::TerminalSourceCompilation {
+                declaration_metadata: &[],
                 entries: &[],
                 subjects: &[],
                 purpose: source::DependencyScope::Product,
@@ -204,6 +205,7 @@ mod tests {
             program: typed_trees::TypedTrees::default(),
             accounting: Default::default(),
             compilation: crate::TerminalSourceCompilation {
+                declaration_metadata: &[],
                 entries: &[],
                 subjects: &[],
                 purpose: source::DependencyScope::Product,
@@ -291,6 +293,7 @@ mod tests {
                 program: typed_trees::TypedTrees::default(),
                 accounting: Default::default(),
                 compilation: crate::TerminalSourceCompilation {
+                    declaration_metadata: &[],
                     entries: &[],
                     subjects: &[],
                     purpose: source::DependencyScope::Product,
@@ -341,6 +344,7 @@ mod tests {
             program: typed_trees::TypedTrees::default(),
             accounting: Default::default(),
             compilation: crate::TerminalSourceCompilation {
+                declaration_metadata: &[],
                 entries: &[],
                 subjects: &[],
                 purpose: source::DependencyScope::Product,

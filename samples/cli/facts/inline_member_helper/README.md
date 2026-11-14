@@ -14,15 +14,15 @@ Every positive place declares `Expected exit: 0` and binds `ProgramEntry` for
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| Local | [main](local/main.omg) | [invalid](local/invalid/main.omg) |
-| Field | [main](field/main.omg) | [invalid](field/invalid/main.omg) |
-| Parameter | [main](parameter/main.omg) | [invalid](parameter/invalid/main.omg) |
-| Call result | [main](call_result/main.omg) | [invalid](call_result/invalid/main.omg) |
-| Match join | [main](match_join/main.omg) | [invalid](match_join/invalid/main.omg) |
-| Const name | [main](const_name/main.omg) | [invalid](const_name/invalid/main.omg) |
-| Nested machine | [main](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
-| Another machine | [main](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
-| Another target body | [main](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
+| Local | [main](local/main.omg) | [invalid](invalid_local/main.omg) |
+| Field | [main](field/main.omg) | [invalid](invalid_field/main.omg) |
+| Parameter | [main](parameter/main.omg) | [invalid](invalid_parameter/main.omg) |
+| Call result | [main](call_result/main.omg) | [invalid](invalid_call_result/main.omg) |
+| Match join | [main](match_join/main.omg) | [invalid](invalid_match_join/main.omg) |
+| Const name | [main](const_name/main.omg) | [invalid](invalid_const_name/main.omg) |
+| Nested machine | [main](other_state/main.omg) | [invalid](invalid_other_state/main.omg) |
+| Another machine | [main](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) |
+| Another target body | [main](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
 `omega run --both <place>/main.omg` reports Terminal Psi and native exit 0.
 Each twin changes only its place's operand-bound declaration, ceiling constant,

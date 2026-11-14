@@ -33,15 +33,15 @@ arms execute, and target selection has independent 17/29 implementation checks.
 
 | Place | Restored update | Missing bound | Return before restoration |
 | --- | --- | --- | --- |
-| Local | [program](local/main.omg) | [reject](local/invalid/main.omg) | [reject](local/invalid_window/main.omg) |
-| Field | [program](field/main.omg) | [reject](field/invalid/main.omg) | [reject](field/invalid_window/main.omg) |
-| Parameter | [program](parameter/main.omg) | [reject](parameter/invalid/main.omg) | [reject](parameter/invalid_window/main.omg) |
-| Call result | [program](call_result/main.omg) | [reject](call_result/invalid/main.omg) | [reject](call_result/invalid_window/main.omg) |
-| Match join | [program](match_join/main.omg) | [reject](match_join/invalid/main.omg) | [reject](match_join/invalid_window/main.omg) |
-| Const name | [program](const_name/main.omg) | [reject](const_name/invalid/main.omg) | [reject](const_name/invalid_window/main.omg) |
-| Nested machine | [program](other_state/main.omg) | [reject](other_state/invalid/main.omg) | [reject](other_state/invalid_window/main.omg) |
-| Other machine | [program](other_machine/main.omg) | [reject](other_machine/invalid/main.omg) | [reject](other_machine/invalid_window/main.omg) |
-| Selected implementation | [program](target_body/main.omg) | [reject](target_body/invalid/main.omg) | [reject](target_body/invalid_window/main.omg) |
+| Local | [program](local/main.omg) | [reject](invalid_local/main.omg) | [reject](invalid_local_window/main.omg) |
+| Field | [program](field/main.omg) | [reject](invalid_field/main.omg) | [reject](invalid_field_window/main.omg) |
+| Parameter | [program](parameter/main.omg) | [reject](invalid_parameter/main.omg) | [reject](invalid_parameter_window/main.omg) |
+| Call result | [program](call_result/main.omg) | [reject](invalid_call_result/main.omg) | [reject](invalid_call_result_window/main.omg) |
+| Match join | [program](match_join/main.omg) | [reject](invalid_match_join/main.omg) | [reject](invalid_match_join_window/main.omg) |
+| Const name | [program](const_name/main.omg) | [reject](invalid_const_name/main.omg) | [reject](invalid_const_name_window/main.omg) |
+| Nested machine | [program](other_state/main.omg) | [reject](invalid_other_state/main.omg) | [reject](invalid_other_state_window/main.omg) |
+| Other machine | [program](other_machine/main.omg) | [reject](invalid_other_machine/main.omg) | [reject](invalid_other_machine_window/main.omg) |
+| Selected implementation | [program](target_body/main.omg) | [reject](invalid_target_body/main.omg) | [reject](invalid_target_body_window/main.omg) |
 
 Each existing twin removes only `Counter`'s value predicate, retains its peer
 predicate, and must refuse the exact addition. Each place also has an
@@ -119,13 +119,13 @@ The [shared-source control](controls/shared_record_replacement/main.omg) restore
 the field from a different valid record, using the source record's own bound.
 The [array-source control](controls/shared_record_with_array/main.omg) also gives
 that source an unrelated array and uses the bare `cell.value` predicate spelling.
-Their [first](controls/shared_record_replacement/invalid/main.omg)
-and [second](controls/shared_record_with_array/invalid/main.omg) twins weaken only
+Their [first](controls/invalid_shared_record_replacement/main.omg)
+and [second](controls/invalid_shared_record_with_array/main.omg) twins weaken only
 the source promise to 61; it cannot restore the destination's maximum of 60.
 
 The [recast-owner restoration control](controls/recast_owner_restoration/main.omg)
 performs the same temporary write through an array-backed view. Its
-[twin](controls/recast_owner_restoration/invalid/main.omg) omits restoration and
+[twin](controls/invalid_recast_owner_restoration/main.omg) omits restoration and
 must reject the original owner's requirement. Nonzero neighboring elements
 check the actual write location.
 

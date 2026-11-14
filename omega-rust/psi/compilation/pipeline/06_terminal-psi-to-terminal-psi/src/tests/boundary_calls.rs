@@ -41,6 +41,7 @@ fn invocation(typed: typed_trees::TypedTrees) -> Checked<typed_trees_to_terminal
     typed_trees_to_terminal_psi::elaborate_for(
         &frozen,
         typed_trees_to_terminal_psi::Compilation {
+            declaration_metadata: &[],
             entries: &[entry],
             subjects: &[],
             purpose: source::DependencyScope::Product,
@@ -148,6 +149,7 @@ machine entry() -> u32 crashes none {{
     typed_trees_to_terminal_psi::elaborate_for(
         &frozen,
         typed_trees_to_terminal_psi::Compilation {
+            declaration_metadata: &[],
             entries: &[entry],
             subjects: &[],
             purpose: source::DependencyScope::Product,
@@ -213,6 +215,29 @@ fn an_unserved_operational_contract_cannot_be_added_to_a_lowered_boundary() {
             .source;
         declaration.published_may_block = blocks;
         declaration.published_may_suspend = !blocks;
+        let refusal = discharge(&mut elaboration).unwrap_err();
+        assert_eq!(refusal.reason, RefusalReason::Unsupported);
+        assert_eq!(
+            refusal.detail,
+            "boundary call needs its suspension and blocking proof"
+        );
+    }
+}
+
+#[test]
+fn source_boundary_effects_still_require_their_invocation_proof() {
+    for effect in ["suspends", "blocks"] {
+        // The source declares the effect; no mutation of the published
+        // metadata supplies it. This ordinary call has no operational proof.
+        let mut elaboration = boundary(&format!("reaches none {effect}"), 7)
+            .expect("the declared boundary contract reaches invocation checking");
+        let published = &elaboration.module.boundary_machines[0]
+            .declaration
+            .as_ref()
+            .unwrap()
+            .source;
+        assert_eq!(published.published_may_suspend, effect == "suspends");
+        assert_eq!(published.published_may_block, effect == "blocks");
         let refusal = discharge(&mut elaboration).unwrap_err();
         assert_eq!(refusal.reason, RefusalReason::Unsupported);
         assert_eq!(
@@ -378,6 +403,7 @@ machine entry() crashes none {{}}
         typed_trees_to_terminal_psi::prepare_compilation(
             &typed,
             typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[None],
                 purpose: source::DependencyScope::Product,
@@ -487,11 +513,18 @@ fn declared_verdicts(text: &str) -> Vec<RouteVerdict> {
 }
 
 fn declared_verdicts_of(typed: &typed_trees::TypedTrees) -> Vec<RouteVerdict> {
+    let verdicts = compilation_verdicts_of(typed);
+    assert_eq!(verdicts.len(), 2, "{verdicts:?}");
+    verdicts
+}
+
+fn compilation_verdicts_of(typed: &typed_trees::TypedTrees) -> Vec<RouteVerdict> {
     let entry = entry(typed);
     let verdicts = crate::judge_compilation(
         typed_trees_to_terminal_psi::prepare_compilation(
             typed,
             typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[],
                 purpose: source::DependencyScope::Product,
@@ -503,7 +536,6 @@ fn declared_verdicts_of(typed: &typed_trees::TypedTrees) -> Vec<RouteVerdict> {
         )
         .program,
     );
-    assert_eq!(verdicts.len(), 2, "{verdicts:?}");
     verdicts.into_iter().map(Result::unwrap).collect()
 }
 
@@ -632,6 +664,7 @@ fn a_boundary_conformer_is_not_a_named_direct_entry() {
         typed_trees_to_terminal_psi::prepare_compilation(
             &typed,
             typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[],
                 purpose: source::DependencyScope::Product,
@@ -667,6 +700,7 @@ machine entry() -> u32 reaches none crashes none { chosen() }
         typed_trees_to_terminal_psi::prepare_compilation(
             &typed,
             typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[],
                 purpose: source::DependencyScope::Product,
@@ -706,6 +740,7 @@ Rebound satisfies Other { Other::apply = previous; }
         typed_trees_to_terminal_psi::prepare_compilation(
             &typed,
             typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[None],
                 purpose: source::DependencyScope::Product,
@@ -810,6 +845,7 @@ fn inline_parameter_read(
     typed_trees_to_terminal_psi::elaborate_for(
         prepared,
         typed_trees_to_terminal_psi::Compilation {
+            declaration_metadata: &[],
             entries: &[entry],
             subjects: &[None],
             purpose: source::DependencyScope::Product,
@@ -962,7 +998,16 @@ fn an_anonymous_parameter_application_cannot_transfer_its_template_identity() {
     else {
         panic!("anonymous specialization must not acquire a hermetic package owner");
     };
-    assert!(refusal.detail.contains("hermetic identity"), "{refusal:?}");
+    // Portable publication needs a real source owner before the anonymous
+    // specialization can even ask for a hermetic template identity.
+    assert_eq!(refusal.reason, RefusalReason::Unsupported);
+    assert_eq!(refusal.concerns, terminal_check_tables::Construct::Machine);
+    assert!(
+        refusal
+            .detail
+            .contains("no exact package or toolchain owner"),
+        "{refusal:?}"
+    );
 }
 
 #[test]
@@ -1331,6 +1376,233 @@ fn a_named_map_controls_visibility_without_publishing_its_private_body() {
         refusal
             .detail
             .contains("private machine of another package"),
+        "{refusal:?}"
+    );
+}
+
+fn closed_named_source(actual: &str, promised: &str, body: &str) -> String {
+    named_owned_source(actual, promised, body)
+        .replacen("trait Step {", "trait Step<Value> {", 1)
+        .replacen(
+            "machine apply(value: u32) -> u32",
+            "machine apply(value: Value) -> Value",
+            1,
+        )
+        .replacen("Inline satisfies Step {", "Inline satisfies Step<u32> {", 1)
+}
+
+fn assert_named_invocation_value(
+    mut verdicts: Vec<RouteVerdict>,
+    expected: semantic_vocabulary::IntegerValue,
+) {
+    assert!(
+        verdicts
+            .iter()
+            .all(|verdict| matches!(verdict, RouteVerdict::Accepted(_))),
+        "{verdicts:?}"
+    );
+    let RouteVerdict::Accepted(accepted) = verdicts.remove(0) else {
+        unreachable!()
+    };
+    let publication = accepted.publish_invocation().unwrap();
+    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    let status = instance
+        .invoke(&mut psi_work::WorkMeter::with_budget(1_000))
+        .unwrap();
+    assert!(
+        matches!(
+            &status,
+            terminal_interpreter::TerminalExecutionStatus::Complete(
+                terminal_interpreter::TerminalExecutionResult::Scalar(
+                    terminal_interpreter::TerminalScalarValue::Integer {
+                        value,
+                        ..
+                    }
+                )
+            ) if value == &expected
+        ),
+        "{status:?}"
+    );
+}
+
+#[test]
+fn a_closed_named_trait_application_keeps_its_applied_contract() {
+    assert_named_invocation_value(
+        declared_verdicts(&closed_named_source("7", "", "0")),
+        semantic_vocabulary::IntegerValue::Unsigned(0),
+    );
+}
+
+#[test]
+fn a_closed_named_member_exposes_only_its_applied_requirement() {
+    for (actual, promised, bad_input) in [("0", "", true), ("7", "ensures result == 0", false)] {
+        let verdicts = declared_verdicts(&closed_named_source(actual, promised, "0"));
+        assert!(
+            matches!(&verdicts[0], RouteVerdict::Rejected { unproved, .. }
+            if unproved.iter().any(|row| if bad_input {
+                matches!(row.kind, ObligationKind::CallRequirement { .. })
+            } else {
+                matches!(row.kind, ObligationKind::NormalGuarantee { .. })
+            })),
+            "{verdicts:?}"
+        );
+        assert!(
+            matches!(verdicts[1], RouteVerdict::Accepted(_)),
+            "the owning body's private clauses remain valid: {verdicts:?}"
+        );
+    }
+}
+
+#[test]
+fn a_closed_named_member_still_owes_its_weaker_written_inputs() {
+    let text = closed_named_source("7", "", "input - 1").replacen(
+        "ensures result == 0",
+        "ensures result < input",
+        1,
+    );
+    let verdicts = declared_verdicts(&text);
+    assert!(
+        matches!(&verdicts[0], RouteVerdict::Accepted(_)),
+        "the runtime body is safe under the public positive input: {verdicts:?}"
+    );
+    assert!(
+        matches!(&verdicts[1], RouteVerdict::Rejected { unproved, .. }
+        if unproved.iter().any(|row| matches!(row.kind, ObligationKind::OperationSafety { .. }))),
+        "the own body still admits zero under its written requires true: {verdicts:?}"
+    );
+}
+
+#[test]
+fn a_closed_named_member_inherits_its_applied_logical_contract() {
+    for (body, accepted) in [("0", true), ("input", false)] {
+        let text =
+            closed_named_source("7", "", body).replacen("requires true ensures result == 0", "", 1);
+        let verdicts = declared_verdicts(&text);
+        if accepted {
+            assert!(
+                verdicts
+                    .iter()
+                    .all(|verdict| matches!(verdict, RouteVerdict::Accepted(_))),
+                "{verdicts:?}"
+            );
+        } else {
+            assert!(
+                matches!(&verdicts[1], RouteVerdict::Rejected { unproved, .. }
+                if unproved.iter().any(|row| matches!(row.kind, ObligationKind::NormalGuarantee { .. }))),
+                "the actual body owes the inherited result clause: {verdicts:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn closed_named_members_keep_two_applications_of_one_trait_distinct() {
+    let text = r#"
+trait Step<Value> {
+    machine apply(value: Value) -> Value
+    requires value > 0 ensures result < value crashes none;
+}
+Small satisfies Step<u32> {
+    machine apply(input: u32) -> u32
+    requires true ensures result == 0 crashes none { 0 }
+}
+Large satisfies Step<u64> {
+    machine apply(input: u64) -> u64
+    requires input > 0 ensures result < input crashes none { input - 1 }
+}
+machine entry() -> u64 crashes none {
+    let first: u32 = Small::apply(7);
+    Large::apply(9)
+}
+"#;
+    let prepared = typed(text);
+    let verdicts = compilation_verdicts_of(&prepared);
+    assert_eq!(
+        verdicts.len(),
+        3,
+        "runtime and both owning witnesses: {verdicts:?}"
+    );
+    assert_named_invocation_value(verdicts, semantic_vocabulary::IntegerValue::Unsigned(8));
+}
+
+#[test]
+fn a_closed_named_witness_cannot_borrow_another_application_scope() {
+    let wrong_application = closed_named_source("7", "", "0").replacen("Step<u32>", "Step<u64>", 1);
+    let Err(refusal) = invocation(typed(&wrong_application)) else {
+        panic!("a u32 body cannot serve the u64 application")
+    };
+    assert!(
+        refusal
+            .detail
+            .contains("member signature differs from its requirement"),
+        "{refusal:?}"
+    );
+
+    let text = format!(
+        "{}{}",
+        closed_named_source("7", "", "0"),
+        r#"
+trait Other<Value> {
+    machine apply(value: Value) -> Value
+    requires value > 0 ensures result < value crashes none;
+}
+machine plain(input: u32) -> u32
+requires input > 0 ensures result < input crashes none { input - 1 }
+"#
+    );
+    let prepared = typed(&text);
+    let step = prepared
+        .traits()
+        .iter()
+        .find(|owner| owner.name.as_str() == "Step")
+        .unwrap();
+    let other = prepared
+        .traits()
+        .iter()
+        .find(|owner| owner.name.as_str() == "Other")
+        .unwrap();
+    let owned = prepared
+        .machines()
+        .iter()
+        .find(|machine| {
+            prepared
+                .owned_conformance_realization(machine.symbol)
+                .is_some()
+        })
+        .unwrap();
+    let plain = prepared
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "plain")
+        .unwrap();
+    let Err(refusal) = typed_trees_to_terminal_psi::elaborate_witness(
+        &prepared,
+        other.symbol,
+        prepared.trait_machine_signatures(other)[0].symbol,
+        &[],
+        owned.symbol,
+    ) else {
+        panic!("matching shapes cannot rebind the owning requirement")
+    };
+    assert!(
+        refusal.detail.contains("conformance witness cannot rebind"),
+        "{refusal:?}"
+    );
+
+    let Err(refusal) = typed_trees_to_terminal_psi::elaborate_witness(
+        &prepared,
+        step.symbol,
+        prepared.trait_machine_signatures(step)[0].symbol,
+        &[],
+        plain.symbol,
+    ) else {
+        panic!("a plain body cannot infer an application from an available map")
+    };
+    assert!(
+        refusal
+            .detail
+            .contains("witness needs its exact closed trait application"),
         "{refusal:?}"
     );
 }

@@ -353,7 +353,7 @@ impl Lowering<'_> {
         self.emit(operation, result, kind)
     }
 
-    fn strict(
+    pub(super) fn strict(
         &mut self,
         strict: Strict,
         operand_type: ScalarType,

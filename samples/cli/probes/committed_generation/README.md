@@ -12,7 +12,7 @@ sees `board = [1, 0, 0, 0]`, cell 0 dies, and the next-board sum is 0.
 
 On that pair of sums the program exits 50.
 
-An intended-invalid control in `invalid/` stores an unbounded `i32` into a
+An intended-invalid control in `../invalid_committed_generation/` stores an unbounded `i32` into a
 `cells_valid` cell and is rejected with
 "data `Grid`'s default domain is still FALSE at state exit".
 

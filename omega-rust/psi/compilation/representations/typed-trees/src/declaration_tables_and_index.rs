@@ -5642,8 +5642,8 @@ pub(crate) mod type_parameters {
 pub(crate) mod type_reference_queries {
     use crate::access_views::named_type_reference_through_shells;
     use crate::{
-        AccessFieldPlan, AccessViewPlan, TypedTrees, static_const_argument_spelling,
-        static_const_identity_from_spelling,
+        AccessFieldPlan, AccessViewPlan, StaticConstArgumentValue, TypedTrees,
+        static_const_argument_value,
     };
     use crate::{expression, name, types};
 
@@ -6152,8 +6152,17 @@ pub(crate) mod type_reference_queries {
             &self,
             argument: &expression::StaticMachineArgument,
         ) -> Option<String> {
-            static_const_argument_spelling(self, argument)
-                .map(|spelling| static_const_identity_from_spelling(&spelling))
+            match static_const_argument_value(self, argument)? {
+                StaticConstArgumentValue::Integer(value) => Some(
+                    language_semantics::const_value::FiniteScalarValue::Integer(value)
+                        .canonical_identity(),
+                ),
+                StaticConstArgumentValue::Literal(literal) => Some(format!(
+                    "named(name({}))",
+                    crate::escape(&literal.to_string())
+                )),
+                StaticConstArgumentValue::Canonical(value) => value.application_identity(),
+            }
         }
 
         pub fn static_const_type_reference_identity(
@@ -6173,10 +6182,10 @@ pub(crate) mod type_reference_queries {
                     else {
                         return None;
                     };
-                    Some(static_const_identity_from_spelling(
-                        &language_semantics::const_value::CanonicalConstValue::boolean(*value)
-                            .atom(),
-                    ))
+                    Some(
+                        language_semantics::const_value::FiniteScalarValue::Boolean(*value)
+                            .canonical_identity(),
+                    )
                 }
                 types::TypeReferenceNode::Named { symbol, name } if symbol.is_valid() => self
                     .static_const_argument_identity(&expression::StaticMachineArgument {
@@ -6671,6 +6680,38 @@ pub(crate) mod type_reference_queries {
                 ..argument
             };
             assert!(same!(&fixture => &typed_argument => fixture.references[0] => fixture.owner));
+        }
+
+        #[test]
+        fn static_const_identity_uses_the_retained_value_without_reparsing_a_key() {
+            let program = TypedTrees::default();
+            for (radix, digits, expected) in [
+                (IntegerRadix::Hexadecimal, "10", "named(integer-const(16))"),
+                (
+                    IntegerRadix::Decimal,
+                    "18446744073709551616",
+                    "named(integer-const(18446744073709551616))",
+                ),
+                (
+                    IntegerRadix::Decimal,
+                    "170141183460469231731687303715884105728",
+                    "named(name(170141183460469231731687303715884105728))",
+                ),
+            ] {
+                let argument = StaticMachineArgument {
+                    const_literal: Some(IntegerLiteral::from_parts(false, radix, digits).unwrap()),
+                    ..StaticMachineArgument::default()
+                };
+                assert_eq!(
+                    program.static_const_argument_identity(&argument).as_deref(),
+                    Some(expected)
+                );
+            }
+            let malformed = StaticMachineArgument {
+                path: vec![Identifier::from("canonical-const:broken")].into_boxed_slice(),
+                ..StaticMachineArgument::default()
+            };
+            assert!(program.static_const_argument_identity(&malformed).is_none());
         }
 
         #[test]

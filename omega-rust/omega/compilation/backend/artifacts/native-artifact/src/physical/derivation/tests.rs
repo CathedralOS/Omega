@@ -1872,6 +1872,20 @@ fn physical_evidence_gap_identity_binds_the_exact_subject() {
             code_offset: 2,
             byte_count: 3,
         },
+        NativePhysicalEvidenceGapSubject::UncoveredPrivateFunction {
+            function: function_identity::MachineFunctionIdentity::callback_thunk(
+                projection.terminal(),
+                0,
+            )
+            .expect("private function"),
+        },
+        NativePhysicalEvidenceGapSubject::UncoveredPrivateFunction {
+            function: function_identity::MachineFunctionIdentity::callback_thunk(
+                projection.terminal(),
+                1,
+            )
+            .expect("different private function"),
+        },
     ];
     for subject in &subjects {
         assert_eq!(

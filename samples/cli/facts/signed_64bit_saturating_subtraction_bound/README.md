@@ -7,15 +7,15 @@
 | Place | Witness (`main.omg`) | Reject twin (`invalid/main.omg`) | Note |
 |---|---|---|---|
 | root | [`main.omg`](main.omg) | - | Root package probe exercising 64-bit signed saturating subtraction bound |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | difference is stored within an intermediate local variable before arithmetic interval checks |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | bounded operands are packed into and projected from a nominal record field (`Operands`) |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | bounded operands are operated on directly through parameter bindings |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | helper call returns saturating subtraction difference with postcondition contract `ensures result >= 40i64 && result <= 100i64` |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | difference is synthesized and unified across conditional match branches |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | declared symbolic constants define operand intervals and bound limits |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | successor machine `check_state(d: i64)` receives difference and verifies interval subtractions |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | forwarding machine passes the difference to another machine for interval verification |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | target-scoped implementations across all four platforms perform saturating subtraction and interval verification |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | difference is stored within an intermediate local variable before arithmetic interval checks |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | bounded operands are packed into and projected from a nominal record field (`Operands`) |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | bounded operands are operated on directly through parameter bindings |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | helper call returns saturating subtraction difference with postcondition contract `ensures result >= 40i64 && result <= 100i64` |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | difference is synthesized and unified across conditional match branches |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | declared symbolic constants define operand intervals and bound limits |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | successor machine `check_state(d: i64)` receives difference and verifies interval subtractions |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | forwarding machine passes the difference to another machine for interval verification |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | target-scoped implementations across all four platforms perform saturating subtraction and interval verification |
 
 Every positive place and the root `main.omg` probe binds `ProgramEntry` for
 `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`, carries an
@@ -59,15 +59,15 @@ omega --check samples/cli/facts/signed_64bit_saturating_subtraction_bound/<place
 
 | Place | Reject Twin | Obligation Class | Authored Diagnostic Fragment |
 | --- | --- | --- | --- |
-| local | [`local/invalid/main.omg`](local/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
-| field | [`field/invalid/main.omg`](field/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
-| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
-| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
-| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
-| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
-| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
-| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
+| local | [`invalid_local/main.omg`](invalid_local/main.omg) | Exact integer cast representability | `not provably representable` |
+| field | [`invalid_field/main.omg`](invalid_field/main.omg) | Exact integer cast representability | `not provably representable` |
+| parameter | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | Exact integer cast representability | `not provably representable` |
+| call result | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | Exact integer cast representability | `not provably representable` |
+| match join | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | Exact integer cast representability | `not provably representable` |
+| const name | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | Exact integer cast representability | `not provably representable` |
+| a nested machine | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | Exact integer cast representability | `not provably representable` |
+| another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | Exact integer cast representability | `not provably representable` |
+| another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | Exact integer cast representability | `not provably representable` |
 
 ### Acceptance Gate
 

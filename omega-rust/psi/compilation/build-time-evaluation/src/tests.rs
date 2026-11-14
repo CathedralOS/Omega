@@ -654,6 +654,7 @@ impl RequestedConstants for crate::PreCheckEvaluation {
         crate::evaluate_constant_initializers(
             program,
             psi_terminal_production::TerminalSourceCompilation {
+                declaration_metadata: &[],
                 entries: &[],
                 subjects: &[subject],
                 purpose: source::DependencyScope::Product,
@@ -1021,6 +1022,7 @@ fn a_complete_subject_with_machine_constants_publishes_its_actual_module() {
     let accepted = psi_terminal_production::AcceptedTerminalSource::judge(
         std::sync::Arc::new(source),
         psi_terminal_production::TerminalSourceCompilation {
+            declaration_metadata: &[],
             entries: &[main],
             subjects: &[semantic_vocabulary::PackageKeyIdentity::from_digest(
                 [1; 32],
@@ -1075,6 +1077,7 @@ fn an_unread_machine_constant_is_pending_until_the_actual_scope_demands_it() {
         assert!(recorded.accounting.receipts().is_empty());
         let main = program.realized_machine_named("main").unwrap().symbol;
         let request = psi_terminal_production::TerminalSourceCompilation {
+            declaration_metadata: &[],
             entries: &[main],
             subjects: &[],
             purpose: source::DependencyScope::Product,
@@ -1091,6 +1094,7 @@ fn an_unread_machine_constant_is_pending_until_the_actual_scope_demands_it() {
         let demanded = program.realized_machine_named("demanded").unwrap().symbol;
         for requested in [
             psi_terminal_production::TerminalSourceCompilation {
+                declaration_metadata: &[],
                 entries: &[demanded],
                 ..request
             },
@@ -1205,6 +1209,7 @@ fn a_later_constant_admission_failure_keeps_the_work_of_earlier_jobs() {
     let error = crate::evaluate_constant_initializers(
         &mut program,
         psi_terminal_production::TerminalSourceCompilation {
+            declaration_metadata: &[],
             entries: &[],
             subjects: &[semantic_vocabulary::PackageKeyIdentity::from_digest(
                 [1; 32],
@@ -1257,6 +1262,7 @@ fn an_exhausted_constant_job_keeps_its_failed_invocation_usage() {
     let error = crate::evaluate_constant_initializers(
         &mut program,
         psi_terminal_production::TerminalSourceCompilation {
+            declaration_metadata: &[],
             entries: &[],
             subjects: &[semantic_vocabulary::PackageKeyIdentity::from_digest(
                 [1; 32],

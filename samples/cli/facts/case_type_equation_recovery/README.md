@@ -59,15 +59,15 @@ payload traps.
 
 | Place | Transport | Positive | Reject twin |
 | --- | --- | --- | --- |
-| local | Immutable locals. | [local/main.omg](local/main.omg) | [invalid](local/invalid/main.omg) |
-| field | `Carrier.number` and `Carrier.flag`. | [field/main.omg](field/main.omg) | [invalid](field/invalid/main.omg) |
-| parameter | Explicit arguments; four probes distinguish payload and expectation. | [parameter/main.omg](parameter/main.omg) | [invalid](parameter/invalid/main.omg) |
-| call_result | Completed calls return the values. | [call_result/main.omg](call_result/main.omg) | [invalid](call_result/invalid/main.omg) |
-| match_join | Both joined values extract with distinct payloads in both orders. | [match_join/main.omg](match_join/main.omg) | [invalid](match_join/invalid/main.omg) |
-| const_name | Named immutable constants. | [const_name/main.omg](const_name/main.omg) | [invalid](const_name/invalid/main.omg) |
-| other_state | A nested machine receives the values at a terminal transfer. | [other_state/main.omg](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
-| other_machine | An ordinary forwarding machine receives the values. | [other_machine/main.omg](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
-| target_body | Build selects the checked named provider for all four hosted targets. | [target_body/main.omg](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
+| local | Immutable locals. | [local/main.omg](local/main.omg) | [invalid](invalid_local/main.omg) |
+| field | `Carrier.number` and `Carrier.flag`. | [field/main.omg](field/main.omg) | [invalid](invalid_field/main.omg) |
+| parameter | Explicit arguments; four probes distinguish payload and expectation. | [parameter/main.omg](parameter/main.omg) | [invalid](invalid_parameter/main.omg) |
+| call_result | Completed calls return the values. | [call_result/main.omg](call_result/main.omg) | [invalid](invalid_call_result/main.omg) |
+| match_join | Both joined values extract with distinct payloads in both orders. | [match_join/main.omg](match_join/main.omg) | [invalid](invalid_match_join/main.omg) |
+| const_name | Named immutable constants. | [const_name/main.omg](const_name/main.omg) | [invalid](invalid_const_name/main.omg) |
+| other_state | A nested machine receives the values at a terminal transfer. | [other_state/main.omg](other_state/main.omg) | [invalid](invalid_other_state/main.omg) |
+| other_machine | An ordinary forwarding machine receives the values. | [other_machine/main.omg](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) |
+| target_body | Build selects the checked named provider for all four hosted targets. | [target_body/main.omg](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
 The tenth witness is the other production of the same layer. It extracts through
 `transition v { Value::Integer { value } -> (value) ... }` rows instead of a

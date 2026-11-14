@@ -22,15 +22,15 @@ receive no private metadata guarantee as a proof assumption.
 | Place | Positive | Reject twin | Transport |
 | --- | --- | --- | --- |
 | root | [main.omg](main.omg) | — | Original nongeneric query |
-| local | [program](local/main.omg) | [twin](local/invalid/main.omg) | Local value |
-| field | [program](field/main.omg) | [twin](field/invalid/main.omg) | Record field |
-| parameter | [program](parameter/main.omg) | [twin](parameter/invalid/main.omg) | Explicit parameter |
-| call result | [program](call_result/main.omg) | [twin](call_result/invalid/main.omg) | Returned record |
-| match join | [program](match_join/main.omg) | [twin](match_join/invalid/main.omg) | Both selected arms |
-| const name | [program](const_name/main.omg) | [twin](const_name/invalid/main.omg) | Named specialization argument |
-| nested machine | [program](other_state/main.omg) | [twin](other_state/invalid/main.omg) | Nested machine parameter |
-| another machine | [program](other_machine/main.omg) | [twin](other_machine/invalid/main.omg) | Helper forwarding |
-| selected target | [program](target_body/main.omg) | [twin](target_body/invalid/main.omg) | Build-selected implementation |
+| local | [program](local/main.omg) | [twin](invalid_local/main.omg) | Local value |
+| field | [program](field/main.omg) | [twin](invalid_field/main.omg) | Record field |
+| parameter | [program](parameter/main.omg) | [twin](invalid_parameter/main.omg) | Explicit parameter |
+| call result | [program](call_result/main.omg) | [twin](invalid_call_result/main.omg) | Returned record |
+| match join | [program](match_join/main.omg) | [twin](invalid_match_join/main.omg) | Both selected arms |
+| const name | [program](const_name/main.omg) | [twin](invalid_const_name/main.omg) | Named specialization argument |
+| nested machine | [program](other_state/main.omg) | [twin](invalid_other_state/main.omg) | Nested machine parameter |
+| another machine | [program](other_machine/main.omg) | [twin](invalid_other_machine/main.omg) | Helper forwarding |
+| selected target | [program](target_body/main.omg) | [twin](invalid_target_body/main.omg) | Build-selected implementation |
 
 The match runs both Boolean choices. One arm calls a helper and returns path
 marker 1; the other queries inline and returns marker 0. The caller checks both

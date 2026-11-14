@@ -184,6 +184,7 @@ fn source_applications_prepare_substituted_cases_before_checked_construction() {
     let prepared = typed_trees_to_terminal_psi::prepare_compilation(
         &typed,
         typed_trees_to_terminal_psi::Compilation {
+            declaration_metadata: &[],
             entries: &[entry],
             subjects: &[None],
             purpose: source::DependencyScope::Product,
@@ -232,6 +233,7 @@ fn source_application_cannot_change_its_payload_type() {
         typed_trees_to_terminal_psi::prepare_compilation(
             &typed,
             typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[None],
                 purpose: source::DependencyScope::Product,
@@ -272,6 +274,7 @@ fn a_local_generic_data_template_remains_unserved() {
         typed_trees_to_terminal_psi::prepare_compilation(
             &typed,
             typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[None],
                 purpose: source::DependencyScope::Product,

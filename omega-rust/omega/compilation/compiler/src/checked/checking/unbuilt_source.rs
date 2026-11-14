@@ -172,6 +172,7 @@ fn frozen_frontier(
         program: typed,
         accounting,
         compilation: psi_compiler::TerminalSourceCompilation {
+            declaration_metadata: &[],
             entries: &entries,
             subjects: &[subject],
             purpose: source::DependencyScope::Product,

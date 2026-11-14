@@ -34,15 +34,15 @@ Width-4 rejects as
 | Place | Positive | Width-4 reject twin |
 | --- | --- | --- |
 | Root | [main](main.omg) | Existing [inline const control](invalid_inline_const_exit/main.omg) |
-| Local | [main](local/main.omg) | [invalid](local/invalid/main.omg) |
-| Field | [main](field/main.omg) | [invalid](field/invalid/main.omg) |
-| Parameter | [main](parameter/main.omg) | [invalid](parameter/invalid/main.omg) |
-| Call result | [main](call_result/main.omg) | [invalid](call_result/invalid/main.omg) |
-| Match join | [main](match_join/main.omg) | [invalid](match_join/invalid/main.omg) |
-| Const name | [main](const_name/main.omg) | [invalid](const_name/invalid/main.omg) |
-| A nested machine | [main](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
-| Another machine | [main](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
-| Another target body | [main](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
+| Local | [main](local/main.omg) | [invalid](invalid_local/main.omg) |
+| Field | [main](field/main.omg) | [invalid](invalid_field/main.omg) |
+| Parameter | [main](parameter/main.omg) | [invalid](invalid_parameter/main.omg) |
+| Call result | [main](call_result/main.omg) | [invalid](invalid_call_result/main.omg) |
+| Match join | [main](match_join/main.omg) | [invalid](invalid_match_join/main.omg) |
+| Const name | [main](const_name/main.omg) | [invalid](invalid_const_name/main.omg) |
+| A nested machine | [main](other_state/main.omg) | [invalid](invalid_other_state/main.omg) |
+| Another machine | [main](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) |
+| Another target body | [main](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
 Run each positive with `omega run --both <place>/main.omg`; check each twin with
 `omega --check <place>/invalid/main.omg`. The twin's intended diagnostic is
@@ -116,7 +116,7 @@ The [ranked helper](controls/ranked_helper/main.omg) is a smaller rung inside
 this fact, pinned as `generic_calling_policy/ranked_helper_exit`. Its selected
 helper computes the same Width-8 placement through mutually recursive ordinary
 machines. Both branches have distinct runtime results, checked by `Main`.
-The [invalid twin](controls/ranked_helper/invalid/main.omg), pinned as
+The [invalid twin](controls/invalid_ranked_helper/main.omg), pinned as
 `generic_calling_policy/ranked_helper_unproved`, removes only their ranking
 clauses and must reject for missing ordinary recursive termination. The original
 unranked nested helper and entry-premise controls remain independent falsifiers.
@@ -177,7 +177,7 @@ inherited receiver application and Calling root independently of the member's
 declaring application. The [shared-parent control](controls/shared_parent_roots/main.omg)
 retains two evaluated policies for the same full member ABI with different
 roots and plans; only the selected root may supply its component application.
-Its [Width-4 twin](controls/shared_parent_roots/invalid/main.omg) still requires
+Its [Width-4 twin](controls/invalid_shared_parent_roots/main.omg) still requires
 complete result-byte coverage. The [ordinary-parent control](controls/ordinary_parent_owner/main.omg)
 runs its checked implementation fused while a physical component request must
 refuse the ordinary declaring owner. Logical contract retention and exact

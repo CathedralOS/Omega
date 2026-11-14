@@ -15,15 +15,15 @@ Every place performs the same operation: compute a record window / subview (`&mu
 | Place | Positive | Reject twin | Transport |
 | --- | --- | --- | --- |
 | Root | [`main.omg`](main.omg) | — | Root baseline window computation across local, field, and call subjects with transition verification |
-| Local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | Computed slice window returned from machine and held in a record local |
-| Field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | Computed slice window stored in an enclosing record field before holding and writing |
-| Parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | Computed slice window passed as an explicit machine parameter |
-| Call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Computed slice window returned directly from a helper call result |
-| Match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Both match arms yield slice windows that join with guaranteed extent |
-| Const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Named constant endpoint supplies the computed slice window bound |
-| A nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | State transition transports the computed slice window into a successor machine |
-| Another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Forwarding machine transports the computed slice window across machine boundaries |
-| Another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Target-scoped machine bodies compute and return the slice window on each hosted target |
+| Local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | Computed slice window returned from machine and held in a record local |
+| Field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | Computed slice window stored in an enclosing record field before holding and writing |
+| Parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | Computed slice window passed as an explicit machine parameter |
+| Call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | Computed slice window returned directly from a helper call result |
+| Match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | Both match arms yield slice windows that join with guaranteed extent |
+| Const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | Named constant endpoint supplies the computed slice window bound |
+| A nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | State transition transports the computed slice window into a successor machine |
+| Another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | Forwarding machine transports the computed slice window across machine boundaries |
+| Another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | Target-scoped machine bodies compute and return the slice window on each hosted target |
 | Case payload | [`case_payload/main.omg`](case_payload/main.omg) | [`case_payload/invalid/main.omg`](case_payload/invalid/main.omg) | Computed slice window packaged into an enum variant payload requiring `held.values.len == 2` |
 
 Existing controls under `controls/invalid_<place>` are preserved intact.

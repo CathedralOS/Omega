@@ -19,15 +19,15 @@ Each twin changes only `left`'s body from `kept` to `false`.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| local | [local](local/main.omg) | [invalid](local/invalid/main.omg) |
-| field | [field](field/main.omg) | [invalid](field/invalid/main.omg) |
-| parameter | [parameter](parameter/main.omg) | [invalid](parameter/invalid/main.omg) |
-| call result | [call result](call_result/main.omg) | [invalid](call_result/invalid/main.omg) |
-| match join | [match join](match_join/main.omg) | [invalid](match_join/invalid/main.omg) |
-| const name | [const name](const_name/main.omg) | [invalid](const_name/invalid/main.omg) |
-| nested machine | [other state](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
-| another machine | [other machine](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
-| target body | [target body](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
+| local | [local](local/main.omg) | [invalid](invalid_local/main.omg) |
+| field | [field](field/main.omg) | [invalid](invalid_field/main.omg) |
+| parameter | [parameter](parameter/main.omg) | [invalid](invalid_parameter/main.omg) |
+| call result | [call result](call_result/main.omg) | [invalid](invalid_call_result/main.omg) |
+| match join | [match join](match_join/main.omg) | [invalid](invalid_match_join/main.omg) |
+| const name | [const name](const_name/main.omg) | [invalid](invalid_const_name/main.omg) |
+| nested machine | [other state](other_state/main.omg) | [invalid](invalid_other_state/main.omg) |
+| another machine | [other machine](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) |
+| target body | [target body](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
 Parameter and another-machine transports require `kept == true` so the true
 subject arrives. They do not re-establish the tuple result after the call.

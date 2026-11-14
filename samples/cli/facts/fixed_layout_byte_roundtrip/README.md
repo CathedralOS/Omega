@@ -7,7 +7,7 @@ The [local program](local/main.omg) initializes a sparse 40-byte
 `LayoutStorage<Payload, Spread>` inside five words of a seven-word array, copies
 the complete byte region, and lends the decoded view after proving `second >= 42`.
 Its consumer checks all three fields and both source/destination canaries.
-The [static reject twin](local/invalid/main.omg) changes only the guard to `true`;
+The [static reject twin](invalid_local/main.omg) changes only the guard to `true`;
 it rejects the attempt to publish an unestablished valid view.
 
 The [rejected-payload control](local/rejected_payload/main.omg) writes 41 with the

@@ -9,7 +9,7 @@ or exhausts the bounded design space and reports infeasibility.
 
 Supply one LF-terminated `T,N,C,F` line, for example `3,6,2,0`. See
 [data/oracle-contract.md](data/oracle-contract.md) for bounds and edge codes.
-Exit 0 means certified allocation, 2 infeasible, 64 invalid input, 70 defect.
+Exit 0 means certified allocation, 2 infeasible, 64 ../invalid_crossover_experiment_design input, 70 defect.
 No pause or interactive menu is required. CRLF and EOF without LF are invalid.
 This is a feasibility designer; no claim of randomization or clinical inference
 is made. Subjects have no individual covariates or restrictions.
@@ -77,8 +77,8 @@ $OMEGA --check --target linux_x86_64 --build-dir samples/cli/independent/crossov
 ```
 
 The last command must reject the unchecked array-index obligation; package or
-provider rejection does not count. `invalid/` is a separate complete intended-
-invalid project and is deliberately excluded from positive sample acceptance.
+provider rejection does not count. `../invalid_crossover_experiment_design/` is a separate complete intended-
+../invalid_crossover_experiment_design project and is deliberately excluded from positive sample acceptance.
 Terminal comparison in the CLI compares termination only; exact stdout is
 independently checked against the native output, and `DECLINED` is not agreement.
 Retained output/logs belong in ignored `build/`; source/data never depend on them.

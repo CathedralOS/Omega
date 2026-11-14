@@ -33,15 +33,15 @@ and [named implementations](../../../../wiki/spec/language/conformances.md#data-
 
 | Place | Positive | Right-operand control | Uninitialized-selector control |
 | --- | --- | --- | --- |
-| local | [program](local/main.omg) | [reject](local/invalid/main.omg) | [reject](local/controls/uninitialized_selector/main.omg) |
-| field | [program](field/main.omg) | [reject](field/invalid/main.omg) | [reject](field/controls/uninitialized_selector/main.omg) |
-| parameter | [program](parameter/main.omg) | [reject](parameter/invalid/main.omg) | [reject](parameter/controls/uninitialized_selector/main.omg) |
-| call_result | [program](call_result/main.omg) | [reject](call_result/invalid/main.omg) | [reject](call_result/controls/uninitialized_selector/main.omg) |
-| match_join | [program](match_join/main.omg) | [reject](match_join/invalid/main.omg) | [reject](match_join/controls/uninitialized_selector/main.omg) |
-| const_name | [program](const_name/main.omg) | [reject](const_name/invalid/main.omg) | [reject](const_name/controls/uninitialized_selector/main.omg) |
-| other_state | [program](other_state/main.omg) | [reject](other_state/invalid/main.omg) | [reject](other_state/controls/uninitialized_selector/main.omg) |
-| other_machine | [program](other_machine/main.omg) | [reject](other_machine/invalid/main.omg) | [reject](other_machine/controls/uninitialized_selector/main.omg) |
-| target_body | [program](target_body/main.omg) | [reject](target_body/invalid/main.omg) | [reject](target_body/controls/uninitialized_selector/main.omg) |
+| local | [program](local/main.omg) | [reject](invalid_local/main.omg) | [reject](local/controls/uninitialized_selector/main.omg) |
+| field | [program](field/main.omg) | [reject](invalid_field/main.omg) | [reject](field/controls/uninitialized_selector/main.omg) |
+| parameter | [program](parameter/main.omg) | [reject](invalid_parameter/main.omg) | [reject](parameter/controls/uninitialized_selector/main.omg) |
+| call_result | [program](call_result/main.omg) | [reject](invalid_call_result/main.omg) | [reject](call_result/controls/uninitialized_selector/main.omg) |
+| match_join | [program](match_join/main.omg) | [reject](invalid_match_join/main.omg) | [reject](match_join/controls/uninitialized_selector/main.omg) |
+| const_name | [program](const_name/main.omg) | [reject](invalid_const_name/main.omg) | [reject](const_name/controls/uninitialized_selector/main.omg) |
+| other_state | [program](other_state/main.omg) | [reject](invalid_other_state/main.omg) | [reject](other_state/controls/uninitialized_selector/main.omg) |
+| other_machine | [program](other_machine/main.omg) | [reject](invalid_other_machine/main.omg) | [reject](other_machine/controls/uninitialized_selector/main.omg) |
+| target_body | [program](target_body/main.omg) | [reject](invalid_target_body/main.omg) | [reject](target_body/controls/uninitialized_selector/main.omg) |
 
 The [root](main.omg) uses the local production. Every positive binds all four
 required hosted targets and expects exit 0. The target place also retains the

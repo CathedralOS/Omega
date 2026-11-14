@@ -14,15 +14,15 @@ Windows x86-64 measured 2026-10-21 at `ba1d8505b883b1e956ad907068da2a34e8967bae`
 
 | Place | Positive witness | Fact-sensitive reject twin | Transfer |
 | --- | --- | --- | --- |
-| Local | [local/main.omg](local/main.omg) | [local/invalid/main.omg](local/invalid/main.omg) | Nested field copied to a local |
-| Field | [field/main.omg](field/main.omg) | [field/invalid/main.omg](field/invalid/main.omg) | Nested field path is the call operand |
-| Parameter | [parameter/main.omg](parameter/main.omg) | [parameter/invalid/main.omg](parameter/invalid/main.omg) | Nested field passed as `take`'s parameter |
-| Call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | `identity` returns the nested field |
-| Match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | Both arms read the same nested field |
-| Const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | `SEVEN` names the entry equality |
-| Nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | Arrival state reads the same path |
-| Other machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | `forward` keeps the zero-crash route |
-| Target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | Build-selected `forward` keeps the route |
+| Local | [local/main.omg](local/main.omg) | [invalid_local/main.omg](invalid_local/main.omg) | Nested field copied to a local |
+| Field | [field/main.omg](field/main.omg) | [invalid_field/main.omg](invalid_field/main.omg) | Nested field path is the call operand |
+| Parameter | [parameter/main.omg](parameter/main.omg) | [invalid_parameter/main.omg](invalid_parameter/main.omg) | Nested field passed as `take`'s parameter |
+| Call result | [call_result/main.omg](call_result/main.omg) | [invalid_call_result/main.omg](invalid_call_result/main.omg) | `identity` returns the nested field |
+| Match join | [match_join/main.omg](match_join/main.omg) | [invalid_match_join/main.omg](invalid_match_join/main.omg) | Both arms read the same nested field |
+| Const name | [const_name/main.omg](const_name/main.omg) | [invalid_const_name/main.omg](invalid_const_name/main.omg) | `SEVEN` names the entry equality |
+| Nested machine | [other_state/main.omg](other_state/main.omg) | [invalid_other_state/main.omg](invalid_other_state/main.omg) | Arrival state reads the same path |
+| Other machine | [other_machine/main.omg](other_machine/main.omg) | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | `forward` keeps the zero-crash route |
+| Target body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) | Build-selected `forward` keeps the route |
 
 Each reject twin deletes only `requires packet.leaf.bits == 7` (or `== SEVEN`) and must reject with an uncovered Trap crash route.
 

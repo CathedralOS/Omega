@@ -31,15 +31,15 @@ The nine places carry `Seed.code == 7` into the borrowed projection of an anonym
 | Place | Positive | Reject twin | Transport |
 | --- | --- | --- | --- |
 | root | [main.omg](main.omg) | — | original witness: ordered effectful construction, explicit/implicit loans, returned aggregate and fixed-array projection |
-| local | [local/main.omg](local/main.omg) | [local/invalid/main.omg](local/invalid/main.omg) | local `Seed` binding supplies code 7 |
-| field | [field/main.omg](field/main.omg) | [field/invalid/main.omg](field/invalid/main.omg) | record field (`Holder.seed`) supplies code 7 |
-| parameter | [parameter/main.omg](parameter/main.omg) | [parameter/invalid/main.omg](parameter/invalid/main.omg) | callee machine parameter receives code 7 |
-| call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | helper call returns code 7 |
-| match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | match branches converge on code 7 |
-| const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | named constant supplies code 7 |
-| a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | nested-machine parameter carries code 7 |
-| another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | intermediate machine forwards code 7 |
-| another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | per-target machine body produces code 7 |
+| local | [local/main.omg](local/main.omg) | [invalid_local/main.omg](invalid_local/main.omg) | local `Seed` binding supplies code 7 |
+| field | [field/main.omg](field/main.omg) | [invalid_field/main.omg](invalid_field/main.omg) | record field (`Holder.seed`) supplies code 7 |
+| parameter | [parameter/main.omg](parameter/main.omg) | [invalid_parameter/main.omg](invalid_parameter/main.omg) | callee machine parameter receives code 7 |
+| call result | [call_result/main.omg](call_result/main.omg) | [invalid_call_result/main.omg](invalid_call_result/main.omg) | helper call returns code 7 |
+| match join | [match_join/main.omg](match_join/main.omg) | [invalid_match_join/main.omg](invalid_match_join/main.omg) | match branches converge on code 7 |
+| const name | [const_name/main.omg](const_name/main.omg) | [invalid_const_name/main.omg](invalid_const_name/main.omg) | named constant supplies code 7 |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [invalid_other_state/main.omg](invalid_other_state/main.omg) | nested-machine parameter carries code 7 |
+| another machine | [other_machine/main.omg](other_machine/main.omg) | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | intermediate machine forwards code 7 |
+| another target body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) | per-target machine body produces code 7 |
 
 ## Requirements and evidence
 
@@ -99,7 +99,7 @@ the Linux/Windows runs cover the ordered-edge controls and returned-linear row.
 
 ```sh
 omega run --both samples/cli/facts/borrowed_projection_cleanup/local/main.omg
-omega --check samples/cli/facts/borrowed_projection_cleanup/local/invalid/main.omg
+omega --check samples/cli/facts/borrowed_projection_cleanup/invalid_local/main.omg
 python3 tools/sample_native_gate.py --facts --filter borrowed_projection_cleanup --cli <omega>
 python3 tools/corpus_gate.py --both --filter borrowed_projection_cleanup_through_
 ```

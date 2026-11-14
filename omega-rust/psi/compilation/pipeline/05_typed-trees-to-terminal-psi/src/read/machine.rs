@@ -201,8 +201,32 @@ impl<'t> Program<'t> {
         })
     }
 
+    /// Checking a declaration does not call its bare name. A boundary
+    /// conformer is checked under its declared slot, without publishing a
+    /// direct entry that a source call could use.
+    pub(super) fn subject_machine(&mut self, symbol: SymbolHandle) -> Checked<MachineId> {
+        let diagnostic = self.next_identity()?;
+        let (declared, _) = self.declaration(diagnostic, symbol)?;
+        if let Some((owner, requirement)) = self.conformer_requirement(diagnostic, declared)?
+            && self
+                .typed
+                .trait_definition_by_symbol(owner)
+                .is_some_and(|owner| owner.is_boundary)
+        {
+            return self.provider(symbol, owner, requirement.symbol);
+        }
+        self.machine(symbol)
+    }
+
     /// The `MachineId` of a callee, reading its signature the first time.
     pub fn machine(&mut self, symbol: SymbolHandle) -> Checked<MachineId> {
+        if self.descriptor_storage {
+            return Err(refuse(
+                self.next_identity()?,
+                Construct::Machine,
+                Unserved::Declaration("machine admission after storage metadata"),
+            ));
+        }
         let diagnostic = self.next_identity()?;
         let (declared, _) = self.declaration(diagnostic, symbol)?;
         if let Some((owner, _)) = self.conformer_requirement(diagnostic, declared)?
@@ -274,6 +298,13 @@ impl<'t> Program<'t> {
         reading: Reading,
     ) -> Checked<MachineId> {
         let id = self.next_identity()?;
+        if self.descriptor_storage {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Declaration("machine admission after storage metadata"),
+            ));
+        }
         let (machine, _) = self.declaration(id, symbol)?;
         let bound = self
             .conformer_requirement(id, machine)?
@@ -322,6 +353,13 @@ impl<'t> Program<'t> {
         symbol: SymbolHandle,
         reading: Reading,
     ) -> Checked<()> {
+        if self.descriptor_storage {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Declaration("machine admission after storage metadata"),
+            ));
+        }
         let outer = std::mem::take(&mut self.scope);
         // An elided lifetime in the signature is a fresh parameter of this
         // machine, which each call instantiates (`regions::Elision`).
@@ -400,9 +438,37 @@ impl<'t> Program<'t> {
         declaring_trait: SymbolHandle,
         requirement: SymbolHandle,
         arguments: &[semantic_vocabulary::ScalarTerm],
+        implementation: SymbolHandle,
     ) -> Checked<MachineId> {
         let id = self.next_identity()?;
-        let declared = self.declared_requirement(id, declaring_trait, requirement)?;
+        let mut declared = self.declared_requirement(id, declaring_trait, requirement)?;
+        // An owning body's unique map is also the witness's application.
+        // Recover that same prepared contract rather than checking a bare
+        // generic declaration or borrowing another implementation's scope.
+        if let Some(machine) = self.typed.machine_by_symbol(implementation)
+            && let Some((owner, applied)) = self.conformer_requirement(id, machine)?
+        {
+            if owner != declaring_trait || applied.symbol != requirement {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Machine("conformance witness cannot rebind a declared requirement"),
+                ));
+            }
+            declared = applied;
+        } else if self
+            .typed
+            .trait_definition_by_symbol(declaring_trait)
+            .is_some_and(|owner| {
+                !owner.type_parameters.is_empty() || !owner.lifetime_parameters.is_empty()
+            })
+        {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Machine("witness needs its exact closed trait application"),
+            ));
+        }
         self.witnessed_signature(declared, arguments)
     }
 
@@ -997,28 +1063,44 @@ impl<'t> Program<'t> {
         id: MachineId,
         machine: &'t Machine,
     ) -> Checked<Option<(SymbolHandle, &'t StateSignature)>> {
+        let typed = self.typed;
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
         let context = match self.declared_requirement_origin(id, machine)? {
             Some(context) => context,
             None => {
-                let Some((_, row)) = self.typed.owned_conformance_realization(machine.symbol)
+                let Some((implementation, row)) =
+                    typed.owned_conformance_realization(machine.symbol)
                 else {
                     return Ok(None);
                 };
-                (
-                    row.declaring_trait,
-                    self.declared_requirement(id, row.declaring_trait, row.requirement)?,
-                )
+                // The same exact map/row query closes named calls. Its
+                // prepared signature retains the complete trait application;
+                // the map's own open telescope remains unavailable.
+                let Some((owner, selected, requirement)) = typed
+                    .named_conformance_member(implementation.symbol, row.requirement)
+                    .map_err(unserved)?
+                else {
+                    return Err(unserved("conformer lost its exact owning requirement"));
+                };
+                let [entry] = typed.machine_states(machine) else {
+                    return Err(unserved("conformer without one owned entry state"));
+                };
+                if owner.symbol != implementation.symbol
+                    || selected != row
+                    || entry.symbol != row.realization_state
+                {
+                    return Err(unserved("conformer disagrees with its exact owning row"));
+                }
+                (row.declaring_trait, requirement)
             }
         };
         let (owner, requirement) = context;
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
         let definition = self
             .typed
             .trait_definition_by_symbol(owner)
             .ok_or_else(|| unserved("conformer lost its originating trait declaration"))?;
         self.requirement_termination(id, requirement)?;
-        if !definition.type_parameters.is_empty()
-            || !definition.lifetime_parameters.is_empty()
+        if !definition.lifetime_parameters.is_empty()
             || !definition.conformance_bounds.is_empty()
             || !definition.requires.is_empty()
             || definition.refines.is_some()
@@ -1027,6 +1109,22 @@ impl<'t> Program<'t> {
             return Err(unserved(
                 "declared requirement needs its complete trait application",
             ));
+        }
+        // Substituting a type does not establish an original parameter's
+        // storage, multiplicity or static-value obligations. Only ordinary
+        // unconstrained type parameters are served by this applied context.
+        if span(
+            &typed.data_type_parameters,
+            definition.type_parameters,
+            id,
+            "trait type parameter span",
+        )?
+        .iter()
+        .any(|parameter| {
+            !matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+                || parameter.bounds != typed_trees::data::DataProperties::default()
+        }) {
+            return Err(unserved("applied trait parameter eligibility"));
         }
         if machine.is_public && !definition.is_public {
             return Err(unserved("conformer is more visible than its requirement"));
@@ -1237,6 +1335,29 @@ impl<'t> Program<'t> {
         requirement: &'t StateSignature,
         arguments: &[semantic_vocabulary::ScalarTerm],
     ) -> Checked<(Signature, MachineNames)> {
+        let (signature, names) = self.declared_requirement_signature(id, requirement, arguments)?;
+        // These callable and witness uses cannot yet carry operational proof.
+        // Do not treat declared suspension or blocking as absent.
+        if requirement.suspends || requirement.blocks {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Machine("suspends or blocks"),
+            ));
+        }
+        Ok((signature, names))
+    }
+
+    /// Read the types, logical clauses and ceilings of a requirement.
+    /// Boundary publication retains its suspension and blocking flags on the
+    /// checked declaration, and an actual call still owes their proof. Other
+    /// consumers use `requirement_signature`, which refuses unsupported effects.
+    pub(super) fn declared_requirement_signature(
+        &mut self,
+        id: MachineId,
+        requirement: &'t StateSignature,
+        arguments: &[semantic_vocabulary::ScalarTerm],
+    ) -> Checked<(Signature, MachineNames)> {
         // As a machine's: an elided lifetime is a fresh parameter of the
         // requirement, which each call instantiates (`regions::Elision`).
         let elision = std::mem::replace(
@@ -1316,9 +1437,6 @@ impl<'t> Program<'t> {
         {
             return unserved("service reach bound by an installation");
         }
-        if requirement.suspends || requirement.blocks {
-            return unserved("suspends or blocks");
-        }
         let (mut signature, mut names) = self.contract(
             id,
             requirement.symbol,
@@ -1377,9 +1495,8 @@ impl<'t> Program<'t> {
             slots.push(Slot {
                 symbol: formal.symbol,
                 value_type,
-                // What a clause reader needs to know of the binding mode: a
-                // guarantee or a crash route guard may not name a formal
-                // the body can replace (`ClauseScope::formal_fields`).
+                // Retain the declared working-binding mode. Contract scalar
+                // names use their immutable input ValueIds regardless of it.
                 assignable: mutable_formal(formal, access),
                 homed: false,
                 erased: is_erased,
@@ -1866,17 +1983,10 @@ impl<'t> Program<'t> {
         } else {
             self.value_type(id, referee)?
         };
-        // A data type with `requires` may be stored into by the callee of an
-        // exclusive loan, so its domain is owed again where the loan
-        // returns; no slice follows a domain across a call yet. A shared
-        // loan admits no store, so the value behind it is the one its owner
-        // established.
-        if let ValueType::Record(record, _, _) = value_type
-            && access == language_core::ReferenceAccess::Mutable
-            && self.restricted(record)
-        {
-            return unserved("reference to data with requires");
-        }
+        // Incoming data is already established, whether lent shared or
+        // exclusively. Stores through an exclusive loan owe the same data
+        // clauses as owned stores; the existing storage windows require
+        // restoration at normal handback. No predicate is waived here.
         let home = match value_type {
             ValueType::Rigid(_) => return unserved("reference to a value of a type parameter"),
             // Its place would be declared with the identity of a primitive
@@ -1908,36 +2018,17 @@ impl<'t> Program<'t> {
         ))
     }
 
-    /// Whether a data type or any data type inside it states `requires`.
-    fn restricted(&self, record: semantic_vocabulary::StructuralTypeId) -> bool {
-        let mut pending = vec![record];
-        while let Some(next) = pending.pop() {
-            let Some(data) = self.records.get(next) else {
-                return true;
-            };
-            if !data.requires.is_empty() {
-                return true;
-            }
-            if let crate::StorageShape::FixedArray { element, .. } = data.shape {
-                pending.push(element);
-            }
-            for field in data
-                .fields()
-                .iter()
-                .chain(data.cases().iter().flat_map(|case| &case.fields))
-            {
-                if let ValueType::Record(nested, _, _) = field.value_type {
-                    pending.push(nested);
-                }
-            }
-        }
-        false
-    }
-
     /// Machine `id`'s body, read with the machine as the owner of the
     /// lifetimes its types name (lifetimes.md: a named data application
     /// must "use binders declared in the lexical owner").
     pub fn body(&mut self, id: MachineId) -> Checked<Body> {
+        if self.descriptor_storage {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Declaration("body admission after storage metadata"),
+            ));
+        }
         let symbol = *terminal_check_tables::row(&self.symbols, id, id, Construct::Machine)?;
         let owner = std::mem::replace(&mut self.lifetime_owner, symbol);
         let read = self.read_body(id, symbol);

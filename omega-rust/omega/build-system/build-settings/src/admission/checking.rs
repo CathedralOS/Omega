@@ -21,9 +21,9 @@ things it did now has one owner, and this file only sequences them:
    while it serves no program, no Build program reaches the checker.
 2. Which packages' declarations the Build may select. That is decided on the
    accepted module, whose declarations carry their package custody, by
-   Terminal installation. It has no admission for a Build activation yet, so
-   a request that carries package authority is refused after judgment; the
-   authority is never dropped.
+   Terminal installation before execution. The provider preparation retains
+   the package authority and admits the actual invocation closure against it;
+   host effects remain a separate admission, not a pure-evaluation exemption.
 3. Constants and provider plans. This admission evaluates no constant, so it
    discharges none: the Product's pending work stays whole, and a Build
    program that reads an unevaluated constant is refused by the checker. It
@@ -155,6 +155,7 @@ pub(crate) fn prepare_admitted_build(
             (!dependency_activation).then(|| packages.map(PackageCompilationInputs::root));
         let accepted = timings.record_result(BUILD_SOURCE_JUDGMENT, || {
             let compilation = psi_compiler::TerminalSourceCompilation {
+                declaration_metadata: &[],
                 entries: &[entry],
                 subjects: subject.as_slice(),
                 purpose: source::DependencyScope::Build,
@@ -199,11 +200,6 @@ pub(crate) fn prepare_admitted_build(
                 terminal_codec::TerminalPublication::Invocation,
             )
         })?;
-        if packages.is_some() {
-            return Err(vec![Diagnostic::error(
-                "no product route yet: the accepted Build program has no declaration-selection admission for its package authority",
-            )]);
-        }
         // Nothing is folded here (point 3 above), and the names come from the
         // accepted module, so a later frontier can tell there is nothing to
         // settle without assuming how this admission was reached.
@@ -213,7 +209,7 @@ pub(crate) fn prepare_admitted_build(
         };
         Ok((
             Arc::new(accepted),
-            super::provider_execution::BuildProviderPlans::default(),
+            super::provider_execution::BuildProviderPlans::for_packages(packages),
             constants,
         ))
     })();

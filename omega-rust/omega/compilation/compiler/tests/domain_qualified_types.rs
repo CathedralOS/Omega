@@ -112,6 +112,7 @@ fn verdicts(name: &str, machines: &str) -> Vec<String> {
         typed_trees_to_terminal_psi::prepare_compilation(
             &frontier.typed,
             typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
                 entries: &frontier.entries,
                 subjects: &[frontier.subject],
                 purpose: source::DependencyScope::Product,

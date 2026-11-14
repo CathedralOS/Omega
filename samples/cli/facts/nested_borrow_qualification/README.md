@@ -26,21 +26,21 @@ checks both selector values, so choosing the same arm twice fails at runtime.
 
 | Place | Positive Project | Reject Twin | Transport Mechanism |
 | --- | --- | --- | --- |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | the qualified attributes are reached through a local `view: &Attributes` binding |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | the view is stored in `Holder.view` and consumed through the field |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | `parameter(&attributes)` passes the reference as an explicit parameter |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `keep(&attributes)` returns the same `&'scope Attributes` |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `choose` returns the reference through both arm states |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | the zero written at word 3 arrives as the named constant `TERMINATOR = 0` |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine `inspect` receives the reference |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `relay` forwards the reference to `consume` |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target bodies forwards the reference |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | the qualified attributes are reached through a local `view: &Attributes` binding |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | the view is stored in `Holder.view` and consumed through the field |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | `parameter(&attributes)` passes the reference as an explicit parameter |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | `keep(&attributes)` returns the same `&'scope Attributes` |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | `choose` returns the reference through both arm states |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | the zero written at word 3 arrives as the named constant `TERMINATOR = 0` |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | a successor machine `inspect` receives the reference |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | `relay` forwards the reference to `consume` |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | each of four target bodies forwards the reference |
 
 Run a place through the public route:
 
 ```sh
 omega run --both samples/cli/facts/nested_borrow_qualification/local/main.omg
-omega --check samples/cli/facts/nested_borrow_qualification/local/invalid/main.omg
+omega --check samples/cli/facts/nested_borrow_qualification/invalid_local/main.omg
 ```
 
 The places are local, field, parameter, call result, match join, const name,

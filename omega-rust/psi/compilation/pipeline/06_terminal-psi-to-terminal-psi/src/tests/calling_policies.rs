@@ -29,9 +29,9 @@ const TARGETS: [(&str, &str); 4] = [
     ),
 ];
 
-/// The verdict on `text` rooted at the machines named `roots`, judged as a
-/// compile-time invocation is: `accepted`, or the refusal's text.
-fn verdict(text: &str, roots: &[&str]) -> String {
+/// Judge the actual source roots as the normal compile-time invocation does.
+/// Keep the full verdict so rejection controls can pin its real obligation.
+fn judged(text: &str, roots: &[&str]) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
     let typed = typed(text);
     let entries: Vec<_> = typed
         .machines()
@@ -44,10 +44,11 @@ fn verdict(text: &str, roots: &[&str]) -> String {
         .collect();
     assert!(!entries.is_empty());
     let frozen: typed_trees::FrozenTypedTrees = typed.into();
-    let verdicts = crate::judge_compilation(
+    crate::judge_compilation(
         typed_trees_to_terminal_psi::prepare_compilation(
             &frozen,
             typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
                 entries: &entries,
                 subjects: &[],
                 purpose: source::DependencyScope::Product,
@@ -58,8 +59,11 @@ fn verdict(text: &str, roots: &[&str]) -> String {
             terminal_codec::TerminalPublication::Invocation,
         )
         .program,
-    );
-    let parts: Vec<String> = verdicts
+    )
+}
+
+fn verdict(text: &str, roots: &[&str]) -> String {
+    let parts: Vec<String> = judged(text, roots)
         .into_iter()
         .map(|verdict| match verdict {
             Err(crate::CompilationRefusal::Elaboration(refusal))
@@ -225,19 +229,97 @@ fn a_guard_over_the_fields_of_a_formal_reaches_its_arm() {
 
 const PAIR: &str = "data Pair [copy] requires right <= 3, left <= 2 { left: u64; right: u64; }\n";
 
-/// A shared loan of data that states `requires` is read by its callee: a
-/// shared loan admits no store, so the callee cannot leave the value outside
-/// its domain. The policy's helpers take `&BoundarySignature`. An exclusive
-/// loan stays refused, because the domain is owed again where it returns.
+/// A valid incoming value keeps its default-domain obligations when lent.
+/// Shared reads and exclusive writes use the same storage predicates; a
+/// temporary invalid state must be restored before normal loan handback.
 #[test]
-fn data_with_requires_is_lent_shared_and_not_exclusively() {
-    let root =
-        |access: &str| format!("{PAIR}machine root(pair: {access}Pair) -> u64 {{ pair.left }}");
-    assert_eq!(verdict(&root("&"), &["root"]), "accepted");
+fn data_with_requires_is_lent_and_restored_at_loan_handback() {
+    let root = |access: &str, body: &str| {
+        format!("{PAIR}machine root(pair: {access}Pair) -> u64 {{ {body} }}")
+    };
+    for access in ["&", "&mut "] {
+        assert_eq!(verdict(&root(access, "pair.left"), &["root"]), "accepted");
+    }
     assert_eq!(
-        verdict(&root("&mut "), &["root"]),
-        "parameter reference to data with requires"
+        verdict(
+            &root("&mut ", "pair.left = 3; pair.left = 2; pair.left"),
+            &["root"]
+        ),
+        "accepted",
+        "the exact field's invariant window closes after a restoring write"
     );
+    assert_eq!(
+        verdict(&root("&write ", "0u64"), &["root"]),
+        "parameter write-only reference parameter",
+        "a readable established input is not an uninitialized write-only loan"
+    );
+    let crash = format!(
+        "{PAIR}machine root(pair: &mut Pair) -> u64 crashes Trap {{ pair.left = 3; crash Trap; }}"
+    );
+    assert_eq!(
+        verdict(&crash, &["root"]),
+        "accepted",
+        "the existing crash contract may abandon a window without promising survivor safety"
+    );
+    let gated = judged(
+        "data Positive [copy] requires value > 0 { value: u64; }\n\
+         machine consume(value: &mut Positive) -> u64 { 1u64 }\n\
+         machine root() -> u64 { let mut value: Positive; consume(&mut value) }",
+        &["root"],
+    );
+    let [Ok(RouteVerdict::Rejected { unestablished, .. })] = gated.as_slice() else {
+        panic!("a zeroed gated value cannot be supplied as an initialized loan: {gated:?}")
+    };
+    assert!(!unestablished.is_empty(), "{gated:?}");
+    let nested = |body: &str| {
+        format!(
+            "{PAIR}data Wrapper {{ pair: Pair; sibling: u64; }}\n\
+         machine root(value: &mut Wrapper) -> u64 {{ {body} }}"
+        )
+    };
+    assert_eq!(
+        verdict(&nested("value.sibling = 9; value.pair.left"), &["root"]),
+        "accepted"
+    );
+    for text in [
+        root("&mut ", "pair.left = 3; 0u64"),
+        nested("value.pair.left = 3; value.sibling"),
+    ] {
+        let verdicts = judged(&text, &["root"]);
+        let [
+            Ok(RouteVerdict::Rejected {
+                formations,
+                violations,
+                unproved,
+                unestablished,
+                conflicts,
+                exceeded,
+            }),
+        ] = verdicts.as_slice()
+        else {
+            panic!("only the actual default-domain handback must reject: {verdicts:?}")
+        };
+        assert!(
+            formations.is_empty()
+                && violations.is_empty()
+                && unestablished.is_empty()
+                && conflicts.is_empty()
+                && exceeded.is_empty(),
+            "{verdicts:?}"
+        );
+        let [failure] = unproved.as_slice() else {
+            panic!("one changed clause: {unproved:?}")
+        };
+        assert!(matches!(
+            failure.kind,
+            terminal_check_tables::obligations::ObligationKind::DataDomain { .. }
+        ));
+        assert_eq!(failure.cause, UnprovedCause::NoDerivation);
+        assert!(
+            failure.consumed.is_some(),
+            "an actual open window at loan handback"
+        );
+    }
 }
 
 const PLACE: &str = r#"

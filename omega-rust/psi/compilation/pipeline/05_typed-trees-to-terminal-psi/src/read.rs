@@ -26,7 +26,10 @@ serve is refused when it is set, never ignored.
 mod arrays;
 mod authority;
 mod bytes;
+mod calling_abis;
 mod calls;
+#[cfg(test)]
+mod calls_visibility_tests;
 mod casts;
 mod constant_values;
 mod contracts;
@@ -56,7 +59,10 @@ use crate::{Unserved, refuse};
 
 pub(crate) struct Program<'t> {
     pub publication: terminal_codec::TerminalPublication,
+    pub declaration_metadata: Vec<SymbolHandle>,
     typed: &'t TypedTrees,
+    /// Irreversible storage-description phase, entered after the body closure.
+    descriptor_storage: bool,
     /// The typed-tree machine of each discovered `MachineId`.
     pub symbols: IdTable<MachineId, SymbolHandle>,
     pub signatures: IdTable<MachineId, Signature>,
@@ -216,10 +222,28 @@ fn span<'a, T: Default>(
         .ok_or_else(|| refuse(machine, Construct::Machine, Unserved::Machine(what)))
 }
 impl<'t> Program<'t> {
+    pub(crate) fn begin_declaration_storage(
+        &mut self,
+        entry: MachineId,
+        bodies: usize,
+    ) -> Checked<()> {
+        if self.descriptor_storage || bodies != self.symbols.len() {
+            return Err(refuse(
+                entry,
+                Construct::Machine,
+                Unserved::Declaration("storage metadata before the complete body closure"),
+            ));
+        }
+        self.descriptor_storage = true;
+        Ok(())
+    }
+
     pub fn new(typed: &'t TypedTrees, rigid: bool) -> Self {
         Self {
             publication: terminal_codec::TerminalPublication::Portable,
+            declaration_metadata: Vec::new(),
             typed,
+            descriptor_storage: false,
             symbols: IdTable::default(),
             signatures: IdTable::default(),
             declaration_signatures: IdTable::default(),
@@ -738,14 +762,12 @@ mod tests {
         assert_eq!(program.named_case(a_field), None);
     }
 
-    /// A `mut` formal that holds its own value may be named by an entry
-    /// `requires`, where it can only mean the argument. A guarantee or a
-    /// crash route guard that names it is refused: by then the name also
-    /// stands for whatever the body last assigned, and which of the two
-    /// the clause means is not settled. The same clause over a formal that
-    /// is not `mut` names its value.
+    /// Every clause names the scalar input's immutable identity. The body's
+    /// mutable working binding does not change the meaning of a guarantee
+    /// or crash guard. Borrowed observations still need their own storage
+    /// correspondence, and missing input metadata supplies no identity.
     #[test]
-    fn a_mut_formal_is_named_by_an_entry_requires_and_by_no_other_clause() {
+    fn a_mutable_scalar_formal_keeps_its_input_identity_in_every_clause() {
         use typed_trees::name::Identifier;
         let mut typed = TypedTrees::default();
         let formal = SymbolHandle::from_arena_index(3);
@@ -792,10 +814,23 @@ mod tests {
         ));
         let read = |scope: &ClauseScope<'_>| program.term(machine(), scope, named, None);
         assert_eq!(read(&scope(&mutable, true)), term);
+        assert_eq!(read(&scope(&mutable, false)), term);
         assert_eq!(read(&scope(&immutable, false)), term);
+        let missing = ClauseScope {
+            values: &[],
+            ..scope(&mutable, false)
+        };
         assert_eq!(
-            read(&scope(&mutable, false)).unwrap_err().detail,
-            "contract clause that names a mutable parameter outside requires"
+            read(&missing).unwrap_err().detail,
+            "contract formal identity"
+        );
+        let borrowed = [Slot {
+            borrowed: Some(language_core::ReferenceAccess::Mutable),
+            ..slot(true)
+        }];
+        assert_eq!(
+            read(&scope(&borrowed, false)).unwrap_err().detail,
+            "contract clause that names a borrowed formal outside requires"
         );
     }
 
@@ -854,10 +889,11 @@ mod tests {
     }
 
     /// Dispatch forms outside the slice are refused by name before anything
-    /// is read from them: a `match` on a scalar, a case arm with a guard of
-    /// its own, and a pattern whose head names no case.
+    /// is read from them: a case arm with a guard of its own and a pattern
+    /// whose head names no case. A `match` on a scalar that covers nothing
+    /// is rejected.
     #[test]
-    fn each_dispatch_form_outside_the_slice_is_refused_by_name() {
+    fn each_dispatch_form_outside_the_slice_is_refused_by_name_or_rejected() {
         use semantic_vocabulary::StructuralTypeId;
         use typed_trees::expression::{TableDestructurePattern, TableMatchExpression};
         let mut typed = TypedTrees::default();
@@ -870,13 +906,16 @@ mod tests {
                     ..Default::default()
                 }));
         let mut program = Program::new(&typed, false);
-        assert_eq!(
-            program
-                .expression(machine(), &[], scalar_match, None)
-                .unwrap_err()
-                .detail,
-            "expression match on a scalar subject"
-        );
+        // A scalar match is read; one whose arms do not cover its subject
+        // is the program's error, not a form the reader cannot judge.
+        let uncovered = program
+            .expression(machine(), &[], scalar_match, None)
+            .unwrap_err();
+        assert!(matches!(
+            uncovered.reason,
+            terminal_check_tables::RefusalReason::Violation(_)
+        ));
+        assert!(uncovered.detail.contains("does not cover every value"));
         let record = StructuralTypeId::new(1).unwrap();
         let pattern = |guard, head| TableDestructurePattern {
             guard,

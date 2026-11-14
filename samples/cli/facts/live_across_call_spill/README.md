@@ -10,15 +10,15 @@ After `clobber_call(1u64)` returns, all eight pre-call live values plus the call
 | Place | Positive Program | Reject Twin (invalid) | Transport Mechanism |
 | --- | --- | --- | --- |
 | root | [`main.omg`](main.omg) | — | canonical root witness with eight live scalar bindings preserved across clobber_call |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | all eight live scalar bindings survive across clobber_call and are combined into a local before exact subtraction |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | the post-call combined value is stored into and read from a record field before exact subtraction |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | the post-call combined value is transported as a parameter to an identity helper machine before exact subtraction |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the post-call combined value is returned from a dedicated helper call before exact subtraction |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | the post-call combined value is transported across both arms of a conditional match join before exact subtraction |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | a named constant supplies the initial live scalar value held in a local across clobber_call before exact subtraction |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | the post-call combined value is passed across a state transition into a nested machine before exact subtraction |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | the post-call combined value is forwarded through an independent helper machine before exact subtraction |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | every supported target architecture provides its own target-scoped machine body executing the exact subtraction |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | all eight live scalar bindings survive across clobber_call and are combined into a local before exact subtraction |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | the post-call combined value is stored into and read from a record field before exact subtraction |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | the post-call combined value is transported as a parameter to an identity helper machine before exact subtraction |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | the post-call combined value is returned from a dedicated helper call before exact subtraction |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | the post-call combined value is transported across both arms of a conditional match join before exact subtraction |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | a named constant supplies the initial live scalar value held in a local across clobber_call before exact subtraction |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | the post-call combined value is passed across a state transition into a nested machine before exact subtraction |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | the post-call combined value is forwarded through an independent helper machine before exact subtraction |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | every supported target architecture provides its own target-scoped machine body executing the exact subtraction |
 
 ## Execution
 

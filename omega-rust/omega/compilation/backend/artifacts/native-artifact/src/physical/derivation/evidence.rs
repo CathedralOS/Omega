@@ -16,6 +16,7 @@ use crate::PhysicalChildParent;
 use crate::PhysicalRelocationDisposition;
 use crate::digest_encoder::DomainDigestEncoder;
 use crate::native_artifact::boundary_application_coverage_identity;
+use crate::physical::PhysicalEvidencePass;
 use crate::physical::derivation::foreign_calls::derive_normalized_foreign_child;
 use crate::physical::derivation::hashing::{
     canonical_usize, hash_callback_relocation, hash_machine_function_identity, hash_object_symbol,
@@ -65,11 +66,12 @@ fn blocked(subject: NativePhysicalEvidenceGapSubject) -> NativePhysicalEvidenceD
 }
 
 pub(crate) fn derive_physical_evidence(
+    pass: PhysicalEvidencePass,
     scope: &NativePhysicalEvidenceScope,
-    terminal_artifact: &terminal_codec::CanonicalTerminalArtifact,
+    terminal_artifact: terminal_codec::TerminalExecutionView<'_>,
     target: NativeTarget,
     object: &image_emission::ObjectArtifact,
-    image: &image::EmittedImageOutput,
+    image: &[u8],
     final_image_symbol_digest: [u8; 32],
     selected_provider_plans: &[NativeSelectedProviderPlan],
     provider_executions: &[NativeProviderExecution],
@@ -78,29 +80,42 @@ pub(crate) fn derive_physical_evidence(
     if matches!(scope, NativePhysicalEvidenceScope::Unavailable) {
         return Ok(NativePhysicalEvidenceDerivation::Unavailable);
     }
+    // The root projection does not cover separately emitted private namespaces.
+    // Publish the missing body explicitly instead of claiming root-only coverage
+    // proves the complete linked image.
+    if let Some(private) = object.private_functions().first() {
+        return Ok(blocked(
+            NativePhysicalEvidenceGapSubject::UncoveredPrivateFunction {
+                function: private.identity,
+            },
+        ));
+    }
     if let NativePhysicalEvidenceScope::ValidatedOptimizedProjection(optimized) = scope
         && let Some(publication) = optimized.fragment_publication()
     {
         publication.validate_object(object)?;
+        pass.verify(|| publication.replay_foreign_call_custody(object))?;
     }
-    let module = terminal_artifact.semantic_module();
+    let module = terminal_artifact.module();
     let boundary_application_coverage = boundary_application_coverage
         .ok_or("native physical evidence requires exact boundary-application coverage custody")?;
 
     let projection = match scope {
-        NativePhysicalEvidenceScope::Unavailable => unreachable!("unavailable returned above"),
+        NativePhysicalEvidenceScope::Unavailable => {
+            return Ok(NativePhysicalEvidenceDerivation::Unavailable);
+        }
         NativePhysicalEvidenceScope::UnoptimizedCompleteBoundaryEvidence => {
             derive_identity_projection(
-                terminal_artifact.manifest().semantic(),
+                terminal_artifact.identity(),
                 module,
                 boundary_application_coverage,
             )?
         }
         NativePhysicalEvidenceScope::ValidatedOptimizedProjection(optimized) => {
-            if optimized.projection().terminal() != terminal_artifact.manifest().semantic()
+            if optimized.projection().terminal() != terminal_artifact.identity()
                 || optimized.boundary_application_coverage()
                     != &boundary_application_coverage_identity(Some(boundary_application_coverage))
-                        .expect("present boundary-application coverage has an identity")
+                        .ok_or("physical scope lost its boundary-application coverage identity")?
             {
                 return Err(
                     "optimized physical scope is detached from its Terminal or D29 coverage",
@@ -144,16 +159,7 @@ pub(crate) fn derive_physical_evidence(
         }
         _ => None,
     };
-    let retained_custody = match scope {
-        NativePhysicalEvidenceScope::ValidatedOptimizedProjection(optimized) => {
-            optimized.foreign_call_custody()
-        }
-        _ => &[],
-    };
     let mut foreign_calls = BTreeMap::new();
-    if fragment_publication.is_some() && retained_custody != object.foreign_calls() {
-        return Err("native physical evidence foreign calls differ from fragment projection");
-    }
     for foreign in object.foreign_calls() {
         let invocation_site = match foreign.owner {
             CallSiteOwner::Operation(operation) => InvocationSite::Operation(operation),
@@ -238,8 +244,9 @@ pub(crate) fn derive_physical_evidence(
         });
         if family && installed.is_none() && foreign.is_none() {
             if let Some(child) = derive_boundary_internal_call_child(
+                pass,
                 module,
-                terminal_artifact.manifest().semantic(),
+                terminal_artifact.identity(),
                 object,
                 image,
                 occurrence,
@@ -270,7 +277,7 @@ pub(crate) fn derive_physical_evidence(
             return Err("native physical evidence cannot rejoin one exact selected provider plan");
         };
         super::provider_custody::validate_family_provider_custody(
-            terminal_artifact.manifest().semantic(),
+            terminal_artifact.identity(),
             module,
             target,
             occurrence.boundary(),
@@ -281,6 +288,7 @@ pub(crate) fn derive_physical_evidence(
             (Some(installed), None) => {
                 if let Some(builtin) = hosted_builtin_settlement(&installed.settlement) {
                     children.push(derive_hosted_builtin_child(
+                        pass,
                         builtin,
                         occurrence,
                         projection.identity(),
@@ -292,6 +300,7 @@ pub(crate) fn derive_physical_evidence(
                         installed,
                     )?);
                 } else if let Some(child) = derive_admitted_provider_settlement_child(
+                    pass,
                     module,
                     object,
                     image,
@@ -315,6 +324,7 @@ pub(crate) fn derive_physical_evidence(
             }
             (None, Some(foreign)) => {
                 let Some(child) = derive_normalized_foreign_child(
+                    pass,
                     occurrence,
                     projection.identity(),
                     requirement,
@@ -339,8 +349,9 @@ pub(crate) fn derive_physical_evidence(
             }
             (None, None) => {
                 if let Some(child) = derive_boundary_internal_call_child(
+                    pass,
                     module,
-                    terminal_artifact.manifest().semantic(),
+                    terminal_artifact.identity(),
                     object,
                     image,
                     occurrence,
@@ -406,6 +417,7 @@ pub(crate) fn derive_physical_evidence(
             return Err("D29 physical occurrence does not rejoin one realization companion");
         };
         let Some(span) = derive_operator_physical_span(
+            pass,
             occurrence,
             realization.realization(),
             module,

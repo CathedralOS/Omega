@@ -76,15 +76,15 @@ a successful compile or a declined Terminal invocation fails that gate.
 
 | Place | Positive | Invalid twin |
 | --- | --- | --- |
-| local | [source](local/main.omg) | [write](local/invalid/main.omg) |
-| field | [source](field/main.omg) | [write](field/invalid/main.omg) |
-| parameter | [source](parameter/main.omg) | [write](parameter/invalid/main.omg) |
-| call result | [source](call_result/main.omg) | [write](call_result/invalid/main.omg) |
-| match join | [source](match_join/main.omg) | [write](match_join/invalid/main.omg) |
-| constant name | [source](const_name/main.omg) | [write](const_name/invalid/main.omg) |
-| a nested machine | [source](other_state/main.omg) | [write](other_state/invalid/main.omg) |
-| another machine | [source](other_machine/main.omg) | [write](other_machine/invalid/main.omg) |
-| target body | [source](target_body/main.omg) | [write](target_body/invalid/main.omg) |
+| local | [source](local/main.omg) | [write](invalid_local/main.omg) |
+| field | [source](field/main.omg) | [write](invalid_field/main.omg) |
+| parameter | [source](parameter/main.omg) | [write](invalid_parameter/main.omg) |
+| call result | [source](call_result/main.omg) | [write](invalid_call_result/main.omg) |
+| match join | [source](match_join/main.omg) | [write](invalid_match_join/main.omg) |
+| constant name | [source](const_name/main.omg) | [write](invalid_const_name/main.omg) |
+| a nested machine | [source](other_state/main.omg) | [write](invalid_other_state/main.omg) |
+| another machine | [source](other_machine/main.omg) | [write](invalid_other_machine/main.omg) |
+| target body | [source](target_body/main.omg) | [write](invalid_target_body/main.omg) |
 
 The matching nine positives and negatives are pinned under
 `tests/omega/{pass,fail}/facts/foreign_retained_shared_borrow_*`.
@@ -107,18 +107,18 @@ a disjoint borrowed field does not take away an actual owned content source.
 The [persistent-slot control](controls/persistent_retention/main.omg) replaces
 caller-owned storage through an ordinary helper, completes the old registration,
 and then observes 91 through the new registration. Its
-[twin](controls/persistent_retention/invalid/main.omg) writes that new backing
+[twin](controls/invalid_persistent_retention/main.omg) writes that new backing
 while the stored loan is still live. The
 [restore control](controls/persistent_restore/main.omg) instead restores the old
 slot and completes the temporarily installed registration; its
-[twin](controls/persistent_restore/invalid/main.omg) writes the still-retained
+[twin](controls/invalid_persistent_restore/main.omg) writes the still-retained
 original backing. Distinct 37/91 values and opposite permitted writes make the
 current slot and loan epoch observable. Both pairs have matching pass/fail pins.
 
 The [borrowed-slot swap](controls/borrowed_slot_swap/main.omg) moves both tokens
 through a borrowed parameter and exchanges their caller-owned slots. Completing
 the swapped 91 token permits its backing write while the remaining token still
-observes 37. Its [twin](controls/borrowed_slot_swap/invalid/main.omg) writes the
+observes 37. Its [twin](controls/invalid_borrowed_slot_swap/main.omg) writes the
 still-retained 37 backing. The matching pass/fail pins require logical contents
 to cross the borrowed parameter without retaining the address of the token slot.
 

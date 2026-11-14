@@ -26,15 +26,15 @@ acceptance keep their independent obligations.
 | Place | Positive Project | Reject Twin | Transport Mechanism |
 | --- | --- | --- | --- |
 | root | [`main.omg`](main.omg) with [`build.omg`](build.omg) | — | canonical root witness preserving view extent around a content write |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | the view is bound to a local variable |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | the view is stored in and read from a record field |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | the view arrives as an explicit parameter |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the view is returned from an identity helper call |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | the view is joined across two arms of a match |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | the minimum extent is named by `const minimum: u64 = 1024` |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the view across a transition |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine supplies the view to the worker |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | target-scoped machine bodies execute on each hosted platform |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | the view is bound to a local variable |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | the view is stored in and read from a record field |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | the view arrives as an explicit parameter |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | the view is returned from an identity helper call |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | the view is joined across two arms of a match |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | the minimum extent is named by `const minimum: u64 = 1024` |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | a successor machine receives the view across a transition |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | a forwarding machine supplies the view to the worker |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | target-scoped machine bodies execute on each hosted platform |
 
 ## Execution
 
@@ -63,15 +63,15 @@ Each place has an `invalid/` reject twin with authored `sample.json` (`"role": "
 
 | Place | Twin | Pinned Diagnostic Fragment |
 | --- | --- | --- |
-| local | [`local/invalid/main.omg`](local/invalid/main.omg) | `exact arithmetic` / `may overflow \`u64\`` |
-| field | [`field/invalid/main.omg`](field/invalid/main.omg) | `exact arithmetic` / `may overflow \`u64\`` |
-| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | `exact arithmetic` / `may overflow \`u64\`` |
-| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `exact arithmetic` / `may overflow \`u64\`` |
-| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `exact arithmetic` / `may overflow \`u64\`` |
-| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `exact arithmetic` / `may overflow \`u64\`` |
-| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `exact arithmetic` / `may overflow \`u64\`` |
-| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `exact arithmetic` / `may overflow \`u64\`` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `exact arithmetic` / `may overflow \`u64\`` |
+| local | [`invalid_local/main.omg`](invalid_local/main.omg) | `exact arithmetic` / `may overflow \`u64\`` |
+| field | [`invalid_field/main.omg`](invalid_field/main.omg) | `exact arithmetic` / `may overflow \`u64\`` |
+| parameter | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | `exact arithmetic` / `may overflow \`u64\`` |
+| call result | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | `exact arithmetic` / `may overflow \`u64\`` |
+| match join | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | `exact arithmetic` / `may overflow \`u64\`` |
+| const name | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | `exact arithmetic` / `may overflow \`u64\`` |
+| a nested machine | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | `exact arithmetic` / `may overflow \`u64\`` |
+| another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | `exact arithmetic` / `may overflow \`u64\`` |
+| another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | `exact arithmetic` / `may overflow \`u64\`` |
 
 ## Pinned Fixtures
 

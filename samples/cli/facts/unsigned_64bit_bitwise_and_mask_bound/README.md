@@ -14,15 +14,15 @@ Every positive place and the root witness bind `ProgramEntry` across all four ho
 | Place | Project | Transport | Positive Witness | Reject Twin |
 | --- | --- | --- | --- | --- |
 | root | `.` | canonical root witness applying 64-bit bitwise AND mask with interval guard and discharging exact subtractions | [`main.omg`](main.omg) | - |
-| local | `local/` | the guarded masked value is bound to local variables before discharging subtraction | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) |
-| field | `field/` | the guarded masked value is stored in a MaskCarrier record field before extraction and contract verification | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) |
-| parameter | `parameter/` | a helper machine receives the guarded masked value as an explicit parameter under contract | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) |
-| call result | `call_result/` | a producer machine returns the guarded masked value under postcondition ensures result >= 40u64 && result <= 63u64 | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) |
-| match join | `match_join/` | both branches of a boolean match expression yield the guarded masked value before subtraction | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) |
-| const name | `const_name/` | named constants RAW_VAL and MASK_VAL define operands for bitwise AND mask before guarded subtraction | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) |
-| a nested machine | `other_state/` | an terminal machine transfer transfers the guarded masked value to a successor machine with entry contract | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) |
-| another machine | `other_machine/` | an associated Relay machine forwards the guarded masked value to the caller under postcondition | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) |
-| another target body | `target_body/` | each of the four hosted target bodies computes bitwise AND mask and discharges subtraction | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) |
+| local | `local/` | the guarded masked value is bound to local variables before discharging subtraction | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) |
+| field | `field/` | the guarded masked value is stored in a MaskCarrier record field before extraction and contract verification | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) |
+| parameter | `parameter/` | a helper machine receives the guarded masked value as an explicit parameter under contract | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) |
+| call result | `call_result/` | a producer machine returns the guarded masked value under postcondition ensures result >= 40u64 && result <= 63u64 | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) |
+| match join | `match_join/` | both branches of a boolean match expression yield the guarded masked value before subtraction | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) |
+| const name | `const_name/` | named constants RAW_VAL and MASK_VAL define operands for bitwise AND mask before guarded subtraction | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) |
+| a nested machine | `other_state/` | an terminal machine transfer transfers the guarded masked value to a successor machine with entry contract | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) |
+| another machine | `other_machine/` | an associated Relay machine forwards the guarded masked value to the caller under postcondition | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) |
+| another target body | `target_body/` | each of the four hosted target bodies computes bitwise AND mask and discharges subtraction | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) |
 
 ## Execution
 
@@ -50,15 +50,15 @@ Each place carries a fact-sensitive reject twin at `<place>/invalid/main.omg` (`
 Check each twin with:
 
 ```sh
-omega --check samples/cli/facts/unsigned_64bit_bitwise_and_mask_bound/local/invalid/main.omg
-omega --check samples/cli/facts/unsigned_64bit_bitwise_and_mask_bound/field/invalid/main.omg
-omega --check samples/cli/facts/unsigned_64bit_bitwise_and_mask_bound/parameter/invalid/main.omg
-omega --check samples/cli/facts/unsigned_64bit_bitwise_and_mask_bound/call_result/invalid/main.omg
-omega --check samples/cli/facts/unsigned_64bit_bitwise_and_mask_bound/match_join/invalid/main.omg
-omega --check samples/cli/facts/unsigned_64bit_bitwise_and_mask_bound/const_name/invalid/main.omg
-omega --check samples/cli/facts/unsigned_64bit_bitwise_and_mask_bound/other_state/invalid/main.omg
-omega --check samples/cli/facts/unsigned_64bit_bitwise_and_mask_bound/other_machine/invalid/main.omg
-omega --check samples/cli/facts/unsigned_64bit_bitwise_and_mask_bound/target_body/invalid/main.omg
+omega --check samples/cli/facts/unsigned_64bit_bitwise_and_mask_bound/invalid_local/main.omg
+omega --check samples/cli/facts/unsigned_64bit_bitwise_and_mask_bound/invalid_field/main.omg
+omega --check samples/cli/facts/unsigned_64bit_bitwise_and_mask_bound/invalid_parameter/main.omg
+omega --check samples/cli/facts/unsigned_64bit_bitwise_and_mask_bound/invalid_call_result/main.omg
+omega --check samples/cli/facts/unsigned_64bit_bitwise_and_mask_bound/invalid_match_join/main.omg
+omega --check samples/cli/facts/unsigned_64bit_bitwise_and_mask_bound/invalid_const_name/main.omg
+omega --check samples/cli/facts/unsigned_64bit_bitwise_and_mask_bound/invalid_other_state/main.omg
+omega --check samples/cli/facts/unsigned_64bit_bitwise_and_mask_bound/invalid_other_machine/main.omg
+omega --check samples/cli/facts/unsigned_64bit_bitwise_and_mask_bound/invalid_target_body/main.omg
 ```
 
 Every reject twin fails closed with:

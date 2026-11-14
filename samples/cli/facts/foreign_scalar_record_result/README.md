@@ -128,6 +128,6 @@ Applicable requirement layers:
 
 ```sh
 omega run --both samples/cli/facts/foreign_scalar_record_result/local/main.omg
-omega --check samples/cli/facts/foreign_scalar_record_result/local/invalid/main.omg
+omega --check samples/cli/facts/foreign_scalar_record_result/invalid_local/main.omg
 python3 tools/ci/compiler_foreign_records.py
 ```
