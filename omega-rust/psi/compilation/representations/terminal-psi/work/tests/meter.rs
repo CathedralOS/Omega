@@ -255,7 +255,7 @@ fn sponsor_budget_exhausts_atomically_before_execution() {
 fn primitive_local_actions_charge_one_unit_atomically_at_their_own_sites() {
     let establish = Operation {
         static_reach_binding: None,
-            required_contract: None,
+        required_contract: None,
         suspension_crossing: None,
         id: operation_id(31),
         result: terminal_psi::OperationResult::Structural(
@@ -277,7 +277,7 @@ fn primitive_local_actions_charge_one_unit_atomically_at_their_own_sites() {
     };
     let read = Operation {
         static_reach_binding: None,
-            required_contract: None,
+        required_contract: None,
         suspension_crossing: None,
         id: operation_id(32),
         result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
@@ -333,7 +333,7 @@ fn operation() -> Operation {
     );
     Operation {
         static_reach_binding: None,
-            required_contract: None,
+        required_contract: None,
         suspension_crossing: None,
         id: operation_id(1),
         result: terminal_psi::OperationResult::Scalar(ValueDeclaration {

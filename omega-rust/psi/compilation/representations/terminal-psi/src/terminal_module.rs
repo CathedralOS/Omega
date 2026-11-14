@@ -1207,9 +1207,10 @@ impl TerminalModule {
         required: Option<semantic_vocabulary::ContractId>,
     ) -> Option<impl Iterator<Item = &Proposition>> {
         let (contract, boundary) = match callee {
-            crate::TargetMachineCallable::Machine(callee) => {
-                (Some(self.invocation_machine_contract(callee, required)?), None)
-            }
+            crate::TargetMachineCallable::Machine(callee) => (
+                Some(self.invocation_machine_contract(callee, required)?),
+                None,
+            ),
             crate::TargetMachineCallable::Boundary(_) if required.is_some() => return None,
             crate::TargetMachineCallable::Boundary(boundary) => {
                 (None, Some(self.boundary_machine(boundary)?))
@@ -1219,7 +1220,11 @@ impl TerminalModule {
             contract
                 .into_iter()
                 .flat_map(|contract| contract.ensures.iter().map(|clause| &clause.proposition))
-                .chain(boundary.into_iter().flat_map(|boundary| &boundary.scalar_ensures)),
+                .chain(
+                    boundary
+                        .into_iter()
+                        .flat_map(|boundary| &boundary.scalar_ensures),
+                ),
         )
     }
 
@@ -1229,11 +1234,15 @@ impl TerminalModule {
         required: Option<semantic_vocabulary::ContractId>,
     ) -> Option<&[StructuralParameterDeclaration]> {
         match callee {
-            crate::TargetMachineCallable::Machine(callee) => {
-                Some(&self.invocation_machine_contract(callee, required)?.structural_parameters)
-            }
+            crate::TargetMachineCallable::Machine(callee) => Some(
+                &self
+                    .invocation_machine_contract(callee, required)?
+                    .structural_parameters,
+            ),
             crate::TargetMachineCallable::Boundary(_) if required.is_some() => None,
-            crate::TargetMachineCallable::Boundary(_) => self.callable_structural_parameters(callee),
+            crate::TargetMachineCallable::Boundary(_) => {
+                self.callable_structural_parameters(callee)
+            }
         }
     }
 

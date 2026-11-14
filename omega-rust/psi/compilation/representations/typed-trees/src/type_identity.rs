@@ -261,7 +261,11 @@ pub(crate) mod callable_identity {
             }
             let mut bytes = b"omega.requirement-schema.v3\0".to_vec();
             let length = |bytes: &mut Vec<u8>, value: usize| -> Result<(), &'static str> {
-                bytes.extend(u64::try_from(value).map_err(|_| "requirement schema length overflows")?.to_le_bytes());
+                bytes.extend(
+                    u64::try_from(value)
+                        .map_err(|_| "requirement schema length overflows")?
+                        .to_le_bytes(),
+                );
                 Ok(())
             };
             length(&mut bytes, signature.len())?;
@@ -274,19 +278,33 @@ pub(crate) mod callable_identity {
                     TypeParameterKind::Type => (1, String::new()),
                     TypeParameterKind::Const { type_reference }
                     | TypeParameterKind::Value { type_reference } => {
-                        if !self.type_reference_table.contains_type_reference(*type_reference) {
+                        if !self
+                            .type_reference_table
+                            .contains_type_reference(*type_reference)
+                        {
                             return Err("requirement schema has a stale parameter carrier");
                         }
-                        let identity = self.type_identity_text(self.package_qualified_type_identity(*type_reference))
+                        let identity = self
+                            .type_identity_text(
+                                self.package_qualified_type_identity(*type_reference),
+                            )
                             .filter(|identity| !identity.is_empty())
-                            .ok_or("requirement schema parameter has no declared carrier identity")?;
-                        let kind = if matches!(parameter.kind, TypeParameterKind::Const { .. }) { 2 } else { 3 };
+                            .ok_or(
+                                "requirement schema parameter has no declared carrier identity",
+                            )?;
+                        let kind = if matches!(parameter.kind, TypeParameterKind::Const { .. }) {
+                            2
+                        } else {
+                            3
+                        };
                         (kind, identity)
                     }
                     TypeParameterKind::Machine { .. }
                     | TypeParameterKind::Implementation
                     | TypeParameterKind::Proposition { .. } => {
-                        return Err("requirement schema needs its complete higher-order parameter contract");
+                        return Err(
+                            "requirement schema needs its complete higher-order parameter contract",
+                        );
                     }
                 };
                 kinds.push(kind);

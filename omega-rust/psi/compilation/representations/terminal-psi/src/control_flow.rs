@@ -421,7 +421,7 @@ pub(crate) mod invocations {
             {
                 return Some(ModuleInvocationInputs {
                     callee: super::TargetMachineCallable::Boundary(*boundary),
-                        required_contract: None,
+                    required_contract: None,
                     arguments,
                     erased_arguments: &[],
                     erased_proof_arguments: &[],

@@ -63,12 +63,11 @@ pub(crate) mod call_foundations {
         machine: &TerminalMachine,
         invocation: ModuleInvocationInputs<'_>,
     ) -> Result<(), CodecError> {
-        let callee =
-            module
-                .invocation_machine_contract(invocation.callee, invocation.required_contract)
-                .ok_or(CodecError::MalformedStructuralFoundation(
-                    "module invocation references an unknown callee",
-                ))?;
+        let callee = module
+            .invocation_machine_contract(invocation.callee, invocation.required_contract)
+            .ok_or(CodecError::MalformedStructuralFoundation(
+                "module invocation references an unknown callee",
+            ))?;
         if invocation.arguments.len() != callee.parameters.len()
             || invocation.erased_arguments.len() != callee.erased_scalar_formals.len()
             || invocation.erased_proof_arguments.len() != callee.erased_proof_formals.len()
@@ -10116,7 +10115,11 @@ fn validate_declaration_contracts(module: &TerminalModule) -> Result<(), CodecEr
             return malformed("bodyless contract aliases a body-owned contract identity");
         }
     }
-    if module.machines.iter().any(|machine| machine.contract.selected_application.is_some()) {
+    if module
+        .machines
+        .iter()
+        .any(|machine| machine.contract.selected_application.is_some())
+    {
         return malformed("a physical body contract carries an invocation-specific selection");
     }
     for contract in module
@@ -10942,7 +10945,9 @@ fn validate_operation_foundation(
     transfers: &mut storage_foundations::StructuralTransferInputs<'_>,
 ) -> Result<(), CodecError> {
     if operation.required_contract.is_some() && operation.module_invocation().is_none() {
-        return malformed("public requirement contract is attached to an operation that is not a module call");
+        return malformed(
+            "public requirement contract is attached to an operation that is not a module call",
+        );
     }
     if let OperationKind::ReadScalarApplication { application } = operation.kind {
         let Some(carrier) = module

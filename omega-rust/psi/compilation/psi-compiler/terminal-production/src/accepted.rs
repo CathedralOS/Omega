@@ -73,14 +73,25 @@ impl AcceptedTerminalSource {
         &self,
         declaration: symbols::SymbolHandle,
         expression: typed_trees::expression::ExpressionHandle,
-    ) -> impl Iterator<Item = (semantic_vocabulary::MachineId, semantic_vocabulary::InvocationSite)> + '_ {
-        self.correspondence.calls.iter().flat_map(move |(caller, calls)| {
-            calls.iter().filter_map(move |(member, retained, statement, site)| {
-                (*retained == expression && !statement.is_valid()
-                    && self.closure.elaboration.machines.get(*member) == Some(&declaration))
-                    .then_some((caller, *site))
+    ) -> impl Iterator<
+        Item = (
+            semantic_vocabulary::MachineId,
+            semantic_vocabulary::InvocationSite,
+        ),
+    > + '_ {
+        self.correspondence
+            .calls
+            .iter()
+            .flat_map(move |(caller, calls)| {
+                calls
+                    .iter()
+                    .filter_map(move |(member, retained, statement, site)| {
+                        (*retained == expression
+                            && !statement.is_valid()
+                            && self.closure.elaboration.machines.get(*member) == Some(&declaration))
+                        .then_some((caller, *site))
+                    })
             })
-        })
     }
 
     /// The advisory diagnostics of the accepted compilation: warnings and
