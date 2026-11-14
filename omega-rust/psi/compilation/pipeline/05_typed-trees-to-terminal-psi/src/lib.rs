@@ -310,16 +310,14 @@ fn elaborate_source_for(
     program.selected_declarations(first, compilation.selected)?;
     program.supplied_slots(first, compilation.supplies)?;
     program.subject_declarations(first, compilation.subjects, compilation.purpose)?;
-    let mut elaboration = finish_reading(
+    finish_reading(
         program,
         entry,
         IdTable::default(),
         Some(typed),
         compilation.calling,
         compilation.providers,
-    )?;
-    proof_scope::declare(typed, &mut elaboration.program)?;
-    Ok(elaboration)
+    )
 }
 
 /// Elaborates one machine and the closure of machines it calls, in discovery
@@ -642,7 +640,8 @@ fn prepare_form(typed: &TypedTrees, entry: SymbolHandle, rigid: bool) -> Checked
 /// Reads every body not yet in `bodies`, callees as they are discovered,
 /// and lowers the closure. `declared` is the typed trees when the closure is a
 /// compilation's program, whose machines are then given their declaration
-/// identities (`declare`).
+/// identities (`declare`). This owner publishes their proof scopes once after
+/// the declarations are formed.
 fn finish_reading(
     mut program: read::Program<'_>,
     entry: Option<MachineId>,

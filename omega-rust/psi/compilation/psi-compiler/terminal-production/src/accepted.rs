@@ -489,48 +489,69 @@ fn route_defect(detail: &str) -> Diagnostic {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use semantic_vocabulary::{IdTable, MachineId};
-    use typed_trees_to_terminal_psi::{Body, CrashCeiling, Signature, Termination};
+    use typed_trees_to_terminal_psi::Compilation;
 
-    fn elaboration() -> typed_trees_to_terminal_psi::Elaboration {
-        let mut bodies = IdTable::default();
-        bodies.push(Body {
-            slots: Vec::new(),
-            statements: Vec::new(),
-        });
-        let mut signatures = IdTable::default();
-        signatures.push(Signature {
-            parameters: Vec::new(),
-            erased: Vec::new(),
-            borrowed: Vec::new(),
-            result: None,
-            requires: Vec::new(),
-            ensures: Vec::new(),
-            reaches: typed_trees_to_terminal_psi::Ceiling::Inferred,
-            invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
-            crashes: CrashCeiling::Authored(Vec::new()),
-            termination: Termination::Silent,
-        });
-        typed_trees_to_terminal_psi::lower_bodies(
-            MachineId::new(1).unwrap(),
-            &bodies,
-            &signatures,
-            &IdTable::default(),
+    fn elaboration(
+        publication: terminal_codec::TerminalPublication,
+    ) -> typed_trees_to_terminal_psi::Elaboration {
+        const TEXT: &str = "machine entry() crashes none {}";
+        let package = semantic_vocabulary::PackageKeyIdentity::from_digest([0xa7; 32]).unwrap();
+        let mut sources = source::SourceMap::default();
+        let source = sources
+            .add_checked_instance(
+                "accepted/source.omg".into(),
+                TEXT,
+                "accepted".into(),
+                Some(package),
+                source::SourceOrigin::User,
+                source::SourceResolutionStratum::Base,
+                source::DependencyScope::Product,
+            )
+            .source_id;
+        let tokens = source_files_to_tokens::Lexer::new(TEXT).tokenize().unwrap();
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap();
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                syntax,
+                sources: Some(Arc::new(sources)),
+                top_level_bindings: Vec::new(),
+                retained_base: None,
+            },
+        )
+        .unwrap();
+        let typed =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let [entry] = typed.machines() else {
+            panic!("publication fixture must retain its one actual source machine");
+        };
+        typed_trees_to_terminal_psi::elaborate_for(
+            &typed,
+            Compilation {
+                declaration_metadata: &[],
+                entries: &[entry.symbol],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                calling: None,
+                providers: None,
+                supplies: &[],
+            },
+            publication,
         )
         .unwrap()
     }
 
     fn accepted() -> RouteVerdict {
-        terminal_psi_to_terminal_psi::judge(Ok(elaboration())).unwrap()
+        terminal_psi_to_terminal_psi::judge(Ok(elaboration(
+            terminal_codec::TerminalPublication::Portable,
+        )))
+        .unwrap()
     }
 
     #[test]
     fn invocation_publication_keeps_the_judged_module_and_scope() {
-        let mut stated = elaboration();
-        // Raw test bodies declare no identities. Supply the real scope before
-        // judgment; production receives it from structural lowering itself.
-        stated.module.identities =
-            terminal_psi::TerminalIdentityTableBuilder::for_invocation().build();
+        let stated = elaboration(terminal_codec::TerminalPublication::Invocation);
         let closure = accept_compilation(vec![
             terminal_psi_to_terminal_psi::judge(Ok(stated))
                 .map_err(CompilationRefusal::Elaboration),

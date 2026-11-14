@@ -6,9 +6,22 @@ use super::*;
 use std::sync::Arc;
 
 pub(super) fn typed(text: &str) -> typed_trees::TypedTrees {
+    // The boundary belongs to this fixture's user package. Its declared
+    // owner is required by ordinary header publication; it grants no
+    // toolchain identity or provider-execution authority.
+    let package = semantic_vocabulary::PackageKeyIdentity::from_digest([0xbc; 32])
+        .expect("nonempty fixture package identity");
     let mut sources = source::SourceMap::default();
     let source = sources
-        .add("boundary_calls/source.omg".into(), text.to_owned())
+        .add_checked_instance(
+            "boundary_calls/source.omg".into(),
+            text,
+            "boundary_calls".into(),
+            Some(package),
+            source::SourceOrigin::User,
+            source::SourceResolutionStratum::Base,
+            source::DependencyScope::Product,
+        )
         .source_id;
     let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
     let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap();
@@ -34,8 +47,8 @@ pub(super) fn entry(typed: &typed_trees::TypedTrees) -> symbols::SymbolHandle {
 }
 
 fn invocation(typed: typed_trees::TypedTrees) -> Checked<typed_trees_to_terminal_psi::Elaboration> {
-    // Anonymous source belongs to this activation. Do not give its interface
-    // a made-up package owner just to obtain a portable declaration identity.
+    // These are the package's actual declarations in this invocation's
+    // activation scope. No provider is installed or executed by the test.
     let entry = entry(&typed);
     let frozen: typed_trees::FrozenTypedTrees = typed.into();
     typed_trees_to_terminal_psi::elaborate_for(
