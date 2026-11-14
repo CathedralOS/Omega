@@ -651,7 +651,7 @@ machine configure_windows_console(builder: &mut Build) {
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "msvcrt.dll", export: "_setmode"
         } });
-    Build::bind<Console::exit_process>(builder, windows_x86_64,
+    Build::bind<ConsoleHost::exit_process>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "ExitProcess"
         } });

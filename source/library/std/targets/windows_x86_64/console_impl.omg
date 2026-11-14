@@ -1,5 +1,5 @@
-// Exact windows_x86_64 Console leaves. The named NativeConsole implementation
-// in std/console.omg forwards to these target declarations.
+// Exact windows_x86_64 Console leaves. These declarations supply the private
+// ConsoleHost requirements used by NativeConsole in std/console.omg.
 //
 // Windows has no stable syscall ABI, so every leaf realizes through DLL
 // linkage. Byte I/O uses the MSVCRT descriptor calls, which are unbuffered:
@@ -46,7 +46,7 @@ boundary trait WindowsConsoleIo {
 // -1 is a failed host read. The named trapping conversion rejects that
 // negative status under the published `crashes Trap` contract.
 windows_x86_64 machine ConsoleNativeProvider::read_byte() -> ByteRead
-    satisfies Console::read_byte
+    satisfies ConsoleHost::read_byte
 reaches Console
 invokes WindowsConsoleIo
 blocks
@@ -76,7 +76,7 @@ crashes Trap
 
 // Descriptor 1 is stdout.
 windows_x86_64 machine ConsoleNativeProvider::write_byte(byte: i32)
-    satisfies Console::write_byte
+    satisfies ConsoleHost::write_byte
 reaches Console
 invokes WindowsConsoleIo
 {
@@ -85,12 +85,8 @@ invokes WindowsConsoleIo
     let written: i32 = WindowsConsoleIo::write(1, &mut cell, 1);
 }
 
-// The `Console::exit_process` requirement carries this target's kernel32
-// `ExitProcess` locator through `std/build.omg`; the boundary declaration is
-// the provider row the `NativeConsole` map forwards to.
-windows_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
-    satisfies Console::exit_process;
-
+// Process exit is bound directly to the private host requirement in
+// std/build.omg; a locator needs no bodyless forwarding machine here.
 windows_x86_64 machine ConsoleNativeProvider::provider_defaults(defaults: &mut ConsoleNativeProvider) {
     ConsoleNativeProvider::select_provider<Console, NativeConsole>(defaults);
 }

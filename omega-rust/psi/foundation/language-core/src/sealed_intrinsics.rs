@@ -547,6 +547,24 @@ const ROWS: &[SealedIntrinsicRow] = &[
         SealedIntrinsic::HostedRequirement(HostedOperation::ConsoleReadByte),
     ),
     row(
+        "console.omg",
+        "ConsoleHost::exit_process",
+        STD_CONSOLE,
+        SealedIntrinsic::HostedRequirement(HostedOperation::ConsoleExitProcess),
+    ),
+    row(
+        "console.omg",
+        "ConsoleHost::write_byte",
+        STD_CONSOLE,
+        SealedIntrinsic::HostedRequirement(HostedOperation::ConsoleWriteByte),
+    ),
+    row(
+        "console.omg",
+        "ConsoleHost::read_byte",
+        STD_CONSOLE,
+        SealedIntrinsic::HostedRequirement(HostedOperation::ConsoleReadByte),
+    ),
+    row(
         "process_exit.omg",
         "ProcessExit::exit_process",
         CORE_PROCESS_EXIT,
@@ -665,6 +683,35 @@ mod tests {
             file: Path::new(file),
             declaration,
             source,
+        }
+    }
+
+    #[test]
+    fn private_host_requirements_retain_the_exact_catalog_identity() {
+        for (member, operation) in [
+            ("read_byte", HostedOperation::ConsoleReadByte),
+            ("write_byte", HostedOperation::ConsoleWriteByte),
+            ("exit_process", HostedOperation::ConsoleExitProcess),
+        ] {
+            let requirement = format!("ConsoleHost::{member}");
+            assert_eq!(
+                SealedIntrinsicCatalog::classify(site("console.omg", &requirement, STD_CONSOLE)),
+                Some(SealedIntrinsic::HostedRequirement(operation)),
+            );
+            let mut edited = STD_CONSOLE.to_vec();
+            edited.push(b' ');
+            assert_eq!(
+                SealedIntrinsicCatalog::classify(site("console.omg", &requirement, &edited)),
+                None,
+            );
+            assert_eq!(
+                SealedIntrinsicCatalog::classify(site(
+                    "copied/console.omg",
+                    &requirement,
+                    STD_CONSOLE
+                )),
+                None,
+            );
         }
     }
 

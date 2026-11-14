@@ -131,15 +131,13 @@ pub mod boundary_completions {
         console_adapter: bool,
     ) -> bool {
         use language_core::sealed_intrinsics::{HostedOperation, SealedIntrinsic};
-        let (trait_name, operation) = if console_adapter {
-            ("Console", HostedOperation::ConsoleExitProcess)
+        let operation = if console_adapter {
+            HostedOperation::ConsoleExitProcess
         } else {
-            ("ProcessExit", HostedOperation::ProcessExit)
+            HostedOperation::ProcessExit
         };
         if !requirement.is_valid()
             || !definition.is_boundary
-            || !definition.is_public
-            || definition.name.as_str() != trait_name
             || !definition.lifetime_parameters.is_empty()
             || !program.trait_type_parameters(definition).is_empty()
             || program
