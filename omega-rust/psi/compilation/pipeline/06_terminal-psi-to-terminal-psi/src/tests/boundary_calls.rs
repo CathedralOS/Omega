@@ -120,7 +120,7 @@ fn source_boundary_calls_keep_their_actual_input_obligations() {
 /// preparation closes the requirement once per application, as it generates
 /// one machine per application of a generic machine, so the program is read
 /// after that stage.
-fn applied_boundary(limit: u32) -> Checked<typed_trees_to_terminal_psi::Elaboration> {
+fn applied_boundary_prepared(limit: u32) -> typed_trees::FrozenTypedTrees {
     let typed = typed(&format!(
         r#"
 data Reading {{ level: u32; }}
@@ -140,14 +140,20 @@ machine entry() -> u32 crashes none {{
 }}
 "#
     ));
-    let entry = entry(&typed);
     let (frozen, _) = typed_trees_to_typed_trees::prepare_typed_trees(
         typed,
         &typed_trees_to_typed_trees::PreparationRequest::settled(),
     )
     .unwrap();
+    frozen
+}
+
+fn read_applied_boundary(
+    frozen: &typed_trees::FrozenTypedTrees,
+) -> Checked<typed_trees_to_terminal_psi::Elaboration> {
+    let entry = entry(frozen);
     typed_trees_to_terminal_psi::elaborate_for(
-        &frozen,
+        frozen,
         typed_trees_to_terminal_psi::Compilation {
             declaration_metadata: &[],
             entries: &[entry],
@@ -159,6 +165,10 @@ machine entry() -> u32 crashes none {{
         },
         terminal_codec::TerminalPublication::Invocation,
     )
+}
+
+fn applied_boundary(limit: u32) -> Checked<typed_trees_to_terminal_psi::Elaboration> {
+    read_applied_boundary(&applied_boundary_prepared(limit))
 }
 
 #[test]
@@ -201,6 +211,55 @@ fn a_boundary_requirement_is_judged_at_the_type_a_call_applies_it_at() {
         matches!(verdict, RouteVerdict::Rejected { ref unproved, .. }
         if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. }))),
         "{verdict:?}"
+    );
+}
+
+#[test]
+fn a_closed_boundary_application_does_not_authorize_an_unrelated_selection() {
+    use typed_trees::expression::ExpressionNode;
+
+    let mut prepared = applied_boundary_prepared(10).into_inner();
+    let unrelated = entry(&prepared);
+    let expression = prepared
+        .expression_table
+        .iter_expressions()
+        .find_map(|(expression, node)| match node {
+            ExpressionNode::Call(call)
+                if prepared
+                    .closed_requirement_application(call.target_symbol)
+                    .is_some() =>
+            {
+                Some(expression)
+            }
+            _ => None,
+        })
+        .expect("the prepared entry calls a closed boundary requirement");
+    let ExpressionNode::Call(call) = prepared.expression_table.expression(expression) else {
+        unreachable!()
+    };
+    let source = prepared
+        .authored_declaration_selections()
+        .get(call.authored_call_selection.unwrap())
+        .unwrap()
+        .source_span();
+    let selection = prepared
+        .record_resolved_authored_declaration_selection_once(
+            source,
+            typed_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+            typed_trees::AuthoredDeclarationSelectionKind::Call,
+            unrelated,
+        )
+        .unwrap();
+    let ExpressionNode::Call(call) = prepared.expression_table.expression_mut(expression) else {
+        unreachable!()
+    };
+    call.authored_call_selection = Some(selection);
+    let refusal = read_applied_boundary(&prepared.into()).unwrap_err();
+    assert!(
+        refusal
+            .detail
+            .contains("selection resolved to another declaration"),
+        "{refusal:?}"
     );
 }
 
