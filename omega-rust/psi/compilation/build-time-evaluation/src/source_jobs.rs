@@ -2780,7 +2780,7 @@ pub(crate) mod tests {
                 "machine request() -> u64 { 0u64 }",
                 "public First satisfies Policy { Policy::plan = implementation; }",
                 "public trait Policy { machine plan(value: u64) -> u64 requires value > 0; }",
-                "public machine implementation(value: u64) -> u64 requires value > 0 { value }",
+                "public machine implementation(value: u64) -> u64 requires value > 0 { helper(value) } machine helper(value: u64) -> u64 { value }",
             ],
             &[(1, 2, "Policy"), (1, 3, "implementation")],
         );
@@ -2817,7 +2817,7 @@ pub(crate) mod tests {
             }
             let program = PreparedBuildMachineProgram::prepare(
                 &source,
-                Some(Arc::new(SelectionAuthorityEdges(edges))),
+                Some(Arc::new(SelectionAuthorityEdges(edges.clone()))),
             )
             .unwrap();
             let entry = program
@@ -2833,6 +2833,125 @@ pub(crate) mod tests {
             let result = entry.invoke(target(), &mut meter);
             if has_body_edge {
                 assert_eq!(result.unwrap(), BuildTimeValue::Int(1));
+                let produced = entry.produce_invocation().unwrap();
+                let module = produced.view().module();
+                let authority = SelectionAuthorityEdges(edges);
+                let admit = |module: terminal_psi::TerminalModule| {
+                    // Keep the original invocation custody. These are receiving
+                    // forgeries, never a promotion to portable publication.
+                    let code = terminal_codec::InvocationTerminalCode::new(module)
+                        .map_err(|error| format!("artifact refusal: {error:?}"))?;
+                    let view = code.view();
+                    let root = view
+                        .module()
+                        .scalar_applications
+                        .proof_scope
+                        .callable_declaration(view.module().entry.unwrap())
+                        .unwrap();
+                    let providers = terminal_installation::admit_provider_execution_installation(
+                        view,
+                        &[],
+                        &[],
+                    )
+                    .map_err(|error| format!("provider refusal: {error:?}"))?;
+                    terminal_installation::admit_compiler_evaluation(
+                        view,
+                        target().name,
+                        root,
+                        providers,
+                        semantic_vocabulary::compiler_evaluation::DeclarationCustody::Package(
+                            packages[0],
+                        ),
+                        Some(&authority),
+                    )
+                };
+                assert!(admit(module.clone()).is_ok());
+                let selected = module
+                    .machines
+                    .iter()
+                    .flat_map(|machine| {
+                        machine.module_invocations().filter_map(move |call| {
+                            call.inputs.required_contract.map(|required| {
+                                (machine.id, call.site, call.inputs.callee, required)
+                            })
+                        })
+                    })
+                    .collect::<Vec<_>>();
+                let [(caller, site, body, required)] = selected.as_slice() else {
+                    panic!("one actual selected call")
+                };
+                let semantic_vocabulary::InvocationSite::Operation(operation) = site else {
+                    panic!("the source call returns normally")
+                };
+                let mut stripped = module.clone();
+                stripped
+                    .machines
+                    .iter_mut()
+                    .find(|machine| machine.id == *caller)
+                    .unwrap()
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|block| &mut block.operations)
+                    .find(|row| row.id == *operation)
+                    .unwrap()
+                    .required_contract = None;
+                let error = admit(stripped).unwrap_err();
+                assert!(
+                    error.contains("without direct dependency authority")
+                        && error.contains(&format!("{:?}", packages[0]))
+                        && error.contains(&format!("{:?}", packages[3])),
+                    "{error}"
+                );
+
+                let mut missing = module.clone();
+                let scope = &mut missing.scalar_applications.proof_scope;
+                let declaration = scope.callable_declaration((*caller).into()).unwrap();
+                let (header, _) = scope
+                    .callable_headers
+                    .iter()
+                    .find(|(_, header)| header.declaration == declaration)
+                    .unwrap();
+                scope
+                    .callable_headers
+                    .get_mut(header)
+                    .compiler_evaluation
+                    .as_mut()
+                    .unwrap()
+                    .selections
+                    .as_mut()
+                    .unwrap()
+                    .retain(|request| {
+                        request.requester != packages[1] || request.owner != packages[3]
+                    });
+                let error = admit(missing).unwrap_err();
+                assert!(
+                    error.contains("supplier's admitted source-selection requests"),
+                    "{error}"
+                );
+
+                let body_machine = module.machine(*body).unwrap();
+                let inner = body_machine.module_invocations().next().unwrap();
+                let semantic_vocabulary::InvocationSite::Operation(inner_operation) = inner.site
+                else {
+                    panic!("the helper call returns normally")
+                };
+                let mut copied = module.clone();
+                copied
+                    .machines
+                    .iter_mut()
+                    .find(|machine| machine.id == *body)
+                    .unwrap()
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|block| &mut block.operations)
+                    .find(|row| row.id == inner_operation)
+                    .unwrap()
+                    .required_contract = Some(*required);
+                let error = admit(copied).unwrap_err();
+                assert!(
+                    error.contains("public") && error.contains("contract"),
+                    "{error}"
+                );
             } else {
                 let error = result.unwrap_err();
                 assert!(

@@ -1089,7 +1089,9 @@ pub mod closed_conformances {
         )
     }
 
-    fn dispatch_application<'module>(
+    /// Match one actual public call to its complete closed selection. This
+    /// correspondence does not admit any package edge or grant issuer rights.
+    pub fn dispatch_application<'module>(
         applications: &[&'module terminal_psi::ClosedConformanceApplication],
         caller: semantic_vocabulary::MachineId,
         dispatch: &terminal_psi::StaticRequirementDispatch,
@@ -1137,6 +1139,78 @@ pub mod closed_conformances {
             return Err("static requirement dispatch has no exact executable method application");
         }
         Ok(*application)
+    }
+
+    /// Prepare the existing application lookup once for a receiving operation.
+    /// Equal keys remain visible so a demanded ambiguous selection refuses.
+    pub fn dispatch_applications(
+        module: &TerminalModule,
+    ) -> Vec<&terminal_psi::ClosedConformanceApplication> {
+        let mut applications = module
+            .closed_conformance_applications
+            .iter()
+            .collect::<Vec<_>>();
+        applications.sort_unstable_by_key(|application| application_key(application));
+        applications
+    }
+
+    /// Recover the package coordinate of a canonical declaration identity so
+    /// its actual source request can be matched. The coordinate is not authority.
+    pub fn declaration_package(
+        module: &TerminalModule,
+        identity: TerminalIdentityIndex,
+    ) -> Result<Option<semantic_vocabulary::PackageKeyIdentity>, &'static str> {
+        use language_semantics::type_identity::{
+            TypeIdentityPackageOwnerVisitor, TypeIdentityVisitError,
+            visit_type_identity_package_owners,
+        };
+        struct Owner {
+            package: Option<semantic_vocabulary::PackageKeyIdentity>,
+            depth: usize,
+            remaining: usize,
+        }
+        impl TypeIdentityPackageOwnerVisitor for Owner {
+            fn enter(&mut self) -> Result<(), TypeIdentityVisitError> {
+                if self.depth == 128 {
+                    return Err(TypeIdentityVisitError::ResourceLimitExceeded);
+                }
+                self.depth += 1;
+                Ok(())
+            }
+            fn leave(&mut self) {
+                self.depth -= 1;
+            }
+            fn reserve(&mut self, bytes: usize) -> Result<(), TypeIdentityVisitError> {
+                self.remaining = self
+                    .remaining
+                    .checked_sub(bytes)
+                    .ok_or(TypeIdentityVisitError::ResourceLimitExceeded)?;
+                Ok(())
+            }
+            fn package_owner(&mut self, digest: [u8; 32]) -> Result<(), TypeIdentityVisitError> {
+                let package = semantic_vocabulary::PackageKeyIdentity::from_digest(digest)
+                    .ok_or(TypeIdentityVisitError::MalformedIdentity)?;
+                if self.package.replace(package).is_some() {
+                    return Err(TypeIdentityVisitError::MalformedIdentity);
+                }
+                Ok(())
+            }
+            fn embedded_name(&mut self, _: &str) -> Result<(), TypeIdentityVisitError> {
+                Err(TypeIdentityVisitError::UnsupportedEmbeddedName)
+            }
+        }
+        let text = module
+            .identities
+            .text(identity)
+            .ok_or("selected declaration has no canonical identity")?;
+        let mut owner = Owner {
+            package: None,
+            depth: 0,
+            remaining: text.len(),
+        };
+        visit_type_identity_package_owners(text, &mut owner)
+            .map_err(|_| "selected declaration lost its exact canonical package owner")?;
+        Ok(owner.package)
     }
 
     pub fn validate_closed_conformances(module: &TerminalModule) -> Result<(), &'static str> {
@@ -1413,11 +1487,7 @@ pub mod closed_conformances {
         // Sort borrowed rows once so ordinary calls do not each scan and
         // allocate a copy of the complete module roster. Equal keys remain in
         // the slice so a demanded ambiguous application still refuses.
-        let mut applications = module
-            .closed_conformance_applications
-            .iter()
-            .collect::<Vec<_>>();
-        applications.sort_unstable_by_key(|application| application_key(application));
+        let applications = dispatch_applications(module);
         let mut proof_calls = module
             .proof_output_calls
             .iter()
