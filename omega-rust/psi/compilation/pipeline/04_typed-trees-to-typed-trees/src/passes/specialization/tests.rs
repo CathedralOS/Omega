@@ -1536,3 +1536,67 @@ fn copied_progress_keeps_its_promise_and_rebinds_private_witnesses() {
         );
     }
 }
+
+#[test]
+fn the_application_index_finds_each_generated_machine_by_its_complete_key() {
+    // Applications of three unrelated templates arrive interleaved and out of
+    // key order. Each distinct (template, arguments) key gets one row, rows
+    // keep encounter order, and an equal key from another template or with
+    // another argument kind is a different application.
+    use super::{Generated, GeneratedMachines, Identity};
+    let templates = [3, 1, 2].map(|slot| SymbolHandle::from_parts(slot, 1));
+    let arguments = |n: u32| -> Vec<Identity> {
+        match n % 3 {
+            0 => vec![Identity::Declaration(SymbolHandle::from_parts(100 + n, 1))],
+            1 => vec![
+                Identity::Scalar(format!("{n}")),
+                Identity::Declaration(SymbolHandle::from_parts(n, 2)),
+            ],
+            _ => vec![
+                Identity::Type(Default::default()),
+                Identity::Scalar(format!("{n}")),
+            ],
+        }
+    };
+    let requests = (0..300u32)
+        .rev()
+        .flat_map(|n| templates.iter().map(move |&template| (template, n)))
+        .collect::<Vec<_>>();
+    let mut generated = GeneratedMachines::default();
+    for (order, &(template, n)) in requests.iter().enumerate() {
+        let key = arguments(n);
+        let slot = generated
+            .search(template, &key)
+            .expect_err("a first request is not yet generated");
+        let made = generated.insert(
+            slot,
+            Generated {
+                template,
+                arguments: key.clone(),
+                machine: SymbolHandle::from_parts(10_000 + order as u32, 1),
+                state: SymbolHandle::from_parts(20_000 + order as u32, 1),
+            },
+        );
+        assert!(made.arguments == key);
+    }
+    for (order, &(template, n)) in requests.iter().enumerate() {
+        let row = generated
+            .search(template, &arguments(n))
+            .expect("a repeated request finds its machine");
+        assert_eq!(row, order, "rows keep the order applications were met");
+        assert_eq!(generated.rows[row].template, template);
+    }
+    // Same payload, different template, generation or argument kind: unseen.
+    let unseen = [
+        (SymbolHandle::from_parts(4, 1), arguments(0)),
+        (
+            templates[0],
+            vec![Identity::Declaration(SymbolHandle::from_parts(100, 2))],
+        ),
+        (templates[0], vec![Identity::Scalar("0".into())]),
+        (templates[0], Vec::new()),
+    ];
+    for (template, key) in unseen {
+        assert!(generated.search(template, &key).is_err());
+    }
+}
