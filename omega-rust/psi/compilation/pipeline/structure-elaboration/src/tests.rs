@@ -1977,6 +1977,88 @@ fn declare(slot: usize, home: Option<&str>) -> Statement {
 }
 
 #[test]
+fn a_moved_owned_field_is_refilled_before_its_whole_owner_is_transferred() {
+    let mut records = records();
+    for raw in 1..=2 {
+        records.get_mut(id(raw)).unwrap().copyable = false;
+    }
+    let mut bodies = IdTable::default();
+    bodies.push(Body {
+        slots: vec![line(), point()],
+        statements: vec![
+            bind(1, member(place(0, line()), 0, point())),
+            store(
+                0,
+                &[0],
+                literal(vec![(0, integer(7)), (1, integer(9))], point()),
+            ),
+            store(
+                0,
+                &[0],
+                literal(vec![(0, integer(11)), (1, integer(13))], point()),
+            ),
+            returns(place(0, line())),
+        ],
+    });
+    let mut signatures = IdTable::default();
+    signatures.push(shaped(vec![line()], Some(line())));
+    let elaboration = crate::lower_bodies(id(1), &bodies, &signatures, &records)
+        .expect("the exact moved field can be filled before whole-owner use");
+    let machine = &elaboration.module.machines[0];
+    assert!(machine.operations().any(|operation| matches!(
+        &operation.kind,
+        OperationKind::StoreStructuralField {
+            disposition: terminal_psi::StructuralStoreDisposition::Vacant,
+            path,
+            ..
+        } if !path.is_empty()
+    )));
+    let verified =
+        terminal_semantics::plain_affine::verify(machine, &elaboration.module.structural_types)
+            .expect("the checker reconstructs the restored field's custody");
+    assert!(verified.unavailable.is_empty());
+    for actual in [
+        terminal_psi::StructuralStoreDisposition::Vacant,
+        terminal_psi::StructuralStoreDisposition::ReplaceDiscardable,
+    ] {
+        let mut forged = machine.clone();
+        let operation = forged
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.operations)
+            .find(|operation| {
+                matches!(
+                    &operation.kind,
+                    OperationKind::StoreStructuralField { disposition, path, .. }
+                        if !path.is_empty() && *disposition == actual
+                )
+            })
+            .expect("the field is first vacant, then occupied");
+        let OperationKind::StoreStructuralField { disposition, .. } = &mut operation.kind else {
+            unreachable!()
+        };
+        *disposition = match actual {
+            terminal_psi::StructuralStoreDisposition::Vacant => {
+                terminal_psi::StructuralStoreDisposition::ReplaceDiscardable
+            }
+            terminal_psi::StructuralStoreDisposition::ReplaceDiscardable => {
+                terminal_psi::StructuralStoreDisposition::Vacant
+            }
+        };
+        assert!(
+            matches!(
+                terminal_semantics::plain_affine::verify(
+                    &forged,
+                    &elaboration.module.structural_types,
+                ),
+                Err(terminal_semantics::plain_affine::Error::Malformed(_))
+            ),
+            "the supplied disposition cannot substitute for actual vacancy"
+        );
+    }
+}
+
+#[test]
 fn a_field_store_is_one_operation_and_one_row_on_its_exact_leaf() {
     // f() -> u32 {
     //     let p = Point { x: 1, y: 2 };
