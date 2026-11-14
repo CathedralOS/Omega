@@ -16,6 +16,9 @@
 #[path = "support/unbuilt_frontier.rs"]
 mod unbuilt_frontier;
 
+#[path = "support/qualified_operator_homes.rs"]
+mod qualified_operator_homes;
+
 use terminal_psi_to_terminal_psi::{RouteVerdict, judge};
 use typed_trees_to_terminal_psi::{Compilation, elaborate};
 

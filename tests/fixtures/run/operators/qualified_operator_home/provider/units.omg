@@ -1,0 +1,13 @@
+module units;
+
+public domain u32::Distance;
+public domain u32::Span;
+
+// This helper belongs to the units module, not the package root.
+machine raw_sum(left: u32, right: u32) -> u32 {
+    (left +% right) +% 10u32
+}
+
+public machine + Span::add(left: u32 in Span, right: u32 in Span) -> u32 in Span {
+    raw_sum(left as -Span, right as -Span) as +Span
+}
