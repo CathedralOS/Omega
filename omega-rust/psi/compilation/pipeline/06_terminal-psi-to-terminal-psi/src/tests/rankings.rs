@@ -246,7 +246,7 @@ fn exact_ranking_inventory_rejects_missing_surplus_swapped_and_stale_claims() {
 /// Use the real catalog file and its exact source custody. Only its ranking
 /// declaration prefix is needed here; unrelated Nat proofs are not this test's
 /// input. Prefix parsing keeps the declaration's original source coordinates.
-pub(super) fn typed_with_ranking_catalog(text: &str) -> typed_trees::TypedTrees {
+pub(crate) fn typed_with_ranking_catalog(text: &str) -> typed_trees::TypedTrees {
     use std::sync::Arc;
     let core_root =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../../source/library/core");

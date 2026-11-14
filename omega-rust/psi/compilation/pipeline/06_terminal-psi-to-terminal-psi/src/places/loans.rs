@@ -230,6 +230,9 @@ impl Storage<'_> {
         at: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
         concerns: Construct,
     ) -> Checked<super::Lineage> {
+        use terminal_semantics::descriptor_results::{
+            DescriptorCallOrigin, DescriptorSourceOrigin,
+        };
         let is_view = matches!(self.shape(raw, concerns)?, super::Shape::View)
             || matches!(self.shape(raw, concerns)?, super::Shape::Typed(ty)
                 if terminal_semantics::descriptor_results::is_descriptor(self.types.iter(), ty));
@@ -242,34 +245,52 @@ impl Storage<'_> {
         let origins = self
             .references
             .borrow_mut()
-            .source_origins(self.machine, at, &location)
+            .symbolic_source_origins(self.machine, at, &location)
             .filter(|origins| !origins.is_empty())
             .ok_or_else(|| {
                 self.unsupported(concerns, "view loan has no original payload correspondence")
             })?;
         let mut captured = None;
         for origin in origins {
-            let next = match origin {
-                terminal_semantics::descriptor_results::DescriptorCallOrigin::Argument {
+            let next = match &origin {
+                DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument {
                     source,
                     projection,
-                } => {
+                }) => {
                     let enclosing = projection.enclosing_storage().ok_or_else(|| {
                         self.unsupported(concerns, "view loan has unresolved payload projection")
                     })?;
                     self.backing(
-                        &self.stored_at(source, &enclosing.path, concerns)?,
+                        &self.stored_at(*source, &enclosing.path, concerns)?,
                         at.0,
                         at.1 as usize,
                         concerns,
                     )?
                 }
-                terminal_semantics::descriptor_results::DescriptorCallOrigin::Literal {
-                    ..
+                DescriptorSourceOrigin::IncomingSlot(_)
+                | DescriptorSourceOrigin::IncomingContents { .. } => {
+                    // This payload came from a caller borrow. Keep its input
+                    // field as the loan identity, rather than flattening the
+                    // payload into an address of this activation's storage.
+                    let original = terminal_semantics::incoming_view_occurrence(
+                        self.module,
+                        self.lowered,
+                        std::slice::from_ref(&origin),
+                    )
+                    .map_err(|detail| self.unsupported(concerns, detail))?;
+                    let path = terminal_semantics::descriptor_lifetimes::descriptor_path(
+                        self.types,
+                        self.root_type(original.root, concerns)?,
+                        &original.path,
+                    )
+                    .ok_or_else(|| {
+                        self.foreign(concerns, "incoming view lost its exact input field")
+                    })?;
+                    self.stored_at(original.root, &path, concerns)?
                 }
-                | terminal_semantics::descriptor_results::DescriptorCallOrigin::Empty => {
-                    raw.clone()
-                }
+                DescriptorSourceOrigin::Backing(
+                    DescriptorCallOrigin::Literal { .. } | DescriptorCallOrigin::Empty,
+                ) => raw.clone(),
                 _ => {
                     return Err(self.unsupported(
                         concerns,

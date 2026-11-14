@@ -2284,9 +2284,8 @@ impl<'a> Storage<'a> {
         {
             return Ok(Reached::Cycle);
         }
-        // Each traced move continues strictly before its operation, so an
-        // acyclic machine ends within one step per operation; a cycle of
-        // moves is refused rather than followed for ever.
+        // Repeated copy equations are handled above. The remaining limit
+        // refuses chains whose projected source keeps growing.
         budget.remaining = budget
             .remaining
             .checked_sub(1)
@@ -4631,5 +4630,153 @@ impl crate::Bindings for Observed<'_, '_> {
             "the clause tests a case of a value above the storage the read observes",
         ))?;
         Held { place, ..self.held }.case(root, path, case)
+    }
+}
+
+#[cfg(test)]
+mod observation_tests {
+    use super::*;
+
+    #[test]
+    fn a_saved_slice_cannot_use_a_later_iterations_endpoints() {
+        let source = r#"
+machine walk<'a>(bytes: &'a [u8], saved: &'a [u8], count: u64, first: bool) {
+    let fresh: &'a [u8] = bytes[0..count];
+    transition first {
+        true -> inspect(bytes, fresh, count, fresh)
+        false -> inspect(bytes, saved, count, fresh)
+    }
+}
+machine inspect<'a>(bytes: &'a [u8], saved: &'a [u8], count: u64, fresh: &'a [u8]) {
+    let current: u64 = fresh.len;
+    let previous: u64 = saved.len;
+    transition count > 1 {
+        true -> walk(bytes, saved, count - 1, false)
+        false -> done()
+    }
+    machine done() {}
+}
+machine entry() {
+    let bytes: [u8; 3] = [11, 22, 33];
+    walk(&bytes[..], &bytes[..], 3, true);
+}
+"#;
+        let typed = crate::tests::rankings::typed_with_ranking_catalog(source);
+        let entry = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "entry")
+            .unwrap()
+            .symbol;
+        let prepared = typed_trees_to_terminal_psi::prepare_compilation(
+            &typed,
+            typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
+                entries: &[entry],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .program;
+        let terminal_check_tables::compilation::TerminalCompilation::Prepared(prepared) = prepared
+        else {
+            panic!("the saved-slice program must prepare");
+        };
+        let input = prepared
+            .closure
+            .unwrap_or_else(|refusal| panic!("saved-slice preparation: {}", refusal.detail));
+        let module = &input.module;
+        let machine = module
+            .machines
+            .iter()
+            .find(|machine| {
+                machine.operations().any(|operation| {
+                    matches!(operation.kind, OperationKind::ByteSequenceSubslice { .. })
+                })
+            })
+            .unwrap();
+        let producer = machine
+            .operations()
+            .find(|operation| matches!(operation.kind, OperationKind::ByteSequenceSubslice { .. }))
+            .unwrap()
+            .id;
+        let tables = input.tables.machines.get(machine.id).unwrap();
+        let graph = Graph::new(machine.id, machine, tables).unwrap();
+        let types = tables.values.map(|_, row| row.scalar_type);
+        let references = reference_graph(module, machine.id).unwrap();
+        let references = RefCell::new(DescriptorAnalysis::with_borrowed_storage_slots(
+            &module.structural_types,
+            &references,
+        ));
+        let storage = Storage::new(
+            machine.id,
+            machine,
+            module,
+            &input.domains,
+            &graph,
+            tables,
+            &types,
+            &references,
+        )
+        .unwrap();
+        let mut current = 0;
+        let mut saved = 0;
+        for operation in machine.operations() {
+            if !matches!(operation.kind, OperationKind::ByteSequenceLength { .. }) {
+                continue;
+            }
+            let point = ProgramPoint::AfterOperation(operation.id);
+            if !graph
+                .dominates(ProgramPoint::AfterOperation(producer), point)
+                .unwrap()
+            {
+                continue;
+            }
+            let leaf = storage.read_leaf(operation).unwrap().unwrap();
+            let (block, after) = graph.locate(point).unwrap();
+            let mut trace = storage.budget();
+            let reached = storage
+                .reaching(
+                    tables,
+                    Asked::Contents(&leaf),
+                    block,
+                    after - 1,
+                    &mut trace,
+                    Construct::Operation(operation.id),
+                )
+                .unwrap();
+            let extent = storage
+                .extent_contents(
+                    producer,
+                    point,
+                    operation.result.scalar_ref().unwrap().scalar_type,
+                    &trace,
+                )
+                .unwrap();
+            if storage.current_extent(producer, &trace).unwrap()
+                && reached == Reached::Extent(producer)
+            {
+                assert!(
+                    extent.is_some(),
+                    "the current slice keeps its actual endpoints"
+                );
+                current += 1;
+            } else if !storage.current_extent(producer, &trace).unwrap() {
+                assert!(
+                    extent.is_none(),
+                    "the saved slice must not borrow today's endpoint values"
+                );
+                saved += 1;
+            }
+        }
+        assert!(current > 0, "the current descriptor must be exercised");
+        assert!(
+            saved > 0,
+            "the descriptor captured before the backedge must be exercised"
+        );
     }
 }

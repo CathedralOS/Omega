@@ -61,7 +61,7 @@ mod provider_supplies;
 mod published_no_return;
 mod qualified_terms;
 mod ranges;
-mod rankings;
+pub(crate) mod rankings;
 mod reach;
 mod references;
 mod result_fields;
