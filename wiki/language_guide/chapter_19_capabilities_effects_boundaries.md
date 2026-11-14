@@ -69,6 +69,13 @@ machine pure_math(x: u32) -> u32 reaches none { ... }
 
 `reaches A + B` allows either. `reaches none` allows no service at all.
 
+A service with parameters is named by its application: `reaches Sensor<17u64>`,
+or `reaches Sensor<Id>` inside a machine generic over `Id`. The bare name
+`Sensor` isn't accepted. Calling a provider doesn't add the provider's own
+service either: you reach only what its requirement declares, which may be
+`none`. See
+[boundary services with parameters](../spec/language/effects.md#boundary-services-with-parameters).
+
 ## Two providers for one contract
 
 One boundary trait is one slot. For two independently chosen providers of the
