@@ -1980,28 +1980,20 @@ pub(crate) mod case_membership {
         let LegalizedScalarInstructionKind::StructuralCaseMembership {
             source: place,
             path,
-            case,
             case_tag,
             tag_byte_offset,
             indices,
+            pointer_slots,
+            ..
         } = &row.kind
         else {
             return Err(invalid());
         };
         let result = row.result.ok_or_else(|| invalid())?;
-        let Some((expected_tag, expected_offset, geometry)) =
-            crate::selection::aggregate_result_input::membership_layout(
-                source, *place, path, *case,
-            )
-        else {
-            return Err(invalid());
-        };
-        if result.scalar_type != ScalarType::Boolean
-            || (expected_tag, expected_offset) != (*case_tag, *tag_byte_offset)
-            || !crate::structural_inputs::runtime_indices_match(indices, &geometry.elements)
-        {
+        if result.scalar_type != ScalarType::Boolean {
             return Err(invalid());
         }
+        let pointer_slots = stored_pointer_slots(pointer_slots)?;
         let place = *place;
         let tag = transport_register(builder, place, *tag_byte_offset)?;
         let provenance = operation_provenance(row, vec![result.value]);
@@ -2011,7 +2003,7 @@ pub(crate) mod case_membership {
             row,
             place,
             *tag_byte_offset,
-            &geometry.pointer_slots,
+            &pointer_slots,
         )?;
         if let Some(pointer) = pointer {
             let (pointer, leaf_index) =
@@ -2075,6 +2067,27 @@ pub(crate) mod case_membership {
             crate::selection::construction::scalar_graph::value_provenance(result.value),
         )?;
         Ok(output)
+    }
+
+    fn stored_pointer_slots(
+        slots: &[legalized_operations::LegalizedCasePointerSlot],
+    ) -> Result<
+        Vec<crate::structural_inputs::structural_reference_input::PointerSlot>,
+        SelectedInstructionError,
+    > {
+        slots
+            .iter()
+            .map(|slot| {
+                Ok(
+                    crate::structural_inputs::structural_reference_input::PointerSlot {
+                        byte_offset: slot.byte_offset,
+                        indices: usize::try_from(slot.index_start).map_err(|_| invalid())?
+                            ..usize::try_from(slot.index_end).map_err(|_| invalid())?,
+                        scalar_descriptor: slot.scalar_descriptor,
+                    },
+                )
+            })
+            .collect()
     }
 }
 pub(crate) mod descriptor_tables {

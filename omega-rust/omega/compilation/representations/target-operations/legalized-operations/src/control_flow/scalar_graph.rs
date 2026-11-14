@@ -689,6 +689,7 @@ pub enum LegalizedScalarInstructionKind {
         case_tag: u32,
         tag_byte_offset: u32,
         indices: Vec<LegalizedRuntimeIndexOperand>,
+        pointer_slots: Vec<LegalizedCasePointerSlot>, // Chases the target row does not store.
     },
     StructuralLeafCopy {
         result: terminal_psi::StructuralOperationResult,
@@ -1251,6 +1252,19 @@ impl LegalizedStructuralCaseSource {
     }
 }
 
+/// One pointer word between a sum and the storage selection has to load.
+///
+/// The target row already stores the sum tag, byte offset, and layout.
+/// It does not store these chases. Legalization keeps them on the case
+/// row so selection emits the loads from that row.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LegalizedCasePointerSlot {
+    pub byte_offset: u32,
+    pub index_start: u32,
+    pub index_end: u32,
+    pub scalar_descriptor: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarTerminator {
     InvokeNoNormal {
@@ -1289,6 +1303,8 @@ pub enum LegalizedScalarTerminator {
         root_shape: calling_conventions::ValueShape,
         byte_offset: u32,
         layout: calling_conventions::ConventionalSumLayout,
+        pointer_slots: Vec<LegalizedCasePointerSlot>,
+        region_byte_size: u32, // Size of the region the pointer chases land in.
         cases: Vec<super::LegalizedStructuralCaseSuccessor>,
         effect: EffectLink,
         ownership: Vec<OwnershipEvent>,

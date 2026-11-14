@@ -6346,7 +6346,6 @@ pub(crate) mod structural_case {
         VirtualRegisterOrigin,
     };
     use crate::SelectedInstructionError;
-    use crate::structural_inputs::structural_reference_input::reference_source_geometry;
     use legalized_operations::{
         LegalizedScalarBlock, LegalizedScalarTerminator, LegalizedStructuralCaseSuccessor,
     };
@@ -6370,10 +6369,11 @@ pub(crate) mod structural_case {
     ) -> Result<SelectedTerminator, SelectedInstructionError> {
         let LegalizedScalarTerminator::StructuralCase {
             source: subject,
-            path,
             root_shape,
             byte_offset,
             layout,
+            pointer_slots,
+            region_byte_size,
             cases,
             ..
         } = &block.terminator
@@ -6481,26 +6481,7 @@ pub(crate) mod structural_case {
                 }
             }
         }
-        let declarations = &source
-            .structural
-            .as_ref()
-            .ok_or(invalid())?
-            .structural_types;
-        let root = crate::selection::reference_input::root_type(source, subject.place())
-            .ok_or(invalid())?;
-        let geometry = reference_source_geometry(root, path, declarations).ok_or(invalid())?;
-        let region_shape =
-            crate::structural_inputs::shape(geometry.region_root, declarations).ok_or(invalid())?;
-        if !geometry.elements.is_empty()
-            || !geometry.readable
-            || geometry.byte_offset != *byte_offset
-            || byte_offset
-                .checked_add(layout.shape.byte_size)
-                .is_none_or(|end| end > region_shape.byte_size)
-        {
-            return Err(invalid());
-        }
-        if !geometry.pointer_slots.is_empty() {
+        if !pointer_slots.is_empty() {
             let mut pointer = match dispatch_source {
                 selected_instructions::SelectedCaseDispatchSource::Local { slot } => {
                     frame_address_pointer(
@@ -6515,8 +6496,8 @@ pub(crate) mod structural_case {
                     pointer
                 }
             };
-            for slot in &geometry.pointer_slots {
-                if slot.scalar_descriptor || !slot.indices.is_empty() {
+            for slot in pointer_slots {
+                if slot.scalar_descriptor || slot.index_start != slot.index_end {
                     return Err(invalid());
                 }
                 pointer = super::structural::reference::load_pointer_word(
@@ -6531,7 +6512,7 @@ pub(crate) mod structural_case {
             dispatch_source = selected_instructions::SelectedCaseDispatchSource::Borrowed {
                 place: subject.place(),
                 pointer,
-                byte_size: region_shape.byte_size,
+                byte_size: *region_byte_size,
             };
         }
         if tested.is_empty() {
