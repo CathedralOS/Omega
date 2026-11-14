@@ -3,17 +3,18 @@
 //! Product syntax or configuration values cannot supply checked Build facts.
 
 use super::PackageReviewInput;
-use super::declarations::unavailable;
+use super::declarations::{nominal_identity, unavailable};
 use crate::record::{
     PackagePolicyCallable, PackagePolicyCallableRole, PackagePolicyCrash, PackagePolicyCrashGuard,
     PackagePolicyCrashRoute, PackagePolicyInferredCrash, PackagePolicyMutation,
     PackagePolicyServiceReachDependency, PackagePolicyTargetContext, PackagePolicyTermination,
     PackageReviewCallableSupply, PackageReviewCheckedServiceReach, PackageReviewCrashCause,
-    PackageReviewCrashInterface, PackageReviewNominalOwner, PackageReviewSignatureParameter,
-    PackageReviewTypeIdentity, PackageReviewWriteFrameCompleteness,
+    PackageReviewCrashInterface, PackageReviewNominalIdentity, PackageReviewNominalOwner,
+    PackageReviewSignatureParameter, PackageReviewSynchronousInvocation, PackageReviewTypeIdentity,
+    PackageReviewWriteFrameCompleteness,
 };
 use diagnostics::Diagnostic;
-use semantic_vocabulary::{MachineId, PackageKeyIdentity, TargetMachineCallable};
+use semantic_vocabulary::{MachineId, PackageKeyIdentity, ServiceId, TargetMachineCallable};
 use terminal_check_tables::edges::Callee;
 use terminal_psi::{CrashRouteGuard, MachineContract, TerminalModule};
 
@@ -136,10 +137,30 @@ impl PackageReviewInput<'_> {
                 })
             })
             .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-        let (checked_may_suspend, checked_may_block) = body_effects(accepted, entry)?;
-        let declared_service_reach = empty_services(header.declared_service_reach.as_deref())?;
-        let declared_synchronous_invocations =
-            empty_services(header.declared_synchronous_entries.as_deref())?;
+        let service_names = service_identities(accepted, &exact_sources)?;
+        let ([reach, entries], [checked_may_suspend, checked_may_block]) =
+            body_effects(accepted, entry)?;
+        let realized_reach = reviewed_services(&service_names, &reach)?;
+        let realized_entries = reviewed_services(&service_names, &entries)?
+            .into_iter()
+            .map(PackageReviewSynchronousInvocation::Service)
+            .collect();
+        let declared_service_reach = header
+            .declared_service_reach
+            .as_deref()
+            .map(|row| reviewed_services(&service_names, row))
+            .transpose()?;
+        let declared_synchronous_invocations = header
+            .declared_synchronous_entries
+            .as_deref()
+            .map(|row| {
+                reviewed_services(&service_names, row).map(|row| {
+                    row.into_iter()
+                        .map(PackageReviewSynchronousInvocation::Service)
+                        .collect()
+                })
+            })
+            .transpose()?;
         let mutation = match &header.published_writes {
             None => PackagePolicyMutation {
                 completeness: PackageReviewWriteFrameCompleteness::Opaque,
@@ -189,14 +210,17 @@ impl PackageReviewInput<'_> {
             requirement_realizations: Vec::new(),
             contracts: Vec::new(),
             declared_service_reach,
-            service_reach_dependency: PackagePolicyServiceReachDependency::default(),
+            service_reach_dependency: PackagePolicyServiceReachDependency {
+                concrete: realized_reach.clone(),
+                parameters: Vec::new(),
+            },
             checked_service_reach: PackageReviewCheckedServiceReach::CheckedBody {
-                realized: Vec::new(),
-                concrete: Vec::new(),
+                realized: realized_reach.clone(),
+                concrete: realized_reach,
             },
             unresolved_installation_reaches: Vec::new(),
             declared_synchronous_invocations,
-            realized_synchronous_invocations: Vec::new(),
+            realized_synchronous_invocations: realized_entries,
             capability_flows: Vec::new(),
             reachable_capability_flows: Vec::new(),
             checked_may_suspend,
@@ -220,20 +244,111 @@ impl PackageReviewInput<'_> {
     }
 }
 
-fn empty_services<T>(
-    row: Option<&[semantic_vocabulary::ServiceId]>,
-) -> Result<Option<Vec<T>>, Vec<Diagnostic>> {
-    match row {
-        None => Ok(None),
-        Some([]) => Ok(Some(Vec::new())),
-        Some(_) => Err(unavailable("Build's nonempty service or entry contract")),
+/// A service keeps its exact source declaration through the already-retained
+/// boundary correspondence. Equal-looking names cannot replace this edge, and
+/// the shared application owner must reproduce the canonical service identity.
+fn service_identities(
+    accepted: &psi_compiler::AcceptedTerminalSource,
+    exact_sources: &[(source::SourceId, [u8; 32])],
+) -> Result<Vec<(ServiceId, PackageReviewNominalIdentity)>, Vec<Diagnostic>> {
+    use typed_trees::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
+    let source = accepted.source();
+    let module = accepted.module();
+    let mut origins = Vec::with_capacity(module.boundary_machines.len());
+    for boundary in &module.boundary_machines {
+        let Some(service) = boundary.owning_service else {
+            continue;
+        };
+        let original = *accepted
+            .closure()
+            .elaboration
+            .boundaries
+            .get(boundary.id)
+            .ok_or_else(|| unavailable("a service's original boundary declaration"))?;
+        if !source.symbols.symbols().nodes().is_valid(original) {
+            return Err(unavailable(
+                "a stale boundary declaration in Build's service inventory",
+            ));
+        }
+        let owner = source.symbols.get(original).parent;
+        origins.push((service, owner));
     }
+    origins.sort_by_key(|(service, _)| *service);
+    let mut identities = Vec::with_capacity(module.services.len());
+    let mut previous = None;
+    for (service, owner) in origins {
+        if let Some((known_service, known_owner)) = previous
+            && known_service == service
+        {
+            if known_owner != owner {
+                return Err(unavailable(
+                    "a service associated with two source declarations",
+                ));
+            }
+            continue;
+        }
+        previous = Some((service, owner));
+        let declaration = source
+            .trait_definition_by_symbol(owner)
+            .filter(|declaration| declaration.is_boundary)
+            .ok_or_else(|| unavailable("a service's exact boundary trait declaration"))?;
+        // This is the same declared boundary scope the reader publishes.
+        // Missing actual arguments stay unavailable, never an empty fallback.
+        let scope = AppliedTraitScope::new(
+            source,
+            declaration,
+            TraitApplicationArguments {
+                lexical_owner: declaration.symbol,
+                enclosing_data_applications: &[],
+                arguments: &[],
+                lifetimes: &[],
+            },
+        )
+        .ok_or_else(|| unavailable("a service's complete applied arguments"))?;
+        let application = scope
+            .portable_application_identity(source)
+            .and_then(|identity| source.type_identity_text(identity))
+            .ok_or_else(|| unavailable("a service's canonical applied identity"))?;
+        let position = module
+            .services
+            .binary_search_by_key(&service, |row| row.id)
+            .map_err(|_| unavailable("a service absent from the accepted declaration inventory"))?;
+        let actual = module
+            .identities
+            .text(module.services[position].identity)
+            .ok_or_else(|| unavailable("an accepted service's declaration identity"))?;
+        if actual != application {
+            return Err(unavailable(
+                "a service/source application identity mismatch",
+            ));
+        }
+        identities.push((service, nominal_identity(source, exact_sources, owner)?));
+    }
+    Ok(identities)
+}
+
+fn reviewed_services(
+    identities: &[(ServiceId, PackageReviewNominalIdentity)],
+    row: &[ServiceId],
+) -> Result<Vec<PackageReviewNominalIdentity>, Vec<Diagnostic>> {
+    let mut projected = row
+        .iter()
+        .map(|service| {
+            let position = identities
+                .binary_search_by_key(service, |(id, _)| *id)
+                .map_err(|_| unavailable("a service without its original applied declaration"))?;
+            Ok(identities[position].1.clone())
+        })
+        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+    projected.sort();
+    projected.dedup();
+    Ok(projected)
 }
 
 fn body_effects(
     accepted: &psi_compiler::AcceptedTerminalSource,
     machine: MachineId,
-) -> Result<(bool, bool), Vec<Diagnostic>> {
+) -> Result<([Vec<ServiceId>; 2], [bool; 2]), Vec<Diagnostic>> {
     let module = accepted.module();
     if !module
         .root_service_reach
@@ -252,17 +367,27 @@ fn body_effects(
     let original = module
         .unoptimized_machine_behavior(machine)
         .ok_or_else(|| unavailable("Build's original checked behavior inventory"))?;
-    if original.operations.iter().any(|operation| {
-        matches!(
-            operation,
-            terminal_psi::UnoptimizedBehaviorOperation::InstructionService { .. }
-        )
-    }) || body.operations().any(|operation| {
-        matches!(
-            operation.kind,
-            terminal_psi::OperationKind::RegisterAccess { .. }
-        )
-    }) {
+    if module
+        .unoptimized_behavior
+        .iter()
+        .flat_map(|body| &body.operations)
+        .any(|operation| {
+            matches!(
+                operation,
+                terminal_psi::UnoptimizedBehaviorOperation::InstructionService { .. }
+            )
+        })
+        || module
+            .machines
+            .iter()
+            .flat_map(|body| body.operations())
+            .any(|operation| {
+                matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::RegisterAccess { .. }
+                )
+            })
+    {
         return Err(unavailable("Build's instruction authority"));
     }
     let tables = accepted
@@ -272,75 +397,59 @@ fn body_effects(
         .machines
         .get(machine)
         .ok_or_else(|| unavailable("Build's checked call inventory"))?;
-    let mut may_suspend = false;
-    let mut may_block = false;
+    let mut rows = [Vec::new(), Vec::new()];
+    let mut operational = [false; 2];
+    let mut include = |callee, required| -> Result<(), Vec<Diagnostic>> {
+        let ([reach, entries], [may_suspend, may_block]) = contribution(module, callee, required)?;
+        rows[0].extend_from_slice(reach);
+        rows[1].extend_from_slice(entries);
+        operational[0] |= may_suspend;
+        operational[1] |= may_block;
+        Ok(())
+    };
     for (_, call) in tables.invocations.iter() {
         let Callee::Declared(callee) = call.callee else {
             return Err(unavailable("Build's indirect call effects"));
         };
-        let flags = contribution(module, callee, call.required_contract)?;
-        may_suspend |= flags.0;
-        may_block |= flags.1;
+        include(callee, call.required_contract)?;
     }
-    // Edge cleanup calls are retained separately from explicit invocation
-    // rows, but their effects still belong to the checked Build body.
+    // Edge cleanup calls and recursive frame reuse retain their calls apart
+    // from explicit invocation rows. Their public contributions still apply.
     for operation in &original.operations {
         if let terminal_psi::UnoptimizedBehaviorOperation::NominalCleanup { callee, .. } = operation
         {
-            let flags = contribution(module, (*callee).into(), None)?;
-            may_suspend |= flags.0;
-            may_block |= flags.1;
+            include((*callee).into(), None)?;
         }
     }
-    // Recursive frame reuse keeps its call in the existing formation row.
     for formation in &body.call_formations {
         if let Some(callee) = formation.tail_callee {
-            let flags = contribution(module, callee.into(), None)?;
-            may_suspend |= flags.0;
-            may_block |= flags.1;
+            include(callee.into(), None)?;
         }
     }
-    Ok((may_suspend, may_block))
+    for row in &mut rows {
+        row.sort_unstable();
+        row.dedup();
+    }
+    Ok((rows, operational))
 }
 
 fn contribution(
     module: &TerminalModule,
     callee: TargetMachineCallable,
     required: Option<semantic_vocabulary::ContractId>,
-) -> Result<(bool, bool), Vec<Diagnostic>> {
+) -> Result<([&[ServiceId]; 2], [bool; 2]), Vec<Diagnostic>> {
     match callee {
         TargetMachineCallable::Machine(machine) => {
             let header = module
                 .invocation_machine_contract(machine, required)
                 .ok_or_else(|| unavailable("a Build call's exact public contract"))?;
-            if !header.published_service_ceiling.is_empty()
-                || !header.published_synchronous_entries.is_empty()
-            {
-                let services = |ids: &[semantic_vocabulary::ServiceId]| {
-                    ids.iter()
-                        .map(|id| {
-                            (
-                                *id,
-                                module
-                                    .service(*id)
-                                    .and_then(|service| module.identities.text(service.identity)),
-                            )
-                        })
-                        .collect::<Vec<_>>()
-                };
-                let declaration = header
-                    .declaration
-                    .as_ref()
-                    .and_then(|declaration| module.identities.text(declaration.machine.identity()));
-                return Err(unavailable(&format!(
-                    "Build's nonempty checked transitive effects: callee {machine:?} \
-                     declaration {declaration:?}, required contract {required:?}, \
-                     service reach {:?}, synchronous entries {:?}",
-                    services(&header.published_service_ceiling),
-                    services(&header.published_synchronous_entries),
-                )));
-            }
-            Ok((header.published_may_suspend, header.published_may_block))
+            Ok((
+                [
+                    &header.published_service_ceiling,
+                    &header.published_synchronous_entries,
+                ],
+                [header.published_may_suspend, header.published_may_block],
+            ))
         }
         TargetMachineCallable::Boundary(boundary) => {
             if required.is_some() {
@@ -349,19 +458,21 @@ fn contribution(
             let header = module
                 .boundary_machine(boundary)
                 .ok_or_else(|| unavailable("a Build call's boundary contract"))?;
-            if !header.published_service_ceiling.is_empty()
-                || !header.fixed_service_reach.is_empty()
-                || !header.published_synchronous_entries.is_empty()
-            {
-                return Err(unavailable("Build's nonempty checked boundary effects"));
-            }
             let declaration = header
                 .declaration
                 .as_ref()
                 .ok_or_else(|| unavailable("Build's checked boundary operational contract"))?;
+            // A boundary contributes its public rows, not its owning trait
+            // name. This is the same rule as the accepted ceiling judgment.
             Ok((
-                declaration.source.published_may_suspend,
-                declaration.source.published_may_block,
+                [
+                    &header.published_service_ceiling,
+                    &header.published_synchronous_entries,
+                ],
+                [
+                    declaration.source.published_may_suspend,
+                    declaration.source.published_may_block,
+                ],
             ))
         }
     }

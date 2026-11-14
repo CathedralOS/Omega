@@ -1537,7 +1537,28 @@ machine main() {}
         build.identity().owner(),
         package_evidence::record::PackageReviewNominalOwner::Package(package)
     );
-    assert!(build.checked_service_reach().realized().unwrap().is_empty());
+    // The authored Build calls `application`, whose public contract reaches
+    // and enters BuildRequestOperations. Review must retain that nonempty
+    // contribution while preserving omission of Build's own written ceilings.
+    let realized = build.checked_service_reach().realized().unwrap();
+    let request = realized
+        .iter()
+        .find(|service| service.path() == "BuildRequestOperations")
+        .expect("the actual Build request protocol must remain visible");
+    assert!(matches!(
+        request.owner(),
+        package_evidence::record::PackageReviewNominalOwner::ToolchainSource(_)
+    ));
+    assert_eq!(build.checked_service_reach().concrete(), Some(realized));
+    assert_eq!(build.service_reach_dependency().concrete(), realized);
+    assert!(build.declared_service_reach().is_none());
+    assert!(build.declared_synchronous_invocations().is_none());
+    assert!(
+        build
+            .realized_synchronous_invocations()
+            .iter()
+            .any(|entry| entry.service() == Some(request))
+    );
     assert_eq!(build.parameters().len(), 1);
     // A real Product judgment cannot stand in for the independently judged
     // Build invocation, and dropping Build custody cannot publish its rows.
@@ -1618,6 +1639,17 @@ machine main() {}
     .unwrap_err();
     assert!(
         diagnostics::join_messages(&refusal).contains("public or bodyless callable contracts"),
+        "{refusal:?}"
+    );
+    // Another genuine Build judgment has the right phase but a different
+    // supplying source; it cannot describe this package's execution.
+    let mut foreign = checked.build().clone();
+    foreign.accepted_build = claimed.build().accepted_build.clone();
+    let foreign = rewrap(foreign);
+    let refusal = project_checked_package_policy(&foreign, target, package).unwrap_err();
+    assert!(
+        diagnostics::join_messages(&refusal)
+            .contains("retained declaration is absent or changed in the admitted source context"),
         "{refusal:?}"
     );
     session.close().unwrap();

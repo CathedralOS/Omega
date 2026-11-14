@@ -26,6 +26,42 @@ pub(super) fn unavailable(what: &str) -> Vec<Diagnostic> {
     ))]
 }
 
+/// Both accepted source owners prepare their exact toolchain roster once.
+/// Nominal projection keeps that owner with the declaration; a later source
+/// context may not substitute its source numbers or diagnostic spelling.
+pub(super) fn nominal_identity(
+    typed: &TypedTrees,
+    toolchain_sources: &[(source::SourceId, [u8; 32])],
+    symbol: SymbolHandle,
+) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
+    let symbols = &typed.symbols;
+    if !symbols.symbols().nodes().is_valid(symbol) {
+        return Err(unavailable("a stale nominal declaration"));
+    }
+    let owner = if let Some(package) = symbols.symbol_package_identity(symbol) {
+        PackageReviewNominalOwner::Package(package)
+    } else {
+        let file = symbols
+            .symbol_provenance_source_span(symbol)
+            .and_then(|span| symbols.source_file(span))
+            .filter(|file| file.origin.is_toolchain())
+            .ok_or_else(|| unavailable("a declaration without package or toolchain custody"))?;
+        // Source custody already prepared this roster once. Nominal
+        // projection borrows it rather than hashing source per row.
+        let position = toolchain_sources
+            .binary_search_by_key(&file.source_id.0, |(source, _)| source.0)
+            .map_err(|_| unavailable("a toolchain declaration without its exact source"))?;
+        PackageReviewNominalOwner::ToolchainSource(PackageReviewToolchainSourceIdentity {
+            digest: toolchain_sources[position].1,
+        })
+    };
+    let path = symbols.display_path(symbol, "::");
+    if path.is_empty() {
+        return Err(unavailable("a declaration without a stable path"));
+    }
+    Ok(PackageReviewNominalIdentity { owner, path })
+}
+
 impl<'a> PackageReviewInput<'a> {
     pub(super) fn typed(&self) -> &'a TypedTrees {
         self.candidate()
@@ -49,33 +85,11 @@ impl<'a> PackageReviewInput<'a> {
         &self,
         symbol: SymbolHandle,
     ) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
-        let symbols = &self.typed().symbols;
-        if !symbols.symbols().nodes().is_valid(symbol) {
-            return Err(unavailable("a stale nominal declaration"));
-        }
-        let owner = if let Some(package) = symbols.symbol_package_identity(symbol) {
-            PackageReviewNominalOwner::Package(package)
-        } else {
-            let file = symbols
-                .symbol_provenance_source_span(symbol)
-                .and_then(|span| symbols.source_file(span))
-                .filter(|file| file.origin.is_toolchain())
-                .ok_or_else(|| unavailable("a declaration without package or toolchain custody"))?;
-            // Source custody already prepared this roster once. Nominal
-            // projection borrows it rather than hashing source per row.
-            let toolchain_sources = self.compilation().sources().exact_toolchain_sources();
-            let position = toolchain_sources
-                .binary_search_by_key(&file.source_id.0, |(source, _)| source.0)
-                .map_err(|_| unavailable("a toolchain declaration without its exact source"))?;
-            PackageReviewNominalOwner::ToolchainSource(PackageReviewToolchainSourceIdentity {
-                digest: toolchain_sources[position].1,
-            })
-        };
-        let path = symbols.display_path(symbol, "::");
-        if path.is_empty() {
-            return Err(unavailable("a declaration without a stable path"));
-        }
-        Ok(PackageReviewNominalIdentity { owner, path })
+        nominal_identity(
+            self.typed(),
+            self.compilation().sources().exact_toolchain_sources(),
+            symbol,
+        )
     }
 
     pub(super) fn type_identity(
