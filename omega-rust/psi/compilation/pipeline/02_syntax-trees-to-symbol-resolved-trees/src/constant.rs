@@ -2062,8 +2062,10 @@ pub(crate) mod initializer_dependencies {
             match table.expression(expression) {
                 ExpressionNode::Call(call) => {
                     self.static_arguments(&call.machine_arguments)?;
-                    let native_query = call.target.as_str() == "code_layout"
-                        && !call.target_symbol.is_valid()
+                    let native_query = program
+                        .symbols
+                        .builtin_function_for_symbol(call.target_symbol)
+                        == Some(symbols::BuiltinFunction::CodeLayout)
                         && !call.receiver.is_valid();
                     if native_query && self.deferred_machines.is_none() {
                         return Err("late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation".to_owned());
@@ -2361,8 +2363,10 @@ pub(crate) mod initializer_dependencies {
                         }
                         Statement::Call(call) => {
                             self.static_arguments(&call.machine_arguments)?;
-                            let native_query = call.target.as_str() == "code_layout"
-                                && !call.target_symbol.is_valid()
+                            let native_query = program
+                                .symbols
+                                .builtin_function_for_symbol(call.target_symbol)
+                                == Some(symbols::BuiltinFunction::CodeLayout)
                                 && call.receiver.is_empty();
                             if native_query && self.deferred_machines.is_none() {
                                 return Err("late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation".to_owned());

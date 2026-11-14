@@ -404,6 +404,17 @@ impl Program<'_> {
     /// asks whether a value fits a place asks this, so a local whose type
     /// elides a lifetime takes the region of the first value that meets it.
     pub(crate) fn agrees(&mut self, actual: Option<ValueType>, expected: ValueType) -> bool {
+        if let Some(actual) = actual
+            && self.type_excludes_values(actual)
+        {
+            return true;
+        }
+        self.same_type(actual, expected)
+    }
+
+    /// Storage correspondence still requires the exact carrier, domains
+    /// and regions. An empty value supplies no right to reinterpret a place.
+    pub(crate) fn same_type(&mut self, actual: Option<ValueType>, expected: ValueType) -> bool {
         let Some(actual) = actual else {
             return false;
         };
@@ -435,6 +446,19 @@ impl Program<'_> {
             }
         }
         true
+    }
+
+    pub(super) fn type_excludes_values(&mut self, actual: ValueType) -> bool {
+        if !matches!(actual, ValueType::Record(..)) {
+            return false;
+        }
+        let contracts = crate::inhabitation::SourceContracts(&self.records);
+        if self.inhabitation.extend(&contracts).is_err() {
+            // Missing type metadata supplies no coercion. Ordinary typing
+            // will retain its exact-type rule and refuse a mismatch.
+            return false;
+        }
+        crate::inhabitation::excludes_result(&self.inhabitation, Some(actual))
     }
 }
 

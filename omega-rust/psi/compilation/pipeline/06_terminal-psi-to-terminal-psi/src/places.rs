@@ -2841,6 +2841,11 @@ impl<'a> Storage<'a> {
                 destination: source,
                 ..
             } => Ok(vec![self.stored_at(*source, &[], concerns)?]),
+            // Each compared view is read whole through its own descriptor.
+            OperationKind::ByteSequenceEqual { left, right } => [left, right]
+                .into_iter()
+                .map(|operand| self.stored_at(operand.source(), &[], concerns))
+                .collect(),
             OperationKind::StructuralCaseLeafCopy { .. } => {
                 Err(self.unsupported(concerns, "a case leaf copy"))
             }
