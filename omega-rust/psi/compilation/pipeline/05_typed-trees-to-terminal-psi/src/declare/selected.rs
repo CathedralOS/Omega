@@ -3,7 +3,7 @@
 //! establish refinement, and invocation admission still establishes permission.
 
 use super::{nominal, requirement_application};
-use semantic_vocabulary::{ContractId, MachineId};
+use semantic_vocabulary::ContractId;
 use terminal_psi::{
     ClosedConformanceApplication, ClosedConformanceCallableResult,
     ClosedConformanceParameterBinding, ClosedConformanceParameterKind,

@@ -39,7 +39,6 @@ mod selected;
 use std::hash::{Hash, Hasher};
 
 use optimization::digest_encoder::DomainDigestEncoder;
-use semantic_vocabulary::{IdTable, MachineId};
 use symbols::SymbolHandle;
 use terminal_psi::{
     CheckedMachineDeclaration, NominalDeclarationIdentity, TerminalIdentityTableBuilder,
