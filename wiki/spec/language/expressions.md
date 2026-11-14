@@ -354,11 +354,14 @@ The same declaration in another package rejects there, even after
 The home is resolved where the operator is declared, by ordinary name
 resolution, visibility and domain exposure. An unknown, inaccessible or
 ambiguous home rejects there; the declaration never falls back to a root-level
-operator or another inferred home. The operator joins the domain's family:
-callers find it through the domain and its owning package, not by importing the
-declaring module, and import order cannot change it. Association keeps the
-declaration's own lexical context. The body resolves names in the file where it
-is written and gains neither the domain module's private names nor any
+operator or another inferred home. The operator joins the domain's family. For
+operands of that exact domain, a caller finds it through the domain and its
+owning package under ordinary dependency and visibility rules. The caller needs
+no import of the declaring module, and import order cannot choose between
+competing declarations. A non-public operator stays private to its package even
+when its domain is public. The body keeps its own lexical context and ordinary
+visibility. Association with the domain brings in neither the domain's
+declaration scope nor the imports of the domain's source file, and it grants no
 establishment, read or write authority. Duplicate participating shapes are
 checked across the owning package's complete declaration set, wherever in the
 package they are written. Importing a domain gives another package no right to

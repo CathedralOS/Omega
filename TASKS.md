@@ -154,10 +154,10 @@ Write each item so any agent can start from it alone: current state, files and e
 
 - **QUALIFIED-OPERATOR-HOME.** Implement `qualified-operator-home` under [operator families](wiki/spec/language/expressions.md#operator-families): resolve a qualified operator's home where it is declared, accept it in any module of the package owning that domain, and reject it in any other package where it is written.
   - The home resolves by ordinary name resolution, visibility and domain exposure; an unknown, inaccessible or ambiguous home rejects at the declaration and never stays a root-level operator.
-  - Callers find the operator through the domain and its owning package, independent of which module they import and in what order.
-  - The body keeps its own file's names and gains no private names of the domain's module and no establishment, read or write authority.
+  - For operands of that exact domain, callers find the operator through the domain and its owning package under ordinary dependency and visibility rules, with no import of the declaring module; import order cannot choose between competing declarations.
+  - The body keeps its own lexical context and ordinary visibility; association brings in neither the domain's declaration scope nor its source file's imports, and grants no establishment, read or write authority.
   - Duplicate participating shapes are checked across the owning package's whole declaration set.
-  Acceptance: one operator accepted in the domain's module and the same operator accepted in the package's root file, both resolving `a + b`; a declaration in another package that imports the domain rejects at its declaration; an ambiguous home rejects; one duplicate shape split across two modules of the owning package rejects; a body naming a private item of the domain's module rejects.
+  Acceptance: one operator accepted in the domain's module and the same operator accepted in the package's root file, both resolving `a + b`; a declaration in another package that imports the domain rejects at its declaration; an ambiguous home rejects; one duplicate shape split across two modules of the owning package rejects; an operator calling a helper ordinarily accessible from its own file accepts; an operator using a name available only through an import in the domain's source file rejects; an operator establishing a restricted domain without an authorized route rejects; an external consumer that sees a public domain cannot invoke its non-public operator.
 
 - **TYPED-STATIC-PARAMETERS.** Implement and migrate to [typed static parameters](wiki/drafts/designs/typed_static_parameters.md).
 
