@@ -1940,6 +1940,8 @@ pub use values::const_integer;
 pub use values::expression;
 pub use values::subtrees::{SubtreeEdges, SubtreeVisit};
 
+pub mod source_subjects;
+
 pub mod typed_trees {
     pub use crate::*;
 }
