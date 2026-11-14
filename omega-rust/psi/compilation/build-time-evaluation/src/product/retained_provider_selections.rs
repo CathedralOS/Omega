@@ -6,7 +6,7 @@
 //! anchors and admits the pair again among its own.
 
 use super::provider_declarations::{
-    ProviderPlanningContext, ProviderSelection, ProviderSelectionSubject,
+    ProviderForm, ProviderPlanningContext, ProviderSelection, ProviderSelectionSubject,
     RetainedProviderSelection, form, identity,
 };
 use diagnostics::Diagnostic;
@@ -106,6 +106,7 @@ impl RetainedProviderSelection {
             self.origin.clone(),
             Some(self.target),
             self.composition_mode,
+            ProviderForm::StaticRecord,
         )
     }
 }

@@ -22,7 +22,7 @@ impl<'t> Program<'t> {
     /// Read a bodyless boundary through the same formal and contract owner as
     /// a machine. Its distinct target identity prevents a source declaration
     /// from standing in for an executable provider body.
-    fn boundary(
+    pub(super) fn boundary(
         &mut self,
         caller: MachineId,
         target: SymbolHandle,
@@ -262,6 +262,51 @@ impl<'t> Program<'t> {
             .is_some_and(|machine| machine.attached_data_symbol == qualifier)
     }
 
+    /// A closed named map retains its public requirement and exact row in
+    /// the typed call. The row supplies a body demand, while normal machine
+    /// reading still publishes the originating requirement's contract.
+    fn named_owned_call_target(
+        &self,
+        id: MachineId,
+        namespace: SymbolHandle,
+        requirement: SymbolHandle,
+    ) -> Checked<Option<SymbolHandle>> {
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Call(what));
+        let Some((owner, row, _)) = self
+            .typed
+            .named_conformance_member(namespace, requirement)
+            .map_err(unserved)?
+        else {
+            return Ok(None);
+        };
+        if !row.source.owns_realization() {
+            return Err(unserved("named reference-row invocation"));
+        }
+        let Some((actual_owner, actual_row)) = self
+            .typed
+            .owned_conformance_realization(row.realization_machine)
+        else {
+            return Err(unserved("named operation lost its owned body"));
+        };
+        let Some(machine) = self.typed.machine_by_symbol(row.realization_machine) else {
+            return Err(unserved("named operation lost its machine"));
+        };
+        let [entry] = self.typed.machine_states(machine) else {
+            return Err(unserved("named operation without one entry state"));
+        };
+        if actual_owner.symbol != owner.symbol
+            || actual_row != row
+            || entry.symbol != row.realization_state
+        {
+            return Err(unserved(
+                "named operation disagrees with its exact owned row",
+            ));
+        }
+        self.visible_to(id, requirement)?;
+        self.visible_declaration_to(id, owner.symbol, owner.is_public)?;
+        Ok(Some(row.realization_machine))
+    }
+
     /// A call is direct only when its authored selection, if recorded,
     /// resolved to exactly the called machine, and its call binding, if
     /// recorded, neither rebinds it nor reaches it through another
@@ -382,9 +427,11 @@ impl<'t> Program<'t> {
         let receiver = call.receiver_root_symbol.is_valid()
             || call.receiver_symbol.is_valid()
             || !call.receiver.is_empty();
-        let qualified = call.receiver_root_symbol == call.receiver_symbol
-            && call.receiver.len() == 1
-            && self.names_carrier(call.target_symbol, call.receiver_symbol);
+        let named = self.named_owned_call_target(id, call.receiver_symbol, call.target_symbol)?;
+        let qualified = named.is_some()
+            || (call.receiver_root_symbol == call.receiver_symbol
+                && call.receiver.len() == 1
+                && self.names_carrier(call.target_symbol, call.receiver_symbol));
         if receiver && !qualified {
             return unserved("receiver call");
         }
@@ -400,14 +447,26 @@ impl<'t> Program<'t> {
             .typed
             .statement_table
             .expression_handles(call.arguments);
-        self.call(
-            id,
-            slots,
-            call.target_symbol,
-            arguments,
-            SourceOrigin::of(call.source_span),
-            None,
-        )
+        if let Some(body) = named {
+            let callee = self.machine(body)?;
+            self.call_of(
+                id,
+                slots,
+                callee.into(),
+                arguments,
+                SourceOrigin::of(call.source_span),
+                None,
+            )
+        } else {
+            self.call(
+                id,
+                slots,
+                call.target_symbol,
+                arguments,
+                SourceOrigin::of(call.source_span),
+                None,
+            )
+        }
     }
 
     pub(super) fn call_expression(
@@ -478,11 +537,18 @@ impl<'t> Program<'t> {
         // A receiver that is the callee's data type by name is part of the
         // callee's name (`names_carrier`); any other is a value passed
         // outside the argument list.
-        let qualified = call.receiver.is_valid()
-            && matches!(
-                self.node(id, call.receiver)?,
-                ExpressionNode::Name(path) if self.names_carrier(call.target_symbol, path.symbol)
-            );
+        let namespace = self
+            .typed
+            .expression_table
+            .name_path_node(call.receiver)
+            .map_or_else(SymbolHandle::invalid, |path| path.symbol);
+        let named = self.named_owned_call_target(id, namespace, call.target_symbol)?;
+        let qualified = named.is_some()
+            || (call.receiver.is_valid()
+                && matches!(
+                    self.node(id, call.receiver)?,
+                    ExpressionNode::Name(path) if self.names_carrier(call.target_symbol, path.symbol)
+                ));
         if (call.receiver.is_valid() && !qualified)
             || call.requirement_application.is_valid()
             || call.exact_coercion_target.is_valid()
@@ -501,7 +567,12 @@ impl<'t> Program<'t> {
             .typed
             .expression_table
             .expression_handles(call.arguments);
-        let mut read = self.call(id, slots, call.target_symbol, arguments, source, expected)?;
+        let mut read = if let Some(body) = named {
+            let callee = self.machine(body)?;
+            self.call_of(id, slots, callee.into(), arguments, source, expected)?
+        } else {
+            self.call(id, slots, call.target_symbol, arguments, source, expected)?
+        };
         if call.build_selection.is_valid() {
             self.designate(id, call.build_selection, &mut read)?;
         }
@@ -1017,7 +1088,6 @@ impl<'t> Program<'t> {
     /// reader that took every resolved call as permitted would accept a
     /// program that reaches into a dependency's private machine.
     pub(super) fn visible_to(&self, id: MachineId, callee: SymbolHandle) -> Checked<()> {
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         let is_public = self
             .typed
             .machine_by_symbol(callee)
@@ -1034,6 +1104,19 @@ impl<'t> Program<'t> {
                     Unserved::Call("target has no callable declaration"),
                 )
             })?;
+        self.visible_declaration_to(id, callee, is_public)
+    }
+
+    /// Visibility follows the selected public declaration. A named map may
+    /// demand its private body, while a direct call still checks the body's
+    /// own declaration above.
+    fn visible_declaration_to(
+        &self,
+        id: MachineId,
+        callee: SymbolHandle,
+        is_public: bool,
+    ) -> Checked<()> {
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         if is_public {
             return Ok(());
         }

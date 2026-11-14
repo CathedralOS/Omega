@@ -78,6 +78,29 @@ pub struct MachineSources {
     /// holds nothing of them, so the advisory warning about them is read
     /// from here (`Elaboration::unreachable_statements`).
     pub unreachable: Vec<Unreachable>,
+    /// Each authored transition arm that only some arrivals take, one row
+    /// per arm (`lower`, `statement`). Whether an arm can be arrived at is
+    /// the checker's question; the lowered form does not say which blocks
+    /// begin an authored arm, so the advisory warning about an arm no
+    /// arrival can take is read from here.
+    pub branches: Vec<Branch>,
+}
+
+/// One authored arm of a transition and where control decides to take it.
+/// `wiki/spec/language/state_contracts.md`, "Unreachable branches": "issue an
+/// unreachable-branch warning when an authored branch contradicts its
+/// machine's entry contract or established source facts independent of
+/// specialization. The diagnostic identifies the branch condition and the
+/// conflicting premises". `block` is the arm's first block, which the edge
+/// of `decided_in`'s conditional alone enters, so the facts known at its
+/// entry are the facts before the branch with its condition added; `arm`
+/// is the authored arm and `condition` the guard that decides it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Branch {
+    pub block: BlockId,
+    pub decided_in: BlockId,
+    pub arm: SourceOrigin,
+    pub condition: SourceOrigin,
 }
 
 /// Executable statements written after a call that never returns.
@@ -92,6 +115,16 @@ pub struct MachineSources {
 pub struct Unreachable {
     pub statement: SourceOrigin,
     pub call: SourceOrigin,
+}
+
+/// One requirement a chosen provider supplies and the machine of the module
+/// that realizes it. `provider` and `requirement` are declarations of the
+/// judged source, compared by identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SuppliedRequirement {
+    pub provider: SymbolHandle,
+    pub requirement: SymbolHandle,
+    pub machine: MachineId,
 }
 
 /// The result of elaborating everything one compilation is responsible for:
@@ -183,6 +216,14 @@ pub struct Elaboration {
     /// refines the requirement is a statement of its own
     /// (`elaborate_witness`). Empty outside `elaborate`.
     pub conformance_witnesses: Vec<ConformanceWitness>,
+    /// The machine of this module each chosen provider gives each
+    /// requirement of the slot it supplies (`Compilation::supplies`), in
+    /// supply order. One module holds the providers chosen for every
+    /// target, so two rows may name one requirement under different
+    /// providers; a consumer follows a requirement into the machine of the
+    /// provider it settled on, never into "the" provider of the requirement.
+    /// Empty outside `elaborate`.
+    pub supplied: Vec<SuppliedRequirement>,
     /// The machines of a compilation's module that were given no declaration
     /// identity, each with the reason (`declare`). A module that lists one is
     /// judged like any other and is never published. Empty outside
@@ -238,19 +279,35 @@ impl Elaboration {
     /// as written says so in its own check form, where its parameters are
     /// rigid and a requirement is called through its interface contract.
     pub fn unreachable_statements(&self) -> impl Iterator<Item = (MachineId, Unreachable)> + '_ {
-        self.sources
-            .iter()
-            .filter(|(machine, _)| {
-                !self.module.machines.iter().any(|declared| {
-                    declared.id == *machine
-                        && declared
-                            .declaration
-                            .as_ref()
-                            .is_some_and(|declaration| declaration.specialization.is_some())
-                })
+        self.authored_sources().flat_map(|(machine, sources)| {
+            sources.unreachable.iter().map(move |row| (machine, *row))
+        })
+    }
+
+    /// The authored transition arms of this program's authored machines,
+    /// each with its machine, in machine order. Generated machines are left
+    /// out for the reason `unreachable_statements` gives: "Do not warn
+    /// merely because ordinary generic specialization or compile-time
+    /// selection removes an alternative; a generic branch that already
+    /// contradicts its own contract is not exempt" (state_contracts.md,
+    /// "Unreachable branches"), and the generic machine's own check form is
+    /// where it is judged as written.
+    pub fn authored_branches(&self) -> impl Iterator<Item = (MachineId, Branch)> + '_ {
+        self.authored_sources()
+            .flat_map(|(machine, sources)| sources.branches.iter().map(move |row| (machine, *row)))
+    }
+
+    /// The source rows of every machine that is not generated to close a
+    /// static application.
+    fn authored_sources(&self) -> impl Iterator<Item = (MachineId, &MachineSources)> + '_ {
+        self.sources.iter().filter(|(machine, _)| {
+            !self.module.machines.iter().any(|declared| {
+                declared.id == *machine
+                    && declared
+                        .declaration
+                        .as_ref()
+                        .is_some_and(|declaration| declaration.specialization.is_some())
             })
-            .flat_map(|(machine, sources)| {
-                sources.unreachable.iter().map(move |row| (machine, *row))
-            })
+        })
     }
 }

@@ -1980,6 +1980,7 @@ impl Lowerer<'_> {
             let authored_initializer = lower_expression_handle(self, original)?;
             let declaration = self.typed_trees.tables.const_declarations.get_mut(handle);
             declaration.authored_initializer = authored_initializer;
+            crate::constant_initializers::retain_entry(&mut self.typed_trees, handle)?;
         }
         Ok(())
     }

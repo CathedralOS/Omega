@@ -47,10 +47,10 @@ pub use crate::checked::{
     OptimizationRollbackInputError, PackageBuild, PackageBuildInvocation,
     PackageCompilationRequest, PackageCompileFailure, PackageProductOptions,
     PackageProductSourceRequest, PackageSourceRequest, PreparedPackageProduct, ProductCheckOutcome,
-    RestrictedBuildGrants, SourceBuildDeclaration, SourceCompilation, SuppliedTarget,
-    TargetSupplySource, TypedFrontier, TypedFrontierCheck, TypedFrontierRequest,
-    checked_compilation_call_count, prepare_supplied_target, settled_check_totals,
-    source_assembly_invocation_count, typed_frontier_reuse_count,
+    ProductSupplySource, RestrictedBuildGrants, SourceBuildDeclaration, SourceCompilation,
+    SuppliedProduct, TargetSupplySource, TypedFrontier, TypedFrontierCheck, TypedFrontierRequest,
+    checked_compilation_call_count, judge_supplied_product, prepare_supplied_target,
+    settled_check_totals, source_assembly_invocation_count, typed_frontier_reuse_count,
 };
 pub use build_settings::BuildSnapshotRequest;
 pub use checked::checking::ProductQueries;

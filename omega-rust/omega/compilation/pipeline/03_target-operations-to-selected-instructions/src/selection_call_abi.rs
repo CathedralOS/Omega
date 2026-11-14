@@ -261,7 +261,7 @@ pub(crate) mod borrowed_argument {
         let shape = if byte_field.is_some() {
             destination_shape
         } else if let Some((_, joined)) = address_join {
-            if !borrow_access_permitted(joined.access, semantic.access) {
+            if !semantic.access.admits_referent(joined.access) {
                 return None;
             }
             if let Some(offset) = window {
@@ -486,18 +486,6 @@ pub(crate) mod borrowed_argument {
         .then_some(())
     }
 
-    fn borrow_access_permitted(source: StructuralAccess, requested: StructuralAccess) -> bool {
-        use StructuralAccess::{MutableBorrow, SharedBorrow, WriteOnlyBorrow};
-        matches!(
-            (source, requested),
-            (
-                MutableBorrow,
-                SharedBorrow | MutableBorrow | WriteOnlyBorrow
-            ) | (SharedBorrow, SharedBorrow)
-                | (WriteOnlyBorrow, WriteOnlyBorrow)
-        )
-    }
-
     fn projected_loan_shape(
         source: &crate::native_geometry::NativeFunction<'_>,
         semantic: &terminal_psi::StructuralArgument,
@@ -506,7 +494,7 @@ pub(crate) mod borrowed_argument {
     ) -> Option<ValueShape> {
         source.structural.as_ref()?;
         let root = crate::selection::arrival_parameter_input::parameter(source, semantic.place)?;
-        if !borrow_access_permitted(root.access, semantic.access) {
+        if !semantic.access.admits_referent(root.access) {
             return None;
         }
         let (referent, offset, elements) = runtime_borrowed_projection(

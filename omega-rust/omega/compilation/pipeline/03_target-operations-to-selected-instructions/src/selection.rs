@@ -885,14 +885,96 @@ pub(crate) mod field_bytes {
         .then_some(result.structural_type)
     }
 
-    fn access_covers(
-        available: terminal_psi::StructuralAccess,
-        requested: terminal_psi::StructuralAccess,
-    ) -> bool {
-        use terminal_psi::StructuralAccess;
-        available == requested
-            || requested == StructuralAccess::SharedBorrow
-                && matches!(available, terminal_psi::mutating_access_pair_pattern!())
+    use terminal_psi::structural_access_covers as access_covers;
+
+    #[cfg(test)]
+    mod tests {
+        use super::root_type;
+        use crate::native_geometry::{NativeFunction, NativeGeometry};
+        use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
+        use legalized_operations::{
+            LegalizedCallUnitParameter, LegalizedScalarFunction, LegalizedStructuralContract,
+        };
+        use semantic_vocabulary::{BlockId, MachineId, PlaceId, StructuralTypeId};
+        use terminal_psi::{StructuralAccess, StructuralArgument, StructuralMultiplicity};
+
+        #[test]
+        fn field_storage_access_retains_write_only_attenuation_and_rejects_widening() {
+            use StructuralAccess::{MutableBorrow, Owned, SharedBorrow, WriteOnlyBorrow};
+            let place = PlaceId::new(1).unwrap();
+            let structural_type = StructuralTypeId::new(1).unwrap();
+            let shape = ValueShape::integer(8, 8);
+            let call_plan = evaluate_call_plan(
+                CallingPolicy::native_for_target(target::NativeTarget::linux_x64()),
+                &CallSignature {
+                    parameters: vec![shape],
+                    result: None,
+                },
+            )
+            .unwrap();
+            let geometry = NativeGeometry::new(&[]).unwrap();
+            for (available, requested, expected) in [
+                (Owned, MutableBorrow, true),
+                (Owned, WriteOnlyBorrow, true),
+                (MutableBorrow, WriteOnlyBorrow, true),
+                (MutableBorrow, SharedBorrow, true),
+                (WriteOnlyBorrow, WriteOnlyBorrow, true),
+                (WriteOnlyBorrow, SharedBorrow, false),
+                (WriteOnlyBorrow, MutableBorrow, false),
+                (SharedBorrow, WriteOnlyBorrow, false),
+                (MutableBorrow, Owned, false),
+            ] {
+                let function = LegalizedScalarFunction {
+                    machine: MachineId::new(1).unwrap(),
+                    attachment: None,
+                    nominal_cleanup_subject: None,
+                    provenance: Default::default(),
+                    call_plan: call_plan.clone(),
+                    parameters: Vec::new(),
+                    structural: Some(LegalizedStructuralContract {
+                        result: None,
+                        structural_types: Vec::new().into(),
+                        parameters: vec![LegalizedCallUnitParameter {
+                            semantic: terminal_psi::StructuralParameterDeclaration {
+                                place,
+                                position: 0,
+                                structural_type,
+                                multiplicity: StructuralMultiplicity::Unrestricted,
+                                access: available,
+                                qualifications: Vec::new(),
+                                projected_qualifications: Vec::new(),
+                                additional_input_qualifications: Vec::new(),
+                            },
+                            target: target_operations::TargetStructuralParameter {
+                                place,
+                                structural_type,
+                                multiplicity: StructuralMultiplicity::Unrestricted,
+                                access: available,
+                                projected_qualifications: Vec::new(),
+                                shape,
+                                placement: call_plan.parameters[0].clone(),
+                            },
+                        }],
+                        structural_places: Vec::new(),
+                        entry_claims: Vec::new(),
+                        published_service_ceiling: Vec::new(),
+                    }),
+                    entry_block: BlockId::new(1).unwrap(),
+                    blocks: Vec::new(),
+                    ownership_frontier_facts: Vec::new(),
+                };
+                let source = StructuralArgument {
+                    place,
+                    access: requested,
+                    path: Vec::new(),
+                };
+                assert_eq!(
+                    root_type(&NativeFunction::new(&function, &geometry), &source),
+                    expected.then_some(structural_type),
+                    "{available:?} -> {requested:?}"
+                );
+            }
+        }
     }
 }
 pub(crate) mod foreign_scalar_backings {

@@ -101,7 +101,7 @@ impl ReferenceOutputs {
             .ok_or_else(|| rejection("native input reference is outside the captured graph"))?;
         if matching.next().is_some()
             || capture.view != field.referent
-            || !covers(capture.access, StructuralAccess::SharedBorrow)
+            || !StructuralAccess::SharedBorrow.admits_referent(capture.access)
         {
             return Err(rejection(
                 "native input reference changed its exact typed/readable capture",
@@ -171,7 +171,7 @@ impl ReferenceOutputs {
                         && path
                             .iter()
                             .all(|step| !matches!(step, StructuralPathSegment::Referent))
-                        && covers(*access, output.access)
+                        && output.access.admits_referent(*access)
                 }
                 BoundaryLifetimeDependency::Stored {
                     argument_index,
@@ -179,7 +179,7 @@ impl ReferenceOutputs {
                     access,
                 } => {
                     *argument_index as usize == capture.argument
-                        && covers(*access, output.access)
+                        && output.access.admits_referent(*access)
                         && path
                             .iter()
                             .rposition(|step| matches!(step, StructuralPathSegment::Referent))
@@ -198,7 +198,7 @@ impl ReferenceOutputs {
     ) -> Result<terminal_interpreter::TerminalBoundaryReferenceSelection, TerminalEffectRejection>
     {
         for capture in &self.captures {
-            if capture.view != referent || !covers(capture.access, access) {
+            if capture.view != referent || !access.admits_referent(capture.access) {
                 continue;
             }
             let path = self.path(capture)?;
@@ -288,7 +288,7 @@ impl ReferenceOutputs {
             let mut selected = None;
             for capture in &self.captures {
                 if capture.view != field.referent
-                    || !covers(capture.access, output.access)
+                    || !output.access.admits_referent(capture.access)
                     || !self.anchored(output, capture)?
                 {
                     continue;
@@ -345,10 +345,4 @@ fn argument(buffer: &TerminalBoundaryStorageBuffer) -> usize {
         TerminalBoundaryStorageBuffer::Structural(buffer) => buffer.argument_index(),
         TerminalBoundaryStorageBuffer::ByteView(buffer) => buffer.argument_index(),
     }
-}
-
-fn covers(available: StructuralAccess, requested: StructuralAccess) -> bool {
-    available == requested
-        || available == StructuralAccess::MutableBorrow
-            && requested == StructuralAccess::SharedBorrow
 }

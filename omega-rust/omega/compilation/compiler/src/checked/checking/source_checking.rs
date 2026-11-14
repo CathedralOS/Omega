@@ -3,7 +3,7 @@
 // tree projection participates in producing the application.
 
 use artifacts::compile_timings::StageMeta;
-use compilation_products::{CheckedProductSource, PreparedProductSource};
+use compilation_products::{CheckedProductSource, CompileFailure, PreparedProductSource};
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
 use std::sync::Arc;
@@ -16,56 +16,59 @@ pub(crate) fn check_product_source(
     package_inputs: Option<&PackageCompilationInputs>,
     rollback: &crate::OptimizationRollback,
     frontier: Option<&mut Option<super::typed_frontier::TypedFrontier>>,
-) -> Result<CheckedProductSource, Vec<Diagnostic>> {
-    let PreparedProductSource {
-        source_completion_accounting,
-        typed,
-        computed_build_config,
-        admission,
-        build_sources,
-        mut timings,
-    } = source;
-    source_completion_accounting
-        .validate_charges()
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    let build = &computed_build_config.config;
-    let symbol_sources = typed.symbols.source_map();
-    let layout_scopes = layout_target_scopes(&typed, build)?;
-    let external_roots = build.program_roots();
-    let bindings = super::entry_shapes::bound_program_entry_shapes(&typed, &build.root_bindings)?;
-    // The Build's own provider selections are supplies of this compilation
-    // whether or not the program reaches their slots: each chosen provider
-    // is judged against the slot it names. A target package's defaults join
-    // only when settlement chooses them for a requirement the accepted
-    // module reaches (`PreparedProductTarget::capture`).
-    let supplies = build
-        .provider_selections
-        .iter()
-        .flat_map(crate::checked::selected_supplies)
-        .collect::<Vec<_>>();
-    let mut selected = Vec::new();
-    for scope in &layout_scopes {
-        selected.extend(scope.entry_declarations.iter().flatten().copied());
-    }
-    // Every admitted native supply needs its exact boundary and signature for
-    // calling-policy validation and trust disclosure, even when its target or
-    // requirement is unused. Claim these source declarations alongside each
-    // ordinary provider selection in the structural judgment.
-    selected.extend(
-        build
-            .native_bindings
+) -> Result<CheckedProductSource, CompileFailure> {
+    let mut accounting = source.source_completion_accounting.clone();
+    let result = (|| -> Result<CheckedProductSource, Vec<Diagnostic>> {
+        let PreparedProductSource {
+            source_completion_accounting: _,
+            typed,
+            computed_build_config,
+            admission,
+            build_sources,
+            mut timings,
+        } = source;
+        accounting
+            .validate_charges()
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let build = &computed_build_config.config;
+        let symbol_sources = typed.symbols.source_map();
+        let layout_scopes = layout_target_scopes(&typed, build)?;
+        let external_roots = build.program_roots();
+        let bindings =
+            super::entry_shapes::bound_program_entry_shapes(&typed, &build.root_bindings)?;
+        // The Build's own provider selections are supplies of this compilation
+        // whether or not the program reaches their slots: each chosen provider
+        // is judged against the slot it names. A target package's defaults join
+        // below, when a target chooses them for a requirement its entries reach
+        // (`judge_supplied_product`).
+        let supplies = build
+            .provider_selections
             .iter()
-            .flat_map(|supply| [supply.selection.subject, supply.selection.requirement]),
-    );
-    // Representation declarations are claimed source dependencies; preparation
-    // explicitly refuses choices with no surviving admission route.
-    selected.extend(
-        build
-            .opaque_representation_selections
-            .iter()
-            .flat_map(|selection| [selection.opaque(), selection.application().declaration]),
-    );
-    let source_admission = psi_compiler::SourceAdmission {
+            .flat_map(crate::checked::selected_supplies)
+            .collect::<Vec<_>>();
+        let mut selected = Vec::new();
+        for scope in &layout_scopes {
+            selected.extend(scope.entry_declarations.iter().flatten().copied());
+        }
+        // Every admitted native supply needs its exact boundary and signature for
+        // calling-policy validation and trust disclosure, even when its target or
+        // requirement is unused. Claim these source declarations alongside each
+        // ordinary provider selection in the structural judgment.
+        selected.extend(
+            build
+                .native_bindings
+                .iter()
+                .flat_map(|supply| [supply.selection.subject, supply.selection.requirement]),
+        );
+        // Representation declarations are claimed source dependencies; preparation
+        // explicitly refuses choices with no surviving admission route.
+        selected.extend(
+            build
+                .opaque_representation_selections
+                .iter()
+                .flat_map(|selection| [selection.opaque(), selection.application().declaration]),
+        );
+        let source_admission = psi_compiler::SourceAdmission {
         // Roots belong to structural judgment below, rather than to a deleted
         // source-checking admission or projection.
         external_roots: &[],
@@ -110,83 +113,118 @@ pub(crate) fn check_product_source(
         declarations: None,
     };
 
-    let source = timings.record_result(SOURCE_PREPARATION, || {
-        psi_compiler::SourcePreparationRequest {
-            program: typed,
-            admission: source_admission,
-        }
-        .prepare()
-    })?;
-    let program = source.program;
-    let subject = package_inputs.map(PackageCompilationInputs::root);
-    let roster = compilation_products::ProductRoster {
-        entries: external_roots,
-        subject,
-        selected,
-        bindings,
-        supplies,
-    };
-    let judged = roster.judge(Arc::clone(&program));
-    if let Some(frontier) = frontier {
-        *frontier = Some(super::typed_frontier::TypedFrontier {
-            typed: program.as_ref().clone(),
-            entries: roster.entries.clone(),
+        let subject = package_inputs.map(PackageCompilationInputs::root);
+        let roster = compilation_products::ProductRoster {
+            entries: external_roots,
             subject,
-            selected: roster.selected.clone(),
-            bindings: roster.bindings.clone(),
+            selected,
+            bindings,
+            supplies,
+        };
+        let source = timings.record_result(SOURCE_PREPARATION, || {
+            psi_compiler::SourcePreparationRequest {
+                program: typed,
+                admission: source_admission,
+                compilation: roster.compilation(),
+                accounting: accounting.clone(),
+            }
+            .prepare()
         });
-    }
-    let accepted_source = judged.map_err(|mut diagnostics| {
-        if let Some(sources) = symbol_sources.as_deref() {
-            super::attribute_diagnostics(&mut diagnostics, sources, package_inputs);
+        let program = match source {
+            Ok(source) => {
+                accounting = source.accounting;
+                source.program
+            }
+            Err(failure) => {
+                accounting = failure.accounting;
+                return Err(failure.diagnostics);
+            }
+        };
+        let source_completion_accounting = accounting.clone();
+        let judged = roster.judge(Arc::clone(&program));
+        if let Some(frontier) = frontier {
+            *frontier = Some(super::typed_frontier::TypedFrontier {
+                typed: program.as_ref().clone(),
+                source_completion_accounting: source_completion_accounting.clone(),
+                entries: roster.entries.clone(),
+                subject,
+                selected: roster.selected.clone(),
+                bindings: roster.bindings.clone(),
+            });
         }
-        diagnostics
-    })?;
-    let mut provider_defaults =
-        build_time_evaluation::provider_declarations::retain_provider_defaults(
-            build_time_evaluation::provider_declarations::ProviderPlanningContext::new(
-                &program,
-                source::DependencyScope::Product,
+        let accepted_source = judged.map_err(|mut diagnostics| {
+            if let Some(sources) = symbol_sources.as_deref() {
+                super::attribute_diagnostics(&mut diagnostics, sources, package_inputs);
+            }
+            diagnostics
+        })?;
+        let mut provider_defaults =
+            build_time_evaluation::provider_declarations::retain_provider_defaults(
+                build_time_evaluation::provider_declarations::ProviderPlanningContext::new(
+                    &program,
+                    source::DependencyScope::Product,
+                ),
+            )?;
+        for selection in &build.default_provider_selections {
+            provider_defaults.push(
+                build_time_evaluation::provider_declarations::TargetProviderDefaults {
+                    target: selection
+                        .target
+                        .map(|target| target.canonical_name().to_owned()),
+                    machines: Vec::new(),
+                    selections: vec![selection.clone()],
+                },
+            );
+        }
+        // The Product has one module for every target, so the providers each
+        // target chooses are judged in it before anything is published. The
+        // judgment kept is that module's: the verdict, the demand of each target
+        // and the publication are all read from it.
+        let supplied =
+            crate::checked::judge_supplied_product(crate::checked::ProductSupplySource {
+                program: &program,
+                roster: &roster,
+                accepted: &accepted_source,
+                build: &build.provider_selections,
+                defaults: &provider_defaults,
+            })
+            .map_err(|mut diagnostics| {
+                if let Some(sources) = symbol_sources.as_deref() {
+                    super::attribute_diagnostics(&mut diagnostics, sources, package_inputs);
+                }
+                diagnostics
+            })?;
+        let accepted_source = supplied.accepted.unwrap_or(accepted_source);
+        let roster = supplied.roster;
+        let sources = Arc::new(build_sources.seal(&program, package_inputs)?);
+        let provider_inventory = Arc::new(
+            typed_trees::provider_declarations::PreparedProviderInventory::new(
+                Arc::clone(&program),
+                sources.exact_toolchain_sources(),
             ),
-        )?;
-    for selection in &build.default_provider_selections {
-        provider_defaults.push(
-            build_time_evaluation::provider_declarations::TargetProviderDefaults {
-                target: selection
-                    .target
-                    .map(|target| target.canonical_name().to_owned()),
-                machines: Vec::new(),
-                selections: vec![selection.clone()],
-            },
         );
-    }
-    let sources = Arc::new(build_sources.seal(&program, package_inputs)?);
-    let provider_inventory = Arc::new(
-        typed_trees::provider_declarations::PreparedProviderInventory::new(
-            Arc::clone(&program),
-            sources.exact_toolchain_sources(),
-        ),
-    );
-    let terminal_publication = Arc::new(
-        compilation_products::ProductTerminalPublication::new(
-            rollback
-                .settle(&computed_build_config.config.settings.optimizations)
-                .effective()
-                .clone(),
-        )
-        .with_accepted(accepted_source, roster),
-    );
-    Ok(CheckedProductSource {
-        source_completion_accounting,
-        program,
-        provider_inventory,
-        terminal_publication,
-        provider_defaults: provider_defaults.into(),
-        computed_build_config,
-        admission,
-        sources,
-        timings,
-    })
+        let terminal_publication = Arc::new(
+            compilation_products::ProductTerminalPublication::new(
+                rollback
+                    .settle(&computed_build_config.config.settings.optimizations)
+                    .effective()
+                    .clone(),
+            )
+            .with_accepted(accepted_source, roster),
+        );
+        Ok(CheckedProductSource {
+            source_completion_accounting,
+            program,
+            provider_inventory,
+            terminal_publication,
+            provider_defaults: provider_defaults.into(),
+            computed_build_config,
+            admission,
+            sources,
+            timings,
+        })
+    })();
+    result.map_err(|diagnostics| CompileFailure::source_completion(diagnostics, accounting))
 }
 
 pub(super) fn layout_target_scopes(

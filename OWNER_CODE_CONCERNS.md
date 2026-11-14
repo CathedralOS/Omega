@@ -73,12 +73,12 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
-### A view passed from a place is lent as that place, so it conflicts with a loan of its holder
+### Compiler operations are recognized by their bare spelling, and no declaration answers them
 - Category: one idea, several implementations
-- Where: `05_typed-trees-to-terminal-psi/src/read/calls.rs:1453` (`lent_storage_is_untouched` with `holds_view`), `lower/calls.rs:65` (`arguments`, the `Borrow` arm), `lower/places.rs:1428` (`lend`), `06_terminal-psi-to-terminal-psi/src/places/loans.rs`
-- Saw: the reader says a place that holds a byte view "lends none of its binding's storage: the callee is given the view", and so allows `both(&mut session, session.name)`. Lowering then passes the view as a shared loan of the place `session.name`, and the checker rejects the call: "state `both` receives `session` as both mutable and read-only". The same holds for a view in a case payload. A source audit at `f9bbfeac3f5` also finds that `lend` retains the descriptor slot's root/path without materializing its value before later arguments. [Evaluation order](wiki/spec/language/expressions.md#evaluation-schedule) and [descriptor loans](wiki/spec/terminal-psi/structural_access.md#store-vocabulary) require the captured backing, rather than a loan of the carrier slot. No runtime misbehavior from later-argument replacement has been demonstrated.
-- Cost: a correct program is rejected, not refused as unsupported, and the message blames the author. The shared argument producer must capture the descriptor at its evaluation point; weakening overlap checks or reading its source slot only at the eventual call would not preserve that value.
-- Reported: 2026-11-13, Claude Code, while lending case payloads; extended 2026-11-14, Codex, while binding view-length call requirements
+- Where: `"code_layout"` in stage 02 `constant.rs:2063,2362`, `selection_authored.rs:392,1265` and stage 03 `statement_lowering.rs:1336`, `expression_lowering.rs:1445`; `"address_of"` in `expression_lowering.rs:1076`; `Quotient::lift`/`define` and `LayoutPlan::place_private` by namespace spelling in `expression_lowering.rs`
+- Saw: each stage compares the written name to a string literal, and resolution leaves the call with no target symbol, so the call is unbound in the same way a misspelled name is; telling "unknown name" from "compiler operation" needs a third copy of the list (stage 03 `typing_queries.rs` `COMPILER_CALL_SPELLINGS`)
+- Cost: a new compiler operation added in one place and missed in the list would be rejected as an unknown name; one declaration per operation (as `BuiltinFunction` symbols are) would let resolution answer it once
+- Reported: 2026-11-14, Claude Code (worker-14), while making a call of an undeclared name a rejection
 
 ### Whether a type is a scalar is decided twice, once by its spelling and once by its symbol
 - Category: one idea, several implementations
@@ -164,13 +164,6 @@ framework or a list of features that remain unimplemented.
 - Cost: a source repair spends hours in producer checking before its executable cases run; these measurements belong to the old checker being removed, and cannot stand for seed-chain or replacement-checker performance
 - Reported: 2026-11-12, Codex, while finishing bootstrap compiler construction and storage PRs #2782 and #2788
 
-### "Does this access cover that one" is written eight times with five different answers
-- Category: one idea, several implementations
-- Where: `omega-rust/psi/interpreter/terminal-interpreter/src/storage_references.rs:4455`; `omega-rust/psi/compilation/representations/terminal-psi/src/ownership.rs:62`; `omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/references.rs:887`; `omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_reference_custody.rs:4600` and `selection.rs:877`; `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation.rs:5124` and `:14940`; `omega-rust/omega/interpreter/terminal-runtime/src/execution/host_imports/native_provider/reference_outputs.rs:350`
-- Saw: four copies agree (equal, or `Owned` covers all, or `MutableBorrow` covers shared and write-only), and the stage 02 and stage 03 legalization copies are the same text; `unit_validation.rs:5124` drops write-only; `selection.rs:877` lets owned or mutable cover shared only; `reference_outputs.rs:350` lets mutable cover shared and gives `Owned` nothing extra; `ownership.rs:62` never admits an `Owned` request
-- Cost: nothing at any site says whether its table differs on purpose, so a fix to one rule cannot be checked against the others, and stage 03's audit of stage 02 shares the copied table, so it cannot catch a mistake in it
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
 ### Resolution selects an implicit entry by name in one place and child order in another
 - Category: one idea, several implementations
 - Where: `omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/selection.rs` (`resolve_realizations`, `call_custody_source`)
@@ -255,13 +248,6 @@ framework or a list of features that remain unimplemented.
 - Cost: harmless renaming breaks tests while equivalent forbidden behavior can pass under another spelling. Move actual dependency rules to the boundary checker and use behavior tests for custody and execution claims; do not mechanically preserve old strings or test totals.
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### Proof questions are read, validated and hashed in five places and written in none
-- Category: zombie machinery
-- Where: `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/proof.rs:193`, `:305`, `:545`; `.../src/construction.rs:73`; `.../src/identity.rs:2269`; readers at `pipeline/01_abstract-operations-to-abstract-operations/src/value_ranges.rs:180`, `.../semantics/src/current_value_ranges.rs:215` and `:325`, `.../semantics/src/unit_validation.rs:1174` and `:9710`
-- Saw: `proof_questions` is set to `Vec::new()` at its only two initialisers; `ProofQuestion::new` has no caller in `omega-rust/`, tests included; `ProofQuestionIndexError` is never constructed; the stage 01 value-range rule skips unless it finds exactly one matching question
-- Cost: the proof-backed value-range rule and its validator twin can never fire, and they look like the place where proof evidence reaches the back end
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
 ### Physical evidence is never derived in production, yet about 10,000 lines exist to derive and replay it
 - Category: zombie machinery
 - Where: `omega-rust/omega/compilation/backend/artifacts/native-artifact/src/fragment_object_publication.rs:161`, `.../native-artifact/src/physical/derivation/evidence.rs:78-79`, `.../native-artifact/src/physical/` (10,168 lines)
@@ -331,6 +317,13 @@ framework or a list of features that remain unimplemented.
 - Saw: typing records a call whose name no declaration answers as a deferred row beside rows for constructs no pass serves yet, and the reader raises every row the same way. `undeclared_machine(x);` in a program's own machine therefore reaches the user as "not supported yet ... with no claim that it is wrong" and never as a rejection
 - Cost: a misspelled machine name reads as a compiler limitation; state_contracts.md ("an unknown machine name or malformed type is an error wherever it appears") is met only in that the program is not accepted, and the outcome word is `not-supported` where it should be `rejected`
 - Reported: 2026-11-13, Claude Code, while accepting statements after a call that never returns
+
+### Lowering signals "this path ended" through the refusal channel
+- Category: a verdict with nothing behind it
+- Where: `05_typed-trees-to-terminal-psi/src/lower.rs` (`Lowering::end_path`, `Lowering::reached`); taken in `body`, `lower/control.rs` (`complete`, `short_circuit`, `match_value`)
+- Saw: a call that never returns, written inside an expression, ends the evaluation that holds it by returning a `Refusal` up through every `?`, and the construct whose path ended recognizes it by a side field and the refusal's text. Expression lowering returns `Checked<Value>` with no way to say "no value: control left", so the signal borrows the error type
+- Cost: any lowering step that swallows a refusal (`.ok()`, `if let Ok`) between the call and its taker would turn a divergence into an internal refusal later; the honest shape is a `Value::Ended(call)` result that every operand consumer handles, which touches each of the ~25 `scalar`/`record` call sites in `lower/`
+- Reported: 2026-11-14, Claude Code, while lowering calls that never return inside expressions
 
 ### No stage types a result value against the type its machine declares
 - Category: a verdict with nothing behind it

@@ -483,11 +483,14 @@ crashes none
 }
 
 fn declared_verdicts(text: &str) -> Vec<RouteVerdict> {
-    let typed = typed(text);
-    let entry = entry(&typed);
+    declared_verdicts_of(&typed(text))
+}
+
+fn declared_verdicts_of(typed: &typed_trees::TypedTrees) -> Vec<RouteVerdict> {
+    let entry = entry(typed);
     let verdicts = crate::judge_compilation(
         typed_trees_to_terminal_psi::prepare_compilation(
-            &typed,
+            typed,
             typed_trees_to_terminal_psi::Compilation {
                 entries: &[entry],
                 subjects: &[],
@@ -1051,4 +1054,283 @@ fn an_inherited_termination_promise_does_not_validate_an_unranked_cycle() {
             "{refusal:?}"
         );
     }
+}
+
+fn named_owned_source(actual: &str, promised: &str, body: &str) -> String {
+    format!(
+        r#"
+trait Step {{
+    machine apply(value: u32) -> u32
+    requires value > 0 ensures result < value crashes none;
+}}
+Inline satisfies Step {{
+    machine apply(input: u32) -> u32
+    requires true ensures result == 0 crashes none {{ {body} }}
+}}
+machine entry() -> u32 {promised} crashes none {{ Inline::apply({actual}) }}
+"#
+    )
+}
+
+#[test]
+fn a_named_owned_inline_member_calls_through_its_requirement() {
+    let text = named_owned_source("7", "", "0");
+    let prepared = typed(&text);
+    for node in prepared.expression_table.expression_nodes() {
+        if let typed_trees::expression::ExpressionNode::Call(call) = node {
+            let selection = prepared
+                .authored_declaration_selections()
+                .get(call.authored_call_selection.unwrap())
+                .unwrap();
+            assert!(
+                matches!(selection.target(), typed_trees::AuthoredDeclarationSelectionTarget::Resolved(selected)
+                if selected.selected_symbol() == call.target_symbol),
+                "the public requirement must be closed before lowering"
+            );
+            let namespace = prepared
+                .expression_table
+                .name_path_node(call.receiver)
+                .unwrap()
+                .symbol;
+            let (owner, row, _) = prepared
+                .named_conformance_member(namespace, call.target_symbol)
+                .unwrap()
+                .unwrap();
+            assert_eq!(owner.symbol, namespace);
+            assert_eq!(row.requirement, call.target_symbol);
+        }
+    }
+    let mut verdicts = declared_verdicts(&text);
+    assert!(
+        verdicts
+            .iter()
+            .all(|verdict| matches!(verdict, RouteVerdict::Accepted(_))),
+        "{verdicts:?}"
+    );
+    let RouteVerdict::Accepted(accepted) = verdicts.remove(0) else {
+        unreachable!()
+    };
+    let publication = accepted.publish_invocation().unwrap();
+    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    let status = instance
+        .invoke(&mut psi_work::WorkMeter::with_budget(1_000))
+        .unwrap();
+    assert!(
+        matches!(
+            status,
+            terminal_interpreter::TerminalExecutionStatus::Complete(
+                terminal_interpreter::TerminalExecutionResult::Scalar(
+                    terminal_interpreter::TerminalScalarValue::Integer {
+                        value: semantic_vocabulary::IntegerValue::Unsigned(0),
+                        ..
+                    }
+                )
+            )
+        ),
+        "{status:?}"
+    );
+}
+
+#[test]
+fn a_named_owned_member_keeps_public_inputs_and_guarantees() {
+    for (actual, promised, bad_input) in [("0", "", true), ("7", "ensures result == 0", false)] {
+        let verdicts = declared_verdicts(&named_owned_source(actual, promised, "0"));
+        let RouteVerdict::Rejected { unproved, .. } = &verdicts[0] else {
+            panic!("{verdicts:?}")
+        };
+        assert!(
+            unproved.iter().any(|row| if bad_input {
+                matches!(row.kind, ObligationKind::CallRequirement { .. })
+            } else {
+                matches!(row.kind, ObligationKind::NormalGuarantee { .. })
+            }),
+            "{verdicts:?}"
+        );
+        assert!(
+            matches!(verdicts[1], RouteVerdict::Accepted(_)),
+            "the own-body witness remains valid: {verdicts:?}"
+        );
+    }
+}
+
+#[test]
+fn a_named_owned_member_still_owes_its_actual_body() {
+    let verdicts = declared_verdicts(&named_owned_source("7", "", "1"));
+    assert!(
+        verdicts.iter().any(|verdict| matches!(verdict,
+        RouteVerdict::Rejected { unproved, .. } if unproved.iter().any(|row|
+            matches!(row.kind, ObligationKind::NormalGuarantee { .. })))),
+        "{verdicts:?}"
+    );
+}
+
+#[test]
+fn a_named_owned_resultless_call_keeps_its_requirement() {
+    for (actual, accepted) in [(7, true), (0, false)] {
+        let text = format!(
+            r#"
+trait Step {{ machine apply(value: u32) requires value > 0 crashes none; }}
+Inline satisfies Step {{ machine apply(input: u32) requires true crashes none {{ }} }}
+machine entry() crashes none {{ Inline::apply({actual}); }}
+"#
+        );
+        let verdicts = declared_verdicts(&text);
+        assert_eq!(
+            matches!(verdicts[0], RouteVerdict::Accepted(_)),
+            accepted,
+            "{verdicts:?}"
+        );
+        if !accepted {
+            let RouteVerdict::Rejected { unproved, .. } = &verdicts[0] else {
+                panic!("{verdicts:?}")
+            };
+            assert!(
+                unproved
+                    .iter()
+                    .any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. })),
+                "{verdicts:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_named_boundary_implementation_has_no_direct_entry() {
+    let text = r#"
+boundary trait Step {
+    machine apply(value: u32) -> u32
+    requires value > 0 ensures result < value reaches none crashes none;
+}
+Inline satisfies Step {
+    machine apply(input: u32) -> u32
+    requires true ensures result == 0 reaches none crashes none { 0 }
+}
+machine entry() -> u32 reaches none crashes none { Inline::apply(7) }
+"#;
+    let Err(refusal) = invocation(typed(text)) else {
+        panic!("a boundary implementation requires its provider slot")
+    };
+    assert!(
+        refusal
+            .detail
+            .contains("boundary conformer is callable only through its provider slot"),
+        "{refusal:?}"
+    );
+}
+
+fn named_two_packages(public_map: bool) -> typed_trees::TypedTrees {
+    let library = named_owned_source("7", "", "0")
+        .split("machine entry()")
+        .next()
+        .unwrap()
+        .to_owned()
+        .replace("trait Step", "public trait Step")
+        .replace(
+            "Inline satisfies",
+            if public_map {
+                "public Inline satisfies"
+            } else {
+                "Inline satisfies"
+            },
+        );
+    let client = "machine entry() -> u32 crashes none { Inline::apply(7) }";
+    let mut sources = source::SourceMap::default();
+    let mut syntax = None;
+    let mut source_ids = Vec::new();
+    for (path, root, text, identity) in [
+        ("library/api.omg", "library", library.as_str(), [1; 32]),
+        ("client/main.omg", "client", client, [2; 32]),
+    ] {
+        let id = sources
+            .add_checked_instance(
+                path.into(),
+                text,
+                root.into(),
+                Some(semantic_vocabulary::PackageKeyIdentity::from_digest(identity).unwrap()),
+                source::SourceOrigin::User,
+                source::SourceResolutionStratum::Base,
+                source::DependencyScope::Product,
+            )
+            .source_id;
+        source_ids.push(id);
+        let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+        if let Some(syntax) = &mut syntax {
+            tokens_to_syntax_trees::parse(syntax, id, &tokens).unwrap();
+        } else {
+            syntax = Some(tokens_to_syntax_trees::parse_syntax_trees_with_id(id, &tokens).unwrap());
+        }
+    }
+    let mut request =
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax.unwrap());
+    request.sources = Some(Arc::new(sources));
+    request
+        .top_level_bindings
+        .push(symbols::SourceScopedTopLevelBinding::new(
+            source_ids[1],
+            source_ids[0],
+            "Inline",
+        ));
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap();
+    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
+}
+
+#[test]
+fn a_named_map_controls_visibility_without_publishing_its_private_body() {
+    let prepared = named_two_packages(true);
+    let verdicts = declared_verdicts_of(&prepared);
+    assert!(
+        verdicts
+            .iter()
+            .all(|verdict| matches!(verdict, RouteVerdict::Accepted(_))),
+        "{verdicts:?}"
+    );
+    let private_map = named_two_packages(false);
+    let Err(refusal) = invocation(private_map) else {
+        panic!("a private map cannot be named by another package")
+    };
+    assert!(
+        refusal
+            .detail
+            .contains("private machine of another package"),
+        "{refusal:?}"
+    );
+
+    // A generated bare call cannot borrow the public map's visibility.
+    // Retain the real source and body, removing only the routed selection.
+    let mut bare = prepared;
+    let (handle, body) = bare
+        .expression_table
+        .expression_entries()
+        .find_map(|(handle, node)| {
+            let typed_trees::expression::ExpressionNode::Call(call) = node else {
+                return None;
+            };
+            let namespace = bare.expression_table.name_path_node(call.receiver)?.symbol;
+            let (_, row, _) = bare
+                .named_conformance_member(namespace, call.target_symbol)
+                .ok()??;
+            Some((handle, row.realization_machine))
+        })
+        .unwrap();
+    assert!(!bare.machine_by_symbol(body).unwrap().is_public);
+    let typed_trees::expression::ExpressionNode::Call(call) =
+        bare.expression_table.expression_mut(handle)
+    else {
+        unreachable!()
+    };
+    call.target_symbol = body;
+    call.receiver = Default::default();
+    call.authored_call_selection = None;
+    call.authored_call_binding = None;
+    call.authored_machine_application = Default::default();
+    let Err(refusal) = invocation(bare) else {
+        panic!("the private body has no direct foreign entry")
+    };
+    assert!(
+        refusal
+            .detail
+            .contains("private machine of another package"),
+        "{refusal:?}"
+    );
 }

@@ -74,9 +74,17 @@ impl SelectedProductTarget {
     // Checking one target on its own: the accepted program is produced, its
     // target-local conditions and task activations are checked, and the
     // checked compilation is sealed.
-    pub(crate) fn finish_check(mut self) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-        let terminal = crate::terminal::check_terminal_conditions(&mut self.custody)?;
-        self.check_declaration_requirements(terminal.module())?;
+    pub(crate) fn finish_check(mut self) -> Result<CheckedCompilation, CompileFailure> {
+        let checked = (|| -> Result<(), Vec<Diagnostic>> {
+            let terminal = crate::terminal::check_terminal_conditions(&mut self.custody)?;
+            self.check_declaration_requirements(terminal.module())
+        })();
+        if let Err(diagnostics) = checked {
+            return Err(CompileFailure::source_completion(
+                diagnostics,
+                self.custody.source_completion_accounting,
+            ));
+        }
         self.into_checked_compilation()
     }
 
@@ -102,7 +110,7 @@ impl SelectedProductTarget {
         Ok(())
     }
 
-    pub(crate) fn into_checked_compilation(self) -> Result<CheckedCompilation, Vec<Diagnostic>> {
+    pub(crate) fn into_checked_compilation(self) -> Result<CheckedCompilation, CompileFailure> {
         let SelectedProviderCustody {
             terminal_publication,
             source_completion_accounting,
@@ -126,6 +134,9 @@ impl SelectedProductTarget {
             timings,
             terminal_publication,
         )
+        .map_err(|diagnostics| {
+            CompileFailure::source_completion(diagnostics, source_completion_accounting.clone())
+        })
         .map(|checked| checked.with_source_completion_accounting(source_completion_accounting))
     }
 }
@@ -145,9 +156,7 @@ pub(crate) struct SelectedCompileOutcome {
 impl SelectedCompileOutcome {
     pub(crate) fn finish_check(self) -> CheckedCompileOutcome {
         CheckedCompileOutcome {
-            result: self
-                .result
-                .and_then(|selected| selected.finish_check().map_err(CompileFailure::from)),
+            result: self.result.and_then(SelectedProductTarget::finish_check),
             independent_components: self.independent_components,
         }
     }
@@ -160,7 +169,12 @@ pub(crate) fn select_product_target(
     SelectedCompileOutcome {
         result: prepared
             .and_then(|prepared| SelectedProductTarget::select(source, prepared))
-            .map_err(CompileFailure::from),
+            .map_err(|diagnostics| {
+                CompileFailure::source_completion(
+                    diagnostics,
+                    source.source_completion_accounting.clone(),
+                )
+            }),
         independent_components: source.computed_build_config.independent_components(),
         tests: Vec::new(),
         test_notes: Vec::new(),

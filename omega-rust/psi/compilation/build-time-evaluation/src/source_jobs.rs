@@ -6,7 +6,12 @@ use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
 mod build_activation;
+mod constant_jobs;
 mod invocation;
+
+pub use constant_jobs::{
+    evaluate as evaluate_constant_initializers, validate_constant_evaluations,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixedLayoutTargetScope {
@@ -87,6 +92,10 @@ impl PreparedBuildMachineEntry {
 
     pub fn source(&self) -> &TypedTrees {
         &self.source
+    }
+
+    pub(crate) fn retained_source(&self) -> Arc<TypedTrees> {
+        Arc::clone(&self.source)
     }
 
     /// The actual caller and its arguments have already been judged together.
@@ -180,6 +189,13 @@ impl PreparedBuildMachineEntry {
         produced: &psi_terminal_production::ProducedTerminalProgram,
         target: crate::InvocationTarget<'_>,
     ) -> Result<terminal_installation::AdmittedCompilerEvaluation, String> {
+        if target.name.is_none()
+            && (target.layout_target.is_some()
+                || target.carrier_layout.is_some()
+                || target.address_model.is_some())
+        {
+            return Err("target-independent evaluation cannot carry target observations".into());
+        }
         use terminal_interpreter::TerminalProgram;
         let program = TerminalProgram::borrow(produced.view());
         let requirements = program
@@ -511,7 +527,7 @@ pub(crate) mod tests {
 
     fn target() -> crate::InvocationTarget<'static> {
         crate::InvocationTarget {
-            name: "linux_x86_64",
+            name: Some("linux_x86_64"),
             layout_target: None,
             carrier_layout: None,
             address_model: None,

@@ -330,7 +330,8 @@ pub(crate) mod source_parsing {
 }
 
 pub use source_checking::{
-    FrozenSource, ProductRepresentationInput, SourceAdmission, SourcePreparationRequest,
+    FrozenSource, ProductRepresentationInput, SourceAdmission, SourcePreparationFailure,
+    SourcePreparationRequest,
 };
 pub use source_parsing::{
     ParsedText, SourceInput, SourceParseError, load_source_files, parse_text,
@@ -342,17 +343,17 @@ pub use source_compilation::{
 };
 
 pub use psi_terminal_production::{
-    AcceptedTerminalSource, BuildCallSite, ConstantRead, PortableTerminalProgram,
-    PreparedTerminalRoots, ProducedBuildProvider, ProducedTerminalApplication,
-    ProducedTerminalProgram, ProgramEntryTerminalReceiptError, PsiCompilationObserver,
-    PsiCompilationStage, ReachedBoundaryRequirement, TerminalAdmissionRoot,
-    TerminalApplicationCustody, TerminalArtifactProductionError, TerminalBuildBindingCall,
-    TerminalBuildBindingOperation, TerminalBuildBindings, TerminalBuildFilesystem,
-    TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation, TerminalBuildNativeLocator,
-    TerminalBuildProviderRequirement, TerminalBuildQueryCall, TerminalBuildQueryOperation,
-    TerminalBuildRequestCall, TerminalBuildRequestOperation, TerminalBuildRequests,
-    TerminalBuildSelectionRequest, TerminalBuildValueCase, TerminalBuildValueField,
-    TerminalBuildValueShape, TerminalCompositionRoots, TerminalMachineSelection,
-    TerminalProductionCustody, TerminalProgramRoots, TerminalSourceCompilation,
-    TerminalSourceSupply, UnmeasuredProduction,
+    AcceptedTerminalSource, BuildCallSite, ConstantRead, DeclaredBoundaryRequirement,
+    PortableTerminalProgram, PreparedTerminalRoots, ProducedBuildProvider,
+    ProducedTerminalApplication, ProducedTerminalProgram, ProgramEntryTerminalReceiptError,
+    PsiCompilationObserver, PsiCompilationStage, TerminalAdmissionRoot, TerminalApplicationCustody,
+    TerminalArtifactProductionError, TerminalBuildBindingCall, TerminalBuildBindingOperation,
+    TerminalBuildBindings, TerminalBuildFilesystem, TerminalBuildFilesystemCall,
+    TerminalBuildFilesystemOperation, TerminalBuildNativeLocator, TerminalBuildProviderRequirement,
+    TerminalBuildQueryCall, TerminalBuildQueryOperation, TerminalBuildRequestCall,
+    TerminalBuildRequestOperation, TerminalBuildRequests, TerminalBuildSelectionRequest,
+    TerminalBuildValueCase, TerminalBuildValueField, TerminalBuildValueShape,
+    TerminalCompositionRoots, TerminalMachineSelection, TerminalProductionCustody,
+    TerminalProgramRoots, TerminalSourceCompilation, TerminalSourceSupply,
+    TerminalSuppliedRequirement, UnmeasuredProduction,
 };
