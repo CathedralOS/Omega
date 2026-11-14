@@ -1171,12 +1171,6 @@ mod catalogs {
         {
             return Err(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch);
         }
-        if unit.proof_questions.iter().any(|question| {
-            let machine = question.owner.machine();
-            !machines.contains_key(&machine) && !pruned.contains(&machine)
-        }) {
-            return Err(OptimizationUnitValidationError::ProofQuestionIndexMismatch);
-        }
         let mut boundary_machines = BTreeMap::new();
         for boundary in &unit.boundary_machines {
             if boundary_machines.insert(boundary.id, boundary).is_some() {
@@ -9679,7 +9673,6 @@ mod identity_indexes {
         recompute_psi_optimization_unit_identity,
     };
     use psi_work::WorkSchedule;
-    use std::collections::BTreeSet;
 
     pub(super) fn validate_identity_and_fact_indexes(
         unit: &PsiOptimizationUnit,
@@ -9704,16 +9697,6 @@ mod identity_indexes {
             })
         {
             return Err(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch);
-        }
-        let mut proof_question_identities = BTreeSet::new();
-        let mut proof_question_owners = BTreeSet::new();
-        if unit.proof_questions.iter().any(|question| {
-            question.terminal_psi != unit.psi
-                || !question.has_canonical_identity()
-                || !proof_question_identities.insert(question.identity)
-                || !proof_question_owners.insert((question.owner, question.obligation))
-        }) {
-            return Err(OptimizationUnitValidationError::ProofQuestionIndexMismatch);
         }
         if unit.ownership_frontier_facts.iter().any(|fact| {
             fact.psi != unit.psi

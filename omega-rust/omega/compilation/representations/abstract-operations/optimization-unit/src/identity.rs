@@ -2,7 +2,7 @@
 We compute the canonical cryptographic identities (`OptimizationUnitIdentity`,
 `scalar_refinement_identity_bytes`, `access_view_catalog_identity_bytes`) for
 `PsiOptimizationUnit` and its structural, proposition, and runtime-evidence
-catalogs. Every declaration, fact, proof question, frontier snapshot, and
+catalogs. Every declaration, fact, frontier snapshot, and
 function body is serialized into `CanonicalBytes` in a deterministic order so
 any structural or semantic drift produces a distinct identity hash.
 */
@@ -35,7 +35,6 @@ use terminal_psi::{
 use crate::{
     AcceptedObligationFact, EffectLink, OptimizationEdge, OptimizationFact, OptimizationNode,
     OwnershipEvent, OwnershipFrontierFact, OwnershipFrontierSite, OwnershipFrontierSnapshot,
-    ProofQuestion, ProofQuestionAdmissionKind, ProofQuestionClass, ProofQuestionOwner,
     PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, ValueDefinition,
     ValueDefinitionSite, ValueUse, WorkSettlement,
 };
@@ -2246,7 +2245,6 @@ pub(crate) mod structural_encoding {
                 provider_candidates: Vec::new(),
                 dynamic_dispatch: Default::default(),
                 accepted_obligation_facts: Vec::new(),
-                proof_questions: Vec::new(),
                 ownership_frontier_facts: Vec::new(),
                 pruned_machines: Vec::new(),
                 identities: identities.build(),
@@ -2319,14 +2317,13 @@ pub(crate) mod unit_encoding {
     use super::{
         AbstractFunctionResult, AcceptedObligationFact, EffectLink, OptimizationEdge,
         OptimizationFact, OptimizationNode, OptimizationUnitIdentity, OwnershipEvent,
-        OwnershipFrontierFact, OwnershipFrontierSite, OwnershipFrontierSnapshot, ProofQuestion,
-        ProofQuestionAdmissionKind, ProofQuestionClass, ProofQuestionOwner,
+        OwnershipFrontierFact, OwnershipFrontierSite, OwnershipFrontierSnapshot,
         PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, PsiSemanticId,
         ServiceDeclaration, StructuralResultDeclaration, TerminalRootServiceReach, ValueDefinition,
         ValueDefinitionSite, ValueUse, WorkSettlement,
     };
 
-    const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v55\0";
+    const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v56\0";
     pub fn recompute_psi_optimization_unit_identity(
         unit: &PsiOptimizationUnit,
     ) -> OptimizationUnitIdentity {
@@ -2363,7 +2360,6 @@ pub(crate) mod unit_encoding {
         bytes.slice(&unit.boundary_machines, encode_boundary_machine);
         bytes.slice(&unit.provider_candidates, encode_provider_candidate);
         bytes.slice(&unit.accepted_obligation_facts, encode_accepted_fact);
-        bytes.slice(&unit.proof_questions, encode_proof_question);
         bytes.slice(
             &unit.ownership_frontier_facts,
             encode_ownership_frontier_fact,
@@ -2576,91 +2572,6 @@ pub(crate) mod unit_encoding {
         } else {
             bytes.u8(0);
         }
-    }
-
-    fn encode_proof_question(bytes: &mut CanonicalBytes, question: &ProofQuestion) {
-        bytes.bytes(&question.identity.bytes());
-        bytes.u16(question.terminal_psi.vocabulary_marker.get());
-        bytes.bytes(question.terminal_psi.program_fingerprint.as_bytes());
-        bytes.bytes(&question.proof_bundle_fingerprint);
-        match question.owner {
-            ProofQuestionOwner::ScalarBlockInvariant {
-                machine,
-                header,
-                edge,
-            } => {
-                bytes.u8(5);
-                bytes.id(machine);
-                bytes.id(header);
-                bytes.id(edge);
-            }
-            ProofQuestionOwner::Operation { machine, operation } => {
-                bytes.u8(1);
-                bytes.id(machine);
-                bytes.id(operation);
-            }
-            ProofQuestionOwner::CallRequires {
-                machine,
-                operation,
-                requirement_position,
-            } => {
-                bytes.u8(2);
-                bytes.id(machine);
-                bytes.id(operation);
-                bytes.u32(requirement_position);
-            }
-            ProofQuestionOwner::NominalCleanupRequires {
-                machine,
-                edge,
-                cleanup_position,
-                requirement_position,
-            } => {
-                bytes.u8(3);
-                bytes.id(machine);
-                bytes.id(edge);
-                bytes.u32(cleanup_position);
-                bytes.u32(requirement_position);
-            }
-            ProofQuestionOwner::ContractEnsures {
-                machine,
-                contract,
-                clause_position,
-            } => {
-                bytes.u8(4);
-                bytes.id(machine);
-                bytes.id(contract);
-                bytes.u32(clause_position);
-            }
-        }
-        bytes.id(question.obligation);
-        match question.class {
-            ProofQuestionClass::Derivable => bytes.u8(1),
-            ProofQuestionClass::AdmissionAuthorized {
-                site,
-                kind,
-                authority_identity,
-            } => {
-                bytes.u8(2);
-                bytes.id(site);
-                bytes.u8(match kind {
-                    ProofQuestionAdmissionKind::ForeignBoundaryGuarantee => 1,
-                    ProofQuestionAdmissionKind::ProviderFact => 2,
-                    ProofQuestionAdmissionKind::CheckedAssemblyClaim => 3,
-                });
-                bytes.id(authority_identity);
-            }
-        }
-        bytes.len(question.proposition.len());
-        bytes.bytes(&question.proposition);
-        bytes.slice(&question.requirements, |bytes, proposition| {
-            bytes.len(proposition.len());
-            bytes.bytes(proposition);
-        });
-        bytes.slice(&question.semantic_axioms, |bytes, proposition| {
-            bytes.len(proposition.len());
-            bytes.bytes(proposition);
-        });
-        bytes.boolean(question.canonical_certificate);
     }
 
     fn encode_ownership_frontier_fact(bytes: &mut CanonicalBytes, fact: &OwnershipFrontierFact) {
