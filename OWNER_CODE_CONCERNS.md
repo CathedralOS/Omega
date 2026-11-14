@@ -178,14 +178,6 @@ framework or a list of features that remain unimplemented.
 - Cost: implicit entry selection and source custody can disagree when name order differs from child order; consolidate their exact entry relationship rather than restoring the deleted selectors.
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### The default ranking view is derived differently in resolution and typing
-- Category: re-deriving
-- Where: `omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lowering_machine.rs` (`elaborate_single_subject_default`); `03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs` (`pending_ranking_default`)
-- Saw: resolution finds a parameter by name text and accepts a `.len` member; typing finds it by symbol, has no `.len` rule, stops after 128 steps and runs only when resolution left the view empty. The resolution comment still claims to mirror the deleted checker "EXACTLY".
-- Cost: two stages own the same default with different selection rules; new rankable carriers can acquire different defaults depending on which stage first recognizes them.
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
-
 ### Default ISA preparation rebuilds the register-constraint catalog it just made
 - Category: re-deriving
 - Where: `omega-rust/omega/compilation/backend/instruction-set-architectures/isa-x86_64/src/register_model.rs` and `.../isa-aarch64/src/register_model.rs` (constraint validators); `backend/register-environment/src/lib.rs` (`build_baseline_target_register_environment`)
