@@ -184,18 +184,21 @@ fn an_invalid_bound_entry_reports_the_routes_rejection() {
     }
     let (messages, verdict) =
         rejected("tests/fixtures/fail/proofs/unused_partial_mathematical_predicate");
-    let RouteVerdict::Rejected { violations, .. } = verdict else {
-        panic!("an unused declaration still owes operand formation: {verdict:?}");
+    let RouteVerdict::FallBack(refusal) = verdict else {
+        panic!("unavailable operand formation must refuse the declaration: {verdict:?}");
     };
-    assert_eq!(violations.len(), 1);
-    let failure = &violations[0];
-    assert!(
-        failure.statement.contains("a trapping operator"),
-        "{failure:?}"
+    assert_eq!(
+        refusal.reason,
+        terminal_check_tables::RefusalReason::Unsupported
+    );
+    assert_eq!(
+        refusal.detail,
+        "contract carrier arithmetic in a clause term"
     );
     assert!(
-        failure.site.is_some(),
-        "the declaration keeps its authored location"
+        messages
+            .iter()
+            .any(|message| message.contains(&refusal.detail)),
+        "{messages:#?}"
     );
-    assert!(messages.contains(&failure.message()), "{messages:#?}");
 }
