@@ -112,17 +112,25 @@ pub fn validate_constant_evaluations(
     // The first actual constant invocation still owns every original named
     // use, before this batch substitutes its first value. Prepare that use
     // family once and authenticate each emitted copy against its own receipt.
-    let original_uses = accounting
+    let original_source = accounting
         .receipts()
         .iter()
         .find_map(|record| match record {
             crate::PureEvaluationRecord::Invocation(receipt)
                 if family_position(&wanted, receipt.requester()).is_some() =>
             {
-                Some(named_uses(receipt.request_source(), &wanted))
+                Some(receipt.request_source())
             }
             _ => None,
         });
+    if let Some(source) = original_source
+        && !program
+            .expression_table
+            .retains_input_storage(&source.expression_table)
+    {
+        return Err("constant receipt has changed expression input storage".into());
+    }
+    let original_uses = original_source.map(|source| named_uses(source, &wanted));
     // Cloning shares the immutable arenas. Reuse one comparison owner rather
     // than constructing a whole-program clone for each constant.
     let mut comparison = program.clone();

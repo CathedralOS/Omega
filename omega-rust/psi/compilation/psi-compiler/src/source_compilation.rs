@@ -1102,8 +1102,6 @@ impl SourceContinuation {
                 deferred.push(pending);
             }
         }
-        build_time_evaluation::validate_constant_evaluations(typing.typed(), &accounting)
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
         let source = CompletedSource {
             declaration_syntax: context.declaration_syntax,
             typing,

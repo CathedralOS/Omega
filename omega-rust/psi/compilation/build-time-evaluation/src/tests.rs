@@ -1114,3 +1114,72 @@ fn an_unread_machine_constant_is_pending_until_the_actual_scope_demands_it() {
         }
     }
 }
+
+#[test]
+fn a_constant_receipt_authenticates_ordered_argument_storage() {
+    for (arguments, replacement, expected) in [("1u64", "2u64", 1i64), ("1u64, 2u64", "2u64", 1i64)]
+    {
+        let text = if arguments.contains(',') {
+            format!(
+                "const VALUE:u64=f(); machine f()->u64 {{ g({arguments}) }} machine g(a:u64,b:u64)->u64 {{ a }} machine spare()->u64 {{ {replacement} }}"
+            )
+        } else {
+            format!(
+                "const VALUE:u64=f(); machine f()->u64 {{ g({arguments}) }} machine g(a:u64)->u64 {{ a }} machine spare()->u64 {{ {replacement} }}"
+            )
+        };
+        let (_, _, base, pending) = constant_base(&[("main.omg", &text)]);
+        let mut program = base.typed().clone();
+        let recorded = pending.evaluate_requested_constants(&mut program).unwrap();
+        crate::validate_constant_evaluations(&program, &recorded.accounting).unwrap();
+        let crate::PureEvaluationRecord::Invocation(receipt) = &recorded.accounting.receipts()[0]
+        else {
+            panic!("actual invocation")
+        };
+        assert!(
+            matches!(receipt.outcome(), crate::PureTerminalEvaluationOutcome::Materialized { value: crate::BuildTimeValue::Int(value), .. } if *value==expected)
+        );
+        let g = program.realized_machine_named("g").unwrap().symbol;
+        let references = typed_trees::references::collect_program_references(&program);
+        let (expression, call) = references
+            .expressions
+            .iter()
+            .find_map(|expression| {
+                let typed_trees::expression::ExpressionNode::Call(call) =
+                    program.expression_table.expression(*expression)
+                else {
+                    return None;
+                };
+                program
+                    .machine_by_symbol(call.target_symbol)
+                    .or_else(|| program.machine_holding_state(call.target_symbol))
+                    .is_some_and(|machine| machine.symbol == g)
+                    .then(|| (*expression, call.clone()))
+            })
+            .expect("the actual call to g");
+        let old = program
+            .expression_table
+            .expression_handles(call.arguments)
+            .to_vec();
+        let two = references.expressions.iter().find(|expression| {
+            matches!(program.expression_table.expression(**expression), typed_trees::expression::ExpressionNode::Integer(literal) if literal.value_u64()==Some(2))
+        }).copied().unwrap();
+        program
+            .expression_table
+            .set_expression_handle_at_offset(call.arguments, 0, two);
+        if old.len() == 2 {
+            program
+                .expression_table
+                .set_expression_handle_at_offset(call.arguments, 1, old[0]);
+        }
+        assert_eq!(
+            program.expression_table.expression(expression),
+            &typed_trees::expression::ExpressionNode::Call(call)
+        );
+        assert!(
+            crate::validate_constant_evaluations(&program, &recorded.accounting)
+                .unwrap_err()
+                .contains("input storage")
+        );
+    }
+}

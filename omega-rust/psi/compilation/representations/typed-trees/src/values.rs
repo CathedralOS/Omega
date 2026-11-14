@@ -4331,6 +4331,50 @@ pub mod expression {
                 }
         }
 
+        /// Preserve the captured input storage while materialization appends
+        /// output rows and replaces only its separately authenticated value
+        /// occurrences. Equal expression nodes alone do not preserve an input:
+        /// their spans can still name overwritten argument or capture rows.
+        /// The caller joins the source owner and approved node substitutions.
+        pub fn retains_input_storage(&self, source: &Self) -> bool {
+            fn rows<T: Default + PartialEq>(current: &Arena<T>, source: &Arena<T>) -> bool {
+                source
+                    .iter()
+                    .all(|(handle, value)| current.is_valid(handle) && current.get(handle) == value)
+            }
+            macro_rules! storage {
+                (arenas [$($arena:ident),* $(,)?], vectors [$($vector:ident),* $(,)?]) => {{
+                    // Exhaustive destructuring makes adding an unaccounted
+                    // storage family a compile error. Node changes are the
+                    // explicit exception, authenticated by the materializer.
+                    let Self { expressions: _, $($arena: _,)* $($vector: _,)* } = self;
+                    $(if !rows(&self.$arena, &source.$arena) { return false; })*
+                    $(if self.$vector.get(..source.$vector.len()) != Some(source.$vector.as_slice()) {
+                        return false;
+                    })*
+                    true
+                }};
+            }
+            storage!(
+                arenas [
+                    build_selection_requests, expression_roots,
+                    constructed_value_types, construction_required_types,
+                    index_expression_authorities, authored_selection_occurrence_ids,
+                    executable_domain_test_rows, expression_handles,
+                    name_path_members, name_path_member_symbols, struct_fields,
+                    match_arms, match_fields, completed_values, match_proof_selectors,
+                    static_machine_applications, static_machine_arguments,
+                    static_machine_bindings, static_machine_lifetime_bindings,
+                ],
+                vectors [
+                    source_spans, pattern_components, materialization_sources,
+                    constructed_value_type_handles, construction_required_type_handles,
+                    index_expression_authority_handles, authored_selection_occurrences,
+                    executable_domain_tests,
+                ]
+            )
+        }
+
         pub fn expressions_structurally_equal(
             &self,
             a: ExpressionHandle,

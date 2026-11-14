@@ -132,8 +132,13 @@ impl SourcePreparationRequest<'_> {
             self.compilation,
             self.admission.layout_selection_authority,
         )?);
-        build_time_evaluation::validate_constant_evaluations(&program, &accounting)
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        build_time_evaluation::validate_constant_evaluations(&program, &accounting).map_err(
+            |reason| {
+                vec![Diagnostic::error(format!(
+                    "constant materialization receipt join: {reason}"
+                ))]
+            },
+        )?;
         let mut preparation = typed_trees_to_typed_trees::PreparationRequest::settled()
             .with_wire_compatibility_demands(self.admission.wire_demands);
         if let Some(authority) = self.admission.asm_authority {

@@ -25,7 +25,8 @@ pub(crate) fn check_product_source(
         build_sources,
         mut timings,
     } = source;
-    build_time_evaluation::validate_constant_evaluations(&typed, &source_completion_accounting)
+    source_completion_accounting
+        .validate_charges()
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let build = &computed_build_config.config;
     let symbol_sources = typed.symbols.source_map();
@@ -128,8 +129,6 @@ pub(crate) fn check_product_source(
     })?;
     let source_completion_accounting = source.accounting;
     let program = source.program;
-    build_time_evaluation::validate_constant_evaluations(&program, &source_completion_accounting)
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let judged = roster.judge(Arc::clone(&program));
     if let Some(frontier) = frontier {
         *frontier = Some(super::typed_frontier::TypedFrontier {
