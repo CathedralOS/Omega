@@ -234,23 +234,23 @@ impl Program<'_> {
                     implementation: machine.symbol,
                 };
                 let root = self.provider(machine.symbol, owner.symbol, requirement)?;
-                // The module declares the boundary of every requirement a
-                // chosen provider supplies, called or not: a provider plan
-                // covers the slot's whole schema, so each requirement needs
-                // the declaration its candidate row names
-                // (`declare::provider_candidates`). No call is made, so no
-                // visibility is checked; `root` only anchors a refusal.
-                self.boundary_declaration(root, requirement)?;
                 if !self.fixed_inputs.contains(&root) {
                     self.fixed_inputs.push(root);
                 }
-                let supplied = crate::SuppliedRequirement {
-                    provider: supply.provider,
-                    requirement,
-                    machine: root,
-                };
-                if !self.supplied.contains(&supplied) {
-                    self.supplied.push(supplied);
+                // Ordinary nominal supplies (including CallingPolicy) owe
+                // the same body and refinement proof, but declare no boundary
+                // capability. Only a boundary owner nominates the complete
+                // requirement roster its provider plan must realize.
+                if owner.is_boundary {
+                    self.boundary_declaration(root, requirement)?;
+                    let supplied = crate::SuppliedRequirement {
+                        provider: supply.provider,
+                        requirement,
+                        machine: root,
+                    };
+                    if !self.supplied.contains(&supplied) {
+                        self.supplied.push(supplied);
+                    }
                 }
                 // A machine that states `satisfies` already owes this row
                 // (`satisfied_requirements`), and two supplies may name one
