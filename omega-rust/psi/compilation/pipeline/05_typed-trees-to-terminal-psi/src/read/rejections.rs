@@ -199,7 +199,9 @@ fn scalar_named(scalar: ScalarType) -> String {
                 IntegerSign::Signed => 'i',
                 IntegerSign::Unsigned => 'u',
             },
-            integer.bits(),
+            integer
+                .bits()
+                .map_or_else(|| "<parameter>".to_owned(), |bits| bits.to_string(),),
         ),
         ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => "f32".to_owned(),
         ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => "f64".to_owned(),
