@@ -62,6 +62,7 @@ mod sequence_regions;
 mod stored_views;
 mod type_parameters;
 mod value_parameters;
+mod width_parameters;
 
 fn integer_type(sign: IntegerSign) -> IntegerType {
     IntegerType::new(sign, 32).unwrap()
