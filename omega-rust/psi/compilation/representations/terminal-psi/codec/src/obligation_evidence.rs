@@ -106,6 +106,18 @@ pub struct EvidenceSeals {
 }
 
 impl EvidenceSeals {
+    /// Binds evidence to the exact already closed module without encoding or
+    /// closing it again. The owner retains the bytes behind this identity.
+    pub fn for_closed_module(
+        module: &crate::ClosedTerminalModule,
+        seals: Vec<ObligationEvidenceSeal>,
+    ) -> Self {
+        Self {
+            module: module.identity(),
+            seals,
+        }
+    }
+
     pub fn for_module(
         module: &terminal_psi::TerminalModule,
         seals: Vec<ObligationEvidenceSeal>,
@@ -914,6 +926,15 @@ mod projection_tests {
         }
         let evidence = EvidenceSeals::for_module(&module, seals).unwrap();
         (module, evidence)
+    }
+
+    #[test]
+    fn closed_module_evidence_preserves_the_original_identity_and_seals() {
+        let (module, original) = module_and_seals();
+        let closed = crate::ClosedTerminalModule::new(module).unwrap();
+        let evidence = EvidenceSeals::for_closed_module(&closed, original.seals.clone());
+        assert_eq!(evidence.module, closed.identity());
+        assert_eq!(evidence, original);
     }
 
     #[test]
