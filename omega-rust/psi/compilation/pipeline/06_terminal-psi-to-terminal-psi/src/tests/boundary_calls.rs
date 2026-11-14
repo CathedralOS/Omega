@@ -1847,3 +1847,144 @@ fn generic_named_map_source_capture_identity_keeps_unused_binders() {
         "equal public trait scopes must not collapse the independently bound map tuples"
     );
 }
+
+#[test]
+fn generic_named_map_source_application_retains_actual_constructor_bindings() {
+    let text = generic_named_map_source()
+        .replacen(
+            "Selected<Value> satisfies",
+            "Selected<Value, Unused> satisfies",
+            1,
+        )
+        .replacen(
+            "Selected<u32>::apply(7)",
+            "let first: u32 = Selected<u32, u64>::apply(7); Selected<u32, bool>::apply(8)",
+            1,
+        );
+    let mut program = typed(&text);
+    let calls = program
+        .expression_table
+        .expression_entries()
+        .filter_map(|(_, node)| {
+            let typed_trees::expression::ExpressionNode::Call(call) = node else {
+                return None;
+            };
+            program
+                .expression_table
+                .name_path_node(call.receiver)
+                .filter(|path| program.conformance_by_symbol(path.symbol).is_some())
+                .map(|_| call.clone())
+        })
+        .collect::<Vec<_>>();
+    let [left, right] = &calls[..] else {
+        panic!("two explicit constructor applications")
+    };
+    let expected_owner = program
+        .named_conformance_capture_key(left)
+        .unwrap()
+        .unwrap()
+        .0;
+    let left_application = program
+        .prepare_named_conformance_application(left)
+        .unwrap()
+        .unwrap();
+    let right_application = program
+        .prepare_named_conformance_application(right)
+        .unwrap()
+        .unwrap();
+    assert_ne!(
+        left_application, right_application,
+        "different unused arguments are different owned bodies"
+    );
+    let left_scope = left_application.trait_scope.scope(&program).unwrap();
+    let right_scope = right_application.trait_scope.scope(&program).unwrap();
+    assert!(left_scope.same_application(&program, &right_scope));
+    for application in [left_application, right_application] {
+        assert_eq!(application.arguments.len(), 2);
+        assert_eq!(application.type_arguments.len(), 2);
+        assert!(application.const_arguments.is_empty() && application.machine_arguments.is_empty());
+        assert!(!application.identity_encoding.is_empty());
+        assert!(!application.commitment.is_zero());
+        let source = program
+            .expression_table
+            .static_machine_application(application.callable_application);
+        assert_eq!(source.lexical_owner, expected_owner);
+        assert_eq!(source.registration_operation, application.declaration);
+        assert_eq!(source.binding_declaration, application.declaration);
+        let parameters = program.conformance_type_parameters(
+            program
+                .conformance_by_symbol(application.declaration)
+                .unwrap(),
+        );
+        let bindings = program
+            .expression_table
+            .static_machine_application_bindings(application.callable_application);
+        assert_eq!(bindings.len(), parameters.len());
+        for ((parameter, binding), argument) in parameters
+            .iter()
+            .zip(bindings)
+            .zip(application.arguments.iter())
+        {
+            assert_eq!(binding.parameter, parameter.symbol);
+            assert_eq!(
+                binding.value,
+                typed_trees::static_applications::StaticMachineBindingValue::Type(
+                    argument.type_reference
+                )
+            );
+        }
+    }
+}
+
+#[test]
+fn generic_named_map_source_rejects_a_foreign_unused_argument() {
+    let text = generic_named_map_source()
+        .replacen(
+            "Selected<Value> satisfies",
+            "Selected<Value, Unused> satisfies",
+            1,
+        )
+        .replacen("Selected<u32>::apply(7)", "Selected<u32, u64>::apply(7)", 1);
+    let mut program = typed(&text);
+    let mut call = generic_named_map_call(&program).clone();
+    let typed_trees::types::TypeReferenceNode::Generic {
+        base_symbol,
+        base_name,
+        lifetime_arguments,
+        arguments,
+    } = program
+        .type_reference_table
+        .type_reference(call.requirement_application)
+        .clone()
+    else {
+        panic!("a complete map application")
+    };
+    let mut arguments = program
+        .type_reference_table
+        .type_reference_handles(arguments)
+        .to_vec();
+    arguments[1] = typed_trees::types::TypeReferenceHandle::from_parts(
+        arguments[1].arena_index(),
+        arguments[1].generation() + 1,
+    );
+    let arguments = program
+        .type_reference_table
+        .insert_type_reference_handles(arguments);
+    call.requirement_application =
+        program
+            .type_reference_table
+            .insert(typed_trees::types::TypeReferenceNode::Generic {
+                base_symbol,
+                base_name,
+                lifetime_arguments,
+                arguments,
+            });
+    let failure = program.named_conformance_call_member(&call).unwrap_err();
+    assert!(failure.contains("region-free map argument"), "{failure}");
+    assert!(program.named_conformance_capture_key(&call).is_err());
+    assert!(
+        program
+            .prepare_named_conformance_application(&call)
+            .is_err()
+    );
+}

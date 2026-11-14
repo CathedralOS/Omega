@@ -2983,6 +2983,25 @@ pub(crate) mod namespaces {
             {
                 return Err("named application changed its retained map or source application");
             }
+            let crate::types::TypeReferenceNode::Generic { arguments, .. } =
+                self.type_reference_node(call.requirement_application)
+            else {
+                unreachable!()
+            };
+            let arguments = self.type_reference_handles(*arguments);
+            if arguments.len() != parameters.len()
+                || arguments.iter().any(|argument| {
+                    !self.type_reference_table.contains_type_reference(*argument)
+                        || self
+                            .region_free_scoped_type_identity(
+                                crate::type_identity::TypeIdentityRequest::ordinary(*argument),
+                                &[],
+                            )
+                            .is_none()
+                })
+            {
+                return Err("named application lost a complete region-free map argument");
+            }
             let source = self.static_machine_application(call.authored_machine_application);
             let template = self
                 .closed_requirement_application(call.target_symbol)
@@ -3035,6 +3054,123 @@ pub(crate) mod namespaces {
             )
             .ok_or("named application lost its complete capture identity")?;
             Ok(Some((source.lexical_owner, identity)))
+        }
+
+        /// Retain the actual map constructor bindings and source scope before
+        /// its body is copied. These are source data, not checked facts or an
+        /// assertion that a conformance body was accepted.
+        pub fn prepare_named_conformance_application(
+            &mut self,
+            call: &TableCallExpression,
+        ) -> Result<Option<crate::ClosedConformanceApplication>, &'static str> {
+            use crate::static_applications::{StaticMachineBinding, StaticMachineBindingValue};
+            use sha2::{Digest, Sha256};
+            let Some((owner, identity)) = self.named_conformance_capture_key(call)? else {
+                return Ok(None);
+            };
+            let encoding = self
+                .type_identity_text(identity)
+                .ok_or("named application lost its canonical encoding")?;
+            let crate::types::TypeReferenceNode::Generic {
+                base_symbol,
+                arguments,
+                ..
+            } = self.type_reference_node(call.requirement_application)
+            else {
+                return Err("named application lost its complete constructor");
+            };
+            let declaration = *base_symbol;
+            let arguments = self.type_reference_handles(*arguments).to_vec();
+            let selected = self
+                .conformance_by_symbol(declaration)
+                .ok_or("named application lost its source declaration")?;
+            let parameters = self
+                .conformance_type_parameters(selected)
+                .iter()
+                .map(|parameter| parameter.symbol)
+                .collect::<Vec<_>>();
+            let rows = selected
+                .rows
+                .iter()
+                .map(|row| crate::ClosedConformanceRowIdentity {
+                    declaring_trait: row.declaring_trait,
+                    requirement: row.requirement,
+                    realization_machine: row.realization_machine,
+                    realization_state: row.realization_state,
+                })
+                .collect();
+            let scope = self
+                .applied_requirement_scope(owner, call.requirement_application)
+                .ok_or("named application lost its source scope")?;
+            let trait_definition = scope.declaration.symbol;
+            let trait_arguments = self
+                .trait_type_parameters(scope.declaration)
+                .iter()
+                .map(|parameter| {
+                    self.normalized_type_identity_text(
+                        scope.parameter_argument(self, parameter.symbol),
+                    )
+                })
+                .collect();
+            let environment = scope.environment();
+            let type_arguments = arguments
+                .iter()
+                .map(|argument| self.normalized_type_identity_text(*argument))
+                .collect();
+            let operands = arguments
+                .iter()
+                .map(|reference| {
+                    let mut argument = self.static_operand_from_type_reference(*reference)?;
+                    argument.type_reference = *reference;
+                    Ok(argument)
+                })
+                .collect::<Result<Vec<_>, &'static str>>()?;
+            let bindings = parameters
+                .into_iter()
+                .zip(&arguments)
+                .map(|(parameter, argument)| StaticMachineBinding {
+                    parameter,
+                    value: StaticMachineBindingValue::Type(*argument),
+                })
+                .collect::<Vec<_>>();
+            let scope = environment.retain(self)?;
+            let name = crate::name::Identifier::generated(self.symbols.name(declaration));
+            let application = self.expression_table.retain_static_machine_application(
+                declaration,
+                name,
+                &operands,
+            );
+            self.expression_table
+                .set_static_machine_application_bindings(application, &bindings);
+            let source = self
+                .expression_table
+                .static_machine_application_mut(application);
+            source.lexical_owner = owner;
+            source.binding_declaration = declaration;
+            let mut fingerprint = semantic_vocabulary::Fnv1a::new();
+            fingerprint.string_framed(&encoding);
+            let mut digest = Sha256::new();
+            digest.update(b"OMEGA-TYPED-CONFORMANCE-APPLICATION\0");
+            digest.update(encoding.as_bytes());
+            Ok(Some(crate::ClosedConformanceApplication {
+                declaration,
+                trait_scope: scope,
+                callable_application: application,
+                arguments: operands.into_boxed_slice(),
+                lifetime_arguments: Vec::new(),
+                type_arguments,
+                const_arguments: Vec::new(),
+                machine_arguments: Vec::new(),
+                trait_definition,
+                trait_lifetime_arguments: Vec::new(),
+                trait_arguments,
+                rows,
+                report_fingerprint: fingerprint.finish(),
+                commitment: crate::ClosedConformanceApplicationCommitment::from_digest(
+                    digest.finalize().into(),
+                ),
+                identity_encoding: std::sync::Arc::from(encoding.into_bytes()),
+            }))
         }
 
         /// The named operation record, its unique requirement row and that
