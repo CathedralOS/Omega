@@ -277,6 +277,8 @@ impl Inhabitation {
     ///
     /// The borrowed catalog is prepared once with this query. Each step uses
     /// its binary declaration lookup; no per-observation arena scan occurs.
+    /// Static fields, cases, fixed indices and readable referents are served;
+    /// ranges, representation views and dynamic selectors remain unknown.
     pub fn declared_path_status(
         &self,
         contracts: &TerminalContracts<'_>,
@@ -308,6 +310,9 @@ impl Inhabitation {
                     payload = Some((position, case));
                 }
                 StructuralPathSegment::Field(identity) => {
+                    if identity.is_absent() {
+                        return Status::Unknown;
+                    }
                     let fields = match payload.take() {
                         Some((_, case)) => &case.fields,
                         None => match &declaration.shape {
