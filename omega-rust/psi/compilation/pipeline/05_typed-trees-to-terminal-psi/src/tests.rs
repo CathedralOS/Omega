@@ -876,6 +876,7 @@ fn a_call_with_no_normal_completion_is_a_no_successor_crash_site() {
     ];
     let callee = Signature {
         requires: vec![Proposition::Truth],
+        crashes: CrashCeiling::Authored(callee_routes.clone()),
         ..signature(vec![u32_type()], None)
     };
     let (machine, tables) = lower_with(
@@ -957,6 +958,40 @@ fn a_call_with_no_normal_completion_is_a_no_successor_crash_site() {
     assert_eq!(tables.edges.len(), 1);
 }
 
+#[test]
+fn a_private_crash_outcome_does_not_replace_the_published_call_contract() {
+    // The helper's signature explicitly promises no crash. A separate body
+    // outcome cannot donate a wider public contract to this invocation.
+    let body = Body {
+        slots: Vec::new(),
+        statements: vec![returns(call(2, Vec::new(), None))],
+    };
+    let (machine, tables) = lower_with(
+        body,
+        vec![signature(Vec::new(), None), signature(Vec::new(), None)],
+        vec![
+            returns_normally(),
+            Outcome {
+                crash_routes: routes(&[CrashCause::Trap]),
+                ..returns_normally()
+            },
+        ],
+    );
+    let OperationKind::CallUnit {
+        crash_continuations,
+        ..
+    } = &block(&machine, 1).operations[0].kind
+    else {
+        panic!("the returning call stays an operation");
+    };
+    assert!(crash_continuations.is_empty());
+    assert!(
+        !obligations(&tables)
+            .iter()
+            .any(|kind| matches!(kind, ObligationKind::CrashCoverage { .. }))
+    );
+}
+
 /// A call of a machine that may return and may crash stays an operation in
 /// the middle of its block. It carries the callee's routes with formals
 /// replaced by the actuals, and that operation, not the block, is the crash
@@ -997,12 +1032,13 @@ fn a_call_that_may_return_or_crash_owes_coverage_at_its_operation() {
             alternatives: vec![CrashRouteGuard::Truth],
         },
     ];
+    let callee = Signature {
+        crashes: CrashCeiling::Authored(callee_routes.clone()),
+        ..signature(vec![u32_type()], Some(u32_type()))
+    };
     let (machine, tables) = lower_with(
         body,
-        vec![
-            signature(vec![u32_type()], Some(u32_type())),
-            signature(vec![u32_type()], Some(u32_type())),
-        ],
+        vec![signature(vec![u32_type()], Some(u32_type())), callee],
         vec![
             Outcome {
                 operational: [false; 2],
