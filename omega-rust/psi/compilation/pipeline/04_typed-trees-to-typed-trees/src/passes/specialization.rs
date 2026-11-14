@@ -1095,15 +1095,22 @@ fn holds_expression(program: &TypedTrees, references: &[TypeReferenceHandle]) ->
     !embedded.is_empty()
 }
 
-/// Generates the machine `application` selects from the generic machine
-/// `template_symbol`: its state, formals, contract and body copied under
-/// fresh symbols, with each parameter replaced by its operand.
-fn generate(
+/// Structural result of the one declaration copier. This mapping names
+/// actual fresh declarations; it grants no conformance or execution receipt.
+struct CopiedDeclarations {
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    symbols: Vec<(SymbolHandle, SymbolHandle)>,
+    originals: Vec<(Machine, State)>,
+}
+
+/// Copies one validated declaration tree at the supplied static bindings.
+/// The caller retains its actual application/selection association separately.
+fn copy_declarations(
     program: &mut TypedTrees,
     template_symbol: SymbolHandle,
-    application: StaticMachineApplicationHandle,
     operands: &[Operand],
-) -> Served<Generated> {
+) -> Served<CopiedDeclarations> {
     let parts = template(program, template_symbol)?;
     let selections = selections(program, operands)?;
     // Validate and stage the whole tree before adding any generated symbols.
@@ -1309,9 +1316,27 @@ fn generate(
         program.push_machine_state(&mut machine, state);
         program.push_machine(machine);
     }
+    Ok(CopiedDeclarations {
+        machine: machine_symbol,
+        state: state_symbol,
+        symbols: renamed,
+        originals: parts,
+    })
+}
+
+/// Retains the genuine enclosing application for every declaration copied
+/// from it. Other structural callers use the same copier and retain their
+/// own source associations, without manufacturing this specialization row.
+fn generate(
+    program: &mut TypedTrees,
+    template_symbol: SymbolHandle,
+    application: StaticMachineApplicationHandle,
+    operands: &[Operand],
+) -> Served<Generated> {
+    let copied = copy_declarations(program, template_symbol, operands)?;
     // Each nested declaration is specialized by the actual enclosing
     // application's bindings, not by an invented call or runtime capture.
-    for (source, _) in &parts {
+    for (source, _) in &copied.originals {
         let of_kind = |implementation: bool| {
             operands.iter().filter(move |operand| {
                 matches!(operand.value, StaticMachineBindingValue::Conformance(_)) == implementation
@@ -1328,8 +1353,8 @@ fn generate(
             .collect::<Vec<_>>();
         program.machine_specializations.push(MachineSpecialization {
             template: source.symbol,
-            instance: renamed_symbol(&renamed, source.symbol),
-            template_parameters: parts[0].0.type_parameters,
+            instance: renamed_symbol(&copied.symbols, source.symbol),
+            template_parameters: copied.originals[0].0.type_parameters,
             binding_application: application,
             type_arguments: spellings.clone(),
             type_argument_identities: spellings,
@@ -1344,8 +1369,8 @@ fn generate(
             .iter()
             .map(|operand| operand.identity.clone())
             .collect(),
-        machine: machine_symbol,
-        state: state_symbol,
+        machine: copied.machine,
+        state: copied.state,
     })
 }
 
