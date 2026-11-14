@@ -454,6 +454,9 @@ impl Lowering<'_> {
         arguments: &Arguments,
     ) -> Checked<bool> {
         use semantic_vocabulary::ScalarType;
+        if signature.ensures.is_empty() {
+            return Ok(false);
+        }
         let ids = signature.formal_values();
         let mut relevant = arguments.actuals.iter();
         let mut erased = arguments.erased.iter();

@@ -733,6 +733,20 @@ fn successor(edge: EdgeId, target: BlockId, arguments: Vec<ValueId>) -> Successo
 }
 
 impl<'a> Lowering<'a> {
+    /// A real owned value whose declared domain excludes every inhabitant.
+    /// A borrowed referent, provider attachment or result placeholder is not
+    /// such a value and cannot eliminate its consumer's continuation.
+    fn empty_owned_value(&self, root: PlaceId) -> bool {
+        self.roots.get(root).is_some_and(|(kind, ty)| {
+            !matches!(
+                kind,
+                StructuralPlaceKind::Result | StructuralPlaceKind::ProviderAttachment { .. }
+            ) && self.borrowed_roots.binary_search(&root).is_err()
+                && self.records.inhabitation.status(*ty)
+                    == terminal_semantics::inhabitation::Status::ProvedEmpty
+        })
+    }
+
     /// Lowers one body's statements into the open block, and the implicit
     /// Unit completion when they fall off the end.
     ///

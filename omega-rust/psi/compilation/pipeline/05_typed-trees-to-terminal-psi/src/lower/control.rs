@@ -219,16 +219,12 @@ impl Lowering<'_> {
     /// `wiki/spec/terminal-psi/calls_and_outcomes.md`, "Normal results":
     /// a structural result is one place, apart from the scalar lane. The
     /// plain record holds no claim, so none is returned.
-    fn return_record(&mut self, source_root: PlaceId, source: SourceOrigin) -> Checked<()> {
-        let no_normal_value = self.roots.get(source_root).is_some_and(|(kind, ty)| {
-            !matches!(
-                kind,
-                semantic_vocabulary::StructuralPlaceKind::Result
-                    | semantic_vocabulary::StructuralPlaceKind::ProviderAttachment { .. }
-            ) && self.borrowed_roots.binary_search(&source_root).is_err()
-                && self.records.inhabitation.status(*ty)
-                    == terminal_semantics::inhabitation::Status::ProvedEmpty
-        });
+    pub(super) fn return_record(
+        &mut self,
+        source_root: PlaceId,
+        source: SourceOrigin,
+    ) -> Checked<()> {
+        let no_normal_value = self.empty_owned_value(source_root);
         // Keep the actual structural expression. Its impossible owned value
         // supplies no normal result, whatever type the destination expects,
         // so this edge owes no normal-return guarantee or receiver value.
