@@ -5115,12 +5115,7 @@ pub(crate) mod function_structure {
         StructuralTypeShape::PrimitiveScalar(semantic_vocabulary::ScalarType::Integer(integer))
         if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 8 && !integer.is_address()))
         }
-        fn covers(actual: StructuralAccess, requested: StructuralAccess) -> bool {
-            actual == requested
-                || actual == StructuralAccess::Owned
-                || actual == StructuralAccess::MutableBorrow
-                    && requested == StructuralAccess::SharedBorrow
-        }
+        use terminal_psi::structural_access_covers as covers;
 
         pub(super) fn valid_whole(
             function: &PsiOptimizationFunction,
@@ -14920,17 +14915,7 @@ pub(crate) mod references {
             })
     }
 
-    pub(crate) fn access_covers(authority: StructuralAccess, requested: StructuralAccess) -> bool {
-        authority == requested
-            || matches!(
-                (authority, requested),
-                (StructuralAccess::Owned, _)
-                    | (
-                        StructuralAccess::MutableBorrow,
-                        StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
-                    )
-            )
-    }
+    pub(crate) use terminal_psi::structural_access_covers as access_covers;
 
     pub(crate) fn leaf_access_within(
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
