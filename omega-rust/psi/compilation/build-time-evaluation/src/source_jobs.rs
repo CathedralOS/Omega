@@ -292,12 +292,14 @@ impl PreparedBuildMachineEntry {
             TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(value)) => {
                 crate::terminal_values::scalar_result(value)
             }
-            TerminalExecutionStatus::Complete(TerminalExecutionResult::Structural(_)) => {
-                crate::terminal_values::result_value(
-                    &instance,
-                    result_type.ok_or("source invocation lost its structured result type")?,
-                )
-            }
+            TerminalExecutionStatus::Complete(
+                TerminalExecutionResult::Structural(_)
+                | TerminalExecutionResult::ScalarCase(_)
+                | TerminalExecutionResult::ScalarArray(_),
+            ) => crate::terminal_values::result_value(
+                &instance,
+                result_type.ok_or("source invocation lost its structured result type")?,
+            ),
             other => Err(format!(
                 "source invocation did not complete normally: {other:?}"
             )),
@@ -776,6 +778,26 @@ pub(crate) mod tests {
                 "{error}"
             );
         }
+    }
+
+    #[test]
+    fn source_array_results_keep_the_actual_extent_and_elements() {
+        let program = program("machine answer(value: [u64; 2]) -> [u64; 2] { value }");
+        let value = BuildTimeValue::Array(vec![BuildTimeValue::Int(3), BuildTimeValue::Int(5)]);
+        let entry = bind(&program, std::slice::from_ref(&value)).unwrap();
+        assert_eq!(
+            entry
+                .invoke(target(), &mut psi_work::WorkMeter::unbounded())
+                .unwrap(),
+            value
+        );
+        let error = bind(
+            &program,
+            &[BuildTimeValue::Array(vec![BuildTimeValue::Int(3)])],
+        )
+        .err()
+        .expect("the declared extent is retained");
+        assert!(error.contains("declared extent"), "{error}");
     }
 
     #[test]
