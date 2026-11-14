@@ -2420,9 +2420,31 @@ pub(crate) mod program {
         pub structural_parameters: &'program [terminal_psi::StructuralParameterDeclaration],
         access_view_inputs: &'program [terminal_psi::TerminalAccessViewInput],
         pub result: &'program terminal_psi::TerminalMachineResult,
+        requires: &'program [semantic_vocabulary::Proposition],
     }
 
     impl TerminalProgramEntry<'_> {
+        /// Whether the entry's published `requires` clauses hold with nothing
+        /// known about its arguments. A host that invokes an entry is its
+        /// caller and owes every clause; a host that establishes no facts
+        /// about what it passes can owe only clauses that are closed and
+        /// true. `Some(true)` when every clause is, `Some(false)` when one is
+        /// closed and false, and `None` when one depends on an argument.
+        pub fn unconditional_precondition(&self) -> Result<Option<bool>, String> {
+            let mut integers = proof_admission::ClosedIntegerEvaluator::default();
+            let mut undecided = false;
+            for clause in self.requires {
+                match proof_admission::closed_guard(clause, &mut integers)
+                    .map_err(|error| format!("entry precondition evaluation: {error:?}"))?
+                {
+                    Some(true) => {}
+                    Some(false) => return Ok(Some(false)),
+                    None => undecided = true,
+                }
+            }
+            Ok((!undecided).then_some(true))
+        }
+
         pub fn access_view_inputs(
             &self,
         ) -> impl Iterator<Item = &terminal_psi::TerminalAccessViewInput> {
@@ -2470,6 +2492,7 @@ pub(crate) mod program {
                 structural_parameters: &machine.structural_parameters,
                 access_view_inputs: &self.program.catalogs.access_view_inputs,
                 result: &machine.result,
+                requires: &machine.contract.requires,
             })
         }
 

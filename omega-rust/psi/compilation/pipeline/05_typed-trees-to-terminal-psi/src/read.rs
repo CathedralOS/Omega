@@ -119,6 +119,9 @@ pub(crate) struct Program<'t> {
         ),
     >,
     resolving_services: Vec<SymbolHandle>,
+    /// The services a Build selection awaits a provider for, in first-read
+    /// order (`designate`, `publish_readiness`).
+    readiness: Vec<semantic_vocabulary::ServiceId>,
     /// What diagnostics call each machine's constructs, pushed with its
     /// signature and completed as its body is read.
     pub names: IdTable<MachineId, crate::MachineNames>,
@@ -312,6 +315,7 @@ impl<'t> Program<'t> {
             boundary_services: IdTable::default(),
             services: IdTable::default(),
             resolving_services: Vec::new(),
+            readiness: Vec::new(),
             names: IdTable::default(),
             rigid,
             requirements: Vec::new(),

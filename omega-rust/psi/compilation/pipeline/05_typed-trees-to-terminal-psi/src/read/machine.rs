@@ -2575,7 +2575,10 @@ impl<'t> Program<'t> {
                 }
                 StatementNode::Expression(expression) => {
                     let expected = if last { signature.result } else { None };
-                    let expression = self.expression(id, &slots, *expression, expected)?;
+                    let mut expression = self.expression(id, &slots, *expression, expected)?;
+                    // The expression is the whole statement, or the machine's
+                    // terminal expression: both are suspension positions.
+                    crate::operational::boundary(&mut expression);
                     match (last, signature.result) {
                         (true, Some(result)) => {
                             if !self.agrees(expression.result, result) {
@@ -2953,6 +2956,7 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         }
         ExpressionKind::Field { base, .. }
         | ExpressionKind::Payload { base, .. }
+        | ExpressionKind::ArrayView { base, .. }
         | ExpressionKind::CollectionMeasure { base, .. } => {
             spans(base, binder, out);
         }
@@ -3137,6 +3141,7 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
         }
         ExpressionKind::Field { base, .. }
         | ExpressionKind::Payload { base, .. }
+        | ExpressionKind::ArrayView { base, .. }
         | ExpressionKind::CollectionMeasure { base, .. } => {
             expression_slot_uses(base, uses);
         }

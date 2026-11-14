@@ -6,7 +6,7 @@ machine build(builder: &mut Build) {
     let path: BuildPath = BuildSource::resolve(&input, "input.txt");
     let reader: i32 = BuildSource::open(&input, path, 0);
     let mut bytes: [u8; 6];
-    let read_count: i64 = BuildSource::read(&input, reader, &mut bytes, 6);
+    let read_count: i64 = BuildSource::read(&input, reader, &mut bytes[..], 6);
     _ = BuildSource::close(&input, reader);
     let missing_path: BuildPath = BuildSource::resolve(&input, "package-only.txt");
     let missing_reader: i32 = BuildSource::open(&input, missing_path, 0);
@@ -17,7 +17,7 @@ machine build(builder: &mut Build) {
     machine correct(builder: &mut Build, obligation: RequiredOutput, bytes: &[u8; 6]) {
         let output: BuildPath = BuildOutput::resolve(&builder.output, "named.txt");
         let writer: i32 = BuildOutput::create(&mut builder.output, output, 0);
-        _ = BuildOutput::write(&mut builder.output, writer, bytes);
+        _ = BuildOutput::write(&mut builder.output, writer, &bytes[..]);
         _ = BuildOutput::close(&mut builder.output, writer);
         let completion: OutputCompletion = BuildOutput::complete(&mut builder.output, obligation, output);
         settle(builder, completion);

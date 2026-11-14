@@ -875,7 +875,7 @@ fn semantic_identity(
 
 /// The exact-owner identity of `symbol`: its package's, or its toolchain
 /// source's. A declaration neither owns has no portable identity.
-fn nominal(
+pub(crate) fn nominal(
     typed: &TypedTrees,
     sources: &[(source::SourceId, [u8; 32])],
     symbol: SymbolHandle,

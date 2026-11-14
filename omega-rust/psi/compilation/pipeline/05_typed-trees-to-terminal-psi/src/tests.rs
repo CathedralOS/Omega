@@ -1541,6 +1541,7 @@ fn designated_operands_on_a_machine_call_are_refused() {
     *designated = Some(crate::body::DesignatedOperands {
         request: arena::Handle::invalid(),
         selecting: id(1),
+        readiness: None,
     });
     let twin = |statement| {
         try_lower(
@@ -3808,3 +3809,6 @@ fn a_scalar_match_evaluates_its_subject_once_and_tests_each_value_in_authored_or
     }
     assert!(matches!(join.terminator, Terminator::Return { value, .. } if value == result.id));
 }
+
+#[path = "tests/array_views.rs"]
+mod array_views;
