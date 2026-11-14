@@ -298,8 +298,70 @@ impl<'t> Program<'t> {
         else {
             return Ok(None);
         };
-        self.named_owned_body_target(id, call.target_symbol, owner, row)
-            .map(Some)
+        let template = self.named_owned_body_target(id, call.target_symbol, owner, row)?;
+        if owner.type_parameters.is_empty() {
+            return Ok(Some(template));
+        }
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Call(what));
+        let source = self
+            .typed
+            .expression_table
+            .static_machine_application(call.authored_machine_application);
+        let source_machine = self
+            .typed
+            .machine_by_own_or_state_symbol(source.lexical_owner)
+            .map(|machine| machine.symbol);
+        let caller = self
+            .symbols
+            .get(id)
+            .and_then(|symbol| self.typed.machine_by_own_or_state_symbol(*symbol))
+            .map(|machine| machine.symbol);
+        if source_machine.is_none() || source_machine != caller {
+            return Err(unserved(
+                "named application changed its actual calling owner",
+            ));
+        }
+        let capture = self
+            .named_captures
+            .get(self.typed, call)
+            .map_err(unserved)?
+            .ok_or_else(|| unserved("named map body has no prepared capture"))?;
+        let machine = self
+            .typed
+            .machine_by_symbol(capture.instance)
+            .ok_or_else(|| unserved("named capture lost its actual machine"))?;
+        let [entry] = self.typed.machine_states(machine) else {
+            return Err(unserved("named capture without one actual entry"));
+        };
+        if !self.typed.instantiated_machine_state_matches(
+            capture.instance,
+            template,
+            row.realization_state,
+            entry.symbol,
+        ) {
+            return Err(unserved(
+                "named capture changed its exact entry correspondence",
+            ));
+        }
+        let expected = self
+            .typed
+            .applied_requirement_scope(source.lexical_owner, call.requirement_application)
+            .ok_or_else(|| unserved("named call lost its complete application"))?;
+        let actual = self
+            .typed
+            .machine_conformance_requirement_scope(
+                capture.instance,
+                row.declaring_trait,
+                row.requirement,
+            )
+            .map_err(unserved)?
+            .ok_or_else(|| unserved("named capture lost its owning application"))?;
+        if !actual.same_application(self.typed, &expected) {
+            return Err(unserved(
+                "named capture supplies another requirement application",
+            ));
+        }
+        Ok(Some(capture.instance))
     }
 
     fn named_owned_body_target(

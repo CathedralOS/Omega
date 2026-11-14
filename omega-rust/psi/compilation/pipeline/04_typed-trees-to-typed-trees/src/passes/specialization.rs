@@ -24,8 +24,9 @@
 //! program that demands that machine is refused. Served today: type
 //! parameters given plain named types, implementation parameters given
 //! plain named implementations and value parameters given one integer
-//! literal, on a machine that is a single state with a body and declares
-//! nothing else to specialize ([`template`]).
+//! literal, on single-state checked bodies with their lexical children
+//! ([`template`]). Each child has no independent static telescope; it retains
+//! the original enclosing application without capturing runtime values.
 //!
 //! A value parameter (`value<const Units: u64>`) is bound like the others
 //! and is replaced by its literal, landed in the parameter's type, wherever
@@ -67,18 +68,28 @@ use typed_trees::static_applications::{
 
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use typed_trees::{
-    MachineSpecialization, StaticRequirementDispatch, SubtreeEdges, SymbolRebinding,
-    TypedTreeTables, TypedTrees,
+    MachineSpecialization, PreparedSymbolRebinding, StaticRequirementDispatch, SubtreeEdges,
+    SymbolRebinding, TypedTreeTables, TypedTrees,
 };
+mod named_conformances;
 
 pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let mut generated = Vec::new();
+    let mut captures = typed_trees::NamedConformanceCaptureIndex::new(program);
     // A generated machine is appended to the machines and read in its turn.
     let mut position = 0;
     while position < program.machines().len() {
         let holder = program.machines()[position].symbol;
         for site in call_sites(program, position) {
-            match serve(program, site, &mut generated) {
+            let served =
+                named_conformances::serve(program, site, &mut captures).and_then(|handled| {
+                    if handled {
+                        Ok(())
+                    } else {
+                        serve(program, site, &mut generated)
+                    }
+                });
+            match served {
                 Ok(()) => {}
                 Err(Stop::Unserved) => {
                     let span = site.source_span(program);
@@ -840,18 +851,48 @@ fn bind(
         .set_static_machine_application_bindings(application, &bindings);
 }
 
-/// The generic machine `symbol` when this pass can copy it whole: one state
-/// with a body, and nothing else that would have to be specialized with it.
-/// What is excluded is not judged wrong, only not copied yet; each exclusion
-/// is a part of a machine the copy below does not carry.
-fn template(program: &TypedTrees, symbol: SymbolHandle) -> Served<(Machine, State)> {
-    let (machine, state, types) = copied_parts(program, symbol)?;
-    // A type holding an expression of its own (an array extent, say) is not
-    // copied: the expression would need the context it is evaluated in.
-    if holds_expression(program, &types) {
-        return Err(Stop::Unserved);
+/// A declaration tree is copied as one unit: every child keeps its lexical
+/// owner, and calls between siblings resolve only after all fresh symbols
+/// exist. Runtime values remain explicit parameters; this supplies only the
+/// enclosing declaration's already selected static context.
+fn template(program: &TypedTrees, symbol: SymbolHandle) -> Served<Vec<(Machine, State)>> {
+    let root = program.machine_by_symbol(symbol).ok_or(Stop::Unserved)?;
+    let parameters = program
+        .machine_callable_parameters(root)
+        .into_iter()
+        .map(|parameter| (parameter.symbol, parameter))
+        .collect::<symbols::SymbolMap<_>>();
+    let mut pending = vec![symbol];
+    let mut parts = Vec::new();
+    let mut position = 0;
+    while position < pending.len() {
+        let declaration = pending[position];
+        let (machine, state, types) = copied_parts(program, declaration)?;
+        // Typing retains the enclosing binders on the child's callable
+        // signature too. Those exact rows use this application; a child's
+        // independent binder still needs an application of its own.
+        if position != 0
+            && program
+                .machine_callable_parameters(&machine)
+                .iter()
+                .any(|parameter| parameters.get(&parameter.symbol) != Some(parameter))
+        {
+            return Err(Stop::Unserved);
+        }
+        if holds_expression(program, &types) {
+            return Err(Stop::Unserved);
+        }
+        for owner in [machine.symbol, state.symbol] {
+            for child in program.symbols.child_handles(owner).ok_or(Stop::Unserved)? {
+                if program.symbols.get(child).kind == SymbolKind::Machine {
+                    pending.push(child);
+                }
+            }
+        }
+        parts.push((machine, state));
+        position += 1;
     }
-    Ok((machine, state))
+    Ok(parts)
 }
 
 /// The machine and its state, with every type the copy will have to copy:
@@ -890,7 +931,12 @@ fn copied_parts(
         && plan.checked_summary == language_semantics::TerminationGuarantee::NoGuarantee
         && plan.implementation_witness.is_none()
         && program.ranking_expression_custody_for(symbol).is_none()
-        && program.authored_service_reach_rows_for(symbol).next().is_none()
+        && program.authored_service_reach_rows_for(symbol).all(|row| {
+            !row.installation_bound
+                && row.targets.iter().all(|target| {
+                    program.symbols.symbols().nodes().is_valid(target.service)
+                })
+        })
         && !program
             .proof_output_calls
             .iter()
@@ -898,12 +944,7 @@ fn copied_parts(
         && !program
             .evidence_forwardings
             .iter()
-            .any(|forwarding| forwarding.machine_symbol == symbol)
-        // A machine declared inside this one would be copied with it.
-        && !program.machines().iter().any(|nested| {
-            let parent = program.symbols.get(nested.symbol).parent;
-            parent == symbol || parent == state.symbol
-        });
+            .any(|forwarding| forwarding.machine_symbol == symbol);
     if !plain {
         return unserved;
     }
@@ -1078,191 +1119,316 @@ fn holds_expression(program: &TypedTrees, references: &[TypeReferenceHandle]) ->
     !embedded.is_empty()
 }
 
-/// Generates the machine `application` selects from the generic machine
-/// `template_symbol`: its state, formals, contract and body copied under
-/// fresh symbols, with each parameter replaced by its operand.
+/// Structural result of the one declaration copier. This mapping names
+/// actual fresh declarations; it grants no conformance or execution receipt.
+struct CopiedDeclarations {
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    symbols: PreparedSymbolRebinding,
+    originals: Vec<(Machine, State)>,
+}
+
+/// Copies one validated declaration tree at the supplied static bindings.
+/// The caller retains its actual application/selection association separately.
+fn copy_declarations(
+    program: &mut TypedTrees,
+    template_symbol: SymbolHandle,
+    operands: &[Operand],
+) -> Served<CopiedDeclarations> {
+    let parts = template(program, template_symbol)?;
+    let selections = selections(program, operands)?;
+    // Validate and stage the whole tree before adding any generated symbols.
+    let mut staging = TypedTreeTables::default();
+    let mut embedded = Vec::new();
+    let mut staged = Vec::with_capacity(parts.len());
+    for (_, state) in &parts {
+        staged.push(staging.copy_statement_nodes_with_type_expressions(
+            &program.tables,
+            state.statement_nodes,
+            &mut embedded,
+        ));
+    }
+    if !embedded.is_empty() {
+        return Err(Stop::Unserved);
+    }
+    let type_start = program.type_reference_table.type_reference_count() + 1;
+    let expression_start = program.expression_table.expression_count() + 1;
+    let spelled = operands
+        .iter()
+        .map(|operand| operand.spelled(program))
+        .collect::<Vec<_>>()
+        .join("$");
+    let root_name = format!(
+        "{}$specialized${spelled}${}",
+        parts[0].0.name.as_str(),
+        program.symbols.symbols().len() + 1
+    );
+    let machine_symbol = program.symbols.insert_generated_root_from(
+        template_symbol,
+        SymbolKind::Machine,
+        &root_name,
+    );
+    let mut renamed = PreparedSymbolRebinding::default();
+    record_symbol(&mut renamed, template_symbol, machine_symbol, false)?;
+    // Allocate the complete declaration graph before rebinding any body.
+    // Forward sibling calls and recursive calls then use the same exact map.
+    for (source, source_state) in &parts {
+        let owner = renamed.execution_symbol(source.symbol).ok_or(Stop::Defect(
+            "a copied nested declaration lost its lexical owner",
+        ))?;
+        let nested = |parent| {
+            program
+                .symbols
+                .child_handles(parent)
+                .into_iter()
+                .flatten()
+                .filter(|symbol| program.symbols.get(*symbol).kind == SymbolKind::Machine)
+                .map(|symbol| {
+                    (
+                        symbol,
+                        program
+                            .machine_by_symbol(symbol)
+                            .expect("preflighted child")
+                            .name
+                            .clone(),
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        let machine_children = nested(source.symbol);
+        let state_children = nested(source_state.symbol);
+        // Hierarchy arenas allocate one complete child roster per owner.
+        // Include nested declarations with the state/formals rather than
+        // appending another range after those original children exist.
+        let children = program.symbols.insert_generated_children_from(
+            owner,
+            std::iter::once((
+                source_state.symbol,
+                SymbolKind::State,
+                source_state.name.as_str(),
+            ))
+            .chain(
+                machine_children
+                    .iter()
+                    .map(|(symbol, name)| (*symbol, SymbolKind::Machine, name.as_str())),
+            ),
+        );
+        let state = children.handle_at(0);
+        record_symbol(&mut renamed, source_state.symbol, state, false)?;
+        for (original, fresh) in machine_children
+            .iter()
+            .map(|(symbol, _)| *symbol)
+            .zip(children.handles().skip(1))
+        {
+            record_symbol(&mut renamed, original, fresh, false)?;
+        }
+        let parameters = program.state_parameters(source_state).to_vec();
+        let locals = program
+            .statement_table
+            .statements(source_state.statement_nodes)
+            .iter()
+            .filter_map(|statement| statement.as_local_data())
+            .map(|local| (local.symbol, local.name.clone()))
+            .filter(|(symbol, _)| symbol.is_valid())
+            .collect::<Vec<_>>();
+        let children = program.symbols.insert_generated_children_from(
+            state,
+            parameters
+                .iter()
+                .map(|parameter| {
+                    (
+                        parameter.symbol,
+                        SymbolKind::Parameter,
+                        parameter.name.as_str(),
+                    )
+                })
+                .chain(
+                    locals
+                        .iter()
+                        .map(|(symbol, name)| (*symbol, SymbolKind::Local, name.as_str())),
+                )
+                .chain(
+                    state_children
+                        .iter()
+                        .map(|(symbol, name)| (*symbol, SymbolKind::Machine, name.as_str())),
+                ),
+        );
+        let local_count = parameters.len() + locals.len();
+        for (original, fresh) in parameters
+            .iter()
+            .map(|parameter| parameter.symbol)
+            .chain(locals.iter().map(|(symbol, _)| *symbol))
+            .zip(children.handles())
+        {
+            record_symbol(&mut renamed, original, fresh, true)?;
+        }
+        for (original, fresh) in state_children
+            .iter()
+            .map(|(symbol, _)| *symbol)
+            .zip(children.handles().skip(local_count))
+        {
+            record_symbol(&mut renamed, original, fresh, false)?;
+        }
+    }
+    let state_symbol = copied_symbol(&renamed, parts[0].1.symbol)?;
+    let symbols = renamed.rebinding();
+    let mut copied = Vec::with_capacity(parts.len());
+    for ((source, source_state), staged) in parts.iter().zip(staged) {
+        let first_expression = program.expression_table.expression_count() + 1;
+        let mut machine = source.clone();
+        machine.symbol = copied_symbol(&renamed, source.symbol)?;
+        if source.symbol == template_symbol {
+            machine.name = Identifier::generated(root_name.clone());
+        }
+        machine.is_public = false;
+        // A written empty ceiling differs from an omitted one. Retain each
+        // authored row on its actual copied owner; never turn it into inference.
+        let reach_rows = program
+            .authored_service_reach_rows_for(source.symbol)
+            .cloned()
+            .map(|mut row| {
+                row.owner = machine.symbol;
+                for target in &mut row.targets {
+                    target.service = symbols.lookup(target.service).unwrap_or(target.service);
+                }
+                row
+            })
+            .collect::<Vec<_>>();
+        program.authored_service_reach_rows.extend(reach_rows);
+        machine.type_parameters = HandleSpan::empty();
+        machine.conformance_bounds.clear();
+        machine.contracts = HandleSpan::empty();
+        machine.states = HandleSpan::empty();
+        for contract in program.machine_contracts(source).to_vec() {
+            let contract = copy_contract(program, &contract, symbols);
+            program.push_machine_contract(&mut machine, contract);
+        }
+        let mut state = source_state.clone();
+        state.symbol = copied_symbol(&renamed, source_state.symbol)?;
+        state.parameters = HandleSpan::empty();
+        state.contracts = HandleSpan::empty();
+        state.return_type = copy_type(program, source_state.return_type, symbols)?;
+        state.statement_nodes = program.tables.copy_statement_nodes_with_type_expressions(
+            &staging,
+            staged,
+            &mut embedded,
+        );
+        program
+            .tables
+            .remap_statement_symbols(state.statement_nodes, symbols);
+        for mut parameter in program.state_parameters(source_state).to_vec() {
+            parameter.symbol = copied_symbol(&renamed, parameter.symbol)?;
+            parameter.type_reference = copy_type(program, parameter.type_reference, symbols)?;
+            program.push_state_parameter(&mut state, parameter);
+        }
+        for contract in program.state_contracts(source_state).to_vec() {
+            let contract = copy_contract(program, &contract, symbols);
+            program.push_state_contract(&mut state, contract);
+        }
+        let expression_count = program.expression_table.expression_count() + 1 - first_expression;
+        copied.push((machine, state, first_expression, expression_count));
+    }
+    copy_expression_types(program, expression_start, symbols)?;
+    substitute_types(program, type_start, operands)?;
+    substitute_widths(program, type_start, operands)?;
+    substitute_values(program, expression_start, operands);
+    for (mut machine, state, first_expression, expression_count) in copied {
+        select_requirements(
+            program,
+            first_expression,
+            expression_count,
+            state.statement_nodes,
+            &selections,
+        );
+        substitute_arguments(
+            program,
+            first_expression,
+            expression_count,
+            state.statement_nodes,
+            machine.symbol,
+            operands,
+        );
+        program.push_machine_state(&mut machine, state);
+        program.push_machine(machine);
+    }
+    Ok(CopiedDeclarations {
+        machine: machine_symbol,
+        state: state_symbol,
+        symbols: renamed,
+        originals: parts,
+    })
+}
+
+/// Retains the genuine enclosing application for every declaration copied
+/// from it. Other structural callers use the same copier and retain their
+/// own source associations, without manufacturing this specialization row.
 fn generate(
     program: &mut TypedTrees,
     template_symbol: SymbolHandle,
     application: StaticMachineApplicationHandle,
     operands: &[Operand],
 ) -> Served<Generated> {
-    let (source, source_state) = template(program, template_symbol)?;
-    let selections = selections(program, operands)?;
-    let parameters = program.state_parameters(&source_state).to_vec();
-    // The body is copied before anything is written to the program, so a
-    // body this pass cannot copy leaves no trace.
-    let mut staging = TypedTreeTables::default();
-    let mut embedded = Vec::new();
-    let staged = staging.copy_statement_nodes_with_type_expressions(
-        &program.tables,
-        source_state.statement_nodes,
-        &mut embedded,
-    );
-    if !embedded.is_empty() {
-        return Err(Stop::Unserved);
-    }
-
-    let type_start = program.type_reference_table.type_reference_count() + 1;
-    let expression_start = program.expression_table.expression_count() + 1;
-
-    let locals = program
-        .statement_table
-        .statements(source_state.statement_nodes)
-        .iter()
-        .filter_map(|statement| statement.as_local_data())
-        .map(|local| (local.symbol, local.name.clone()))
-        .filter(|(symbol, _)| symbol.is_valid())
-        .collect::<Vec<_>>();
-    let spelled = operands
-        .iter()
-        .map(|operand| operand.spelled(program))
-        .collect::<Vec<_>>()
-        .join("$");
-    let name = format!(
-        "{}$specialized${spelled}${}",
-        source.name.as_str(),
-        program.symbols.symbols().len() + 1,
-    );
-    let machine_symbol =
-        program
-            .symbols
-            .insert_generated_root_from(source.symbol, SymbolKind::Machine, &name);
-    let state_symbol = program
-        .symbols
-        .insert_generated_children_from(
-            machine_symbol,
-            [(
-                source_state.symbol,
-                SymbolKind::State,
-                source_state.name.as_str(),
-            )],
-        )
-        .handle_at(0);
-    let children = program.symbols.insert_generated_children_from(
-        state_symbol,
-        parameters
-            .iter()
-            .map(|parameter| {
-                (
-                    parameter.symbol,
-                    SymbolKind::Parameter,
-                    parameter.name.as_str(),
-                )
+    let copied = copy_declarations(program, template_symbol, operands)?;
+    // Each nested declaration is specialized by the actual enclosing
+    // application's bindings, not by an invented call or runtime capture.
+    for (source, _) in &copied.originals {
+        let of_kind = |implementation: bool| {
+            operands.iter().filter(move |operand| {
+                matches!(operand.value, StaticMachineBindingValue::Conformance(_)) == implementation
             })
-            .chain(
-                locals
-                    .iter()
-                    .map(|(symbol, name)| (*symbol, SymbolKind::Local, name.as_str())),
-            ),
-    );
-    let mut renamed = vec![
-        (source.symbol, machine_symbol),
-        (source_state.symbol, state_symbol),
-    ];
-    let authored = parameters
-        .iter()
-        .map(|parameter| parameter.symbol)
-        .chain(locals.iter().map(|(symbol, _)| *symbol))
-        .zip(children.handles())
-        .collect::<Vec<_>>();
-    renamed.extend(authored.iter().copied());
-    let symbols = SymbolRebinding::new(&renamed, &authored);
-
-    let mut machine = source.clone();
-    machine.symbol = machine_symbol;
-    machine.name = Identifier::generated(name);
-    machine.is_public = false;
-    machine.type_parameters = HandleSpan::empty();
-    // Every bound's parameter is one of the operands: nothing is left open.
-    machine.conformance_bounds.clear();
-    machine.contracts = HandleSpan::empty();
-    machine.states = HandleSpan::empty();
-    for contract in program.machine_contracts(&source).to_vec() {
-        let contract = copy_contract(program, &contract, symbols);
-        program.push_machine_contract(&mut machine, contract);
+        };
+        let spellings = of_kind(false)
+            .map(|operand| match &operand.identity {
+                Identity::Declaration(symbol) => program.symbols.display_path(*symbol, "::"),
+                Identity::Scalar(value) => value.clone(),
+                Identity::Type(identity) => {
+                    program.type_identity_text(*identity).unwrap_or_default()
+                }
+            })
+            .collect::<Vec<_>>();
+        program.machine_specializations.push(MachineSpecialization {
+            template: source.symbol,
+            instance: copied_symbol(&copied.symbols, source.symbol)?,
+            template_parameters: copied.originals[0].0.type_parameters,
+            binding_application: application,
+            type_arguments: spellings.clone(),
+            type_argument_identities: spellings,
+            conformance_arguments: of_kind(true).filter_map(Operand::declaration).collect(),
+            normalized_template_identity: program.symbols.display_path(source.symbol, "::"),
+            ..MachineSpecialization::default()
+        });
     }
-
-    let mut state = source_state.clone();
-    state.symbol = state_symbol;
-    state.parameters = HandleSpan::empty();
-    state.contracts = HandleSpan::empty();
-    state.return_type = copy_type(program, source_state.return_type, symbols)?;
-    state.statement_nodes =
-        program
-            .tables
-            .copy_statement_nodes_with_type_expressions(&staging, staged, &mut embedded);
-    program
-        .tables
-        .remap_statement_symbols(state.statement_nodes, symbols);
-    for mut parameter in parameters {
-        parameter.symbol = renamed_symbol(&renamed, parameter.symbol);
-        parameter.type_reference = copy_type(program, parameter.type_reference, symbols)?;
-        program.push_state_parameter(&mut state, parameter);
-    }
-    for contract in program.state_contracts(&source_state).to_vec() {
-        let contract = copy_contract(program, &contract, symbols);
-        program.push_state_contract(&mut state, contract);
-    }
-    copy_expression_types(program, expression_start, symbols)?;
-    substitute_types(program, type_start, operands)?;
-    substitute_widths(program, type_start, operands)?;
-    substitute_values(program, expression_start, operands);
-    select_requirements(
-        program,
-        expression_start,
-        state.statement_nodes,
-        &selections,
-    );
-    substitute_arguments(
-        program,
-        expression_start,
-        state.statement_nodes,
-        machine_symbol,
-        operands,
-    );
-    program.push_machine_state(&mut machine, state);
-    program.push_machine(machine);
-
-    let of_kind = |implementation: bool| {
-        operands.iter().filter(move |operand| {
-            matches!(operand.value, StaticMachineBindingValue::Conformance(_)) == implementation
-        })
-    };
-    let spellings = of_kind(false)
-        .map(|operand| match &operand.identity {
-            Identity::Declaration(symbol) => program.symbols.display_path(*symbol, "::"),
-            Identity::Scalar(value) => value.clone(),
-            Identity::Type(identity) => program.type_identity_text(*identity).unwrap_or_default(),
-        })
-        .collect::<Vec<_>>();
-    program.machine_specializations.push(MachineSpecialization {
-        template: template_symbol,
-        instance: machine_symbol,
-        template_parameters: source.type_parameters,
-        binding_application: application,
-        type_arguments: spellings.clone(),
-        type_argument_identities: spellings,
-        conformance_arguments: of_kind(true).filter_map(Operand::declaration).collect(),
-        normalized_template_identity: program.symbols.display_path(template_symbol, "::"),
-        ..MachineSpecialization::default()
-    });
     Ok(Generated {
         template: template_symbol,
         arguments: operands
             .iter()
             .map(|operand| operand.identity.clone())
             .collect(),
-        machine: machine_symbol,
-        state: state_symbol,
+        machine: copied.machine,
+        state: copied.state,
     })
 }
 
-fn renamed_symbol(renamed: &[(SymbolHandle, SymbolHandle)], symbol: SymbolHandle) -> SymbolHandle {
-    renamed
-        .iter()
-        .find(|(original, _)| *original == symbol)
-        .map_or(symbol, |(_, fresh)| *fresh)
+fn record_symbol(
+    symbols: &mut PreparedSymbolRebinding,
+    source: SymbolHandle,
+    fresh: SymbolHandle,
+    authored: bool,
+) -> Served<()> {
+    if symbols.insert_execution(source, fresh).is_some()
+        || (authored && symbols.insert_authored(source, fresh).is_some())
+    {
+        return Err(Stop::Defect(
+            "a copied declaration has repeated source coordinates",
+        ));
+    }
+    Ok(())
+}
+
+fn copied_symbol(symbols: &PreparedSymbolRebinding, source: SymbolHandle) -> Served<SymbolHandle> {
+    symbols
+        .execution_symbol(source)
+        .ok_or(Stop::Defect("a copied declaration lost its fresh symbol"))
 }
 
 /// The types an expression node holds beside its operands.
@@ -1473,6 +1639,7 @@ fn substitute_values(program: &mut TypedTrees, expression_start: usize, operands
 fn select_requirements(
     program: &mut TypedTrees,
     expression_start: usize,
+    expression_count: usize,
     statements: HandleSpan<StatementNode>,
     selections: &[Selection],
 ) {
@@ -1488,6 +1655,7 @@ fn select_requirements(
     let calls = program
         .expression_table
         .iter_expressions_from(expression_start)
+        .take(expression_count)
         .filter_map(|(handle, node)| match node {
             ExpressionNode::Call(call) => selected(call.target_symbol).map(|found| (handle, found)),
             _ => None,
@@ -1521,6 +1689,7 @@ fn select_requirements(
 fn substitute_arguments(
     program: &mut TypedTrees,
     expression_start: usize,
+    expression_count: usize,
     statements: HandleSpan<StatementNode>,
     holder: SymbolHandle,
     operands: &[Operand],
@@ -1539,6 +1708,7 @@ fn substitute_arguments(
     let calls = program
         .expression_table
         .iter_expressions_from(expression_start)
+        .take(expression_count)
         .filter(|(_, node)| matches!(node, ExpressionNode::Call(_)))
         .map(|(handle, _)| handle)
         .collect::<Vec<_>>();

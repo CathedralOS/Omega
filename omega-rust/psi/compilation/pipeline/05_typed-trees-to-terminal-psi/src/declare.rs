@@ -297,24 +297,28 @@ fn application(
     // template and arguments. Anonymous invocation source does not acquire
     // a package owner merely because stage 04 generated a specialization.
     let semantic = semantic_identity(typed, template, identities)?;
-    let mut rows = typed
-        .machine_specializations
-        .iter()
-        .filter(|row| row.instance == instance);
-    let (Some(row), None) = (rows.next(), rows.next()) else {
-        return Err("a generated machine does not have exactly one application");
-    };
+    let row = typed
+        .machine_instantiation(instance)?
+        .filter(|row| row.template() == template)
+        .ok_or("a generated machine does not have exactly one application")?;
+    let binding_application = row.binding_application();
+    if !typed
+        .expression_table
+        .static_machine_application_is_valid(binding_application)
+    {
+        return Err("a generated machine has a foreign binding application");
+    }
     let mut commitment = Commitment(DomainDigestEncoder::new(APPLICATION_DOMAIN));
     callable.hash(&mut commitment);
     let bindings = typed
         .expression_table
-        .static_machine_application_bindings(row.binding_application);
+        .static_machine_application_bindings(binding_application);
     if bindings.is_empty() {
         return Err("a generated machine's application binds nothing");
     }
     let arguments = typed
         .expression_table
-        .static_machine_application_arguments(row.binding_application);
+        .static_machine_application_arguments(binding_application);
     if arguments.len() != bindings.len() {
         return Err(
             "a generated machine's application binds other than one argument per parameter",

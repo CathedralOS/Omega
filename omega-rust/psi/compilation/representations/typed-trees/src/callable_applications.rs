@@ -1415,6 +1415,12 @@ pub(crate) mod machine_instances {
                 Self::Capture(receipt) => receipt.instance,
             }
         }
+        pub fn binding_application(self) -> crate::static_applications::StaticMachineApplicationHandle {
+            match self {
+                Self::Specialization(receipt) => receipt.binding_application,
+                Self::Capture(receipt) => receipt.binding_application,
+            }
+        }
     }
     impl TypedTrees {
         /// Read enclosing applications from their exact instance receipts, from
@@ -2743,6 +2749,168 @@ pub(crate) mod namespaces {
     };
     use symbols::{SymbolHandle, SymbolKind};
 
+    type CaptureKey = (
+        SymbolHandle,
+        crate::type_identity::NormalizedTypeIdentity,
+        SymbolHandle,
+    );
+
+    /// A transient sparse index of existing capture records. Entries retain
+    /// handles only; all source and body correspondence stays in the record.
+    #[derive(Default)]
+    pub struct NamedConformanceCaptureIndex {
+        rows: symbols::SymbolKeyMap<
+            CaptureKey,
+            Option<arena::Handle<crate::CapturedMachineApplication>>,
+        >,
+    }
+
+    impl NamedConformanceCaptureIndex {
+        pub fn new(program: &TypedTrees) -> Self {
+            let mut index = Self::default();
+            for (handle, _) in program.captured_machine_applications.iter() {
+                // Unrelated unsupported records grant no authority. A demanded
+                // named application still needs one valid, unambiguous entry.
+                let _ = index.insert(program, handle);
+            }
+            index
+        }
+
+        pub fn insert(
+            &mut self,
+            program: &TypedTrees,
+            handle: arena::Handle<crate::CapturedMachineApplication>,
+        ) -> Result<(), &'static str> {
+            let key = Self::record_key(program, handle)?;
+            self.rows
+                .entry(key)
+                .and_modify(|known| {
+                    if *known != Some(handle) {
+                        *known = None;
+                    }
+                })
+                .or_insert(Some(handle));
+            Ok(())
+        }
+
+        pub fn get<'program>(
+            &self,
+            program: &'program TypedTrees,
+            call: &TableCallExpression,
+        ) -> Result<Option<&'program crate::CapturedMachineApplication>, &'static str> {
+            let Some((_, row, _)) = program.named_conformance_call_member(call)? else {
+                return Ok(None);
+            };
+            let Some((owner, identity)) = program.named_conformance_capture_key(call)? else {
+                return Ok(None);
+            };
+            let Some(selected) = self.rows.get(&(owner, identity, row.realization_machine)) else {
+                return Ok(None);
+            };
+            let handle = selected.ok_or("named application has ambiguous captured bodies")?;
+            if !program.captured_machine_applications.is_valid(handle) {
+                return Err("named application lost its captured body record");
+            }
+            Ok(Some(program.captured_machine_applications.get(handle)))
+        }
+
+        fn record_key(
+            program: &TypedTrees,
+            handle: arena::Handle<crate::CapturedMachineApplication>,
+        ) -> Result<CaptureKey, &'static str> {
+            use crate::expression::{StaticMachineArgument, StaticSymbolApplication};
+            if !program.captured_machine_applications.is_valid(handle) {
+                return Err("named capture has a foreign record");
+            }
+            let capture = program.captured_machine_applications.get(handle);
+            if capture.template == capture.instance
+                || !program
+                    .expression_table
+                    .static_machine_application_is_valid(capture.binding_application)
+                || !program
+                    .expression_table
+                    .static_machine_application_is_valid(capture.supplying_application)
+            {
+                return Err("named capture has no actual instantiation applications");
+            }
+            let source = program.static_machine_application(capture.binding_application);
+            let supplying = program.static_machine_application(capture.supplying_application);
+            let declaration = capture.conformance_application.declaration;
+            if source.registration_operation != declaration
+                || source.binding_declaration != declaration
+                || source.lexical_owner != supplying.lexical_owner
+                || !program
+                    .symbols
+                    .symbols()
+                    .nodes()
+                    .is_valid(source.lexical_owner)
+            {
+                return Err("named capture changed its constructor or source owner");
+            }
+            let (implementation, row) = program
+                .owned_conformance_realization(capture.template)
+                .ok_or("named capture lost its unique owned template")?;
+            if implementation.symbol != declaration
+                || supplying.registration_operation != row.requirement
+            {
+                return Err("named capture changed its actual requirement row");
+            }
+            let identity = |arguments: &[StaticMachineArgument]| {
+                let selected = StaticMachineArgument {
+                    symbol: declaration,
+                    application: Some(Box::new(StaticSymbolApplication {
+                        member: arena::Handle::invalid(),
+                        lifetime_arguments: Box::new([]),
+                        arguments: arguments.into(),
+                    })),
+                    ..Default::default()
+                };
+                crate::type_identity::applied_index_identity(
+                    program,
+                    crate::type_identity::IndexIdentityArgument::StaticArgument(&selected),
+                    source.lexical_owner,
+                    &[],
+                )
+            };
+            let selected = identity(&capture.conformance_application.arguments)
+                .ok_or("named capture lost its complete map identity")?;
+            let parameters = program.conformance_type_parameters(implementation);
+            let bindings = program.static_machine_application_bindings(capture.binding_application);
+            if bindings.len() != parameters.len()
+                || capture.conformance_application.arguments.len() != parameters.len()
+                || parameters
+                    .iter()
+                    .zip(bindings)
+                    .zip(capture.conformance_application.arguments.iter())
+                    .any(|((parameter, binding), argument)| {
+                        binding.parameter != parameter.symbol
+                            || !program.static_binding_matches_argument(
+                                &parameter.kind,
+                                &binding.value,
+                                argument,
+                                source.lexical_owner,
+                                source.lexical_owner,
+                            )
+                    })
+            {
+                return Err("named capture changed its actual constructor bindings");
+            }
+            if Some(selected)
+                != identity(
+                    program.static_machine_application_arguments(capture.binding_application),
+                )
+                || program
+                    .type_identity_text(selected)
+                    .as_deref()
+                    .map(str::as_bytes)
+                    != Some(capture.conformance_application.identity_encoding.as_ref())
+            {
+                return Err("named capture constructor disagrees with its complete map tuple");
+            }
+            Ok((source.lexical_owner, selected, capture.template))
+        }
+    }
+
     impl CallableApplication {
         pub(crate) fn namespace_symbols(
             &self,
@@ -3260,6 +3428,7 @@ pub(crate) mod namespaces {
     }
 }
 pub use machine_instances::MachineInstantiation;
+pub use namespaces::NamedConformanceCaptureIndex;
 pub(crate) mod payloads {
     use super::{CallableApplication, CallableLifetimeOrigin};
     use crate::{TypedTrees, expression, static_applications, types};

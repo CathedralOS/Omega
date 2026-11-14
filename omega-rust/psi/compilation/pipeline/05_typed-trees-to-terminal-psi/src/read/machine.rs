@@ -128,7 +128,10 @@ impl<'t> Program<'t> {
                 "contract span",
             )?;
             if !machine.is_public
-                && self.typed.owned_conformance_realization(*symbol).is_none()
+                && self
+                    .typed
+                    .owned_conformance_realization(self.typed.lifetime_declaration_owner(*symbol))
+                    .is_none()
                 && machine.satisfies.is_empty()
                 && !contracts.iter().any(|clause| {
                     clause.kind == SignatureContractKind::Requires
@@ -223,7 +226,10 @@ impl<'t> Program<'t> {
             };
             if !machine.is_public
                 && machine.satisfies.is_empty()
-                && self.typed.owned_conformance_realization(symbol).is_none()
+                && self
+                    .typed
+                    .owned_conformance_realization(self.typed.lifetime_declaration_owner(symbol))
+                    .is_none()
                 && crate::template_of(self.typed, symbol).is_none()
             {
                 local.push(id);
