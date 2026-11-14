@@ -86,7 +86,7 @@ construct. Nothing is skipped.
 ## The corpus slice
 
 **The probe was stopped part-way when the lane was paused on 2026-11-11;
-these counts are partial.** It ran `structure_elaboration_corpus`, built at `main` `2df885a2a`
+these counts are partial.** It ran `typed_trees_to_terminal_psi_corpus`, built at `main` `2df885a2a`
 with `CARGO_PROFILE_DEV_OPT_LEVEL=1`, on a cloud Linux x86_64 VM with 4 CPUs,
 three at a time. The selection is the 375 `pass/` and `run/` fixtures outside
 `facts/` that use one of the lane's constructs (`[erased]`, `core::Identity`,
@@ -144,7 +144,7 @@ Each slice reports, as route one's measures do:
 
 A proof found once may be carried forward, and every consumer checks it
 again against its own goal (`specialization-certificate-reuse`;
-`lowered_discharge::reverify`, `#2309`). The lane never treats a pass from an
+`terminal_psi_to_terminal_psi::reverify`, `#2309`). The lane never treats a pass from an
 earlier compile as a check, and searching again is always allowed.
 
 ## Dependencies

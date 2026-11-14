@@ -243,8 +243,8 @@ before variants are added. Route one is:
   crashes` alone), which is too small a sample to judge the gate.
 - **Build.** Shared dense-identity tables (`terminal-check-tables`, `#2279`);
   structure-only elaboration of the subset to unsealed Terminal Psi
-  (`structure-elaboration`, `#2286`); obligation reconstruction and discharge
-  by one prover (`lowered-discharge`, `#2293`) that states goals over Terminal
+  (`typed-trees-to-terminal-psi`, `#2286`); obligation reconstruction and discharge
+  by one prover (`terminal-psi-to-terminal-psi`, `#2293`) that states goals over Terminal
   values and emits certificates verified by `proof/admission` rather than
   threading `validation`'s source-shaped arithmetic engine. Before the gate
   closes, the prover must also prove relations and affine bounds between two
@@ -338,7 +338,7 @@ that cannot fail cannot hold work back, and work went ahead
    by exact-key reuse of a dependency slice. Everything else is outside the
    check's claim." The route's scope is neither
    of the two in use today:
-   - *The route was too narrow.* `structure_elaboration::elaborate` lowered
+   - *The route was too narrow.* `typed_trees_to_terminal_psi::elaborate` lowered
      only what the program entry calls. The specification's closure "starts
      from every declaration of every subject, including unused ones". `#2317`
      found 13 `fail/` programs the route accepted because the defect is in a
@@ -375,7 +375,7 @@ that cannot fail cannot hold work back, and work went ahead
      `AcceptedClosure::publish` (`#2666`) publishes exactly the module the
      route checked as canonical Terminal Psi with its evidence seals. Each
      machine states its declaration identity from the typed trees
-     (`structure-elaboration`, `declare.rs`); its contract commitment is the
+     (`typed-trees-to-terminal-psi`, `declare.rs`); its contract commitment is the
      route's own digest of the lowered contract, distinct from the old
      checker's digest. A stage-04 generated machine without a declaration
      identity still prevents publication.
@@ -442,7 +442,7 @@ that cannot fail cannot hold work back, and work went ahead
 
 2. **A wrong obligation list is caught, and tests show it.** Elaboration
    writes both the lowered program and the list of obligations that program
-   owes ("mints every obligation", `structure-elaboration` README). The prover
+   owes ("mints every obligation", `typed-trees-to-terminal-psi` README). The prover
    then proves what is on the list. If elaboration leaves a bounds check off
    the list, or states it about the wrong value, every obligation on the list
    is still proved and the program is accepted. The decision's second step
@@ -480,14 +480,14 @@ that cannot fail cannot hold work back, and work went ahead
    then decided again by `proof/admission` in each of two generated
    specializations, against goals and hypotheses the specialization computes
    from its own lowered module, with no search
-   (`lowered_discharge::reverify_specialization`). The program,
+   (`terminal_psi_to_terminal_psi::reverify_specialization`). The program,
    `run/generics/implementation_parameter_contract`, passes
    `omega run --both` with exit 0, and its fail twin, which differs only in
    the bound `advance` promises, is rejected. What this does not yet show:
    - The parameter is an implementation parameter. A type or value parameter
      is not served, and the check tables have no row for a value of an
      abstract type
-     ([what the lowered form does not carry](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md#what-the-lowered-form-does-not-carry)); [lowered type generics](lowered_type_generics.md) proposes how it
+     ([what the lowered form does not carry](../../../omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/README.md#what-the-lowered-form-does-not-carry)); [lowered type generics](lowered_type_generics.md) proposes how it
      could be.
    - The route was not the compile path when this was measured. `omega run
      --both` runs the program through the current pipeline; the generic check
@@ -513,7 +513,7 @@ that cannot fail cannot hold work back, and work went ahead
    `lowered_route_generics` pins both, with `#2378`'s pair. The program
    passes `omega run --both` on the current pipeline (native exit 0, Psi
    exit 0, Linux x86_64, `omega` built at `b741666a1`). Limits, each stated with its reason in the
-   [lowered-discharge README](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md#value-parameters):
+   [terminal-psi-to-terminal-psi README](../../../omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/README.md#value-parameters):
    a body that reads the parameter as an operand is not carried; a member's
    refinement of a requirement with value parameters is proved per argument
    in use, not for every value; a value parameter in a type waits for
@@ -541,7 +541,7 @@ that cannot fail cannot hold work back, and work went ahead
    lower, and what tells it from its fail twin is what a caller learns from
    a callee's body, which the decision `callee-result-body-summary`
    ([state contracts](../../spec/language/state_contracts.md)) settles. Limits, in the
-   [lowered-discharge README](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md#type-parameters):
+   [terminal-psi-to-terminal-psi README](../../../omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/README.md#type-parameters):
    only where `T` is a scalar type; no operation has a result of type `T`;
    a `T` value is used at most once unless `T` is `[copy]`, because the
    route has no judgment of moves.
@@ -556,13 +556,13 @@ that cannot fail cannot hold work back, and work went ahead
    (`omega run --both`: native exit 0, Psi exit 0) and its twin
    `fail/generics/finite_family_contract_wrong_alternative`, refused at the
    `u16` alternative. Limits, in the
-   [lowered-discharge README](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md#finite-families):
+   [terminal-psi-to-terminal-psi README](../../../omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/README.md#finite-families):
    one type parameter listed by one clause of builtin scalar types.
 
    **In the default compile, 2026-11-12.** Since `#2674` a subject's generic
    machines no longer hand the compilation back. The router judges the
    closure of the compilation's roots and, beside it, each generic machine
-   as its own check form (`lowered_discharge::judge_compilation`): once with
+   as its own check form (`terminal_psi_to_terminal_psi::judge_compilation`): once with
    its parameters rigid, or once per alternative of a finite family, whether
    or not the program applies it. A compilation is decided only when every
    part is. An unused `bump<T>` over `u8 | u16` whose body can overflow is
@@ -704,7 +704,7 @@ passed. Two started before any gate was evaluated. This is the state on
 
 | Lane | State | What exists |
 | --- | --- | --- |
-| Places (records, fields, cases, patterns, data `requires`) | started, on `main` | `#2328` split `structure-elaboration` into per-family modules. `#2332` records and field reads, `#2337` field stores, whole assignment and locals without an initializer, `#2343` sums, case dispatch and patterns, `#2356` payload-binding justification, `#2362` data `requires` at construction and every store. |
+| Places (records, fields, cases, patterns, data `requires`) | started, on `main` | `#2328` split `typed-trees-to-terminal-psi` into per-family modules. `#2332` records and field reads, `#2337` field stores, whole assignment and locals without an initializer, `#2343` sums, case dispatch and patterns, `#2356` payload-binding justification, `#2362` data `requires` at construction and every store. |
 | Numbers (integers, floats, casts and domains) | started, not on `main` | `#2365` (open draft): result bounds for divide, remainder, shift and bitwise operations, described as that lane's first slice. It reports 4 of the 12 prover gaps in route one measures now agreeing (quoted). |
 | Loops, recursion and termination | resumed 2026-11-12 (paused until then) | A staging plan on branch `work/docs-loops-recursion-termination-lane` (`d352f7e36`). No pull request is open for it and no code exists. |
 | Proofs, evidence and quotients | resumed 2026-11-12 (paused until then) | `#2366` (open draft, marked do not land): erased scalar bindings, the first of eleven planned slices, with the lane's plan file. |
@@ -717,7 +717,7 @@ that takes it is described under [condition 1](#the-gate).
 
 The three route crates were 9,463 lines of Rust at `82d2ea5d5`, where route
 one measures counted them, and are 21,576 at `c7371d3dc`, tests included
-(`structure-elaboration` 11,082, `lowered-discharge` 9,392,
+(`typed-trees-to-terminal-psi` 11,082, `terminal-psi-to-terminal-psi` 9,392,
 `terminal-check-tables` 1,102). None of the six places commits on `main`
 touches a file in Psi 05, validation or Psi 06 (`git show --stat`).
 
@@ -739,7 +739,7 @@ them except to delete them
 Since the owner lifted the pause on 2026-11-12, the remaining construct
 families run alongside [the gate](#the-gate)'s conditions, in two
 dependency-ordered groups rather than ten simultaneous sessions. The
-split of `structure-elaboration` into per-family modules and part of the
+split of `typed-trees-to-terminal-psi` into per-family modules and part of the
 places foundation have already landed
 ([above](#started-before-the-gate-paused-and-resumed)):
 
@@ -986,7 +986,7 @@ overwrites; a rank premise across a pause.
   and names record fields in `StructuralPathSegment::Field` by that index.
   Decided in `#2279` and `#2286`: `terminal-check-tables` mints dense
   `IdTable` identities and resolves fields once at elaboration to
-  `StructuralFieldId`, and `structure-elaboration` classifies builtin scalars
+  `StructuralFieldId`, and `typed-trees-to-terminal-psi` classifies builtin scalars
   through `SymbolTable::builtin_type_atom` on the resolved root symbol rather
   than by spelling.
 - **Diagnostics.** Errors must name source constructs. `LoweredSourceCustody`
@@ -1014,7 +1014,7 @@ overwrites; a rank premise across a pause.
   [`validation_subjects.md`](../../spec/build/validation_subjects.md#what-this-rule-does-not-do)
   (a consumer checks every dependency declaration it needs; since the owner
   ruling of 2026-11-12 that check may be exact-key reuse of a dependency
-  slice's checked result) is about checking. `lowered_discharge::reverify` is the
+  slice's checked result) is about checking. `terminal_psi_to_terminal_psi::reverify` is the
   tested mechanism, and `reverify_specialization` carries a generic body's
   certificates into a specialization that selects an implementation;
   substituting a concrete type for a type parameter in a certificate is not

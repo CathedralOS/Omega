@@ -13,10 +13,10 @@
 #[path = "support/unbuilt_frontier.rs"]
 mod unbuilt_frontier;
 
-use lowered_discharge::{RouteVerdict, judge};
 use semantic_vocabulary::{IdTable, MachineId};
-use structure_elaboration::{Compilation, elaborate, elaborate_closure};
 use symbols::SymbolHandle;
+use terminal_psi_to_terminal_psi::{RouteVerdict, judge};
+use typed_trees_to_terminal_psi::{Compilation, elaborate, elaborate_closure};
 
 // Fixture compilation shares process-wide counters; run one at a time.
 static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -698,16 +698,20 @@ fn an_unused_generic_machine_is_judged_as_its_own_check_form() {
 /// entry: the closure first, then each generic check form.
 fn judged_parts(name: &str, declaration: &str) -> Vec<Verdict> {
     let frontier = staged_unused(name, declaration);
-    lowered_discharge::judge_compilation(
-        &frontier.typed,
-        Compilation {
-            entries: &frontier.entries,
-            subjects: &[frontier.subject],
-            purpose: source::DependencyScope::Product,
-            selected: &frontier.selected,
-            bindings: &frontier.bindings,
-            supplies: &[],
-        },
+    terminal_psi_to_terminal_psi::judge_compilation(
+        typed_trees_to_terminal_psi::prepare_compilation(
+            &frontier.typed,
+            Compilation {
+                entries: &frontier.entries,
+                subjects: &[frontier.subject],
+                purpose: source::DependencyScope::Product,
+                selected: &frontier.selected,
+                bindings: &frontier.bindings,
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Portable,
+        )
+        .program,
     )
     .into_iter()
     .map(|verdict| match verdict {
@@ -1139,7 +1143,7 @@ const POLICY_INTEGERS: &[(&str, &str)] = &[
 /// add nothing, a divide its divisor. It is never read as the Exact
 /// operation: an Exact add beside a Wrapping one still owes its range. That
 /// a wrapped sum is not taken for the mathematical sum is pinned in
-/// `lowered-discharge` (`a_wrapped_sum_is_not_the_mathematical_sum`): its
+/// `terminal-psi-to-terminal-psi` (`a_wrapped_sum_is_not_the_mathematical_sum`): its
 /// verdict is "no rule for this goal", which this table has no row for. A cast into a policy converts the carrier exactly and owes
 /// that the value fits. What the route does not serve is refused by name.
 #[test]

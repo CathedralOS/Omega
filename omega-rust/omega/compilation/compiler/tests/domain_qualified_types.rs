@@ -9,7 +9,7 @@
 //! One program pins the accepted forms from source. Each twin changes one
 //! machine and is not accepted.
 
-use lowered_discharge::RouteVerdict;
+use terminal_psi_to_terminal_psi::RouteVerdict;
 
 // Compilation shares process-wide counters; run one at a time.
 static COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -108,16 +108,20 @@ fn verdicts(name: &str, machines: &str) -> Vec<String> {
             failure.into_diagnostics()
         )
     });
-    lowered_discharge::judge_compilation(
-        &frontier.typed,
-        structure_elaboration::Compilation {
-            entries: &frontier.entries,
-            subjects: &[frontier.subject],
-            purpose: source::DependencyScope::Product,
-            selected: &frontier.selected,
-            bindings: &frontier.bindings,
-            supplies: &[],
-        },
+    terminal_psi_to_terminal_psi::judge_compilation(
+        typed_trees_to_terminal_psi::prepare_compilation(
+            &frontier.typed,
+            typed_trees_to_terminal_psi::Compilation {
+                entries: &frontier.entries,
+                subjects: &[frontier.subject],
+                purpose: source::DependencyScope::Product,
+                selected: &frontier.selected,
+                bindings: &frontier.bindings,
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Portable,
+        )
+        .program,
     )
     .iter()
     .map(|verdict| match verdict {
