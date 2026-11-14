@@ -190,8 +190,9 @@ pub(crate) struct Program<'t> {
     region_tuples: Vec<Vec<regions::Region>>,
     /// The text identities of `regions::Region::Fixed`, by position.
     fixed_regions: Vec<String>,
-    /// What each region variable was decided as, if it was (`regions`).
-    region_variables: Vec<Option<regions::Region>>,
+    /// Each region variable: what it was decided as, if it was, and the
+    /// region a loan it stands for is within (`regions::RegionVariable`).
+    region_variables: Vec<regions::RegionVariable>,
     /// What an elided lifetime stands for where a type is being read.
     elision: regions::Elision,
     /// How many fresh lifetime parameters each machine's signature was
