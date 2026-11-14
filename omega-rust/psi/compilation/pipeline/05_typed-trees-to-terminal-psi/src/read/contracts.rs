@@ -441,6 +441,16 @@ impl Program<'_> {
 
     fn clause_operand_type(&self, id: MachineId, value_type: ValueType) -> Checked<ScalarType> {
         match value_type {
+            // structural_predicates.md, "Equality expansion": "IEEE leaves
+            // retain the exact format and IEEE comparison kind: NaN is not
+            // reflexive and signed zeros compare equal. Do not replace them
+            // with mathematical equality." A clause comparison here is the
+            // mathematical one, so a float operand has no reader yet.
+            ValueType::Scalar(ScalarType::IeeeFloat(_), _) => Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("comparison of floats in a clause"),
+            )),
             ValueType::Scalar(scalar, qualification) if qualification.domains.is_empty() => {
                 Ok(scalar)
             }
