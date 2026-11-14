@@ -234,6 +234,13 @@ impl Program<'_> {
                     implementation: machine.symbol,
                 };
                 let root = self.provider(machine.symbol, owner.symbol, requirement)?;
+                // The module declares the boundary of every requirement a
+                // chosen provider supplies, called or not: a provider plan
+                // covers the slot's whole schema, so each requirement needs
+                // the declaration its candidate row names
+                // (`declare::provider_candidates`). No call is made, so no
+                // visibility is checked; `root` only anchors a refusal.
+                self.boundary_declaration(root, requirement)?;
                 if !self.fixed_inputs.contains(&root) {
                     self.fixed_inputs.push(root);
                 }
