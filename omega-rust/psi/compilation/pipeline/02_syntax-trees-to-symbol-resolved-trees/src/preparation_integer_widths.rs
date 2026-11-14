@@ -14,16 +14,16 @@
     width that must be computed is left as written and refused by the first
     stage that needs its value.
 
-    Three malformed applications are refused here, each for its own reason:
-    a zero width, an omitted width (bare `u` and `i` are the unbounded
-    integers; nothing is inferred), and a width that names neither a constant
-    nor a const parameter, which is a runtime value.
+    Malformed applications are refused here, each for its own reason: a zero
+    width, a width beyond `u64`, and an omitted or repeated width (bare `u`
+    and `i` are the unbounded integers; nothing is inferred).
 
-    A width that names a const parameter is symbolic: the application is left
-    as written for the specialization that substitutes it. This pass does not
-    know which declaration a type sits in, so it accepts the name of any
-    parameter in the forest; a runtime value that shares such a name is not
-    resolved here and is refused by the stage that cannot find its meaning.
+    A width that is any other name is left as written. This pass does not
+    know which declaration a type sits in, so it cannot tell a const
+    parameter from a runtime value of the same spelling; the head resolves
+    to the family's builtin symbol and the name to whatever it means in its
+    own scope, and typing accepts a `const` parameter (the specialization
+    then substitutes it) and refuses everything else as a runtime width.
 */
 
 use super::declaration_selection::ConstantSelection;
@@ -32,7 +32,6 @@ use numerics::integer_carrier::{FixedInteger, IntegerSign};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::ExpressionNode;
 use syntax_trees::identifier::Identifier;
-use syntax_trees::item::TypeParameterKind;
 use syntax_trees::types::TypeReferenceNode;
 
 /* The sign a family head names, or `None` for any other generic head. */
@@ -48,7 +47,9 @@ enum Width {
     Closed(i128),
     /* Beyond `u64`, so not a width at all. */
     TooWide,
-    Symbolic,
+    /* A name that is not a closed constant here; typing decides what it names. */
+    Named,
+    /* Not a value at all, such as another type. */
     Runtime,
     /* An expression or a declared constant this pass does not evaluate. */
     Unevaluated,
@@ -100,20 +101,11 @@ pub(crate) fn normalize(
                 _ => Width::Unevaluated,
             });
         }
-        if selection.selects_const(syntax, name) {
-            return Ok(Width::Unevaluated);
-        }
-        let parameter = syntax.items.type_parameter_entries().any(|parameter| {
-            matches!(
-                parameter.kind,
-                TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
-            ) && parameter.name.as_str(syntax) == text
-        });
-        Ok(if parameter {
-            Width::Symbolic
-        } else {
-            Width::Runtime
-        })
+        /*
+            Any other name is resolved where its scope is known: typing
+            accepts a `const` parameter of the declaration and refuses the rest.
+        */
+        Ok(Width::Named)
     };
 
     let mut diagnostics = Vec::new();
@@ -188,7 +180,7 @@ pub(crate) fn normalize(
                 "the width of `{letter}<...>` is a runtime value: an integer width is a \
                  constant or a const parameter, known before the program runs"
             ))),
-            Width::Symbolic | Width::Unevaluated => {}
+            Width::Named | Width::Unevaluated => {}
         }
     }
     if !diagnostics.is_empty() {
@@ -262,14 +254,10 @@ mod tests {
     }
 
     #[test]
-    fn zero_runtime_and_oversized_widths_are_refused_for_their_own_reasons() {
+    fn zero_repeated_and_oversized_widths_are_refused_for_their_own_reasons() {
         for (source, reason) in [
             ("machine next(value: u<0>) -> u32 { 1 }", "zero width"),
             ("machine next(value: i<0>) -> u32 { 1 }", "zero width"),
-            (
-                "machine next(count: u64, value: u<count>) -> u32 { 1 }",
-                "runtime value",
-            ),
             (
                 "machine next(value: u<18446744073709551616>) -> u32 { 1 }",
                 "exceeds `u64`",
