@@ -64,33 +64,17 @@ fn worker_slot_index(name: &str) -> Option<usize> {
 }
 
 fn primary_root(current_root: &Path) -> PathBuf {
-    let out = Command::new("git")
-        .args(["rev-parse", "--git-common-dir"])
-        .current_dir(current_root)
-        .stdin(Stdio::null())
-        .output();
-    if let Ok(out) = out
-        && out.status.success()
-    {
-        let raw = String::from_utf8_lossy(&out.stdout).trim().to_owned();
-        let git_dir = Path::new(&raw);
-        let resolved = if git_dir.is_absolute() {
-            git_dir.to_path_buf()
-        } else {
-            current_root.join(git_dir)
-        };
-        if let Ok(canon) = fs::canonicalize(&resolved) {
-            let clean = canon
-                .to_string_lossy()
-                .strip_prefix(r"\\?\")
-                .unwrap_or(&canon.to_string_lossy())
-                .to_owned();
-            let clean_path = PathBuf::from(clean);
-            if clean_path.file_name().and_then(|n| n.to_str()) == Some(".git")
-                && let Some(parent) = clean_path.parent()
-            {
-                return parent.to_path_buf();
-            }
+    if let Ok(canon) = crate::repository::common_git_dir(current_root) {
+        let clean = canon
+            .to_string_lossy()
+            .strip_prefix(r"\\?\")
+            .unwrap_or(&canon.to_string_lossy())
+            .to_owned();
+        let clean_path = PathBuf::from(clean);
+        if clean_path.file_name().and_then(|n| n.to_str()) == Some(".git")
+            && let Some(parent) = clean_path.parent()
+        {
+            return parent.to_path_buf();
         }
     }
     current_root.to_path_buf()
@@ -349,12 +333,14 @@ fn fetch_published_head(main_root: &Path, head: &str) -> Result<(), String> {
             continue;
         };
         let refspec = format!("+refs/heads/{branch}:refs/remotes/origin/{branch}");
-        let fetched = Command::new("git")
-            .args(["fetch", "--no-tags", "origin", &refspec])
-            .current_dir(main_root)
-            .stdin(Stdio::null())
-            .output()
-            .map_err(|_| format!("cannot retain published worktree branch `{branch}`"))?;
+        let fetched = crate::repository::with_git_fetch_lock(main_root, || {
+            Command::new("git")
+                .args(["fetch", "--no-tags", "origin", &refspec])
+                .current_dir(main_root)
+                .stdin(Stdio::null())
+                .output()
+        })
+        .map_err(|error| format!("cannot retain published worktree branch `{branch}`: {error}"))?;
         return if fetched.status.success() {
             Ok(())
         } else {
@@ -695,11 +681,13 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 return Err(2);
             }
             let _ = fs::create_dir_all(&wt_base);
-            let _ = Command::new("git")
-                .args(["fetch", "origin", "main"])
-                .current_dir(&main_root)
-                .stdin(Stdio::null())
-                .status();
+            let _ = crate::repository::with_git_fetch_lock(&main_root, || {
+                Command::new("git")
+                    .args(["fetch", "origin", "main"])
+                    .current_dir(&main_root)
+                    .stdin(Stdio::null())
+                    .status()
+            });
 
             let _pool = lock_pool(&main_root).map_err(report_error)?;
             let items = list_worktrees(&main_root).map_err(report_error)?;
@@ -827,11 +815,13 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         }
         "release" => {
             let target_name = args.get(1).cloned().unwrap_or_else(|| current_name.clone());
-            let _ = Command::new("git")
-                .args(["fetch", "origin", "main"])
-                .current_dir(&main_root)
-                .stdin(Stdio::null())
-                .status();
+            let _ = crate::repository::with_git_fetch_lock(&main_root, || {
+                Command::new("git")
+                    .args(["fetch", "origin", "main"])
+                    .current_dir(&main_root)
+                    .stdin(Stdio::null())
+                    .status()
+            });
             // Network access stays outside the pool lock. The locked check below
             // rereads the slot and still refuses any dirty, locked or unsaved work.
             let before = list_worktrees(&main_root).map_err(report_error)?;

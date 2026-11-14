@@ -80,6 +80,13 @@ Only a successful remote read with no registry reference initializes an empty
 registry. Remote read, fetch, commit-message and record-format failures exit 1;
 they never report an empty registry or proceed to a write.
 
+Claims and worktree fetches share an OS-owned lock in the repository's common
+Git directory. Linked worktrees therefore serialize updates to shared fetch and
+shallow metadata, while independent repositories proceed separately. Ownership
+lasts only for the fetch and ends on return or process exit; the persistent lock
+file stays in place. Worktree network access still precedes the pool-state lock.
+Direct Git commands and older xtask binaries do not participate in this protocol.
+
 Mutations read the registry snapshot, create a new Git commit containing the
 updated record, and push with a compare-and-swap lease on its reference. A
 concurrent writer or network error can reject the push; inspect status before
