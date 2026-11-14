@@ -333,7 +333,7 @@ pub mod compute {
                 ScalarType::Integer(integer)
                     if !integer.is_address()
                         && integer.sign() == IntegerSign::Unsigned
-                        && integer.bits() == 64
+                        && integer.bits() == Some(64)
             )
         }
 
