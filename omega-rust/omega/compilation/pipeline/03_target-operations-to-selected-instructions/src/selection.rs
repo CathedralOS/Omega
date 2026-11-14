@@ -1289,32 +1289,48 @@ pub(crate) mod identity {
 }
 pub(crate) mod integer_conversion {
     use legalized_operations::LegalizedScalarInstructionKind;
-    use semantic_vocabulary::ScalarType;
+    use semantic_vocabulary::{ClosedIntegerType, ClosedScalarType, ScalarType};
 
     pub(crate) fn normalization(
+        source: &crate::native_geometry::NativeFunction<'_>,
         kind: &LegalizedScalarInstructionKind,
         scalar_type: ScalarType,
     ) -> Option<selected_instructions::SelectedInstructionKind> {
+        let scalar = source.closed_scalar(scalar_type)?;
         if let LegalizedScalarInstructionKind::ScalarRepresentationView { source_type, .. } = kind {
-            terminal_semantics::ScalarRepresentationViewPair::classify(*source_type, scalar_type)?;
-            return Some(register_form_normalization(scalar_type));
+            let from = source.closed_scalar(*source_type)?;
+            terminal_semantics::ScalarRepresentationViewPair::classify(
+                from.as_checking(),
+                scalar.as_checking(),
+            )?;
+            return Some(register_form_normalization(scalar));
         }
-        let target = scalar_type.as_integer()?;
-        let fixed = |integer: semantic_vocabulary::IntegerType| {
+        let target = scalar.as_integer()?;
+        let fixed = |integer: ClosedIntegerType| {
             integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
                 && matches!(integer.bits(), 8 | 16 | 32 | 64)
         };
         let narrower = match kind {
-            LegalizedScalarInstructionKind::IntegerWiden { source_type, .. }
-                if fixed(*source_type) && fixed(target) && source_type.can_widen_to(target) =>
-            {
-                *source_type
+            LegalizedScalarInstructionKind::IntegerWiden { source_type, .. } => {
+                let from = source.closed_integer(*source_type)?;
+                if !fixed(from)
+                    || !fixed(target)
+                    || !from.as_checking().can_widen_to(target.as_checking())
+                {
+                    return None;
+                }
+                from
             }
-            LegalizedScalarInstructionKind::IntegerExactCast { source_type, .. }
-                if crate::legalization::exact_cast_has_native_carriers(*source_type, target) =>
-            {
-                if source_type.bits() < target.bits() {
-                    *source_type
+            LegalizedScalarInstructionKind::IntegerExactCast { source_type, .. } => {
+                let from = source.closed_integer(*source_type)?;
+                if !crate::legalization::exact_cast_has_native_carriers(
+                    from.as_checking(),
+                    target.as_checking(),
+                ) {
+                    return None;
+                }
+                if from.bits() < target.bits() {
+                    from
                 } else {
                     target
                 }
@@ -1322,20 +1338,20 @@ pub(crate) mod integer_conversion {
             _ => return None,
         };
         Some(
-            crate::selection::scalar_call_abi::integer_carrier_normalization(ScalarType::Integer(
-                narrower,
-            )),
+            crate::selection::scalar_call_abi::integer_carrier_normalization(
+                ClosedScalarType::Integer(narrower),
+            ),
         )
     }
 
     fn register_form_normalization(
-        scalar_type: ScalarType,
+        scalar_type: ClosedScalarType,
     ) -> selected_instructions::SelectedInstructionKind {
         match scalar_type {
-            ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => {
+            ClosedScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => {
                 selected_instructions::SelectedInstructionKind::ZeroExtendU32
             }
-            ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => {
+            ClosedScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => {
                 selected_instructions::SelectedInstructionKind::CopyI64
             }
             other => crate::selection::scalar_call_abi::integer_carrier_normalization(other),
