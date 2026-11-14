@@ -183,7 +183,11 @@ fn a_provider_that_does_not_refine_its_requirement_is_not_accepted() {
         "Service::go",
     )
     .unwrap_err();
-    assert!(weaker.starts_with("part 1 rejected"), "{weaker}");
+    // The runtime body itself now owes the requirement's advertised
+    // result <= 11, so it fails before its separate refinement witness.
+    assert!(weaker.starts_with("part 0 rejected"), "{weaker}");
+    assert!(weaker.contains("ensures contract"), "{weaker}");
+    assert!(weaker.contains("result <= 11"), "{weaker}");
     // Its own body does not keep its own contract: the provider is judged
     // as a root, not taken at its word.
     let broken = supplied(&program(CONTRACT, CONTRACT, "value + 2"), "Service::go").unwrap_err();
@@ -229,5 +233,46 @@ fn a_supply_without_one_machine_per_requirement_is_refused_by_name() {
     assert!(
         no_slot.contains("slot that is not a boundary trait or one of its requirements"),
         "{no_slot}"
+    );
+}
+
+#[test]
+fn a_supplied_body_has_no_cached_or_selected_named_entry() {
+    let text = program(CONTRACT, CONTRACT, "value + 1");
+    // Supply roots are read before entry bodies. The provider is already
+    // cached when this otherwise valid call tries to use its own name.
+    let named = text.replace("Service::go(3)", "Native::go(3)");
+    let refusal = supplied(&named, "Service").expect_err("a supplied body has no named entry");
+    assert!(
+        refusal.contains("boundary conformer is callable only through its provider slot"),
+        "{refusal}"
+    );
+
+    let typed = typed(&text);
+    let member = typed
+        .machines()
+        .iter()
+        .find(|machine| !machine.satisfies.is_empty())
+        .unwrap()
+        .symbol;
+    let supplies = [structure_elaboration::Supply {
+        slot: declared(&typed, "Service"),
+        provider: declared(&typed, "Native"),
+    }];
+    let verdicts = crate::judge_compilation(
+        &typed,
+        structure_elaboration::Compilation {
+            entries: &[member],
+            subjects: &[],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &supplies,
+        },
+    );
+    assert!(
+        matches!(verdicts.as_slice(), [Ok(RouteVerdict::FallBack(refusal))]
+        if refusal.detail.contains("boundary conformer is callable only through its provider slot")),
+        "a provider cannot be selected as an ordinary named program entry"
     );
 }

@@ -171,14 +171,7 @@ fn declaration(
         .machine_callable_identity_text(declared)
         .filter(|callable| !callable.is_empty())
         .ok_or("the machine has no callable identity")?;
-    let semantic = match invocation_local(typed, symbol, identities)? {
-        Some(identity) => identity,
-        None => identities.intern(
-            &typed
-                .normalized_hermetic_symbol_identity(symbol)
-                .map_err(|_| "the machine has no hermetic declaration identity")?,
-        ),
-    };
+    let semantic = semantic_identity(typed, symbol, identities)?;
     let type_text = |type_reference| {
         typed
             .type_identity_text(typed.package_qualified_type_identity(type_reference))
@@ -261,9 +254,10 @@ fn application(
         .machine_callable_identity_text(declared)
         .filter(|callable| !callable.is_empty())
         .ok_or("a generated machine's generic machine has no callable identity")?;
-    let semantic = typed
-        .normalized_hermetic_symbol_identity(template)
-        .map_err(|_| "a generated machine's generic machine has no hermetic identity")?;
+    // A closed application retains the same identity scope as its actual
+    // template and arguments. Anonymous invocation source does not acquire
+    // a package owner merely because stage 04 generated a specialization.
+    let semantic = semantic_identity(typed, template, identities)?;
     let mut rows = typed
         .machine_specializations
         .iter()
@@ -307,10 +301,15 @@ fn application(
                 {
                     return Err("an application's implementation argument names no implementation");
                 }
-                let identity = typed
-                    .normalized_hermetic_symbol_identity(typed.implementation_value_head(named))
-                    .map_err(|_| "an application's implementation argument has no identity")?;
-                ("implementation", identity).hash(&mut commitment);
+                let identity =
+                    semantic_identity(typed, typed.implementation_value_head(named), identities)?;
+                (
+                    "implementation",
+                    identities.text(identity).ok_or(
+                        "an application's implementation identity is absent from its table",
+                    )?,
+                )
+                    .hash(&mut commitment);
             }
             // generics.md, "Closed applications and canonical identity":
             // a value argument is part of the application's identity. It is
@@ -340,7 +339,7 @@ fn application(
         capture: None,
         template: NominalDeclarationIdentity::new(nominal(typed, sources, template, identities)?),
         template_callable: identities.intern(&callable),
-        template_semantic_declaration: identities.intern(&semantic),
+        template_semantic_declaration: semantic,
         commitment: commitment.0.finish(),
     })
 }
@@ -378,14 +377,7 @@ pub(crate) fn boundary(
             .map_err(|_| "a boundary toolchain source has no exact identity")?;
     let owner_identity = nominal(typed, &sources, owner.symbol, identities)?;
     let requirement_identity = nominal(typed, &sources, symbol, identities)?;
-    let semantic = match invocation_local(typed, symbol, identities)? {
-        Some(identity) => identity,
-        None => identities.intern(
-            &typed
-                .normalized_hermetic_symbol_identity(symbol)
-                .map_err(|_| "boundary requirement has no hermetic declaration identity")?,
-        ),
-    };
+    let semantic = semantic_identity(typed, symbol, identities)?;
     let formals = typed
         .state_parameters
         .span(requirement.parameters)
@@ -593,6 +585,22 @@ pub(crate) struct Published<'a> {
     pub entries: &'a [&'a str],
 }
 
+/// Reuse the declaration owner's existing scoped identity for application
+/// constituents too; portable publication still requires a hermetic owner.
+fn semantic_identity(
+    typed: &TypedTrees,
+    symbol: SymbolHandle,
+    identities: &mut TerminalIdentityTableBuilder,
+) -> Result<terminal_psi::TerminalIdentityIndex, &'static str> {
+    if let Some(identity) = invocation_local(typed, symbol, identities)? {
+        return Ok(identity);
+    }
+    let identity = typed
+        .normalized_hermetic_symbol_identity(symbol)
+        .map_err(|_| "the declaration has no hermetic identity")?;
+    Ok(identities.intern(&identity))
+}
+
 /// The exact-owner identity of `symbol`: its package's, or its toolchain
 /// source's. A declaration neither owns has no portable identity.
 fn nominal(
@@ -633,7 +641,17 @@ fn invocation_local(
     if typed.symbols.get(symbol).generated_from.is_valid() {
         let mut origin = symbol;
         loop {
-            let previous = typed.symbols.get(origin).generated_from;
+            let declaration = typed.symbols.get(origin);
+            // Generated initial states can derive from an authored implicit
+            // state, whose retained token belongs to its lexical machine.
+            // The first link remains the mandatory generated_from edge;
+            // subsequent lexical ancestry uses the same provenance owner as
+            // ordinary implicit source entries.
+            let previous = if declaration.generated_from.is_valid() {
+                declaration.generated_from
+            } else {
+                declaration.parent
+            };
             if !previous.is_valid() {
                 return Err("a generated invocation declaration has no derivation origin");
             }
