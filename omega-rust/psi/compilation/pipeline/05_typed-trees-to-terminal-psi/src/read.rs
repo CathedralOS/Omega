@@ -57,6 +57,12 @@ use typed_trees::TypedTrees;
 use crate::body::{RecordType, Signature, ValueType};
 use crate::{Unserved, refuse};
 
+#[derive(Debug, Clone, Copy)]
+struct WidthBinding {
+    symbol: SymbolHandle,
+    parameter: semantic_vocabulary::WidthParameter,
+}
+
 pub(crate) struct Program<'t> {
     pub publication: terminal_codec::TerminalPublication,
     pub declaration_metadata: Vec<SymbolHandle>,
@@ -113,6 +119,10 @@ pub(crate) struct Program<'t> {
     /// `scope` of each machine, pushed with its signature and restored
     /// when its body is read.
     scopes: IdTable<MachineId, Vec<(SymbolHandle, ValueType)>>,
+    /// Static width binders retain the actual machine-local input identity.
+    /// Sorted by source symbol within this declaration's selected telescope.
+    width_scope: Vec<WidthBinding>,
+    width_scopes: IdTable<MachineId, Vec<WidthBinding>>,
     /// The generic machines a generic check form's entry calls at its own
     /// type parameters, each read once per tuple of type arguments as its
     /// contract with no body (`Elaboration::applications`).
@@ -263,6 +273,8 @@ impl<'t> Program<'t> {
             selections: Vec::new(),
             scope: Vec::new(),
             scopes: IdTable::default(),
+            width_scope: Vec::new(),
+            width_scopes: IdTable::default(),
             applications: Vec::new(),
             applied: Vec::new(),
             alternative: None,
@@ -946,6 +958,7 @@ mod tests {
             homed: false,
             erased: false,
             borrowed: None,
+            borrowed_regions: crate::body::Regions::NONE,
         };
         let slots = [slot()];
         let values = [Some(value)];
