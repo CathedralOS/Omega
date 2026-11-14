@@ -6,7 +6,8 @@ use domain::model;
 use domain::solver;
 use domain::report;
 use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega::language::core::F64::from_i32;
+use omega::language::core::I32::from_f64;
 
 data Main { reader: Reader; records: Records; table: Table; logrank: Logrank; }
 machine Main::main(main: &mut Main) reaches Console crashes Trap {

@@ -136,3 +136,36 @@ visible, so the caller treats non-return as unknown?
 **Until answered.** The checker uses every machine's body-derived outcome
 regardless of unit (behaviour that predates the rule, kept by #2983). That is
 (b) in effect and is wider than the unit rule as written.
+
+### Q3 - What lifetime does a returned view of a quoted literal have when the machine takes no reference?
+
+Decision name: `image-storage-result-lifetime`.
+
+**Customer.** A helper that names a fixed byte string for several callers:
+`machine package_name() -> &[u8] { "my_library" }`, called as
+`Build::package(builder, package_name())`. The Build scripts of
+`samples/cli/facts/recorded_build_role/` and
+`samples/cli/facts/required_output_path/` are written this way, and any
+library that publishes a name, a path or a message table would be.
+
+**Gap.** [Quoted bytes](wiki/spec/language/data_and_literals.md#quoted-bytes)
+says a literal's "runtime shared view refers to immutable image storage, not a
+invocation-local owner", so the view outlives the call that returns it.
+[Returned views](wiki/spec/language/lifetimes.md#returned-views) relates a
+result to an input: "For an elided output, one unambiguous reference input
+supplies the relation." A machine with no reference input has no input to
+supply it, and the pages name no lifetime for image storage that a result
+could be written at (no `'static` or `'image` binder exists). Pages checked:
+those two, plus "Binders and source applications" and "Carried-loan
+transport" in `lifetimes.md`.
+
+**Question.** For a result view whose machine takes no reference, is the
+elided lifetime (a) image storage, so the result may only be a view of a
+literal (or of another such result) and is valid for any use; (b) an error,
+with a named lifetime for image storage added for the author to write; or
+(c) an error with no such lifetime, so a fixed byte string is passed down
+from a caller that holds the literal instead of returned?
+
+**Until answered.** The lowered-form checker refuses the machine by name
+(`typing result lifetime that no argument is a view of`), with no claim that
+the program is wrong.

@@ -12,7 +12,9 @@
 // `omega::language::core::task`. Executable activation still requires a
 // selected runtime with real custody and backing; this probe supplies none.
 
-use omega::language::core::task;
+use omega::language::core::Task;
+use omega::language::core::TaskLifecycle;
+use omega::language::core::TaskOutcome;
 
 public boundary data Sleeper;
 boundary machine Sleeper::park(token: i32) suspends;

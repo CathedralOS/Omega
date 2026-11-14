@@ -2,7 +2,7 @@
 use omega_language_std::console;
 use io::protocol;
 use domain::model;
-use omega::language::core::float_operations;
+use omega::language::core::I32::from_f64;
 data Main {
  protocol: Protocol; model: Model; best_time: f64; best_branch: i32 in Wrapping;
 }

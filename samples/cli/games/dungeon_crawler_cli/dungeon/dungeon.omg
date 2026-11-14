@@ -1,5 +1,5 @@
 use text::buffer;
-use omega::language::core::math;
+use omega::language::core::min_i32;
 
 use enemies::enemies;
 use events::event_runtime;

@@ -1,9 +1,8 @@
-use omega::language::core::math;
+use omega::language::core::sqrt_f64;
 
 // Two independent gross measurements and either one reused tare or two
 // independent tares. A reused tare contributes positive covariance; discarding
 // that covariance overstates fraction uncertainty and understates total uncertainty.
-use omega::language::core::float_operations;
 
 public data Mixture [copy] {
     mass_a: f64;

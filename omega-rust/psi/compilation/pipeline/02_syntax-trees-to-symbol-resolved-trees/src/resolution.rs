@@ -6,8 +6,7 @@
     let each owner settle its phase in the one order their preconditions
     allow. The other operations run the same route for a different product.
     [`resolve_const_argument_selection`] selects const arguments without
-    synthesis or evaluation. [`resolve_numeric_probe`] normalizes constants
-    while retaining machine-equation execution obligations.
+    synthesis or evaluation.
     [`prepare_const_initializer_selection`] stops at
     preparation evidence that grants no typing authority. [`resolve_extension`]
     resolves a later stratum against a retained base and returns the carrier
@@ -36,6 +35,9 @@ mod body_completion {
     use diagnostics::Diagnostic;
     use std::mem::take;
     use std::sync::Arc;
+    use symbol_resolved_trees::continuations::{
+        RebasedResolvedBodyCompletion, ResolvedSourceActivation,
+    };
     use symbol_resolved_trees::types::OperandLifetimeOwnerHandle;
     use symbol_resolved_trees::{
         AuthoredDeclarationSelections, AuthoredSelectionExtensionFrontier,
@@ -277,21 +279,20 @@ mod body_completion {
             mut self,
             sources: Arc<source::SourceMap>,
             bindings: Vec<symbols::SourceScopedTopLevelBinding>,
-        ) -> Result<Self, Vec<Diagnostic>> {
-            let trees = Arc::make_mut(&mut self.trees);
-            trees.symbols = trees
-                .symbols
-                .clone()
-                .begin_source_activation(Arc::clone(&sources), bindings.clone())
-                .map_err(|reason| vec![Diagnostic::error(reason)])?
-                .finish();
-            trees.resolution_indexes = Default::default();
+        ) -> Result<(Self, ResolvedSourceActivation), Vec<Diagnostic>> {
+            let activation = ResolvedSourceActivation::new(
+                self.shared_trees(),
+                Arc::clone(&sources),
+                bindings.clone(),
+            )
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+            self.trees = activation.successor();
             self.selection = self
                 .selection
                 .activate_sources(Arc::clone(&sources), bindings.clone())?;
             self.sources = Some(sources);
             self.bindings = bindings;
-            Ok(self)
+            Ok((self, activation))
         }
 
         /*
@@ -301,43 +302,15 @@ mod body_completion {
         */
         pub fn with_prepared_allocations(
             mut self,
-            predecessor: &SymbolResolvedTrees,
-            symbols: &symbols::SymbolTable,
-            domains: &language_semantics::SemanticDomainTable,
-            service_rows: &language_semantics::ServiceReachRowTable,
+            update: symbol_resolved_trees::continuations::ResolvedAllocationExtension,
         ) -> Result<Self, Vec<Diagnostic>> {
-            if self.trees.as_ref() != predecessor {
+            let (predecessor, successor) = update.into_parts();
+            if self.trees != predecessor {
                 return Err(vec![Diagnostic::error(
                     "prepared allocation join does not match the exact deferred resolved predecessor",
                 )]);
             }
-            if !symbols.is_generated_extension_of(&predecessor.symbols) {
-                return Err(vec![Diagnostic::error(
-                    "prepared allocation join changed retained source custody or appended authored symbols",
-                )]);
-            }
-            for ordinal in 1..=predecessor.semantic_domains.len() {
-                let identity = language_semantics::SemanticDomainId(ordinal as u32);
-                if domains.name(identity) != predecessor.semantic_domains.name(identity) {
-                    return Err(vec![Diagnostic::error(format!(
-                        "prepared allocation join changed retained semantic domain {ordinal}"
-                    ))]);
-                }
-            }
-            if !service_rows.starts_with(&predecessor.service_reach_rows) {
-                return Err(vec![Diagnostic::error(
-                    "prepared allocation join changed retained service-row storage",
-                )]);
-            }
-            if self.trees.symbols != *symbols
-                || self.trees.semantic_domains != *domains
-                || self.trees.service_reach_rows != *service_rows
-            {
-                let prepared = Arc::make_mut(&mut self.trees);
-                prepared.symbols = symbols.clone();
-                prepared.semantic_domains = domains.clone();
-                prepared.service_reach_rows = service_rows.clone();
-            }
+            self.trees = successor;
             Ok(self)
         }
 
@@ -522,13 +495,6 @@ mod body_completion {
         selected: Vec<SymbolHandle>,
     }
 
-    #[derive(Debug)]
-    pub struct RebasedResolvedBodyCompletion {
-        successor: DeferredResolvedFrontier,
-        predecessor: Arc<SymbolResolvedTrees>,
-        selected: Vec<SymbolHandle>,
-    }
-
     impl ResolvedBodyCompletion {
         /*
             Before a typed checkpoint exists, the completed resolved frontier is
@@ -541,8 +507,10 @@ mod body_completion {
         pub fn rebase_authored_selections_for_typed_completion(
             self,
             destination: &AuthoredDeclarationSelections,
-        ) -> Result<RebasedResolvedBodyCompletion, (Self, AuthoredSelectionExtensionRebaseError)>
-        {
+        ) -> Result<
+            (RebasedResolvedBodyCompletion, DeferredResolvedFrontier),
+            (Self, AuthoredSelectionExtensionRebaseError),
+        > {
             let Self {
                 mut successor,
                 predecessor,
@@ -553,11 +521,14 @@ mod body_completion {
             match trees.rebase_authored_selection_extension(frontier, destination) {
                 Ok(trees) => {
                     successor.trees = Arc::new(trees);
-                    Ok(RebasedResolvedBodyCompletion {
+                    Ok((
+                        RebasedResolvedBodyCompletion {
+                            successor: successor.shared_trees(),
+                            predecessor,
+                            selected,
+                        },
                         successor,
-                        predecessor,
-                        selected,
-                    })
+                    ))
                 }
                 Err((trees, error)) => {
                     successor.trees = Arc::new(trees);
@@ -572,22 +543,6 @@ mod body_completion {
                     ))
                 }
             }
-        }
-    }
-
-    impl RebasedResolvedBodyCompletion {
-        /*
-            The returned frontier and the typed checkpoint share this exact rebased
-            successor. There is no separately advanced raw resolver ledger.
-        */
-        pub fn into_typing_completion_parts(
-            self,
-        ) -> (
-            DeferredResolvedFrontier,
-            Arc<SymbolResolvedTrees>,
-            Vec<SymbolHandle>,
-        ) {
-            (self.successor, self.predecessor, self.selected)
         }
     }
 
@@ -684,11 +639,7 @@ mod continuations {
     */
 
     use diagnostics::Diagnostic;
-    use std::sync::Arc;
-    use symbol_resolved_trees::{
-        AuthoredDeclarationSelections, AuthoredSelectionExtensionFrontier,
-        AuthoredSelectionExtensionRebaseError, SymbolResolvedTrees,
-    };
+    use symbol_resolved_trees::SymbolResolvedTrees;
     use syntax_trees::SyntaxTrees;
 
     /*
@@ -947,59 +898,6 @@ mod continuations {
             definition: &syntax_trees::item::ConstDefinition,
         ) -> bool {
             const_destination_requires_proof(syntax, definition, Some(&self.frontier.selection))
-        }
-    }
-
-    #[derive(Debug, PartialEq, Eq)]
-    pub struct SeededSymbolResolvedTrees {
-        pub(crate) trees: SymbolResolvedTrees,
-        pub(crate) authored_selection_frontier: AuthoredSelectionExtensionFrontier,
-        pub(crate) retained_base: Arc<SymbolResolvedTrees>,
-    }
-
-    /*
-        A seeded resolved extension whose authored-selection suffix has been
-        joined to the destination typed base ledger. The exact resolved base stays
-        inside the carrier so the next phase can reject cross-paired continuations.
-    */
-    #[derive(Debug, PartialEq, Eq)]
-    pub struct RebasedSeededSymbolResolvedTrees {
-        trees: SymbolResolvedTrees,
-        retained_base: Arc<SymbolResolvedTrees>,
-    }
-
-    impl SeededSymbolResolvedTrees {
-        pub fn trees(&self) -> &SymbolResolvedTrees {
-            &self.trees
-        }
-
-        pub fn rebase_authored_selections_for_typed_continuation(
-            self,
-            destination_base: &AuthoredDeclarationSelections,
-        ) -> Result<RebasedSeededSymbolResolvedTrees, (Self, AuthoredSelectionExtensionRebaseError)>
-        {
-            match self.trees.rebase_authored_selection_extension(
-                self.authored_selection_frontier,
-                destination_base,
-            ) {
-                Ok(trees) => Ok(RebasedSeededSymbolResolvedTrees {
-                    trees,
-                    retained_base: self.retained_base,
-                }),
-                Err((trees, error)) => Err((Self { trees, ..self }, error)),
-            }
-        }
-    }
-
-    impl RebasedSeededSymbolResolvedTrees {
-        pub fn trees(&self) -> &SymbolResolvedTrees {
-            &self.trees
-        }
-
-        pub fn into_typing_continuation_parts(
-            self,
-        ) -> (SymbolResolvedTrees, Arc<SymbolResolvedTrees>) {
-            (self.trees, self.retained_base)
         }
     }
 
@@ -2037,12 +1935,9 @@ use crate::symbols::target_siblings::bind_sibling_calls;
 use crate::symbols::type_predicates::retain_operands;
 use crate::tables::body_expressions;
 use crate::{constant, lowering, preparation, selection};
-pub use body_completion::{
-    DeferredResolvedFrontier, RebasedResolvedBodyCompletion, ResolvedBodyCompletion,
-};
+pub use body_completion::{DeferredResolvedFrontier, ResolvedBodyCompletion};
 pub use continuations::{
     ConstDestinationObligation, ConstInitializerPayload, ConstInitializerSelection,
-    RebasedSeededSymbolResolvedTrees, SeededSymbolResolvedTrees,
 };
 use diagnostics::Diagnostic;
 use lowerer::{ConstResolutionMode, Lowerer};
@@ -2064,6 +1959,9 @@ use source::SourceMap;
 use std::mem::take;
 use std::sync::Arc;
 use symbol_resolved_trees::SymbolResolvedTrees;
+use symbol_resolved_trees::continuations::{
+    RebasedSeededSymbolResolvedTrees, SeededSymbolResolvedTrees,
+};
 use symbol_resolved_trees::expression::ExpressionHandle;
 use symbol_resolved_trees::expression::ExpressionNode;
 use symbols::SymbolHandle;
@@ -2356,18 +2254,6 @@ pub fn resolve_const_argument_selection(
         program,
         expressions,
     })
-}
-
-/*
-    Normalize ordinary constants for a numeric probe while retaining machine
-    equations as pending execution obligations. Range normalization supplies
-    inputs to equation completion, so these two phase axes are independent.
-*/
-pub fn resolve_numeric_probe(
-    request: ResolutionRequest,
-) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-    let (syntax, lowerer) = begin(request, ConstResolutionMode::Complete)?;
-    drive(lowerer, &syntax).map(|(trees, _)| trees)
 }
 
 /*
@@ -2748,7 +2634,7 @@ mod call_result_selection_tests {
         of its product. Full resolution is the independent reference operation.
     */
 
-    use super::{ResolutionRequest, resolve_call_result_selection, resolve_numeric_probe};
+    use super::{ResolutionRequest, resolve, resolve_call_result_selection};
     use crate::tables::body_expressions;
     use source_files_to_tokens::Lexer;
     use symbol_resolved_trees::{
@@ -2804,7 +2690,7 @@ mod call_result_selection_tests {
             top_level_bindings: Vec::new(),
             retained_base: None,
         };
-        let full = resolve_numeric_probe(request(syntax.clone())).unwrap();
+        let full = resolve(request(syntax.clone())).unwrap();
         let selected = resolve_call_result_selection(request(syntax)).unwrap();
         let expected = call_identities(&full);
         assert!(!expected.is_empty());

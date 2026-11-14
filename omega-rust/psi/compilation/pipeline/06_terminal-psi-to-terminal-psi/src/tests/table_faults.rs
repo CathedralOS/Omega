@@ -869,7 +869,7 @@ fn entry_values(tables: &MachineTables) -> Vec<ValueId> {
     tables
         .values
         .iter()
-        .filter(|(_, row)| matches!(row.origin, ValueOrigin::EntryContent { .. }))
+        .filter(|(_, row)| matches!(row.origin, ValueOrigin::InitialContent { .. }))
         .map(|(value, _)| value)
         .collect()
 }
@@ -944,11 +944,46 @@ fn an_entry_content_of_storage_that_is_no_formal_is_refused() {
         let tables = entry_tables(elaboration);
         let place = projected(tables, local, &[1]);
         let held = entry_values(tables)[0];
-        value_mut(tables, held).origin = ValueOrigin::EntryContent { place };
+        value_mut(tables, held).origin = ValueOrigin::InitialContent { place };
     });
     assert_refused(
         verdict,
-        "an entry content value of storage that is no scalar leaf of a formal",
+        "an initial content value of storage that is no scalar leaf of a formal or declared call result",
+    );
+}
+
+#[test]
+fn an_initial_content_with_a_cyclic_owner_is_refused() {
+    let program = || {
+        elaborate_places(vec![
+            Shaped {
+                parameters: vec![point()],
+                locals: Vec::new(),
+                result: u32_type().into(),
+                requires: Vec::new(),
+                statements: vec![returns(call(2, vec![read(place(0, point()), 0)]))],
+            },
+            bounded(),
+        ])
+    };
+    let verdict = with_fault(program, |elaboration| {
+        let tables = entry_tables(elaboration);
+        let held = entry_values(tables)[0];
+        let ValueOrigin::InitialContent { place } = tables.values.get(held).unwrap().origin else {
+            panic!("initial field content");
+        };
+        let PlaceOrigin::Projection { segment, .. } = tables.places.get(place).unwrap().origin
+        else {
+            panic!("projected field");
+        };
+        tables.places.get_mut(place).unwrap().origin = PlaceOrigin::Projection {
+            parent: place,
+            segment,
+        };
+    });
+    assert_refused(
+        verdict,
+        "a place row is not the projection its parent lists",
     );
 }
 
@@ -988,7 +1023,7 @@ fn entry_content_values_that_exchange_their_leaves_are_refused() {
     });
     assert_refused(
         verdict,
-        "entry content values are not in the order of the leaves they belong to",
+        "initial content values are not in the order of the leaves they belong to",
     );
 }
 

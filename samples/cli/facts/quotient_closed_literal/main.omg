@@ -1,7 +1,7 @@
 // Expected exit: 0
 // Checked quotient operations over custody-free copy representatives.
 
-use omega::language::core::relation;
+use omega::language::core::Equivalence;
 
 data Representative [copy] { value: i32; }
 

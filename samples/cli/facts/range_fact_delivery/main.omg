@@ -3,7 +3,6 @@
 // declared range, local initializer, guard facts, and calls nested in
 // expressions all use the same judgment.
 
-use omega::language::core::float_operations;
 
 machine admit(value: f64) -> f64 requires value >= 0.0 && value <= 0.5 { value }
 machine outer(value: f64) -> f64 { value }

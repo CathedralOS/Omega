@@ -1,7 +1,5 @@
 // In the which == 0 arm, [0..which + 2] has length 2; hold preserves that
 // extent in its returned Held.values, through which write_pair writes the backing.
-use omega::language::core::float_operations;
-use omega::language::core::numeric_conversion;
 
 data Held<'samples> { values: &'samples mut [f64]; }
 // Reject: the computed matched window is length 1, against its length-2 promise.

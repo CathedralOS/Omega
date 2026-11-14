@@ -1,4 +1,10 @@
-use omega::language::core::layout;
+use omega::language::core::FieldEntry;
+use omega::language::core::FieldPlan;
+use omega::language::core::FixedLayout;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutStorage;
+use omega::language::core::LayoutTarget;
+use omega::language::core::Schema;
 // A plan-laid value whose three logical fields share ONE byte: `code` is
 // itself split across two `FieldPlan::Bits` fragments — masked RMW writes
 // preserve siblings and reads reconstruct the scalar.

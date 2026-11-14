@@ -80,9 +80,9 @@ OMEGA_OCREQ_ENTRY_SHA256=9cc2d065cf33e3a9de241d061f407665892f7171a431936a0e5ad9e
 # require_omega_compiler_identity : the canonical manifest is the bound file
 # and repacking it reproduces exactly the bound D closure. Every
 # materialization runs it; tests may call it directly. bootstrap_sha256 and
-# require_bound_identity live in alpha/seed_env.sh. Repacking needs python3;
-# without it the closure identity cannot be established and the check refuses
-# rather than skipping.
+# require_bound_identity live in alpha/seed_env.sh. Repacking needs the built
+# xtask binary; without it the closure identity cannot be established and the
+# check refuses rather than skipping.
 require_omega_compiler_identity() {
   require_bound_identity "omega_compiler.epsilon.sources" \
     "$OMEGA_PATH_OMEGA_COMPILER_SOURCES" \
@@ -94,13 +94,13 @@ require_omega_compiler_identity() {
 }
 
 # materialize_omega_compiler DEST : write the canonical packed compiler D
-# Epsilon source to DEST after the bound identity check. source_closure.py
+# Epsilon source to DEST after the bound identity check. source-closure
 # checks every member row and writes atomically; a changed member refuses
 # before DEST is written.
 materialize_omega_compiler() {
   OMEGA_COMPILER_DEST=$1
   require_omega_compiler_identity || return $?
-  python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+  bootstrap_xtask source-closure \
     "$OMEGA_PATH_OMEGA_COMPILER_SOURCES" "$OMEGA_COMPILER_DEST"
 }
 

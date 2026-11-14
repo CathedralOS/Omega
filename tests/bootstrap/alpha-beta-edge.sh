@@ -5,7 +5,8 @@
 #                 signature and the fields it inflates — UUID payload,
 #                 LC_CODE_SIGNATURE pointers, __LINKEDIT sizes; Windows x64:
 #                 the committed forge re-emits the
-#                 audited .hex listing — checkable on any host with Python 3;
+#                 audited .hex listing — checkable on any host with the built
+#                 xtask binary;
 #                 Linux x86-64: GNU binutils re-serializes alpha_x64_linux.s
 #                 into a byte-parity clone of the committed ELF);
 #   container   - both audited seeds parse as native executables and the
@@ -113,11 +114,12 @@ ALPHA_NORM_EOF
     *)
       # The selected seed is the Windows x64 container; its audited source is
       # the annotated .hex listing and the committed forge re-emits it. That
-      # comparison needs only Python 3, so it also runs on hosts (like this
-      # Linux checkout) where the container itself cannot execute.
-      if command -v python3 >/dev/null 2>&1; then
+      # comparison needs only the built xtask binary, so it also runs on hosts
+      # (like this Linux checkout) where the container itself cannot execute.
+      _xtask_bin=${OMEGA_XTASK_BIN:-"$OMEGA_REPO_ROOT/target/debug/xtask"}
+      if [ -x "$_xtask_bin" ]; then
         provenance_ran=$((provenance_ran + 1))
-        if python3 "$OMEGA_REPO_ROOT/tools/bootstrap/alpha/forge.py" \
+        if bootstrap_xtask alpha-forge \
             "$OMEGA_PATH_ALPHA/alpha_x64_windows.hex" --check \
             "$OMEGA_PATH_ALPHA/alpha_x64_windows.exe"; then
           echo "provenance ✓ — alpha_x64_windows.exe reproduces from alpha_x64_windows.hex (committed forge)"
@@ -125,7 +127,7 @@ ALPHA_NORM_EOF
           echo "provenance FAIL — committed binary differs from a forge of its listing"; rc=1
         fi
       else
-        echo "provenance MANUAL — audit $ALPHA_SEED against its .hex listing (committed forge needs python3)"
+        echo "provenance MANUAL — audit $ALPHA_SEED against its .hex listing (committed forge needs the built xtask binary)"
         provenance_skipped=$((provenance_skipped + 1))
       fi
       ;;

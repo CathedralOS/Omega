@@ -1,7 +1,6 @@
 // Fact: A readable stored-reference projection beneath an owned linear Buffer preserves the exact Issued Cell memberships and original array, and normal cleanup writes the caller cleanup slot exactly once.
 // Place: other_state.
 // Expected exit: 0. Both cleanup branches and both match branches execute.
-use omega::language::core::drop;
 public domain u64::ResidentValue requires self >= 0 && self <= 2147483647 && self != 42;
 public data Cell { value: u64 in ResidentValue; }
 public domain Cell::Issued established by mint_cell;

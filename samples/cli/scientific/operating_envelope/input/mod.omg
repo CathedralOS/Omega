@@ -1,5 +1,5 @@
 module input;
-use omega::language::core::numeric_conversion;
+use omega::language::core::widen_u8_to_i32;
 
 // A complete newline-terminated packet of at most 26 signed decimal integers.
 // Magnitudes are checked before multiplication, so hostile input cannot wrap.

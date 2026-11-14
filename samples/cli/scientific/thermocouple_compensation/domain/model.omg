@@ -1,7 +1,6 @@
 // Declared sample model: E(T) = a + b*T + c*T*T in mV and Celsius.
 // Strict derivative signs at both endpoints certify each quadratic segment
 // monotone. Global monotonicity is deliberately not assumed: enumerate roots.
-use omega::language::core::float_operations;
 
 public data Segment [copy] { low: f64; high: f64; a: f64; b: f64; c: f64; }
 public data Estimate [copy] { count: i32; temperature: f64; residual: f64; }

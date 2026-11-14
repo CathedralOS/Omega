@@ -1,6 +1,5 @@
-use omega::language::core::math;
+use omega::language::core::abs_f64;
 
-use omega::language::core::float_operations;
 data Probe {value:f64;observed:i32;}
 machine Probe::main(probe:&mut Probe) {
  transition abs_f64(probe.value) <= 0.000000001 {true -> good(probe) _ -> fail(probe)}

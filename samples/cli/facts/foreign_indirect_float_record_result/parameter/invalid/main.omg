@@ -1,6 +1,5 @@
 // Fact: A copyable indirect C affine record preserves all six floating fields and independent earlier-call contents through transport and copying into the consuming operation.
 // Expected diagnostic: consumed
-use omega::language::core::external_binding;
 public data Transform { a: f64; b: f64; c: f64; d: f64; tx: f64; ty: f64; }
 public boundary trait AffineTransforms {
     machine make(a: f64, b: f64, c: f64, d: f64, tx: f64, ty: f64) -> Transform reaches;

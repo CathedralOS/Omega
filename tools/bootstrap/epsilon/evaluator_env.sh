@@ -97,8 +97,8 @@ EPSILON_SOURCE_VIEWS_CONTROLS_PACKED_SHA256=24c2a9e1a391b91fe670f209108651751624
 # file and repacking it reproduces exactly the bound evaluator closure.
 # Every materialization runs it; tests may call it directly. bootstrap_sha256
 # and require_bound_identity live in alpha/seed_env.sh. Repacking needs
-# python3; without it the closure identity cannot be established and the
-# check refuses rather than skipping.
+# the built xtask binary; without it the closure identity cannot be
+# established and the check refuses rather than skipping.
 require_epsilon_evaluator_identity() {
   require_bound_identity "epsilon_compiler.delta.sources" \
     "$OMEGA_PATH_EPSILON_COMPILER_SOURCES" \
@@ -184,7 +184,7 @@ require_epsilon_array_storage_driver_identity() {
 #   closure's manifest is the bound file and repacking it reproduces the
 #   bound packed driver bytes. Shared by the checking-invariants,
 #   runtime-invariants, runtime-references, and source-views controls.
-#   Repacking needs python3; without it the check refuses rather than
+#   Repacking needs the built xtask binary; without it the check refuses rather than
 #   skipping.
 require_epsilon_controls_identity() {
   EPSILON_CONTROLS_LABEL=$1
@@ -252,12 +252,12 @@ require_epsilon_source_views_controls_identity() {
 }
 
 # materialize_epsilon_evaluator DEST : write the canonical packed evaluator
-# Delta source to DEST after the bound identity check. source_closure.py
+# Delta source to DEST after the bound identity check. source-closure
 # checks every member row and writes atomically; a changed member refuses
 # before DEST is written.
 materialize_epsilon_evaluator() {
   EPSILON_EVALUATOR_DEST=$1
   require_epsilon_evaluator_identity || return $?
-  python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+  bootstrap_xtask source-closure \
     "$OMEGA_PATH_EPSILON_COMPILER_SOURCES" "$EPSILON_EVALUATOR_DEST"
 }

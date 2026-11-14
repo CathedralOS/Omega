@@ -2,7 +2,6 @@
 // z*pressure*width exactly requires polynomials of degree one, two, three.
 // No quadrature library or active-worker code is used.
 use geometry::profile;
-use omega::language::core::float_operations;
 
 public data SegmentLoad [copy] { area: f64; force: f64; first_moment: f64; hinge_moment: f64; }
 public machine integrate(segment: WetSegment, water: f64, gamma: f64, hinge: f64) -> SegmentLoad {

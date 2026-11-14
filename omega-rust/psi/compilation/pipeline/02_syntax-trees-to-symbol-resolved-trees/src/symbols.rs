@@ -124,7 +124,7 @@ mod contracts {
                 &scope,
                 &[],
                 entry_parameters,
-                None,
+                entry.and_then(|state| state.return_type.as_ref()),
                 entry_symbol,
                 machine.contracts,
                 signature_contracts,
@@ -286,6 +286,14 @@ mod contracts {
         );
         let contract_scope = &MachineScope {
             type_parameters: &type_parameters,
+            contract_result_data: return_type
+                .and_then(|reference| {
+                    super::expression_paths::projected_receivers::declared_nominal(
+                        reference,
+                        child_type_references,
+                    )
+                })
+                .unwrap_or_default(),
             ..*machine
         };
         for reference in parameters
@@ -2375,6 +2383,7 @@ mod measures {
                 inherited_data_members: None,
                 owned_data: &[],
                 prior_statements: &[],
+                contract_result_data: symbols::SymbolHandle::invalid(),
                 data_definitions: &program.roots.data_definitions,
                 type_aliases: &program.roots.type_aliases,
                 conformances: &program.roots.conformances,
@@ -3986,6 +3995,9 @@ mod scope {
             binding whose initializer is currently being resolved.
         */
         pub(super) prior_statements: &'program [symbol_resolved_trees::statement::Statement],
+        /// The declared result's nominal data owner while resolving its
+        /// contract. This selects fields, never a runtime value or permission.
+        pub(super) contract_result_data: SymbolHandle,
         /*
             All top-level data definitions and the shared member arena -- lets the
             receiver walk resolve a NESTED member chain's declared field types
@@ -4050,6 +4062,7 @@ mod scope {
                 inherited_data_members,
                 owned_data,
                 prior_statements: &[],
+                contract_result_data: symbols::SymbolHandle::invalid(),
                 data_definitions: self.data_definitions,
                 type_aliases: self.type_aliases,
                 conformances: self.conformances,
@@ -4077,6 +4090,7 @@ mod scope {
                 inherited_data_members: None,
                 owned_data: &[],
                 prior_statements: &[],
+                contract_result_data: symbols::SymbolHandle::invalid(),
                 ..*self
             }
         }
@@ -5654,6 +5668,7 @@ pub(crate) fn assign_constant_expression_symbols(
         inherited_data_members: None,
         owned_data: &[],
         prior_statements: &[],
+        contract_result_data: symbols::SymbolHandle::invalid(),
         data_definitions: &program.roots.data_definitions,
         type_aliases: &program.roots.type_aliases,
         conformances: &program.roots.conformances,

@@ -1,7 +1,6 @@
 // Bounded partial-pivot Gauss-Jordan elimination of the 6x6 ABD system.
 // Absolute pivot floor is meaningful only for the declared synthetic units.
 use mechanics::model;
-use omega::language::core::float_operations;
 public machine solve(model: &mut Laminate) {
     transition { _ -> pivot(model,0) }
     machine pivot(model: &mut Laminate,pivot_index: u64) requires pivot_index <= 5 {

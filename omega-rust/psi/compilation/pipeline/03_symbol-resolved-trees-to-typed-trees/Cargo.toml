@@ -19,5 +19,4 @@ numerics = { path = "../../../foundation/numerics" }
 source = { path = "../../../foundation/source" }
 symbols = { path = "../../../foundation/symbols" }
 symbol-resolved-trees = { path = "../../representations/symbol-resolved-trees" }
-syntax-trees-to-symbol-resolved-trees = { path = "../02_syntax-trees-to-symbol-resolved-trees" }
 typed-trees = { path = "../../representations/typed-trees" }

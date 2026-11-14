@@ -1,8 +1,8 @@
 module io::input;
 // Bounded decimal tokens. No allocation, wrapping or unbounded token storage.
 use omega_language_std::console;
-use omega::language::core::numeric_conversion;
-use omega::language::core::float_operations;
+use omega::language::core::narrow_i32_to_u32_trapping;
+use omega::language::core::F64::from_u32;
 
 public data Raw { values: [u32; 16]; count: u32; }
 public data Input {

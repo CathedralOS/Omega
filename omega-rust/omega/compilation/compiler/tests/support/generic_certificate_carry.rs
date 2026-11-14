@@ -269,7 +269,7 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
                         return format!("route=defect\twitness: {}", one_line(&refusal.detail));
                     }
                 };
-                report(
+                carried_all &= report(
                     "witness",
                     main,
                     specialization.get(),

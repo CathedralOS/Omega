@@ -1,4 +1,11 @@
-use omega::language::core::layout;
+use omega::language::core::FieldEntry;
+use omega::language::core::FieldPlan;
+use omega::language::core::FixedLayout;
+use omega::language::core::IntegerInterpretation;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutStorage;
+use omega::language::core::LayoutTarget;
+use omega::language::core::Schema;
 // The selected signed-byte layout shares the original scalar storage. Writes
 // through the view must preserve the neighboring byte and the same backing.
 // This remains a checking probe; it has no process-exit oracle.

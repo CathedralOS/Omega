@@ -1,7 +1,8 @@
 // Library C layout preserves scalar values with C ABI field offsets, trailing padding and transparent alias identity.
 // Expected exit: 0
-use omega::language::core::layout;
-use omega::language::core::c_layout;
+use omega::language::core::LayoutStorage;
+use omega::language::core::CAbiPolicy;
+use omega::language::core::CLayout;
 data Record [copy] { first: u8; second: u64; last: u16; }
 machine explicit(value: CLayout<Record>) -> LayoutStorage<Record, CAbiPolicy<Record>> { value }
 machine main() crashes Trap {

@@ -1,5 +1,5 @@
 use terrain::model;
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_u64_to_i32_wrapping;
 // Global horizontal edges 0..5, then vertical edges 6..11. Increasing
 // coordinates determine interpolation direction regardless of traversal.
 machine crossings(terrain: &Terrain, graph: &mut Contours) {

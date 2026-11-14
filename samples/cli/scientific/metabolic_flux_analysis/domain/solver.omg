@@ -1,4 +1,4 @@
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_i64_to_i32_wrapping;
 // Exact bounded vertex enumeration. Bounds are integer nanoflux values.
 // Each ternary assignment fixes reactions at lower/upper bounds or leaves them
 // free. A full-column-rank free system gives one vertex; all vertices occur.

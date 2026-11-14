@@ -12,7 +12,7 @@ trap 'rm -rf -- "$LOWERING_PLAN_TMP"' EXIT HUP INT TERM
 # The bound member closure is checked against its audited record; the gate's
 # own driver entry packs on top of those bound members.
 require_delta_compiler_identity
-python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+bootstrap_xtask source-closure \
     "$OMEGA_PATH_DELTA_COMPILER_SOURCES" "$LOWERING_PLAN_TMP/compiler.gamma" \
     --prefix "$GATE_DIR/height_driver.gamma"
 materialize_gamma_evaluator "$LOWERING_PLAN_TMP/evaluator" >/dev/null

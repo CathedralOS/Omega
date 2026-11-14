@@ -25,7 +25,9 @@
 // Expected output contains: PASS
 
 use omega_language_std::console;
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_u32_to_u8_wrapping;
+use omega::language::core::narrow_u64_to_u32_wrapping;
+use omega::language::core::widen_u32_to_u64;
 
 data Bignum [copy] {
     limbs: [u32; 8] in Wrapping;

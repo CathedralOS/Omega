@@ -307,7 +307,16 @@ impl<'t> Program<'t> {
                     return unserved("intrinsic selection");
                 }
                 AuthoredDeclarationSelectionTarget::LateBound(_) => {
-                    return unserved("late-bound selection");
+                    let mut refusal = refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Call("late-bound selection"),
+                    );
+                    refusal.detail.push_str(&format!(
+                        " for `{}`",
+                        self.typed.symbols.display_path(target, "::")
+                    ));
+                    return Err(refusal);
                 }
             }
         }

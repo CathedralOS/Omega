@@ -143,11 +143,19 @@ fn predicate_row(tables: &MachineTables, block: BlockId) -> Option<KnowledgeId> 
 /// scope of control_flow.md. fact_validity.md binds entry hypotheses to
 /// "exact invocation formals or structural entry paths", and an entry
 /// content is such a path's one value for the whole invocation.
-fn in_scope(tables: &MachineTables, block: BlockId, proposition: &Proposition) -> bool {
+fn in_scope(
+    lowered: &TerminalMachine,
+    tables: &MachineTables,
+    block: BlockId,
+    proposition: &Proposition,
+) -> bool {
     let mut inside = true;
     proposition.visit_value_ids(|value| {
         inside &= match tables.values.get(value).map(|row| row.origin) {
-            Some(ValueOrigin::MachineParameter { .. } | ValueOrigin::EntryContent { .. }) => true,
+            Some(ValueOrigin::MachineParameter { .. }) => true,
+            Some(ValueOrigin::InitialContent { place }) => {
+                crate::places::input_content(lowered, tables, place)
+            }
             Some(ValueOrigin::BlockParameter { block: owner, .. }) => owner == block,
             _ => false,
         };
@@ -250,7 +258,7 @@ pub(crate) fn infer(
                 break;
             };
             disjuncts.push(describe(
-                id, tables, graph, context, join, at_edge, entry, arguments,
+                lowered, id, tables, graph, context, join, at_edge, entry, arguments,
             )?);
         }
         if skip {
@@ -272,6 +280,7 @@ pub(crate) fn infer(
 /// What one arrival knows that the join does not, in the join's scope.
 #[allow(clippy::too_many_arguments)]
 fn describe(
+    lowered: &TerminalMachine,
     id: MachineId,
     tables: &MachineTables,
     graph: &Graph,
@@ -305,7 +314,7 @@ fn describe(
         matches!(term, ScalarTerm::Value { id, .. }
         if matches!(
             tables.values.get(*id).map(|row| row.origin),
-            Some(ValueOrigin::EntryContent { .. })
+            Some(ValueOrigin::InitialContent { place }) if crate::places::input_content(lowered, tables, place)
         ))
     };
     let equations: Vec<&Proposition> = available
@@ -395,7 +404,7 @@ fn describe(
                 && let Some(denotation) = rename(&denotation, &renaming)
             {
                 parts.push(project(&denotation, &mut |atom| {
-                    in_scope(tables, join.id, atom).then(|| atom.clone())
+                    in_scope(lowered, tables, join.id, atom).then(|| atom.clone())
                 }));
             }
             continue;
@@ -404,7 +413,7 @@ fn describe(
         // substitution. Expanding its Boolean equalities into cases would
         // discard the reusable form the preceding join established.
         if let Some(stated) = rename(proposition, &renaming)
-            && in_scope(tables, join.id, &stated)
+            && in_scope(lowered, tables, join.id, &stated)
         {
             parts.push(stated);
             continue;
@@ -422,13 +431,14 @@ fn describe(
             continue;
         };
         parts.push(project(&denotation, &mut |atom| {
-            in_scope(tables, join.id, atom).then(|| atom.clone())
+            in_scope(lowered, tables, join.id, atom).then(|| atom.clone())
         }));
     }
     // A part outside the scope, or one this route does not state (a
     // contradiction, which would make the disjunct unprovable here), is left
     // out: that weakens the disjunct, never strengthens it.
-    parts.retain(|part| *part != Proposition::Falsehood && in_scope(tables, join.id, part));
+    parts
+        .retain(|part| *part != Proposition::Falsehood && in_scope(lowered, tables, join.id, part));
     Ok(connective(parts, true))
 }
 

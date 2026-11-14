@@ -510,7 +510,6 @@ pub(crate) mod seeded_continuation {
     use symbol_resolved_trees::SymbolResolvedTrees;
     use symbol_resolved_trees::machine::MachineBodyStatus;
     use symbols::{SourceScopedTopLevelBinding, SymbolHandle};
-    use syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier;
     use typed_trees::TypedTrees;
 
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -538,33 +537,29 @@ pub(crate) mod seeded_continuation {
 
         pub fn activate_body_completion(
             mut self,
-            frontier: DeferredResolvedFrontier,
-            sources: Arc<SourceMap>,
-            bindings: Vec<SourceScopedTopLevelBinding>,
-        ) -> Result<(Self, DeferredResolvedFrontier), Vec<Diagnostic>> {
-            let frontier = self
-                .join_prepared_allocations(frontier)?
-                .activate_sources(sources, bindings)?;
-            self.resolved = frontier.shared_trees();
+            activation: symbol_resolved_trees::continuations::ResolvedSourceActivation,
+        ) -> Result<Self, Vec<Diagnostic>> {
+            let (predecessor, successor) = activation.into_parts();
+            if predecessor != self.resolved {
+                return Err(vec![Diagnostic::error(
+                    "source activation does not match the exact retained resolved predecessor",
+                )]);
+            }
+            self.resolved = successor;
             Arc::make_mut(&mut self.typed).symbols = self.resolved.symbols.clone();
-            Ok((self, frontier))
+            Ok(self)
         }
 
-        pub fn append_deferred(
+        pub fn append_resolved(
             self,
-            extension: syntax_trees_to_symbol_resolved_trees::DeferredResolvedExtension,
-        ) -> Result<(Self, DeferredResolvedFrontier), Vec<Diagnostic>> {
-            let (source, frontier) = extension
-                .rebase_for_typed_continuation(self.typed.authored_declaration_selections())?;
-            // A source diagnostic found while typing the extension belongs to
-            // the author as written; only a retained-base mismatch is internal.
-            let typed = lower_seeded_extension(source, self).map_err(|reason| match reason {
+            source: symbol_resolved_trees::continuations::RebasedSeededSymbolResolvedTrees,
+        ) -> Result<Self, Vec<Diagnostic>> {
+            lower_seeded_extension(source, self).map_err(|reason| match reason {
                 SeededContinuationError::Lowering(diagnostic) => vec![diagnostic],
                 reason => vec![Diagnostic::error(format!(
                     "authored declaration typing could not extend its retained source: {reason:?}"
                 ))],
-            })?;
-            Ok((typed, frontier))
+            })
         }
 
         /// Narrow this retained typing to the program written in `sources`'
@@ -650,37 +645,16 @@ pub(crate) mod seeded_continuation {
             })
         }
 
-        pub fn join_prepared_allocations(
-            &mut self,
-            frontier: DeferredResolvedFrontier,
-        ) -> Result<DeferredResolvedFrontier, Vec<Diagnostic>> {
-            let frontier = frontier.with_prepared_allocations(
-                &self.resolved,
-                &self.typed.symbols,
-                &self.typed.semantic_domains,
-                &self.typed.service_reach_rows,
-            )?;
-            self.resolved = frontier.shared_trees();
-            Ok(frontier)
-        }
-
         pub fn complete_bodies(
             self,
-            source: syntax_trees_to_symbol_resolved_trees::ResolvedBodyCompletion,
-        ) -> Result<(Self, DeferredResolvedFrontier), Vec<Diagnostic>> {
-            let source = source
-            .rebase_authored_selections_for_typed_completion(
-                self.typed.authored_declaration_selections(),
-            )
-            .map_err(|(_, error)| vec![Diagnostic::error(format!(
-                "authored-body completion could not join its retained typed selection ledger: {error:?}"
-            ))])?;
+            source: symbol_resolved_trees::continuations::RebasedResolvedBodyCompletion,
+        ) -> Result<Self, Vec<Diagnostic>> {
             lower_body_completion(source, self).map_err(|error| vec![error])
         }
 
         pub fn lower_extension(
             self,
-            source: syntax_trees_to_symbol_resolved_trees::SeededSymbolResolvedTrees,
+            source: symbol_resolved_trees::continuations::SeededSymbolResolvedTrees,
         ) -> Result<Self, Vec<Diagnostic>> {
             let rebased = source
             .rebase_authored_selections_for_typed_continuation(
@@ -702,39 +676,27 @@ pub(crate) mod seeded_continuation {
             })
         }
 
+        pub fn prepare_allocations(
+            &mut self,
+        ) -> Result<
+            symbol_resolved_trees::continuations::ResolvedAllocationExtension,
+            Vec<Diagnostic>,
+        > {
+            let update = symbol_resolved_trees::continuations::ResolvedAllocationExtension::new(
+                Arc::clone(&self.resolved),
+                &self.typed.symbols,
+                &self.typed.semantic_domains,
+                &self.typed.service_reach_rows,
+            )
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+            self.resolved = update.successor();
+            Ok(update)
+        }
+
         pub fn resolved_base_for_extension(
             &mut self,
         ) -> Result<Arc<SymbolResolvedTrees>, Vec<Diagnostic>> {
-            if !self
-                .typed
-                .symbols
-                .is_generated_extension_of(&self.resolved.symbols)
-            {
-                return Err(vec![Diagnostic::error(
-                    "generated-source continuation changed retained source custody or appended authored symbols",
-                )]);
-            }
-            if !domain_table_retains(
-                &self.resolved.semantic_domains,
-                &self.typed.semantic_domains,
-            ) || !self
-                .typed
-                .service_reach_rows
-                .starts_with(&self.resolved.service_reach_rows)
-            {
-                return Err(vec![Diagnostic::error(
-                    "generated-source continuation changed retained domain or service-row allocations",
-                )]);
-            }
-            if self.typed.symbols != self.resolved.symbols
-                || self.typed.semantic_domains != self.resolved.semantic_domains
-                || self.typed.service_reach_rows != self.resolved.service_reach_rows
-            {
-                let prepared = Arc::make_mut(&mut self.resolved);
-                prepared.symbols = self.typed.symbols.clone();
-                prepared.semantic_domains = self.typed.semantic_domains.clone();
-                prepared.service_reach_rows = self.typed.service_reach_rows.clone();
-            }
+            self.prepare_allocations()?;
             Ok(Arc::clone(&self.resolved))
         }
 
@@ -763,7 +725,7 @@ pub(crate) mod seeded_continuation {
     }
 
     pub fn lower_seeded_extension(
-        source: syntax_trees_to_symbol_resolved_trees::RebasedSeededSymbolResolvedTrees,
+        source: symbol_resolved_trees::continuations::RebasedSeededSymbolResolvedTrees,
         retained: SeededTypingBase,
     ) -> Result<SeededTypingBase, SeededContinuationError> {
         let (source, resolved_base) = source.into_typing_continuation_parts();
@@ -826,11 +788,14 @@ pub(crate) mod seeded_continuation {
     }
 
     fn lower_body_completion(
-        source: syntax_trees_to_symbol_resolved_trees::RebasedResolvedBodyCompletion,
+        source: symbol_resolved_trees::continuations::RebasedResolvedBodyCompletion,
         retained: SeededTypingBase,
-    ) -> Result<(SeededTypingBase, DeferredResolvedFrontier), Diagnostic> {
-        let (frontier, predecessor, selected) = source.into_typing_completion_parts();
-        let source = frontier.shared_trees();
+    ) -> Result<SeededTypingBase, Diagnostic> {
+        let symbol_resolved_trees::continuations::RebasedResolvedBodyCompletion {
+            successor: source,
+            predecessor,
+            selected,
+        } = source;
         if predecessor != retained.resolved {
             return Err(Diagnostic::error(
                 "authored-body completion does not match the exact retained resolved predecessor",
@@ -889,13 +854,10 @@ pub(crate) mod seeded_continuation {
         }
         close_typed_cohort(&mut lowerer, &cohort)?;
         let typed = lowerer.typed_trees;
-        Ok((
-            SeededTypingBase {
-                resolved: source,
-                typed: Arc::new(typed),
-            },
-            frontier,
-        ))
+        Ok(SeededTypingBase {
+            resolved: source,
+            typed: Arc::new(typed),
+        })
     }
 
     fn resolved_normalized_prefix_is_retained(

@@ -1,5 +1,6 @@
 use text::buffer;
-use omega::language::core::math;
+use omega::language::core::max_u32;
+use omega::language::core::max_u64;
 
 use enemies::enemies;
 use events::room_events;

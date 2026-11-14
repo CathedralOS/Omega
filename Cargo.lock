@@ -627,18 +627,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "executable-installation"
-version = "0.1.0"
-dependencies = [
- "extents",
- "layout-plans",
- "optimization-core",
- "post-handoff-writer-plan",
- "semantic-vocabulary",
- "target",
-]
-
-[[package]]
 name = "extents"
 version = "0.1.0"
 dependencies = [
@@ -755,7 +743,6 @@ dependencies = [
  "calling-conventions",
  "compiler",
  "diagnostics",
- "executable-installation",
  "extents",
  "function-identity",
  "iced-x86",
@@ -1630,19 +1617,11 @@ dependencies = [
  "calling-conventions",
  "diagnostics",
  "effects",
- "executable-installation",
- "function-identity",
- "isa-aarch64",
- "isa-x86_64",
- "language-semantics",
- "layout-plans",
  "optimization-core",
- "post-handoff-writer-plan",
  "semantic-vocabulary",
  "source-audit",
  "target",
  "terminal-psi",
- "terminal-semantics",
 ]
 
 [[package]]
@@ -2254,7 +2233,6 @@ dependencies = [
  "source",
  "symbol-resolved-trees",
  "symbols",
- "syntax-trees-to-symbol-resolved-trees",
  "typed-trees",
 ]
 
@@ -2987,8 +2965,10 @@ name = "xtask"
 version = "0.1.0"
 dependencies = [
  "bounded-process",
+ "libc",
  "serde",
  "serde_json",
+ "sha2",
  "shlex",
  "toml",
 ]

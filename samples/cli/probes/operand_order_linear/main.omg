@@ -10,7 +10,6 @@
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
 
-use omega::language::core::drop;
 
 data Token [linear] dropped by drop_token { value: u64; }
 machine drop_token(token: &mut Token) { token.value = 0; }

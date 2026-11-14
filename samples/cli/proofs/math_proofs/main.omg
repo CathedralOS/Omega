@@ -2,7 +2,7 @@
 // (every machine body is empty). The native exe exits an abnormal status (0x40001000-ish)
 // while the interpreter exits 0; run behavior of an empty proof program is unspecified
 // today. The sample is compile-checked only.
-use omega::language::core::nat;
+use omega::language::core::Nat;
 
 // Math proofs: a theorem ladder as Omega proof machines.
 //

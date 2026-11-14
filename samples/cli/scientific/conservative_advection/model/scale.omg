@@ -2,7 +2,6 @@ module model::scale;
 // Decimal scale separates finite operands before product/quotient evaluation.
 // This avoids rejecting CFL=1 when equal subnormal spacing/timestep would
 // overflow velocity/spacing, or underflowing a ratio before multiplication.
-use omega::language::core::float_operations;
 public data Scale { mantissa:f64; exponent:i32 in Wrapping; }
 public machine normalize(value:f64,result:&mut Scale) {
  result.mantissa=value; result.exponent=0;

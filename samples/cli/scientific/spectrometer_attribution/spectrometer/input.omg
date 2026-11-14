@@ -2,7 +2,7 @@ module spectrometer::input;
 use spectrometer::model::Spectrometer;
 use spectrometer::model::IntegerRead;
 use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega::language::core::F64::from_i32;
 
 // Decimal magnitude is guarded before every multiplication. The signed bound
 // is one million, so Wrapping never wraps on accepted input. Delimiters are

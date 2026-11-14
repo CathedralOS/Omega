@@ -1,5 +1,4 @@
 // Index 2 is outside the length-2 complex window.
-use omega::language::core::float_operations;
 
 data Complex [copy] { real: f64; imaginary: f64; }
 data Held<'row> { cells: &'row mut [Complex]; }

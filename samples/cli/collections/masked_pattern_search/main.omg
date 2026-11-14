@@ -1,6 +1,6 @@
 // Expected exit: 0.
 // Search overlapping masked byte patterns and retain the actual matching window.
-use omega::language::core::option;
+use omega::language::core::Optional;
 
 data PatternByte [copy] { expected: u8; mask: u8; }
 data Found<'input> { position: u64; bytes: &'input [u8]; }

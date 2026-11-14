@@ -1145,6 +1145,14 @@ pub fn judge_compilation(
         TerminalCompilation::Prepared(prepared) => prepared,
     };
     let forms = examine_generic_forms(prepared.forms);
+    // A selection borrows the same discharge that later decides its witness's
+    // verdict. Several selections may name one witness; none owns a second
+    // copy to prove independently.
+    let examined_witnesses: Vec<_> = prepared
+        .witnesses
+        .into_iter()
+        .map(|witness| examine(witness, &[]))
+        .collect();
     let closure_verdict = match prepared.closure {
         Ok(closure) => {
             let witnesses = witnesses(
@@ -1152,7 +1160,7 @@ pub fn judge_compilation(
                 &forms,
                 &prepared.specializations,
                 &prepared.selection_witnesses,
-                &prepared.witnesses,
+                &examined_witnesses,
             );
             let carried = carried(&closure, &forms, &witnesses, &prepared.specializations);
             match examine(Ok(closure), &carried) {
@@ -1172,12 +1180,13 @@ pub fn judge_compilation(
         }
         .map_err(CompilationRefusal::Elaboration)
     }));
-    verdicts.extend(
-        prepared
-            .witnesses
-            .into_iter()
-            .map(|witness| judge(witness).map_err(CompilationRefusal::Elaboration)),
-    );
+    verdicts.extend(examined_witnesses.into_iter().map(|witness| {
+        match witness {
+            Ok(examined) => conclude(examined, AppliedContracts::Undecided),
+            Err(decided) => decided,
+        }
+        .map_err(CompilationRefusal::Elaboration)
+    }));
     verdicts
 }
 
@@ -1198,24 +1207,23 @@ enum GenericForm {
 /// witness and the witness's discharge: the proof that the selected
 /// implementation refines the requirement (`typed_trees_to_terminal_psi::
 /// elaborate_witness`).
-struct Witnessed {
+struct Witnessed<'a> {
     selection: usize,
-    witness: Elaboration,
-    refinement: Discharge,
+    examined: &'a Examined,
 }
 
 /// The conformance witness of each selection a machine of `closure` makes
 /// when that machine was generated from a generic machine with a discharged
 /// form. A selection whose witness the route does not lower has none, and
 /// the obligations that would cite it are decided as in any closed machine.
-fn witnesses(
+fn witnesses<'a>(
     closure: &Elaboration,
     forms: &[GenericForm],
     specializations: &semantic_vocabulary::IdTable<MachineId, Option<symbols::SymbolHandle>>,
     selections: &[(usize, usize)],
-    prepared: &[Checked<Elaboration>],
-) -> Vec<Witnessed> {
-    let mut witnessed = Vec::new();
+    examined: &'a [Result<Examined, Checked<RouteVerdict>>],
+) -> Vec<Witnessed<'a>> {
+    let mut witnessed = Vec::with_capacity(selections.len());
     for &(selection, witness) in selections {
         let Some(selected) = closure.selections.get(selection) else {
             continue;
@@ -1228,17 +1236,12 @@ fn witnesses(
         {
             continue;
         }
-        let Some(Ok(witness)) = prepared.get(witness) else {
-            continue;
-        };
-        let mut witness = witness.clone();
-        let Ok(refinement) = crate::discharge(&mut witness) else {
+        let Some(Ok(examined)) = examined.get(witness) else {
             continue;
         };
         witnessed.push(Witnessed {
             selection,
-            witness,
-            refinement,
+            examined,
         });
     }
     witnessed
@@ -1257,7 +1260,7 @@ fn has_form(forms: &[GenericForm], template: symbols::SymbolHandle) -> bool {
 fn carried<'a>(
     closure: &Elaboration,
     forms: &'a [GenericForm],
-    witnesses: &'a [Witnessed],
+    witnesses: &'a [Witnessed<'a>],
     specializations: &semantic_vocabulary::IdTable<MachineId, Option<symbols::SymbolHandle>>,
 ) -> Vec<crate::Carried<'a>> {
     let mut carried = Vec::new();
@@ -1294,8 +1297,8 @@ fn carried<'a>(
                 if let Some((requirement, _)) = requirement {
                     selections.push(crate::Selection {
                         requirement,
-                        witness: &witnessed.witness,
-                        refinement: &witnessed.refinement,
+                        witness: &witnessed.examined.elaboration,
+                        refinement: &witnessed.examined.discharged,
                     });
                 }
             }
