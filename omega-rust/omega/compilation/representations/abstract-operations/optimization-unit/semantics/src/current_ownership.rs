@@ -10011,8 +10011,7 @@ mod value_custody {
         use std::collections::BTreeMap;
         use terminal_psi::{
             ArrayExtent, StructuralParameterDeclaration, StructuralPlaceDeclaration,
-            StructuralRecordStorage, StructuralTypeShape,
-            TerminalIdentityIndex,
+            StructuralRecordStorage, StructuralTypeShape, TerminalIdentityIndex,
         };
 
         fn id<T: PsiSemanticId>(raw: u64) -> T {
