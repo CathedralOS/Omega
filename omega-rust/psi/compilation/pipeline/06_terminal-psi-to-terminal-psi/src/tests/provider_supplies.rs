@@ -128,7 +128,7 @@ fn supplied(text: &str, slot: &str) -> Result<Vec<String>, String> {
 const CONTRACT: &str = "requires value <= 10 ensures result <= 11 reaches none crashes none";
 
 /// A provider's body can keep its own ceilings while exceeding the contract
-/// it supplies. The production conformance witness must reject either axis.
+/// it supplies. Its requirement-facing runtime body must reject either axis.
 #[test]
 fn conformance_witness_checks_reach_and_invocation_ceilings() {
     let program = |required: &str| {
@@ -162,7 +162,7 @@ machine entry() {{ let reply: u32 = Service::go(3); }}
         ("reaches Output crashes none", "synchronous invocation"),
     ] {
         let rejection = supplied(&program(required), "Service::go").unwrap_err();
-        assert!(rejection.starts_with("part 1 rejected"), "{rejection}");
+        assert!(rejection.starts_with("part 0 rejected"), "{rejection}");
         assert!(rejection.contains(axis), "{rejection}");
     }
 }
