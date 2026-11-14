@@ -3,6 +3,47 @@ Call result typing, captured product operands, construction destinations, build
 and product selections, installed interrupts, and qualification casts.
 */
 
+/// A rewrite that already selected an exact declaration must retain that
+/// answer on the original call occurrence. An unresolved different question
+/// or a contradictory earlier answer remains an error.
+pub(crate) fn bind_generated_call_selection(
+    program: &mut typed_trees::TypedTrees,
+    occurrence: language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
+    target: symbols::SymbolHandle,
+) -> Result<(), diagnostics::Diagnostic> {
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionLateBinding as Late,
+        AuthoredDeclarationSelectionTarget as Target,
+    };
+    let selections = program.authored_declaration_selections();
+    let selection = selections.get(occurrence).ok_or_else(|| {
+        diagnostics::Diagnostic::error("rewritten call lost its original selection record")
+    })?;
+    let source_span = selection.source_span();
+    let refused =
+        |reason: &str| diagnostics::Diagnostic::error(reason).with_source_span(source_span);
+    if selection.kind()
+        != language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call
+    {
+        return Err(refused(
+            "rewritten call does not own a call selection record",
+        ));
+    }
+    match selection.target() {
+        Target::LateBound(Late::CheckedCall) => program
+            .finalize_authored_declaration_selection(occurrence, Late::CheckedCall, target)
+            .map_err(|error| {
+                refused(&format!(
+                    "rewritten call cannot retain its selected declaration: {error:?}"
+                ))
+            }),
+        Target::Resolved(selected) if selected.selected_symbol() == target => Ok(()),
+        _ => Err(refused(
+            "rewritten call contradicts its original selection record",
+        )),
+    }
+}
+
 pub(crate) mod build_selections {
     use diagnostics::Diagnostic;
     use language_semantics::declaration_selection::{
