@@ -7,7 +7,9 @@ use super::{SymbolKind, SymbolNameRef};
 use numerics::integer_carrier::FixedInteger;
 use std::borrow::Cow;
 
-pub const BUILTIN_TYPE_COUNT: usize = 21;
+// Core uninhabited data has an ordinary source declaration and predicate.
+// It has no competing source-free type identity in this roster.
+pub const BUILTIN_TYPE_COUNT: usize = 20;
 
 /*
     Closed semantic identity for every compiler-installed source-free type.
@@ -34,7 +36,6 @@ pub enum BuiltinTypeAtom {
     Slice,
     SyscallResult,
     Terminal,
-    Never,
     UInt,
     Int,
     /*
@@ -63,7 +64,6 @@ impl BuiltinTypeAtom {
         Self::Slice,
         Self::SyscallResult,
         Self::Terminal,
-        Self::Never,
         Self::UInt,
         Self::Int,
         Self::AtomicBool,
@@ -123,7 +123,6 @@ impl BuiltinTypeAtom {
             Self::Slice => 5,
             Self::SyscallResult => 6,
             Self::Terminal => 7,
-            Self::Never => 8,
             Self::UInt => 9,
             Self::Int => 10,
             Self::AtomicBool => 11,
@@ -192,7 +191,6 @@ impl BuiltinTypeAtom {
         (Self::Slice, "slice", "Slice"),
         (Self::SyscallResult, "syscall-result", "SyscallResult"),
         (Self::Terminal, "terminal", "Terminal"),
-        (Self::Never, "never", "Never"),
         (Self::UInt, "uint", "UInt"),
         (Self::Int, "int", "Int"),
         (Self::AtomicBool, "atomic-bool", "AtomicBool"),
@@ -1270,12 +1268,10 @@ mod builtin_ordinal_tests {
     /* The integer family is open-ended; a value-like spelling is not a type name. */
     #[test]
     fn builtin_type_spellings_cover_the_roster_and_the_integer_family() {
-        for name in [
-            "bool", "addr", "f32", "u32", "i", "u", "u0", "i7", "u257", "Never",
-        ] {
+        for name in ["bool", "addr", "f32", "u32", "i", "u", "u0", "i7", "u257"] {
             assert!(super::is_builtin_type_spelling(name), "{name}");
         }
-        for name in ["count", "ui", "u8x", "i_1", "uint", "U32", ""] {
+        for name in ["count", "ui", "u8x", "i_1", "uint", "U32", "Never", ""] {
             assert!(!super::is_builtin_type_spelling(name), "{name}");
         }
     }

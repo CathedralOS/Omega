@@ -6152,7 +6152,8 @@ pub(crate) mod type_reference_queries {
             &self,
             type_reference: types::TypeReferenceHandle,
         ) -> Option<types::PrimitiveType> {
-            self.type_reference_table.primitive_type(type_reference)
+            self.type_reference_table
+                .primitive_type(type_reference, &self.symbols)
         }
 
         pub fn static_const_argument_identity(
@@ -6417,7 +6418,7 @@ pub(crate) mod type_reference_queries {
 
         pub fn is_borrowed_byte_slice(&self, type_reference: types::TypeReferenceHandle) -> bool {
             self.type_reference_table
-                .is_borrowed_byte_slice(type_reference)
+                .is_borrowed_byte_slice(type_reference, &self.symbols)
         }
 
         pub fn arithmetic_domain_for_type_reference(
@@ -6461,7 +6462,7 @@ pub(crate) mod type_reference_queries {
                     if let Some(parameter) = parameter {
                         return parameter.bounds.multiplicity;
                     }
-                    if types::PrimitiveType::from_name(name.as_str()).is_some() {
+                    if self.symbols.primitive_type(*symbol).is_some() {
                         return Multiplicity::Unrestricted;
                     }
                     let data_definitions = self.data_definitions();

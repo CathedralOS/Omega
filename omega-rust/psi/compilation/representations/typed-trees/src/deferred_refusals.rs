@@ -102,6 +102,13 @@ pub enum DeferredRequest {
     /// checked as usual" even where a statement never executes
     /// (`state_contracts.md`), so a name none of them answers is an error.
     UndeclaredValueName,
+    /// A call written `Sum::Case(..)`, whose name is a case of the sum it is
+    /// qualified by. A violation: "A sum value is written as a case
+    /// literal", and "Cases, nested data and attached domains share their
+    /// owner's member namespace; data does not own machine declarations.
+    /// Collisions reject rather than selecting by priority"
+    /// (`data_and_literals.md`), so no machine can have that name.
+    CaseCalledAsMachine,
 }
 
 impl DeferredRequest {
@@ -109,7 +116,10 @@ impl DeferredRequest {
     /// reader that demands its declaration rejects the program rather than
     /// calling it unsupported.
     pub fn is_violation(self) -> bool {
-        matches!(self, Self::UndeclaredCallName | Self::UndeclaredValueName)
+        matches!(
+            self,
+            Self::UndeclaredCallName | Self::UndeclaredValueName | Self::CaseCalledAsMachine
+        )
     }
 
     /// The construct as a refusal names it, after the word "declaration";
@@ -164,6 +174,10 @@ impl DeferredRequest {
             Self::UndeclaredValueName => {
                 "this expression names a value nothing the program declares: an unknown name is \
                  an error wherever it appears"
+            }
+            Self::CaseCalledAsMachine => {
+                "this call names a case of a sum, and a case is not a machine: a sum value is \
+                 written as a case literal, `Sum::Case { .. }`"
             }
         }
     }

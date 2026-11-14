@@ -5,6 +5,7 @@ use diagnostics::Diagnostic;
 use std::collections::BTreeSet;
 
 pub struct PreparedNativeExecution {
+    authorization: terminal_installation::AuthorizedTerminalArtifact,
     evidence: Option<std::sync::Arc<terminal_codec::EvidenceSeals>>,
     scope: crate::NativeExecutionScope,
     selection: effects::SelectedProviderPlanFacts,
@@ -231,9 +232,10 @@ impl TerminalNativeRealizationProposal {
     }
     pub fn prepare_native_provider_demand(
         &self,
-        artifact: &terminal_codec::CanonicalTerminalArtifact,
+        authorization: &terminal_installation::AuthorizedTerminalArtifact,
         mut scope: crate::NativeExecutionScope,
     ) -> Result<PreparedNativeExecution, Vec<Diagnostic>> {
+        let artifact = authorization.artifact();
         let module = artifact.semantic_module();
         scope.require_proposal_context(artifact.view(), self)?;
         let local_adapters = scope.local_adapters().to_vec();
@@ -406,6 +408,7 @@ impl TerminalNativeRealizationProposal {
         }
         scope.bind_completed_provider_selection(&selection);
         Ok(PreparedNativeExecution {
+            authorization: authorization.clone(),
             evidence: None,
             scope,
             selection,
@@ -419,11 +422,18 @@ impl TerminalNativeRealizationProposal {
 }
 
 impl PreparedNativeExecution {
+    pub const fn authorization(&self) -> &terminal_installation::AuthorizedTerminalArtifact {
+        &self.authorization
+    }
+
     pub fn with_operation_evidence(
         mut self,
         artifact: &terminal_codec::CanonicalTerminalArtifact,
         evidence: Option<std::sync::Arc<terminal_codec::EvidenceSeals>>,
     ) -> Result<Self, Vec<Diagnostic>> {
+        self.authorization
+            .require_artifact(artifact)
+            .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
         if let Some(evidence) = &evidence {
             crate::native_proposal::validate_operation_evidence(artifact, evidence)?;
         }

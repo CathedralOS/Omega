@@ -96,6 +96,9 @@ fn toolchain_site<'a>(
     })
 }
 
+mod primitive;
+pub use primitive::PrimitiveType;
+
 pub use builtin::{
     BUILTIN_TYPE_COUNT, BuiltinFunction, BuiltinType, BuiltinTypeAtom, BuiltinTypeMember,
     FixedCoreDeclaration, builtin_function_symbols, builtin_type_member_symbols,

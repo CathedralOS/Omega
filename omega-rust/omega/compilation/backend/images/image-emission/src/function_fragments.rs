@@ -11332,12 +11332,23 @@ mod source {
                                 .ok_or("nested descriptor has no complete current payload alternatives")?;
                             for target in targets {
                                 let origins = match target {
-                                    DescriptorPayloadTarget::Storage(location) => self
-                                        .analysis
-                                        .symbolic_source_origins(machine, position, &location)
-                                        .ok_or(
-                                            "nested descriptor has no captured backing origins",
-                                        )?,
+                                    DescriptorPayloadTarget::Storage {
+                                        location,
+                                        completed,
+                                    } => {
+                                        let (owner, observed) =
+                                            completed.unwrap_or((machine, position));
+                                        if owner != machine {
+                                            return Err(
+                                                "captured descriptor belongs to another machine context",
+                                            );
+                                        }
+                                        self.analysis
+                                            .symbolic_source_origins(owner, observed, &location)
+                                            .ok_or(
+                                                "nested descriptor has no captured backing origins",
+                                            )?
+                                    }
                                     DescriptorPayloadTarget::Incoming(query) => {
                                         vec![DescriptorSourceOrigin::IncomingContents {
                                             query,

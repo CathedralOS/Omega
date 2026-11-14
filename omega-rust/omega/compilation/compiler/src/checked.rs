@@ -18,7 +18,6 @@ reopening source checking.
 
 pub(crate) mod checking;
 mod compilation_session;
-mod component_cache;
 mod package_compilation;
 mod package_review;
 mod product_batch;

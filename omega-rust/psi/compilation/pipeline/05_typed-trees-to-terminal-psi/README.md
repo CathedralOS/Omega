@@ -784,9 +784,8 @@ that still resolves to a constant is refused as `expression const`.
 ## How identity is fixed
 
 - **Types** are scalar only through `SymbolTable::builtin_type_atom` on the
-  resolved symbol of a `Named` type: the compiler-installed root slot. The
-  typed trees' `PrimitiveType::from_name` classifies by spelling and is not
-  used. A `Named` type with an invalid symbol is refused as a spelling; a
+  resolved symbol of a `Named` type, using the shared builtin classification
+  in `symbols`. A `Named` type with an invalid symbol is refused as a spelling; a
   declaration spelled `u32` is a different symbol and is refused as nominal.
   Integer literals take their type from the landing stage 04 recorded.
 - **Record types** are the `StructuralTypeId` minted for a `SymbolKind::Data`

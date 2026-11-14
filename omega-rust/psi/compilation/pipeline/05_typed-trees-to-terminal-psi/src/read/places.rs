@@ -294,6 +294,9 @@ impl Program<'_> {
                     // a const is not itself a runtime value type to read here.
                 }
             }
+            // The supplied types are admitted above; the members are read as
+            // fields of this declaration, which state their lifetimes.
+            self.elision = super::regions::Elision::Members;
             self.declared_members(id, members)
         })();
         self.lifetime_owner = enclosing;
@@ -506,27 +509,9 @@ impl Program<'_> {
                 Unserved::Spelling("field without a symbol"),
             ));
         }
-        // A field that names lifetime-parameterised data bare leaves out
-        // which of its owner's lifetimes the nested views live for.
-        // lifetimes.md gives elision to a signature ("For an elided output,
-        // one unambiguous reference input supplies the relation") and says
-        // of a named data application that it must "match the declaration's
-        // lifetime arity", so a field states its arguments.
-        if field.type_reference.is_valid()
-            && let TypeReferenceNode::Named { symbol, .. } = self
-                .typed
-                .type_reference_table
-                .type_reference(field.type_reference)
-            && self
-                .data_declaration(*symbol)
-                .is_some_and(|data| !data.lifetime_parameters.is_empty())
-        {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Typing("data field that elides a lifetime argument"),
-            ));
-        }
+        // A field that names lifetime-parameterised data without its
+        // lifetime arguments, directly or behind a reference, is refused
+        // where its regions are asked for (`regions::Elision::Members`).
         let value_type = self.qualified_view_type(id, field.type_reference)?;
         // Stored byte and typed views keep the region of their actual source
         // type (lifetimes.md: "storage that remains valid for its use"). The

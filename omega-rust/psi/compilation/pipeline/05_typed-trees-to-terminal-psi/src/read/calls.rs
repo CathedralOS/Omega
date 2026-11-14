@@ -754,7 +754,7 @@ impl<'t> Program<'t> {
             self.call(id, slots, call.target_symbol, arguments, source, expected)?
         };
         if call.build_selection.is_valid() {
-            self.designate(id, call.build_selection, &mut read)?;
+            self.designate(id, slots, call.build_selection, &mut read)?;
         }
         Ok(read)
     }
@@ -950,6 +950,7 @@ impl<'t> Program<'t> {
     fn designate(
         &mut self,
         id: MachineId,
+        slots: &[Slot],
         selection: arena::Handle<typed_trees::expression::BuildSelectionRequest>,
         read: &mut Expression,
     ) -> Checked<()> {
@@ -982,6 +983,32 @@ impl<'t> Program<'t> {
             });
         if !protocol {
             return unserved("Build selection outside the toolchain's selection protocol");
+        }
+        // entry_roots.md, "Source selection is not invocation": "The
+        // root-binding form is `Build::bind(builder, Target::Slot,
+        // Product::entry)`. The first argument explicitly supplies the
+        // current activation's mutable Build value; ordinary helpers may
+        // forward that value." The protocol's own operation takes the Build
+        // shared and the host authenticates only which Build it is, so the
+        // access the author must supply is judged here, where the argument
+        // is a place: a Build reached shared supplies no mutable value, in
+        // every program.
+        if matches!(request, BuildSelectionRequest::Entry(_))
+            && let ExpressionKind::Call { arguments, .. } = &read.kind
+            && let Some(Expression {
+                kind: ExpressionKind::Borrow { place, .. },
+                ..
+            }) = arguments.first()
+            && !self.lends_exclusively(id, slots, place)?
+        {
+            return Err(crate::reject(
+                id,
+                place.source,
+                "root binding requires the current activation's mutable Build value, and this \
+                 argument supplies only shared access to it: the first argument of the \
+                 root-binding form is the `&mut Build` the activation was lent, forwarded with \
+                 that access",
+            ));
         }
         // Provider readiness names a boundary trait application. Its host
         // row states that application and the boundaries it covers, so the
@@ -2059,6 +2086,40 @@ impl<'t> Program<'t> {
             },
             result,
             source,
+        })
+    }
+
+    /// Whether `place` could be lent exclusively from here: every reference
+    /// its path crosses grants mutable access, and the storage it starts
+    /// from is this machine's to change (a `&mut` formal, or a local that
+    /// is `mut` or only holds the reference the path crosses).
+    fn lends_exclusively(
+        &self,
+        id: MachineId,
+        slots: &[Slot],
+        place: &Expression,
+    ) -> Checked<bool> {
+        let crossed = match self.reference_place_access(id, slots, place, ReferenceAccess::Mutable)
+        {
+            Ok(crossed) => crossed,
+            Err(refusal)
+                if matches!(
+                    refusal.reason,
+                    terminal_check_tables::RefusalReason::Violation(_)
+                ) =>
+            {
+                return Ok(false);
+            }
+            Err(refusal) => return Err(refusal),
+        };
+        let Some(holder) = root_slot(id, place, &self.captures)?.and_then(|slot| slots.get(slot))
+        else {
+            return Ok(false);
+        };
+        Ok(match holder.borrowed {
+            Some(ReferenceAccess::Mutable) => true,
+            Some(ReferenceAccess::Shared | ReferenceAccess::WriteOnly) => false,
+            None => crossed || holder.assignable,
         })
     }
 

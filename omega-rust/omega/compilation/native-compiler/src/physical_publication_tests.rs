@@ -20,6 +20,15 @@ use terminal_psi::{
 
 mod callback;
 
+fn authorize_fixture(
+    artifact: &CanonicalTerminalArtifact,
+) -> terminal_installation::AuthorizedTerminalArtifact {
+    let producer =
+        terminal_installation::HostProducerTrust::accept("controlled publication fixture");
+    terminal_installation::authorize_terminal_artifact(Arc::new(artifact.clone()), Some(&producer))
+        .unwrap()
+}
+
 fn emit_body<'execution>(
     mut admitted: terminal_psi_to_abstract_operations::AdmittedNativeRealization<'execution>,
 ) -> (
@@ -222,9 +231,11 @@ fn check_publication(through_boundary: bool) {
         boundary_application_coverage: Some(&coverage),
         behavior_exclusions: &exclusions,
     };
-    let admitted =
-        terminal_psi_to_abstract_operations::admit_native_realization(&artifact, &admission)
-            .expect("canonical constant admits without provider authority");
+    let admitted = terminal_psi_to_abstract_operations::admit_native_realization(
+        &authorize_fixture(&artifact),
+        &admission,
+    )
+    .expect("canonical constant admits without provider authority");
     let (projection, providers) = emit_body(admitted);
     let unrelated = constant_artifact(!through_boundary);
     assert!(

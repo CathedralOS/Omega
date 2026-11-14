@@ -8,11 +8,12 @@ identifies which functions need target support here; raw artifact requests witho
 that record keep full-module checking. Unused library helpers do not demand
 unavailable target operations through the selected route.
 
-The execution contract requires host-authorized producer trust, not just
-canonical decoding. Public ingress still needs that enforcement under
-`PSI-CLAIM-ADMISSION`. No native cache needs authorizing:
-[compiler storage](../../../../../wiki/spec/build/compiler_storage.md) retires
-it (`NO-IMPLICIT-COMPILER-STORAGE`).
+Public ingress requires host-authorized producer trust bound to the complete
+canonical artifact. Decoding bytes establishes their identity, not permission
+to execute them. That authorization stays with the native input through
+lowering and optimization; recovering an intentionally saved product requires
+a fresh receiving-host decision. There is no native component disk cache;
+[compiler storage](../../../../../wiki/spec/build/compiler_storage.md) retires it.
 
 The build's starting function, implementations and callbacks are joined before
 lowering. The [shared input owner](../../representations/abstract-operations/verified-input/src/lib.rs)
@@ -119,9 +120,10 @@ canonical artifact. Unsupported vocabulary rejects at admission or lowering;
 provider installation is not permission to drop an unsupported result.
 
 Native admission returns `AdmittedNativeArtifact`: one abstract program and
-its checked optimizer context. It decodes and reconstructs proofs once, lowers
-through ordinary native authority, then checks optimizer eligibility while moving
-the already-verified state. These admission gates remain distinct; optimizer-only
+its checked optimizer context. It borrows the authorized immutable artifact,
+lowers through ordinary native authority, then checks optimizer eligibility while
+moving the retained state. Explicit obligation replay remains a separate
+validation request. These admission gates remain distinct; optimizer-only
 input cannot be promoted into native authority or paired with an unrelated plan.
 Optimizer and native custody borrow the roster from their retained canonical
 module, without a second mutable roster. A native consumer lacking placement

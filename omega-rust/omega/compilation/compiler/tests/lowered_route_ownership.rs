@@ -3,6 +3,8 @@
 //! the negative borrows the same local after an earlier operand consumed it.
 //! Each program is typed without running its Build
 //! (`support/unbuilt_frontier.rs`).
+#[path = "support/artifact_trust.rs"]
+mod artifact_trust;
 #[path = "support/unbuilt_frontier.rs"]
 mod unbuilt_frontier;
 
@@ -76,9 +78,9 @@ fn owned_call_results_and_locals_publish_and_execute_the_routes_module() {
         publication.artifact.semantic_module(),
         &closure.elaboration.module
     );
-    let input = terminal_psi_to_abstract_operations::lower_module_with_evidence(
-        publication.artifact.semantic_module(),
-        publication.seals.clone(),
+    let input = terminal_psi_to_abstract_operations::lower_artifact(
+        &artifact_trust::authorize(&publication.artifact),
+        Some(publication.seals.clone()),
     )
     .expect("Omega 00 carries the checked affine operations and their seals")
     .into_optimization_artifact()
@@ -165,9 +167,9 @@ fn execute_refilled_owner(closure: &terminal_psi_to_terminal_psi::AcceptedClosur
             )),
         "the interpreted module retains its exact-value execution oracle"
     );
-    let input = terminal_psi_to_abstract_operations::lower_module_with_evidence(
-        publication.artifact.semantic_module(),
-        publication.seals.clone(),
+    let input = terminal_psi_to_abstract_operations::lower_artifact(
+        &artifact_trust::authorize(&publication.artifact),
+        Some(publication.seals.clone()),
     )
     .expect("Omega 00 carries the exact restoration")
     .into_optimization_artifact()
@@ -737,6 +739,7 @@ fn whole_owned_transfers_consume_their_homes_once() {
 /// discards the same storage on its edge, so both enter the join with one
 /// frontier.
 mod transferred_on_one_path {
+    use crate::artifact_trust;
     use semantic_vocabulary::{
         IdTable, IntegerSign, IntegerType, IntegerValue, PsiSemanticId, ScalarType,
     };
@@ -990,9 +993,9 @@ mod transferred_on_one_path {
             other => panic!("the program must be accepted: {other:?}"),
         };
         let publication = closure.publish().expect("publication");
-        let input = terminal_psi_to_abstract_operations::lower_module_with_evidence(
-            publication.artifact.semantic_module(),
-            publication.seals.clone(),
+        let input = terminal_psi_to_abstract_operations::lower_artifact(
+            &artifact_trust::authorize(&publication.artifact),
+            Some(publication.seals.clone()),
         )
         .expect("Omega 00 carries the join's disposal")
         .into_optimization_artifact()

@@ -354,6 +354,7 @@ pub struct TerminalBuildStep<'step> {
     pub requests: &'step [IssuedBuildRequest],
     pub returned: bool,
     pub awaiting_provider: Option<crate::host::bindings::BuildProviderRequest>,
+    pub awaiting_preparation: Option<crate::host::requests::BuildDependencyPreparation>,
     pub awaiting_query: Option<Arc<crate::host::bindings::BuildProductQuery>>,
 }
 
@@ -474,6 +475,37 @@ impl TerminalBuildActivation {
         Ok(())
     }
 
+    /// Answers the pause of `Build::prepare_dependency`: the coordinator
+    /// acquired the awaited registration, ran its Build and prepared it as
+    /// `selected`. The parked call completes on the next `advance`.
+    pub fn dependency_prepared(
+        &mut self,
+        selected: BuildDependencySelection,
+    ) -> Result<(), String> {
+        if !matches!(self.state, ActivationState::Running) {
+            return Err("Build dependency preparation requires a live readiness pause".into());
+        }
+        self.state = ActivationState::Refused;
+        let awaited = self
+            .host
+            .requests
+            .awaiting_preparation()?
+            .ok_or("Build has no dependency preparation pause")?;
+        if selected.purpose != awaited.purpose
+            || selected.request_ordinal != awaited.request_ordinal
+        {
+            return Err(
+                "prepared dependency differs from the registration the Build waits for".into(),
+            );
+        }
+        self.host.requests.dependency_prepared()?;
+        if !self.demanded_sources.contains(&selected) {
+            self.demanded_sources.push(selected);
+        }
+        self.state = ActivationState::Running;
+        Ok(())
+    }
+
     pub fn advance(&mut self, additional_work: u64) -> Result<TerminalBuildStep<'_>, String> {
         match self.state {
             ActivationState::Returned => return Err("Build activation has already returned".into()),
@@ -492,8 +524,12 @@ impl TerminalBuildActivation {
             TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => true,
             TerminalExecutionStatus::SponsorExhausted(_) => false,
             TerminalExecutionStatus::AwaitingEffect(_) => {
-                if self.host.bindings.awaiting_provider()?.is_none() {
-                    return Err("Build paused without an admitted provider demand".into());
+                if self.host.bindings.awaiting_provider()?.is_none()
+                    && self.host.requests.awaiting_preparation()?.is_none()
+                {
+                    return Err(
+                        "Build paused without an admitted provider or dependency demand".into(),
+                    );
                 }
                 false
             }
@@ -514,6 +550,7 @@ impl TerminalBuildActivation {
             requests: &self.requests[first_request..],
             returned,
             awaiting_provider: self.host.bindings.awaiting_provider()?,
+            awaiting_preparation: self.host.requests.awaiting_preparation()?,
             awaiting_query: self.host.bindings.awaiting_query()?,
         })
     }

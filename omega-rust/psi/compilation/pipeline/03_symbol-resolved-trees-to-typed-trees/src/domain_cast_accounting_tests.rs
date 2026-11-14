@@ -61,8 +61,8 @@ machine ready() -> bool in Ready { true as +Ready }
             typed.normalized_type_identity(domain.target_type)
         );
         assert_eq!(
-            typed.type_reference_table.primitive_type(operand),
-            typed.type_reference_table.primitive_type(cast.result_type)
+            typed.primitive_type_reference(operand),
+            typed.primitive_type_reference(cast.result_type)
         );
         casts += 1;
     }
