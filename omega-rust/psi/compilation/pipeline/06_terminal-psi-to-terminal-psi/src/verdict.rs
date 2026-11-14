@@ -171,7 +171,7 @@ impl AcceptedClosure {
                     .arms
                     .iter()
                     .find(|(at, _)| *at == span)
-                    .map(|(_, label)| format!("the `{label}` arm")),
+                    .map(|(_, label)| label.clone()),
                 _ => None,
             }
             .unwrap_or_else(|| String::from("an arm"));
@@ -191,7 +191,7 @@ impl AcceptedClosure {
             };
             advisories.push(located(
                 Diagnostic::warning(format!(
-                    "unreachable branch: {arm} of a transition in {owner} can never run; {reason}"
+                    "unreachable branch: {arm} in {owner} can never run; {reason}"
                 )),
                 branch.condition,
             ));

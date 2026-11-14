@@ -502,6 +502,7 @@ impl<'t> Program<'t> {
                 return Err(unserved("match arm for a case an earlier arm selects"));
             }
             let value = self.arm_value(id, slots, arm.value, &mut result)?;
+            self.label_arm(id, &value, &arm.pattern);
             match case {
                 Some(case) => arms.push((case, value)),
                 None => default = Some(Box::new(value)),
@@ -545,6 +546,34 @@ impl<'t> Program<'t> {
         }
         *result = Some(value_type);
         Ok(value)
+    }
+
+    /// How a warning about one value `match` arm names it: its pattern as
+    /// authored, or `_`, keyed by the span of the arm's value, which is how
+    /// lowering knows the arm when it records the arm as an authored branch
+    /// (`MachineNames::arms`). An arm whose value has no authored span is
+    /// named "an arm".
+    fn label_arm(
+        &mut self,
+        id: MachineId,
+        value: &Expression,
+        pattern: &typed_trees::expression::MatchPattern,
+    ) {
+        use typed_trees::expression::MatchPattern;
+        let SourceOrigin::Authored(span) = value.source else {
+            return;
+        };
+        let table = &self.typed.expression_table;
+        let label = match pattern {
+            MatchPattern::Wildcard => String::from("_"),
+            MatchPattern::Value(head) => table.display_name(*head),
+            MatchPattern::Destructure(pattern) => table.display_name(pattern.head),
+        };
+        if let Some(names) = self.names.get_mut(id) {
+            names
+                .arms
+                .push((span, format!("the `{label}` arm of a match")));
+        }
     }
 
     /// Value-position `match` over a scalar: `match code { 0 -> a, 1 -> b,
@@ -639,6 +668,7 @@ impl<'t> Program<'t> {
                 }
             };
             let value = self.arm_value(id, slots, arm.value, &mut result)?;
+            self.label_arm(id, &value, &arm.pattern);
             match pattern {
                 Some(pattern) => arms.push((Selector::Value(pattern), value)),
                 None => default = Some(Box::new(value)),
