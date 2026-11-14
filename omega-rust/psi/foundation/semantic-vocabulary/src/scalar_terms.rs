@@ -941,15 +941,18 @@ pub enum ScalarTerm {
         scalar_type: ScalarType,
     },
     BooleanField {
+        version: crate::ContentPlaceVersion,
         root: PlaceId,
         path: Vec<CanonicalStructuralPathSegment>,
     },
     IntegerField {
+        version: crate::ContentPlaceVersion,
         root: PlaceId,
         path: Vec<CanonicalStructuralPathSegment>,
         scalar_type: IntegerType,
     },
     IeeeFloatField {
+        version: crate::ContentPlaceVersion,
         root: PlaceId,
         path: Vec<CanonicalStructuralPathSegment>,
         format: IeeeFloatFormat,
@@ -1318,12 +1321,28 @@ impl ScalarTerm {
         Self::Value { id, scalar_type }
     }
 
+    /// A contract may read a field at entry or at its current observation
+    /// point. Keep that distinction when checking, substituting or encoding
+    /// the same field operation.
+    pub fn field_version(&self) -> Option<crate::ContentPlaceVersion> {
+        match self {
+            Self::BooleanField { version, .. }
+            | Self::IntegerField { version, .. }
+            | Self::IeeeFloatField { version, .. } => Some(*version),
+            _ => None,
+        }
+    }
+
     pub fn boolean_field(root: PlaceId, field: StructuralFieldId) -> Self {
         Self::boolean_field_path(root, vec![CanonicalStructuralPathSegment::Field(field)])
     }
 
     pub fn boolean_field_path(root: PlaceId, path: Vec<CanonicalStructuralPathSegment>) -> Self {
-        Self::BooleanField { root, path }
+        Self::BooleanField {
+            version: crate::ContentPlaceVersion::Current,
+            root,
+            path,
+        }
     }
 
     pub fn integer_field_path(
@@ -1332,6 +1351,7 @@ impl ScalarTerm {
         scalar_type: IntegerType,
     ) -> Self {
         Self::IntegerField {
+            version: crate::ContentPlaceVersion::Current,
             root,
             path,
             scalar_type,
@@ -1343,7 +1363,12 @@ impl ScalarTerm {
         path: Vec<CanonicalStructuralPathSegment>,
         format: IeeeFloatFormat,
     ) -> Self {
-        Self::IeeeFloatField { root, path, format }
+        Self::IeeeFloatField {
+            version: crate::ContentPlaceVersion::Current,
+            root,
+            path,
+            format,
+        }
     }
 
     pub fn view_extent(

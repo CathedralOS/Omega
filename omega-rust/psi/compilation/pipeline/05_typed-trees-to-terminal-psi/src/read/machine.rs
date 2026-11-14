@@ -1901,7 +1901,8 @@ impl<'t> Program<'t> {
             logical: None,
             mathematical: MathematicalTerms::Served,
         };
-        // Only an entry `requires` may project a record formal.
+        // Requirements observe inputs; guarantees choose owned inputs or
+        // borrowed completion storage in the shared clause binding.
         let required = ClauseScope {
             formal_fields: true,
             logical: None,
@@ -1909,6 +1910,7 @@ impl<'t> Program<'t> {
             ..entry
         };
         let exit = ClauseScope {
+            formal_fields: true,
             result: match result {
                 // Keep the result's qualification until an operator or cast
                 // consumes it, just as for an input or a field.

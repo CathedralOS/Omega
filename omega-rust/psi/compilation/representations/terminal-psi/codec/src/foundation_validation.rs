@@ -4622,7 +4622,7 @@ pub(crate) mod scalar_observations {
             {
                 return malformed("scalar application term has no exact catalog carrier");
             }
-            if let ScalarTerm::BooleanField { root, path }
+            if let ScalarTerm::BooleanField { root, path, .. }
             | ScalarTerm::IntegerField { root, path, .. }
             | ScalarTerm::IeeeFloatField { root, path, .. } = term
             {
@@ -10095,12 +10095,118 @@ fn declaration_identity_references(
     )
 }
 
-// Public requirements describe inputs and promises without supplying code.
-// Validate their own formal namespace before any invocation can use them.
-fn validate_declaration_contracts(module: &TerminalModule) -> Result<(), CodecError> {
+// A received callable promise may name its inputs and result, regardless of
+// whether the module also contains its body. In particular, an entry-time
+// field read needs an actual input; a result has no invocation-entry value.
+fn validate_contract_formals(
+    module: &TerminalModule,
+    contract: &terminal_psi::MachineContract,
+) -> Result<(), CodecError> {
     use semantic_vocabulary::{PropositionContext, StructuralPlaceKind};
     use terminal_psi::TerminalMachineResult;
 
+    let places = contract
+        .structural_parameters
+        .iter()
+        .map(|parameter| {
+            (
+                parameter.place,
+                StructuralPlaceKind::Parameter {
+                    position: parameter.position,
+                },
+            )
+        })
+        .collect::<Vec<_>>();
+    let requires = PropositionContext::from_value_types_and_places(
+        contract
+            .parameters
+            .iter()
+            .chain(&contract.erased_scalar_formals)
+            .map(|formal| (formal.id, formal.scalar_type)),
+        places.iter().copied(),
+    )
+    .map_err(CodecError::MalformedProposition)?;
+    for proposition in contract
+        .requires
+        .iter()
+        .chain(&contract.source_checked_requires)
+    {
+        requires
+            .validate(proposition)
+            .map_err(CodecError::MalformedProposition)?;
+    }
+    let result_place = match &contract.result {
+        TerminalMachineResult::Structural(result) => {
+            if !has_structural_type(module, result.structural_type) {
+                return malformed("public contract result references an unknown type");
+            }
+            validate_structural_qualifications(
+                module,
+                result.structural_type,
+                &result.qualifications,
+                &result.projected_qualifications,
+            )?;
+            Some((result.place, StructuralPlaceKind::Result))
+        }
+        _ => None,
+    };
+    let ensures = PropositionContext::from_value_types_and_places(
+        contract
+            .parameters
+            .iter()
+            .chain(&contract.erased_scalar_formals)
+            .chain(contract.result.scalar_ref())
+            .map(|formal| (formal.id, formal.scalar_type)),
+        places.iter().copied().chain(result_place),
+    )
+    .map_err(CodecError::MalformedProposition)?;
+    for proposition in contract
+        .ensures
+        .iter()
+        .map(|clause| &clause.proposition)
+        .chain(
+            contract
+                .outcome_specific_ensures
+                .iter()
+                .map(|clause| &clause.proposition),
+        )
+    {
+        ensures
+            .validate(proposition)
+            .map_err(CodecError::MalformedProposition)?;
+    }
+    for bucket in contract
+        .crash_routes
+        .iter()
+        .chain(contract.declared_crash_routes.iter().flatten())
+    {
+        for guard in &bucket.alternatives {
+            if let terminal_psi::CrashRouteGuard::Predicate(predicate) = guard {
+                requires
+                    .validate(predicate.proposition())
+                    .map_err(CodecError::MalformedProposition)?;
+            }
+        }
+    }
+    for claim in &contract.entry_claims {
+        let parameter = contract
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == claim.input)
+            .ok_or(CodecError::MalformedStructuralFoundation(
+                "public contract claim has no structural formal",
+            ))?;
+        if parameter.multiplicity == StructuralMultiplicity::Unrestricted {
+            return malformed("public contract claim cannot bind an unrestricted formal");
+        }
+        validate_structural_path(module, parameter.structural_type, &claim.path)?;
+    }
+    Ok(())
+}
+
+// Bodyless declarations retain descriptive source identities. Their absence
+// of code adds no trust to the promises shared with executable contracts.
+fn validate_callable_contracts(module: &TerminalModule) -> Result<(), CodecError> {
     // Existing bodies are addressed by MachineId, even when an older producer
     // reused a contract coordinate. A new declaration-only coordinate must
     // never alias one of those body-owned contracts.
@@ -10162,6 +10268,7 @@ fn validate_declaration_contracts(module: &TerminalModule) -> Result<(), CodecEr
                 .as_deref()
                 .unwrap_or_default(),
         )?;
+        validate_contract_formals(module, contract)?;
     }
     for contract in &module.declaration_contracts {
         contract
@@ -10221,108 +10328,12 @@ fn validate_declaration_contracts(module: &TerminalModule) -> Result<(), CodecEr
                 return malformed("public contract scalar formal has unknown qualifications");
             }
         }
-        let places = contract
-            .structural_parameters
-            .iter()
-            .map(|parameter| {
-                (
-                    parameter.place,
-                    StructuralPlaceKind::Parameter {
-                        position: parameter.position,
-                    },
-                )
-            })
-            .collect::<Vec<_>>();
-        let requires = PropositionContext::from_value_types_and_places(
-            contract
-                .parameters
-                .iter()
-                .chain(&contract.erased_scalar_formals)
-                .map(|formal| (formal.id, formal.scalar_type)),
-            places.iter().copied(),
-        )
-        .map_err(CodecError::MalformedProposition)?;
-        for proposition in contract
-            .requires
-            .iter()
-            .chain(&contract.source_checked_requires)
-        {
-            requires
-                .validate(proposition)
-                .map_err(CodecError::MalformedProposition)?;
-        }
-        let result_place = match &contract.result {
-            TerminalMachineResult::Structural(result) => {
-                if !has_structural_type(module, result.structural_type) {
-                    return malformed("public contract result references an unknown type");
-                }
-                validate_structural_qualifications(
-                    module,
-                    result.structural_type,
-                    &result.qualifications,
-                    &result.projected_qualifications,
-                )?;
-                Some((result.place, StructuralPlaceKind::Result))
-            }
-            _ => None,
-        };
-        let ensures = PropositionContext::from_value_types_and_places(
-            contract
-                .parameters
-                .iter()
-                .chain(&contract.erased_scalar_formals)
-                .chain(contract.result.scalar_ref())
-                .map(|formal| (formal.id, formal.scalar_type)),
-            places.iter().copied().chain(result_place),
-        )
-        .map_err(CodecError::MalformedProposition)?;
-        for proposition in contract
-            .ensures
-            .iter()
-            .map(|clause| &clause.proposition)
-            .chain(
-                contract
-                    .outcome_specific_ensures
-                    .iter()
-                    .map(|clause| &clause.proposition),
-            )
-        {
-            ensures
-                .validate(proposition)
-                .map_err(CodecError::MalformedProposition)?;
-        }
-        for bucket in contract
-            .crash_routes
-            .iter()
-            .chain(contract.declared_crash_routes.iter().flatten())
-        {
-            for guard in &bucket.alternatives {
-                if let terminal_psi::CrashRouteGuard::Predicate(predicate) = guard {
-                    requires
-                        .validate(predicate.proposition())
-                        .map_err(CodecError::MalformedProposition)?;
-                }
-            }
-        }
-        for claim in &contract.entry_claims {
-            let parameter = contract
-                .structural_parameters
-                .iter()
-                .find(|parameter| parameter.place == claim.input)
-                .ok_or(CodecError::MalformedStructuralFoundation(
-                    "public contract claim has no structural formal",
-                ))?;
-            if parameter.multiplicity == StructuralMultiplicity::Unrestricted {
-                return malformed("public contract claim cannot bind an unrestricted formal");
-            }
-            validate_structural_path(module, parameter.structural_type, &claim.path)?;
-        }
     }
     Ok(())
 }
 
 pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecError> {
-    validate_declaration_contracts(module)?;
+    validate_callable_contracts(module)?;
     scalar_applications::validate(module)?;
     task_activation::validate(module)?;
     module

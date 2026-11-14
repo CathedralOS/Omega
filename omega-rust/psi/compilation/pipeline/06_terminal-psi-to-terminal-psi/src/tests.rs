@@ -3799,6 +3799,7 @@ fn data(raw: u64) -> ValueType {
 /// from the value down to it.
 fn own(path: Vec<CanonicalStructuralPathSegment>) -> ScalarTerm {
     ScalarTerm::IntegerField {
+        version: semantic_vocabulary::ContentPlaceVersion::Current,
         root: typed_trees_to_terminal_psi::self_place().unwrap(),
         path,
         scalar_type: integer_type(IntegerSign::Unsigned),
@@ -4767,6 +4768,7 @@ fn a_read_of_what_a_call_returned_carries_its_types_clause() {
 /// clause names it: a field term rooted at that formal's place.
 fn formal_field(field: u64) -> ScalarTerm {
     ScalarTerm::IntegerField {
+        version: semantic_vocabulary::ContentPlaceVersion::Current,
         root: id(1),
         path: vec![CanonicalStructuralPathSegment::Field(id(field))],
         scalar_type: integer_type(IntegerSign::Unsigned),

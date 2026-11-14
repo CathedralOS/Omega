@@ -2114,15 +2114,23 @@ pub mod domain_preservation {
             | ScalarTerm::IeeeFloatLiteral(_) => {
                 return Some(());
             }
-            ScalarTerm::BooleanField { root, path } => (*root, path.clone(), ScalarType::Boolean),
+            ScalarTerm::BooleanField {
+                version: semantic_vocabulary::ContentPlaceVersion::Current,
+                root,
+                path,
+            } => (*root, path.clone(), ScalarType::Boolean),
             ScalarTerm::IntegerField {
+                version: semantic_vocabulary::ContentPlaceVersion::Current,
                 root,
                 path,
                 scalar_type,
             } => (*root, path.clone(), ScalarType::Integer(*scalar_type)),
-            ScalarTerm::IeeeFloatField { root, path, format } => {
-                (*root, path.clone(), ScalarType::IeeeFloat(*format))
-            }
+            ScalarTerm::IeeeFloatField {
+                version: semantic_vocabulary::ContentPlaceVersion::Current,
+                root,
+                path,
+                format,
+            } => (*root, path.clone(), ScalarType::IeeeFloat(*format)),
             ScalarTerm::ByteSequencePredicate { root, path, .. } => {
                 if *root != subject {
                     return None;

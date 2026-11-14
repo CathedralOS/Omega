@@ -467,16 +467,14 @@ impl Prover<'_> {
         })
     }
 
-    /// `value <= limit` (or `limit <= value`) over mathematical integers,
-    /// the representability goal of an exact cast: the value's bound in its
-    /// own carrier, restated over its mathematical value, then the closed
-    /// relation between that bound and the limit.
-    pub(super) fn value_in_carrier(
+    /// Restate a value's carrier bound over its mathematical embedding. The
+    /// caller can compare that bound with a safety limit or transport it
+    /// through a public equality, using the same checked relation.
+    pub(super) fn value_image(
         &mut self,
         source_type: IntegerType,
         value: semantic_vocabulary::ValueId,
         term: &IntegerMathTerm,
-        limit: &IntegerMathTerm,
         direction: Direction,
     ) -> Result<ProofNode, Unproven> {
         let subject = ScalarTerm::value(value, ScalarType::Integer(source_type));
@@ -498,15 +496,14 @@ impl Prover<'_> {
             Proposition::Equal(subject.clone(), subject),
             PrimitiveJudgment::ReflexiveEquality,
         );
-        let mathematical = node(
+        Ok(node(
             restated,
             ProofRule::IntegerOrderSubstitution {
                 relation: Box::new(bound.proof),
                 equality: Box::new(unchanged),
                 endpoint,
             },
-        );
-        self.land(mathematical, term, limit, direction)
+        ))
     }
 }
 

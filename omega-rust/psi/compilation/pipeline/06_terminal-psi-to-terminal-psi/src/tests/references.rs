@@ -194,6 +194,7 @@ fn referent_below_ten() -> Proposition {
     };
     Proposition::LessThan(
         ScalarTerm::IntegerField {
+            version: semantic_vocabulary::ContentPlaceVersion::Current,
             root: PlaceId::new(1).unwrap(),
             path: Vec::new(),
             scalar_type: integer,

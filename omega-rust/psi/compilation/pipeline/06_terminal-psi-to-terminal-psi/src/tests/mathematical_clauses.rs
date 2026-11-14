@@ -247,6 +247,63 @@ fn a_mathematical_guarantee_is_proved_at_the_return_and_known_after_a_call() {
 }
 
 #[test]
+fn a_mathematical_update_guarantee_supplies_the_callers_scalar_bound() {
+    // The caller uses the helper's public +1 promise to bound its result.
+    // The helper must still prove that promise from its own unchanged body;
+    // a promise of at most 30 is false when the allowed input is 30.
+    let machines = |limit| {
+        let mut endpoints = [embedded(2), sum(embedded(1), integer(1))];
+        endpoints.sort();
+        let [left, right] = endpoints;
+        let callee = Machine {
+            requires: vec![at_most(1, 30)],
+            ensures: vec![Proposition::IntegerMathEqual(left, right)],
+            ..machine(
+                vec![u32_type()],
+                vec![returns(strict(
+                    Strict::Add,
+                    slot(0, u32_type()),
+                    unsigned(1),
+                ))],
+            )
+        };
+        let caller = Machine {
+            requires: vec![at_most(1, 30)],
+            ensures: vec![at_most(2, limit)],
+            ..machine(
+                vec![u32_type()],
+                vec![returns(call(2, vec![slot(0, u32_type())]))],
+            )
+        };
+        vec![caller, callee]
+    };
+    let (elaboration, result) = run(machines(31));
+    for machine in [1, 2] {
+        let proved = verdicts(&elaboration, &result, machine, guarantee);
+        assert_eq!(proved.len(), 1);
+        let evidence = certificate(proved[0].1);
+        assert_kernel_accepted(&elaboration, machine, proved[0].0, evidence);
+        if machine == 1 {
+            let tables = elaboration.tables.machines.get(id(machine)).unwrap();
+            assert!(evidence.assumptions.iter().any(|row| {
+                let row = tables.knowledge.get(*row).unwrap();
+                matches!(row.justification, Justification::CalleeGuarantee { .. })
+                    && matches!(
+                        tables.propositions.get(row.proposition),
+                        Some(Proposition::IntegerMathEqual(..))
+                    )
+            }));
+        }
+    }
+    let (elaboration, result) = run(machines(30));
+    let caller = verdicts(&elaboration, &result, 1, guarantee);
+    assert_eq!(caller.len(), 1);
+    assert_eq!(cause_of(caller[0].1), UnprovedCause::NoDerivation);
+    let helper = verdicts(&elaboration, &result, 2, guarantee);
+    assert_kernel_accepted(&elaboration, 2, helper[0].0, certificate(helper[0].1));
+}
+
+#[test]
 fn rule_coverage_of_a_mathematical_goal_is_read_from_its_form() {
     // Shows which mathematical goals a failure counts against the program
     // for. A comparison of two closed terms, whatever its relation, is
@@ -292,6 +349,21 @@ fn rule_coverage_of_a_mathematical_goal_is_read_from_its_form() {
     assert!(!crate::has_rules_for(&Proposition::IntegerMathLessThan(
         embedded(1),
         integer(7)
+    )));
+    // Shared open terms cancel in the kernel, so both a true comparison and
+    // a false one have a rule. Distinct unknown subjects above still do not.
+    let first = sum(embedded(1), integer(1));
+    let second = sum(embedded(1), integer(2));
+    assert!(crate::has_rules_for(&Proposition::IntegerMathLessThan(
+        first.clone(),
+        second.clone()
+    )));
+    assert!(crate::has_rules_for(&Proposition::IntegerMathLessThan(
+        second.clone(),
+        first.clone()
+    )));
+    assert!(crate::has_rules_for(&Proposition::IntegerMathEqual(
+        first, second
     )));
 }
 

@@ -1111,18 +1111,29 @@ pub(crate) mod primitive_store_memberships {
                         term => pending.extend(term.operands_mut().into_iter().map(Pending::Math)),
                     },
                     Pending::Scalar(term) => {
+                        if term.field_version()
+                            == Some(semantic_vocabulary::ContentPlaceVersion::Entry)
+                        {
+                            return None;
+                        }
                         let observed = match term {
-                            ScalarTerm::BooleanField { root, path } => {
-                                Some((*root, path.is_empty(), ScalarType::Boolean))
-                            }
+                            ScalarTerm::BooleanField {
+                                version: semantic_vocabulary::ContentPlaceVersion::Current,
+                                root,
+                                path,
+                            } => Some((*root, path.is_empty(), ScalarType::Boolean)),
                             ScalarTerm::IntegerField {
+                                version: semantic_vocabulary::ContentPlaceVersion::Current,
                                 root,
                                 path,
                                 scalar_type,
                             } => Some((*root, path.is_empty(), ScalarType::Integer(*scalar_type))),
-                            ScalarTerm::IeeeFloatField { root, path, format } => {
-                                Some((*root, path.is_empty(), ScalarType::IeeeFloat(*format)))
-                            }
+                            ScalarTerm::IeeeFloatField {
+                                version: semantic_vocabulary::ContentPlaceVersion::Current,
+                                root,
+                                path,
+                                format,
+                            } => Some((*root, path.is_empty(), ScalarType::IeeeFloat(*format))),
                             ScalarTerm::StructuralRead {
                                 root,
                                 path,
@@ -3043,6 +3054,7 @@ pub mod descriptor_results {
                 use semantic_vocabulary::ScalarTerm;
                 let replacement = match term {
                     ScalarTerm::IntegerField {
+                        version: semantic_vocabulary::ContentPlaceVersion::Current,
                         root,
                         path,
                         scalar_type,
@@ -3052,17 +3064,21 @@ pub mod descriptor_results {
                     {
                         Some(ScalarTerm::value(ScalarRefinement::SUBJECT, carrier))
                     }
-                    ScalarTerm::BooleanField { root, path }
-                        if *root == subject
-                            && path.is_empty()
-                            && carrier == ScalarType::Boolean =>
-                    {
+                    ScalarTerm::BooleanField {
+                        version: semantic_vocabulary::ContentPlaceVersion::Current,
+                        root,
+                        path,
+                    } if *root == subject && path.is_empty() && carrier == ScalarType::Boolean => {
                         Some(ScalarTerm::value(ScalarRefinement::SUBJECT, carrier))
                     }
-                    ScalarTerm::IeeeFloatField { root, path, format }
-                        if *root == subject
-                            && path.is_empty()
-                            && carrier == ScalarType::IeeeFloat(*format) =>
+                    ScalarTerm::IeeeFloatField {
+                        version: semantic_vocabulary::ContentPlaceVersion::Current,
+                        root,
+                        path,
+                        format,
+                    } if *root == subject
+                        && path.is_empty()
+                        && carrier == ScalarType::IeeeFloat(*format) =>
                     {
                         Some(ScalarTerm::value(ScalarRefinement::SUBJECT, carrier))
                     }
@@ -10959,7 +10975,11 @@ pub mod descriptor_results {
                 for (subject, value) in [(left, right), (right, left)] {
                     let (root, path) = match subject {
                         ScalarTerm::IntegerField { root, path, .. }
-                        | ScalarTerm::BooleanField { root, path } => (*root, path),
+                        | ScalarTerm::BooleanField {
+                            version: semantic_vocabulary::ContentPlaceVersion::Current,
+                            root,
+                            path,
+                        } => (*root, path),
                         _ => continue,
                     };
                     if subject.scalar_type() != value.scalar_type() {
