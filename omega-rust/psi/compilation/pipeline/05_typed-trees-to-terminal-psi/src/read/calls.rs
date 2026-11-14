@@ -912,7 +912,7 @@ impl<'t> Program<'t> {
         }
         let source_value = self.local_type(id, source_type)?;
         let view_value = self.local_type(id, view_type)?;
-        if !self.agrees(Some(source_value), view_value) {
+        if !self.same_type(Some(source_value), view_value) {
             return Err(unavailable(
                 "a different qualified view needs evaluated policy, layout and backing correspondence",
             ));
@@ -1918,7 +1918,12 @@ impl<'t> Program<'t> {
         }
         for ((declared, _, borrowed), actual) in formals.iter().zip(&read) {
             let formal = self.substitute(*declared, &bound);
-            if !self.agrees(actual.result, formal) {
+            let agrees = if borrowed.is_some() {
+                self.same_type(actual.result, formal)
+            } else {
+                self.agrees(actual.result, formal)
+            };
+            if !agrees {
                 if borrowed.as_ref().is_some_and(|borrowed| {
                     borrowed.referent == crate::body::BorrowedReferent::Slice
                 }) && let ExpressionKind::Borrow { access, place, .. } = &actual.kind

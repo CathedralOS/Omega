@@ -93,6 +93,7 @@ use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
 /// structural paths name each field by.
 pub(crate) struct Records<'a> {
     types: &'a IdTable<StructuralTypeId, RecordType>,
+    pub(crate) inhabitation: terminal_semantics::inhabitation::Inhabitation,
     /// Scalar homes retain their exact type identity and qualification. An
     /// array element of the same scalar width need not be the same home type.
     primitives: Vec<(ValueType, String, StructuralTypeId)>,
@@ -405,6 +406,16 @@ pub(crate) fn declare<'a>(
     Ok(Declared {
         records: Records {
             types,
+            inhabitation: terminal_semantics::inhabitation::Inhabitation::prepare(
+                &crate::inhabitation::SourceContracts(types),
+            )
+            .map_err(|_| {
+                refuse(
+                    entry,
+                    Construct::Machine,
+                    Unserved::Type("incomplete declared type contracts for emptiness"),
+                )
+            })?,
             primitives,
             field_identities,
             payload_identities,
