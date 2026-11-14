@@ -193,14 +193,18 @@ fn scalar_named(scalar: ScalarType) -> String {
     match scalar {
         ScalarType::Boolean => "bool".to_owned(),
         ScalarType::Integer(integer) if integer.is_address() => "addr".to_owned(),
-        ScalarType::Integer(integer) => format!(
-            "{}{}",
-            match integer.sign() {
+        ScalarType::Integer(integer) => {
+            let sign = match integer.sign() {
                 IntegerSign::Signed => 'i',
                 IntegerSign::Unsigned => 'u',
-            },
-            integer.bits(),
-        ),
+            };
+            match integer.width() {
+                semantic_vocabulary::IntegerWidth::Bits(bits) => format!("{sign}{bits}"),
+                semantic_vocabulary::IntegerWidth::Parameter(_) => {
+                    format!("{sign}<width parameter>")
+                }
+            }
+        }
         ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => "f32".to_owned(),
         ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => "f64".to_owned(),
     }
@@ -209,9 +213,29 @@ fn scalar_named(scalar: ScalarType) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use semantic_vocabulary::{IntegerType, StructuralTypeId};
+    use semantic_vocabulary::{IntegerType, StructuralTypeId, ValueId, WidthParameter};
     use terminal_check_tables::{RefusalReason, values::RigidType};
     use typed_trees::TypedTrees;
+
+    #[test]
+    fn scalar_names_distinguish_closed_and_parameter_widths() {
+        assert_eq!(
+            scalar_named(ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 1).unwrap()
+            )),
+            "u1",
+        );
+        assert_eq!(
+            scalar_named(ScalarType::Integer(IntegerType::parameterized(
+                IntegerSign::Signed,
+                WidthParameter {
+                    owner: MachineId::new(1).unwrap(),
+                    value: ValueId::new(1).unwrap(),
+                },
+            ))),
+            "i<width parameter>",
+        );
+    }
 
     #[test]
     fn distinct_scalar_carriers_reject_for_every_receiving_destination() {
