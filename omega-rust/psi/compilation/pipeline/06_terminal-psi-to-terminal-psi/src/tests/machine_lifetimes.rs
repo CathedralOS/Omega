@@ -222,11 +222,10 @@ machine take(view: &[u8]) { }
     }
 }
 
-/// What a signature may write with a lifetime. A view names a lifetime its
-/// machine declares. A reference to anything else is a loan of one place,
-/// and what its lifetime relates it to is not read yet.
+/// What a signature may write with a lifetime: one its machine declares, on
+/// a view or on a reference to one place.
 #[test]
-fn a_signature_names_only_lifetimes_its_machine_declares_and_only_on_views() {
+fn a_signature_names_only_lifetimes_its_machine_declares() {
     assert_eq!(
         verdict(
             r#"
@@ -243,7 +242,7 @@ machine build_entry() { let count: u32 = 1; take(&count); }
 machine take<'a>(count: &'a u32) { }
 "#
         ),
-        "parameter reference parameter with a named lifetime"
+        "accepted"
     );
 }
 
