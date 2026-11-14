@@ -263,6 +263,29 @@ fn a_domain_home_must_participate_in_the_operand_tuple() {
 }
 
 #[test]
+fn anonymous_arithmetic_does_not_choose_between_unrelated_domain_families() {
+    use typed_trees::expression::ExpressionNode;
+    let declaration = format!(
+        "use units; {OPERATOR} {}",
+        OPERATOR.replace("Distance", "Span")
+    );
+    let program = typed(&[
+        (
+            "units.omg",
+            "module units; public domain u32::Distance; public domain u32::Span;",
+        ),
+        ("operator.omg", &declaration),
+        (
+            "client.omg",
+            "machine sum() -> u32 { 2 + 3 } machine difference() -> f64 { 0.0 - 1.57079632679489656 }",
+        ),
+    ]);
+    assert!(program.expression_table.iter_expressions().any(|(_, expression)| {
+        matches!(expression, ExpressionNode::Binary(binary) if matches!(program.expression_table.expression(binary.left), ExpressionNode::Integer(_)))
+    }));
+}
+
+#[test]
 fn body_imports_belong_to_the_declaring_file() {
     use typed_trees::expression::ExpressionNode;
     let body = "machine + Distance::add(left: u32 in Distance, right: u32 in Distance) -> u32 in Distance { helper((left as -Distance) +% (right as -Distance)) as +Distance }";

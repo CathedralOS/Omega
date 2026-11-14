@@ -47,6 +47,12 @@ pub(crate) fn selection_for_operands(
     operands: &[Option<typed_trees::types::TypeReferenceHandle>],
     span: source::SourceSpan,
 ) -> Result<Option<symbols::SymbolHandle>, Diagnostic> {
+    // An anonymous arithmetic tree has no declared home. Like the existing
+    // builtin-meaning query, keep it builtin rather than letting every family
+    // match a tuple of wildcard operands.
+    if operands.iter().all(Option::is_none) {
+        return Ok(None);
+    }
     let candidates =
         typed_trees::operator::resolve_spelling_for_operands(program, spelling, operands, span);
     let selected = match candidates.as_slice() {
