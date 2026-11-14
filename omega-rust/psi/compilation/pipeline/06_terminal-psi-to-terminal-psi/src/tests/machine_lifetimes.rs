@@ -160,18 +160,66 @@ machine take(view: &[u8], other: &[u8]) { }
     );
 }
 
-/// A result lifetime no argument is a view of has no region at the call.
+/// lifetimes.md, "Caller-chosen result lifetimes": "A lifetime that a
+/// machine binds and no input carries is chosen independently by each
+/// caller: the call instantiates it from the result's use". A quoted
+/// literal is valid at every choice, so a machine may return one at such a
+/// lifetime, written out or left off, and so may a machine that forwards
+/// another's. The caller's choice comes from the place the result meets: a
+/// local, or the formal it is passed for.
 #[test]
-fn a_result_lifetime_no_view_is_passed_for_is_refused() {
-    assert_eq!(
-        verdict(
-            r#"
+fn a_result_lifetime_no_input_carries_is_chosen_by_the_caller() {
+    for build in [
+        // Named, into a local.
+        r#"
 machine build_entry() { let kept: &[u8] = made(); }
 machine made<'a>() -> &'a [u8] { "made" }
-"#
-        ),
-        "typing result lifetime that no argument is a view of"
-    );
+"#,
+        // The spec's `package_name`: left off, with no reference input.
+        r#"
+machine build_entry() { take(package_name()); }
+machine package_name() -> &[u8] { "my_library" }
+machine take(view: &[u8]) { }
+"#,
+        // The spec's `kind_name`: the result does not keep `value` borrowed.
+        r#"
+machine build_entry(value: &[u8]) { take(kind_name(value)); }
+machine kind_name<'name>(value: &[u8]) -> &'name [u8] { "record" }
+machine take(view: &[u8]) { }
+"#,
+        // "a view projected from another caller-chosen result" qualifies.
+        r#"
+machine build_entry() { take(forward()); }
+machine forward() -> &[u8] { package_name() }
+machine package_name() -> &[u8] { "my_library" }
+machine take(view: &[u8]) { }
+"#,
+    ] {
+        assert_eq!(verdict(build), "accepted", "{build}");
+    }
+}
+
+/// The twins return a view that is valid only for an input's lifetime: the
+/// spec's `leak`, and a view an input record holds. "It cannot assume the
+/// choice coincides with an input lifetime", so each machine is rejected,
+/// whatever its callers do with the result.
+#[test]
+fn a_caller_chosen_result_is_not_a_view_of_an_input() {
+    for build in [
+        r#"
+machine build_entry(text: &[u8]) { take(leak(text)); }
+machine leak<'name>(text: &[u8]) -> &'name [u8] { text }
+machine take(view: &[u8]) { }
+"#,
+        r#"
+data Session<'storage> { ready: bool; name: &'storage [u8]; }
+machine build_entry(session: &Session) { take(held(session)); }
+machine held<'name>(session: &Session) -> &'name [u8] { session.name }
+machine take(view: &[u8]) { }
+"#,
+    ] {
+        assert_eq!(verdict(build), "rejected", "{build}");
+    }
 }
 
 /// What a signature may write with a lifetime. A view names a lifetime its
