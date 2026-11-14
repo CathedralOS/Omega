@@ -194,9 +194,8 @@ canonical order, the same check of the optimized program, then publication of
 that second verdict and its evidence
 ([optimization ordering](../wiki/spec/terminal-psi/product.md#optimization-ordering)).
 `ProductTerminalPublication::accepted` refuses a nonempty Psi selection with
-`no product route yet: selected Psi optimizations have no accepted evidence transport`.
-That refusal withholds the order above; it does not ask passes to transport
-the unoptimized verdict. There is no checked-tree or legacy
+`no product route yet: selected Psi optimizations have no second lowered-form check`.
+There is no checked-tree or legacy
 optimization/publication fallback. Psi's published product
 is target-neutral; separate target-keyed Build authority supplies realization
 inputs ([multi-target compilation](../wiki/spec/build/configuration.md#multi-target-compilation)).

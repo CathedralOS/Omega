@@ -110,9 +110,7 @@ not on the default compile path
 ([verification placement](../../../omega-rust/pipeline.md#verification-placement)).
 
 A nonempty Psi selection still fails closed. Publication refuses with
-`no product route yet: selected Psi optimizations have no accepted evidence transport`.
-That diagnostic is the existing refusal. The withheld route is the second
-check, and passes still do not transport the unoptimized verdict.
+`no product route yet: selected Psi optimizations have no second lowered-form check`.
 
 A target-constrained build companion may carry pending post-Terminal
 selections, excluding earlier phases and bound to the complete build selection.

@@ -327,10 +327,7 @@ compile path ([verification placement](../../../omega-rust/pipeline.md#verificat
 
 A nonempty Psi selection has no product route yet.
 `ProductTerminalPublication::accepted` refuses it with
-`no product route yet: selected Psi optimizations have no accepted evidence transport`.
-That sentence is the existing refusal. The route it withholds is the order
-above: the second check produces the published verdict, and passes still do
-not transport evidence.
+`no product route yet: selected Psi optimizations have no second lowered-form check`.
 
 Later Omega phases optimize their own representations while retaining the
 canonical Psi identity. They cannot mutate the published module or
