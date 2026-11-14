@@ -17,7 +17,7 @@ static COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 const DOMAINS: &str = "\
 use omega::language::core::AccessPolicy;
 use omega::language::core::AccessPlan;
-use omega::language::core::Schema;
+use omega::language::core::reflect::TypeSchema;
 
 domain i32::Km;
 machine carry(distance: i32 in Km) -> i32 in Km {
@@ -37,7 +37,7 @@ data Seal {
     mark: i32;
 }
 SealAccess satisfies AccessPolicy {
-    machine plan(schema: Schema) -> AccessPlan {
+    machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
         let plan: AccessPlan;
         plan
     }
