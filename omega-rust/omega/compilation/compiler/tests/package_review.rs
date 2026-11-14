@@ -1400,12 +1400,23 @@ fn build_constant_captured_invalid_twin_rejects_its_original_call_obligation() {
     session.close().unwrap();
 }
 
+const REVIEW_BUILD_SOURCE: &str = r#"
+machine build(builder: &mut Build) {
+    Build::application(builder, "accepted_package_review");
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+}
+"#;
+
 fn captured_review_compilation(
     main_source: &str,
+    build_source: &str,
 ) -> (
     platform_custody::temporary_directory::TemporaryDirectory,
     orchestration::BuildSession,
-    compilation_products::CheckedCompilation,
+    Result<compilation_products::CheckedCompilation, Vec<diagnostics::Diagnostic>>,
 ) {
     let workspace = platform_custody::temporary_directory::TemporaryDirectory::create(
         "accepted-package-review",
@@ -1415,19 +1426,7 @@ fn captured_review_compilation(
     let project = workspace.path().join("project");
     std::fs::create_dir(&project).unwrap();
     std::fs::write(project.join("main.omg"), main_source).unwrap();
-    std::fs::write(
-        project.join("build.omg"),
-        r#"
-machine build(builder: &mut Build) {
-    Build::application(builder, "accepted_package_review");
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-}
-"#,
-    )
-    .unwrap();
+    std::fs::write(project.join("build.omg"), build_source).unwrap();
     let target = target::TargetProfile::host_if_supported().expect("host Product target");
     let preparation = package_manager::operations::begin_local_project_preparation(
         &project.join("main.omg"),
@@ -1463,14 +1462,16 @@ machine build(builder: &mut Build) {
     let checked = session
         .compiler()
         .check_package_build(build)
-        .unwrap_or_else(|failure| panic!("Product judgment: {:?}", failure.into_diagnostics()));
-    assert_eq!(
-        checked.sources().accepted_semantic_bindings(),
-        inputs
-            .accepted_semantic_bindings()
-            .cloned()
-            .collect::<Vec<_>>()
-    );
+        .map_err(|failure| failure.into_diagnostics());
+    if let Ok(checked) = &checked {
+        assert_eq!(
+            checked.sources().accepted_semantic_bindings(),
+            inputs
+                .accepted_semantic_bindings()
+                .cloned()
+                .collect::<Vec<_>>()
+        );
+    }
     (workspace, session, checked)
 }
 
@@ -1490,7 +1491,9 @@ public domain u64::Delivered requires self >= 42u64 && self <= 42u64;
 public data Pair [copy] { lo: u64 in Delivered; hi: u64; }
 machine main() {}
 "#;
-    let (workspace, mut session, checked) = captured_review_compilation(SOURCE);
+    let (workspace, mut session, checked) =
+        captured_review_compilation(SOURCE, REVIEW_BUILD_SOURCE);
+    let checked = checked.unwrap_or_else(|diagnostics| panic!("Product judgment: {diagnostics:?}"));
     let project = workspace.path().join("project");
     let package = checked.sources().package_identity().unwrap();
     let target = checked.execution().target_profile().unwrap();
@@ -1630,21 +1633,26 @@ machine main() {}
     let claimed_source = format!(
         "{SOURCE}\nboundary machine unproved(value: u64) -> u64 ensures result == value;\n"
     );
-    let (_workspace, mut session, claimed) = captured_review_compilation(&claimed_source);
-    let refusal = project_checked_package_policy(
-        &claimed,
-        claimed.execution().target_profile().unwrap(),
-        claimed.sources().package_identity().unwrap(),
-    )
-    .unwrap_err();
+    let (_workspace, mut session, claimed) =
+        captured_review_compilation(&claimed_source, REVIEW_BUILD_SOURCE);
+    let refusal = match claimed {
+        Ok(_) => panic!("the ordinary checker must refuse the unchecked bodyless claim"),
+        Err(diagnostics) => diagnostics,
+    };
     assert!(
-        diagnostics::join_messages(&refusal).contains("public or bodyless callable contracts"),
+        diagnostics::join_messages(&refusal)
+            .contains("machine supply mode other than a checked body"),
         "{refusal:?}"
     );
+    session.close().unwrap();
+
     // Another genuine Build judgment has the right phase but a different
     // supplying source; it cannot describe this package's execution.
+    let foreign_source = format!("{REVIEW_BUILD_SOURCE}\n// Another retained Build source.\n");
+    let (_workspace, mut session, other) = captured_review_compilation(SOURCE, &foreign_source);
+    let other = other.unwrap_or_else(|diagnostics| panic!("valid foreign Build: {diagnostics:?}"));
     let mut foreign = checked.build().clone();
-    foreign.accepted_build = claimed.build().accepted_build.clone();
+    foreign.accepted_build = other.build().accepted_build.clone();
     let foreign = rewrap(foreign);
     let refusal = project_checked_package_policy(&foreign, target, package).unwrap_err();
     assert!(
