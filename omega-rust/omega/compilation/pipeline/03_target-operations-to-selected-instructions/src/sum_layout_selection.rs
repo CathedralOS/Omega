@@ -373,9 +373,114 @@ fn dispatch(
     select(name, &plan, target)
 }
 
+fn validate_stored_geometry(
+    target: &TargetOperationPlan,
+    plan: &AbstractOperationPlan,
+    unit: &optimization_unit::PsiOptimizationUnit,
+) -> Result<(), crate::legalization::LegalizationError> {
+    use crate::legalization_scalar_graph::structural_case::{
+        dispatch_projection, membership_layout, source_result,
+    };
+    // These hand-built selection rows omit unrelated provenance metadata. Test
+    // the validator's geometry checks directly, with the same rows selection uses.
+    let function = &unit.functions[0];
+    for block in &target.functions[0].graph.blocks {
+        if let TargetControlTerminator::StructuralCase {
+            source,
+            path,
+            pointer_slots,
+            region_byte_size,
+            ..
+        } = &block.terminator
+        {
+            dispatch_projection(
+                function,
+                source.place(),
+                path,
+                plan,
+                pointer_slots,
+                *region_byte_size,
+            )?;
+        }
+        for operation in &block.operations {
+            if let TargetUnitOperation::StructuralCaseMembership {
+                source,
+                path,
+                case,
+                pointer_slots,
+                ..
+            } = operation
+            {
+                membership_layout(
+                    function,
+                    *source,
+                    path,
+                    *case,
+                    plan,
+                    source_result(function, *source),
+                    pointer_slots,
+                )?;
+            }
+        }
+    }
+    Ok(())
+}
+
 fn select(name: &str, plan: &AbstractOperationPlan, target: TargetOperationPlan) -> String {
     let unit = reconstruct_psi_optimization_unit_seed(plan, WorkScheduleIdentity::new(1).unwrap())
         .unwrap_or_else(|error| panic!("{name}: unit {error:?}"));
+    // Selection trusts retained geometry; the independent validator must reject
+    // a forged pointer chase or region size rather than ignore those fields.
+    validate_stored_geometry(&target, plan, &unit)
+        .unwrap_or_else(|error| panic!("{name}: target validation {error:?}"));
+    for change_region_size in [false, true] {
+        let mut forged = target.clone();
+        let mut changed = false;
+        for function in &mut forged.functions {
+            for block in &mut function.graph.blocks {
+                if let TargetControlTerminator::StructuralCase {
+                    pointer_slots,
+                    region_byte_size,
+                    ..
+                } = &mut block.terminator
+                {
+                    if change_region_size {
+                        *region_byte_size += 1;
+                    } else {
+                        pointer_slots.push(TargetCasePointerSlot {
+                            byte_offset: 0,
+                            index_start: 0,
+                            index_end: 0,
+                            scalar_descriptor: false,
+                        });
+                    }
+                    changed = true;
+                }
+                if !change_region_size {
+                    for operation in &mut block.operations {
+                        if let TargetUnitOperation::StructuralCaseMembership {
+                            pointer_slots, ..
+                        } = operation
+                        {
+                            pointer_slots.push(TargetCasePointerSlot {
+                                byte_offset: 0,
+                                index_start: 0,
+                                index_end: 0,
+                                scalar_descriptor: false,
+                            });
+                            changed = true;
+                        }
+                    }
+                }
+            }
+        }
+        if changed {
+            assert!(
+                validate_stored_geometry(&forged, plan, &unit).is_err(),
+                "{name}: forged retained geometry accepted (region={change_region_size})"
+            );
+        }
+    }
     let module = TerminalModule::for_entry(plan.entry);
     let interrupts = provider_admission::AdmittedInstalledInterruptCohort::empty(plan.psi);
     let legalized = crate::legalize_target_operations(
