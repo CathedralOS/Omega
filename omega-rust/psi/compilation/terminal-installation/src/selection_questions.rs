@@ -190,18 +190,27 @@ pub fn validate_selection_questions(
     packet: &SelectionQuestions,
 ) -> Result<(), String> {
     let mut identities = Vec::with_capacity(packet.declarations.len());
-    for (_, row) in packet.declarations.iter() {
+    for (id, row) in packet.declarations.iter() {
         if row.identity.is_empty() {
             return Err("source selection declaration has no canonical identity".into());
         }
         if row.callable_identity.as_deref() == Some("") {
             return Err("source selection declaration has an empty callable identity".into());
         }
-        identities.push((&row.identity, row.purpose));
+        identities.push((&row.identity, row.purpose, id));
     }
     identities.sort_unstable();
-    if identities.windows(2).any(|rows| rows[0] == rows[1]) {
-        return Err("source selection dictionary repeats a declaration in one purpose".into());
+    if let Some(rows) = identities
+        .windows(2)
+        .find(|rows| rows[0].0 == rows[1].0 && rows[0].1 == rows[1].1)
+    {
+        return Err(format!(
+            "source selection dictionary repeats a declaration in one purpose: {} {:?}; {} {:?}",
+            rows[0].2,
+            declaration(packet, rows[0].2)?,
+            rows[1].2,
+            declaration(packet, rows[1].2)?,
+        ));
     }
     for (id, row) in packet.questions.iter() {
         (|| -> Result<(), String> {
