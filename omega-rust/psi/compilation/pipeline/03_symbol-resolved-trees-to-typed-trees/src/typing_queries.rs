@@ -736,29 +736,11 @@ fn undeclared_call_names<'a>(
     written: impl Iterator<Item = &'a str>,
 ) -> Vec<&'a str> {
     // A call with no written name was made by the compiler, not the author.
-    let mut names = written
-        .filter(|name| !name.is_empty() && !COMPILER_CALL_SPELLINGS.contains(name))
-        .collect::<Vec<_>>();
-    names.sort_unstable();
-    names.dedup();
-    if names.is_empty() {
-        return names;
-    }
-    let mut named = vec![false; names.len()];
-    for (symbol, _) in program.symbols.symbols().nodes().iter() {
-        // A declaration may keep its qualified spelling as its name
-        // (`machine kit::work`); a call writes the last segment.
-        let name = program.symbols.name(symbol);
-        let leaf = name.rsplit("::").next().unwrap_or(name);
-        if let Ok(position) = names.binary_search(&leaf) {
-            named[position] = true;
-        }
-    }
-    names
-        .into_iter()
-        .zip(named)
-        .filter_map(|(name, named)| (!named).then_some(name))
-        .collect()
+    program.names_nothing_has(
+        written
+            .filter(|name| !COMPILER_CALL_SPELLINGS.contains(name))
+            .collect(),
+    )
 }
 
 #[cfg(test)]

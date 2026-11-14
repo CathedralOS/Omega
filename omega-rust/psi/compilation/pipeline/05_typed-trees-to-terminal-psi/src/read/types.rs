@@ -492,6 +492,7 @@ impl Program<'_> {
                 TypeConstraintNode::Domain(domain)
                     if domain.subject == DomainConstraintSubject::Declared =>
                 {
+                    self.named_domain(id, domain)?;
                     if !domain.arguments.is_empty() {
                         return unserved("constrained by a domain applied at arguments");
                     }
@@ -515,6 +516,38 @@ impl Program<'_> {
             Some(qualified) => Ok(qualified),
             None => unserved("domain on a type parameter"),
         }
+    }
+
+    /// Rejects a type whose domain name nothing in the program has, in this
+    /// source or any library: `state_contracts.md`, "Statements after a call
+    /// that never returns": "an unknown machine name or malformed type is an
+    /// error wherever it appears". A name typing did not bind but that
+    /// something has (a domain of another carrier, two visible candidates)
+    /// is left to `declared_domain`, which refuses what it does not read.
+    fn named_domain(
+        &self,
+        id: MachineId,
+        domain: &typed_trees::types::DomainConstraint,
+    ) -> Checked<()> {
+        if self.typed.domain_definition(domain.symbol).is_some() {
+            return Ok(());
+        }
+        let Some(written) = domain.source_selection else {
+            return Ok(());
+        };
+        let name = domain.name.as_str();
+        let leaf = name.rsplit("::").next().unwrap_or(name);
+        if self.typed.names_nothing_has(vec![leaf]).is_empty() {
+            return Ok(());
+        }
+        Err(crate::reject(
+            id,
+            crate::SourceOrigin::of(written.source_span),
+            format!(
+                "this type names the domain `{name}`, which nothing in the program declares: \
+                 an unknown name in a type is an error wherever it appears"
+            ),
+        ))
     }
 
     /// Whether the checker reads the declared domain `domain` on `carrier`:
@@ -562,12 +595,9 @@ impl Program<'_> {
         if self.value_type(id, definition.target_type)? != plain {
             return unserved("constrained by a domain declared on another carrier");
         }
-        // A predicate over the fields of a data value has no owning
-        // contract to join when that value is a local or a formal
-        // (`predicates`); only a scalar's is stated yet.
-        if super::authority::has_predicates(definition) && !matches!(plain, ValueType::Scalar(..)) {
-            return unserved("constrained by a domain with predicates on a data carrier");
-        }
+        // A domain's predicates are judged where the place declared in it
+        // has a contract to join (`predicates`); each place without one
+        // refuses them there by name.
         Ok(())
     }
 

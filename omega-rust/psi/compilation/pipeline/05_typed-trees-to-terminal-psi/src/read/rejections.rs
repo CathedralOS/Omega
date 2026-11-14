@@ -28,7 +28,8 @@ program of that form, and each rule here names its sentence:
   yet decided) stays a refusal.
 
 Every other rejection is made where its rule is checked (`casts`,
-`contracts`), through the same `crate::reject`.
+`contracts`, a domain name nothing declares in `types`, an `invokes` row
+naming nothing in `services`), through the same `crate::reject`.
 */
 
 use semantic_vocabulary::MachineId;
