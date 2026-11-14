@@ -282,6 +282,115 @@ impl Program<'_> {
         })
     }
 
+    pub(super) fn byte_subslice(
+        &mut self,
+        machine: MachineId,
+        slots: &[super::Slot],
+        base: Expression,
+        range: &typed_trees::expression::TableRangeExpression,
+        handle: typed_trees::expression::ExpressionHandle,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        let unavailable =
+            |detail| refuse(machine, Construct::Machine, Unserved::Expression(detail));
+        let Some(ValueType::Record(row, _, regions)) = base.result else {
+            return Err(unavailable("range without its byte descriptor"));
+        };
+        if base
+            .result
+            .is_some_and(|value| !value.qualification().domains.is_empty())
+        {
+            return Err(unavailable(
+                "range of qualified bytes without its selected operand type",
+            ));
+        }
+        if !matches!(self.data_type(machine, row)?.shape,
+            StorageShape::ByteSequence(carrier) if carrier.is_shared_readable_view())
+        {
+            return Err(unavailable(
+                "range of mutable backing without its persistent shared loan",
+            ));
+        }
+        let count = semantic_vocabulary::ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .expect("u64 is valid"),
+        );
+        let reference = self
+            .record_sources
+            .get(row)
+            .and_then(|source| source.application.as_ref())
+            .map(|application| application.reference);
+        let count_reference = self.typed.type_reference_table.named_references().find_map(
+            |(reference, symbol, _)| {
+                self.typed
+                    .symbols
+                    .builtin_type_atom(symbol)
+                    .is_some_and(|atom| super::types::atom_type(atom, machine) == Ok(count))
+                    .then_some(reference)
+            },
+        );
+        let operands = [reference, count_reference, count_reference];
+        if !typed_trees::operator::resolve_indexed_spelling_for_operands(
+            self.typed,
+            language_core::OperatorSpelling::Range,
+            &operands,
+            self.typed.expression_table.source_span(handle),
+        )
+        .is_empty()
+            || !typed_trees::operator::has_builtin_spelled_expression_meaning(
+                self.typed,
+                self.lifetime_owner,
+                handle,
+                language_core::OperatorSpelling::Range,
+                &operands,
+            )
+        {
+            return Err(unavailable("range with a selected user operator"));
+        }
+        let mut endpoint = |handle: typed_trees::expression::ExpressionHandle| -> Checked<Option<Box<Expression>>> {
+            if !handle.is_valid() { return Ok(None); }
+            let value = self.expression(machine, slots, handle, Some(ValueType::plain(count)))?;
+            if value.result != Some(ValueType::plain(count)) {
+                return Err(unavailable("byte range endpoint that is not a plain u64"));
+            }
+            Ok(Some(Box::new(value)))
+        };
+        let start = endpoint(range.start)?;
+        let mut end = endpoint(range.end)?;
+        if range.end_inclusive {
+            let last = end
+                .take()
+                .ok_or_else(|| unavailable("inclusive range without an end"))?;
+            end = Some(Box::new(Expression {
+                call_context: None,
+                kind: ExpressionKind::Strict {
+                    operation: crate::body::Strict::Add,
+                    left: last,
+                    right: Box::new(Expression {
+                        call_context: None,
+                        kind: ExpressionKind::Integer(semantic_vocabulary::IntegerValue::Unsigned(
+                            1,
+                        )),
+                        result: Some(ValueType::plain(count)),
+                        source,
+                    }),
+                },
+                result: Some(ValueType::plain(count)),
+                source,
+            }));
+        }
+        Ok(Expression {
+            call_context: None,
+            kind: ExpressionKind::ByteSubslice {
+                base: Box::new(base),
+                start,
+                end,
+            },
+            result: Some(ValueType::Record(row, Qualification::NONE, regions)),
+            source,
+        })
+    }
+
     pub(super) fn collection_measure(
         &mut self,
         machine: MachineId,

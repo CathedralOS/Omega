@@ -551,6 +551,14 @@ fn expression_homes<'b>(
                 expression_homes(element, homes);
             }
         }
+        ExpressionKind::ByteSubslice { base, start, end } => {
+            for operand in std::iter::once(base.as_ref())
+                .chain(start.as_deref())
+                .chain(end.as_deref())
+            {
+                expression_homes(operand, homes);
+            }
+        }
         ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index } => {
             expression_homes(base, homes);
             expression_homes(index, homes);
@@ -1228,6 +1236,90 @@ impl<'a> Lowering<'a> {
                         destination: root,
                         bytes: bytes.clone(),
                         qualifications: Vec::new(),
+                    },
+                )?;
+                self.write(
+                    place,
+                    ProgramPoint::AfterOperation(operation),
+                    Content::Overwritten,
+                )?;
+                Ok(Reached::Value(Located {
+                    root,
+                    place,
+                    path: Vec::new(),
+                    record,
+                    fresh: true,
+                }))
+            }
+            ExpressionKind::ByteSubslice { base, start, end } => {
+                // Capture the descriptor before evaluating either endpoint.
+                // A later call may replace the original descriptor home.
+                let captured = continuing!(self.record(base));
+                let count = ScalarType::Integer(
+                    semantic_vocabulary::IntegerType::new(
+                        semantic_vocabulary::IntegerSign::Unsigned,
+                        64,
+                    )
+                    .expect("u64 is valid"),
+                );
+                let start = if let Some(start) = start {
+                    continuing!(self.scalar(start))
+                } else {
+                    let operation = self.operation_identity(expression.source);
+                    let Value::Scalar(zero) = self.emit(
+                        operation,
+                        Some(count),
+                        OperationKind::IntegerConstant {
+                            value: semantic_vocabulary::IntegerValue::Unsigned(0),
+                        },
+                    )?
+                    else {
+                        return Err(self.internal("a range start is not scalar"));
+                    };
+                    zero
+                };
+                let end = if let Some(end) = end {
+                    Some(continuing!(self.scalar(end)))
+                } else {
+                    None
+                };
+                let source = StructuralArgument {
+                    place: captured,
+                    path: Vec::new(),
+                    access: StructuralAccess::SharedBorrow,
+                };
+                let exact = self.exact_root(captured)?;
+                self.name_contents(exact, ValueType::record(record))?;
+                self.project(exact, Segment::Extent)?;
+                let measurement = self.operation_identity(expression.source);
+                let Value::Scalar(length) = self.emit(
+                    measurement,
+                    Some(count),
+                    OperationKind::ByteSequenceLength {
+                        source: source.clone(),
+                    },
+                )?
+                else {
+                    return Err(self.internal("a range length is not scalar"));
+                };
+                let operation = self.operation_identity(expression.source);
+                let before = self.here()?;
+                let obligation = self.obligation(
+                    ObligationKind::OperationSafety {
+                        site: ExecutionSite::Operation(operation),
+                    },
+                    before,
+                    expression.source,
+                );
+                let (root, place) = self.produce(
+                    operation,
+                    record,
+                    OperationKind::ByteSequenceSubslice {
+                        source,
+                        start,
+                        end: end.unwrap_or(length),
+                        length,
+                        obligation,
                     },
                 )?;
                 self.write(

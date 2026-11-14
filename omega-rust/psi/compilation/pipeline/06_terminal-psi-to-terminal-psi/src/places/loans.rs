@@ -140,7 +140,7 @@ pub(crate) fn reference_graph(
         )
     })?;
     let contains = |root| {
-        terminal_psi::structural_type_contains_reference_by(|id| module.structural_type(id), root)
+        terminal_psi::structural_type_has_borrowed_storage_by(|id| module.structural_type(id), root)
     };
     let demanded = lowered
         .result

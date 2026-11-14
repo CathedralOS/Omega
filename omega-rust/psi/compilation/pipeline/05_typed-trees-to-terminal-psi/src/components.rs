@@ -244,6 +244,14 @@ fn expression(value: &Expression, sites: &mut Vec<CallSite>) {
                 expression(element, sites);
             }
         }
+        ExpressionKind::ByteSubslice { base, start, end } => {
+            for operand in std::iter::once(base.as_ref())
+                .chain(start.as_deref())
+                .chain(end.as_deref())
+            {
+                expression(operand, sites);
+            }
+        }
         ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index } => {
             expression(base, sites);
             expression(index, sites);
@@ -308,6 +316,7 @@ fn uses_storage(body: &Body, signature: &Signature) -> bool {
             | ExpressionKind::Record { .. }
             | ExpressionKind::Field { .. }
             | ExpressionKind::ByteElement { .. }
+            | ExpressionKind::ByteSubslice { .. }
             | ExpressionKind::CollectionMeasure { .. }
             | ExpressionKind::Case { .. }
             | ExpressionKind::Payload { .. }

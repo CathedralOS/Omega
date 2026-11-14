@@ -376,6 +376,17 @@ impl Walk<'_> {
                 }
                 Ok(true)
             }
+            ExpressionKind::ByteSubslice { base, start, end } => {
+                for operand in std::iter::once(base.as_ref())
+                    .chain(start.as_deref())
+                    .chain(end.as_deref())
+                {
+                    if !self.expression(machine, operand)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
             ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index } => {
                 Ok(self.expression(machine, base)? && self.expression(machine, index)?)
             }
