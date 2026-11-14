@@ -31,6 +31,7 @@ target. On another host, copy one and change the executable suffix and target.
 | `profile <plan.json> <baseline\|candidate> <wpr\|perf-stat\|perf-record> <new-dir>` | Where does one checked execution spend its time? |
 | `progress [options]` | How fast is this commit's release compiler on this host? |
 | `scaling --omega <omega> [options]` | Does a bigger program make each machine cost more to check? |
+| `dominance-summary <graph-run-dir>` | Validate and summarize retained pairs from the private checker graph driver. |
 
 Any command may start with `--address-space-gib N` to change the Linux
 address-space cap (default 64 GiB) every measured process runs under; records
