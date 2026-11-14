@@ -1626,4 +1626,52 @@ mod tests {
             ),]
         );
     }
+
+    #[test]
+    fn scoped_cleanup_does_not_inspect_an_unrequested_erased_field() {
+        use terminal_psi::{
+            BindingRelevance, StructuralFieldDeclaration, StructuralFieldType,
+            StructuralPathSegment as Path, StructuralTypeShape, TerminalIdentityIndex as Identity,
+        };
+        let mut types = reconvergence_types();
+        let StructuralTypeShape::Record { fields, .. } = &mut types[0].shape else {
+            unreachable!()
+        };
+        fields.push(StructuralFieldDeclaration {
+            id: StructuralFieldId::new(5).unwrap(),
+            identity: Identity(50),
+            relevance: BindingRelevance::Erased,
+            field_type: StructuralFieldType::Erased {
+                type_identity: Identity(60),
+            },
+            storage: None,
+            inline_carrier: None,
+        });
+        let root = StructuralTypeId::new(1).unwrap();
+        let moved = [vec![Path::Field(Identity(1)), Path::Field(Identity(3))]]
+            .into_iter()
+            .collect();
+        let selected = [vec![Path::Field(Identity(1))]].into_iter().collect();
+        assert_eq!(
+            crate::partial_affine_residuals_in_regions(&types, root, &moved, &selected, 1)
+                .expect("an unrelated erased field is outside the cleanup scope"),
+            [(
+                vec![Path::Field(Identity(1)), Path::Field(Identity(4))],
+                StructuralTypeId::new(3).unwrap()
+            ),]
+        );
+        let erased = [vec![Path::Field(Identity(50))]].into_iter().collect();
+        assert!(
+            crate::partial_affine_residuals_in_regions(&types, root, &moved, &erased, 1).is_none(),
+            "scoping cannot create runtime custody for an erased field"
+        );
+        let whole = [Vec::new()].into_iter().collect();
+        assert!(
+            crate::partial_affine_residuals_in_regions(&types, root, &moved, &whole, 3).is_none()
+        );
+        assert!(
+            crate::partial_affine_residuals(&types, root, &moved, 3).is_none(),
+            "the existing whole-partition refusal remains unchanged"
+        );
+    }
 }

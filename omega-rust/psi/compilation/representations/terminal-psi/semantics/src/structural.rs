@@ -1426,6 +1426,14 @@ pub(crate) mod partial_affine {
     ) -> Option<usize> {
         let mut count = 0_usize;
         for field in fields.iter().rev() {
+            // A scoped cleanup does not inspect presentation or erasure of
+            // sibling storage it was not asked to dispose.
+            if region_children(regions, StructuralPathSegment::Field(field.identity))
+                .as_ref()
+                .is_some_and(Vec::is_empty)
+            {
+                continue;
+            }
             if field.relevance.is_erased() {
                 return None;
             }
