@@ -185,7 +185,11 @@ pub(super) fn encode_integer_type(bytes: &mut Vec<u8>, integer: IntegerType) {
         semantic_vocabulary::IntegerSign::Signed => 0,
         semantic_vocabulary::IntegerSign::Unsigned => 1,
     });
-    crate::codec_bytes::push_encoded(bytes, integer.bits().to_le_bytes());
+    // Raw plan fingerprints preserve scoped symbolic metadata; only the
+    // published owner's catalog can establish an executable scalar carrier.
+    integer
+        .width()
+        .write_identity(|part| bytes.extend_from_slice(part));
 }
 
 pub fn encode_hosted_read_byte_identity(
@@ -335,6 +339,31 @@ pub(super) fn encode_structural_contract(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn raw_width_identity_keeps_fixed_bytes_and_scopes_parameters() {
+        use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ValueId, WidthParameter};
+        let encode = |integer| {
+            let mut bytes = Vec::new();
+            super::encode_integer_type(&mut bytes, integer);
+            bytes
+        };
+        let fixed = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+        assert_eq!(encode(fixed), [0, 1, 64, 0]);
+        assert_eq!(encode(IntegerType::address(64).unwrap()), [1, 1, 64, 0]);
+        let parameter = |owner, value| {
+            IntegerType::parameterized(
+                IntegerSign::Unsigned,
+                WidthParameter {
+                    owner: MachineId::new(owner).unwrap(),
+                    value: ValueId::new(value).unwrap(),
+                },
+            )
+        };
+        for other in [fixed, parameter(2, 1), parameter(1, 2)] {
+            assert_ne!(encode(parameter(1, 1)), encode(other));
+        }
+    }
+
     #[test]
     fn work_settlements_preserve_numeric_wire_encoding() {
         use super::{PsiProvenance, WorkSettlement, encode_work};
