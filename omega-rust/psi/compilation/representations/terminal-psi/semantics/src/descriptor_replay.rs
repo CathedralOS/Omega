@@ -5028,7 +5028,8 @@ pub(crate) mod engine {
             } else {
                 None
             };
-            let mut effects = Vec::new();
+            let mut written: Vec<(usize, Vec<DescriptorContentsStep>, BTreeSet<Origin>)> =
+                Vec::new();
             for row in &machine.places {
                 let DescriptorDefinition::Parameter {
                     position: parameter,
@@ -5073,18 +5074,14 @@ pub(crate) mod engine {
                     if origins == BTreeSet::from([Origin::Incoming(slot.clone())]) {
                         continue;
                     }
-                    effects.push(DescriptorStoredEffect {
+                    written.push((
                         parameter,
-                        steps: slot
-                            .path
+                        slot.path
                             .into_iter()
                             .map(DescriptorContentsStep::Address)
-                            .collect(),
-                        origins: origins
-                            .iter()
-                            .map(|origin| self.exported(machine, origin))
-                            .collect::<Option<_>>()?,
-                    });
+                            .collect::<Vec<_>>(),
+                        origins,
+                    ));
                 }
             }
             let contents = machine
@@ -5102,9 +5099,25 @@ pub(crate) mod engine {
                         origins.extend(state.incoming_contents(&query)?);
                     }
                 }
+                // A slot reached through a reference the formal holds is read
+                // above from the same replaced contents this loop publishes
+                // (`read` crosses the reference into `state.contents`). That
+                // is one destination, so it is one effect holding both
+                // readings: a caller refuses two effects of one call that
+                // write the same storage, since nothing orders them.
+                match written
+                    .iter_mut()
+                    .find(|(position, steps, _)| *position == parameter && *steps == query.steps)
+                {
+                    Some((_, _, published)) => published.extend(origins),
+                    None => written.push((parameter, query.steps, origins)),
+                }
+            }
+            let mut effects = Vec::with_capacity(written.len());
+            for (parameter, steps, origins) in written {
                 effects.push(DescriptorStoredEffect {
                     parameter,
-                    steps: query.steps,
+                    steps,
                     origins: origins
                         .iter()
                         .map(|origin| self.exported(machine, origin))

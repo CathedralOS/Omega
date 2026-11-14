@@ -73,6 +73,13 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### A view returned by a call keeps no loan of the input it borrows from
+- Category: a verdict with nothing behind it
+- Where: `reference_call_lifetimes` in [terminal-psi semantics references.rs](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references.rs), consumed by `formed` in [06 places/loans.rs](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/loans.rs)
+- Saw: an argument's loan outlives its call only when the result holds a `Reference` (`structural_type_contains_reference_by`); a byte view or element view result retains nothing. Accepted on `6bba6174a2d`: `machine inner(output: &[u8; 4]) -> &[u8] { &output[..] }` with `let view: &[u8] = inner(&name); name[0] = 9; see(view);`, the same with the owner moved (`eat(token); see(view);`), and the same through a boundary requirement (`let path: &[u8] = Fs::required_path(&token); eat(token); see(path);`). The twin with a reference result, `inner(output: &Cell) -> &Cell`, is rejected (`storage is changed while a conflicting reference remains live`). A view passed in as a view is tracked: its own loan follows the result through the flow
+- Cost: lifetimes.md, "Returned views", requires the source to "remain live for the result's use", and the checker accepts programs that write or move it; a boundary result also needs its declared lifetime dependencies before any loan can be kept (`TASKS.md`, ARRAY-ELEMENT-VIEWS)
+- Reported: 2026-11-14, Claude Code (worker-11), while tracing a Build refused for a missing descriptor flow
+
 ### The checker ends a stored reference at its last use; the interpreter keeps it until its record dies
 - Category: a verdict with nothing behind it
 - Where: checker loan closure in [06 places/loans.rs](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/loans.rs); interpreter transfer check `owned value cannot transfer while its storage is borrowed` in `omega-rust/psi/interpreter/terminal-interpreter`
