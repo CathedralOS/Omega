@@ -5401,7 +5401,13 @@ pub(crate) mod selected_operands {
                     let arguments = self
                         .type_reference_handles(*arguments)
                         .iter()
-                        .map(|argument| self.static_operand_from_type_reference(*argument))
+                        .map(|argument| -> Result<StaticMachineArgument, &'static str> {
+                            let mut operand = self.static_operand_from_type_reference(*argument)?;
+                            // The application still owns this exact payload;
+                            // conversion must not discard a child reference.
+                            operand.type_reference = *argument;
+                            Ok(operand)
+                        })
                         .collect::<Result<Vec<_>, _>>()?;
                     Ok(StaticMachineArgument {
                         symbol: *base_symbol,

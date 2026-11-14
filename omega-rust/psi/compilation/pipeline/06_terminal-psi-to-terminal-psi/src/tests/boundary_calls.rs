@@ -1933,6 +1933,27 @@ fn generic_named_map_source_application_retains_actual_constructor_bindings() {
     let [left, right] = &calls[..] else {
         panic!("two explicit constructor applications")
     };
+    for call in [left, right] {
+        let operand = program
+            .static_operand_from_type_reference(call.requirement_application)
+            .unwrap();
+        let typed_trees::types::TypeReferenceNode::Generic { arguments, .. } =
+            program.type_reference_node(call.requirement_application)
+        else {
+            panic!("the source retains its complete map application")
+        };
+        let references = program
+            .type_reference_table
+            .type_reference_handles(*arguments);
+        let actual = &operand.application.as_ref().unwrap().arguments;
+        assert_eq!(actual.len(), references.len());
+        for (argument, reference) in actual.iter().zip(references) {
+            assert_eq!(
+                argument.type_reference, *reference,
+                "the same source payload survives conversion for every used or unused map argument"
+            );
+        }
+    }
     let expected_owner = program
         .named_conformance_capture_key(left)
         .unwrap()
