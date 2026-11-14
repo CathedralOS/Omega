@@ -438,11 +438,21 @@ mod sequence_source_tests {
         let children = symbols.insert_children(root, symbols::builtin_type_symbols());
         let unsigned = children
             .handles()
-            .nth(symbols::BuiltinTypeAtom::U32.ordinal())
+            .nth(
+                symbols::BuiltinTypeAtom::Integer(
+                    numerics::integer_carrier::FixedInteger::unsigned(32),
+                )
+                .ordinal(),
+            )
             .unwrap();
         let signed = children
             .handles()
-            .nth(symbols::BuiltinTypeAtom::I32.ordinal())
+            .nth(
+                symbols::BuiltinTypeAtom::Integer(numerics::integer_carrier::FixedInteger::signed(
+                    32,
+                ))
+                .ordinal(),
+            )
             .unwrap();
         let mut typed = TypedTrees {
             symbols: symbols.finish(),
