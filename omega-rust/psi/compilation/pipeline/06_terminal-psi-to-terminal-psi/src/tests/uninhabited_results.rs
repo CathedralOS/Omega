@@ -261,3 +261,17 @@ fn empty_results_keep_call_requirements_crash_coverage_and_progress() {
         "an empty result does not prove an unranked call cycle terminates: {termination:?}",
     );
 }
+
+#[test]
+fn an_empty_result_does_not_waive_the_bodys_construction_predicate() {
+    let verdicts = program(
+        "public data Empty requires false {} \
+         public machine fabricate() -> Empty { Empty {} } \
+         machine main() {}",
+    );
+    assert!(
+        matches!(&verdicts[0], Ok(RouteVerdict::Rejected { unproved, .. })
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::DataDomain { .. }))),
+        "a reachable construction still owes the actual false default domain: {verdicts:?}",
+    );
+}
