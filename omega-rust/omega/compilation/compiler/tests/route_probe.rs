@@ -1158,13 +1158,14 @@ fn an_indexed_width_is_the_type_its_shorthand_names() {
     ] {
         assert_eq!(verdicts(name, &spare(declaration)), [expected], "{name}");
     }
-    /* The empty `main` is judged; the generic form of `next` is what is refused. */
+    /* The empty `main` is judged, then the generic form of `next`, which
+    nothing proves well formed: no requirement makes `N` positive. */
     assert_eq!(
         verdicts(
             "symbolic_width",
             &spare("machine next<const N: u64>(value: u<N>) -> u<N> { value }")
         ),
-        ["accepted", "not-supported"]
+        ["accepted", "rejected"]
     );
     for (name, declaration, reason) in [
         (
@@ -1211,7 +1212,9 @@ fn an_indexed_width_is_the_type_its_shorthand_names() {
 /// `main` passes each application the greatest value that keeps the add in
 /// range (8190 of 8191, 30 of 31); each twin differs in one argument, which
 /// is that width's greatest value. The second part is the generic form of
-/// `next`, which the checker cannot state with `N` unknown: refused by name.
+/// `next`, judged with `N` rigid: no requirement makes `N` positive, so its
+/// `u<N>` is not well formed and it is rejected
+/// (`a_width_generic_body_is_judged_at_every_width` states it with `N > 0`).
 ///
 /// A zero width rejects at the application that gives it.
 #[test]
@@ -1235,7 +1238,7 @@ fn a_symbolic_width_is_judged_at_each_applied_width() {
     ] {
         assert_eq!(
             verdicts(name, &program(wide, narrow)),
-            [closure, "not-supported"],
+            [closure, "rejected"],
             "{name}"
         );
     }

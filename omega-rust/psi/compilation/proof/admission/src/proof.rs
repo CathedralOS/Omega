@@ -1957,7 +1957,7 @@ pub(crate) mod power_of_two_order {
                 &goal,
                 std::slice::from_ref(&premise),
                 &[],
-                &rule(premise, goal.clone()),
+                &rule(premise.clone(), goal.clone()),
             )
             .unwrap();
             assert!(AcceptedProofRule::IntegerPowerOfTwoOrder.is_provisional());
@@ -1972,7 +1972,7 @@ pub(crate) mod power_of_two_order {
                 &goal,
                 std::slice::from_ref(&scalar),
                 &[],
-                &rule(scalar, goal.clone()),
+                &rule(scalar.clone(), goal.clone()),
             )
             .unwrap();
         }
