@@ -13,6 +13,7 @@ fn prepared_terminal_input_keeps_contracts_without_the_typed_owner() {
             typed_trees_to_terminal_psi::prepare_compilation(
                 &typed,
                 typed_trees_to_terminal_psi::Compilation {
+                    declaration_metadata: &[],
                     entries: &[entry],
                     subjects: &[],
                     purpose: source::DependencyScope::Product,

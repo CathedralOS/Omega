@@ -181,17 +181,31 @@ pub(crate) mod progress {
         let witness = machine.termination_plan.implementation_witness.as_ref()?;
         if witness.ranking_view != RankingViewId::NULL
             || !witness.view_path.is_empty()
-            || witness.subjects.len() != 1
             || !witness.view_arguments.is_empty()
         {
             return None;
         }
         let custody = program.ranking_expression_custody_for(machine.symbol)?;
-        let [subject] = custody.subjects.as_slice() else {
-            return None;
+        let subject = match custody.subjects.as_slice() {
+            [_, _] => return Some(RankingViewId::NAT_BOUNDED_DISTANCE),
+            [subject] => *subject,
+            _ => return None,
         };
+        // Only the selected builtin length observation is nat-like. A field
+        // named `len` does not acquire a ranking theory from that spelling.
+        // All defaults are settled here, after typed subject custody exists;
+        // resolution retains authored views without a competing recognizer.
+        if let Some(member) = program.expression_table.member_node(subject)
+            && member.case_variant.is_none()
+            && member.selection
+                == typed::expression::MemberSelection::CollectionMeasure(
+                    language_semantics::declaration_selection::CollectionMeasure::Length,
+                )
+        {
+            return Some(RankingViewId::NAT_DESCENDING);
+        }
         let typed::expression::ExpressionNode::Name(path) =
-            program.expression_table.expression(*subject)
+            program.expression_table.expression(subject)
         else {
             return None;
         };
@@ -217,8 +231,14 @@ pub(crate) mod progress {
                     _ => None,
                 }
             })?;
-        for _ in 0..128 {
-            match program.type_reference_table.type_reference(reference) {
+        let types = &program.type_reference_table;
+        // The table bounds malformed cycles without imposing an arbitrary
+        // nesting limit on valid reference/qualification shells.
+        for _ in 0..types.type_reference_count() {
+            if !types.contains_type_reference(reference) {
+                return None;
+            }
+            match types.type_reference(reference) {
                 TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
                 TypeReferenceNode::Reference { referee, .. } => reference = *referee,
                 TypeReferenceNode::Slice { .. } | TypeReferenceNode::FixedArray { .. } => {

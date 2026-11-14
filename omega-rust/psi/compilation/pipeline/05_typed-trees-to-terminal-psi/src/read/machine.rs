@@ -220,6 +220,13 @@ impl<'t> Program<'t> {
 
     /// The `MachineId` of a callee, reading its signature the first time.
     pub fn machine(&mut self, symbol: SymbolHandle) -> Checked<MachineId> {
+        if self.descriptor_storage {
+            return Err(refuse(
+                self.next_identity()?,
+                Construct::Machine,
+                Unserved::Declaration("machine admission after storage metadata"),
+            ));
+        }
         let diagnostic = self.next_identity()?;
         let (declared, _) = self.declaration(diagnostic, symbol)?;
         if let Some((owner, _)) = self.conformer_requirement(diagnostic, declared)?
@@ -291,6 +298,13 @@ impl<'t> Program<'t> {
         reading: Reading,
     ) -> Checked<MachineId> {
         let id = self.next_identity()?;
+        if self.descriptor_storage {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Declaration("machine admission after storage metadata"),
+            ));
+        }
         let (machine, _) = self.declaration(id, symbol)?;
         let bound = self
             .conformer_requirement(id, machine)?
@@ -339,6 +353,13 @@ impl<'t> Program<'t> {
         symbol: SymbolHandle,
         reading: Reading,
     ) -> Checked<()> {
+        if self.descriptor_storage {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Declaration("machine admission after storage metadata"),
+            ));
+        }
         let outer = std::mem::take(&mut self.scope);
         // An elided lifetime in the signature is a fresh parameter of this
         // machine, which each call instantiates (`regions::Elision`).
@@ -1314,6 +1335,29 @@ impl<'t> Program<'t> {
         requirement: &'t StateSignature,
         arguments: &[semantic_vocabulary::ScalarTerm],
     ) -> Checked<(Signature, MachineNames)> {
+        let (signature, names) = self.declared_requirement_signature(id, requirement, arguments)?;
+        // These callable and witness uses cannot yet carry operational proof.
+        // Do not treat declared suspension or blocking as absent.
+        if requirement.suspends || requirement.blocks {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Machine("suspends or blocks"),
+            ));
+        }
+        Ok((signature, names))
+    }
+
+    /// Read the types, logical clauses and ceilings of a requirement.
+    /// Boundary publication retains its suspension and blocking flags on the
+    /// checked declaration, and an actual call still owes their proof. Other
+    /// consumers use `requirement_signature`, which refuses unsupported effects.
+    pub(super) fn declared_requirement_signature(
+        &mut self,
+        id: MachineId,
+        requirement: &'t StateSignature,
+        arguments: &[semantic_vocabulary::ScalarTerm],
+    ) -> Checked<(Signature, MachineNames)> {
         // As a machine's: an elided lifetime is a fresh parameter of the
         // requirement, which each call instantiates (`regions::Elision`).
         let elision = std::mem::replace(
@@ -1393,9 +1437,6 @@ impl<'t> Program<'t> {
         {
             return unserved("service reach bound by an installation");
         }
-        if requirement.suspends || requirement.blocks {
-            return unserved("suspends or blocks");
-        }
         let (mut signature, mut names) = self.contract(
             id,
             requirement.symbol,
@@ -1454,9 +1495,8 @@ impl<'t> Program<'t> {
             slots.push(Slot {
                 symbol: formal.symbol,
                 value_type,
-                // What a clause reader needs to know of the binding mode: a
-                // guarantee or a crash route guard may not name a formal
-                // the body can replace (`ClauseScope::formal_fields`).
+                // Retain the declared working-binding mode. Contract scalar
+                // names use their immutable input ValueIds regardless of it.
                 assignable: mutable_formal(formal, access),
                 homed: false,
                 erased: is_erased,
@@ -1982,6 +2022,13 @@ impl<'t> Program<'t> {
     /// lifetimes its types name (lifetimes.md: a named data application
     /// must "use binders declared in the lexical owner").
     pub fn body(&mut self, id: MachineId) -> Checked<Body> {
+        if self.descriptor_storage {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Declaration("body admission after storage metadata"),
+            ));
+        }
         let symbol = *terminal_check_tables::row(&self.symbols, id, id, Construct::Machine)?;
         let owner = std::mem::replace(&mut self.lifetime_owner, symbol);
         let read = self.read_body(id, symbol);

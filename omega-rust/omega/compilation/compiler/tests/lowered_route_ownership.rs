@@ -40,6 +40,7 @@ fn owned_call_results_and_locals_publish_and_execute_the_routes_module() {
         typed_trees_to_terminal_psi::prepare_compilation(
             &frontier.typed,
             Compilation {
+                declaration_metadata: &[],
                 entries: &frontier.entries,
                 subjects: &[frontier.subject],
                 purpose: source::DependencyScope::Product,
@@ -114,6 +115,7 @@ fn borrowing_after_an_earlier_operand_moves_the_local_is_rejected() {
         typed_trees_to_terminal_psi::prepare_compilation(
             &frontier.typed,
             Compilation {
+                declaration_metadata: &[],
                 entries: &frontier.entries,
                 subjects: &[frontier.subject],
                 purpose: source::DependencyScope::Product,
@@ -245,6 +247,7 @@ machine main() crashes Trap {
             typed_trees_to_terminal_psi::prepare_compilation(
                 &frontier.typed,
                 Compilation {
+                    declaration_metadata: &[],
                     entries: &frontier.entries,
                     subjects: &[frontier.subject],
                     purpose: source::DependencyScope::Product,
@@ -330,6 +333,7 @@ machine main() crashes Trap {
             typed_trees_to_terminal_psi::prepare_compilation(
                 &frontier.typed,
                 Compilation {
+                    declaration_metadata: &[],
                     entries: &frontier.entries,
                     subjects: &[frontier.subject],
                     purpose: source::DependencyScope::Product,
@@ -501,6 +505,7 @@ fn whole_owned_transfers_consume_their_homes_once() {
     };
     let mut records = IdTable::default();
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: false,
         identity: "Owned".into(),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![RecordField {
@@ -690,6 +695,7 @@ mod transferred_on_one_path {
         };
         let mut records = IdTable::default();
         records.push(RecordType {
+            owns_linear_claim: false,
             copyable: false,
             identity: "Inner".into(),
             shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![field(
@@ -700,6 +706,7 @@ mod transferred_on_one_path {
             requires: Vec::new(),
         });
         records.push(RecordType {
+            owns_linear_claim: false,
             copyable: false,
             identity: "Pair".into(),
             shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![

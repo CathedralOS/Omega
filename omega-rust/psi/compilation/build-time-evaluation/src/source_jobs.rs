@@ -308,12 +308,14 @@ impl PreparedBuildMachineEntry {
             TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(value)) => {
                 crate::terminal_values::scalar_result(value)
             }
-            TerminalExecutionStatus::Complete(TerminalExecutionResult::Structural(_)) => {
-                crate::terminal_values::result_value(
-                    &instance,
-                    result_type.ok_or("source invocation lost its structured result type")?,
-                )
-            }
+            TerminalExecutionStatus::Complete(
+                TerminalExecutionResult::Structural(_)
+                | TerminalExecutionResult::ScalarCase(_)
+                | TerminalExecutionResult::ScalarArray(_),
+            ) => crate::terminal_values::result_value(
+                &instance,
+                result_type.ok_or("source invocation lost its structured result type")?,
+            ),
             other => Err(format!(
                 "source invocation did not complete normally: {other:?}"
             )),
@@ -339,6 +341,7 @@ impl PreparedBuildMachineProgram {
         request: &typed_trees::expression::TableCallExpression,
         request_expression: typed_trees::expression::ExpressionHandle,
         arguments: &[crate::BuildTimeValue],
+        supplies: &[psi_terminal_production::TerminalSourceSupply],
     ) -> Result<PreparedBuildMachineEntry, String> {
         if !self.source.symbols.symbols().nodes().is_valid(requester)
             || self
@@ -368,6 +371,7 @@ impl PreparedBuildMachineProgram {
         let accepted = psi_terminal_production::AcceptedTerminalSource::judge(
             source,
             psi_terminal_production::TerminalSourceCompilation {
+                declaration_metadata: &[],
                 entries: &[caller],
                 // Evaluating this call requests its dependency closure, not a
                 // full check of the requester's package or standalone source.
@@ -375,7 +379,7 @@ impl PreparedBuildMachineProgram {
                 purpose: source::DependencyScope::Product,
                 selected: &[],
                 bindings: &[],
-                supplies: &[],
+                supplies,
             },
             terminal_codec::TerminalPublication::Invocation,
         )
@@ -487,7 +491,7 @@ impl PreparedBuildMachineProgram {
         {
             return Err("source job call lost its complete argument list".into());
         }
-        self.prepare_call(requester, machine, call, expression, arguments)
+        self.prepare_call(requester, machine, call, expression, arguments, &[])
     }
 
     pub fn entry(
@@ -516,6 +520,31 @@ impl PreparedBuildMachineProgram {
             &call,
             typed_trees::expression::ExpressionHandle::invalid(),
             arguments,
+            &[],
+        )
+    }
+
+    /// Invoke the selected implementation through its original requirement.
+    /// The same binding enters judgment with the complete materialized call.
+    pub fn entry_for_supply(
+        &self,
+        requester: SymbolHandle,
+        supply: psi_terminal_production::TerminalSourceSupply,
+        arguments: &[crate::BuildTimeValue],
+    ) -> Result<PreparedBuildMachineEntry, String> {
+        self.source
+            .trait_machine_signature(supply.slot)
+            .filter(|(_, requirement)| requirement.symbol == supply.slot)
+            .ok_or("source invocation requires an exact nominal requirement")?;
+        let machine = supply.realization(&self.source, supply.slot)?;
+        let call = invocation::direct_call(&self.source, machine)?;
+        self.prepare_call(
+            requester,
+            machine,
+            &call,
+            typed_trees::expression::ExpressionHandle::invalid(),
+            arguments,
+            &[supply],
         )
     }
 }
@@ -640,6 +669,139 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn nominal_invocation_bindings_retain_the_requirement_and_implementation() {
+        let source = typed(
+            "trait A { machine plan(value: u32) -> u32; }
+             trait B { machine plan(value: u32) -> u32; }
+             P satisfies A { machine plan(value: u32) -> u32 { value } }
+             Q satisfies B { machine plan(value: u32) -> u32 { value } }",
+        );
+        let implementation = |name: &str| {
+            source
+                .conformances()
+                .iter()
+                .find(|row| {
+                    row.alias
+                        .as_ref()
+                        .is_some_and(|alias| alias.as_str() == name)
+                })
+                .unwrap()
+        };
+        let requirement = |name: &str| {
+            let owner = source
+                .traits()
+                .iter()
+                .find(|row| row.name.as_str() == name)
+                .unwrap();
+            source.trait_machine_signatures(owner)[0].symbol
+        };
+        let binding = psi_terminal_production::TerminalSourceSupply {
+            slot: requirement("A"),
+            provider: implementation("P").symbol,
+        };
+        let machine = binding.realization(&source, binding.slot).unwrap();
+        let (owner, row) = source
+            .owned_conformance_realization(machine.symbol)
+            .unwrap();
+        assert_eq!(owner.symbol, binding.provider);
+        assert_eq!(row.requirement, binding.slot);
+        assert!(
+            !source
+                .trait_machine_signature(binding.slot)
+                .unwrap()
+                .0
+                .is_boundary
+        );
+        let program = PreparedBuildMachineProgram::prepare(&source, None).unwrap();
+        let entry = program
+            .entry_for_supply(machine.symbol, binding, &[BuildTimeValue::Int(7)])
+            .unwrap();
+        assert!(entry.accepted.module().boundary_machines.is_empty());
+        assert!(
+            entry
+                .accepted
+                .boundary_requirements_declared()
+                .unwrap()
+                .is_empty()
+        );
+        let value = entry
+            .invoke(target(), &mut psi_work::WorkMeter::unbounded())
+            .unwrap();
+        assert_eq!(value, BuildTimeValue::Int(7));
+
+        assert!(
+            psi_terminal_production::TerminalSourceSupply {
+                provider: implementation("Q").symbol,
+                ..binding
+            }
+            .realization(&source, binding.slot)
+            .is_err()
+        );
+        assert!(binding.realization(&source, requirement("B")).is_err());
+        assert!(
+            psi_terminal_production::TerminalSourceSupply {
+                provider: SymbolHandle::invalid(),
+                ..binding
+            }
+            .realization(&source, binding.slot)
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn source_case_values_select_only_members_of_the_actual_formal() {
+        let program = program(
+            "data Envelope [copy] { case Value(value: u64); }
+             data Other [copy] { case Value(value: u64); }
+             machine answer(value: Envelope) -> Envelope { value }",
+        );
+        let value = BuildTimeValue::Case {
+            variant: "Value".into(),
+            payload: vec![("value".into(), BuildTimeValue::Int(7))],
+        };
+        let entry = bind(&program, std::slice::from_ref(&value)).unwrap();
+        assert_eq!(
+            entry
+                .invoke(target(), &mut psi_work::WorkMeter::unbounded())
+                .unwrap(),
+            value
+        );
+        for variant in ["Other::Value", "Missing"] {
+            let wrong = BuildTimeValue::Case {
+                variant: variant.into(),
+                payload: vec![("value".into(), BuildTimeValue::Int(7))],
+            };
+            let error = bind(&program, &[wrong])
+                .err()
+                .expect("only actual formal members bind");
+            assert!(
+                error.contains(variant) && error.contains("formal"),
+                "{error}"
+            );
+        }
+    }
+
+    #[test]
+    fn source_array_results_keep_the_actual_extent_and_elements() {
+        let program = program("machine answer(value: [u64; 2]) -> [u64; 2] { value }");
+        let value = BuildTimeValue::Array(vec![BuildTimeValue::Int(3), BuildTimeValue::Int(5)]);
+        let entry = bind(&program, std::slice::from_ref(&value)).unwrap();
+        assert_eq!(
+            entry
+                .invoke(target(), &mut psi_work::WorkMeter::unbounded())
+                .unwrap(),
+            value
+        );
+        let error = bind(
+            &program,
+            &[BuildTimeValue::Array(vec![BuildTimeValue::Int(3)])],
+        )
+        .err()
+        .expect("the declared extent is retained");
+        assert!(error.contains("declared extent"), "{error}");
+    }
+
+    #[test]
     fn subject_requirements_keep_their_full_headers_without_becoming_bodies() {
         let source = typed(
             "trait Description {
@@ -661,6 +823,7 @@ pub(crate) mod tests {
         let accepted = psi_terminal_production::AcceptedTerminalSource::judge(
             Arc::new(source),
             psi_terminal_production::TerminalSourceCompilation {
+                declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[Some(package)],
                 purpose: source::DependencyScope::Product,
@@ -1703,6 +1866,7 @@ pub(crate) mod tests {
                 psi_terminal_production::AcceptedTerminalSource::judge(
                     Arc::clone(&source),
                     psi_terminal_production::TerminalSourceCompilation {
+                        declaration_metadata: &[],
                         entries: &[callee],
                         subjects: &[subject],
                         purpose: source::DependencyScope::Product,

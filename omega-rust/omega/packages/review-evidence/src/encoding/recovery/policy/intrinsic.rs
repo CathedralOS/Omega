@@ -136,19 +136,7 @@ pub(in crate::encoding::recovery) fn float_binary(
 pub(in crate::encoding::recovery) fn numeric_type(
     reader: &mut Reader<'_>,
 ) -> Result<CompilerNumericType, Error> {
-    use CompilerNumericType as Numeric;
-    Ok(super::tag!(reader => {
-        0 => Numeric::I8,
-        1 => Numeric::I16,
-        2 => Numeric::I32,
-        3 => Numeric::I64,
-        4 => Numeric::U8,
-        5 => Numeric::U16,
-        6 => Numeric::U32,
-        7 => Numeric::U64,
-        8 => Numeric::F32,
-        9 => Numeric::F64,
-    }))
+    CompilerNumericType::from_canonical_encoding(reader.array()?).ok_or(Error::InvalidValue)
 }
 
 pub(in crate::encoding::recovery) fn arithmetic_domain(

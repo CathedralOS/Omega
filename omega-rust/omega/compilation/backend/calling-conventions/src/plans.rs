@@ -317,6 +317,16 @@ pub struct BoundaryEntryPlan {
     pub state: StatePlan,
 }
 
+impl BoundaryEntryPlan {
+    /// Commits the declared calling contract without granting validation authority.
+    pub fn contract_commitment_digest(&self) -> [u8; 32] {
+        let mut hash = Fnv1a::with_strong_domain(b"omega.boundary-calling-plan.v2");
+        hash.call_plan(&self.call);
+        hash.state_plan(&self.state);
+        hash.finish_strong()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BoundaryPlanResult {
     Accepted(BoundaryEntryPlan),
@@ -356,10 +366,7 @@ impl ValidatedBoundaryEntryPlan {
     }
 
     pub fn contract_commitment_digest(&self) -> [u8; 32] {
-        let mut hash = Fnv1a::with_strong_domain(b"omega.boundary-calling-plan.v2");
-        hash.call_plan(&self.0.call);
-        hash.state_plan(&self.0.state);
-        hash.finish_strong()
+        self.0.contract_commitment_digest()
     }
 }
 

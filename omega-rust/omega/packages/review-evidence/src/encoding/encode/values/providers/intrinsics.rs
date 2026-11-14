@@ -187,20 +187,7 @@ fn encode_compiler_numeric_type(
     encoder: &mut Encoder,
     numeric_type: provider_planning::CompilerNumericType,
 ) {
-    use provider_planning::CompilerNumericType;
-
-    match numeric_type {
-        CompilerNumericType::I8 => encoder.tag("i8", 0),
-        CompilerNumericType::I16 => encoder.tag("i16", 1),
-        CompilerNumericType::I32 => encoder.tag("i32", 2),
-        CompilerNumericType::I64 => encoder.tag("i64", 3),
-        CompilerNumericType::U8 => encoder.tag("u8", 4),
-        CompilerNumericType::U16 => encoder.tag("u16", 5),
-        CompilerNumericType::U32 => encoder.tag("u32", 6),
-        CompilerNumericType::U64 => encoder.tag("u64", 7),
-        CompilerNumericType::F32 => encoder.tag("f32", 8),
-        CompilerNumericType::F64 => encoder.tag("f64", 9),
-    };
+    encoder.fixed_bytes(&numeric_type.canonical_encoding());
 }
 
 fn encode_compiler_arithmetic_domain(encoder: &mut Encoder, domain: ArithmeticDomain) {

@@ -48,6 +48,7 @@ fn judged(text: &str, roots: &[&str]) -> Vec<Result<RouteVerdict, crate::Compila
         typed_trees_to_terminal_psi::prepare_compilation(
             &frozen,
             typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
                 entries: &entries,
                 subjects: &[],
                 purpose: source::DependencyScope::Product,

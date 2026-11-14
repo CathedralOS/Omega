@@ -94,11 +94,11 @@ framework or a list of features that remain unimplemented.
 - Cost: a package type spelled like a primitive has to be taught to both routes, and the two can disagree about one type reference. The width spellings were taught to both (`u13` is a name to typing and an installed builtin symbol to the checker), which made them agree without removing the second route. Typing still lets two mismatches through that only the checker stops, as `not-supported` instead of a typing error: `machine f(value: u1) -> bool { value }` (`typing arm value type`) and a suffixed literal outside its carrier such as `1i1` or `8192u13` (`integer literal outside its type`)
 - Reported: 2026-11-13, Claude Code, while replacing the eight integer names with a sign and a width
 
-### Numeric operations still collapse integer metadata to fixed-width rosters
+### Float semantic evaluation still collapses integer metadata to a fixed-width roster
 - Category: branch per shape
-- Where: `language-semantics/src/numeric_intrinsics.rs` (`NumericType`, published in Terminal Psi); `numerics/src/float_semantics.rs` (the integer side of float conversions)
-- Saw: the front end states an integer as a sign and a width, and these convert that pair back into one of eight variants at their door, refusing the rest. Stage 02's const evaluator (`preparation_const_evaluation.rs`) keys carriers by type-name strings and folds in `i128`, so it serves widths to 64 bits for shifts and 127 for ranges
-- Cost: every width beyond the eight stops at whichever of these it meets first, and each is a published or cross-stage vocabulary that needs its own versioned change
+- Where: `numerics/src/float_semantics.rs` (the integer side of float conversions)
+- Saw: the front end states an integer as a sign and a width, and the float semantic catalog converts that pair back into one of eight variants, refusing the rest. Stage 02's const evaluator (`preparation_const_evaluation.rs`) keys carriers by type-name strings and folds in `i128`, so it serves widths to 64 bits for shifts and 127 for ranges
+- Cost: unusual-width conversion proofs stop at the finite semantic catalog, and its published operation identities require a versioned change
 - Reported: 2026-11-13, Claude Code, while replacing the eight integer names with a sign and a width
 
 ### The lowered form drops declared domains, so only the reader knows a value's type
@@ -178,19 +178,11 @@ framework or a list of features that remain unimplemented.
 - Cost: implicit entry selection and source custody can disagree when name order differs from child order; consolidate their exact entry relationship rather than restoring the deleted selectors.
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### The default ranking view is derived differently in resolution and typing
+### Default ISA preparation rebuilds the register-constraint catalog it just made
 - Category: re-deriving
-- Where: `omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lowering_machine.rs` (`elaborate_single_subject_default`); `03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs` (`pending_ranking_default`)
-- Saw: resolution finds a parameter by name text and accepts a `.len` member; typing finds it by symbol, has no `.len` rule, stops after 128 steps and runs only when resolution left the view empty. The resolution comment still claims to mirror the deleted checker "EXACTLY".
-- Cost: two stages own the same default with different selection rules; new rankable carriers can acquire different defaults depending on which stage first recognizes them.
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
-
-### Default ISA preparation rebuilds the register and machine-effect catalogs it just made
-- Category: re-deriving
-- Where: `omega-rust/omega/compilation/backend/instruction-set-architectures/isa-x86_64/src/register_model.rs` and `.../isa-aarch64/src/register_model.rs` (constraint validators); `omega-rust/omega/compilation/representations/selected-instructions/src/effects/catalog.rs` (`validate_isa_machine_effect_catalog`); `selected-instructions/analyses/src/machine_effects.rs` (`build_validated_catalog`)
-- Saw: default preparation builds a target-owned catalog and passes it to a validator that builds the canonical catalog again to compare it; the register-constraint path does the same. Canonical comparison also serves separately supplied catalogs
-- Cost: ordinary compilation repeats construction and comparison of its own target data. That establishes conformance to the same builder, not an independent check of that builder's ISA description; foreign-catalog comparison still needs an honest boundary owner
+- Where: `omega-rust/omega/compilation/backend/instruction-set-architectures/isa-x86_64/src/register_model.rs` and `.../isa-aarch64/src/register_model.rs` (constraint validators); `backend/register-environment/src/lib.rs` (`build_baseline_target_register_environment`)
+- Saw: default preparation builds a target-owned register-constraint catalog and passes it to a validator that builds the canonical catalog again to compare it. Canonical comparison also serves separately supplied catalogs
+- Cost: ordinary compilation repeats construction and comparison of its own target data. That establishes conformance to the same builder, not an independent check of that builder's ISA description; supplied-catalog comparison still needs its boundary owner
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
 ### Native lowering accepts module bytes without artifact-bound host producer trust
@@ -214,13 +206,6 @@ framework or a list of features that remain unimplemented.
 - Cost: a reader of the headers or the type names believes register homes are checked twice, and a wrong home assignment has nothing between it and encoding
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### Stage 03 skips the exhaustiveness check for any dispatch run that has a continuation
-- Category: a verdict with nothing behind it
-- Where: `omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs:932-934` (flag set at `:858`)
-- Saw: `check_dispatch_run` returns `Ok(())` as soon as one transition in the run has a valid `continuation`, before any arm is examined; no comment gives the reason; whether stage 05 catches a missing arm in such a run was not traced
-- Cost: a reader takes stage 03 as the owner of "every case is covered" when for these runs it decides nothing, and the question of who does is left to whoever next breaks it
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
 ### Unchecked arena lookups still conflate stale handles with the zero sentinel
 - Category: a verdict with nothing behind it
 - Where: `omega-rust/psi/foundation/arena/src/arena.rs` (`get`, `get_mut`, `span_or_empty`); `paged.rs` (corresponding paged lookups)
@@ -242,12 +227,12 @@ framework or a list of features that remain unimplemented.
 - Cost: harmless renaming breaks tests while equivalent forbidden behavior can pass under another spelling. Move actual dependency rules to the boundary checker and use behavior tests for custody and execution claims; do not mechanically preserve old strings or test totals.
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### Physical evidence is never derived in production, yet about 10,000 lines exist to derive and replay it
-- Category: zombie machinery
-- Where: `omega-rust/omega/compilation/backend/artifacts/native-artifact/src/fragment_object_publication.rs:161`, `.../native-artifact/src/physical/derivation/evidence.rs:78-79`, `.../native-artifact/src/physical/` (10,168 lines)
-- Saw: the only non-test place that sets a scope sets `NativePhysicalEvidenceScope::Unavailable`, and derivation returns at once for that scope; the other two scopes are built only in `native_artifact/tests.rs`; seven `#[expect(dead_code)]` markers say "unwired, not superseded" and point at a task
-- Cost: the artifact identity and validation chain carry an evidence slot that is always empty; an agent fixing custody code there is fixing code no shipped compile runs
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
+### Linked private bodies need their own physical occurrence coverage
+- Category: incomplete evidence handoff
+- Where: `omega-rust/omega/compilation/backend/artifacts/native-artifact/src/physical/derivation/evidence.rs`, `.../native-compiler/src/realization/callable_objects.rs`
+- Saw: root publication retains its staged producer and derives physical children, but separately emitted callback bodies have independent semantic namespaces; the root projection cannot stand in for their occurrence coverage, so composition reports `UncoveredPrivateFunction`.
+- Cost: linked images cannot claim complete physical coverage until each private body retains its semantic owner and its children are joined to their relocated image spans and independently replayed.
+- Reported: 2026-11-13, Codex, while connecting physical publication to retained object producers; same outcome remains owned through composed-body validation.
 
 ### `pipeline.md` says the default compile runs no stage validators; two run, and one stage header misdescribes its own
 - Category: the documents disagree

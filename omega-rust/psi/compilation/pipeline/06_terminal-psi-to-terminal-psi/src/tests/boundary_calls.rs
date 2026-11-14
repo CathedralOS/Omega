@@ -41,6 +41,7 @@ fn invocation(typed: typed_trees::TypedTrees) -> Checked<typed_trees_to_terminal
     typed_trees_to_terminal_psi::elaborate_for(
         &frozen,
         typed_trees_to_terminal_psi::Compilation {
+            declaration_metadata: &[],
             entries: &[entry],
             subjects: &[],
             purpose: source::DependencyScope::Product,
@@ -148,6 +149,7 @@ machine entry() -> u32 crashes none {{
     typed_trees_to_terminal_psi::elaborate_for(
         &frozen,
         typed_trees_to_terminal_psi::Compilation {
+            declaration_metadata: &[],
             entries: &[entry],
             subjects: &[],
             purpose: source::DependencyScope::Product,
@@ -213,6 +215,29 @@ fn an_unserved_operational_contract_cannot_be_added_to_a_lowered_boundary() {
             .source;
         declaration.published_may_block = blocks;
         declaration.published_may_suspend = !blocks;
+        let refusal = discharge(&mut elaboration).unwrap_err();
+        assert_eq!(refusal.reason, RefusalReason::Unsupported);
+        assert_eq!(
+            refusal.detail,
+            "boundary call needs its suspension and blocking proof"
+        );
+    }
+}
+
+#[test]
+fn source_boundary_effects_still_require_their_invocation_proof() {
+    for effect in ["suspends", "blocks"] {
+        // The source declares the effect; no mutation of the published
+        // metadata supplies it. This ordinary call has no operational proof.
+        let mut elaboration = boundary(&format!("reaches none {effect}"), 7)
+            .expect("the declared boundary contract reaches invocation checking");
+        let published = &elaboration.module.boundary_machines[0]
+            .declaration
+            .as_ref()
+            .unwrap()
+            .source;
+        assert_eq!(published.published_may_suspend, effect == "suspends");
+        assert_eq!(published.published_may_block, effect == "blocks");
         let refusal = discharge(&mut elaboration).unwrap_err();
         assert_eq!(refusal.reason, RefusalReason::Unsupported);
         assert_eq!(
@@ -378,6 +403,7 @@ machine entry() crashes none {{}}
         typed_trees_to_terminal_psi::prepare_compilation(
             &typed,
             typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[None],
                 purpose: source::DependencyScope::Product,
@@ -498,6 +524,7 @@ fn compilation_verdicts_of(typed: &typed_trees::TypedTrees) -> Vec<RouteVerdict>
         typed_trees_to_terminal_psi::prepare_compilation(
             typed,
             typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[],
                 purpose: source::DependencyScope::Product,
@@ -637,6 +664,7 @@ fn a_boundary_conformer_is_not_a_named_direct_entry() {
         typed_trees_to_terminal_psi::prepare_compilation(
             &typed,
             typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[],
                 purpose: source::DependencyScope::Product,
@@ -672,6 +700,7 @@ machine entry() -> u32 reaches none crashes none { chosen() }
         typed_trees_to_terminal_psi::prepare_compilation(
             &typed,
             typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[],
                 purpose: source::DependencyScope::Product,
@@ -711,6 +740,7 @@ Rebound satisfies Other { Other::apply = previous; }
         typed_trees_to_terminal_psi::prepare_compilation(
             &typed,
             typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[None],
                 purpose: source::DependencyScope::Product,
@@ -815,6 +845,7 @@ fn inline_parameter_read(
     typed_trees_to_terminal_psi::elaborate_for(
         prepared,
         typed_trees_to_terminal_psi::Compilation {
+            declaration_metadata: &[],
             entries: &[entry],
             subjects: &[None],
             purpose: source::DependencyScope::Product,

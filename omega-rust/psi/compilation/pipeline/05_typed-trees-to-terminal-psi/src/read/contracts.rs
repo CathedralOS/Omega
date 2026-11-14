@@ -28,8 +28,9 @@ use crate::{ClauseText, Piece, Unserved, refuse};
 #[derive(Clone, Copy)]
 pub(super) struct ClauseScope<'s> {
     pub(super) slots: &'s [Slot],
-    /// Each formal's value identity, by slot (`body::formal_values`);
-    /// `None` for a record formal.
+    /// Each formal's immutable logical input identity, by slot
+    /// (`body::formal_values`); `None` for a record or borrowed formal.
+    /// Body assignments change working slots, never these contract inputs.
     pub(super) values: &'s [Option<ValueId>],
     /// The value parameters this reading of the clause has bound, each to
     /// its literal: a requirement read at the static arguments of one call
@@ -50,10 +51,11 @@ pub(super) struct ClauseScope<'s> {
     /// formal's place, about what that place holds at entry
     /// (fact_validity.md: "Entry hypotheses bind exact invocation formals
     /// or structural entry paths"). A crash route guard and an `ensures`
-    /// clause may not, yet. The slice that lets them must settle what a
-    /// field of a `mut` record formal means there first: the body stores
-    /// into that formal's own place, so the place no longer holds what the
-    /// caller passed.
+    /// clause may not, yet: the reader still needs their owned-input or
+    /// borrowed-completion field correspondence. The input of an owned
+    /// record means its original inline fields, independently of later
+    /// writes to its working place (`state_contracts.md`, "Contract inputs
+    /// and working values").
     pub(super) formal_fields: bool,
     /// Whether a comparison in this clause may be between mathematical
     /// integers (`embed(a) + embed(b) <= 99`).
@@ -521,12 +523,12 @@ impl Program<'_> {
                 if !qualification.domains.is_empty() {
                     return unserved("formal that carries a declared domain named in a clause");
                 }
-                // Contract inputs retain the supplied value even when the
-                // working binding changes. This reader has no correspondence
-                // for that mutable binding outside entry clauses yet.
-                if scope.slots[slot].assignable && !scope.formal_fields {
-                    return unserved("clause that names a mutable parameter outside requires");
-                }
+                // Contracts name the supplied scalar value in every clause.
+                // Lowering initializes the body's working slot from this
+                // formal ValueId; assignments and writable loans can change
+                // that slot without rebinding the logical input. Returns and
+                // calls substitute these same immutable identities, so no
+                // runtime snapshot or additional custody is needed.
                 let value = scope.values.get(slot).copied().flatten().ok_or_else(|| {
                     refuse(
                         id,

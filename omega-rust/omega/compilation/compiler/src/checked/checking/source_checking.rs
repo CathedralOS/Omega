@@ -115,6 +115,7 @@ pub(crate) fn check_product_source(
 
         let subject = package_inputs.map(PackageCompilationInputs::root);
         let roster = compilation_products::ProductRoster {
+            declaration_metadata: Vec::new(),
             entries: external_roots,
             subject,
             selected,
@@ -141,7 +142,6 @@ pub(crate) fn check_product_source(
             }
         };
         let source_completion_accounting = accounting.clone();
-        let judged = roster.judge(Arc::clone(&program));
         if let Some(frontier) = frontier {
             *frontier = Some(super::typed_frontier::TypedFrontier {
                 typed: program.as_ref().clone(),
@@ -152,12 +152,20 @@ pub(crate) fn check_product_source(
                 bindings: roster.bindings.clone(),
             });
         }
-        let accepted_source = judged.map_err(|mut diagnostics| {
+        let judged = compilation_products::ProductTerminalPublication::judge(
+            Arc::clone(&program),
+            roster,
+            rollback
+                .settle(&computed_build_config.config.settings.optimizations)
+                .effective()
+                .clone(),
+        );
+        let terminal_publication = Arc::new(judged.map_err(|mut diagnostics| {
             if let Some(sources) = symbol_sources.as_deref() {
                 super::attribute_diagnostics(&mut diagnostics, sources, package_inputs);
             }
             diagnostics
-        })?;
+        })?);
         let mut provider_defaults =
             build_time_evaluation::provider_declarations::retain_provider_defaults(
                 build_time_evaluation::provider_declarations::ProviderPlanningContext::new(
@@ -180,11 +188,9 @@ pub(crate) fn check_product_source(
         // target chooses are judged in it before anything is published. The
         // judgment kept is that module's: the verdict, the demand of each target
         // and the publication are all read from it.
-        let supplied =
+        let terminal_publication =
             crate::checked::judge_supplied_product(crate::checked::ProductSupplySource {
-                program: &program,
-                roster: &roster,
-                accepted: &accepted_source,
+                publication: terminal_publication,
                 build: &build.provider_selections,
                 defaults: &provider_defaults,
             })
@@ -194,23 +200,12 @@ pub(crate) fn check_product_source(
                 }
                 diagnostics
             })?;
-        let accepted_source = supplied.accepted.unwrap_or(accepted_source);
-        let roster = supplied.roster;
         let sources = Arc::new(build_sources.seal(&program, package_inputs)?);
         let provider_inventory = Arc::new(
             typed_trees::provider_declarations::PreparedProviderInventory::new(
                 Arc::clone(&program),
                 sources.exact_toolchain_sources(),
             ),
-        );
-        let terminal_publication = Arc::new(
-            compilation_products::ProductTerminalPublication::new(
-                rollback
-                    .settle(&computed_build_config.config.settings.optimizations)
-                    .effective()
-                    .clone(),
-            )
-            .with_accepted(accepted_source, roster),
         );
         Ok(CheckedProductSource {
             source_completion_accounting,

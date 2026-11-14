@@ -51,27 +51,16 @@ pub(crate) fn selected_supplies(
 /// the first judgment, with the supplies the Build and the target packages
 /// declare.
 pub struct ProductSupplySource<'a> {
-    /// The frozen source the first judgment accepted.
-    pub program: &'a std::sync::Arc<typed_trees::FrozenTypedTrees>,
-    /// The roster of that judgment and its accepted module.
-    pub roster: &'a compilation_products::ProductRoster,
-    pub accepted: &'a psi_compiler::AcceptedTerminalSource,
+    /// The source and complete roster authenticated by one actual judgment.
+    pub publication: std::sync::Arc<compilation_products::ProductTerminalPublication>,
     /// The evaluated Build's provider selections and the target packages'
     /// defaults.
     pub build: &'a [build_time_evaluation::provider_declarations::ProviderSelection],
     pub defaults: &'a [build_time_evaluation::provider_declarations::TargetProviderDefaults],
 }
 
-/// The Product's roster with every chosen provider, and its judgment.
-#[derive(Debug)]
-pub struct SuppliedProduct {
-    /// The Product's own roster, extended by each supply a target chose.
-    pub roster: compilation_products::ProductRoster,
-    /// The judgment of that roster when a target chose a provider the
-    /// Product's own roster did not name; `None` when the first judgment
-    /// already holds every chosen provider.
-    pub accepted: Option<std::sync::Arc<psi_compiler::AcceptedTerminalSource>>,
-}
+/// The existing authenticated publication, extended by every chosen supply.
+pub type SuppliedProduct = std::sync::Arc<compilation_products::ProductTerminalPublication>;
 
 /// What the demand walk of any target reads from one accepted module.
 struct ModuleDemand {
@@ -171,10 +160,10 @@ impl ModuleDemand {
 pub fn judge_supplied_product(
     source: ProductSupplySource<'_>,
 ) -> Result<SuppliedProduct, Vec<Diagnostic>> {
-    let mut roster = source.roster.clone();
-    let mut supplied: Option<std::sync::Arc<psi_compiler::AcceptedTerminalSource>> = None;
+    let mut publication = source.publication;
     loop {
-        let accepted = supplied.as_deref().unwrap_or(source.accepted);
+        let accepted = publication.accepted()?;
+        let mut roster = publication.roster()?.clone();
         let demand = ModuleDemand::read(accepted, &roster)?;
         let before = roster.supplies.len();
         for profile in target::TargetProfile::ALL {
@@ -198,22 +187,21 @@ pub fn judge_supplied_product(
             }
         }
         if roster.supplies.len() == before {
-            return Ok(SuppliedProduct {
-                roster,
-                accepted: supplied,
-            });
+            return Ok(publication);
         }
-        supplied = Some(roster.judge(std::sync::Arc::clone(source.program))?);
+        publication = std::sync::Arc::new(compilation_products::ProductTerminalPublication::judge(
+            std::sync::Arc::clone(accepted.source()),
+            roster,
+            publication.optimizations().clone(),
+        )?);
     }
 }
 
 /// What a product of one target reads from its checked source to prepare
 /// that target's supply.
 pub struct TargetSupplySource<'a> {
-    /// The Product's supplied roster and its accepted module
-    /// (`judge_supplied_product`).
-    pub roster: &'a compilation_products::ProductRoster,
-    pub accepted: &'a psi_compiler::AcceptedTerminalSource,
+    /// The Product's source and supplied roster, paired by their judgment.
+    pub publication: &'a compilation_products::ProductTerminalPublication,
     /// The evaluated Build's provider selections and the target packages'
     /// defaults.
     pub build: &'a [build_time_evaluation::provider_declarations::ProviderSelection],
@@ -232,8 +220,9 @@ pub struct TargetSupplySource<'a> {
 pub fn prepare_supplied_target(
     source: TargetSupplySource<'_>,
 ) -> Result<PreparedTargetSupply, Vec<Diagnostic>> {
-    let supply = ModuleDemand::read(source.accepted, source.roster)?.prepare(
-        source.accepted,
+    let accepted = source.publication.accepted()?;
+    let supply = ModuleDemand::read(accepted, source.publication.roster()?)?.prepare(
+        accepted,
         source.build,
         source.defaults,
         source.target,
@@ -269,8 +258,7 @@ impl PreparedProductTarget {
             .require_source_owner(&source.program)
             .map_err(|error| vec![error])?;
         let supply = prepare_supplied_target(TargetSupplySource {
-            roster: source.terminal_publication.roster()?,
-            accepted: source.terminal_publication.accepted()?,
+            publication: &source.terminal_publication,
             build: &source.computed_build_config.config.provider_selections,
             defaults: &source.provider_defaults,
             target: profile.map(|profile| profile.target_name()),

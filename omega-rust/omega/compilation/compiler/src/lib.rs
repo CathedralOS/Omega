@@ -70,6 +70,7 @@ pub use product_execution::{
 pub use psi_compiler::ProducedTerminalProgram;
 pub use target::ExplicitTargetSet;
 pub use target_batch::PreparedCompilation;
+pub use terminal::prepare_program_entry;
 
 pub fn compiler_input_identity() -> Result<[u8; 32], String> {
     let library = package_compilation::toolchain_library::identity()?;

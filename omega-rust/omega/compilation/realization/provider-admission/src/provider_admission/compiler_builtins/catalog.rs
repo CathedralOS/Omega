@@ -283,16 +283,15 @@ fn compiler_builtin_execution(
                 Numeric::F64 => Some(semantic_vocabulary::IeeeFloatFormat::Binary64),
                 _ => None,
             };
-            let carrier = |numeric| match numeric {
-                Numeric::I8 => Some(Carrier::I8),
-                Numeric::I16 => Some(Carrier::I16),
-                Numeric::I32 => Some(Carrier::I32),
-                Numeric::I64 => Some(Carrier::I64),
-                Numeric::U8 => Some(Carrier::U8),
-                Numeric::U16 => Some(Carrier::U16),
-                Numeric::U32 => Some(Carrier::U32),
-                Numeric::U64 => Some(Carrier::U64),
-                _ => None,
+            let carrier = |numeric| {
+                let Numeric::Integer(integer) = numeric else {
+                    return None;
+                };
+                // Execution admits only an exact carrier in the target operation catalog.
+                Carrier::ALL.into_iter().find(|candidate| {
+                    candidate.is_signed() == integer.is_signed()
+                        && u64::from(candidate.bits()) == integer.width()
+                })
             };
             match (float(source), float(target), domain) {
                 (Some(from), Some(format), ArithmeticDomain::Exact) if from != format => {
@@ -325,4 +324,27 @@ fn compiler_builtin_execution(
         CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison { .. } => return None,
     };
     Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic { operation, format })
+}
+
+#[cfg(test)]
+mod integer_width_tests {
+    use super::*;
+    use effects::CompilerNumericType;
+    use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
+
+    #[test]
+    fn integer_width_native_conversion_requires_an_exact_supported_carrier() {
+        let boundary = semantic_vocabulary::BoundaryMachineId::new(1).unwrap();
+        for (width, supported) in [(13, false), (32, true), (64, true), (257, false)] {
+            let meaning = CompilerIntrinsicExecutionIdentity::NamedFloatConversion {
+                source: CompilerNumericType::Integer(FixedInteger::unsigned(width)),
+                target: CompilerNumericType::F32,
+                domain: ArithmeticDomain::Exact,
+            };
+            assert_eq!(
+                compiler_builtin_execution(meaning, boundary, None).is_some(),
+                supported
+            );
+        }
+    }
 }

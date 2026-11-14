@@ -66,6 +66,7 @@ fn judged_invocation(text: &str) -> super::RouteVerdict {
     super::judge(typed_trees_to_terminal_psi::elaborate_for(
         &program,
         typed_trees_to_terminal_psi::Compilation {
+            declaration_metadata: &[],
             entries: &[entry],
             subjects: &[],
             purpose: source::DependencyScope::Product,

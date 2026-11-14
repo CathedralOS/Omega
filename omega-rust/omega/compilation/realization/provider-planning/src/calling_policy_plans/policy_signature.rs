@@ -57,6 +57,9 @@ fn zero_case(variant: &str, field: &str) -> BuildTimeValue {
     case(variant, vec![(field.to_owned(), BuildTimeValue::Int(0))])
 }
 
+// Case values name members of the actual typed formal, not source paths.
+// Keep the closed vocabulary's member labels unqualified; the source
+// constructor validates them against that formal's exact declaration roster.
 pub fn encode_calling_policy_signature(
     signature: &CallingPolicySignature,
 ) -> Result<BuildTimeValue, String> {
@@ -177,11 +180,11 @@ pub fn encode_calling_policy_signature(
                 (
                     "origin".to_owned(),
                     parameter.map_or_else(
-                        || zero_case("NativeParameterOrigin::SemanticFormal", "formal_ordinal"),
+                        || zero_case("SemanticFormal", "formal_ordinal"),
                         |row| match row.origin {
                             BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal } => {
                                 case(
-                                    "NativeParameterOrigin::SemanticFormal",
+                                    "SemanticFormal",
                                     vec![(
                                         "formal_ordinal".to_owned(),
                                         BuildTimeValue::Int(i64::from(formal_ordinal)),
@@ -192,7 +195,7 @@ pub fn encode_calling_policy_signature(
                                 binder,
                                 requirement,
                             } => case(
-                                "NativeParameterOrigin::PrivateCallback",
+                                "PrivateCallback",
                                 vec![
                                     (
                                         "binder".to_owned(),
@@ -210,17 +213,17 @@ pub fn encode_calling_policy_signature(
                 (
                     "shape".to_owned(),
                     parameter.map_or_else(
-                        || zero_case("NativeParameterShape::Semantic", "root"),
+                        || zero_case("Semantic", "root"),
                         |row| match row.shape {
                             BoundaryNativeParameterShape::Semantic(root) => case(
-                                "NativeParameterShape::Semantic",
+                                "Semantic",
                                 vec![("root".to_owned(), BuildTimeValue::Int(i64::from(root)))],
                             ),
                             BoundaryNativeParameterShape::TargetFunctionPointer {
                                 byte_size,
                                 alignment,
                             } => case(
-                                "NativeParameterShape::TargetFunctionPointer",
+                                "TargetFunctionPointer",
                                 vec![
                                     (
                                         "byte_size".to_owned(),
@@ -247,7 +250,7 @@ pub fn encode_calling_policy_signature(
                 (
                     "destination".to_owned(),
                     demand.map_or_else(
-                        || zero_case("NativePlace::Parameter", "parameter"),
+                        || zero_case("Parameter", "parameter"),
                         |row| build_native_place(&row.destination),
                     ),
                 ),
@@ -297,7 +300,7 @@ pub fn encode_calling_policy_signature(
 fn build_native_place(place: &NativePlace) -> BuildTimeValue {
     match place {
         NativePlace::Parameter(parameter) => case(
-            "NativePlace::Parameter",
+            "Parameter",
             vec![(
                 "parameter".to_owned(),
                 BuildTimeValue::Int(parameter.get() as i64),
@@ -315,7 +318,7 @@ fn build_native_place(place: &NativePlace) -> BuildTimeValue {
                 ));
             }
             case(
-                "NativePlace::Field",
+                "Field",
                 vec![
                     row!("parameter".to_owned() => BuildTimeValue::Int(parameter.get() as i64)),
                     row!("layout".to_owned() => BuildTimeValue::Int(layout.get() as i64)),
@@ -561,9 +564,33 @@ mod tests {
                 }],
             },
         };
-        let BuildTimeValue::Struct { fields, .. } =
-            encode_calling_policy_signature(&signature).expect("canonical input")
-        else {
+        fn assert_member_labels(value: &BuildTimeValue) {
+            match value {
+                BuildTimeValue::Case { variant, payload } => {
+                    assert!(
+                        !variant.contains("::"),
+                        "a case is a formal member, not a path: {variant}"
+                    );
+                    for (_, value) in payload {
+                        assert_member_labels(value);
+                    }
+                }
+                BuildTimeValue::Struct { fields, .. } => {
+                    for (_, value) in fields {
+                        assert_member_labels(value);
+                    }
+                }
+                BuildTimeValue::Array(elements) => {
+                    for value in elements {
+                        assert_member_labels(value);
+                    }
+                }
+                _ => {}
+            }
+        }
+        let encoded = encode_calling_policy_signature(&signature).expect("canonical input");
+        assert_member_labels(&encoded);
+        let BuildTimeValue::Struct { fields, .. } = encoded else {
             panic!("signature input");
         };
         for (name, expected) in [
