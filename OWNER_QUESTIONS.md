@@ -169,3 +169,33 @@ from a caller that holds the literal instead of returned?
 **Until answered.** The lowered-form checker refuses the machine by name
 (`typing result lifetime that no argument is a view of`), with no claim that
 the program is wrong.
+
+### Q4 - What becomes of the fact samples whose dependency package was removed?
+
+Decision name: `fact-sample-dependency-packages`.
+
+**Customer.** Three families of `samples/cli/facts/` exist to show a
+capability across a package boundary: `build_target_provider`,
+`dependency_type_qualified_call` and `component_scalar_lending`. Each place's
+Build registers a dependency in a folder beside it
+(`Source::Path { location: "reading_provider" }`, `"lib"`, `"producer"`).
+
+**Gap.** #1841 ("deduplicate facts corpus and freeze new fact additions")
+removed those folders, 216 files, as duplicates of each other, and left the
+Builds that name them. Every program of the three families, about 55 with
+their `invalid/` twins, is refused before its Build finishes: `cannot
+establish canonical external source path`. The same change froze the
+directory: `cargo xtask check-rules` rejects any new `.omg` file under
+`samples/cli/facts/`, so the folders cannot be put back there, and a shared
+copy elsewhere would be new sample design, not a repair. This is repository
+content and its freeze rule, which no agent may change; no page of
+`wiki/spec/` is involved.
+
+**Question.** (a) Restore one shared dependency package per family outside
+the frozen directory and point each place's Build at it (six new `.omg`
+files); (b) delete the three families, since a sample that cannot have its
+dependency shows nothing; or (c) leave them refused?
+
+**Until answered.** The samples stay as they are and are refused at source
+discovery. They are the largest group of programs that still stops in its
+Build.
