@@ -227,3 +227,104 @@ machine route() -> u32 {{
         "state `two` receives `&held.repository` as both mutable and read-only"
     );
 }
+
+// An owned payload is replaced at its captured case path, while its sum keeps
+// its case and neighboring storage. The false arm makes the authored value seven an
+// executable oracle rather than accepting any completing store.
+const OWNED_STORE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../../tests/fixtures/run/ownership/known_case_payload_store/main.omg"
+));
+
+// The inline source harness selects build_entry; the kept executable binds
+// the same body as main through each target's ordinary ProgramEntry.
+fn owned_store_source() -> String {
+    OWNED_STORE.replace("machine main()", "machine build_entry()")
+}
+
+fn execute_owned_store(source: &str) {
+    let verdict = judge_build(source);
+    let Ok(RouteVerdict::Accepted(accepted)) = verdict else {
+        panic!("the exact selected payload store must be checked: {verdict:?}");
+    };
+    let publication = accepted.publish_invocation().unwrap();
+    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    let status = instance
+        .invoke(&mut psi_work::WorkMeter::with_budget(10_000))
+        .unwrap();
+    assert!(
+        matches!(
+            status,
+            terminal_interpreter::TerminalExecutionStatus::Complete(
+                terminal_interpreter::TerminalExecutionResult::Unit
+            )
+        ),
+        "the stored payload must retain seven: {status:?}"
+    );
+}
+
+#[test]
+fn a_known_owned_case_payload_replacement_publishes_and_executes() {
+    execute_owned_store(&owned_store_source());
+}
+
+#[test]
+fn a_nested_scalar_store_keeps_the_selected_payload_path() {
+    execute_owned_store(
+        &owned_store_source().replace("choice.item = item(7);", "choice.item.value = 7;"),
+    );
+}
+
+#[test]
+fn an_owned_payload_store_requires_its_exact_selected_case() {
+    let source = owned_store_source().replace(
+        "Choice::Left { item: Item { value: 3 } }",
+        "Choice::Right {}",
+    );
+    let verdict = judge_build(&source);
+    let Ok(RouteVerdict::Rejected { unestablished, .. }) = verdict else {
+        panic!("a different selected case cannot receive the payload: {verdict:?}");
+    };
+    assert!(
+        unestablished
+            .iter()
+            .any(|failure| failure.detail == NO_CASE)
+    );
+}
+
+#[test]
+fn an_owned_payload_store_requires_mutability_of_the_existing_root() {
+    let source = owned_store_source().replace("let mut choice:", "let choice:");
+    assert_eq!(
+        verdict(&source),
+        "statement store into an immutable binding"
+    );
+}
+
+#[test]
+fn a_payload_store_cannot_use_case_membership_invalidated_by_its_replacement() {
+    let source = owned_store_source()
+        .replace("machine item(value: u32) -> Item { Item { value: value } }",
+            "data Holder { choice: Choice; }\nmachine item(value: u32, owner: &mut Holder) -> Item { Item { value: value } }")
+        .replace("machine consume(choice: Choice) { }", "machine consume(holder: Holder) { }")
+        .replace("let mut choice: Choice = Choice::Left { item: Item { value: 3 } };",
+            "let mut holder: Holder = Holder { choice: Choice::Left { item: Item { value: 3 } } };")
+        .replace("choice.item = item(7);", "holder.choice.item = item(7, &mut holder);")
+        .replace("choice.item.value", "holder.choice.item.value")
+        .replace("consume(choice)", "consume(holder)");
+    execute_owned_store(&source);
+    let changed = source.replace(
+        "machine item(value: u32, owner: &mut Holder) -> Item { Item { value: value } }",
+        "machine item(value: u32, owner: &mut Holder) -> Item { let replacement: Choice = Choice::Right {}; owner.choice = replacement; Item { value: value } }",
+    );
+    let verdict = judge_build(&changed);
+    let Ok(RouteVerdict::Rejected { unestablished, .. }) = verdict else {
+        panic!("the RHS cannot remove the case of the captured destination: {verdict:?}");
+    };
+    assert!(
+        unestablished
+            .iter()
+            .any(|failure| failure.detail == NO_CASE)
+    );
+}

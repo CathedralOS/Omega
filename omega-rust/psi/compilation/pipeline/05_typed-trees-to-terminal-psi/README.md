@@ -753,7 +753,6 @@ the slice that serves it:
 | a store into a field of a value that is not a local, or into an indexed place | `statement store into a value that is not a local`, `statement assignment to a projected place` |
 | `let x;` with neither a type nor an initializer | `statement uninitialized local without a declared type` |
 | a record pattern that omits a field, or whose subject is not a place | `statement record pattern that omits a field`, `statement record pattern over a value that is not a place` |
-| a store into a payload member, `s.at = x` | `statement store into a case payload` |
 | a payload member whose spelling two cases share | `spelling member without a field symbol` (finding 19) |
 | a field of a data payload binding, `inner.x` | `expression field read beneath a case payload` |
 | a case arm with a guard, a pattern field tested against a value, a pattern that binds its case, a second arm for one case, a wildcard no case reaches | `transition case arm with a guard`, `transition pattern field tested against a value`, `transition pattern that binds its case`, `transition case arm for a case an earlier arm selects`, `transition wildcard arm that no case reaches` |
