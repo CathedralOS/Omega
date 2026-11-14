@@ -135,6 +135,9 @@ pub mod control_flow {
             pub trait_default_origin: TraitDefaultOrigin,
             pub attached_data: Option<DiagnosticName>,
             pub attached_data_symbol: SymbolHandle,
+            /// Exact semantic home of a token binding. This association changes
+            /// neither the machine's lexical parent nor its source imports.
+            pub operator_home_domain: SymbolHandle,
             pub attached_data_application: Option<TypeReference>,
             pub spelling: Option<OperatorSpelling>,
             pub is_public: bool,

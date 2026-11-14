@@ -1849,16 +1849,25 @@ pub mod operator {
                     })
                 })
                 .filter(move |candidate| {
-                    program
+                    let declaration = program
                         .symbols
-                        .source_reference_may_select_symbol(use_site, candidate.operator.symbol)
-                        || (program
+                        .symbol_provenance_source_span(candidate.operator.symbol);
+                    let visible = candidate.operator.is_public
+                        || declaration.is_none_or(|declaration| {
+                            program.symbols.same_source_package(use_site, declaration)
+                        });
+                    visible
+                        && (program.symbols.source_reference_may_select_symbol(
+                            use_site,
+                            candidate.operator.symbol,
+                        ) || (program
                             .symbols
                             .source_reference_can_see_symbol(use_site, candidate.operator.symbol)
-                            && super::primitive_float::is_default_primitive_operator(
-                                program,
-                                candidate.operator,
-                            ))
+                            && (candidate.domain.is_some()
+                                || super::primitive_float::is_default_primitive_operator(
+                                    program,
+                                    candidate.operator,
+                                ))))
                 })
                 .filter(move |candidate| match receiver_type {
                     Some(receiver_type) => {
