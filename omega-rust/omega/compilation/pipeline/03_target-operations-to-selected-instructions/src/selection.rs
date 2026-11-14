@@ -59,9 +59,9 @@ pub(crate) mod atomic_access {
                         .iter()
                         .find(|row| row.id == result.structural_type)
                         .and_then(|row| {
-                            target_operations::conventional_atomic_once_layout(
+                            target_operations::conventional_atomic_once_layout_closed(
                                 row,
-                                *scalar_type,
+                                source.closed_integer(*scalar_type)?,
                                 custody,
                             )
                         })
@@ -75,7 +75,11 @@ pub(crate) mod atomic_access {
             &location.path,
         )?;
         let logical_type = cell.scalar_type();
-        if target_operations::operations::atomic_storage_integer_type(*event, logical_type)?
+        if target_operations::operations::atomic_storage_integer_type_closed(
+            *event,
+            source.closed_scalar(logical_type)?,
+        )?
+        .as_checking()
             != *scalar_type
             || row
                 .result

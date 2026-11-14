@@ -1816,12 +1816,9 @@ pub(crate) mod scalar_graph {
                         ordering: *ordering,
                     },
                     AbstractOperation::AtomicEvent { event, .. } => {
-                        let access = scalar_graph_input::atomic_access::access(
-                            event,
-                            optimized,
-                            unit.geometry(),
-                        )
-                        .ok_or(Error::custody())?;
+                        let access =
+                            scalar_graph_input::atomic_access::access(event, optimized, unit)
+                                .ok_or(Error::custody())?;
                         LegalizedScalarInstructionKind::AtomicAccess {
                             location: access.location,
                             scalar_type: access.scalar_type,
