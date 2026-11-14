@@ -80,13 +80,6 @@ framework or a list of features that remain unimplemented.
 - Cost: no consumer can import either declaration, and which one an unqualified `DarwinClock` means inside std depends on the operand's role. One of the two needs another name
 - Reported: 2026-11-14, Claude Code, while moving samples to declaration imports
 
-### Missing locked archives stop every pool acquire or release
-- Category: Re-deriving
-- Where: [tools/xtask/src/worktree.rs:532](tools/xtask/src/worktree.rs#L532), `list_worktrees`
-- Saw: the worktree list already records location, lock and prunable status. The pool skips prunable entries but then runs Git inside a missing locked archive checkout, aborting the complete acquire/release command. Locked archives deliberately retain admin, HEAD and restoration evidence; they must not be pruned or unlocked to make discovery work. Root reproduced this while extracting the borrowed-data repair and temporarily created only reversible `.git` handles for the command, then removed them without changing archive source, locks or absent restoration destinations.
-- Cost: an unavailable locked archive prevents unrelated warm pool slots from being acquired or released. Inspect retained Git admin metadata or safely skip unavailable locked checkouts without destroying their recovery evidence.
-- Reported: 2026-11-14, Codex, while isolating the checked mutable-data loan prerequisite for semantic policy normalization
-
 ### A provider default may still name a data type, which the spec says is not a provider value
 - Category: zombie machinery
 - Where: `omega-rust/psi/compilation/build-time-evaluation/src/product.rs` `ProviderForm::DefaultClosure` (from #3015) and its test `a_provider_default_may_name_the_data_type_that_owns_its_closure`
@@ -115,11 +108,11 @@ framework or a list of features that remain unimplemented.
 - Cost: a package type spelled like a primitive has to be taught to both routes, and the two can disagree about one type reference. The width spellings were taught to both (`u13` is a name to typing and an installed builtin symbol to the checker), which made them agree without removing the second route.
 - Reported: 2026-11-13, Claude Code, while replacing the eight integer names with a sign and a width
 
-### Float semantic evaluation still collapses integer metadata to a fixed-width roster
+### Const evaluation still keys integer carriers by spelling and folds in i128
 - Category: branch per shape
-- Where: `numerics/src/float_semantics.rs` (the integer side of float conversions)
-- Saw: the front end states an integer as a sign and a width, and the float semantic catalog converts that pair back into one of eight variants, refusing the rest. Stage 02's const evaluator (`preparation_const_evaluation.rs`) keys carriers by type-name strings and folds in `i128`, so it serves widths to 64 bits for shifts and 127 for ranges
-- Cost: unusual-width conversion proofs stop at the finite semantic catalog, and its published operation identities require a versioned change
+- Where: Stage 02's `preparation_const_evaluation.rs`
+- Saw: the const evaluator keys integer carriers by type-name strings and folds in `i128`, so it serves widths to 64 bits for shifts and 127 for ranges
+- Cost: constant evaluation discards the authoritative integer metadata and narrows otherwise valid width-indexed arithmetic to host-integer limits
 - Reported: 2026-11-13, Claude Code, while replacing the eight integer names with a sign and a width
 
 ### The lowered form drops declared domains, so only the reader knows a value's type
