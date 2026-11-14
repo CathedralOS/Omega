@@ -589,6 +589,23 @@ pub mod descriptor_lifetimes {
     pub use terminal_psi::ResolvedStructuralPathSegment as DescriptorPathSegment;
 
     impl DescriptorLocation {
+        /// Retain a captured address without translating its storage steps.
+        /// A runtime selector needs its capture point; an extent is metadata.
+        pub fn captured(root: PlaceId, path: &[DescriptorPathSegment]) -> Option<Self> {
+            if path.iter().any(|step| {
+                matches!(
+                    step,
+                    DescriptorPathSegment::RuntimeIndex { .. } | DescriptorPathSegment::Extent
+                )
+            }) {
+                return None;
+            }
+            Some(Self {
+                root,
+                path: path.to_vec(),
+            })
+        }
+
         pub fn whole(root: PlaceId) -> Self {
             Self {
                 root,

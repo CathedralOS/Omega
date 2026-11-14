@@ -123,17 +123,7 @@ impl Lineage {
         &self,
     ) -> Option<terminal_semantics::descriptor_lifetimes::DescriptorLocation> {
         use terminal_semantics::descriptor_lifetimes::DescriptorLocation;
-        if self
-            .segments
-            .iter()
-            .any(|step| matches!(step, Segment::RuntimeIndex { .. } | Segment::Extent))
-        {
-            return None;
-        }
-        Some(DescriptorLocation {
-            root: self.root,
-            path: self.segments.clone(),
-        })
+        DescriptorLocation::captured(self.root, &self.segments)
     }
 }
 
