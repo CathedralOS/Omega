@@ -98,8 +98,11 @@ mod contents;
 mod loans;
 mod log;
 
+pub(crate) use loans::reference_graph;
 pub use loans::{ConflictingLoan, LoanConflict};
 use log::{Logged, Stored};
+use std::cell::RefCell;
+use terminal_semantics::descriptor_results::DescriptorAnalysis;
 
 fn index(raw: u64) -> usize {
     usize::try_from(raw - 1).unwrap_or(usize::MAX)
@@ -112,6 +115,30 @@ fn index(raw: u64) -> usize {
 pub(crate) struct Lineage {
     root: PlaceId,
     segments: Vec<Segment>,
+}
+
+impl Lineage {
+    fn descriptor_location(
+        &self,
+    ) -> Option<terminal_semantics::descriptor_lifetimes::DescriptorLocation> {
+        use terminal_semantics::descriptor_lifetimes::{DescriptorLocation, DescriptorPathSegment};
+        Some(DescriptorLocation {
+            root: self.root,
+            path: self
+                .segments
+                .iter()
+                .map(|step| {
+                    Some(match step {
+                        Segment::Field(field) => DescriptorPathSegment::Field(*field),
+                        Segment::Case(case) => DescriptorPathSegment::Case(*case),
+                        Segment::FixedIndex(index) => DescriptorPathSegment::FixedIndex(*index),
+                        Segment::Referent => DescriptorPathSegment::Referent,
+                        Segment::RuntimeIndex { .. } | Segment::Extent => return None,
+                    })
+                })
+                .collect::<Option<Vec<_>>>()?,
+        })
+    }
 }
 
 pub(crate) fn lineage(
@@ -177,7 +204,8 @@ pub(crate) fn overlap(left: &Lineage, right: &Lineage) -> bool {
             | Segment::Case(_)
             | Segment::FixedIndex(_)
             | Segment::RuntimeIndex { .. }
-            | Segment::Extent,
+            | Segment::Extent
+            | Segment::Referent,
             _,
         )) => true,
     }
@@ -376,6 +404,21 @@ impl<'q> Asked<'q> {
         }
     }
 
+    fn at<'p>(self, place: &'p Lineage) -> Asked<'p>
+    where
+        'q: 'p,
+    {
+        match self {
+            Self::Contents(_) => Asked::Contents(place),
+            Self::Case(_) => Asked::Case(place),
+            Self::Window { by, restored, .. } => Asked::Window {
+                place,
+                by,
+                restored,
+            },
+        }
+    }
+
     /// Whether a logged row ends a path of the walk. For contents, any
     /// write to an overlapping place. For a case, a write to the sum or to
     /// a place above it (structural_access.md: "A write to the sum or any
@@ -515,12 +558,16 @@ pub(crate) struct Storage<'a> {
     /// Bound actual operations and structural edge bindings once per machine.
     reaching_budget: usize,
     log: Vec<Logged>,
+    /// Shared descriptor replay owns storage aliasing. This is local checker
+    /// scratch over the same canonical machine closure, never source evidence.
+    references: &'a RefCell<DescriptorAnalysis<'a>>,
     /// The `requires` clauses of each data type, by its identity
     /// (`Elaboration::domains`).
     domains: &'a IdTable<StructuralTypeId, Vec<Proposition>>,
 }
 
 impl<'a> Storage<'a> {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         machine: MachineId,
         lowered: &'a TerminalMachine,
@@ -529,6 +576,7 @@ impl<'a> Storage<'a> {
         graph: &'a Graph,
         tables: &MachineTables,
         value_types: &IdTable<ValueId, ScalarType>,
+        references: &'a RefCell<DescriptorAnalysis<'a>>,
     ) -> Checked<Self> {
         // First, because every lineage below is read through the place
         // table's parent links.
@@ -558,12 +606,100 @@ impl<'a> Storage<'a> {
             returned_contents: contents.calls,
             reaching_budget,
             log: Vec::new(),
+            references,
             domains,
         };
         storage.initial_contents_are_declared(tables)?;
         storage.log = storage.stores(value_types)?;
         storage.log_is_stated(tables)?;
+        // Compare the authored log first. Then every write uses the same
+        // captured backing relation as reads and loan compatibility.
+        let relocated = storage
+            .log
+            .iter()
+            .map(|row| {
+                let concerns = Construct::Operation(row.operation);
+                let before = row
+                    .position
+                    .checked_sub(1)
+                    .ok_or_else(|| storage.foreign(concerns, "a write has no formation point"))?;
+                let destination = storage.backing(&row.lineage, row.block, before, concerns)?;
+                let source = if let Stored::Moved(source) = &row.stored {
+                    Some(storage.backing(source, row.block, before, concerns)?)
+                } else {
+                    None
+                };
+                Ok((destination, source))
+            })
+            .collect::<Checked<Vec<_>>>()?;
+        for (row, (destination, source)) in storage.log.iter_mut().zip(relocated) {
+            row.lineage = destination;
+            if let Some(source) = source {
+                row.stored = Stored::Moved(source);
+            }
+        }
         Ok(storage)
+    }
+
+    /// Resolve a permission crossing at its actual use. Descriptor identity
+    /// is not backing identity, and a later reassignment must not retarget an
+    /// earlier captured borrow. Ambiguous or missing correspondence refuses.
+    fn backing(
+        &self,
+        place: &Lineage,
+        block: BlockId,
+        before: usize,
+        concerns: Construct,
+    ) -> Checked<Lineage> {
+        use terminal_semantics::descriptor_lifetimes::DescriptorPathSegment;
+        if !place.segments.contains(&Segment::Referent) {
+            return Ok(place.clone());
+        }
+        let length = self
+            .lowered
+            .blocks
+            .iter()
+            .find(|row| row.id == block)
+            .ok_or_else(|| self.foreign(concerns, "reference use has no block"))?
+            .operations
+            .len();
+        let before = u32::try_from(before.min(length)).map_err(|_| {
+            self.foreign(
+                concerns,
+                "reference use position exceeds its descriptor graph",
+            )
+        })?;
+        let location = place.descriptor_location().ok_or_else(|| {
+            self.unsupported(
+                concerns,
+                "reference backing with an unresolved selector or extent",
+            )
+        })?;
+        let captured = self
+            .references
+            .borrow_mut()
+            .location(self.machine, (block, before), &location)
+            .ok_or_else(|| {
+                self.unsupported(
+                    concerns,
+                    "reference use without exact live backing correspondence",
+                )
+            })?;
+        let resolved = Lineage {
+            root: captured.root,
+            segments: captured
+                .path
+                .into_iter()
+                .map(|step| match step {
+                    DescriptorPathSegment::Field(field) => Segment::Field(field),
+                    DescriptorPathSegment::Case(case) => Segment::Case(case),
+                    DescriptorPathSegment::FixedIndex(index) => Segment::FixedIndex(index),
+                    DescriptorPathSegment::Referent => Segment::Referent,
+                })
+                .collect(),
+        };
+        self.shape(&resolved, concerns)?;
+        Ok(resolved)
     }
 
     /// Whether `operation` writes into storage that already holds a value: a
@@ -1094,7 +1230,7 @@ impl<'a> Storage<'a> {
         owner: &Owner,
         concerns: Construct,
     ) -> Checked<bool> {
-        let Some(stored) = self.operation_destination(self.operation(operation, concerns)?)? else {
+        let Some(stored) = self.field_destination(self.operation(operation, concerns)?)? else {
             return Ok(false);
         };
         let mut names = Named {
@@ -1223,6 +1359,23 @@ impl<'a> Storage<'a> {
                 (Shape::View, _) => {
                     return Err(self.foreign(concerns, "a place lies beneath a stored view"));
                 }
+                (Shape::Typed(owner), Segment::Referent) => {
+                    let StructuralTypeShape::Reference { referent, .. } =
+                        self.declaration(owner, concerns)?.shape
+                    else {
+                        return Err(self.foreign(
+                            concerns,
+                            "a referent crossing without a reference descriptor",
+                        ));
+                    };
+                    match self.declaration(referent, concerns)?.shape {
+                        StructuralTypeShape::PrimitiveScalar(scalar) => Shape::Scalar(scalar),
+                        _ => Shape::Typed(referent),
+                    }
+                }
+                (Shape::Payload(_), Segment::Referent) => {
+                    return Err(self.foreign(concerns, "a referent crossing on a case namespace"));
+                }
                 (Shape::Typed(owner), Segment::Extent) => {
                     if !self
                         .declaration(owner, concerns)?
@@ -1347,9 +1500,11 @@ impl<'a> Storage<'a> {
         concerns: Construct,
     ) -> Checked<()> {
         match &self.declaration(structural_type, concerns)?.shape {
-            // An opaque value occupies one established place. Its lack of
-            // visible fields does not make its contents absent or zeroable.
-            StructuralTypeShape::Opaque | StructuralTypeShape::PrimitiveScalar(_) => {
+            // References and opaque values each occupy one established
+            // place. Neither grants owned access to hidden backing storage.
+            StructuralTypeShape::Opaque
+            | StructuralTypeShape::PrimitiveScalar(_)
+            | StructuralTypeShape::Reference { .. } => {
                 found.push(at.clone());
             }
             shape if is_shared_view(shape) => {
@@ -1415,11 +1570,14 @@ impl<'a> Storage<'a> {
                         segments.push(Segment::RuntimeIndex { selector: *index });
                         continue;
                     }
+                    StructuralPathSegment::Referent => {
+                        segments.push(Segment::Referent);
+                        continue;
+                    }
                     StructuralPathSegment::Field(_) => {}
                     StructuralPathSegment::AllElements
                     | StructuralPathSegment::FixedRange { .. }
-                    | StructuralPathSegment::RepresentationView { .. }
-                    | StructuralPathSegment::Referent => {
+                    | StructuralPathSegment::RepresentationView { .. } => {
                         return Err(self.unsupported(
                             concerns,
                             "storage projection outside plain records and fixed array elements",
@@ -1838,6 +1996,8 @@ impl<'a> Storage<'a> {
         budget: &mut usize,
         concerns: Construct,
     ) -> Checked<Reached> {
+        let resolved = self.backing(asked.place(), block, up_to, concerns)?;
+        let asked = asked.at(&resolved);
         // Each traced move continues strictly before its operation, so an
         // acyclic machine ends within one step per operation; a cycle of
         // moves is refused rather than followed for ever.
@@ -2416,8 +2576,12 @@ impl<'a> Storage<'a> {
             OperationKind::StructuralLeafCopy { source, path } => {
                 Ok(vec![self.stored_at(*source, path, concerns)?])
             }
-            OperationKind::MoveStructuralValue { source } => {
+            OperationKind::MoveStructuralValue { source }
+            | OperationKind::EstablishReference { source, .. } => {
                 Ok(vec![self.argument(source, concerns)?])
+            }
+            OperationKind::ReleaseReference { source, path } => {
+                Ok(vec![self.stored_at(*source, path, concerns)?])
             }
             // structural_access.md: "The source must be readable and
             // established on every incoming path."
@@ -2448,8 +2612,9 @@ impl<'a> Storage<'a> {
         }
     }
 
-    /// The place an operation stores into, when it is a store.
-    fn operation_destination(&self, operation: &Operation) -> Checked<Option<Lineage>> {
+    /// The explicit field destination, used to state that field's invariant.
+    /// This is not an inventory of call effects or owned consumption.
+    fn field_destination(&self, operation: &Operation) -> Checked<Option<Lineage>> {
         let concerns = Construct::Operation(operation.id);
         let (destination, path, field) = match &operation.kind {
             OperationKind::StructuralScalarFieldStore {
@@ -2481,6 +2646,33 @@ impl<'a> Storage<'a> {
             self.shape(&stored, concerns)?;
         }
         Ok(Some(stored))
+    }
+
+    /// Every storage change uses the already derived write log, including
+    /// call writes and scalar homes. Owned operands also relinquish their
+    /// storage; a live shared loan forbids that move just as it forbids a write.
+    fn operation_changes(&self, operation: &Operation) -> Checked<Vec<Lineage>> {
+        let concerns = Construct::Operation(operation.id);
+        let mut changes: Vec<_> = self
+            .log
+            .iter()
+            .filter(|row| row.operation == operation.id)
+            .map(|row| row.captured.clone())
+            .collect();
+        for argument in operation
+            .kind
+            .constructor_arguments()
+            .chain(operation.kind.structural_arguments())
+            .filter(|argument| argument.access == terminal_psi::StructuralAccess::Owned)
+        {
+            changes.push(self.argument(argument, concerns)?);
+        }
+        if let OperationKind::StoreStructuralField { value, .. } = &operation.kind
+            && value.access == terminal_psi::StructuralAccess::Owned
+        {
+            changes.push(self.argument(value, concerns)?);
+        }
+        Ok(changes)
     }
 
     /// The two structural judgments of one operation or terminator, in
@@ -2839,7 +3031,7 @@ impl<'a> Storage<'a> {
             for (position, operation) in block.operations.iter().enumerate() {
                 let used = self.operation_uses(operation)?;
                 let mut named = used.clone();
-                named.extend(self.operation_destination(operation)?);
+                named.extend(self.field_destination(operation)?);
                 // A store reads nothing, so it is a use only when its
                 // destination lies in a case payload.
                 let judged = !used.is_empty()
@@ -3306,7 +3498,7 @@ pub(crate) struct Returned<'s, 'a, Inputs> {
     concerns: Construct,
 }
 
-impl<Inputs: crate::Bindings<Error = crate::Unbound>> Returned<'_, '_, Inputs> {
+impl<'s, 'a, Inputs: crate::Bindings<Error = crate::Unbound>> Returned<'s, 'a, Inputs> {
     fn owned_inputs(&mut self, root: PlaceId) -> Result<&mut Inputs, crate::Unbound> {
         let formal =
             terminal_psi::StructuralParameterDeclaration::find_by_place(self.input_formals, root)
@@ -3321,7 +3513,7 @@ impl<Inputs: crate::Bindings<Error = crate::Unbound>> Returned<'_, '_, Inputs> {
         Ok(&mut self.inputs)
     }
 
-    fn held(&self) -> Result<Held<'_, '_>, crate::Unbound> {
+    fn held(&self) -> Result<Held<'_, 'a>, crate::Unbound> {
         let (_, place) = self.structural.as_ref().ok_or(crate::Unbound::Unsupported(
             "no structural result correspondence",
         ))?;

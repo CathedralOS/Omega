@@ -166,6 +166,10 @@ impl Lowering<'_> {
                 let scalar_type = self.result_type(expression)?;
                 self.read_index(base, index, scalar_type, source)
             }
+            ExpressionKind::Referent(_) => {
+                let scalar_type = self.result_type(expression)?;
+                self.read_referent(expression, scalar_type)
+            }
             ExpressionKind::Field { base, field } => {
                 let scalar_type = self.result_type(expression)?;
                 self.read_field(base, *field, scalar_type, source)

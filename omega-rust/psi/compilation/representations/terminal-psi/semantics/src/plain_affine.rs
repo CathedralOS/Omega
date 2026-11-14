@@ -1134,7 +1134,19 @@ impl Analysis<'_> {
                     }
                 }
             }
-            Op::WriteOnlyPrimitiveStore { .. } => {}
+            Op::WriteOnlyPrimitiveStore {
+                destination, path, ..
+            } => {
+                if self.root(*destination)?.is_some() {
+                    let (home, exact) = self.observed(*destination, path)?;
+                    // Writing an uninitialized primitive needs no old value.
+                    // An indirect destination still needs its descriptor live;
+                    // that requirement does not read or establish its backing.
+                    if !exact {
+                        self.read(state, *destination, &home, site)?;
+                    }
+                }
+            }
             Op::StoreStructuralField { value, .. } => self.argument(state, value, site, false)?,
             kind => {
                 for used in kind.storage_uses() {
@@ -1144,6 +1156,16 @@ impl Analysis<'_> {
         }
         match &operation.kind {
             Op::MoveStructuralValue { source } => self.argument(state, source, site, true)?,
+            Op::ReleaseReference { source, path } => self.argument(
+                state,
+                &StructuralArgument {
+                    place: *source,
+                    path: path.clone(),
+                    access: StructuralAccess::Owned,
+                },
+                site,
+                true,
+            )?,
             kind if kind.constructor_arguments().next().is_some() => {
                 // Every constructor transfers its actual owned children. The
                 // same roster covers records, cases and fixed/stored arrays;
@@ -1424,11 +1446,13 @@ impl Analysis<'_> {
     /// The region an observation of `path` under `root` depends on, and
     /// whether that region is exactly the projected place.
     ///
-    /// A projection whose every step is static has exactly its own region.
+    /// An inline projection whose every step is static has its own region.
+    /// A reference's backing is separate storage: an observation depends on
+    /// the live descriptor, while loan checking judges access to the backing.
     /// An element chosen at run time has none of its own: which element it
     /// is is not known here, so the observation depends on the whole fixed
-    /// array it indexes and is answered from that array's region. This is
-    /// the only widening, and it is one-sided: it can refuse an observation
+    /// array it indexes and is answered from that array's region. This
+    /// widening is one-sided: it can refuse an observation
     /// of an element that is in fact available, never admit one of an
     /// element that is not. It grants no move or vacant initialization.
     /// A replacement may rely on this region only while the whole array is
@@ -1450,6 +1474,27 @@ impl Analysis<'_> {
         let declaration = self
             .root(root)?
             .ok_or(Error::malformed("untracked affine root"))?;
+        if let Some(referent) = path
+            .iter()
+            .position(|segment| matches!(segment, StructuralPathSegment::Referent))
+            && let Some((descriptor, _)) = crate::canonical_static_projection(
+                self.types.iter(),
+                declaration.structural_type,
+                &path[..referent],
+            )
+        {
+            if !matches!(
+                crate::runtime_read_projection_tip(
+                    self.types.iter(),
+                    declaration.structural_type,
+                    path,
+                ),
+                Some(crate::Position::Declared(_) | crate::Position::ScalarField(_))
+            ) {
+                return Err(outside);
+            }
+            return Ok((descriptor, false));
+        }
         let Some(indexed) = path
             .iter()
             .position(|segment| matches!(segment, StructuralPathSegment::RuntimeIndex { .. }))
@@ -1518,9 +1563,13 @@ impl Analysis<'_> {
             return Ok(());
         };
         let owned = root.owned;
-        let path = self
-            .canonical(argument.place, &argument.path)
-            .map_err(|error| error.at(site))?;
+        let path = if consume && argument.access == StructuralAccess::Owned {
+            self.canonical(argument.place, &argument.path)
+        } else {
+            self.observed(argument.place, &argument.path)
+                .map(|(path, _)| path)
+        }
+        .map_err(|error| error.at(site))?;
         self.read(state, argument.place, &path, site)?;
         if consume && argument.access == StructuralAccess::Owned {
             if !owned {
@@ -1937,6 +1986,132 @@ mod tests {
             stores: Vec::new(),
             verify_stores: false,
         }
+    }
+
+    #[test]
+    fn a_reference_release_consumes_only_the_owned_descriptor() {
+        use terminal_psi::{
+            Operation, OperationKind, OperationResult, StructuralTypeShape,
+            TerminalIdentityIndex as Identity,
+        };
+        let mut types = reconvergence_types();
+        types[1].shape = StructuralTypeShape::Reference {
+            referent: StructuralTypeId::new(3).unwrap(),
+            access: StructuralAccess::MutableBorrow,
+        };
+        let place = PlaceId::new(1).unwrap();
+        let mut analysis = owned_analysis(&types);
+        let mut state = State {
+            regions: vec![Some(Region::new(true))],
+            active: vec![place],
+        };
+        let release = Operation::unsuspended(
+            OperationId::new(1).unwrap(),
+            OperationResult::Unit,
+            OperationKind::ReleaseReference {
+                source: place,
+                path: vec![StructuralPathSegment::Field(Identity(1))],
+            },
+        );
+        analysis.operation(&mut state, &release, true).unwrap();
+        let region = state.regions[0].as_ref().unwrap();
+        assert!(!region.available(&[field(1)]));
+        assert!(region.available(&[field(2)]));
+        assert_eq!(
+            analysis.dispose(place, region, 1).unwrap(),
+            [
+                TerminalAffineCleanupAction::DiscardResidual(
+                    terminal_psi::StructuralAffineDiscard {
+                        place,
+                        path: vec![StructuralPathSegment::Field(Identity(2))],
+                        structural_type: StructuralTypeId::new(2).unwrap(),
+                    }
+                ),
+                TerminalAffineCleanupAction::RetireHome(place),
+            ]
+        );
+        let mut repeated = release.clone();
+        repeated.id = OperationId::new(2).unwrap();
+        analysis.operation(&mut state, &repeated, true).unwrap();
+        assert!(
+            matches!(analysis.unavailable.as_slice(), [Unavailable {site: Site::Operation(id), place: found}]
+            if *id == repeated.id && *found == place)
+        );
+        let mut borrowed = owned_analysis(&types);
+        borrowed.roots[0].as_mut().unwrap().owned = false;
+        let mut borrowed_state = State {
+            regions: vec![Some(Region::new(true))],
+            active: Vec::new(),
+        };
+        let before = borrowed_state.clone();
+        assert!(matches!(
+            borrowed.operation(&mut borrowed_state, &release, true),
+            Err(Error::Unsupported {
+                detail: "owned extraction from borrowed storage",
+                ..
+            })
+        ));
+        assert_eq!(borrowed_state, before);
+    }
+
+    #[test]
+    fn a_reference_observation_needs_its_descriptor_without_owning_its_backing() {
+        use terminal_psi::{StructuralTypeShape, TerminalIdentityIndex as Identity};
+
+        let mut types = reconvergence_types();
+        types[0].shape = StructuralTypeShape::Reference {
+            referent: StructuralTypeId::new(2).unwrap(),
+            access: StructuralAccess::MutableBorrow,
+        };
+        let mut analysis = owned_analysis(&types);
+        let place = PlaceId::new(1).unwrap();
+        let site = Site::Operation(OperationId::new(1).unwrap());
+        let mut state = State {
+            regions: vec![Some(Region::new(true))],
+            active: vec![place],
+        };
+        let mut argument = StructuralArgument {
+            place,
+            path: vec![
+                StructuralPathSegment::Referent,
+                StructuralPathSegment::Field(Identity(3)),
+            ],
+            access: StructuralAccess::SharedBorrow,
+        };
+        assert_eq!(
+            analysis.observed(place, &argument.path).unwrap(),
+            (vec![], false)
+        );
+        let original = state.clone();
+        analysis
+            .argument(&mut state, &argument, site, true)
+            .unwrap();
+        assert_eq!(state, original, "a borrow cannot move referenced storage");
+        assert!(analysis.unavailable.is_empty());
+
+        argument.access = StructuralAccess::Owned;
+        assert!(matches!(
+            analysis.argument(&mut state, &argument, site, true),
+            Err(Error::Unsupported { .. })
+        ));
+        assert_eq!(state, original);
+        argument.path[1] = StructuralPathSegment::Field(Identity(999));
+        assert!(analysis.observed(place, &argument.path).is_err());
+
+        argument.path[1] = StructuralPathSegment::Field(Identity(3));
+        argument.access = StructuralAccess::SharedBorrow;
+        state.regions[0] = None;
+        analysis
+            .argument(&mut state, &argument, site, true)
+            .unwrap();
+        assert!(
+            matches!(analysis.unavailable.as_slice(), [Unavailable { site: found, place: found_place }]
+            if *found == site && *found_place == place)
+        );
+        assert!(
+            state.regions[0].is_none(),
+            "observation cannot revive a moved descriptor"
+        );
     }
 
     #[test]

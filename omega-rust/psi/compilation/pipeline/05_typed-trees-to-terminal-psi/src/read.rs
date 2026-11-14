@@ -37,6 +37,7 @@ mod expressions;
 mod machine;
 mod places;
 mod predicates;
+mod references;
 mod reflection;
 mod regions;
 mod rejections;
@@ -200,6 +201,7 @@ struct Slot {
     /// `value_type` is the referent's: the slot names the caller's storage, read and (for
     /// `&mut`) written in place, never an SSA value or a root of its own.
     borrowed: Option<language_core::ReferenceAccess>,
+    borrowed_regions: crate::body::Regions,
 }
 /// The closed crash cause of a `crashes` clause or `crash` statement.
 fn crash_cause(cause: typed_trees::signature::CrashCause) -> CrashCause {
@@ -792,6 +794,7 @@ mod tests {
             homed: false,
             erased: false,
             borrowed: None,
+            borrowed_regions: crate::body::Regions::NONE,
         };
         let (mutable, immutable) = ([slot(true)], [slot(false)]);
         let values = [Some(value)];
@@ -1359,6 +1362,7 @@ mod tests {
             homed: false,
             erased: false,
             borrowed: None,
+            borrowed_regions: crate::body::Regions::NONE,
         }];
         let mut program = Program::new(&typed, false);
         let mut assigned = |target| {
@@ -1381,6 +1385,7 @@ mod tests {
             homed: false,
             erased: false,
             borrowed: None,
+            borrowed_regions: crate::body::Regions::NONE,
         }];
         assert_eq!(
             program
@@ -1553,6 +1558,7 @@ mod tests {
             homed: false,
             erased: false,
             borrowed: None,
+            borrowed_regions: crate::body::Regions::NONE,
         }];
         let mut program = Program::new(&typed, false);
         program.record_sources.push(places::RecordSource {
@@ -1673,6 +1679,7 @@ mod tests {
             homed: true,
             erased: false,
             borrowed: Some(ReferenceAccess::Shared),
+            borrowed_regions: crate::body::Regions::NONE,
         }];
         let local = TableLocalData {
             symbol: local_symbol,
@@ -1930,6 +1937,7 @@ mod tests {
             homed: false,
             erased: false,
             borrowed: None,
+            borrowed_regions: crate::body::Regions::NONE,
         };
         let slots = [slot(rest), slot(count)];
         let values = [ValueId::new(1), ValueId::new(2)];

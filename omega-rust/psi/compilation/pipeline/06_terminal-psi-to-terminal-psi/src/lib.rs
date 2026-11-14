@@ -578,8 +578,24 @@ fn machine(
         types,
         graph,
         context,
+        reference_graph,
     } = prepare(module, domains, id, tables, knowledge)?;
-    let storage = places::Storage::new(id, lowered, module, domains, &graph, tables, &types)?;
+    let references = std::cell::RefCell::new(
+        terminal_semantics::descriptor_results::DescriptorAnalysis::with_reference_slots(
+            &module.structural_types,
+            &reference_graph,
+        ),
+    );
+    let storage = places::Storage::new(
+        id,
+        lowered,
+        module,
+        domains,
+        &graph,
+        tables,
+        &types,
+        &references,
+    )?;
     let mut decided: Vec<Option<Checked<Discharged>>> =
         (0..tables.obligations.len()).map(|_| None).collect();
     // Loans are judged by structure, not proved (`places::loans`).
@@ -1194,6 +1210,21 @@ pub(crate) struct Prepared {
     pub(crate) types: IdTable<ValueId, ScalarType>,
     pub(crate) graph: Graph,
     pub(crate) context: PropositionContext,
+    reference_graph: Vec<terminal_semantics::descriptor_results::DescriptorMachine>,
+}
+
+impl Prepared {
+    fn references<'a>(
+        &'a self,
+        types: &'a [terminal_psi::StructuralTypeDeclaration],
+    ) -> std::cell::RefCell<terminal_semantics::descriptor_results::DescriptorAnalysis<'a>> {
+        std::cell::RefCell::new(
+            terminal_semantics::descriptor_results::DescriptorAnalysis::with_reference_slots(
+                types,
+                &self.reference_graph,
+            ),
+        )
+    }
 }
 
 /// Fills `tables.knowledge` from the lowered form and builds what deciding
@@ -1217,8 +1248,24 @@ pub(crate) fn prepare(
     minted::follow_the_lowered_form(id, module, lowered, tables, &types)?;
     minted::domains_are_declared(id, structural_types, domains)?;
     let graph = Graph::new(id, lowered, tables)?;
+    let reference_graph = places::reference_graph(module, id)?;
     if fill {
-        let storage = places::Storage::new(id, lowered, module, domains, &graph, tables, &types)?;
+        let references = std::cell::RefCell::new(
+            terminal_semantics::descriptor_results::DescriptorAnalysis::with_reference_slots(
+                &module.structural_types,
+                &reference_graph,
+            ),
+        );
+        let storage = places::Storage::new(
+            id,
+            lowered,
+            module,
+            domains,
+            &graph,
+            tables,
+            &types,
+            &references,
+        )?;
         storage.owed_are_minted(tables)?;
         fill_knowledge(module, id, lowered, tables, knowledge, &types, &storage)?;
     }
@@ -1247,6 +1294,7 @@ pub(crate) fn prepare(
         types,
         graph,
         context,
+        reference_graph,
     })
 }
 

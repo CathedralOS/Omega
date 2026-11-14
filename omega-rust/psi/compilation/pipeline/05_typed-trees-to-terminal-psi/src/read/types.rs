@@ -339,6 +339,11 @@ impl Program<'_> {
             return Ok(view);
         }
         if handle.is_valid()
+            && let Some(reference) = self.reference_type(id, handle)?
+        {
+            return Ok(reference);
+        }
+        if handle.is_valid()
             && let TypeReferenceNode::FixedArray {
                 element_type,
                 length,

@@ -564,6 +564,22 @@ machine entry<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64 {{
         lowered.blocks.push(feedback);
         let graph = crate::graph::Graph::new(lowered.id, &lowered, &tables).unwrap();
         let types = tables.values.map(|_, row| row.scalar_type);
+        // The test moved this body's operations into a loop. Reference
+        // scratch, if demanded, must describe that actual modified body.
+        let mut reference_module = elaboration.module.clone();
+        *reference_module
+            .machines
+            .iter_mut()
+            .find(|machine| machine.id == lowered.id)
+            .unwrap() = lowered.clone();
+        let reference_graph =
+            crate::places::reference_graph(&reference_module, lowered.id).unwrap();
+        let references = std::cell::RefCell::new(
+            terminal_semantics::descriptor_results::DescriptorAnalysis::with_reference_slots(
+                &elaboration.module.structural_types,
+                &reference_graph,
+            ),
+        );
         let storage = crate::places::Storage::new(
             lowered.id,
             &lowered,
@@ -572,6 +588,7 @@ machine entry<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64 {{
             &graph,
             &tables,
             &types,
+            &references,
         )
         .unwrap();
         let first = lowered.blocks[0]

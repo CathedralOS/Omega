@@ -117,6 +117,18 @@ impl Program<'_> {
         if regions == Regions::NONE || substitution.is_empty() {
             return value_type;
         }
+        ValueType::Record(
+            record,
+            qualification,
+            self.substituted_regions(regions, substitution),
+        )
+    }
+
+    pub(crate) fn substituted_regions(
+        &mut self,
+        regions: Regions,
+        substitution: &[(LifetimeParameterIdentity, Region)],
+    ) -> Regions {
         let tuple = self
             .region_tuple(regions)
             .iter()
@@ -128,7 +140,7 @@ impl Program<'_> {
                 Region::Fixed(_) | Region::Variable(_) => *region,
             })
             .collect();
-        ValueType::Record(record, qualification, self.intern_regions(tuple))
+        self.intern_regions(tuple)
     }
 
     /// The substitution a value of `record` at `regions` gives its row's
@@ -188,6 +200,17 @@ impl Program<'_> {
         if formal_row != actual_row {
             return Ok(());
         }
+        self.unify_regions(id, free, formal, actual, bound)
+    }
+
+    pub(crate) fn unify_regions(
+        &mut self,
+        id: MachineId,
+        free: &[LifetimeParameterIdentity],
+        formal: Regions,
+        actual: Regions,
+        bound: &mut Substitution,
+    ) -> Checked<()> {
         let formal = self.region_tuple(formal).to_vec();
         let actual = self.region_tuple(actual).to_vec();
         if formal.len() != actual.len() {
@@ -227,7 +250,15 @@ impl Program<'_> {
         value_type: ValueType,
         free: &[LifetimeParameterIdentity],
     ) -> bool {
-        self.region_tuple(value_type.regions()).iter().any(
+        self.regions_name_any(value_type.regions(), free)
+    }
+
+    pub(crate) fn regions_name_any(
+        &self,
+        regions: Regions,
+        free: &[LifetimeParameterIdentity],
+    ) -> bool {
+        self.region_tuple(regions).iter().any(
             |region| matches!(region, Region::Parameter(parameter) if free.contains(parameter)),
         )
     }
@@ -454,6 +485,16 @@ impl Program<'_> {
     ) -> Checked<bool> {
         if required.parameters.len() != supplied.parameters.len()
             || required.result.is_some() != supplied.result.is_some()
+            || required.borrowed.len() != supplied.borrowed.len()
+            || required
+                .borrowed
+                .iter()
+                .zip(&supplied.borrowed)
+                .any(|(required, supplied)| {
+                    required.position != supplied.position
+                        || required.access != supplied.access
+                        || required.home != supplied.home
+                })
         {
             return Ok(false);
         }
@@ -469,9 +510,19 @@ impl Program<'_> {
         for (formal, actual) in &pairs {
             self.unify(id, &free, *formal, *actual, &mut bound)?;
         }
+        for (formal, actual) in supplied.borrowed.iter().zip(&required.borrowed) {
+            self.unify_regions(id, &free, formal.regions, actual.regions, &mut bound)?;
+        }
         Ok(pairs
             .iter()
-            .all(|(formal, actual)| self.substitute(*formal, &bound) == *actual))
+            .all(|(formal, actual)| self.substitute(*formal, &bound) == *actual)
+            && supplied
+                .borrowed
+                .iter()
+                .zip(&required.borrowed)
+                .all(|(formal, actual)| {
+                    self.substituted_regions(formal.regions, &bound) == actual.regions
+                }))
     }
 }
 

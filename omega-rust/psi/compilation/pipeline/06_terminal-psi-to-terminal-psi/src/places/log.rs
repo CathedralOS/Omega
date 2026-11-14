@@ -98,6 +98,9 @@ impl Stored {
 
 /// One store, located in the graph.
 pub(super) struct Logged {
+    /// The logical destination is retained for permission checks after the
+    /// reaching-write owner resolves its separately captured backing.
+    pub(super) captured: Lineage,
     pub(super) lineage: Lineage,
     pub(super) block: BlockId,
     /// The normal continuation of its operation, as `Graph::locate` orders
@@ -233,6 +236,7 @@ impl Storage<'_> {
             for (position, operation) in block.operations.iter().enumerate() {
                 for (lineage, stored) in self.stored_by(block, position, value_types)? {
                     log.push(Logged {
+                        captured: lineage.clone(),
                         lineage,
                         block: block.id,
                         position: position + 1,
@@ -472,6 +476,15 @@ impl Storage<'_> {
                 rows.push((
                     stored,
                     Stored::Moved(self.stored_at(*source, &[], concerns)?),
+                ));
+            }
+            OperationKind::EstablishReference { .. } => {
+                rows.push((fresh()?, Stored::Established));
+            }
+            OperationKind::ReleaseReference { source, path } => {
+                rows.push((
+                    self.released_reference(*source, path, concerns)?,
+                    Stored::Vacated,
                 ));
             }
             OperationKind::EstablishPrimitiveLocal { value, .. } => {

@@ -21,7 +21,8 @@ pub(super) fn walk<'a, E>(
         match &place.kind {
             ExpressionKind::Field { base, .. }
             | ExpressionKind::Payload { base, .. }
-            | ExpressionKind::Index { base, .. } => {
+            | ExpressionKind::Index { base, .. }
+            | ExpressionKind::Referent(base) => {
                 projected(place, base)?;
                 place = base;
             }
