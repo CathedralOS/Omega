@@ -1609,6 +1609,10 @@ mod semantic {
         102 => IntegerEmbed,
         103 => AsmStoreGdtr,
         104 => AsmLoadGdtr,
+        105 => AddressOf,
+        106 => CodeLayout,
+        107 => QuotientLift,
+        108 => QuotientDefine,
     });
 
     record_variants!(language_semantics::CarryAddress {
