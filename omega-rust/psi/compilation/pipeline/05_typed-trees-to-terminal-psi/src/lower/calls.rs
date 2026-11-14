@@ -323,6 +323,25 @@ impl Lowering<'_> {
                 }
             }
         }
+        // Requirements observe the exact actual subtree, even when no body
+        // operation reads that leaf. Recording a name grants no premise.
+        let bindings = evaluated
+            .actuals
+            .iter()
+            .filter_map(|actual| match actual {
+                Actual::Place(place) => Some(*place),
+                Actual::Value(_) => None,
+            })
+            .enumerate()
+            .map(|(lane, actual)| {
+                let formal = PlaceId::new(lane as u64 + 1)
+                    .ok_or_else(|| self.internal("structural formal identity overflow"))?;
+                Ok((formal, actual))
+            })
+            .collect::<Checked<Vec<_>>>()?;
+        for clause in &signature.requires {
+            self.name_clause_contents(clause, &bindings)?;
+        }
         Ok(Reached::Value(evaluated))
     }
 
@@ -737,7 +756,7 @@ impl Lowering<'_> {
             Some(value_type @ ValueType::Record(record, _, _)) => {
                 let (root, exact) = self.produce(operation, record, kind)?;
                 self.unknown_contents(exact, operation)?;
-                self.initial_leaves(exact, value_type)?;
+                self.name_contents(exact, value_type)?;
                 Value::Record(root)
             }
             Some(ValueType::Rigid(_)) => {

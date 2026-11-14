@@ -21,7 +21,7 @@ use super::places::Member;
 use super::{Program, Slot};
 use crate::body::ValueType;
 use crate::canonical::{self, Repeated};
-use crate::{ClauseText, Piece, Unserved, refuse};
+use crate::{ClauseText, Piece, SourceOrigin, Unserved, refuse, reject};
 
 /// What a contract clause may name: the formals, and the result pseudo-value
 /// only in a normal-return guarantee of its owning callable.
@@ -614,19 +614,21 @@ impl Program<'_> {
             }
             // `self.value`, `self.from.x`: a field of the value a data
             // clause is about.
-            ExpressionNode::Member(_) if scope.subject.is_some() => {
+            ExpressionNode::Member(_) | ExpressionNode::Indexed(_) if scope.subject.is_some() => {
                 self.field_term(id, scope, expression)
             }
             // `p.first == 7` in an entry `requires`: the field of a record
             // formal's place.
-            ExpressionNode::Member(_)
+            ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
                 if scope.formal_fields || matches!(scope.result, ResultTerm::Structural(..)) =>
             {
                 self.field_term(id, scope, expression)
             }
             // Other formal projections need their own input or completion
             // storage correspondence; a readable spelling does not supply it.
-            ExpressionNode::Member(_) => unserved("clause that projects a formal or result"),
+            ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+                unserved("clause that projects a formal or result")
+            }
             ExpressionNode::Integer(literal) => {
                 let (value, integer) = self.literal(id, literal, expected)?;
                 Ok((
@@ -1206,8 +1208,47 @@ impl Program<'_> {
                 };
                 (root, base, record, member.selection.field_symbol())
             }
-            ExpressionNode::Indexed(_)
-            | ExpressionNode::TypeExpression(_)
+            ExpressionNode::Indexed(indexed) => {
+                let unavailable = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+                let Some((root, mut path, receiver)) =
+                    self.projected(id, scope, indexed.collection)?
+                else {
+                    return Err(unavailable("index of something that is not storage"));
+                };
+                let Some(array) = self.opened(id, Some(receiver), Access::Read)? else {
+                    return Err(unavailable("index of something that is not an array"));
+                };
+                let (element, terminal_semantics::CollectionExtent::Fixed(length)) =
+                    self.array_element(id, array)?
+                else {
+                    return Err(unavailable("indexed clause without a fixed array extent"));
+                };
+                let Some(selected) = self
+                    .typed
+                    .closed_integer_expression_value_in(indexed.index, scope.owner)
+                else {
+                    return Err(unavailable(
+                        "array index in a clause that is not a closed integer",
+                    ));
+                };
+                let source =
+                    SourceOrigin::of(self.typed.expression_table.source_span(indexed.index));
+                let Some(position) = selected.to_u64().filter(|position| *position < length) else {
+                    return Err(reject(
+                        id,
+                        source,
+                        format!(
+                            "contract array index {selected} is outside its fixed extent {length}"
+                        ),
+                    ));
+                };
+                // Keep the checked index in the same typed path as fields
+                // and cases. Storage substitution must follow this exact leaf.
+                path.push(CanonicalStructuralPathSegment::FixedIndex(position));
+                let value_type = self.storage_value_type(id, element)?;
+                return Ok(Some((root, path, value_type)));
+            }
+            ExpressionNode::TypeExpression(_)
             | ExpressionNode::Match(_)
             | ExpressionNode::SavedSubject(_)
             | ExpressionNode::ArrayLiteral(_)
