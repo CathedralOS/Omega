@@ -282,35 +282,12 @@ impl Program<'_> {
         })
     }
 
-    pub(super) fn byte_subslice(
-        &mut self,
+    pub(super) fn byte_range_selection(
+        &self,
         machine: MachineId,
-        slots: &[super::Slot],
-        base: Expression,
-        range: &typed_trees::expression::TableRangeExpression,
         handle: typed_trees::expression::ExpressionHandle,
-        source: SourceOrigin,
-    ) -> Checked<Expression> {
-        let unavailable =
-            |detail| refuse(machine, Construct::Machine, Unserved::Expression(detail));
-        let Some(ValueType::Record(row, _, regions)) = base.result else {
-            return Err(unavailable("range without its byte descriptor"));
-        };
-        if base
-            .result
-            .is_some_and(|value| !value.qualification().domains.is_empty())
-        {
-            return Err(unavailable(
-                "range of qualified bytes without its selected operand type",
-            ));
-        }
-        if !matches!(self.data_type(machine, row)?.shape,
-            StorageShape::ByteSequence(carrier) if carrier.is_shared_readable_view())
-        {
-            return Err(unavailable(
-                "range of mutable backing without its persistent shared loan",
-            ));
-        }
+        row: semantic_vocabulary::StructuralTypeId,
+    ) -> Checked<()> {
         let count = semantic_vocabulary::ScalarType::Integer(
             semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
                 .expect("u64 is valid"),
@@ -345,8 +322,49 @@ impl Program<'_> {
                 &operands,
             )
         {
-            return Err(unavailable("range with a selected user operator"));
+            return Err(refuse(
+                machine,
+                Construct::Machine,
+                Unserved::Expression("range with a selected user operator"),
+            ));
         }
+        Ok(())
+    }
+
+    pub(super) fn byte_subslice(
+        &mut self,
+        machine: MachineId,
+        slots: &[super::Slot],
+        base: Expression,
+        range: &typed_trees::expression::TableRangeExpression,
+        handle: typed_trees::expression::ExpressionHandle,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        let unavailable =
+            |detail| refuse(machine, Construct::Machine, Unserved::Expression(detail));
+        let Some(ValueType::Record(row, _, regions)) = base.result else {
+            return Err(unavailable("range without its byte descriptor"));
+        };
+        if base
+            .result
+            .is_some_and(|value| !value.qualification().domains.is_empty())
+        {
+            return Err(unavailable(
+                "range of qualified bytes without its selected operand type",
+            ));
+        }
+        if !matches!(self.data_type(machine, row)?.shape,
+            StorageShape::ByteSequence(carrier) if carrier.is_shared_readable_view())
+        {
+            return Err(unavailable(
+                "range of mutable backing without its persistent shared loan",
+            ));
+        }
+        let count = semantic_vocabulary::ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .expect("u64 is valid"),
+        );
+        self.byte_range_selection(machine, handle, row)?;
         let mut endpoint = |handle: typed_trees::expression::ExpressionHandle| -> Checked<Option<Box<Expression>>> {
             if !handle.is_valid() { return Ok(None); }
             let value = self.expression(machine, slots, handle, Some(ValueType::plain(count)))?;

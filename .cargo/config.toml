@@ -14,8 +14,10 @@ rustflags = ["-C", "target-cpu=x86-64-v3"]
 # MSVC's linker rejects managed dependency paths above its legacy path limit.
 # Rust's bundled LLD accepts those paths with the same MSVC ABI and SDK libraries.
 # This selects the linker for Rust host binaries, not Omega's native emissions.
+# The flavor alone makes rustc look for a program named `lld` on PATH, which a
+# plain rustup install does not have; `rust-lld` is the copy every toolchain ships.
 [target.'cfg(all(target_os = "windows", target_env = "msvc"))']
-rustflags = ["-C", "linker-flavor=lld-link"]
+rustflags = ["-C", "linker-flavor=lld-link", "-C", "linker=rust-lld"]
 
 # Keep compiler builds and xtask commands on the same checksum freshness mode.
 # Changing that mode invalidates Cargo unit fingerprints even when their source

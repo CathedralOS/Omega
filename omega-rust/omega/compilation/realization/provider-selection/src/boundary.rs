@@ -27,7 +27,6 @@ pub struct CompilerIntrinsicPlanProvenance<'a> {
     pub plan: &'a ProviderPlan,
     pub semantic_schema: &'a ServiceSchema, // contract classification authenticated before projecting a direct callable's selection coordinate
     pub row_executions: &'a [Option<CompilerIntrinsicExecutionIdentity>],
-    pub row_numeric_realizations: &'a [Option<String>],
 }
 
 pub fn select_boundary_applications(
@@ -48,7 +47,7 @@ pub fn select_boundary_applications(
     for (plan, retained) in plans.iter().zip(provenance) {
         if plan != retained.plan
             || plan.rows.len() != retained.row_executions.len()
-            || plan.rows.len() != retained.row_numeric_realizations.len()
+            || plan.rows.len() != plan.row_numeric_realizations.len()
         {
             return Err(error(
                 "boundary applications have substituted or incomplete selected rows",
@@ -58,7 +57,7 @@ pub fn select_boundary_applications(
             .rows
             .iter()
             .zip(retained.row_executions)
-            .zip(retained.row_numeric_realizations)
+            .zip(&plan.row_numeric_realizations)
         {
             selected_rows.push((plan, row, *execution, realization.as_deref()));
         }
