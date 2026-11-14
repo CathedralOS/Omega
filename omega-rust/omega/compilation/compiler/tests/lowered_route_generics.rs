@@ -109,16 +109,23 @@ fn a_failed_actual_refinement_is_kept_by_the_whole_source_driver() {
         "tests/fixtures/run/generics/implementation_parameter_contract/main.omg",
     ))
     .unwrap();
+    // The unchanged +5 body can satisfy the public <=20 result. Its
+    // explicitly weaker <=25 promise still cannot establish that result
+    // through the separate conformance witness's ordinary call.
     let mut source = original.clone();
     for (from, to) in [
         ("requires value <= 12", "requires value <= 10"),
         ("ensures result <= 17", "ensures result <= 25"),
-        ("value + 5", "value + 15"),
     ] {
         assert_eq!(source.matches(from).count(), 1, "exact Shift declaration");
         source = source.replace(from, to);
     }
     assert_ne!(source, original);
+    assert_eq!(
+        source.matches("value + 5").count(),
+        1,
+        "unchanged Shift body"
+    );
     let frontier = unbuilt_frontier::staged_frontier("failed_actual_refinement", &source);
     let typed = std::sync::Arc::new(frontier.typed);
     let subjects = [frontier.subject];
