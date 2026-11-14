@@ -967,7 +967,16 @@ fn an_anonymous_parameter_application_cannot_transfer_its_template_identity() {
     else {
         panic!("anonymous specialization must not acquire a hermetic package owner");
     };
-    assert!(refusal.detail.contains("hermetic identity"), "{refusal:?}");
+    // Portable publication needs a real source owner before the anonymous
+    // specialization can even ask for a hermetic template identity.
+    assert_eq!(refusal.reason, RefusalReason::Unsupported);
+    assert_eq!(refusal.concerns, terminal_check_tables::Construct::Machine);
+    assert!(
+        refusal
+            .detail
+            .contains("no exact package or toolchain owner"),
+        "{refusal:?}"
+    );
 }
 
 #[test]
