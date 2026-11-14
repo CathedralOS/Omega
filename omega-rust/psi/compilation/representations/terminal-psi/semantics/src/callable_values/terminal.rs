@@ -1,6 +1,98 @@
 use super::*;
 use terminal_psi::{OperationKind as O, TerminalModule, Terminator};
 
+/// A checked provider body chosen for one exact boundary application. This
+/// association describes call flow; it grants no provider or package authority.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct CallableBoundaryImplementation {
+    pub boundary: BoundaryMachineId,
+    pub machine: MachineId,
+}
+
+/// Follow selected providers through the same actuals and returned code values
+/// as ordinary calls. Making their bodies independent entry roots would lose
+/// that substitution and could activate code the caller never invokes.
+pub fn terminal_callable_values_with_boundary_implementations<'a>(
+    module: &'a TerminalModule,
+    implementations: &[CallableBoundaryImplementation],
+) -> CallableValueResult<CallableValueProgram<'a>> {
+    let mut bindings = implementations.to_vec();
+    bindings.sort_unstable_by_key(|binding| binding.boundary);
+    if bindings
+        .windows(2)
+        .any(|pair| pair[0].boundary == pair[1].boundary)
+    {
+        return Err("callable boundary application has competing selected bodies");
+    }
+    for binding in &bindings {
+        if module.boundary_machine(binding.boundary).is_none()
+            || module.machine(binding.machine).is_none()
+        {
+            return Err("callable boundary implementation has an absent requirement or body");
+        }
+    }
+    let mut program = terminal_callable_values(module)?;
+    for body in program.bodies.values_mut() {
+        for invocation in body.invocations.values_mut() {
+            let Some(boundary) = invocation.boundary else {
+                continue;
+            };
+            let Ok(index) = bindings.binary_search_by_key(&boundary, |binding| binding.boundary)
+            else {
+                continue;
+            };
+            if invocation.target != CallableInvocationTarget::Opaque {
+                return Err("callable boundary implementation replaces a non-boundary target");
+            }
+            invocation.target = CallableInvocationTarget::Machine(bindings[index].machine);
+        }
+    }
+    Ok(program)
+}
+
+/// Find actual boundary invocations from an entry, including selected code,
+/// terminal edges and cleanup calls. Retaining a boundary header or descriptor
+/// alone does not make it a demand for executable supply.
+pub fn reached_boundary_calls(
+    module: &TerminalModule,
+    entry: MachineId,
+    implementations: &[CallableBoundaryImplementation],
+) -> CallableValueResult<Vec<BoundaryMachineId>> {
+    let program = terminal_callable_values_with_boundary_implementations(module, implementations)?;
+    let reached = reachable_callable_invocations(&program, [entry])?;
+    let mut boundaries = Vec::new();
+    for row in reached.invocations.values() {
+        if let Some(boundary) = row.invocation.boundary {
+            module
+                .boundary_machine(boundary)
+                .ok_or("reached invocation has no exact boundary declaration")?;
+            boundaries.push(boundary);
+        }
+        match &row.target {
+            ReachedCallableTarget::Callable(values) => {
+                for ceiling in &values.unresolved_ceilings {
+                    let contract = module
+                        .callables
+                        .contract(*ceiling)
+                        .ok_or("reached callable has no exact unresolved contract")?;
+                    if !contract.envelope.invocations.is_empty() {
+                        return Err(
+                            "unresolved callable arrivals need their complete boundary demand representation",
+                        );
+                    }
+                }
+            }
+            ReachedCallableTarget::Opaque if row.invocation.boundary.is_none() => {
+                return Err("reached opaque invocation has no boundary or callable contract");
+            }
+            _ => {}
+        }
+    }
+    boundaries.sort_unstable();
+    boundaries.dedup();
+    Ok(boundaries)
+}
+
 /// Project current executable Terminal operations into the shared value query.
 pub fn terminal_callable_values(
     module: &TerminalModule,

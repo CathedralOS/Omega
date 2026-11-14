@@ -695,7 +695,7 @@ pub mod projection {
     }
 
     impl ProjectedServiceSurface<'_> {
-        pub(crate) fn validate_correspondence(&self) -> Result<(), diagnostics::Diagnostic> {
+        pub fn validate_correspondence(&self) -> Result<(), diagnostics::Diagnostic> {
             correspondence::validate(self.program, self)
         }
     }
@@ -3137,7 +3137,6 @@ pub mod signatures {
                         .iter()
                         .map(|(parameter, actual)| BoundaryTypeBinding {
                             parameter_symbol: *parameter,
-                            parameter_name: typed.symbols.name(*parameter).to_owned(),
                             actual: *actual,
                         })
                         .collect();

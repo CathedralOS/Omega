@@ -3441,7 +3441,12 @@ fn visit_call_expression(
             );
         }
     }
-    visit_callable_symbol(program, retained, call.target_symbol);
+    // A computed call retains its evaluated operand and contract above. It
+    // has no nominal target; a conflicting retained target remains a real
+    // reference for the source admission owner to diagnose.
+    if call.runtime_call.is_none() || call.target_symbol.is_valid() {
+        visit_callable_symbol(program, retained, call.target_symbol);
+    }
     for operator in crate::operator::named_expression_call_candidates(program, call) {
         visit_symbol(retained, operator.symbol);
     }
@@ -3453,7 +3458,9 @@ fn visit_call_expression(
             visit_symbol(retained, member);
         }
     }
-    visit_symbol(retained, call.static_machine_parameter);
+    if call.static_machine_parameter.is_valid() {
+        visit_symbol(retained, call.static_machine_parameter);
+    }
     if call.authored_machine_application.is_valid() {
         visit_symbol(
             retained,
@@ -3561,7 +3568,9 @@ fn visit_statement(
             if let Some(occurrence) = call.authored_call_selection {
                 visit_authored_selection(program, retained, occurrence);
             }
-            visit_callable_symbol(program, retained, call.target_symbol);
+            if call.runtime_call.is_none() || call.target_symbol.is_valid() {
+                visit_callable_symbol(program, retained, call.target_symbol);
+            }
             for operator in crate::operator::named_statement_call_candidates(program, call) {
                 visit_symbol(retained, operator.symbol);
             }
@@ -3572,7 +3581,9 @@ fn visit_statement(
                     visit_symbol(retained, member);
                 }
             }
-            visit_symbol(retained, call.static_machine_parameter);
+            if call.static_machine_parameter.is_valid() {
+                visit_symbol(retained, call.static_machine_parameter);
+            }
             if call.authored_machine_application.is_valid() {
                 visit_symbol(
                     retained,

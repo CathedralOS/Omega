@@ -115,6 +115,8 @@ fn verdicts(name: &str, machines: &str) -> Vec<String> {
             subjects: &[frontier.subject],
             purpose: source::DependencyScope::Product,
             selected: &frontier.selected,
+            calling: frontier.calling.borrow(&frontier.typed).selection(),
+            providers: frontier.provider_selections(),
             bindings: &frontier.bindings,
         },
     )

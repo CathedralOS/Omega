@@ -1294,6 +1294,37 @@ pub(crate) mod declaration_foundations {
                 }
                 validate_telescope(module, &storage.telescope)?;
             }
+            for row in &module.service_schemas {
+                module
+                    .service_schema(row.declaration, row.application)
+                    .map_err(|_| {
+                        CodecError::MalformedStructuralFoundation(
+                            "invalid canonical service schema",
+                        )
+                    })?;
+            }
+            for row in &module.program_entry_contracts {
+                if row.target.is_empty() {
+                    return malformed("entry contract has an empty target");
+                }
+                module.program_entry_contract(&row.target).map_err(|_| {
+                    CodecError::MalformedStructuralFoundation(
+                        "invalid canonical program entry contract",
+                    )
+                })?;
+            }
+            for row in &module.provider_selections {
+                if row.target.is_empty() {
+                    return malformed("selected provider has an empty target");
+                }
+                module
+                    .provider_selection(&row.target, row.schema_declaration, row.schema_application)
+                    .map_err(|_| {
+                        CodecError::MalformedStructuralFoundation(
+                            "invalid canonical provider selection",
+                        )
+                    })?;
+            }
             for request in &module.calling_policy_requests {
                 match &request.declaration {
                     Ok(identity)

@@ -101,6 +101,8 @@ fn accepted_for(
             subjects: &[Some(package())],
             purpose: DependencyScope::Build,
             selected: &[],
+            calling: None,
+            providers: None,
             bindings: &[],
         },
         publication,

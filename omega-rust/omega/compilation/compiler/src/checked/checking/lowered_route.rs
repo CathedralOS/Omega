@@ -14,6 +14,9 @@ pub(super) struct RouteScope<'a> {
     pub(super) subject: Option<PackageKeyIdentity>,
     pub(super) selected: &'a [SymbolHandle],
     pub(super) bindings: &'a [typed_trees::callable_signature_shapes::BoundCallableShape],
+    pub(super) calling: Option<structure_elaboration::CallingPolicySelections<'a>>,
+    pub(super) providers:
+        Option<structure_elaboration::provider_selections::ProviderSelections<'a>>,
 }
 
 impl RouteScope<'_> {
@@ -40,6 +43,8 @@ impl RouteScope<'_> {
                 subjects: &[self.subject],
                 purpose: source::DependencyScope::Product,
                 selected: self.selected,
+                calling: self.calling,
+                providers: self.providers,
                 bindings: self.bindings,
             },
             terminal_codec::TerminalPublication::Portable,

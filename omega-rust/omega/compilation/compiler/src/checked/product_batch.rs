@@ -33,6 +33,10 @@ impl CompilationSession {
             }
         }
         for group in groups {
+            let calling_targets = group
+                .iter()
+                .map(|(_, _, build)| build.target_profile())
+                .collect::<Vec<_>>();
             let completion_timings = if group
                 .iter()
                 .any(|(_, _, build)| build.timings().is_enabled())
@@ -52,7 +56,13 @@ impl CompilationSession {
                 .computed_build_config
                 .independent_components();
             let checked = complete_prepared_build(prepared, Some(&inputs)).and_then(|source| {
-                check_product_source(source, Some(&inputs), &rollback, frontier.as_deref_mut())
+                check_product_source(
+                    source,
+                    Some(&inputs),
+                    &calling_targets,
+                    &rollback,
+                    frontier.as_deref_mut(),
+                )
             });
             match checked {
                 Ok(mut source) => {

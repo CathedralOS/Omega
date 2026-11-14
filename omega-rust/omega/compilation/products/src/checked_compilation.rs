@@ -36,8 +36,6 @@ pub struct CheckedCompilationInputs {
     pub source_inspection: Arc<crate::SelectedProviderSource>, // retained only for explicit inspection and reference interpretation
     pub build: Arc<ComputedBuildConfig>,
     pub build_admission: BuildAdmission,
-    pub provider_defaults:
-        Arc<[build_time_evaluation::provider_declarations::TargetProviderDefaults]>,
 }
 
 /// ```compile_fail
@@ -118,10 +116,11 @@ impl CheckedCompilation {
         &self.execution.build_admission
     }
 
-    pub fn provider_defaults(
-        &self,
-    ) -> &[build_time_evaluation::provider_declarations::TargetProviderDefaults] {
-        &self.execution.provider_defaults
+    pub fn native_application_metadata(&self) -> target::NativeApplicationMetadata {
+        self.build_admission().native_application_metadata(
+            &self.build().config.settings,
+            self.execution().target_profile(),
+        )
     }
 
     pub fn sources(&self) -> &CheckedSourceCustody {

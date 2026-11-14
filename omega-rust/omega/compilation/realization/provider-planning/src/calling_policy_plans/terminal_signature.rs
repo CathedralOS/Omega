@@ -38,6 +38,31 @@ impl CanonicalCallingSignature {
         validated: &ValidatedBoundaryEntryPlan,
         dispatch_only_parameter_count: u32,
     ) -> Result<BoundaryCallingApplication, String> {
+        self.build_application(validated, dispatch_only_parameter_count, None)
+    }
+
+    pub fn native_application_with_owner(
+        self,
+        validated: &ValidatedBoundaryEntryPlan,
+        dispatch_only_parameter_count: u32,
+        owner: &str,
+    ) -> Result<BoundaryCallingApplication, String> {
+        if owner.is_empty() {
+            return Err("calling application has no exact selecting owner".into());
+        }
+        self.build_application(
+            validated,
+            dispatch_only_parameter_count,
+            Some(owner.to_owned()),
+        )
+    }
+
+    fn build_application(
+        self,
+        validated: &ValidatedBoundaryEntryPlan,
+        dispatch_only_parameter_count: u32,
+        owner: Option<String>,
+    ) -> Result<BoundaryCallingApplication, String> {
         let CallingPolicySignature {
             target,
             geometry,
@@ -45,7 +70,7 @@ impl CanonicalCallingSignature {
         } = self.policy;
         let mut application = BoundaryCallingApplication {
             abi: self.abi,
-            calling_owner_application: None,
+            calling_owner_application: owner,
             requirement_identity: self.requirement_identity,
             target,
             report_fingerprint: 0,

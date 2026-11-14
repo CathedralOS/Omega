@@ -62,6 +62,7 @@ pub struct StaticConformanceQuestion {
 pub struct StaticProviderCandidate<Declaration = terminal_psi::NominalDeclarationIdentity> {
     pub boundary: BoundaryMachineId,
     pub declaration: Declaration,
+    pub provider_identity: String,
     pub source_requirement: String,
     pub source_candidate: String,
     pub package: Option<PackageKeyIdentity>,
@@ -281,6 +282,7 @@ impl StaticContracts {
                         Ok(StaticProviderCandidate {
                             boundary: provider.boundary,
                             declaration: terminal_psi::NominalDeclarationIdentity::new(identity),
+                            provider_identity: provider.provider_identity.clone(),
                             source_requirement: provider.source_requirement.clone(),
                             source_candidate: provider.source_candidate.clone(),
                             package: provider.package,

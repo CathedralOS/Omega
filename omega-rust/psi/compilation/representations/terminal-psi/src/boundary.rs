@@ -1178,6 +1178,7 @@ pub(crate) mod external_providers {
         pub requirement_identity: TerminalIdentityIndex,
         pub requirement_package: Option<PackageKeyIdentity>,
         pub numeric_intrinsic: Option<language_semantics::numeric_intrinsics::NumericIntrinsic>,
+        pub sealed_intrinsic: Option<crate::TerminalSealedNativeIntrinsic>,
         pub requirement_schema: Option<ExternalRequirementSchema>,
         pub target: Option<String>,
         pub realization: CheckedMachineDeclaration,
@@ -1194,6 +1195,12 @@ pub(crate) mod external_providers {
                     .text(identity)
                     .is_some_and(|text| !text.is_empty())
             };
+            if self.sealed_intrinsic.is_some()
+                && (self.numeric_intrinsic.is_some()
+                    || self.binding != ExternalBindingIdentity::CompilerIntrinsic)
+            {
+                return Err("sealed native meaning differs from its intrinsic binding");
+            }
             if self.numeric_intrinsic.is_some() && self.requirement_schema.is_none() {
                 return Err("numeric provider lost its exact requirement schema");
             }

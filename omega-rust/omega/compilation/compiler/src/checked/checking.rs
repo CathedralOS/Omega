@@ -21,6 +21,7 @@ mod entry_shapes;
 mod lowered_route;
 mod product_queries;
 mod product_selections;
+mod provider_choices;
 pub(super) mod source_build;
 mod source_checking;
 pub(crate) mod typed_frontier;
@@ -418,7 +419,13 @@ impl SourceCompilation {
             )
             .map_err(CompileFailure::into_diagnostics)?;
         let source = complete_prepared_build(prepared, self.inputs.as_ref())?;
-        check_product_source(source, self.inputs.as_ref(), &self.rollback, None)
+        check_product_source(
+            source,
+            self.inputs.as_ref(),
+            self.target.as_slice(),
+            &self.rollback,
+            None,
+        )
     }
 }
 
@@ -508,9 +515,15 @@ pub(super) fn select_completed_build(
         .built
         .computed_build_config
         .independent_components();
-    match complete_prepared_build(prepared, package_inputs)
-        .and_then(|source| check_product_source(source, package_inputs, rollback, frontier))
-    {
+    match complete_prepared_build(prepared, package_inputs).and_then(|source| {
+        check_product_source(
+            source,
+            package_inputs,
+            &[selected_target_profile.unwrap_or_else(target::TargetProfile::host)],
+            rollback,
+            frontier,
+        )
+    }) {
         Ok(source) => crate::execution_settlement::select_product_target(
             &source,
             crate::checked::PreparedProductTarget::capture(

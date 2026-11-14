@@ -1216,6 +1216,21 @@ impl<T: Default> Arena<T> {
         self.active_count = retained_length;
     }
 
+    /// Reuse dense storage without allowing a retired handle to name a new row.
+    pub fn retire_all_retain_capacity(&mut self) {
+        let latest_generation = self
+            .slot_metadata()
+            .generations
+            .iter()
+            .copied()
+            .fold(self.fresh_generation, u32::max);
+        let generation = latest_generation
+            .checked_add(1)
+            .expect("arena generation exhausted during dense retirement");
+        self.reset_retain_capacity();
+        self.fresh_generation = generation;
+    }
+
     pub fn reset_retain_capacity(&mut self) {
         self.bump_rewrite_revision();
         self.items.clear();
@@ -2375,6 +2390,32 @@ mod tests {
         arena.reset_retain_capacity();
         let fresh = arena.insert_many(["delta".to_owned(), "echo".to_owned()]);
         assert_eq!(arena.span(fresh).map(<[String]>::len), Some(2));
+    }
+
+    #[test]
+    fn dense_retirement_reuses_capacity_without_reusing_any_slot_generation() {
+        let mut arena = Arena::with_capacity_and_generation(8, 17);
+        let original = arena.insert_many([10_u32, 20, 30]);
+        let freed = original.handle_at(1);
+        assert!(arena.free(freed));
+        let replacement = arena.insert(40);
+        let capacity = arena.items.capacity();
+
+        arena.retire_all_retain_capacity();
+        let current = arena.insert_many([50, 60, 70]);
+        assert_eq!(arena.items.capacity(), capacity);
+        assert_eq!(current.start().arena_index(), 1);
+        assert!(arena.span(original).is_none());
+        for old in original.handles().chain([replacement]) {
+            assert!(!arena.is_valid(old));
+        }
+        assert_eq!(arena.span(current), Some([50, 60, 70].as_slice()));
+
+        arena.retire_all_retain_capacity();
+        let next = arena.insert(80);
+        assert_eq!(next.arena_index(), 1);
+        assert!(!arena.is_valid(current.start()));
+        assert_eq!(*arena.get(next), 80);
     }
 
     #[test]

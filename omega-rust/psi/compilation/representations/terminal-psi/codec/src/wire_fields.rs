@@ -1202,6 +1202,44 @@ optional_packages! {
     BoundaryPackage: "empty boundary package identity";
 }
 
+pub(crate) struct Custody;
+impl Field<semantic_vocabulary::compiler_evaluation::DeclarationCustody> for Custody {
+    fn write(
+        writer: &mut Writer,
+        value: &semantic_vocabulary::compiler_evaluation::DeclarationCustody,
+    ) -> Result<(), CodecError> {
+        use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
+        writer.u8(match value {
+            DeclarationCustody::Package(_) => 1,
+            DeclarationCustody::Toolchain => 2,
+            DeclarationCustody::UnownedUser => 3,
+            DeclarationCustody::Missing => 4,
+            DeclarationCustody::ToolchainContract => 5,
+        });
+        if let DeclarationCustody::Package(package) = value {
+            ProviderPackage::write(writer, &Some(*package))?;
+        }
+        Ok(())
+    }
+    fn read(
+        reader: &mut Reader<'_>,
+    ) -> Result<semantic_vocabulary::compiler_evaluation::DeclarationCustody, CodecError> {
+        use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
+        Ok(match reader.u8()? {
+            1 => DeclarationCustody::Package(ProviderPackage::read(reader)?.ok_or(
+                CodecError::MalformedStructuralFoundation(
+                    "compiler-evaluation package custody is absent",
+                ),
+            )?),
+            2 => DeclarationCustody::Toolchain,
+            3 => DeclarationCustody::UnownedUser,
+            4 => DeclarationCustody::Missing,
+            5 => DeclarationCustody::ToolchainContract,
+            tag => return Err(CodecError::InvalidTag("compiler-evaluation custody", tag)),
+        })
+    }
+}
+
 use terminal_psi::GlobalDescriptorTableOperation;
 wire_enum! {
     GlobalDescriptorTable: GlobalDescriptorTableOperation, "GlobalDescriptorTableOperation" {

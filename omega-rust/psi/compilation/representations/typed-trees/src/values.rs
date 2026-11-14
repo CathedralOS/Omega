@@ -3743,35 +3743,39 @@ pub mod expression {
 
         pub fn clear(&mut self) {
             self.build_selection_inputs.0.clear();
-            self.expressions.reset_retain_capacity();
-            self.build_selection_requests.reset_retain_capacity();
-            self.expression_roots.reset_retain_capacity();
+            self.expressions.retire_all_retain_capacity();
+            self.build_selection_requests.retire_all_retain_capacity();
+            self.expression_roots.retire_all_retain_capacity();
             self.source_spans.clear();
             self.materialization_sources.clear();
-            self.constructed_value_types.reset_retain_capacity();
+            self.constructed_value_types.retire_all_retain_capacity();
             self.constructed_value_type_handles.clear();
-            self.construction_required_types.reset_retain_capacity();
+            self.construction_required_types
+                .retire_all_retain_capacity();
             self.construction_required_type_handles.clear();
-            self.index_expression_authorities.reset_retain_capacity();
+            self.index_expression_authorities
+                .retire_all_retain_capacity();
             self.index_expression_authority_handles.clear();
             self.authored_selection_occurrences.clear();
             self.authored_selection_occurrence_ids
-                .reset_retain_capacity();
+                .retire_all_retain_capacity();
             self.executable_domain_tests.clear();
-            self.executable_domain_test_rows.reset_retain_capacity();
-            self.expression_handles.reset_retain_capacity();
-            self.name_path_members.reset_retain_capacity();
-            self.name_path_member_symbols.reset_retain_capacity();
-            self.struct_fields.reset_retain_capacity();
-            self.match_arms.reset_retain_capacity();
-            self.match_fields.reset_retain_capacity();
-            self.completed_values.reset_retain_capacity();
-            self.match_proof_selectors.reset_retain_capacity();
-            self.static_machine_applications.reset_retain_capacity();
-            self.static_machine_arguments.reset_retain_capacity();
-            self.static_machine_bindings.reset_retain_capacity();
+            self.executable_domain_test_rows
+                .retire_all_retain_capacity();
+            self.expression_handles.retire_all_retain_capacity();
+            self.name_path_members.retire_all_retain_capacity();
+            self.name_path_member_symbols.retire_all_retain_capacity();
+            self.struct_fields.retire_all_retain_capacity();
+            self.match_arms.retire_all_retain_capacity();
+            self.match_fields.retire_all_retain_capacity();
+            self.completed_values.retire_all_retain_capacity();
+            self.match_proof_selectors.retire_all_retain_capacity();
+            self.static_machine_applications
+                .retire_all_retain_capacity();
+            self.static_machine_arguments.retire_all_retain_capacity();
+            self.static_machine_bindings.retire_all_retain_capacity();
             self.static_machine_lifetime_bindings
-                .reset_retain_capacity();
+                .retire_all_retain_capacity();
         }
 
         pub fn retain_static_machine_application(
@@ -6298,7 +6302,14 @@ mod build_selection_input_tests {
         current.build_selection = other;
         assert!(table.build_selection_inputs(call).is_err());
         table.clear();
-        table.insert(ExpressionNode::Boolean(true));
+        let current = table.insert(ExpressionNode::Boolean(true));
+        assert_eq!(current.arena_index(), call.arena_index());
+        assert_ne!(current.generation(), call.generation());
         assert!(table.build_selection_inputs(call).is_err());
+        assert_eq!(table.build_selection_inputs(current).unwrap(), None);
+        let current_request =
+            table.insert_build_selection_request(BuildSelectionRequest::default());
+        assert_eq!(current_request.arena_index(), request.arena_index());
+        assert_ne!(current_request.generation(), request.generation());
     }
 }

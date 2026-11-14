@@ -1440,7 +1440,7 @@ pub(crate) mod structural_signature_wire {
         }
     }
 
-    struct Completion;
+    pub(crate) struct Completion;
     impl Field<BoundaryCompletion> for Completion {
         fn write(writer: &mut Writer, value: &BoundaryCompletion) -> Result<(), CodecError> {
             writer.u8(match value {

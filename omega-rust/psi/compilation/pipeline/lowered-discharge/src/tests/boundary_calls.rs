@@ -58,6 +58,8 @@ fn invocation(typed: typed_trees::TypedTrees) -> Checked<structure_elaboration::
             subjects: &[],
             purpose: source::DependencyScope::Product,
             selected: &[],
+            calling: None,
+            providers: None,
             bindings: &[],
         },
         terminal_codec::TerminalPublication::Invocation,

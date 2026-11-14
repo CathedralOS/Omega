@@ -42,9 +42,10 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
-Marker 255 introduced term tables. Current marker 257 combines runtime callable
-contracts and descriptors with published synchronous-entry rows while retaining
-those flat term tables. The two independent marker 256 layouts, marker 255,
+Marker 255 introduced term tables. Current marker 258 also carries normalized service contracts, selected provider
+coordinates, entry source commitments and sealed native execution meanings. It
+retains the runtime callable contracts, descriptors and synchronous-entry rows
+of marker 257 and the flat term tables. Marker 257, both independent marker 256 layouts, marker 255,
 marker 254 (which nested terms inline), and older modules reject at the header.
 
 Content terms do not nest: a separation's members are projections, so a
@@ -92,7 +93,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 257 even when every table
+order below. This layout uses semantic format marker 258 even when every table
 is empty, and retains the Id formation catalog below; older markers reject
 rather than selecting an optional dialect:
 
@@ -951,7 +952,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 257 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 258 + `u16` vocabulary
 marker 135 + a Boolean default-entry presence flag, followed by the entry
 callable when present and the module tables in the declaration order below.
 The entry callable uses its ordinary machine-or-boundary tag and identifier
@@ -1058,33 +1059,68 @@ Older markers are rejected before their payload is read.
 | 19 | calling signatures | counted boundary-to-declaration ABI associations |
 | 20 | declaration ABIs | counted exact declaration applications and storage/telescopes, below |
 | 21 | calling policy requests | counted ordered explicit policy applications, below |
-| 22 | opaque representations | counted exact selected carrier applications, below |
-| 23 | unoptimized behavior | counted pre-optimization behavior rows |
-| 24 | external providers | counted external provider conformances |
-| 25 | provider candidates | counted provider candidate rows |
-| 26 | provider instance requirements | counted required provider-instance rows |
-| 27 | legacy dynamic dispatch | counted interfaces and implementation tables |
-| 28 | float-meaning projections | counted projection rows |
-| 29 | float-meaning equalities | counted equality rows |
-| 30 | proposition declarations | counted proposition declaration rows |
-| 31 | proposition applications | counted proposition application rows |
-| 32 | evidence terms | counted evidence term rows |
-| 33 | evidence contract lanes | counted evidence lane rows |
-| 34 | proof-output invocations | counted proof-output call rows |
-| 35 | proof recursive components | counted recursive component rows |
-| 36 | closed conformance applications | counted conformance application rows |
-| 37 | suspension rows | a bare `u32` call-plan count, then counted suspension call sites, then counted suspension call plans |
-| 38 | scalar block invariants | the counted invariant rows above |
-| 39 | operation crash contracts | counted operation crash contract rows |
-| 40 | machines | counted machine rows |
-| 41 | legacy target-machine families | counted family rows; removal pending |
-| 42 | target layout applications | counted complete checked policy alternatives |
-| 43 | native layout catalog | counted nominal records and complete native reports, below |
-| 44 | boundary application demands | counted exact requirement/application rows |
-| 45 | callback applications | counted checked registrar occurrences |
-| 46 | installed interrupt registrations | counted exact installation, registrar and callback rows, below |
-| 47 | boundary application candidates | counted checked bodies for closed applications |
-| 48 | task activation demands | counted task activation demand rows |
+| 22 | normalized service schemas | counted canonical declaration/application keys and complete service surfaces, below |
+| 23 | program entry contracts | counted target, actual entry machine, exact schema application and physical source digest rows |
+| 24 | selected providers | counted target/schema and distinct provider declaration/semantic/application coordinates, below |
+| 25 | opaque representations | counted exact selected carrier applications, below |
+| 26 | unoptimized behavior | counted pre-optimization behavior rows |
+| 27 | external providers | counted external provider conformances |
+| 28 | provider candidates | counted provider candidate rows |
+| 29 | provider instance requirements | counted required provider-instance rows |
+| 30 | legacy dynamic dispatch | counted interfaces and implementation tables |
+| 31 | float-meaning projections | counted projection rows |
+| 32 | float-meaning equalities | counted equality rows |
+| 33 | proposition declarations | counted proposition declaration rows |
+| 34 | proposition applications | counted proposition application rows |
+| 35 | evidence terms | counted evidence term rows |
+| 36 | evidence contract lanes | counted evidence lane rows |
+| 37 | proof-output invocations | counted proof-output call rows |
+| 38 | proof recursive components | counted recursive component rows |
+| 39 | closed conformance applications | counted conformance application rows |
+| 40 | suspension rows | a bare `u32` call-plan count, then counted suspension call sites, then counted suspension call plans |
+| 41 | scalar block invariants | the counted invariant rows above |
+| 42 | operation crash contracts | counted operation crash contract rows |
+| 43 | machines | counted machine rows |
+| 44 | legacy target-machine families | counted family rows; removal pending |
+| 45 | target layout applications | counted complete checked policy alternatives |
+| 46 | native layout catalog | counted nominal records and complete native reports, below |
+| 47 | boundary application demands | counted exact requirement/application rows |
+| 48 | callback applications | counted checked registrar occurrences |
+| 49 | installed interrupt registrations | counted exact installation, registrar and callback rows, below |
+| 50 | boundary application candidates | counted checked bodies for closed applications |
+| 51 | task activation demands | counted task activation demand rows |
+
+Marker 258 stores each normalized service schema as its module identity-table
+indices for the source declaration and full applied owner, followed by the
+complete service surface. The surface carries its own one-based identity table
+(zero is absent), original package owner, ordered receiver applications and
+ordered methods. Its counted identity texts preserve their interned order and
+cannot repeat. Each receiver retains its application, declaring trait/package,
+type and lifetime arguments, and exact requirement list. A method retains its
+completion, name and declaring owner/package, requirement and parameter/result
+types, all entry/result domain and carry claims, authority flows, service reach,
+synchronous invocations, suspension/blocking and termination guarantees, and
+termination premises with their subjects, projections and establishment routes.
+Counts use `u32`; identity references and strings use their ordinary encodings.
+
+A program entry row carries target text, the actual entry machine id, schema
+declaration/application indices, and the established 32-byte physical-source
+commitment. A selected provider row carries target text and those schema indices,
+then distinct provider nominal declaration and semantic identity indices,
+optional full application, optional package, and declaration custody. They
+refer to exactly one normalized schema application. Duplicate choices, absent
+identities and inconsistent package custody reject. These rows describe the
+checked source and Build choices; accepted package policy and execution
+permission remain separate admission inputs.
+
+External provider rows now retain an optional sealed native meaning immediately
+after their optional numeric intrinsic. Its `u8` outer tag is `1` for hosted
+operations and `2` for fixed-image operations. Hosted `u8` tags are `1` console
+process exit, `2` console byte write, `3` console byte read, and `4` core process
+exit. Fixed-image tags are `1` program-storage entry and `2` retained-suffix start.
+These meanings require an intrinsic binding and cannot coexist with a numeric
+meaning. The source classifier establishes them; native realization consumes
+the retained meaning rather than recognizing a declaration's name.
 
 Marker 238 requires the explicit prerequisite/result role byte after the
 subject of every integer-range and predicate condition, together with complete

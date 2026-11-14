@@ -13,6 +13,31 @@ pub struct TerminalSourceSelections {
 }
 
 impl TerminalSourceSelections {
+    pub fn declaration_custody(
+        &self,
+        artifact: TerminalExecutionView<'_>,
+        declaration: &str,
+        purpose: semantic_vocabulary::source_selections::SelectionPurpose,
+    ) -> Result<semantic_vocabulary::compiler_evaluation::DeclarationCustody, String> {
+        let questions = self
+            .questions_for(artifact)
+            .ok_or("source declaration custody belongs to another program or invocation")?;
+        let mut custody = None;
+        for (_, source) in questions
+            .declarations
+            .iter()
+            .filter(|(_, source)| source.identity == declaration && source.purpose == purpose)
+        {
+            if custody
+                .replace(source.custody)
+                .is_some_and(|previous| previous != source.custody)
+            {
+                return Err("selected declaration has conflicting source package custody".into());
+            }
+        }
+        custody.ok_or_else(|| "selected declaration has no authenticated source custody".into())
+    }
+
     pub(crate) fn new(artifact: TerminalExecutionView<'_>, questions: SelectionQuestions) -> Self {
         Self {
             identity: artifact.custody_identity(),

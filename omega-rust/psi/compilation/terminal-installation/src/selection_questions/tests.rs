@@ -280,3 +280,125 @@ fn every_emitted_call_keeps_its_actual_source_selection() {
             .contains("lacks its exact source selection question")
     );
 }
+
+#[test]
+fn authority_walks_follow_the_evaluated_machine_and_leave_unused_code_out() {
+    use semantic_vocabulary::{
+        CallableContractId, MachineDescriptorId, ScalarQualificationSetId, ScalarType, ValueId,
+    };
+    use terminal_psi::{
+        TerminalCallableContract, TerminalCallableEnvelope, TerminalCallableTermination,
+        TerminalMachineDescriptor, TerminalMachineDescriptorOrigin, ValueDeclaration,
+    };
+    let mut module = TerminalModule::for_entry(MachineId::new(1).unwrap());
+    let mut identities = TerminalIdentityTableBuilder::default();
+    for (index, name) in ["caller", "selected", "unused"].iter().enumerate() {
+        module.machines.push(machine(
+            MachineId::new(index as u64 + 1).unwrap(),
+            identities.intern(name),
+        ));
+    }
+    let contract = CallableContractId::new(1).unwrap();
+    let identity = identities.intern("closed no-argument callable");
+    module.callables.contracts.push(TerminalCallableContract {
+        id: contract,
+        identity,
+        scalar_parameters: Vec::new(),
+        parameter_order: Vec::new(),
+        structural_parameters: Vec::new(),
+        result: terminal_psi::BoundaryMachineResult::Unit,
+        proof_result: TerminalMachineResult::Unit,
+        entry_claim_paths: Vec::new(),
+        result_claim_paths: Vec::new(),
+        result_reference_regions: Vec::new(),
+        proof: MachineContract::empty(ContractId::new(1).unwrap()),
+        evidence_contract: Vec::new(),
+        envelope: TerminalCallableEnvelope {
+            service_reach: Vec::new(),
+            invocations: Vec::new(),
+            suspends: false,
+            blocks: false,
+            termination: TerminalCallableTermination::NotGuaranteed,
+        },
+    });
+    for ordinal in 1..=2 {
+        let descriptor = MachineDescriptorId::new(ordinal).unwrap();
+        module
+            .callables
+            .descriptors
+            .push(TerminalMachineDescriptor {
+                id: descriptor,
+                contract,
+                machine: MachineId::new(ordinal + 1).unwrap(),
+                origin: TerminalMachineDescriptorOrigin {
+                    application: identity,
+                    conformance: None,
+                    requirement: None,
+                },
+                refinement_obligations: Vec::new(),
+                refinement_evidence: Vec::new(),
+            });
+        module.machines[0].blocks[0]
+            .operations
+            .push(Operation::unsuspended(
+                OperationId::new(ordinal).unwrap(),
+                OperationResult::Scalar(ValueDeclaration {
+                    id: ValueId::new(ordinal).unwrap(),
+                    scalar_type: ScalarType::Callable(contract),
+                    qualifications: ScalarQualificationSetId::ZERO,
+                }),
+                OperationKind::SelectMachine { descriptor },
+            ));
+    }
+    module.identities = identities.build();
+    module.machines[0].blocks[0]
+        .operations
+        .push(Operation::unsuspended(
+            OperationId::new(3).unwrap(),
+            OperationResult::Unit,
+            OperationKind::CallMachine {
+                callee: ValueId::new(1).unwrap(),
+                contract,
+                arguments: Vec::new(),
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            },
+        ));
+    let walk = |module: &TerminalModule| {
+        crate::SynchronousCallGraph::new(module, None, None)
+            .unwrap()
+            .from_root(MachineId::new(1).unwrap())
+            .map(|closure| {
+                closure
+                    .machines
+                    .iter()
+                    .map(|machine| machine.id)
+                    .collect::<Vec<_>>()
+            })
+    };
+    assert_eq!(
+        walk(&module).unwrap(),
+        vec![MachineId::new(1).unwrap(), MachineId::new(2).unwrap()]
+    );
+    let OperationKind::CallMachine { callee, .. } =
+        &mut module.machines[0].blocks[0].operations[2].kind
+    else {
+        unreachable!()
+    };
+    *callee = ValueId::new(2).unwrap();
+    assert_eq!(
+        walk(&module).unwrap(),
+        vec![MachineId::new(1).unwrap(), MachineId::new(3).unwrap()]
+    );
+    let OperationKind::CallMachine { callee, .. } =
+        &mut module.machines[0].blocks[0].operations[2].kind
+    else {
+        unreachable!()
+    };
+    *callee = ValueId::new(99).unwrap();
+    assert!(walk(&module).is_err());
+}

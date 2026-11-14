@@ -90,6 +90,63 @@ pub struct PackageDependencyClosure {
     dependencies: Vec<PackageDependencyBinding>,
 }
 
+// A sealed Product keeps the same direct dependency choices used during source
+// checking. Later policy evaluation reads those choices without reopening the
+// package graph or granting a dependency's dependencies to its caller.
+impl semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority
+    for PackageDependencyClosure
+{
+    fn allows_declaration_selection(
+        &self,
+        requester: PackageKeyIdentity,
+        owner: PackageKeyIdentity,
+    ) -> bool {
+        self.packages.binary_search(&requester).is_ok()
+            && self.packages.binary_search(&owner).is_ok()
+            && (requester == owner
+                || self
+                    .dependencies
+                    .iter()
+                    .skip(
+                        self.dependencies
+                            .partition_point(|edge| edge.requester < requester),
+                    )
+                    .take_while(|edge| edge.requester == requester)
+                    .any(|edge| edge.target == owner))
+    }
+
+    fn package_label(&self, identity: PackageKeyIdentity) -> String {
+        use std::fmt::Write as _;
+        let mut label = String::with_capacity(72);
+        label.push_str("package ");
+        for byte in identity.digest() {
+            let _ = write!(label, "{byte:02x}");
+        }
+        label
+    }
+
+    fn declaration_selection_scope(
+        &self,
+    ) -> Option<BTreeMap<PackageKeyIdentity, Vec<PackageKeyIdentity>>> {
+        let mut scope = self
+            .packages
+            .iter()
+            .map(|owner| (*owner, vec![*owner]))
+            .collect::<BTreeMap<_, _>>();
+        for edge in &self.dependencies {
+            scope
+                .get_mut(&edge.requester)
+                .expect("canonical Product closure includes each edge's requester")
+                .push(edge.target);
+        }
+        for owners in scope.values_mut() {
+            owners.sort_unstable();
+            owners.dedup();
+        }
+        Some(scope)
+    }
+}
+
 impl PackageDependencyClosure {
     pub const fn root(&self) -> PackageKeyIdentity {
         self.root
@@ -427,6 +484,42 @@ mod selection_authority_tests {
     use super::*;
     use crate::PackageSourceBinding;
     use semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority;
+
+    #[test]
+    fn sealed_product_authority_retains_direct_edges_only() {
+        let identity = |byte| PackageKeyIdentity::from_digest([byte; 32]).unwrap();
+        let [root, dependency, transitive, absent] = [1, 2, 3, 4].map(identity);
+        let graph = PackageDependencyClosure::from_canonical_parts(
+            root,
+            BuildDeclarationKind::Application,
+            vec![root, dependency, transitive],
+            vec![
+                PackageDependencyBinding::for_purpose(
+                    root,
+                    "dependency",
+                    dependency,
+                    DependencyPurpose::Product,
+                ),
+                PackageDependencyBinding::for_purpose(
+                    dependency,
+                    "transitive",
+                    transitive,
+                    DependencyPurpose::Product,
+                ),
+            ],
+        )
+        .expect("canonical Product closure");
+        assert!(graph.allows_declaration_selection(root, root));
+        assert!(graph.allows_declaration_selection(root, dependency));
+        assert!(graph.allows_declaration_selection(dependency, transitive));
+        assert!(!graph.allows_declaration_selection(root, transitive));
+        assert!(!graph.allows_declaration_selection(absent, absent));
+        assert!(!graph.allows_declaration_selection(root, absent));
+        assert_eq!(
+            graph.declaration_selection_scope().unwrap()[&root],
+            vec![root, dependency]
+        );
+    }
 
     #[test]
     fn source_purposes_keep_root_build_and_dependency_product_edges_separate() {

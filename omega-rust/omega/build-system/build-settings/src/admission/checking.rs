@@ -118,6 +118,8 @@ pub(crate) fn prepare_admitted_build(
                 subjects: subject.as_slice(),
                 purpose: source::DependencyScope::Build,
                 selected: &[],
+                calling: None,
+                providers: None,
                 bindings: &[],
             },
             terminal_codec::TerminalPublication::Invocation,

@@ -534,6 +534,7 @@ pub(crate) fn publish(elaboration: &mut Elaboration) -> Checked<()> {
             .is_none_or(|identity| identity.is_empty())
             || source.source_requirement.is_empty()
             || source.source_candidate.is_empty()
+            || source.provider_identity.is_empty()
             || question.application.is_empty()
         {
             return Err(fault(
@@ -550,7 +551,7 @@ pub(crate) fn publish(elaboration: &mut Elaboration) -> Checked<()> {
             declaration_application: application,
             receiving_application: application,
             receiving_region_arguments: Vec::new(),
-            provider_identity: declaration,
+            provider_identity: identities.intern(&source.provider_identity),
             provider_declaration: terminal_psi::NominalDeclarationIdentity::new(declaration),
             candidate_identity: declared.callable,
             source_candidate_identity: identities.intern(&source.source_candidate),

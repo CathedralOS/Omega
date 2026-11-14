@@ -1,24 +1,11 @@
-//! The first piece of a production path from the checker on the lowered
-//! form: a program the route accepts is published as canonical Terminal Psi
-//! from the route's own module (`AcceptedClosure::publish`), its evidence
-//! seals are attached by Omega 00 to that module and fill the accepted
-//! obligations' proof fingerprints in Omega 01, and the published program
-//! runs in the Terminal interpreter to the exit its fixture pins
-//! (`wiki/drafts/designs/check_on_lowered_form.md`, "Route one", Build:
-//! "Discharged certificates travel in memory beside `TerminalModule` within
-//! one compile so Omega 00 can fill
-//! `AcceptedObligationFact::proof_bundle_fingerprint`").
+//! Publication must execute the program the lowered-form checker accepted.
+//! These tests join Build's selected entry to that program, carry its proof
+//! certificates into native lowering, and run its authored Psi result. A root
+//! with the same name from another owner must refuse.
 //!
-//! Each machine of the published module states the declaration identity of
-//! the source machine it lowers, so the Build's selected entry is found on it
-//! the way the program-entry receipt finds it on the current checker's
-//! program.
-//!
-//! The default compile takes this path for the application: when the route
-//! accepts a compilation and its module publishes, the Terminal product is
-//! that artifact and its seals stay beside it for Omega 00. Everything else
-//! a product reads (provider selection, calling policies, the Build's
-//! companions) still comes from the current checker's program.
+//! `wiki/drafts/designs/check_on_lowered_form.md`, "Route one", requires the
+//! discharged certificates to stay beside the accepted module until Omega 00
+//! attaches their fingerprints to the operations they justify.
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 
@@ -81,19 +68,22 @@ fn accepted(
             subjects: &[frontier.subject],
             purpose: source::DependencyScope::Product,
             selected: &frontier.selected,
+            calling: frontier.calling.borrow(&frontier.typed).selection(),
+            providers: frontier.provider_selections(),
             bindings: &frontier.bindings,
         },
     )) {
         Ok(RouteVerdict::Accepted(closure)) => {
-            // The entry root and its signature identity belong to the selected
-            // program entry. A checked compilation carries the target and its
-            // settled provider plans only, and nothing on the lowered route
-            // selects the entry from the accepted module yet.
-            let _: (
-                Box<lowered_discharge::AcceptedClosure>,
-                Box<compiler::CheckedCompilation>,
-            ) = (closure, checked);
-            panic!("{fixture}: no product route yet: the selected program entry has no producer")
+            let selected = checked
+                .selected_program_entry()
+                .unwrap_or_else(|diagnostics| {
+                    panic!("{fixture}: selected entry: {diagnostics:#?}")
+                });
+            let root = selected
+                .nominal_root()
+                .expect("checked entry has a nominal root");
+            let signature = selected.source_signature().identity().bytes();
+            (closure, root, signature, checked)
         }
         other => panic!("{fixture}: the route must accept: {other:?}"),
     }
@@ -194,12 +184,8 @@ fn an_accepted_program_is_published_from_the_routes_module_and_runs() {
     );
 }
 
-/// The default compile builds the application of a program the route accepts
-/// from the route's own module: the Terminal product holds exactly the
-/// artifact `AcceptedClosure::publish` produces, not the current checker's
-/// program, and the evidence seals bound to that artifact's identity are
-/// retained beside it, so native production hands Omega 00 the module the
-/// kernel judged with the certificates that judged it.
+/// The ordinary compile retains the accepted module and its exact proof seals,
+/// so native lowering receives the same operations the kernel judged.
 #[test]
 fn the_default_compile_builds_the_application_from_the_routes_module() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
@@ -267,15 +253,9 @@ fn default_product(fixture: &str) -> terminal_psi_to_abstract_operations::Retain
     .unwrap_or_else(|diagnostics| panic!("{fixture} must reach Terminal Psi: {diagnostics:#?}"))
 }
 
-/// The route states, for every machine of the module it publishes, the
-/// declaration identity the current checker's program states for the same
-/// source machine: the exact-owner machine and state, the semantic
-/// declaration, the parameter and result types, the callable and the
-/// published suspension and blocking. Only the contract commitment differs,
-/// because each checker commits to the contract in its own form. The
-/// Build's selected entry, named as the current program names it, is
-/// therefore found on the published module exactly once, with a Unit
-/// result, which is what the program-entry receipt requires of it.
+/// Rechecking the same source preserves each machine's declaration, contract,
+/// and effects. The entry selected by Build must resolve exactly once in the
+/// independently published module and return Unit.
 #[test]
 fn the_published_module_states_each_machines_declaration_identity() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
@@ -339,7 +319,7 @@ fn the_published_module_states_each_machines_declaration_identity() {
             .unwrap_or_else(|| panic!("the current program has no machine {}", ours.0));
         assert_eq!(ours, stated(current, theirs));
         assert_ne!(declaration.contract, [0; 32]);
-        assert_ne!(declaration.contract, theirs.contract);
+        assert_eq!(declaration.contract, theirs.contract);
     }
 
     let Some(terminal_psi::TargetMachineCallable::Machine(current_entry)) = current.entry else {

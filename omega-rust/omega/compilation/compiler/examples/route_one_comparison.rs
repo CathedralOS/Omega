@@ -311,11 +311,14 @@ fn probe(main: &Path, every_machine: bool, lines: &mut Vec<String>) -> Vec<Strin
         .unwrap_or_else(|_| "route=panicked".to_owned())
     };
     if !frontier.entries.is_empty() {
+        let calling = frontier.calling.borrow(&frontier.typed);
         let compilation = structure_elaboration::Compilation {
             entries: &frontier.entries,
             subjects: &[frontier.subject],
             purpose: source::DependencyScope::Product,
             selected: &frontier.selected,
+            calling: calling.selection(),
+            providers: frontier.provider_selections(),
             bindings: &frontier.bindings,
         };
         let line = judged("compilation", lines, &|| {

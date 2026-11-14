@@ -195,14 +195,18 @@ impl Program<'_> {
         Ok(ValueType::Record(id, Qualification::NONE))
     }
 
-    fn storage_type(
+    pub(super) fn storage_type(
         &mut self,
         machine: MachineId,
         reference: TypeReferenceHandle,
         value: ValueType,
     ) -> Checked<StructuralTypeId> {
         let (scalar_type, policy) = match value {
-            ValueType::Scalar(scalar, qualification) if qualification.domains.is_empty() => {
+            ValueType::Scalar(scalar, qualification)
+                if qualification.domains.is_empty()
+                    || self.type_purpose
+                        == super::storage_metadata::TypePurpose::StorageDescription =>
+            {
                 (scalar, qualification.policy)
             }
             ValueType::Scalar(..) => {
@@ -213,6 +217,12 @@ impl Program<'_> {
                 ));
             }
             ValueType::Record(id, Qualification::NONE) => return Ok(id),
+            ValueType::Record(id, _)
+                if self.type_purpose
+                    == super::storage_metadata::TypePurpose::StorageDescription =>
+            {
+                return Ok(id);
+            }
             ValueType::Record(..) => {
                 return Err(refuse(
                     machine,

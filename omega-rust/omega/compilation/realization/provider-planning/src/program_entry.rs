@@ -1,13 +1,16 @@
-// Typed root-binding metadata and retained native entry data survive the old
-// checker. Source-contract preparation and checked service-reach settlement
-// have no producer here; canonical entry/adapter readers remain exact.
+// Select the entry named by Build and retain its actual checked declaration.
+// Arrival and provider plans are supplied separately from the same program.
 
 use diagnostics::Diagnostic;
+mod calling_plans;
+pub use calling_plans::ProgramEntryCallingPlanRequest;
 pub use language_semantics::declaration_selection::RootBinding;
 pub use package_compilation::program_entry_semantic_binding_role;
+pub use program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SelectedProgramEntry<'config> {
+    pub binding_ordinal: usize,
     pub machine_name: &'config str,
     pub machine_symbol: symbols::SymbolHandle, // Exact machine selected under the binding occurrence's lexical package.
     pub slot: target::ProgramEntrySlotDeclaration,
@@ -25,7 +28,7 @@ pub fn selected_program_entry_machine<'config>(
     }
     let mut diagnostics = Vec::new();
     let mut selected_bindings = Vec::new();
-    for binding in root_bindings {
+    for (ordinal, binding) in root_bindings.iter().enumerate() {
         let Some((profile, slot_name)) = binding.slot.rsplit_once("::") else {
             diagnostics.push(Diagnostic::error(format!(
                 "root slot `{}` is not target-qualified; expected `target::ProgramEntry`",
@@ -54,7 +57,7 @@ pub fn selected_program_entry_machine<'config>(
         if profile != selected_profile {
             continue;
         }
-        selected_bindings.push((required_slot, binding));
+        selected_bindings.push((required_slot, binding, ordinal));
     }
     if !diagnostics.is_empty() {
         return Err(diagnostics);
@@ -64,10 +67,10 @@ pub fn selected_program_entry_machine<'config>(
     for required_slot in selected_profile.required_root_slots() {
         let matches = selected_bindings
             .iter()
-            .filter(|(selected, _)| selected == &required_slot)
+            .filter(|(selected, _, _)| selected == &required_slot)
             .collect::<Vec<_>>();
-        let binding = match matches.as_slice() {
-            [(_, binding)] => *binding,
+        let (binding, ordinal) = match matches.as_slice() {
+            [(_, binding, ordinal)] => (*binding, *ordinal),
             [] => {
                 diagnostics.push(Diagnostic::error(format!(
                     "selected target `{}` has no bound required root slot `{}::{}`",
@@ -95,14 +98,15 @@ pub fn selected_program_entry_machine<'config>(
             )));
             continue;
         };
-        program_entries.push((program_entry, binding));
+        program_entries.push((program_entry, binding, ordinal));
     }
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
 
     match program_entries.as_slice() {
-        [(slot, binding)] => Ok(Some(SelectedProgramEntry {
+        [(slot, binding, ordinal)] => Ok(Some(SelectedProgramEntry {
+            binding_ordinal: *ordinal,
             machine_name: binding.implementation.as_str(),
             machine_symbol: binding.implementation_symbol,
             slot: *slot,
@@ -119,13 +123,6 @@ pub fn selected_program_entry_machine<'config>(
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct SelectedEntryDeclaration {
-    machine: symbols::SymbolHandle,
-    state: symbols::SymbolHandle,
-    signature: program_entry_plan::SelectedProgramEntrySignature,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedProgramEntryCallingPlans {
     pub semantic_calling_application: calling_conventions::BoundaryCallingApplication,
     pub physical_calling_application: calling_conventions::BoundaryCallingApplication,
@@ -134,14 +131,145 @@ pub struct SelectedProgramEntryCallingPlans {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedCompilerProgramEntry {
-    declaration: SelectedEntryDeclaration,
+    signature: program_entry_plan::SelectedProgramEntrySignature,
     calling_plans: Option<SelectedProgramEntryCallingPlans>,
     physical_adapter: Option<terminal_psi::PreparedNominalRoot>,
 }
 
 impl SelectedCompilerProgramEntry {
+    pub fn from_terminal(
+        module: &terminal_psi::TerminalModule,
+        machine: semantic_vocabulary::MachineId,
+        slot: target::ProgramEntrySlotDeclaration,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let refuse = |reason: String| vec![Diagnostic::error(reason)];
+        let body = module.machine(machine).ok_or_else(|| {
+            refuse("the selected entry has no independently published machine".into())
+        })?;
+        let checked = body
+            .declaration
+            .as_ref()
+            .ok_or_else(|| refuse("the selected entry has no checked declaration".into()))?;
+        if body.result != terminal_psi::TerminalMachineResult::Unit {
+            return Err(refuse("the selected program entry must return Unit".into()));
+        }
+        // The installed contract, rather than a receiver's shape, determines
+        // which source arguments the environment must establish.
+        if slot.visible_parameters != target::ProgramEntryVisibleParameters::None {
+            return Err(refuse(format!(
+                "no product route yet: entry `{}` needs its installed visible storage arguments derived from the checked arrival contract",
+                module
+                    .identities
+                    .text(checked.machine.identity())
+                    .unwrap_or("<absent>"),
+            )));
+        }
+        if !body.parameters.is_empty()
+            || !body.structural_parameters.is_empty()
+            || !body.parameter_order.is_empty()
+            || !checked.parameter_types.is_empty()
+        {
+            return Err(refuse(
+                "the selected hosted entry exposes arguments its slot does not provide".into(),
+            ));
+        }
+        let declaration = module
+            .identities
+            .text(checked.machine.identity())
+            .filter(|identity| !identity.is_empty())
+            .ok_or_else(|| {
+                refuse("the selected entry lost its nominal declaration identity".into())
+            })?;
+        let signature =
+            program_entry_plan::SelectedProgramEntrySignature::from_checked_declaration(
+                slot,
+                declaration.to_owned(),
+                declaration.to_owned(),
+                module
+                    .identities
+                    .text(checked.state.identity())
+                    .filter(|identity| !identity.is_empty())
+                    .ok_or_else(|| refuse("selected entry lost its checked state identity".into()))?
+                    .to_owned(),
+                checked.callable,
+                Vec::new(),
+                module.identities.clone(),
+            )
+            .map_err(refuse)?;
+        Ok(Self {
+            signature,
+            calling_plans: None,
+            physical_adapter: None,
+        })
+    }
+
+    pub fn nominal_root(&self) -> Result<terminal_psi::PreparedNominalRoot, Vec<Diagnostic>> {
+        terminal_psi::PreparedNominalRoot::new(
+            self.signature.declaration(),
+            self.machine_name(),
+            None,
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason.to_string())])
+    }
+
+    pub fn with_calling_plans(
+        mut self,
+        plans: SelectedProgramEntryCallingPlans,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let slot = self.signature.target_slot();
+        let refuse = |reason: &str| vec![Diagnostic::error(reason)];
+        if plans.storage_entry.target_slot() != slot
+            || plans.semantic_calling_application.target != slot.owner.native_target()
+            || plans.physical_calling_application.target != slot.owner.native_target()
+        {
+            return Err(refuse(
+                "entry arrival plans belong to another selected target",
+            ));
+        }
+        let semantic = plans
+            .storage_entry
+            .identities()
+            .text(plans.storage_entry.requirement_identity())
+            .ok_or_else(|| refuse("entry storage plan lost its semantic arrival identity"))?;
+        let physical = plans
+            .storage_entry
+            .physical_contract()
+            .ok_or_else(|| refuse("entry storage plan has no checked physical arrival contract"))?;
+        if plans.semantic_calling_application.requirement_identity != semantic
+            || physical.identities().text(physical.requirement_identity())
+                != Some(
+                    plans
+                        .physical_calling_application
+                        .requirement_identity
+                        .as_str(),
+                )
+        {
+            return Err(refuse(
+                "entry arrival plans name different requirements from their storage contract",
+            ));
+        }
+        for application in [
+            &plans.semantic_calling_application,
+            &plans.physical_calling_application,
+        ] {
+            if application.commitment == [0; 32]
+                || application.report_fingerprint == 0
+                || application
+                    .recomputed_commitment()
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?
+                    != application.commitment
+            {
+                return Err(refuse(
+                    "entry arrival plan lost its checked calling application",
+                ));
+            }
+        }
+        self.calling_plans = Some(plans);
+        Ok(self)
+    }
+
     pub fn machine_name(&self) -> &str {
-        self.declaration.signature.machine_name()
+        self.signature.machine_name()
     }
 
     pub fn physical_adapter(&self) -> Option<&terminal_psi::PreparedNominalRoot> {
@@ -151,7 +279,6 @@ impl SelectedCompilerProgramEntry {
     pub fn bind_physical_adapter(
         &mut self,
         module: &terminal_psi::TerminalModule,
-        providers: &[crate::SelectedProviderReviewProvenance],
         declarations: &[backend_plan::TerminalTargetProviderPlan],
     ) -> Result<(), Vec<Diagnostic>> {
         let Some(plans) = &self.calling_plans else {
@@ -171,17 +298,29 @@ impl SelectedCompilerProgramEntry {
                 )]
             })?;
         let mut selected = None;
-        for provider in providers {
-            for row in &provider.plan.rows {
-                if provider.plan.identity_text(row.requirement_identity) != requirement {
+        for declaration in declarations {
+            let plan = &declaration.plan;
+            for row in &plan.rows {
+                if plan.identity_text(row.requirement_identity) != requirement {
                     continue;
                 }
-                if matches!(
-                    provider.selected_by,
-                    crate::ProviderSelectionProvenance::UniqueCoveringCandidate
-                ) {
+                let owner = declaration.provider_declaration.as_deref().ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "physical entry adapter lost its selecting owner",
+                    )]
+                })?;
+                let mut choices = module.provider_selections.iter().filter(|choice| {
+                    choice.target == plans.storage_entry.target_slot().owner.target_name()
+                        && module.identities.text(choice.provider_declaration) == Some(owner)
+                        && module
+                            .service_schema(choice.schema_declaration, choice.schema_application)
+                            .is_ok_and(|schema| {
+                                schema.surface.as_ref() == plan.schema.declaration.as_ref()
+                            })
+                });
+                if choices.next().is_none() || choices.next().is_some() {
                     return Err(vec![Diagnostic::error(
-                        "physical entry adapter requires an explicit provider selection",
+                        "physical entry adapter has no unique explicit source provider choice",
                     )]);
                 }
                 if !matches!(
@@ -192,35 +331,15 @@ impl SelectedCompilerProgramEntry {
                         "selected physical entry adapter is absent",
                     )]);
                 }
-                let header =
-                    backend_plan::selected_checked_adapter_header(&provider.plan, row, module)
-                        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                let header = backend_plan::selected_checked_adapter_header(plan, row, module)
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
                 if !header.supplies_checked_body || header.type_parameter_count != 0 {
                     return Err(vec![Diagnostic::error(
                         "physical entry adapter must have a checked source body",
                     )]);
                 }
-                let mut matching = declarations
-                    .iter()
-                    .filter(|declaration| declaration.plan == provider.plan);
-                let declaration = matching.next().ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "physical entry adapter lost its exact selected declaration",
-                    )]
-                })?;
-                if matching.next().is_some() {
-                    return Err(vec![Diagnostic::error(
-                        "physical entry adapter has competing selected declarations",
-                    )]);
-                }
-                let owner = declaration.provider_declaration.as_deref().ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "physical entry adapter lost its selecting owner",
-                    )]
-                })?;
-                let rows =
-                    backend_plan::selected_provider_candidate_rows(&provider.plan, owner, module)
-                        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                let rows = backend_plan::selected_provider_candidate_rows(plan, owner, module)
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
                 let candidates = rows
                     .iter()
                     .find(|candidate| candidate.row == row)
@@ -264,15 +383,7 @@ impl SelectedCompilerProgramEntry {
     }
 
     pub const fn source_signature(&self) -> &program_entry_plan::SelectedProgramEntrySignature {
-        &self.declaration.signature
-    }
-
-    pub const fn machine_symbol(&self) -> symbols::SymbolHandle {
-        self.declaration.machine
-    }
-
-    pub const fn state_symbol(&self) -> symbols::SymbolHandle {
-        self.declaration.state
+        &self.signature
     }
 
     pub const fn calling_plans(&self) -> Option<&SelectedProgramEntryCallingPlans> {

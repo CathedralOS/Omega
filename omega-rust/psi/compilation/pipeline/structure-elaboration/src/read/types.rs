@@ -114,6 +114,30 @@ impl Program<'_> {
                     ));
                 }
                 match typed.symbols.builtin_type_atom(*symbol) {
+                    Some(BuiltinTypeAtom::Address)
+                        if self.type_purpose
+                            == super::storage_metadata::TypePurpose::StorageDescription =>
+                    {
+                        Ok(ScalarType::Integer(
+                            IntegerType::supported_address_representation(),
+                        ))
+                    }
+                    Some(BuiltinTypeAtom::F32)
+                        if self.type_purpose
+                            == super::storage_metadata::TypePurpose::StorageDescription =>
+                    {
+                        Ok(ScalarType::IeeeFloat(
+                            semantic_vocabulary::IeeeFloatFormat::Binary32,
+                        ))
+                    }
+                    Some(BuiltinTypeAtom::F64)
+                        if self.type_purpose
+                            == super::storage_metadata::TypePurpose::StorageDescription =>
+                    {
+                        Ok(ScalarType::IeeeFloat(
+                            semantic_vocabulary::IeeeFloatFormat::Binary64,
+                        ))
+                    }
                     Some(atom) => atom_type(atom, id),
                     None => unserved("nominal type"),
                 }

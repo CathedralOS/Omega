@@ -183,6 +183,8 @@ fn frozen_frontier(
     }
     .prepare()?;
     Ok(TypedFrontier {
+        calling: Default::default(),
+        providers: Vec::new(),
         typed: prepared.program.as_ref().clone(),
         entries,
         subject,

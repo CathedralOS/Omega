@@ -3259,26 +3259,7 @@ pub(crate) mod proof_scope_wire {
             match &header.compiler_evaluation {
                 Ok(facts) => {
                     writer.string("compiler-evaluation display name", &facts.name)?;
-                    match facts.custody {
-                        semantic_vocabulary::compiler_evaluation::DeclarationCustody::Package(
-                            package,
-                        ) => {
-                            writer.u8(1);
-                            ProviderPackage::write(writer, &Some(package))?;
-                        }
-                        semantic_vocabulary::compiler_evaluation::DeclarationCustody::Toolchain => {
-                            writer.u8(2)
-                        }
-                        semantic_vocabulary::compiler_evaluation::DeclarationCustody::UnownedUser => {
-                            writer.u8(3)
-                        }
-                        semantic_vocabulary::compiler_evaluation::DeclarationCustody::Missing => {
-                            writer.u8(4)
-                        }
-                        semantic_vocabulary::compiler_evaluation::DeclarationCustody::ToolchainContract => {
-                            writer.u8(5)
-                        }
-                    }
+                    crate::wire_fields::Custody::write(writer, &facts.custody)?;
                     writer.len("compiler-evaluation services", facts.effects.services.len())?;
                     for service in &facts.effects.services {
                         writer.string("compiler-evaluation service", service)?;
@@ -3512,20 +3493,7 @@ pub(crate) mod proof_scope_wire {
             let type_parameter_count = reader.count()? as usize;
             let compiler_evaluation = if reader.boolean()? {
                 let name = reader.string("compiler-evaluation display name")?;
-                let custody = match reader.u8()? {
-                    1 => semantic_vocabulary::compiler_evaluation::DeclarationCustody::Package(
-                        ProviderPackage::read(reader)?.ok_or(
-                            CodecError::MalformedStructuralFoundation(
-                                "compiler-evaluation package custody is absent",
-                            ),
-                        )?,
-                    ),
-                    2 => semantic_vocabulary::compiler_evaluation::DeclarationCustody::Toolchain,
-                    3 => semantic_vocabulary::compiler_evaluation::DeclarationCustody::UnownedUser,
-                    4 => semantic_vocabulary::compiler_evaluation::DeclarationCustody::Missing,
-                    5 => semantic_vocabulary::compiler_evaluation::DeclarationCustody::ToolchainContract,
-                    tag => return Err(CodecError::InvalidTag("compiler-evaluation custody", tag)),
-                };
+                let custody = crate::wire_fields::Custody::read(reader)?;
                 Ok(
                     semantic_vocabulary::compiler_evaluation::CompilerEvaluationDeclaration {
                         name,
@@ -5049,6 +5017,9 @@ wire_record! {
         calling_signatures: List<calling_signature_wire::Declaration>,
         calling_abi_signatures: List<calling_signature_wire::AbiDeclaration>,
         calling_policy_requests: List<calling_signature_wire::PolicyRequest>,
+        service_schemas: List<crate::service_schema_wire::Schema>,
+        program_entry_contracts: List<crate::service_schema_wire::EntryContract>,
+        provider_selections: List<crate::service_schema_wire::ProviderSelection>,
         opaque_representations: List<opaque_representation_wire::Representation>,
         unoptimized_behavior: List<unoptimized_behavior_wire::Behavior>,
         external_providers: List<ExternalProvider>,

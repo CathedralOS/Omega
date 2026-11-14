@@ -29,6 +29,10 @@ Provenance:
 mod bindings;
 mod build_prelude;
 mod entry_contract_seed;
+mod entry_contract_selection;
+pub use entry_contract_selection::{
+    SelectedProgramEntryContractSource, select_program_entry_contract,
+};
 mod frontier;
 mod generated;
 mod import_queue;

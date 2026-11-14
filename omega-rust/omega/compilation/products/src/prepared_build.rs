@@ -87,8 +87,6 @@ pub struct CheckedProductSource {
     pub program: Arc<typed_trees::FrozenTypedTrees>,
     pub provider_inventory: Arc<typed_trees::provider_declarations::PreparedProviderInventory>,
     pub terminal_publication: Arc<crate::ProductTerminalPublication>,
-    pub provider_defaults:
-        Arc<[build_time_evaluation::provider_declarations::TargetProviderDefaults]>,
     pub computed_build_config: Arc<ComputedBuildConfig>,
     pub admission: BuildAdmission,
     pub sources: Arc<package_compilation::CheckedSourceCustody>,
@@ -106,7 +104,6 @@ impl CheckedProductSource {
                 .computed_build_config
                 .config
                 .same_source_choices(&other.computed_build_config.config)
-            && self.provider_defaults == other.provider_defaults
             && self.sources == other.sources
     }
 

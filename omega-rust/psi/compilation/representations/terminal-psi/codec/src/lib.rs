@@ -41,6 +41,7 @@ mod module_wire;
 mod obligation_evidence;
 mod sections;
 mod semantic_module;
+mod service_schema_wire;
 mod structural_wire;
 mod term_table;
 mod term_wire;

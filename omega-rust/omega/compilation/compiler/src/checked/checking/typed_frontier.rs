@@ -6,6 +6,64 @@
 
 use compilation_products::{CheckedCompilation, CompileFailure};
 
+/// Source requests captured with the frontier, so a developer replay judges
+/// the same calling-policy and entry roots as the original compilation.
+#[derive(Debug, Clone, Default)]
+pub struct CallingInputs {
+    pub applications: Vec<typed_trees::trait_definition::TraitApplicationEnvironment>,
+    pub entries: Vec<ProgramEntryInput>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ProgramEntryInput {
+    pub target: String,
+    pub application: typed_trees::trait_definition::TraitApplicationEnvironment,
+    pub physical_source_digest: [u8; 32],
+    pub implementation: symbols::SymbolHandle,
+}
+
+pub struct CallingSelectionContext<'source> {
+    source: &'source typed_trees::FrozenTypedTrees,
+    applications: &'source [typed_trees::trait_definition::TraitApplicationEnvironment],
+    entries: Vec<structure_elaboration::ProgramEntryContractSelection<'source>>,
+}
+
+impl CallingInputs {
+    pub fn borrow<'source>(
+        &'source self,
+        source: &'source typed_trees::FrozenTypedTrees,
+    ) -> CallingSelectionContext<'source> {
+        CallingSelectionContext {
+            source,
+            applications: &self.applications,
+            entries: self
+                .entries
+                .iter()
+                .map(
+                    |entry| structure_elaboration::ProgramEntryContractSelection {
+                        target: &entry.target,
+                        application: &entry.application,
+                        physical_source_digest: entry.physical_source_digest,
+                        implementation: entry.implementation,
+                    },
+                )
+                .collect(),
+        }
+    }
+}
+
+impl CallingSelectionContext<'_> {
+    pub fn selection(&self) -> Option<structure_elaboration::CallingPolicySelections<'_>> {
+        (!self.entries.is_empty() || !self.applications.is_empty()).then_some(
+            structure_elaboration::CallingPolicySelections {
+                source: self.source,
+                applications: self.applications,
+                entries: &self.entries,
+            },
+        )
+    }
+}
+
 /// What to check: either form the session already checks.
 pub enum TypedFrontierRequest {
     /// A package Product, as `CompilationSession::check_package_build` takes it.
@@ -37,6 +95,23 @@ pub struct TypedFrontier {
     pub selected: Vec<symbols::SymbolHandle>,
     /// The distinct visible-continuation obligations of the executed bindings.
     pub bindings: Vec<typed_trees::callable_signature_shapes::BoundCallableShape>,
+    pub calling: CallingInputs,
+    /// Exact source choices for developer rejudgment. Product consumers read
+    /// only the normalized selections in the accepted module.
+    pub providers: Vec<structure_elaboration::provider_selections::ProviderSelectionInput>,
+}
+
+impl TypedFrontier {
+    pub fn provider_selections(
+        &self,
+    ) -> Option<structure_elaboration::provider_selections::ProviderSelections<'_>> {
+        (!self.providers.is_empty()).then_some(
+            structure_elaboration::provider_selections::ProviderSelections {
+                source: &self.typed,
+                choices: &self.providers,
+            },
+        )
+    }
 }
 
 /// What the product path concluded after receiving its typed source.

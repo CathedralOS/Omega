@@ -173,6 +173,57 @@ fn query(machine: u64, id: u64) -> CallableValueQuery {
     }
 }
 
+fn boundary(id: u64, returns_callable: bool) -> terminal_psi::BoundaryMachineDeclaration {
+    terminal_psi::BoundaryMachineDeclaration {
+        id: BoundaryMachineId::new(id).unwrap(),
+        declaration: None,
+        numeric_intrinsic: None,
+        role: terminal_psi::BoundaryDeclarationRole::Callable,
+        kind: semantic_vocabulary::BoundaryRequirementKind::Machine,
+        completion: if returns_callable {
+            semantic_vocabulary::BoundaryCompletion::NormalReturn
+        } else {
+            semantic_vocabulary::BoundaryCompletion::External(
+                semantic_vocabulary::ExternalCompletionKind::ProcessExit,
+            )
+        },
+        unconditional_termination: false,
+        identity: TerminalIdentityIndex(id as u32),
+        owner: terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(id as u32)),
+        attachment: None,
+        parameter_order: if returns_callable {
+            vec![BoundaryParameterKind::Scalar]
+        } else {
+            Vec::new()
+        },
+        scalar_parameters: if returns_callable {
+            vec![value(1).scalar_type]
+        } else {
+            Vec::new()
+        },
+        crash_routes: Vec::new(),
+        structural_parameters: Vec::new(),
+        result: if returns_callable {
+            BoundaryMachineResult::Scalar(value(1).value_type())
+        } else {
+            BoundaryMachineResult::Unit
+        },
+        result_reference_regions: Vec::new(),
+        requires: Vec::new(),
+        normal_qualifications: Vec::new(),
+        scalar_domain_requirements: Vec::new(),
+        scalar_requires: Vec::new(),
+        scalar_ensures: Vec::new(),
+        reference_outputs: Vec::new(),
+        program_local_root_introductions: Vec::new(),
+        content_guarantees: Vec::new(),
+        fixed_service_reach: Vec::new(),
+        owning_service: None,
+        published_service_ceiling: Vec::new(),
+        published_synchronous_entries: Vec::new(),
+    }
+}
+
 #[test]
 fn entry_calls_bind_two_selections_through_one_formal_without_invoking_unused_code() {
     let mut module = module();
@@ -266,6 +317,74 @@ fn entry_calls_bind_two_selections_through_one_formal_without_invoking_unused_co
             .operation(machine_id(1), operation_id(3))
             .unwrap()
             .is_none()
+    );
+
+    // The same returned value and formal substitution must survive a chosen
+    // provider. Its terminal call is reached; an unused descriptor's is not.
+    module.boundary_machines = vec![boundary(1, true), boundary(2, false), boundary(3, false)];
+    module.machines[0].blocks[0].operations[3].kind = O::BoundaryCall {
+        boundary: BoundaryMachineId::new(1).unwrap(),
+        arguments: vec![value(1).id],
+        structural_arguments: Vec::new(),
+        completion_receipts: Vec::new(),
+        requirement_obligations: Vec::new(),
+    };
+    for (machine, boundary) in [(2, 2), (4, 3)] {
+        module.machines[machine].blocks[0].terminator = Terminator::ExternalCompletion {
+            edge: EdgeId::new(1).unwrap(),
+            boundary: BoundaryMachineId::new(boundary).unwrap(),
+            kind: semantic_vocabulary::ExternalCompletionKind::ProcessExit,
+            arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            requirement_obligations: Vec::new(),
+            frontier_lower_bound: Vec::new(),
+        };
+    }
+    let binding = CallableBoundaryImplementation {
+        boundary: BoundaryMachineId::new(1).unwrap(),
+        machine: machine_id(6),
+    };
+    let projected =
+        terminal_callable_values_with_boundary_implementations(&module, &[binding]).unwrap();
+    assert_eq!(
+        resolve_callable_value(&projected, query(1, 4))
+            .unwrap()
+            .descriptors,
+        BTreeSet::from([descriptor_id(1)])
+    );
+    let reached = reachable_callable_invocations(&projected, [machine_id(1)]).unwrap();
+    assert_eq!(reached.roots, BTreeSet::from([machine_id(1)]));
+    assert_eq!(
+        reached
+            .site(
+                machine_id(2),
+                CallableInvocationSite::Invocation(InvocationSite::Operation(operation_id(1)))
+            )
+            .unwrap()
+            .selected_machines,
+        BTreeSet::from([machine_id(3), machine_id(4)])
+    );
+    assert_eq!(
+        reached_boundary_calls(&module, machine_id(1), &[binding]).unwrap(),
+        vec![
+            BoundaryMachineId::new(1).unwrap(),
+            BoundaryMachineId::new(2).unwrap()
+        ]
+    );
+    assert!(
+        terminal_callable_values_with_boundary_implementations(&module, &[binding, binding])
+            .is_err()
+    );
+    assert!(
+        reached_boundary_calls(
+            &module,
+            machine_id(1),
+            &[CallableBoundaryImplementation {
+                machine: machine_id(5),
+                ..binding
+            }]
+        )
+        .is_err()
     );
 }
 

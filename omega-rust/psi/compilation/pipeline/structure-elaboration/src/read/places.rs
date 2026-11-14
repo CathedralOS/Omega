@@ -159,6 +159,47 @@ impl Program<'_> {
             same(source.declaration, &source.application).then_some(record)
         });
         if let Some(record) = known {
+            // A description cannot authorize a later value use, including
+            // use of a plain outer record containing an address or linear child.
+            if self.type_purpose == super::storage_metadata::TypePurpose::Value
+                && self.value_records.binary_search(&record).is_err()
+            {
+                if self
+                    .resolving
+                    .iter()
+                    .any(|(owner, retained)| same(*owner, retained))
+                {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Type("data application that contains itself"),
+                    ));
+                }
+                record_shape_for(
+                    id,
+                    data,
+                    application.as_ref(),
+                    typed.data_members(data),
+                    |variant| typed.data_payload_fields(variant),
+                    self.type_purpose,
+                )?;
+                self.resolving.push((symbol, application.clone()));
+                let enclosing = std::mem::replace(&mut self.lifetime_owner, symbol);
+                let read = (|| {
+                    if let Some(application) = &application {
+                        for (_, argument) in &application.substitutions {
+                            self.value_type(id, *argument)?;
+                        }
+                    }
+                    self.declared_members(id, typed.data_members(data))
+                })();
+                self.lifetime_owner = enclosing;
+                self.resolving.pop();
+                read?;
+                if let Err(position) = self.value_records.binary_search(&record) {
+                    self.value_records.insert(position, record);
+                }
+            }
             if let Some(application) = &application {
                 self.record_application(id, record, application.reference)?;
             }
@@ -173,9 +214,14 @@ impl Program<'_> {
             return Err(unserved("data application that contains itself"));
         }
         let members = typed.data_members(data);
-        record_shape(id, data, application.as_ref(), members, |variant| {
-            typed.data_payload_fields(variant)
-        })?;
+        record_shape_for(
+            id,
+            data,
+            application.as_ref(),
+            members,
+            |variant| typed.data_payload_fields(variant),
+            self.type_purpose,
+        )?;
         lifetime_binders(id, &data.lifetime_parameters)?;
         // Terminal Psi's declaration needs a text identity; the typed trees
         // render it. Without one the declaration cannot be emitted.
@@ -299,6 +345,11 @@ impl Program<'_> {
             .ok_or_else(|| unserved("record identity"))?
             .requires = requires;
         self.admitted_declarations.include(symbol);
+        if self.type_purpose == super::storage_metadata::TypePurpose::Value
+            && let Err(position) = self.value_records.binary_search(&record)
+        {
+            self.value_records.insert(position, record);
+        }
         Ok(ValueType::Record(record, Qualification::NONE))
     }
 
@@ -925,12 +976,31 @@ impl Program<'_> {
 
 /// Whether a data declaration is a plain record or a plain sum this slice
 /// serves. Each feature outside it is refused by name, never ignored.
+#[cfg(test)]
 fn record_shape<'m>(
     id: MachineId,
     data: &DataDefinition,
     application: Option<&typed_trees::SourceTypeApplication>,
     members: &'m [DataMember],
     payload: impl Fn(&'m typed_trees::data::DataVariant) -> &'m [DataField],
+) -> Checked<()> {
+    record_shape_for(
+        id,
+        data,
+        application,
+        members,
+        payload,
+        super::storage_metadata::TypePurpose::Value,
+    )
+}
+
+fn record_shape_for<'m>(
+    id: MachineId,
+    data: &DataDefinition,
+    application: Option<&typed_trees::SourceTypeApplication>,
+    members: &'m [DataMember],
+    payload: impl Fn(&'m typed_trees::data::DataVariant) -> &'m [DataField],
+    purpose: super::storage_metadata::TypePurpose,
 ) -> Checked<()> {
     let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Type(what)));
     if data.supply_mode != language_semantics::DataSupplyMode::CheckedShape {
@@ -951,6 +1021,7 @@ fn record_shape<'m>(
     // every field is copyable. Linear claims and selected cleanup machines
     // require their own disposition contracts and remain outside this reader.
     if data.properties.multiplicity == language_semantics::Multiplicity::Linear
+        && purpose == super::storage_metadata::TypePurpose::Value
         || data.cleanup_selection.is_some()
     {
         return unserved("data with custody");

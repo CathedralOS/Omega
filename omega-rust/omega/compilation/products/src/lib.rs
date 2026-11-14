@@ -45,6 +45,7 @@ mod package_build;
 mod prepared_build;
 pub use typed_trees::ProductSourceIdentity;
 mod prepared_source;
+mod program_entry;
 mod provider_instances;
 pub use provider_instances::SelectedProviderSource;
 pub mod publication;

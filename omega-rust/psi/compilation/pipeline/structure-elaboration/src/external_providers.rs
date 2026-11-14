@@ -47,6 +47,7 @@ pub(crate) struct ExternalProviderSource {
     pub requirement_package: Option<PackageKeyIdentity>,
     pub target: Option<String>,
     pub binding: ExternalBindingIdentity,
+    pub sealed_intrinsic: Option<terminal_psi::TerminalSealedNativeIntrinsic>,
     pub boundary: Option<BoundaryMachineId>,
     pub completion: semantic_vocabulary::BoundaryCompletion,
 }
@@ -149,6 +150,7 @@ impl ExternalProviderNamespace {
                     realization_package: source.package,
                     provider,
                     binding: source.binding.clone(),
+                    sealed_intrinsic: source.sealed_intrinsic,
                 },
             });
         }

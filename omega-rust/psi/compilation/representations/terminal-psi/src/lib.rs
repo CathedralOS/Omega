@@ -36,6 +36,11 @@ pub mod observation;
 #[macro_use]
 pub mod ownership;
 pub mod proof;
+pub mod service_schemas;
+pub use service_schemas::{
+    TerminalProgramEntryContract, TerminalProviderSelection, TerminalSealedNativeIntrinsic,
+    TerminalServiceSchema,
+};
 pub mod terminal_module;
 pub mod types_and_values;
 

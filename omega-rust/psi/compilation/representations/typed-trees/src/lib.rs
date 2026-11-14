@@ -55,7 +55,6 @@ pub mod boundary_values {
     #[derive(Clone, Default)]
     pub struct BoundaryTypeBinding {
         pub parameter_symbol: symbols::SymbolHandle,
-        pub parameter_name: String,
         pub actual: TypeReferenceHandle,
     }
 
@@ -414,7 +413,7 @@ pub mod boundary_values {
         type_reference: TypeReferenceHandle,
         bindings: &[BoundaryTypeBinding],
     ) -> TypeReferenceHandle {
-        let TypeReferenceNode::Named { symbol, name } =
+        let TypeReferenceNode::Named { symbol, .. } =
             typed.type_reference_table.type_reference(type_reference)
         else {
             return type_reference;
@@ -422,8 +421,7 @@ pub mod boundary_values {
         bindings
             .iter()
             .find(|binding| {
-                (binding.parameter_symbol.is_valid() && binding.parameter_symbol == *symbol)
-                    || binding.parameter_name == name.as_str()
+                binding.parameter_symbol.is_valid() && binding.parameter_symbol == *symbol
             })
             .map_or(type_reference, |binding| binding.actual)
     }

@@ -1,22 +1,15 @@
-// Target preparation asks what one target must supply for this Product, and
-// the answer comes from the Product's accepted Terminal module: the boundary
-// requirements its entry reaches, paired with the provider selections the
-// Build made and the defaults the target package retains
-// (`provider_planning::target_supply`). A module that reaches none prepares
-// an empty supply; a module that demands a plan this route cannot form yet is
-// refused by the name of what it demands. Typed declarations alone decide
-// nothing here.
+//! Target preparation retains the accepted program's real invocation root.
+//! Provider choices are already canonical Psi rows; settlement never reopens
+//! source declarations or treats retained provider bodies as separate entries.
 
 use compilation_products::CheckedProductSource;
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
-use provider_planning::target_supply::{
-    PreparedTargetSupply, ReachedBoundaryRequirement, TargetSupplyRequest,
-};
+use semantic_vocabulary::MachineId;
 
 pub(crate) struct PreparedProductTarget {
     pub(crate) profile: Option<target::TargetProfile>,
-    pub(crate) supply: PreparedTargetSupply,
+    pub(crate) entry: Option<MachineId>,
 }
 
 impl PreparedProductTarget {
@@ -30,25 +23,23 @@ impl PreparedProductTarget {
             .require_source_owner(&source.program)
             .map_err(|error| vec![error])?;
         let accepted = source.terminal_publication.accepted()?;
-        let reached = accepted
-            .boundary_requirements_reached()
-            .map_err(|error| vec![error])?
-            .into_iter()
-            .map(|reached| ReachedBoundaryRequirement {
-                boundary: reached.boundary,
-                requirement: reached.requirement,
-                slot: reached.slot,
-                name: reached.name,
-            })
-            .collect::<Vec<_>>();
+        let module = accepted.module();
         let target = profile.unwrap_or_else(target::TargetProfile::host);
-        let supply = PreparedTargetSupply::prepare(TargetSupplyRequest {
-            module: accepted.module(),
-            reached: &reached,
-            build: &source.computed_build_config.config.provider_selections,
-            defaults: &source.provider_defaults,
-            target: target.target_name(),
-        })?;
-        Ok(Self { profile, supply })
+        let entry = if module.entry.is_none() && module.program_entry_contracts.is_empty() {
+            // A reusable source artifact has no executable nomination. It
+            // acquires provider demand only when a consumer supplies one.
+            None
+        } else {
+            let contract = module
+                .program_entry_contract(target.target_name())
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+            module.machine(contract.entry).ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "selected target entry has no exact executable machine",
+                )]
+            })?;
+            Some(contract.entry)
+        };
+        Ok(Self { profile, entry })
     }
 }

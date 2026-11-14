@@ -225,10 +225,16 @@ pub fn derive_selected_intrinsic_settlement_proposals<'a>(
             )));
             continue;
         };
+        let Some(callable) = boundary.declaration.as_ref() else {
+            diagnostics.push(Diagnostic::error(format!(
+                "compiler-builtin `{requirement}` has no checked callable declaration"
+            )));
+            continue;
+        };
         let identity = match selected_external_execution(
             external_providers,
             identities,
-            &boundary.owner,
+            &callable.source.machine,
             &plans[selected_row.plan_index],
             selected_row.row,
             selected_row.execution,

@@ -111,6 +111,7 @@ impl<'a> TerminalProductRequest<'a> {
         let view = TerminalProductionView::selection(selection);
         let source = ProductCodeSource {
             publication: view.publication,
+            sources: view.sources,
         };
         Self {
             view,
@@ -122,7 +123,7 @@ impl<'a> TerminalProductRequest<'a> {
 
 pub(crate) struct ProducedTerminalProduct {
     pub(crate) program: Arc<psi_compiler::PortableTerminalProgram>,
-    proposal: backend_plan::TerminalTargetProviderProposal,
+    pub(crate) proposal: backend_plan::TerminalTargetProviderProposal,
 }
 
 impl ProducedTerminalProduct {
@@ -220,6 +221,7 @@ fn produce_shared_terminal(
         }
         TerminalProductUse::Declarations => ProductCodeSource {
             publication: first.request.view.publication,
+            sources: first.request.view.sources,
         }
         .publish(first.request.selections, &mut observer),
     }

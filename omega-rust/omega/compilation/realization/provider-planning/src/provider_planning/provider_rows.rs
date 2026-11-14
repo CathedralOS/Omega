@@ -80,6 +80,41 @@ pub struct DirectBoundaryInput {
 }
 
 impl DirectBoundaryInput {
+    /// Keep the exact external declaration the checker admitted. This adapter
+    /// describes a native leaf; receiving execution still admits its binding.
+    pub(crate) fn from_checked(
+        row_index: usize,
+        source: &terminal_psi::ExternalProviderConformance,
+        identities: &terminal_psi::TerminalIdentityTable,
+        mechanism: DirectBoundaryMechanism,
+    ) -> Result<Self, Diagnostic> {
+        source.validate(identities).map_err(Diagnostic::error)?;
+        let text = |identity| {
+            identities
+                .text(identity)
+                .filter(|value| !value.is_empty())
+                .map(str::to_owned)
+                .ok_or_else(|| {
+                    Diagnostic::error("native leaf lost a complete checked declaration identity")
+                })
+        };
+        Ok(Self {
+            row_index,
+            declaration_identity: text(source.realization.machine.identity())?,
+            callable_identity: text(source.realization.callable)?,
+            realization_owner: source
+                .provider
+                .as_ref()
+                .map(|provider| text(provider.identity))
+                .transpose()?
+                .unwrap_or_default(),
+            realization_package: source
+                .provider
+                .as_ref()
+                .and_then(|provider| provider.package),
+            mechanism,
+        })
+    }
     pub fn finish(
         &self,
         original: &ProviderPlan,

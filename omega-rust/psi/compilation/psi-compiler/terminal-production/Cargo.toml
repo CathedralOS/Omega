@@ -11,6 +11,7 @@ compiler-storage = { path = "../../../foundation/compiler-storage" }
 language-semantics = { path = "../../../foundation/language-semantics" }
 typed-trees = { path = "../../representations/typed-trees" }
 terminal-psi = { path = "../../representations/terminal-psi" }
+terminal-semantics = { path = "../../representations/terminal-psi/semantics" }
 terminal-codec = { path = "../../representations/terminal-psi/codec" }
 terminal-installation = { path = "../../terminal-installation" }
 diagnostics = { path = "../../../foundation/diagnostics" }

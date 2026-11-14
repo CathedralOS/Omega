@@ -156,7 +156,7 @@ impl Program<'_> {
                 "native conformance has an unresolved declaring trait application",
             ));
         }
-        let (binding, sealed_leaf) = native_binding(
+        let (binding, sealed_intrinsic) = native_binding(
             typed,
             context,
             machine,
@@ -228,7 +228,7 @@ impl Program<'_> {
         };
         let mut operational = declared.clone();
         if operational.service_reach_row == ServiceReachRowId::NULL {
-            if !sealed_leaf {
+            if sealed_intrinsic.is_none() {
                 return Err(services::unavailable(
                     context,
                     "native provider has an unresolved service contract",
@@ -285,12 +285,7 @@ impl Program<'_> {
                     nominal: symbol,
                     identity: typed
                         .normalized_hermetic_symbol_identity(symbol)
-                        .map_err(|_| {
-                            services::unavailable(
-                                context,
-                                "native provider owner has no exact semantic identity",
-                            )
-                        })?,
+                        .map_err(|reason| services::unavailable(context, reason))?,
                     package: typed.symbols.symbol_package_identity(symbol),
                 })
             })
@@ -333,6 +328,7 @@ impl Program<'_> {
             requirement_package: typed.symbols.symbol_package_identity(required.symbol),
             target: typed.machine_authored_target(machine).map(str::to_owned),
             binding,
+            sealed_intrinsic,
             boundary: None,
             completion: typed_trees::boundary_completions::boundary_requirement_completion(
                 typed,
@@ -408,7 +404,10 @@ fn native_binding(
     owner: SymbolHandle,
     required: &StateSignature,
     retained: Option<language_semantics::ExternalBindingId>,
-) -> Checked<(ExternalBindingIdentity, bool)> {
+) -> Checked<(
+    ExternalBindingIdentity,
+    Option<terminal_psi::TerminalSealedNativeIntrinsic>,
+)> {
     if let MachineSupplyMode::ExternalRealization {
         binding: Some(binding),
         mechanism: Some(mechanism),
@@ -430,7 +429,7 @@ fn native_binding(
                 "native provider and conformance name different bindings",
             ));
         }
-        return Ok((identity.clone(), false));
+        return Ok((identity.clone(), None));
     }
     let realization = typed
         .symbols
@@ -438,25 +437,32 @@ fn native_binding(
     let requirement = typed
         .symbols
         .sealed_member_intrinsic(owner, required.name.as_str());
-    let exact = match (realization, requirement) {
+    let intrinsic = match (realization, requirement) {
         (
             Some(SealedIntrinsic::HostedRealization {
                 operation: actual,
                 target,
             }),
             Some(SealedIntrinsic::HostedRequirement(expected)),
-        ) => actual == expected && typed.machine_authored_target(machine) == Some(target),
+        ) if actual == expected && typed.machine_authored_target(machine) == Some(target) => {
+            terminal_psi::TerminalSealedNativeIntrinsic::Hosted(actual)
+        }
         (
             Some(SealedIntrinsic::FixedImageRealization(actual)),
             Some(SealedIntrinsic::FixedImageRequirement(expected)),
-        ) => actual == expected,
-        _ => false,
+        ) if actual == expected => terminal_psi::TerminalSealedNativeIntrinsic::FixedImage(actual),
+        _ => {
+            return Err(services::unavailable(
+                context,
+                "native source declaration has no exact retained binding owner",
+            ));
+        }
     };
-    if !exact || retained.is_some() {
+    if retained.is_some() {
         return Err(services::unavailable(
             context,
             "native source declaration has no exact retained binding owner",
         ));
     }
-    Ok((ExternalBindingIdentity::CompilerIntrinsic, true))
+    Ok((ExternalBindingIdentity::CompilerIntrinsic, Some(intrinsic)))
 }

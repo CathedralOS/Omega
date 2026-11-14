@@ -10,6 +10,7 @@ use std::sync::Arc;
 #[derive(Clone, Copy)]
 pub(crate) struct ProductCodeSource<'a> {
     pub publication: &'a ProductTerminalPublication,
+    pub sources: &'a package_compilation::CheckedSourceCustody,
 }
 
 impl<'a> ProductCodeSource<'a> {
@@ -19,12 +20,32 @@ impl<'a> ProductCodeSource<'a> {
         observer: &mut impl PsiCompilationObserver,
     ) -> Result<Arc<PortableTerminalProgram>, Vec<Diagnostic>> {
         self.publication.retain(selections, || {
-            self.publication
-                .accepted()?
+            let accepted = self.publication.accepted()?;
+            self.sources
+                .require_owner(accepted.source())
+                .map_err(|error| vec![error])?;
+            let program = accepted
                 .produce(Default::default(), observer)?
                 .into_shared_portable()
-                .map(Arc::new)
-                .map_err(|error| vec![Diagnostic::error(error.to_string())])
+                .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
+            let packet = program.source_selections().ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "Product publication lost its source declaration selections",
+                )]
+            })?;
+            let authority = self.sources.dependency_closure().map(|graph| {
+                graph as &dyn semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority
+            });
+            packet
+                .admit(
+                    program.artifact().view().into(),
+                    &terminal_installation::selection_questions::SelectionAuthorities {
+                        build: None,
+                        product: authority,
+                    },
+                )
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+            Ok(Arc::new(program))
         })
     }
 

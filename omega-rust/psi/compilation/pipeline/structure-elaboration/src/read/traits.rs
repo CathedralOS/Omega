@@ -369,6 +369,11 @@ impl Program<'_> {
                 Some(StaticProviderCandidate {
                     boundary,
                     declaration: symbol,
+                    provider_identity: typed
+                        .normalized_hermetic_symbol_identity(
+                            typed.implementation_value_head(symbol),
+                        )
+                        .map_err(|reason| services::unavailable(context, reason))?,
                     source_requirement: typed.trait_requirement_callable_identity_text(
                         application.declaration,
                         required,

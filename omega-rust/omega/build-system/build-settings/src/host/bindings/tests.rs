@@ -81,6 +81,8 @@ fn produce(build: &str) -> psi_compiler::ProducedTerminalProgram {
             subjects: &[Some(package)],
             purpose: source::DependencyScope::Build,
             selected: &[],
+            calling: None,
+            providers: None,
             bindings: &[],
         },
         terminal_codec::TerminalPublication::Invocation,

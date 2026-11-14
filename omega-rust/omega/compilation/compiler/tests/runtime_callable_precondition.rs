@@ -120,6 +120,8 @@ fn check_preserved_rejection() {
             subjects: &[frontier.subject],
             purpose: source::DependencyScope::Product,
             selected: &[],
+            calling: None,
+            providers: None,
             bindings: &[],
         },
     )

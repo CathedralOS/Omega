@@ -33,6 +33,7 @@ pub struct CheckedSourceCustody {
     package_purpose: Option<build_declarations::DependencyPurpose>,
     package_subject: Option<PackageCompilationSubject>,
     exact_toolchain_sources: Vec<(source::SourceId, [u8; 32])>,
+    semantic_bindings: Vec<crate::AcceptedSemanticBinding>,
 }
 
 impl BuildSourceCustody {
@@ -125,11 +126,28 @@ impl BuildSourceCustody {
             package_purpose: package_inputs.map(PackageCompilationInputs::compilation_purpose),
             package_subject,
             exact_toolchain_sources,
+            semantic_bindings: package_inputs
+                .map(|inputs| inputs.accepted_semantic_bindings().cloned().collect())
+                .unwrap_or_default(),
         })
     }
 }
 
 impl CheckedSourceCustody {
+    pub fn accepted_semantic_binding(
+        &self,
+        role: crate::AcceptedSemanticBindingRole,
+    ) -> Option<&crate::AcceptedSemanticBinding> {
+        self.semantic_bindings
+            .iter()
+            .find(|binding| binding.role() == role)
+    }
+
+    pub fn accepted_semantic_bindings(
+        &self,
+    ) -> impl Iterator<Item = &crate::AcceptedSemanticBinding> {
+        self.semantic_bindings.iter()
+    }
     /// Source consumption records do not certify semantic acceptance. Their
     /// exact owner must still match the source the route independently judged.
     pub fn require_owner(&self, program: &Arc<FrozenTypedTrees>) -> Result<(), Diagnostic> {

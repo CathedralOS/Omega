@@ -2110,6 +2110,23 @@ pub mod expression {
         }
 
         #[test]
+        fn clearing_expression_storage_retires_its_handles_and_payload_spans() {
+            let mut table = ExpressionTable::new();
+            let original = table.insert(ExpressionNode::Boolean(true));
+            let original_arguments = table.insert_expression_handles([original]);
+
+            table.clear();
+            let current = table.insert(ExpressionNode::Boolean(false));
+            let current_arguments = table.insert_expression_handles([current]);
+            assert_eq!(original.arena_index(), current.arena_index());
+            assert_ne!(original.generation(), current.generation());
+            assert!(!table.expression_is_valid(original));
+            assert!(table.expression_is_valid(current));
+            assert!(table.expression_handles(original_arguments).is_empty());
+            assert_eq!(table.expression_handles(current_arguments), [current]);
+        }
+
+        #[test]
         fn expression_occurrences_support_multiple_ids_and_survive_resolved_copies() {
             let occurrences = authored_selection_occurrences();
             assert_eq!(occurrences[0].ordinal(), 0);
@@ -3059,24 +3076,28 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
         }
 
         pub fn clear(&mut self) {
-            self.nodes.expressions.reset_retain_capacity();
+            self.nodes.expressions.retire_all_retain_capacity();
             self.nodes.source_spans.clear();
             self.nodes.materialization_sources.clear();
             self.nodes.authored_expression_exposures.clear();
             self.nodes.compiler_selection_partitions.clear();
             self.nodes.authored_selection_occurrences.clear();
-            self.spans.expression_handles.reset_retain_capacity();
-            self.spans.name_path_members.reset_retain_capacity();
-            self.spans.name_path_member_symbols.reset_retain_capacity();
-            self.spans.struct_fields.reset_retain_capacity();
-            self.spans.match_arms.reset_retain_capacity();
-            self.spans.match_fields.reset_retain_capacity();
-            self.spans.match_subjects.reset_retain_capacity();
-            self.spans.static_members.reset_retain_capacity();
-            self.spans.match_proof_selectors.reset_retain_capacity();
+            self.spans.expression_handles.retire_all_retain_capacity();
+            self.spans.name_path_members.retire_all_retain_capacity();
+            self.spans
+                .name_path_member_symbols
+                .retire_all_retain_capacity();
+            self.spans.struct_fields.retire_all_retain_capacity();
+            self.spans.match_arms.retire_all_retain_capacity();
+            self.spans.match_fields.retire_all_retain_capacity();
+            self.spans.match_subjects.retire_all_retain_capacity();
+            self.spans.static_members.retire_all_retain_capacity();
+            self.spans
+                .match_proof_selectors
+                .retire_all_retain_capacity();
             self.spans
                 .authored_selection_occurrence_ids
-                .reset_retain_capacity();
+                .retire_all_retain_capacity();
         }
 
         pub fn insert(&mut self, expression: ExpressionNode) -> ExpressionHandle {

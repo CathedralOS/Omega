@@ -2,6 +2,9 @@
 // conditions against that same artifact and the target's settled plans.
 
 mod product_code;
+pub(crate) use product_code::ProductCodeSource;
+mod provider_execution;
+pub(crate) use provider_execution::prepare_provider_execution_inputs;
 mod terminal_artifact;
 
 pub(crate) use terminal_artifact::{

@@ -240,6 +240,8 @@ fn declared_refinement_module() -> TerminalModule {
             subjects: &[package],
             purpose: source::DependencyScope::Product,
             selected: &[],
+            calling: None,
+            providers: None,
             bindings: &[],
         },
     );

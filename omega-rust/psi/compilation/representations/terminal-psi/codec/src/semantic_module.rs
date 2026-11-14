@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 257`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 258`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -1256,7 +1256,7 @@ pub(crate) mod external_provider_wire {
     use super::CodecError;
     use super::machine_declaration_wire;
     use super::wire::{Reader, Writer};
-    use super::wire_fields::{ExternalPackage, Field};
+    use super::wire_fields::{ExternalPackage, Field, Optional};
     use language_semantics::ExternalBindingIdentity;
     use terminal_psi::TerminalIdentityIndex;
     use terminal_psi::{
@@ -1284,6 +1284,10 @@ pub(crate) mod external_provider_wire {
                 ),
             )?);
         }
+        Optional::<crate::service_schema_wire::SealedIntrinsic>::write(
+            writer,
+            &candidate.sealed_intrinsic,
+        )?;
         writer.boolean(candidate.target.is_some());
         if let Some(target) = &candidate.target {
             writer.string("external provider target membership", target)?;
@@ -1336,6 +1340,8 @@ pub(crate) mod external_provider_wire {
         } else {
             None
         };
+        let sealed_intrinsic =
+            Optional::<crate::service_schema_wire::SealedIntrinsic>::read(reader)?;
         let target = if reader.boolean()? {
             Some(reader.string("external provider target membership")?)
         } else {
@@ -1374,6 +1380,7 @@ pub(crate) mod external_provider_wire {
             requirement_package,
             requirement_schema,
             numeric_intrinsic,
+            sealed_intrinsic,
             target,
             realization,
             realization_package,
@@ -2856,6 +2863,7 @@ mod external_provider_tests {
         );
         module.identities = identity_table(8);
         module.external_providers = vec![ExternalProviderConformance {
+            sealed_intrinsic: None,
             requirement: NominalDeclarationIdentity::new(TerminalIdentityIndex(3)),
             requirement_identity: TerminalIdentityIndex(3),
             requirement_package: None,
@@ -4475,10 +4483,10 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-// Marker 257 combines opaque callable contracts/descriptors with the published
-// synchronous-entry rows. Both independent marker 256 layouts and all earlier
-// layouts reject; their fields must never be read under this combined schema.
-pub(crate) const FORMAT_MARKER: u16 = 257;
+// Marker 258 carries normalized service schemas, selected providers and exact
+// entry source commitments. Earlier layouts do not contain those records and
+// must refuse rather than reinterpret subsequent fields.
+pub(crate) const FORMAT_MARKER: u16 = 258;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

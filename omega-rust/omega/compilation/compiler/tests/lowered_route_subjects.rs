@@ -272,6 +272,8 @@ fn route_verdict(
             subjects: &[frontier.subject],
             purpose: source::DependencyScope::Product,
             selected: &frontier.selected,
+            calling: frontier.calling.borrow(&frontier.typed).selection(),
+            providers: frontier.provider_selections(),
             bindings: &frontier.bindings,
         },
     );
@@ -474,6 +476,8 @@ fn the_uncalled_machine_is_judged_because_it_belongs_to_the_subject() {
             subjects: &[Some(another)],
             purpose: source::DependencyScope::Product,
             selected: &frontier.selected,
+            calling: frontier.calling.borrow(&frontier.typed).selection(),
+            providers: frontier.provider_selections(),
             bindings: &frontier.bindings,
         },
     ));
@@ -507,6 +511,8 @@ fn a_declaration_the_build_selects_is_judged_or_handed_back() {
                 subjects: &[Some(another)],
                 purpose: source::DependencyScope::Product,
                 selected: &[selected],
+                calling: frontier.calling.borrow(&frontier.typed).selection(),
+                providers: frontier.provider_selections(),
                 bindings: &frontier.bindings,
             },
         ))
@@ -702,6 +708,8 @@ fn judged_parts(name: &str, declaration: &str) -> Vec<Verdict> {
             subjects: &[frontier.subject],
             purpose: source::DependencyScope::Product,
             selected: &frontier.selected,
+            calling: frontier.calling.borrow(&frontier.typed).selection(),
+            providers: frontier.provider_selections(),
             bindings: &frontier.bindings,
         },
     )

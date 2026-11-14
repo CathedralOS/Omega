@@ -28,17 +28,20 @@ mod authority;
 mod boundaries;
 mod bytes;
 mod callables;
+pub(crate) mod calling;
 mod calls;
 mod casts;
 mod contracts;
 mod expressions;
 mod machine;
 mod places;
+mod provider_selections;
 mod providers;
 mod reflection;
 pub(crate) mod services;
 mod source_records;
 mod statements;
+pub(crate) mod storage_metadata;
 mod subjects;
 mod traits;
 mod transitions;
@@ -54,6 +57,9 @@ use crate::body::{RecordType, Signature, ValueType};
 use crate::{Unserved, refuse};
 
 pub(crate) struct Program<'t> {
+    type_purpose: storage_metadata::TypePurpose,
+    /// Sorted exact record IDs whose complete nested source type was read for a value use.
+    value_records: Vec<StructuralTypeId>,
     pub publication: terminal_codec::TerminalPublication,
     pub(super) typed: &'t TypedTrees,
     /// Exact declarations admitted by this reader form, before source questions are captured.
@@ -191,6 +197,8 @@ impl<'t> Program<'t> {
         Self {
             publication: terminal_codec::TerminalPublication::Portable,
             typed,
+            type_purpose: storage_metadata::TypePurpose::Value,
+            value_records: Vec::new(),
             admitted_declarations: typed_trees::references::DeclarationSelection::from_symbols([]),
             symbols: IdTable::default(),
             signatures: IdTable::default(),

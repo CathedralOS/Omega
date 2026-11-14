@@ -49,6 +49,7 @@ mod body;
 mod boundaries;
 mod callable_headers;
 mod callables;
+mod calling_publication;
 mod canonical;
 pub use canonical::substituted_routes as substituted_call_routes;
 mod components;
@@ -58,6 +59,7 @@ mod lower;
 mod names;
 mod outcome;
 mod proof_scope;
+pub mod provider_selections;
 mod reach;
 mod read;
 pub mod selection_questions;
@@ -73,6 +75,7 @@ pub use external_providers::{ExternalProviderCandidate, ProviderContractHeader};
 pub use names::{Binder, ClauseText, MachineNames, Piece};
 pub use outcome::Outcome;
 pub use reach::ServiceReach;
+pub use read::calling::{CallingPolicySelections, ProgramEntryContractSelection};
 pub use static_contracts::{
     StaticCallableEnvelope, StaticConformanceQuestion, StaticImplementation,
     StaticProviderCandidate, StaticRequirementSchema, StaticSchemaQuestion, StaticServiceCeiling,
@@ -202,6 +205,13 @@ pub struct Compilation<'a> {
     /// One visible-continuation shape obligation per executed Build binding.
     /// Deduplicating machine roots must not discard distinct slot contracts.
     pub bindings: &'a [typed_trees::callable_signature_shapes::BoundCallableShape],
+    /// Exact source applications selected for calling policies and entry ABI
+    /// publication. They are consumed before body closure, never by a later
+    /// target stage reopening typed source.
+    pub calling: Option<CallingPolicySelections<'a>>,
+    /// Build/default precedence has selected these exact source providers.
+    /// Their schemas and choice coordinates are published in the module.
+    pub providers: Option<provider_selections::ProviderSelections<'a>>,
 }
 
 /// Original ceiling clauses for one abstract proof interface or its caller.
@@ -465,9 +475,14 @@ pub fn elaborate_for(
     }
     program.selected_declarations(entry, compilation.selected)?;
     program.subject_declarations(entry, compilation.subjects, compilation.purpose)?;
-    let mut elaboration = finish_reading(program, entry, IdTable::default(), Some(typed))?;
-    proof_scope::declare(typed, &mut elaboration)?;
-    Ok(elaboration)
+    finish_reading(
+        program,
+        entry,
+        IdTable::default(),
+        Some(typed),
+        compilation.calling,
+        compilation.providers,
+    )
 }
 
 /// Elaborates one machine and the closure of machines it calls, in discovery
@@ -515,7 +530,7 @@ pub fn elaborate_alternatives(
             let mut program = read::Program::new(typed, false);
             program.alternative = Some(arguments);
             let entry = program.machine(template)?;
-            finish_reading(program, entry, IdTable::default(), None)
+            finish_reading(program, entry, IdTable::default(), None, None, None)
         })
         .collect()
 }
@@ -748,7 +763,7 @@ fn capture_source_questions(
 fn elaborate_form(typed: &TypedTrees, entry: SymbolHandle, rigid: bool) -> Checked<Elaboration> {
     let mut program = read::Program::new(typed, rigid);
     let entry = program.machine(entry)?;
-    finish_reading(program, entry, IdTable::default(), None)
+    finish_reading(program, entry, IdTable::default(), None, None, None)
 }
 
 /// Reads every body not yet in `bodies`, callees as they are discovered,
@@ -760,7 +775,19 @@ fn finish_reading(
     entry: MachineId,
     mut bodies: IdTable<MachineId, Body>,
     declared: Option<&TypedTrees>,
+    calling: Option<CallingPolicySelections<'_>>,
+    providers: Option<provider_selections::ProviderSelections<'_>>,
 ) -> Checked<Elaboration> {
+    let selected_providers = providers
+        .map(|selected| program.prepare_provider_selections(entry, selected))
+        .transpose()?;
+    let policies = calling
+        .map(|selected| program.prepare_calling_policies(entry, selected))
+        .transpose()?;
+    let descriptions = policies
+        .as_ref()
+        .map(|policies| program.prepare_calling_storage(entry, policies))
+        .transpose()?;
     // `program.machine` appends callees while bodies are read, so the bound
     // is re-read on every step.
     while bodies.len() < program.symbols.len() {
@@ -820,6 +847,15 @@ fn finish_reading(
     elaboration.value_arguments = program.value_arguments;
     elaboration.generic_templates = program.generic_templates;
     elaboration.conformance_witnesses = program.conformance_witnesses;
+    if let Some(typed) = declared {
+        proof_scope::declare(typed, &mut elaboration)?;
+    }
+    if let (Some(policies), Some(descriptions)) = (policies.as_ref(), descriptions.as_ref()) {
+        calling_publication::publish(entry, policies, descriptions, &mut elaboration)?;
+    }
+    if let Some(selected) = &selected_providers {
+        provider_selections::publish(entry, selected, &mut elaboration)?;
+    }
     Ok(elaboration)
 }
 

@@ -342,10 +342,10 @@ pub use source_compilation::{
 };
 
 pub use psi_terminal_production::{
-    AcceptedTerminalSource, BuildCallSite, PortableTerminalProgram, PreparedTerminalRoots,
-    ProducedBuildProvider, ProducedTerminalApplication, ProducedTerminalProgram,
-    ProgramEntryTerminalReceiptError, PsiCompilationObserver, PsiCompilationStage,
-    ReachedBoundaryRequirement, TerminalAdmissionRoot, TerminalApplicationCustody,
+    AcceptedTerminalSource, BuildCallSite, CallableBoundaryImplementation, PortableTerminalProgram,
+    PreparedTerminalRoots, ProducedBuildProvider, ProducedTerminalApplication,
+    ProducedTerminalProgram, ProgramEntryTerminalReceiptError, PsiCompilationObserver,
+    PsiCompilationStage, TerminalAdmissionRoot, TerminalApplicationCustody,
     TerminalArtifactProductionError, TerminalBuildBindingCall, TerminalBuildBindingOperation,
     TerminalBuildBindings, TerminalBuildFilesystem, TerminalBuildFilesystemCall,
     TerminalBuildFilesystemOperation, TerminalBuildNativeLocator, TerminalBuildProviderRequirement,

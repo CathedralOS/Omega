@@ -174,6 +174,21 @@ pub(crate) fn selected_execution_for_identity(
     retained: Option<CompilerIntrinsicExecutionIdentity>,
     realization: Option<&str>,
 ) -> Result<Option<CompilerIntrinsicExecutionIdentity>, String> {
+    if let Some(candidate) = effects::external_providers::selected_sealed_native_provider(
+        external_providers,
+        identities,
+        requirement,
+        realization,
+        plan,
+        row,
+    )? {
+        let expected =
+            effects::external_providers::canonical_external_execution(candidate, &plan.target)?
+                .ok_or("sealed native provider lost its canonical execution meaning")?;
+        return effects::external_providers::reconcile_sealed_execution(expected, retained)
+            .map(Some)
+            .map_err(str::to_owned);
+    }
     let candidate = effects::external_providers::selected_numeric_provider(
         external_providers,
         identities,
@@ -183,6 +198,12 @@ pub(crate) fn selected_execution_for_identity(
         row,
     )?;
     let Some(candidate) = candidate else {
+        if retained.is_some_and(|execution| !execution.is_numeric()) {
+            return Err(
+                "selected nonnumeric compiler execution has no exact admitted native meaning"
+                    .into(),
+            );
+        }
         reconcile_numeric_meaning(None, retained)?;
         return Ok(retained);
     };

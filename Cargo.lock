@@ -1831,6 +1831,7 @@ dependencies = [
  "terminal-codec",
  "terminal-installation",
  "terminal-psi",
+ "terminal-semantics",
  "tokens-to-syntax-trees",
  "typed-trees",
 ]

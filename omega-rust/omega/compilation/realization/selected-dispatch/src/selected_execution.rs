@@ -1,14 +1,6 @@
-// A product of one target reads two settled things: which target it is for
-// and which provider plans supply the boundary requirements its accepted
-// Terminal module reaches. This record holds exactly those, and its only
-// constructor takes them from provider settlement, so a product cannot be
-// formed for a target whose supply was never settled.
-//
-// It deliberately carries nothing a product can derive. The selected program
-// entry, native provider declarations, calling applications, callback roots
-// and review provenance belong to the products that use them and are formed
-// there from these plans and the accepted artifact; a product whose inputs
-// have no producer yet refuses by name instead of reading a retained copy.
+// Selected execution owns one realized provider closure. Native and Psi
+// consumers borrow its canonical plan roster and exact row execution data;
+// choosing a provider never reconstructs declarations from source later.
 
 use diagnostics::Diagnostic;
 use std::sync::Arc;
@@ -16,28 +8,29 @@ use std::sync::Arc;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedExecution {
     target_profile: Option<target::TargetProfile>,
-    plans: Arc<effects::SelectedProviderPlanFacts>,
+    realization: Arc<provider_planning::target_supply::RealizedTargetSupply>,
 }
 
 impl SelectedExecution {
-    /// Forms the selected execution of `target_profile` (the host when the
-    /// request named no target) from its settled supply. A chosen supply
-    /// whose provider plan cannot be formed refuses here, by requirement.
-    pub fn settle(
+    /// Retains the provider realization already formed for this exact target.
+    pub fn from_realization(
         target_profile: Option<target::TargetProfile>,
-        supply: &provider_planning::target_supply::SettledTargetSupply,
+        realization: provider_planning::target_supply::RealizedTargetSupply,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let plans = effects::SelectedProviderPlanFacts::from_selected_plans(supply.plans()?)
-            .map_err(|reason| {
-                vec![Diagnostic::error(format!(
-                    "provider settlement for `{}`: {reason}",
-                    supply.target()
-                ))]
-            })?;
+        let expected = target_profile.unwrap_or_else(target::TargetProfile::host);
+        if realization.target() != expected.target_name() {
+            return Err(vec![Diagnostic::error(
+                "selected execution and realized provider supply name different targets",
+            )]);
+        }
         Ok(Self {
             target_profile,
-            plans: Arc::new(plans),
+            realization: Arc::new(realization),
         })
+    }
+
+    pub fn realization(&self) -> &provider_planning::target_supply::RealizedTargetSupply {
+        &self.realization
     }
 
     /// The deployment profile the request named. Profiles that share a
@@ -52,21 +45,14 @@ impl SelectedExecution {
     }
 
     pub fn plans(&self) -> &effects::SelectedProviderPlanFacts {
-        &self.plans
+        self.realization.plans()
     }
 
     pub fn shared_plans(&self) -> &Arc<effects::SelectedProviderPlanFacts> {
-        &self.plans
+        self.realization.shared_plans()
     }
 
-    /// The provider proposal this target's conditions are checked against:
-    /// its settled plans joined to one produced Terminal artifact.
-    ///
-    /// A settled plan becomes a Terminal provider plan only with the
-    /// declaration and numeric realizations of its rows. Nothing on the
-    /// lowered route produces those yet, so each plan is refused by name and
-    /// the refusal travels in the proposal like any other; a target with no
-    /// plan proposes the empty selection of that artifact.
+    /// Rejoin the actual selected declarations to this canonical artifact.
     pub fn provider_proposal(
         &self,
         artifact: terminal_codec::TerminalArtifactView<'_>,
@@ -76,27 +62,15 @@ impl SelectedExecution {
             .target_profile
             .unwrap_or_else(target::TargetProfile::host)
             .target_name();
-        let refusals = self
-            .plans
-            .plans()
-            .iter()
-            .map(|plan| {
-                format!(
-                    "no product route yet: provider proposal for `{target}`: provider plan `{}` has no Terminal declaration or numeric realization on this route",
-                    plan.name
-                )
-            })
-            .collect::<Vec<_>>();
-        let selection = if refusals.is_empty() {
-            backend_plan::TerminalTargetProviderSelection::from_plans(Vec::new(), artifact)
-                .map(|mut selection| {
-                    selection.assumed_bindings = self.plans.assumed_bindings().to_vec();
-                    selection
-                })
-                .map_err(|reason| vec![reason])
-        } else {
-            Err(refusals)
-        };
+        let selection = backend_plan::TerminalTargetProviderSelection::from_plans(
+            self.realization.provider_declarations(),
+            artifact,
+        )
+        .map(|mut selection| {
+            selection.assumed_bindings = self.plans().assumed_bindings().to_vec();
+            selection
+        })
+        .map_err(|reason| vec![reason]);
         backend_plan::TerminalTargetProviderProposal {
             target: target.to_owned(),
             terminal_psi: artifact.identity(),

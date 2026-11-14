@@ -429,10 +429,70 @@ pub fn matching_folded_constant_dependencies<'plan>(
     Ok(matched)
 }
 
+/// A selected row uses the complete canonical service contract, rather than
+/// a same-shaped schema supplied beside genuine candidate coordinates.
+fn validate_selected_service_schemas(
+    plans: &[TerminalTargetProviderPlan],
+    module: &terminal_psi::TerminalModule,
+) -> Result<(), String> {
+    for selected in plans {
+        let plan = &selected.plan;
+        let mut choices = module.provider_selections.iter().filter(|choice| {
+            choice.target == plan.target
+                && module.identities.text(choice.provider_declaration)
+                    == selected.provider_declaration.as_deref()
+                && module.identities.text(choice.provider_identity)
+                    == Some(plan.provider_type.as_str())
+                && choice.provider_package == plan.provider_type_package_identity
+        });
+        let mut matched = None;
+        for choice in &mut choices {
+            let application = choice
+                .provider_application
+                .map(|identity| {
+                    module
+                        .identities
+                        .text(identity)
+                        .filter(|value| !value.is_empty())
+                        .ok_or_else(|| {
+                            "selected provider has an unresolved static value application"
+                                .to_owned()
+                        })
+                })
+                .transpose()?;
+            if application != plan.application_identity() {
+                continue;
+            }
+            let choice = module.provider_selection(
+                &choice.target,
+                choice.schema_declaration,
+                choice.schema_application,
+            )?;
+            let schema =
+                module.service_schema(choice.schema_declaration, choice.schema_application)?;
+            if schema.surface.as_ref() != plan.schema.declaration.as_ref() {
+                continue;
+            }
+            if matched.replace(choice).is_some() {
+                return Err(
+                    "provider plan has competing canonical selected schema applications".into(),
+                );
+            }
+        }
+        if matched.is_none() {
+            return Err(
+                "provider plan differs from its complete canonical chosen service contract".into(),
+            );
+        }
+    }
+    Ok(())
+}
+
 fn checked_candidate_roster(
     plans: &[TerminalTargetProviderPlan],
     module: &terminal_psi::TerminalModule,
 ) -> Result<Vec<terminal_installation::ProviderInstallationSelection>, String> {
+    validate_selected_service_schemas(plans, module)?;
     effects::SelectedProviderPlanFacts::from_selected_plans(
         plans.iter().map(|selected| selected.plan.clone()).collect(),
     )?;

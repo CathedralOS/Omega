@@ -33,6 +33,8 @@ fn route_verdict(fixture: &str, entry: &str) -> RouteVerdict {
             subjects: &[frontier.subject],
             purpose: source::DependencyScope::Product,
             selected: &frontier.selected,
+            calling: frontier.calling.borrow(&frontier.typed).selection(),
+            providers: frontier.provider_selections(),
             bindings: &frontier.bindings,
         },
     ))

@@ -26,6 +26,10 @@ pub struct PreparedPackageBuild {
 }
 
 impl PreparedPackageBuild {
+    pub const fn target_profile(&self) -> TargetProfile {
+        self.target
+    }
+
     pub fn has_source_admission(
         &self,
         inputs: &PackageCompilationInputs,
