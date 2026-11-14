@@ -18,6 +18,7 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
 use super::authority::Access;
 use super::places::Member;
+use super::types::{OPEN_CARRIER_FAMILY, TypeTruth};
 use super::{Program, Slot};
 use crate::body::ValueType;
 use crate::canonical::{self, Repeated};
@@ -232,10 +233,11 @@ impl Program<'_> {
             if self.guarded_false(expression) {
                 return unserved("conjunction that type equations decide false");
             }
-            if self.static_truth(binary.left) == Some(true) {
+            let known_true = |side| self.clause_truth(side) == Some(TypeTruth::Known(true));
+            if known_true(binary.left) {
                 return self.clause(id, scope, binary.right);
             }
-            if self.static_truth(binary.right) == Some(true) {
+            if known_true(binary.right) {
                 return self.clause(id, scope, binary.left);
             }
         }
@@ -477,6 +479,26 @@ impl Program<'_> {
             && let Some((term, scalar)) = logical.term(typed, expression)?
         {
             return Ok((term, ValueType::Scalar(scalar, Qualification::NONE)));
+        }
+        // A Boolean static type propositions decide, such as a field of the
+        // integer carrier query, is that Boolean (`clause_truth`).
+        if matches!(
+            typed.expression_table.expression(expression),
+            ExpressionNode::Member(_)
+                | ExpressionNode::Call(_)
+                | ExpressionNode::Unary(_)
+                | ExpressionNode::Binary(_)
+        ) {
+            match self.clause_truth(expression) {
+                Some(TypeTruth::Known(truth)) => {
+                    return Ok((
+                        ScalarTerm::Boolean(truth),
+                        ValueType::plain(ScalarType::Boolean),
+                    ));
+                }
+                Some(TypeTruth::Open) => return unserved(OPEN_CARRIER_FAMILY),
+                None => {}
+            }
         }
         match typed.expression_table.expression(expression) {
             ExpressionNode::Name(path) if path.static_application.is_valid() => {
