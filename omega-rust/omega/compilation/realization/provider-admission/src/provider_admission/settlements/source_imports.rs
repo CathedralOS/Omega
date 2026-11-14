@@ -147,6 +147,7 @@ pub(super) fn derive_source_evaluated_mechanisms(
                     *number,
                     plan,
                     rows.boundary,
+                    input.closed_module(),
                 )
                 .map_err(|error| {
                     vec![Diagnostic::error(format!(
