@@ -262,8 +262,7 @@ impl AcceptedClosure {
             identity,
         )
         .map_err(|error| PublicationError::Semantic(format!("{error:?}")))?;
-        let seals = terminal_codec::EvidenceSeals::for_module(module.module(), self.seals.clone())
-            .map_err(PublicationError::Seals)?;
+        let seals = terminal_codec::EvidenceSeals::for_closed_module(&module, self.seals.clone());
         let artifact =
             terminal_codec::CanonicalTerminalArtifact::from_closed_parts(module, record, None)
                 .map_err(PublicationError::Artifact)?;
@@ -278,8 +277,7 @@ impl AcceptedClosure {
         self.validate_publication()?;
         let module = terminal_codec::ClosedTerminalModule::new(self.elaboration.module.clone())
             .map_err(PublicationError::Seals)?;
-        let seals = terminal_codec::EvidenceSeals::for_module(module.module(), self.seals.clone())
-            .map_err(PublicationError::Seals)?;
+        let seals = terminal_codec::EvidenceSeals::for_closed_module(&module, self.seals.clone());
         let artifact = terminal_codec::InvocationTerminalCode::from_closed_module(module)
             .map_err(PublicationError::Seals)?;
         Ok(RoutePublication { artifact, seals })
