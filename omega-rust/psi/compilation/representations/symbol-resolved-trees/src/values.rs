@@ -2008,6 +2008,72 @@ pub mod expression {
         use source::{SourceId, SourceSpan, Span};
         use symbols::SymbolHandle;
 
+        #[test]
+        fn pattern_dependencies_retain_the_combined_condition_once() {
+            use super::{MatchFieldAction, MatchPattern, TableDestructurePattern, TableMatchField};
+
+            let mut table = ExpressionTable::new();
+            let head = table.insert(ExpressionNode::Boolean(true));
+            let observed = table.insert(ExpressionNode::Boolean(false));
+            let expected = table.insert(ExpressionNode::Boolean(true));
+            let equality = table.insert(ExpressionNode::Binary(TableBinaryExpression {
+                policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                left: observed,
+                operator: BinaryOperator::Equal,
+                right: expected,
+            }));
+            let guard = table.insert(ExpressionNode::Boolean(true));
+            let condition = table.insert(ExpressionNode::Binary(TableBinaryExpression {
+                policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                left: equality,
+                operator: BinaryOperator::And,
+                right: guard,
+            }));
+            let fields = table.insert_match_fields([TableMatchField {
+                action: MatchFieldAction::Equal(expected),
+                ..Default::default()
+            }]);
+            let pattern = MatchPattern::Destructure(TableDestructurePattern {
+                head,
+                fields,
+                guard,
+                condition,
+                ..Default::default()
+            });
+            assert_eq!(
+                table
+                    .match_pattern_dependencies(pattern)
+                    .collect::<Vec<_>>(),
+                [head, condition]
+            );
+            let ExpressionNode::Binary(combined) = table.expression(condition) else {
+                panic!("retained condition contains both predicate inputs");
+            };
+            assert_eq!([combined.left, combined.right], [equality, guard]);
+            let ExpressionNode::Binary(comparison) = table.expression(combined.left) else {
+                panic!("field comparison is retained inside the condition");
+            };
+            assert_eq!(comparison.right, expected);
+            assert_eq!(
+                table
+                    .match_pattern_dependencies(MatchPattern::Value(equality))
+                    .collect::<Vec<_>>(),
+                [equality]
+            );
+            assert_eq!(
+                table
+                    .match_pattern_dependencies(MatchPattern::Wildcard)
+                    .count(),
+                0
+            );
+            assert_eq!(
+                table
+                    .match_pattern_dependencies(MatchPattern::Destructure(Default::default()))
+                    .count(),
+                0
+            );
+        }
+
         fn authored_selection_occurrences() -> [AuthoredDeclarationSelectionOccurrenceId; 2] {
             let mut selections = AuthoredDeclarationSelections::default();
             let first = selections
@@ -2872,31 +2938,14 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
             &self,
             pattern: MatchPattern,
         ) -> impl Iterator<Item = ExpressionHandle> + '_ {
-            let (head, fields, guard) = match pattern {
-                MatchPattern::Value(value) => {
-                    (value, HandleSpan::empty(), ExpressionHandle::invalid())
-                }
-                MatchPattern::Destructure(pattern) => {
-                    (pattern.head, HandleSpan::empty(), pattern.condition)
-                }
-                MatchPattern::Wildcard => (
-                    ExpressionHandle::invalid(),
-                    HandleSpan::empty(),
-                    ExpressionHandle::invalid(),
-                ),
+            // Resolution combines field equalities and the authored guard into
+            // condition. Traverse that graph once, not its retained source fields too.
+            let roots = match pattern {
+                MatchPattern::Value(value) => [value, ExpressionHandle::invalid()],
+                MatchPattern::Destructure(pattern) => [pattern.head, pattern.condition],
+                MatchPattern::Wildcard => [ExpressionHandle::invalid(); 2],
             };
-            head.is_valid()
-                .then_some(head)
-                .into_iter()
-                .chain(
-                    self.match_fields(fields)
-                        .iter()
-                        .filter_map(|field| match &field.action {
-                            MatchFieldAction::Equal(value) => Some(*value),
-                            _ => None,
-                        }),
-                )
-                .chain(guard.is_valid().then_some(guard))
+            roots.into_iter().filter(|root| root.is_valid())
         }
 
         pub fn match_field_mut(&mut self, field: Handle<TableMatchField>) -> &mut TableMatchField {

@@ -226,13 +226,6 @@ framework or a list of features that remain unimplemented.
 - Cost: a change to import or visibility rules made in the symbol table does not reach operator-home selection in stage 02 or domain lookup in stage 03, so the stages can disagree on which domain a name selects
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### `match_pattern_dependencies` is written three times and two copies leave out the destructure fields
-- Category: one idea, several implementations
-- Where: `omega-rust/psi/compilation/representations/syntax-trees/src/values_and_types.rs:1507-1534`, `.../symbol-resolved-trees/src/values.rs:2831-2860`, `.../typed-trees/src/values.rs:3113-3142`
-- Saw: the syntax-trees copy passes `pattern.fields` and lists every field `Equal` value; the symbol-resolved and typed-trees copies pass `HandleSpan::empty()` for a destructure pattern, so their loop over fields never yields anything, although both pattern structs carry `fields` (`symbol-resolved-trees/src/values.rs:3635`, `typed-trees/src/values.rs:4986`)
-- Cost: a caller asking "which expressions does this pattern depend on" gets a different answer depending on which tree it holds, and the leftover field loop makes the two short copies look complete
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
 ### The default ranking view is derived differently in resolution and typing
 - Category: re-deriving
 - Where: `omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lowering_machine.rs` (`elaborate_single_subject_default`); `03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs` (`pending_ranking_default`)

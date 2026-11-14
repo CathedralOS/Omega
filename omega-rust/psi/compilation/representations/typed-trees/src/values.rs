@@ -2528,6 +2528,102 @@ pub mod expression {
         mod materialization_tests {
             use super::*;
 
+            #[test]
+            fn pattern_dependencies_retain_the_combined_condition_once() {
+                use crate::expression::{
+                    BinaryOperator, MatchFieldAction, MatchPattern, TableDestructurePattern,
+                    TableMatchArm, TableMatchExpression, TableMatchField,
+                };
+
+                let mut trees = crate::TypedTrees::default();
+                let table = &mut trees.expression_table;
+                let head = table.insert(ExpressionNode::Boolean(true));
+                let observed = table.insert(ExpressionNode::Boolean(false));
+                let expected = table.insert(ExpressionNode::Boolean(true));
+                let equality = table.insert(ExpressionNode::Binary(TableBinaryExpression {
+                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                    left: observed,
+                    operator: BinaryOperator::Equal,
+                    right: expected,
+                }));
+                let guard = table.insert(ExpressionNode::Boolean(true));
+                let condition = table.insert(ExpressionNode::Binary(TableBinaryExpression {
+                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                    left: equality,
+                    operator: BinaryOperator::And,
+                    right: guard,
+                }));
+                let fields = table.insert_match_fields([TableMatchField {
+                    action: MatchFieldAction::Equal(expected),
+                    ..Default::default()
+                }]);
+                let pattern = MatchPattern::Destructure(TableDestructurePattern {
+                    head,
+                    fields,
+                    guard,
+                    condition,
+                    ..Default::default()
+                });
+                assert_eq!(
+                    table
+                        .match_pattern_dependencies(pattern)
+                        .collect::<Vec<_>>(),
+                    [head, condition]
+                );
+                let ExpressionNode::Binary(combined) = table.expression(condition) else {
+                    panic!("retained condition contains both predicate inputs");
+                };
+                assert_eq!([combined.left, combined.right], [equality, guard]);
+                assert_eq!(
+                    table
+                        .match_pattern_dependencies(MatchPattern::Value(equality))
+                        .collect::<Vec<_>>(),
+                    [equality]
+                );
+                assert_eq!(
+                    table
+                        .match_pattern_dependencies(MatchPattern::Wildcard)
+                        .count(),
+                    0
+                );
+                assert_eq!(
+                    table
+                        .match_pattern_dependencies(MatchPattern::Destructure(Default::default()))
+                        .count(),
+                    0
+                );
+
+                let subject = table.insert(ExpressionNode::Boolean(true));
+                let result = table.insert(ExpressionNode::Boolean(false));
+                let capture = table.insert_match_subject(subject);
+                let arms = table.insert_match_arms([TableMatchArm {
+                    pattern,
+                    value: result,
+                    ..Default::default()
+                }]);
+                let dispatch = table.insert(ExpressionNode::Match(TableMatchExpression {
+                    subject,
+                    capture,
+                    arms,
+                }));
+                let mut visited = Vec::new();
+                trees.subtree_for_each(
+                    dispatch,
+                    crate::values::subtrees::SubtreeEdges {
+                        pattern_dependencies: true,
+                        ..Default::default()
+                    },
+                    |expression, _| visited.push(expression),
+                );
+                assert_eq!(
+                    visited,
+                    [
+                        dispatch, subject, head, condition, equality, observed, expected, guard,
+                        result
+                    ]
+                );
+            }
+
             /// A contract's reserved `result` is known by its owner identity,
             /// not its spelling, so a name rebuilt from an owned tree must
             /// keep that owner; an edited path is a different name and
@@ -3291,31 +3387,14 @@ pub mod expression {
             &self,
             pattern: MatchPattern,
         ) -> impl Iterator<Item = ExpressionHandle> + '_ {
-            let (head, fields, guard) = match pattern {
-                MatchPattern::Value(value) => {
-                    (value, HandleSpan::empty(), ExpressionHandle::invalid())
-                }
-                MatchPattern::Destructure(pattern) => {
-                    (pattern.head, HandleSpan::empty(), pattern.condition)
-                }
-                MatchPattern::Wildcard => (
-                    ExpressionHandle::invalid(),
-                    HandleSpan::empty(),
-                    ExpressionHandle::invalid(),
-                ),
+            // The lowered condition includes field equalities, the authored
+            // guard and any case test. Its graph owns those dependencies.
+            let roots = match pattern {
+                MatchPattern::Value(value) => [value, ExpressionHandle::invalid()],
+                MatchPattern::Destructure(pattern) => [pattern.head, pattern.condition],
+                MatchPattern::Wildcard => [ExpressionHandle::invalid(); 2],
             };
-            head.is_valid()
-                .then_some(head)
-                .into_iter()
-                .chain(
-                    self.match_fields(fields)
-                        .iter()
-                        .filter_map(|field| match &field.action {
-                            MatchFieldAction::Equal(value) => Some(*value),
-                            _ => None,
-                        }),
-                )
-                .chain(guard.is_valid().then_some(guard))
+            roots.into_iter().filter(|root| root.is_valid())
         }
 
         pub fn match_pattern_operands(
