@@ -1649,25 +1649,25 @@ impl<'a> Lowering<'a> {
     /// Evaluates a record-typed expression to a root that holds its value
     /// and that nothing else names. A literal or call is its own fresh root;
     /// a slot or member path is copied only with declared copy permission.
-    /// Otherwise `MoveStructuralValue` vacates exactly that region; its
-    /// continuation owns any remaining cleanup and home retirement.
+    /// Owned transport vacates that region with `MoveStructuralValue`; an
+    /// exclusive borrowed source uses `MoveStructuralField`, retaining its
+    /// storage and restoration debt instead of consuming the incoming loan.
     pub(super) fn record(&mut self, expression: &Expression) -> Evaluation<PlaceId> {
         let at = continuing!(self.located(expression));
         if at.fresh && at.path.is_empty() {
             return Ok(Reached::Value(at.root));
         }
         let moving = !self.record_type(at.record)?.copyable;
+        let borrowed = self.borrowed_roots.contains(&at.root);
         // ownership.md, "Borrowed-storage invariant windows": "An owned move
         // out of a place reached through `&mut` may temporarily leave that
         // place unestablished." The move below vacates exactly that place;
         // whether it holds a value again where the borrow returns to its
         // owner is the checker's judgment of the lowered machine, not a
-        // claim made here. A shared formal lends no such window, and the
-        // whole referent is never taken from its owner.
-        if moving
-            && self.borrowed_roots.contains(&at.root)
-            && (at.path.is_empty() || !self.exclusive_roots.contains(&at.root))
-        {
+        // claim made here. A shared formal lends no such window. The empty
+        // path selects the whole referent's contents, retaining its loan and
+        // storage just as a projected window does.
+        if moving && borrowed && !self.exclusive_roots.contains(&at.root) {
             return Err(refuse(
                 self.id,
                 Construct::Machine,
@@ -1684,7 +1684,13 @@ impl<'a> Lowering<'a> {
         let (root, exact) = self.produce(
             operation,
             at.record,
-            if moving {
+            if moving && borrowed {
+                OperationKind::MoveStructuralField {
+                    source: at.root,
+                    path,
+                    field: None,
+                }
+            } else if moving {
                 OperationKind::MoveStructuralValue {
                     source: StructuralArgument {
                         place: at.root,
@@ -1712,7 +1718,7 @@ impl<'a> Lowering<'a> {
                 ProgramPoint::AfterOperation(operation),
                 Content::Vacated,
             )?;
-            if at.path.is_empty() {
+            if at.path.is_empty() && !borrowed {
                 self.retire_homes(&[], expression.source)?;
             }
         }
