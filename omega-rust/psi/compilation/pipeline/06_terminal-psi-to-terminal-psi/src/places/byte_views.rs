@@ -101,7 +101,7 @@ impl Storage<'_> {
             return Ok(false);
         };
         let (
-            terminal_psi::StructuralTypeShape::FixedArray { element, .. },
+            terminal_psi::StructuralTypeShape::FixedArray { .. },
             terminal_psi::StructuralTypeShape::ByteSequence(_),
         ) = (
             &selected.shape,
@@ -110,15 +110,48 @@ impl Storage<'_> {
         else {
             return Ok(false);
         };
-        // The call lends this array's actual storage. A descriptor
-        // parameter receives its extent through the existing byte
-        // presentation rule; the source never acquires the formal's type.
-        let backing = terminal_semantics::structural_argument_source(
-            self.lowered,
-            argument.place,
-            parameter.position,
+        let Some(backing) = self.byte_array_backing(argument, parameter.position, concerns)? else {
+            return Ok(false);
+        };
+        if terminal_semantics::fixed_byte_array_loan(
+            self.types.iter(),
+            self.module.structural_domains.iter(),
+            &backing,
+            argument,
+            parameter,
         )
-        .ok_or_else(|| self.foreign(concerns, "an array loan lost its actual root contract"))?;
+        .is_none()
+        {
+            return Err(self.unsupported(
+                concerns,
+                "an array loan without byte-view type, extent and qualification correspondence",
+            ));
+        }
+        Ok(true)
+    }
+
+    /// Source custody is independent of whether the array is presented to a
+    /// borrowed parameter or used to form an owned permission descriptor.
+    fn byte_array_backing(
+        &self,
+        argument: &StructuralArgument,
+        position: u32,
+        concerns: Construct,
+    ) -> Checked<Option<std::borrow::Cow<'_, terminal_psi::StructuralParameterDeclaration>>> {
+        let selected = terminal_semantics::runtime_structural_path_tip(
+            self.types.iter(),
+            self.root_type(argument.place, concerns)?,
+            &argument.path,
+        )
+        .ok_or_else(|| self.foreign(concerns, "array backing lost its typed storage path"))?;
+        let StructuralTypeShape::FixedArray { element, .. } = selected.shape else {
+            return Ok(None);
+        };
+        let backing =
+            terminal_semantics::structural_argument_source(self.lowered, argument.place, position)
+                .ok_or_else(|| {
+                    self.foreign(concerns, "an array loan lost its actual root contract")
+                })?;
         let unclaimed = !self
             .lowered
             .entry_claims
@@ -138,36 +171,24 @@ impl Storage<'_> {
                     })
                 });
         let plain_element = self.domains.get(selected.id).is_some_and(Vec::is_empty)
-            && self.domains.get(*element).is_some_and(Vec::is_empty)
+            && self.domains.get(element).is_some_and(Vec::is_empty)
             && self
-                .declaration(*element, concerns)?
+                .declaration(element, concerns)?
                 .scalar_restriction
                 .is_none();
-        if !unclaimed
-            || !plain_element
-            || terminal_semantics::fixed_byte_array_loan(
-                self.types.iter(),
-                self.module.structural_domains.iter(),
-                &backing,
-                argument,
-                parameter,
-            )
-            .is_none()
-        {
+        if !unclaimed || !plain_element {
             return Err(self.unsupported(
                 concerns,
-                "an array loan without byte-view type, extent and qualification correspondence",
+                "an array view without plain element storage and unclaimed backing",
             ));
         }
-        Ok(true)
+        Ok(Some(backing))
     }
 
     /// Forming a view retains the array's storage and creates a descriptor;
     /// the separate loan judgment still checks authority and the view's lifetime.
     pub(super) fn array_view_formation(&self, operation: &Operation) -> Checked<u64> {
-        use terminal_psi::{
-            ByteSequenceCarrier, ElementViewRegion, StructuralParameterDeclaration,
-        };
+        use terminal_psi::{ByteSequenceCarrier, ElementViewRegion, StructuralPathQualification};
         let concerns = Construct::Operation(operation.id);
         let (destination, source, element, region, access, multiplicity) = match &operation.kind {
             OperationKind::EstablishElementView {
@@ -244,23 +265,36 @@ impl Storage<'_> {
         {
             return Err(self.foreign(concerns, "array view changes its element type"));
         }
-        let expected = StructuralParameterDeclaration {
-            place: result.place,
-            position: 0,
-            structural_type: result.structural_type,
-            multiplicity,
-            access,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-            additional_input_qualifications: Vec::new(),
-        };
-        if !self.byte_array_presentation(source, &expected, concerns)? {
-            return Err(self.unsupported(concerns, "array view has no checked byte storage window"));
-        }
-        let actual = terminal_semantics::structural_argument_source(self.lowered, source.place, 0)
+        let actual = self
+            .byte_array_backing(source, 0, concerns)?
             .ok_or_else(|| self.foreign(concerns, "array view lost its source declaration"))?;
-        terminal_semantics::fixed_byte_array_extent(self.types.iter(), &actual, source, &expected)
-            .ok_or_else(|| self.foreign(concerns, "array view lost its checked extent"))
+        let window = terminal_semantics::fixed_byte_storage_window(
+            self.types.iter(),
+            actual.structural_type,
+            &source.path,
+        )
+        .ok_or_else(|| {
+            self.unsupported(concerns, "array view has no closed byte storage window")
+        })?;
+        let (whole, projected) = StructuralPathQualification::select(
+            &actual.qualifications,
+            &actual.projected_qualifications,
+            window.backing_path,
+        );
+        if window.backing_path != source.path
+            || window.offset != 0
+            || window.length != window.backing_length
+            || !whole.is_empty()
+            || !projected.is_empty()
+            || !actual.additional_input_qualifications.is_empty()
+            || !window.backing_path.is_empty() && !actual.qualifications.is_empty()
+        {
+            return Err(self.unsupported(
+                concerns,
+                "array view needs its whole plain backing without qualification loss",
+            ));
+        }
+        Ok(window.length)
     }
 
     pub(super) fn readable_byte_view(&self, operation: &Operation, root: PlaceId) -> Checked<()> {

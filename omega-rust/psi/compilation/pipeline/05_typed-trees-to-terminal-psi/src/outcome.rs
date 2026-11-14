@@ -396,7 +396,7 @@ impl Walk<'_> {
                 }
                 Ok(true)
             }
-            ExpressionKind::ArrayByteView { base, .. } => self.expression(machine, base),
+            ExpressionKind::ArrayView { base, .. } => self.expression(machine, base),
             ExpressionKind::ByteSubslice { base, start, end } => {
                 for operand in std::iter::once(base.as_ref())
                     .chain(start.as_deref())

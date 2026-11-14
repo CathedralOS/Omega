@@ -541,7 +541,7 @@ fn expression_homes<'b>(
         | ExpressionKind::Establish { operand, .. }
         | ExpressionKind::Referent(operand)
         | ExpressionKind::Field { base: operand, .. }
-        | ExpressionKind::ArrayByteView { base: operand, .. }
+        | ExpressionKind::ArrayView { base: operand, .. }
         | ExpressionKind::CollectionMeasure { base: operand, .. }
         | ExpressionKind::Payload { base: operand, .. }
         | ExpressionKind::IsCase {
@@ -1252,7 +1252,7 @@ impl<'a> Lowering<'a> {
                     fresh: true,
                 }))
             }
-            ExpressionKind::ArrayByteView {
+            ExpressionKind::ArrayView {
                 base,
                 access,
                 element,

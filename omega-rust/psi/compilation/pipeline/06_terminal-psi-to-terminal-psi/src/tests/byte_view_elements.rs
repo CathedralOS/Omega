@@ -379,7 +379,7 @@ fn an_array_loan_keeps_its_element_type_and_requested_access() {
         machine use(extent: u64) {}
     "#
         ),
-        "typing argument types"
+        "rejected"
     );
     assert_eq!(
         verdict(
@@ -656,4 +656,39 @@ fn replacing_a_stored_view_does_not_preserve_its_previous_extent() {
         }
     "#;
     assert_eq!(verdict(program), "rejected");
+}
+
+#[test]
+fn writes_through_array_views_retire_old_backing_facts_not_saved_values() {
+    for write in [
+        "mutate(&mut bytes[..]);",
+        "let view: &mut [u8] = &mut bytes[..]; view[0] = 0; count(view.len);",
+    ] {
+        let source = |observed| {
+            format!(
+                r#"
+            machine mutate(bytes: &mut [u8]) requires bytes.len > 0 {{ bytes[0] = 0; }}
+            machine demand(value: u8) requires value == 17 {{}}
+            machine count(extent: u64) requires extent == 3 {{}}
+            machine build_entry() {{
+                let mut bytes: [u8; 3] = [17, 42, 99];
+                let saved: u8 = bytes[0];
+                {write}
+                demand({observed});
+            }}
+        "#
+            )
+        };
+        // The old scalar remains exactly what was read before mutation.
+        let saved = source("saved");
+        assert_eq!(verdict(&saved), "accepted", "{saved}");
+        // A later read of changed storage cannot reuse that old fact.
+        let changed = source("bytes[0]");
+        let refused = judge_build(&changed).unwrap();
+        assert!(
+            matches!(refused, RouteVerdict::Rejected { ref unproved, .. }
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. }))),
+            "{write}: {refused:?}"
+        );
+    }
 }

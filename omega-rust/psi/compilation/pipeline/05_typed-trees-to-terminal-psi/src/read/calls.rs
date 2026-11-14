@@ -2007,7 +2007,7 @@ impl<'t> Program<'t> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         let source = SourceOrigin::of(self.typed.expression_table.source_span(argument));
         if formal.referent == crate::body::BorrowedReferent::Slice
-            && let Some(view) = self.array_byte_view(id, slots, argument, expected, source)?
+            && let Some(view) = self.array_view(id, slots, argument, expected, source)?
         {
             return Ok((
                 Expression {
@@ -2274,7 +2274,7 @@ fn mentions<'a>(
         | ExpressionKind::Requalify(operand)
         | ExpressionKind::Establish { operand, .. }
         | ExpressionKind::Field { base: operand, .. }
-        | ExpressionKind::ArrayByteView { base: operand, .. }
+        | ExpressionKind::ArrayView { base: operand, .. }
         | ExpressionKind::CollectionMeasure { base: operand, .. }
         | ExpressionKind::Payload { base: operand, .. }
         | ExpressionKind::IsCase {

@@ -186,7 +186,7 @@ impl Program<'_> {
         expected: ValueType,
         source: crate::SourceOrigin,
     ) -> Checked<crate::Expression> {
-        if let Some(view) = self.array_byte_view(machine, slots, argument, expected, source)? {
+        if let Some(view) = self.array_view(machine, slots, argument, expected, source)? {
             return Ok(view);
         }
         let Some((referent, access)) = self.reference_referent(machine, expected)? else {

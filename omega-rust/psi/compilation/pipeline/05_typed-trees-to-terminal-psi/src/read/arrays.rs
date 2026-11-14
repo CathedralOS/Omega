@@ -123,7 +123,7 @@ impl Program<'_> {
             .then_some(element)
     }
 
-    pub(super) fn array_byte_view(
+    pub(super) fn array_view(
         &mut self,
         machine: MachineId,
         slots: &[Slot],
@@ -229,7 +229,7 @@ impl Program<'_> {
         // is a descriptor with the actual backing's lifetime, not the context's.
         Ok(Some(Expression {
             call_context: None,
-            kind: ExpressionKind::ArrayByteView {
+            kind: ExpressionKind::ArrayView {
                 base: Box::new(base),
                 access: borrow.access,
                 element,
