@@ -1,4 +1,4 @@
-data Configuration<'activation> { builder: &'activation Build; }
+data Configuration<'activation, 'storage> { builder: &'activation Build<'storage>; }
 machine rebind<'activation>(builder: &'activation Build) {
     let mut configuration: Configuration = Configuration { builder: builder };
     configuration.builder = builder;
