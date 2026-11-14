@@ -1,17 +1,12 @@
 /*
-Edges, invocations and summaries. An edge row lists the fate of every
-conserved obligation that crosses it. An invocation row is the one entry
-operation shared by ordinary and terminal calls. A summary is a callee's
-published contract with one term per axis; it is the second extension point:
-a lane adds a field here, with its citation and a README row, never a table.
+Edges and invocations. An edge row lists the fate of every conserved
+obligation that crosses it. An invocation row is the one entry operation
+shared by ordinary and terminal calls.
 */
 
-use semantic_vocabulary::{
-    BlockId, CrashCause, InvocationSite, MachineId, ObligationId, PropositionId, ServiceId, ValueId,
-};
+use semantic_vocabulary::{BlockId, InvocationSite, ObligationId, ValueId};
 
 use crate::ExactPlaceId;
-use crate::may_sets::MaySet;
 
 /// One edge of the lowered graph, indexed by the lowered form's `EdgeId`.
 ///
@@ -106,74 +101,4 @@ pub enum Callee {
 pub enum Actual {
     Value(ValueId),
     Place(ExactPlaceId),
-}
-
-/// A machine's published contract, one term per axis.
-///
-/// `wiki/spec/language/effects.md`: "A machine's service reach, direct
-/// synchronous invocations, possible suspension, worker blocking, and crashes
-/// are independent contract axes." Termination and the result relation are
-/// the remaining authored axes; each field keeps its own algebra and no field
-/// is derived from another.
-///
-/// The entry `requires` and the normal-return guarantees (`ensures`) are not
-/// copied here. They live once, in clause order over the callee's formals, in
-/// the callee's `MachineContract` in the lowered module, and a clause's
-/// identity is its machine and position: the identity `CallRequirement` and
-/// `Justification::CalleeGuarantee` already use. A `PropositionId` would need
-/// a module proposition table that Terminal Psi does not have.
-/// calls_and_outcomes.md: guarantees "apply only on normal return; external
-/// exit neither establishes them nor necessarily violates them."
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Summary {
-    /// Whether callers outside this body's verification unit may use it.
-    pub basis: SummaryBasis,
-    /// effects.md: "`reaches A + B` | Bounds service reach by the named
-    /// boundary services and their boundary parents." Join is set union.
-    pub reach: MaySet<ServiceId>,
-    /// effects.md: "`invokes handler` | May synchronously enter that binding
-    /// before returning." Post-instantiation, bindings are machines.
-    pub invokes: MaySet<MachineId>,
-    /// effects.md: "`suspends` | May park the current activation."
-    pub may_suspend: bool,
-    /// effects.md: "`blocks` | May occupy its worker while waiting."
-    pub may_block: bool,
-    /// One row per cause it may crash with; empty means `crashes none`.
-    pub crash_routes: Vec<CrashRoute>,
-    pub termination: Termination,
-    // No carry term: the specification defines carry on values, claims and
-    // suspension crossings but not as a callee's published term. The crate
-    // README lists it under "Open" for the suspension lane.
-}
-
-/// calls_and_outcomes.md: "A callee-body fact is available only when the body
-/// belongs to the same fingerprinted verification unit. Otherwise use the
-/// imported published ceiling and its certificate."
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SummaryBasis {
-    /// The authored contract: usable by every caller.
-    Authored,
-    /// Derived from the checked body: usable only inside its verification
-    /// unit.
-    BodyDerived,
-}
-
-/// calls_and_outcomes.md: "Published buckets are fingerprinted and normalized
-/// by cause. Each contains a canonical disjunction of predicates over the same
-/// lowered values and places as executable Terminal Psi; an unconditional
-/// clause contains `Truth`."
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CrashRoute {
-    pub cause: CrashCause,
-    /// The disjunction's predicates over the callee's formals.
-    pub guards: Vec<PropositionId>,
-}
-
-/// `wiki/spec/language/termination.md`: "Bare `terminates` authors the
-/// promise. Omission on a bodyless requirement or export publishes no
-/// guarantee".
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Termination {
-    Terminates,
-    NoGuarantee,
 }

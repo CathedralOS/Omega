@@ -4,10 +4,9 @@
 The shared tables of the checker that runs on the lowered form: the explicit,
 unsealed Terminal Psi module that structure-only elaboration produces
 (`wiki/drafts/designs/check_on_lowered_form.md`). They hold what the checker
-knows about one machine, as five tables over dense identities: values with
-their knowledge rows, places with the forward write log, may-sets,
-obligations, and edges with invocations. Callee contracts are a sixth,
-module-wide table of summaries, one term per axis.
+knows about one machine, as tables over dense identities: values with
+their knowledge rows, places with the forward write log, obligations, and
+edges with invocations.
 
 The point of the crate is what it cannot say. No row holds a name, a printed
 expression, a path string or a formatted handle: a place is a dense identity
@@ -28,7 +27,6 @@ has no identity for the concept.
 
 pub mod bindings;
 pub mod edges;
-pub mod may_sets;
 pub mod obligations;
 pub mod values;
 
@@ -72,11 +70,11 @@ check_id!(
 );
 check_id!(
     ReferentSetId,
-    "The places one installed reference may denote (`may_sets::ReferentSet`)."
+    "Identity a reference write may name. The member places are not stored in these tables."
 );
 check_id!(
     SelectionSetId,
-    "The machines one callable selector value may select (`may_sets::SelectionSet`)."
+    "Identity a selector value may name. The member machines are not stored in these tables."
 );
 check_id!(
     InvocationId,
@@ -241,9 +239,8 @@ pub type Checked<T> = Result<T, Refusal>;
 /// is in range resolves to the wrong row. The rule that prevents this is
 /// structural, not checked here: identities never cross `MachineTables`, and
 /// every checking API takes exactly one `MachineTables` and only identities
-/// read from it. Crossing machines goes through an `InvocationRow` and the
-/// callee's `Summary`, which hold `MachineId`s and positions, never the
-/// callee's local identities.
+/// read from it. Crossing machines goes through an `InvocationRow`, which
+/// holds a `MachineId` and positions, never the callee's local identities.
 pub fn row<Id: PsiSemanticId, T>(
     table: &IdTable<Id, T>,
     identity: Id,
@@ -274,18 +271,15 @@ pub struct MachineTables {
     /// `PlaceId`s densely too, so interning a root is one index.
     pub roots: IdTable<PlaceId, ExactPlaceId>,
     pub writes: IdTable<WriteId, bindings::WriteRow>,
-    pub referent_sets: IdTable<ReferentSetId, may_sets::ReferentSet>,
-    pub selection_sets: IdTable<SelectionSetId, may_sets::SelectionSet>,
     pub obligations: IdTable<ObligationId, obligations::ObligationRow>,
     pub edges: IdTable<EdgeId, edges::EdgeRow>,
     pub invocations: IdTable<InvocationId, edges::InvocationRow>,
 }
 
-/// The module: one `MachineTables` and one published `Summary` per machine.
+/// The module: one `MachineTables` per machine.
 #[derive(Debug, Clone, Default)]
 pub struct CheckTables {
     pub machines: IdTable<MachineId, MachineTables>,
-    pub summaries: IdTable<MachineId, edges::Summary>,
 }
 
 #[cfg(test)]

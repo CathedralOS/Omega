@@ -22,11 +22,9 @@ lookup is one index.
 | `places` | `ExactPlaceId` | A root place, or a parent place plus one typed segment (field, case, fixed index, runtime index named by its captured selector value), with its sorted children and the writes to it. |
 | `roots` | `PlaceId` | The `ExactPlaceId` of each root place. |
 | `writes` | `WriteId` | The forward write log: a value, an installed reference, unknown contents, or a hole. |
-| `referent_sets`, `selection_sets` | `ReferentSetId`, `SelectionSetId` | May-sets: the places an installed reference may denote, the machines a selector may select. Join is union; `Unknown` means everything. |
 | `obligations` | `ObligationId` | Claims, loans, windows and debts (conserved across edges) and proof questions (discharged at one site). |
 | `edges` | `EdgeId` | Source, destination, and the fate of every conserved obligation crossing the edge. |
 | `invocations` | `InvocationId` | The one entry operation of ordinary and terminal calls: callee, ordered actuals, one requirement obligation per callee clause. |
-| `summaries` (module) | `MachineId` | A callee's published contract, one term per axis: reach, invokes, suspension, blocking, crash routes, termination. Its `requires` and `ensures` are the callee's `MachineContract` in the lowered module, by clause position. |
 
 `ValueId`, `EdgeId`, `ObligationId`, `MachineId`, `BlockId`, `OperationId` and
 root `PlaceId` are the lowered form's own identities, so the checker and the
@@ -49,8 +47,8 @@ value row.
   with no machine tag. `row()` refuses an identity past the end of a table, but
   an in-range identity from another machine resolves to the wrong row with no
   error. So every checking API takes exactly one `MachineTables` and only
-  identities read from it. Crossing machines goes through an `InvocationRow`
-  and the callee's `Summary`, which hold `MachineId`s and clause positions.
+  identities read from it. Crossing machines goes through an `InvocationRow`,
+  which holds a `MachineId` and clause positions.
 - **Equal place identities mean the same place; unequal ones do not mean
   disjoint places.** A root overlaps every projection beneath it, and
   `FixedIndex(3)` and `RuntimeIndex { selector }` with a selector known to be 3
@@ -66,14 +64,13 @@ value row.
 
 ## What a lane may add
 
-A construct-family lane changes this crate in exactly two places (a closed
+A construct-family lane changes this crate in one place (a closed
 `RefusalReason` variant, cited the same way, is the one further addition a
 lane has made):
 
 - **An obligation kind:** a variant of `obligations::ObligationKind`, whose doc
   comment quotes the specification sentence that creates it, and a row in the
   table below.
-- **A summary term:** a field of `edges::Summary`, cited the same way.
 
 A justification (`values::Justification`) is neither. A lane does not add or
 reuse one for a second meaning: a new reason a knowledge row can hold is a
@@ -206,22 +203,6 @@ being added here.
   that could only be stated as one is refused.
 - **Contract propositions have no table.** Terminal Psi keeps a machine's
   `requires` and `ensures` inline in its `MachineContract`; its only
-  `PropositionId` table is named proposition declarations. `Summary`
-  therefore names no proposition: a callee clause is its machine and
-  position. Knowledge rows index this crate's own machine-local
-  `propositions` table. `CrashRoute::guards` still assumes a module
-  proposition table.
-  A body-derived result relation has no `MachineContract` slot; the lane
-  that publishes `SummaryBasis::BodyDerived` decides where it lives.
-- **No carry term in `Summary`.** The design record lists carry as a summary
-  axis, but the specification defines carry on values, claims and suspension
-  crossings, not as a callee's published term. The sentences found:
-  [carry](../../../../../../wiki/spec/resources/carry.md) "Ordinary data
-  composes its live fields and explicit type-wide policy using the most
-  restrictive demand on each axis" and "A machine that may retain
-  CPU/thread-restricted values requires its runtime to establish the
-  corresponding preservation"; [calls and outcomes](../../../../../../wiki/spec/terminal-psi/calls_and_outcomes.md#suspension)
-  "Terminal retains provider-independent carry demand" and a suspension plan
-  "retains each value/place, type, storage role, structural access, exact live
-  claims, and carry requirements". None says what a callee publishes. The
-  suspension lane adds the term with its citation, or asks the owner.
+  `PropositionId` table is named proposition declarations. A callee clause
+  is its machine and position. Knowledge rows index this crate's own
+  machine-local `propositions` table.

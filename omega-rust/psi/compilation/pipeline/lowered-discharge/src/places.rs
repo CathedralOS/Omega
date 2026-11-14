@@ -2570,9 +2570,8 @@ impl<'a> Storage<'a> {
     /// "A call need not close an unrelated domain window when its complete
     /// access, effect and outcome contracts prove that it cannot observe or
     /// expose the broken coupling ... Unknown access/effects are treated
-    /// conservatively." The tables hold no callee summary
-    /// (`CheckTables::summaries` stays empty), so nothing here proves a call
-    /// unrelated, and none is treated as one.
+    /// conservatively." The tables hold no callee summary, so nothing here
+    /// proves a call unrelated, and none is treated as one.
     ///
     /// A window a zero establishment opened is on storage that holds no
     /// valid value yet: "A zeroed storage representation can be accessed as

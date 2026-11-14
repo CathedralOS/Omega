@@ -105,7 +105,7 @@ pub enum Content {
     Value(ValueId),
     /// A reference that may denote these places. References are structural
     /// places in the lowered form, so their denotation is installed by a write
-    /// rather than held by a value (see `may_sets`).
+    /// rather than held by a value.
     /// `wiki/spec/language/lifetimes.md`: "Assignment evaluates the
     /// replacement while old loans remain active, ends the overwritten field's
     /// carried loans, then installs the replacement's exact loans."

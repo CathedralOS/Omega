@@ -23,7 +23,7 @@ pub struct ValueRow {
     pub scalar_type: ScalarType,
     pub origin: ValueOrigin,
     /// For a callable selector, the machines it may select; the lowered form
-    /// makes selectors scalar values (see `may_sets`). Elaboration sets it
+    /// makes selectors scalar values. Elaboration sets it
     /// when it pushes the row, and it is `Some` for every value a
     /// `Callee::Selected` names, `Unknown` when nothing narrower is known.
     /// `None` only for values that are not selectors.
