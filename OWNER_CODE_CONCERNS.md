@@ -186,11 +186,11 @@ framework or a list of features that remain unimplemented.
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
 
-### Register and machine-effect catalogs are validated by rebuilding them with the builder that made them
+### Default ISA preparation rebuilds the register and machine-effect catalogs it just made
 - Category: re-deriving
-- Where: `omega-rust/omega/compilation/backend/instruction-set-architectures/isa-x86_64/src/register_model.rs:1381`, `.../isa-aarch64/src/register_model.rs:1082`, `omega-rust/omega/compilation/representations/selected-instructions/src/effects/catalog.rs:1634-1639`; default arms at `.../isa-x86_64/src/machine_effects.rs:1395-1403` and `.../isa-aarch64/src/machine_effects.rs:993-998`
-- Saw: each validator calls the canonical builder again and requires equality with the catalog it was handed, which in the callers read came from that same builder; the effect builders end in a `_ =>` arm that declares no reads, no writes, never traps and falls through
-- Cost: a new instruction kind that misses the effect table is declared effect-free and passes validation by construction; "validated catalog" reads as an independent check and is not one
+- Where: `omega-rust/omega/compilation/backend/instruction-set-architectures/isa-x86_64/src/register_model.rs` and `.../isa-aarch64/src/register_model.rs` (constraint validators); `omega-rust/omega/compilation/representations/selected-instructions/src/effects/catalog.rs` (`validate_isa_machine_effect_catalog`); `selected-instructions/analyses/src/machine_effects.rs` (`build_validated_catalog`)
+- Saw: default preparation builds a target-owned catalog and passes it to a validator that builds the canonical catalog again to compare it; the register-constraint path does the same. Canonical comparison also serves separately supplied catalogs
+- Cost: ordinary compilation repeats construction and comparison of its own target data. That establishes conformance to the same builder, not an independent check of that builder's ISA description; foreign-catalog comparison still needs an honest boundary owner
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
 ### Native lowering accepts module bytes without artifact-bound host producer trust
