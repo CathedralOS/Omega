@@ -91,7 +91,11 @@ pub(crate) fn encode_integer_type(canonical: &mut Vec<u8>, scalar_type: IntegerT
         IntegerSign::Signed => 1,
         IntegerSign::Unsigned => 2,
     });
-    crate::codec_bytes::push_encoded(canonical, scalar_type.bits().to_le_bytes());
+    // Rewrite/range fingerprints describe raw metadata as well as closed facts.
+    // Identity never grants a parameter the concrete interval needed for a fact.
+    scalar_type
+        .width()
+        .write_identity(|part| canonical.extend_from_slice(part));
 }
 
 pub(crate) fn encode_integer_value(canonical: &mut Vec<u8>, value: IntegerValue) {
