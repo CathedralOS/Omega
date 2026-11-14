@@ -73,6 +73,41 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### Parsing and native completion choose their worker budgets independently
+- Category: one idea, several implementations
+- Where: [parser worker pool](omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/parser.rs#L113), [native executor queue](omega-rust/omega/build-system/orchestration/src/compile/native_completion/queue.rs#L10), [prepared machine lowering loop](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lib.rs#L862)
+- Saw: parsing owns a separately configured Rayon pool; native completion owns up to four executors, including its caller. Neither receives an invocation-wide worker or live-memory budget. This establishes separate admission policies, not measured overlap or oversubscription. Psi 05 already prepares shared signatures, outcomes and records before each `lower::machine` returns its own `Lowered` output.
+- Cost: Separate limits cannot bound the invocation's combined active work or live intermediates. Share CPU and live-work admission across source and native jobs; queue lightweight keys, materialize scratch after admission and distinguish estimated memory reservations from enforced limits. After removing repeated work, trial the measured expensive boundary at Psi 05 or post-inference Psi 06, keeping inner walks sequential. Preserve deterministic IDs, assembly and refusal order. Closure requires bounded nested execution and a measured elapsed-time benefit without unacceptable small-input or memory regression. See the [draft execution admission design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract).
+- Reported: 2026-11-14, Codex, while comparing Squalr-inspired pipeline proposals at `c445e89a1eead`; threading placement is a proposed experiment, not a measured speedup
+
+### Logical-module discovery discards a full parse that source admission repeats
+- Category: re-deriving
+- Where: [logical inventory parsing](omega-rust/omega/packages/package-compilation/src/source/source_imports/logical.rs#L185), [inventory output](omega-rust/omega/packages/package-compilation/src/source/source_imports/logical.rs#L211), [selected-source parsing](omega-rust/omega/packages/package-compilation/src/source/source_assembly.rs#L949)
+- Saw: discovery runs the ordinary lexer/parser over the owner's eligible captured files, retains only each path and module name, and drops the syntax. Selected files are then parsed again after admission; source reselection also parses under fresh consumer coordinates. Those fresh coordinates protect source ownership and selection ledgers, but the syntax work is repeated over unchanged bytes.
+- Cost: Selected files pay for syntax construction twice. Retain immutable syntax and a module/import index within the invocation, separately from semantic owner, scope, stratum and bindings. Pin parse counts, distinct Build/Product identities, changed-input behavior and diagnostic locations. Release unused discovery syntax when ownership permits and measure retained memory against avoided parsing; do not add a persistent cache. See the [draft syntax retention design](wiki/drafts/designs/compiler_work_ownership.md#actionable-repair-references).
+- Reported: 2026-11-14, Codex, while comparing Squalr-inspired pipeline proposals at `c445e89a1eead`
+
+### Call-component discovery builds all-pairs reachability to answer component questions
+- Category: re-deriving
+- Where: [call-component discovery](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/components.rs#L69), [component consumer](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lower.rs#L117)
+- Saw: `components` allocates an N-by-N Boolean reachability table and walks the call graph from every machine. It then constructs the same component-member vector for each member of a cycle. Consumers need component membership and whether a machine can reach a cycle, not arbitrary all-pairs paths.
+- Cost: Sparse graphs pay quadratic reachability storage and repeated traversals. Compute strongly connected components once, keep one ordered member span per component and a dense machine-to-component table, then propagate cycle reachability on the component DAG. Preserve refusal order, terminal-call restrictions and termination checks; exercise chains, self/mutual cycles and callers reaching cycles, and count graph work independently of required emitted code. See the [draft call graph design](wiki/drafts/designs/compiler_work_ownership.md#actionable-repair-references).
+- Reported: 2026-11-14, Codex, while comparing Squalr-inspired pipeline proposals at `c445e89a1eead`
+
+### Completing selected bodies can copy the retained typed program
+- Category: re-deriving
+- Where: [retained-body completion](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L810), [shared typing loop](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L1596), [arena cloning](omega-rust/psi/foundation/arena/src/arena.rs#L624)
+- Saw: `SeededTypingBase` holds `Arc<TypedTrees>`, but body completion calls `Arc::unwrap_or_clone(retained.typed)` and feeds the candidate to one mutable `Lowerer`. When another snapshot retains that Arc, cloning copies owned arena vectors even if only a small selected body set changes. Sharing the outer Arc does not make the stored tables independently owned.
+- Cost: A small continuation can copy unrelated typed storage and cannot return independent body output. Separate immutable declaration/type storage from owned body tables; publish selected replacements through stable handles without flattening unrelated bodies. A shared-snapshot continuation must retain untouched storage, exact authority/context identities and refusal behavior. Measure copied bytes and peak memory; keep signature and inferred-summary dependencies explicit. See the [draft body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract).
+- Reported: 2026-11-14, Codex, while comparing Squalr-inspired pipeline proposals at `c445e89a1eead`
+
+### Each machine check searches the complete branch and carried-proof lists
+- Category: re-deriving
+- Where: [per-machine discharge inputs](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/lib.rs#L417)
+- Saw: after shared summary/input inference, discharge collects every authored branch, then filters and allocates that list separately for each machine. It also searches `carried` from the beginning for each specialization. The producer already supplies the machine identity on each row.
+- Cost: Each local check repeatedly scans other machines' metadata. Group branches into stable machine ranges and prepare carried-proof associations once, sized to the actual domain; borrow slices in each check. Preserve order, absence behavior, association meaning and kernel admission. Pin cross-machine isolation and empty groups and count preparation visits as machines grow. Final machine checks are a parallelism candidate only after inference inputs settle. See the [draft checking inputs design](wiki/drafts/designs/compiler_work_ownership.md#experiments-and-acceptance).
+- Reported: 2026-11-14, Codex, while comparing Squalr-inspired pipeline proposals at `c445e89a1eead`
+
 ### The standard library declares two public things named `DarwinClock`
 - Category: one idea, several implementations
 - Where: [source/library/std/macos_gui.omg:586](source/library/std/macos_gui.omg#L586) (`public boundary trait DarwinClock`) and [source/library/std/targets/macos_arm64/clock_impl.omg:26](source/library/std/targets/macos_arm64/clock_impl.omg#L26) (`public DarwinClock satisfies Clock`)
@@ -86,13 +121,6 @@ framework or a list of features that remain unimplemented.
 - Saw: `form` refuses a data type in a Build's choice but accepts one in a `provider_defaults` machine. provider_selection.md, "Declaration and choice", says a target package "supplies ordinary named default provider implementations" and "A data type or runtime provider descriptor is not such a value", with no exception for defaults. `std`'s ProcessExit defaults, its only user, now select the named `NativeProcessExit`; the last user anywhere is `samples/cli/probes/device_extent_access` (`LoopbackDeviceLoanProvider`), which is written in other retired forms too (`via`, target-prefixed machines)
 - Cost: a second, looser reading of the Provider position stays served for no library; delete `DefaultClosure` and the `ProviderForm` parameter, turn the test into the refusal twin, and give the probe a named implementation
 - Reported: 2026-11-14, worker-15 (Claude Code), while moving std's ProcessExit defaults to a named implementation
-
-### Compiler operations are recognized by their bare spelling, and no declaration answers them
-- Category: one idea, several implementations
-- Where: `"code_layout"` in stage 02 `constant.rs:2063,2362`, `selection_authored.rs:392,1265` and stage 03 `statement_lowering.rs:1336`, `expression_lowering.rs:1445`; `"address_of"` in `expression_lowering.rs:1076`; `Quotient::lift`/`define` and `LayoutPlan::place_private` by namespace spelling in `expression_lowering.rs`
-- Saw: each stage compares the written name to a string literal, and resolution leaves the call with no target symbol, so the call is unbound in the same way a misspelled name is; telling "unknown name" from "compiler operation" needs a third copy of the list (stage 03 `typing_queries.rs` `COMPILER_CALL_SPELLINGS`)
-- Cost: a new compiler operation added in one place and missed in the list would be rejected as an unknown name; one declaration per operation (as `BuiltinFunction` symbols are) would let resolution answer it once
-- Reported: 2026-11-14, Claude Code (worker-14), while making a call of an undeclared name a rejection
 
 ### Whether a type is a scalar is decided twice, once by its spelling and once by its symbol
 - Category: one idea, several implementations
@@ -206,13 +234,6 @@ framework or a list of features that remain unimplemented.
 - Cost: an overflow or zero divisor that native code would trap on shows up as "the verified artifact is malformed" with no reason, so a native and Psi disagreement reads as an interpreter failure and the cause must be found by hand
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### Architecture rules are enforced by searching source text for substrings
-- Category: tests that pin the bug
-- Where: `omega-rust/omega/compilation/realization/provider-planning/src/source_guards.rs`, `omega-rust/omega/compilation/backend/plans/program-entry-plan/src/source_guards.rs`, `omega-rust/psi/foundation/access-plans/src/tests.rs`, `omega-rust/psi/interpreter/terminal-interpreter/src/embedding.rs`
-- Saw: remaining tests count function names, identity-field spellings, FNV constructors or shared-reader call text instead of checking retained identity, commitment or observation behavior.
-- Cost: formatting and harmless renaming break tests while equivalent forbidden behavior can pass under another spelling. Replace these semantic claims with behavior controls at their actual owners; dependency direction belongs to the existing Cargo-graph boundary checker.
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
 ### Typing refuses its own questions as if they waited for the checker
 - Category: a stage reaching across a boundary
 - Where: `03_symbol-resolved-trees-to-typed-trees/src/lib.rs` (`unavailable_judgment`) and its 26 callers, such as `typing_queries.rs` ("constructor field type", "call entry parameter types") and `type_reference.rs` ("closed const argument declaration custody")
@@ -241,13 +262,6 @@ framework or a list of features that remain unimplemented.
 - Cost: the crate's unit suite is red independently of generated-machine ownership changes; the tests and the substitution owner's contract need to agree without weakening source-level value-index eligibility
 - Reported: 2026-11-14, Codex, while attributing the focused generated-application validation failures against its unchanged base
 
-### Provenance can audit another active Codex session
-- Category: an association discarded before its consumer
-- Where: `tools/xtask/src/provenance.rs`, Codex harness selection in `run`
-- Saw: `CODEX_THREAD_ID` selects the Codex harness, but the next step calls `find_latest_codex_transcript` instead of retaining that thread's transcript. In this concurrent run the default command reported `gpt-daybreak-blue-latest`; `provenance --transcript` with the file matching the actual `CODEX_THREAD_ID` reported `gpt-6.1-sol`
-- Cost: another worker's activity can change the model, token and time audit written on this worker's commit; an explicit matching `--transcript` is the current workaround
-- Reported: 2026-11-14, Codex, while generating the generated-application PR's final audit line
-
 ### The parser still accepts a boundary requirement with no `crashes` clause
 - Category: a verdict with nothing behind it
 - Where: `01_tokens-to-syntax-trees/src/declarations.rs` (refuses a boundary requirement without `reaches`, says nothing about `crashes`); `05_typed-trees-to-terminal-psi/src/read/calls.rs` (`boundary`); `samples/` and `tests/fixtures/`
@@ -269,12 +283,12 @@ framework or a list of features that remain unimplemented.
 - Cost: the host row's operation is decided twice from text, and the native binding cannot be closed at its locator type by the pass that closes every other application until typing records that application on the call
 - Reported: 2026-11-13, Claude Code, while closing boundary requirements at the types their calls apply
 
-### A value name in a type is read by its spelling before resolution, past the parameters that hide it
+### An array extent in a generic argument is still closed by its spelling before resolution
 - Category: one idea, several implementations
-- Where: `02_.../preparation_integer_widths.rs` (`width_of`) and `02_.../preparation_const_evaluation.rs` (`closed_fixed_array_length`) both close a name through `ConstantSelection::select` before resolution; after it, `symbols_type_references.rs` `resolve_type_symbol` and `assign_fixed_array_length_symbol` look at type parameters and then top-level declarations only
-- Saw: in `const count: u64 = 13; machine f(count: u64, v: u<count>)` (or `[u8; count]`) the runtime parameter `count` is read as the constant. modules.md "Resolution" puts local bindings and parameters before imported names. Not reachable as an accepted program today only because the checker refuses every top-level `const` declaration
-- Cost: an integer width and an array extent each decide what a value name in a type means, by spelling, in two places; the day `const` declarations are read, a runtime width or extent is silently fixed to a constant. One type-position value-name resolver that sees the enclosing value bindings would serve both
-- Reported: 2026-11-14, Claude Code, while landing symbolic integer widths
+- Where: `02_.../preparation_const_evaluation.rs` (`closed_fixed_array_length`, reached from generic-data closing, type equations and constant evaluation) selects a constant for `[T; NAME]` through `ConstantSelection::select`, which sees only top-level declarations
+- Saw: integer widths and plain extents are now read by role in their lexical scope (`resolve_value_in_type_symbol` and the value pass in `symbols_type_references.rs`), so `machine f(count: u64, items: [u8; count])` is refused as a runtime extent. But generic-argument closing (`closed_argument_identity`) still reads an extent such as `Buffer<[u8; count]>` written in that machine through the top-level selection; not yet observed in a program. Deleting the selection breaks `First<[u8; LIMIT]>` in a data declaration, where the top-level constant is the right answer
+- Cost: preparation cannot tell a data or constant declaration (top-level scope) from a machine (parameters and locals in scope), so one extent spelling can mean two things; closing generic arguments after resolution, or handing preparation the enclosing value bindings, would remove the second reader
+- Reported: 2026-11-14, Claude Code, while reading builtin type names by role
 
 ### The scalar contract fixture's inferred call proof is refused by the kernel
 - Category: a proof producer and checker disagree
@@ -282,10 +296,3 @@ framework or a list of features that remain unimplemented.
 - Saw: `omega run --both` on the unchanged fixture reports `cannot prove requires contract for call settle from main: inferred input condition`, with `kernel Certificate(IntegerOrderMiddleMismatch)`, before either engine runs. Observed on Windows x86-64 with the scalar receiving-type diagnostic repair, then reproduced at the same line after restoring all changed production files exactly to `44ed2132219fb20261abeab4ef3e61b4ab0f845a` and rebuilding `omega` through `mbx`. The fixture is unchanged, and its contracts and guards were not weakened.
 - Cost: a simple scalar contract program cannot provide native/Psi execution evidence, and an invalid proof certificate is surfaced as a caller fact it should establish instead of identifying the proof producer's disagreement with the kernel
 - Reported: 2026-11-14, Codex, while checking scalar receiving-type diagnostics
-
-### Model-audit attribution ignores the active Codex thread
-- Category: ownership is recovered from unrelated ambient state
-- Where: `tools/xtask/src/provenance.rs` (`find_latest_codex_transcript` and `run`)
-- Saw: even when `CODEX_THREAD_ID` identifies the active worker, the default command chooses the most recently modified transcript anywhere under `.codex/sessions`. During concurrent work it selected another session; explicitly passing this worker's transcript produced different token, step and time totals. The explicit transcript's session metadata confirms the active thread and `/root/result_type_diagnostics` owner.
-- Cost: an ordinary generated model-audit footer can attribute another agent's work to a commit; locate the active thread's transcript before considering a latest-file fallback
-- Reported: 2026-11-14, Codex, while generating provider-plan cleanup provenance; used the explicit active transcript for this PR

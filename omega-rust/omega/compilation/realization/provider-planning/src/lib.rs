@@ -10,8 +10,6 @@ pub(crate) use optimization_core::digest_encoder;
 pub mod evaluated_via_bindings;
 pub mod program_entry;
 mod provider_planning;
-#[cfg(test)]
-mod source_guards;
 pub mod target_supply;
 
 pub use build_time_evaluation::provider_declarations::{

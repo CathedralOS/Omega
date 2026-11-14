@@ -460,6 +460,10 @@ pub enum BuiltinFunction {
     IntegerEmbed,
     AsmStoreGdtr,
     AsmLoadGdtr,
+    AddressOf,
+    CodeLayout,
+    QuotientLift,
+    QuotientDefine,
 }
 
 macro_rules! roster {
@@ -469,7 +473,7 @@ macro_rules! roster {
 }
 
 impl BuiltinFunction {
-    pub const COUNT: usize = 105;
+    pub const COUNT: usize = 109;
 
     /*
         The closed inventory in slot order: every compiler-installed builtin
@@ -602,6 +606,10 @@ impl BuiltinFunction {
         (Self::AsmAarch64FullFence, "asm#dmb_sy"),
         (Self::AsmStoreGdtr, "asm#sgdt"),
         (Self::AsmLoadGdtr, "asm#lgdt"),
+        (Self::AddressOf, "address_of"),
+        (Self::CodeLayout, "code_layout"),
+        (Self::QuotientLift, "Quotient::lift"),
+        (Self::QuotientDefine, "Quotient::define"),
     ];
 
     pub fn from_ordinal(ordinal: usize) -> Option<Self> {
@@ -618,6 +626,16 @@ impl BuiltinFunction {
             .into_iter()
             .find(|(_, spelling)| *spelling == name)
             .map(|(function, _)| function)
+    }
+
+    /// These source forms validate their operands at their operation owner, not
+    /// against an ordinary callable signature. Their names still resolve normally,
+    /// so an authored declaration can shadow them without receiving this identity.
+    pub const fn is_source_special_form(self) -> bool {
+        matches!(
+            self,
+            Self::AddressOf | Self::CodeLayout | Self::QuotientLift | Self::QuotientDefine
+        )
     }
 
     /*
@@ -808,6 +826,25 @@ impl BuiltinFunction {
     pub fn is_asm_intrinsic(self) -> bool {
         self.name().starts_with("asm#")
     }
+}
+
+/*
+    Whether `name` is spelled like a compiler-defined type
+    (`wiki/spec/language/modules.md#builtin-type-names`): a roster member's
+    installed name, or the open-ended integer family `i`, `u`, and either
+    letter followed by decimal digits, whether or not the digits form a valid
+    width (`u0` is a family spelling and an invalid type). A declaration that
+    introduces a type or namespace name may not use such a spelling; a value
+    may, because it never competes with a type.
+*/
+pub fn is_builtin_type_spelling(name: &str) -> bool {
+    let integer_family = name
+        .strip_prefix(['i', 'u'])
+        .is_some_and(|digits| digits.bytes().all(|byte| byte.is_ascii_digit()));
+    integer_family
+        || BuiltinTypeAtom::SPELLINGS
+            .iter()
+            .any(|(_, _, symbol_name)| *symbol_name == name)
 }
 
 pub fn builtin_type_symbols() -> [(SymbolKind, SymbolNameRef<'static>); BUILTIN_TYPE_COUNT] {
@@ -1228,5 +1265,18 @@ mod builtin_ordinal_tests {
             None
         );
         assert_eq!(FixedCoreDeclaration::from_name("core::Vec"), None);
+    }
+
+    /* The integer family is open-ended; a value-like spelling is not a type name. */
+    #[test]
+    fn builtin_type_spellings_cover_the_roster_and_the_integer_family() {
+        for name in [
+            "bool", "addr", "f32", "u32", "i", "u", "u0", "i7", "u257", "Never",
+        ] {
+            assert!(super::is_builtin_type_spelling(name), "{name}");
+        }
+        for name in ["count", "ui", "u8x", "i_1", "uint", "U32", ""] {
+            assert!(!super::is_builtin_type_spelling(name), "{name}");
+        }
     }
 }

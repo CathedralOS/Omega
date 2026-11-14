@@ -38,8 +38,9 @@ pub(crate) struct BuildCompanions {
     pub requests: Vec<TerminalBuildRequestCall>,
     pub filesystem: Vec<TerminalBuildFilesystemCall>,
     pub native_formations: Vec<NativeBindingFormation>,
-    /// Boundary calls that are no operation of a toolchain Build protocol,
-    /// so have no row: the Build host serves none of them.
+    /// Boundary calls that are no operation of a toolchain Build protocol
+    /// and call no requirement the Build awaits a provider for, so have no
+    /// row and no slot: the Build host serves none of them.
     pub unowned: usize,
 }
 
@@ -71,6 +72,9 @@ pub(crate) fn produce(
 ) -> Result<BuildCompanions, Diagnostic> {
     let mut companions = BuildCompanions::default();
     let mut designated = 0;
+    // Calls of no Build protocol, by boundary, until every readiness
+    // request has been read.
+    let mut outside = Vec::new();
     for machine in &elaboration.module.machines {
         for operation in machine.operations() {
             let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = &operation.kind else {
@@ -162,10 +166,28 @@ pub(crate) fn produce(
                     occurrence,
                 });
             } else {
-                companions.unowned += 1;
+                outside.push(*boundary);
             }
         }
     }
+    // scoped_execution.md, "Two checked contexts": a Build entry and its
+    // helpers reach "exact static provider slots installed through
+    // `Build::await_provider<R, Backing>`". Such a call is served by the
+    // provider the host installs for the awaited requirement, so it is
+    // inside the Build's authority. Whether a provider is installed before
+    // the call runs is the host's to enforce where the call parks.
+    companions.unowned += outside
+        .iter()
+        .filter(|boundary| {
+            !companions.bindings.iter().any(|row| {
+                matches!(
+                    &row.request,
+                    BuildSelectionRequest::ProviderReadiness(request)
+                        if request.requirement.boundaries.contains(boundary)
+                )
+            })
+        })
+        .count();
     // Every reference the reader carried must have reached a selection call.
     let carried: usize = correspondence
         .designated
@@ -227,10 +249,40 @@ fn binding(
     let native_locator = (action == TerminalBuildBindingOperation::BindNative)
         .then(|| native_locator(source, elaboration, correspondence, call))
         .transpose()?;
+    // The awaited requirement, as the module states it: the trait by its
+    // exact owner, its application by the service row, and the receiving
+    // slots by the boundaries that service owns. A Build that calls none
+    // of the requirements has no slot for a provider to fill.
     let request = request.clone().map_requirement(|_| {
-        Err(refused(
-            "Build provider readiness needs its requirement application",
-        ))
+        let service = designated
+            .readiness
+            .ok_or_else(|| refused("Build provider readiness lost its requirement application"))?;
+        let declaration = correspondence
+            .readiness
+            .iter()
+            .find(|(awaited, _)| *awaited == service)
+            .map(|(_, declaration)| declaration.clone())
+            .ok_or_else(|| refused("Build provider readiness lost its requirement declaration"))?;
+        let application = elaboration
+            .module
+            .services
+            .iter()
+            .find(|row| row.id == service)
+            .map(|row| row.identity)
+            .ok_or_else(|| refused("Build provider readiness names an unpublished service"))?;
+        let mut boundaries = elaboration
+            .module
+            .boundary_machines
+            .iter()
+            .filter(|boundary| boundary.owning_service == Some(service))
+            .map(|boundary| boundary.id)
+            .collect::<Vec<_>>();
+        boundaries.sort_unstable();
+        Ok(crate::TerminalBuildProviderRequirement {
+            declaration,
+            application,
+            boundaries,
+        })
     })?;
     let selecting = elaboration
         .machines

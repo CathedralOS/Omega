@@ -766,3 +766,141 @@ fn a_shared_array_view_cannot_observe_write_only_backing() {
         "expected the source loan authority check to refuse write-only observation: {category}"
     );
 }
+
+/// conformances.md, "Core equality acquisition": text is "compared by byte
+/// content". The comparison is a Boolean like any other: a guard, an
+/// operand of `&&`, an argument, a result.
+#[test]
+fn two_byte_views_are_compared_by_their_bytes() {
+    for program in [
+        "machine build_entry(path: &[u8]) { transition path == \"main.omg\" { true -> yes() false -> no() } }
+machine yes() { }
+machine no() { }",
+        "machine build_entry(left: &[u8], right: &[u8], count: u64) { use(left == right && count == 2, left != \"x\"); }
+machine use(same: bool, other: bool) { }",
+        "machine same(left: &[u8], right: &[u8]) -> bool { left == right }
+machine build_entry(path: &[u8]) { use(same(path, \"main.omg\")); }
+machine use(same: bool) { }",
+    ] {
+        assert_eq!(verdict(program), "accepted", "{program}");
+    }
+}
+
+/// The lowered form of a comparison is the left view's measurement, the
+/// right view's, and the comparison naming both, with nothing between. A
+/// comparison that names another view's measurement, an operand it does not
+/// read whole and shared, or a result that is no plain `bool` is not
+/// accepted.
+#[test]
+fn a_byte_comparison_names_each_views_own_measurement() {
+    use super::build_purpose::{frontier_of, package, roster, symbol};
+    let typed = frontier_of(
+        "machine product_entry() {}",
+        "machine build_entry(left: &[u8], right: &[u8]) { use(left == right); }
+machine use(same: bool) { }",
+    );
+    let entry = symbol(&typed, "build_entry");
+    let elaborate = || {
+        typed_trees_to_terminal_psi::elaborate_for(
+            &typed,
+            roster(&[entry], &[Some(package())], source::DependencyScope::Build),
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .unwrap()
+    };
+    let compared = |elaboration: &typed_trees_to_terminal_psi::Elaboration| {
+        elaboration
+            .module
+            .machines
+            .iter()
+            .flat_map(|machine| &machine.blocks)
+            .flat_map(|block| block.operations.windows(3))
+            .filter_map(|run| match (&run[0].kind, &run[1].kind, &run[2].kind) {
+                (
+                    OperationKind::ByteSequenceLength { source: first },
+                    OperationKind::ByteSequenceLength { source: second },
+                    OperationKind::ByteSequenceEqual { left, right },
+                ) => Some(
+                    first.place == left.source()
+                        && second.place == right.source()
+                        && first.place != second.place
+                        && run[0].result.scalar_ref().map(|result| result.id)
+                            == Some(left.length())
+                        && run[1].result.scalar_ref().map(|result| result.id)
+                            == Some(right.length()),
+                ),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    };
+    let lowered = elaborate();
+    assert_eq!(compared(&lowered), [true]);
+    assert!(matches!(
+        judge(Ok(lowered)).unwrap(),
+        RouteVerdict::Accepted(_)
+    ));
+    for fault in 0..4 {
+        let mut changed = elaborate();
+        let operation = changed
+            .module
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.blocks)
+            .flat_map(|block| &mut block.operations)
+            .find(|operation| matches!(operation.kind, OperationKind::ByteSequenceEqual { .. }))
+            .unwrap();
+        let OperationKind::ByteSequenceEqual { left, right } = &mut operation.kind else {
+            unreachable!()
+        };
+        use terminal_psi::control_flow::ByteSequenceOperand;
+        let (
+            ByteSequenceOperand::Whole {
+                source: left_view,
+                length: left_length,
+            },
+            ByteSequenceOperand::Whole {
+                source: right_view,
+                length: right_length,
+            },
+        ) = (left, right)
+        else {
+            unreachable!()
+        };
+        match fault {
+            // Each view under the other one's measurement.
+            0 => std::mem::swap(left_length, right_length),
+            // One view compared with itself under the other's length.
+            1 => right_view.place = left_view.place,
+            2 => left_view.access = terminal_psi::StructuralAccess::MutableBorrow,
+            3 => *right_length = *left_length,
+            _ => unreachable!(),
+        }
+        assert!(
+            !matches!(judge(Ok(changed)), Ok(RouteVerdict::Accepted(_))),
+            "fault {fault} accepted"
+        );
+    }
+}
+
+/// The forms of a comparison this route does not read: a view that is
+/// stored in a field, and an operand whose type carries a domain
+/// (domains.md, "Operands": "Builtin operators and comparisons ... accept
+/// unqualified operands only").
+#[test]
+fn the_byte_comparisons_not_read_are_refused_by_name() {
+    assert_eq!(
+        verdict(
+            "data Holder<'held> { path: &'held [u8]; }
+machine build_entry<'held>(holder: &Holder<'held>) { use(holder.path == \"main.omg\"); }
+machine use(same: bool) { }"
+        ),
+        "expression comparison of a view stored in a field"
+    );
+    assert_eq!(
+        verdict(
+            "machine build_entry(path: &[u8], count: u64) { use(path == count); }
+machine use(same: bool) { }"
+        ),
+        "expression operator on an operand that is not a plain or policy-qualified scalar"
+    );
+}

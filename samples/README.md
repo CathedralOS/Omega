@@ -4,7 +4,7 @@ Samples are miniature Omega projects that pressure-test the language from a
 user-code point of view. A runnable sample's `build.omg`
 binds a target's program entry, and its `main.omg` header documents the result
 with `// Expected exit: <n>` or `// Expected output contains: <text>`, so
-`tools/sample_native_gate.py` can hold it to that result. A check-only probe of
+`mbx xtask sample-gate` can hold it to that result. A check-only probe of
 one language behavior is a program a Rust test reads, kept under
 `tests/fixtures/{pass,fail}/<group>/<name>/`, not a sample; the existing
 `cli/probes/` projects predate this rule. When the
@@ -42,11 +42,11 @@ contract, capture its parent's locals, or replace a loop with growing recursion.
 
 ## Project roles and discovery
 
-`python3 tools/sample_projects.py` derives the current catalog from existing
-build roots. It does not keep another checked-in list of projects. Both sample
-gates use this discovery, including nested consumers and invalid controls under
-a parent program. W100 groups without their own build root are containers;
-their child projects are the discovery results.
+`mbx xtask sample-gate`, `mbx xtask qualify`, and `mbx xtask sweep` derive the
+current catalog directly from existing build roots rather than keeping a second
+checked-in list of projects. Discovery covers nested consumers and invalid
+controls under a parent program; W100 groups without their own build root are
+containers whose child projects are discovered independently.
 
 | Role | Meaning in repository tooling |
 | --- | --- |
@@ -95,14 +95,14 @@ cannot pass the control. Negative controls enter `--check`, never package
 acceptance or runtime execution. Runtime-invalid input cases remain cases of the
 positive program and its own validator.
 
-`sample_gate.py` checks the positive entries and validates the negative controls.
-`sample_native_gate.py` shares the same selection and reports negative coverage
-separately from runtime scores. Failed positive check-only probes still make it
-fail. No-oracle and freestanding projects retain their explicit unscored reporting,
-as does a project whose `build.omg` binds `ProgramEntry` only for other targets.
-Library-only packages appear in the catalog; their runnable consumers enter the
-gates. This changes repository discovery, not the shipped `omega refresh-samples`
-command, package authority, review policy or compiler semantics.
+`mbx xtask sample-gate` checks positive sample entries, validates negative
+controls, and compares native and Psi execution for runnable entries. Failed
+positive check-only probes still make a sweep or gate fail. No-oracle and
+freestanding projects retain their explicit unscored reporting, as does a project
+whose `build.omg` binds `ProgramEntry` only for other targets. Library-only
+packages appear in the catalog; their runnable consumers enter the gates.
+This governs repository discovery and verification tooling, not package authority,
+review policy or compiler semantics.
 
 They are allowed to be rough while the language is moving, but each sample
 should still have a clear project shape:
@@ -120,25 +120,26 @@ should still have a clear project shape:
 Generated compiler output belongs in local `build/` beside the sample
 entrypoint. Do not check it in and do not make sample source depend on it.
 
-`omega refresh-samples <directory>` discovers sample `main.omg` files and
-compiles them for the current host, using the same package builds, trust
-admission, and native publication as an ordinary compile. It does not run the
-executables or accept policy on your behalf. Complete any requested package
-review first with `omega packages update --project <sample-directory>`; unresolved trust
-admissions also remain errors. A failed sample is reported without preventing
-the other samples from building, and any failure makes the command exit nonzero.
+To run focused differential native + Psi sample verification from the repository root:
 
-For example, from the repository root in either PowerShell or a macOS shell:
+```text
+mbx xtask sample-gate --filter cli_mvp
+```
+
+To prepare or compile a single sample project directly through `omega`, complete any
+requested package review first and then invoke the ordinary compiler commands via `mbx`:
 
 ```text
 mbx run -p omega -- packages update --project samples/cli/basics/cli_mvp
-mbx run -p omega -- refresh-samples samples/cli/basics/cli_mvp
+mbx run -p omega -- run --project samples/cli/basics/cli_mvp --both
 ```
 
-Use `cargo` instead of `mbx` if the wrapper is unavailable. These commands use
-the host target; cross-target or firmware compilation uses the ordinary compile
-command with an explicit target. Refreshing every sample does not imply
-that every sample is currently supported.
+`mbx` is required for repository Rust builds and runs (never use raw `cargo` fallbacks).
+For bounded explicit-path qualification into a new output directory, use
+`mbx xtask qualify --samples <paths> --output <new-directory> [--target <host>]`.
+For `--check` triage across samples and `tests/fixtures/`, use `mbx xtask sweep`.
+Refreshing or verifying samples on one host target does not imply that every sample
+or cross-target is supported.
 
 Samples should read like code someone might write. If a sample exposes a small
 missing compiler behavior, pin that behavior with a test on the changed code and
