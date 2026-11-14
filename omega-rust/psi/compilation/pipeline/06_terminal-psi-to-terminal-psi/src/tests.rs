@@ -32,6 +32,7 @@ mod calling_policies;
 mod case_payloads;
 mod ceilings;
 mod collection_members;
+mod compiler_primitive_headers;
 mod empty_records;
 mod entry_inputs;
 mod entryless;

@@ -2515,7 +2515,9 @@ pub(crate) mod operator {
     use crate::resolution::lowerer::Lowerer;
     use diagnostics::Diagnostic;
     use language_core::atomic::ATOMIC_FENCE_NAMESPACE;
-    use language_core::sealed_intrinsics::{CompilerPrimitive, SealedIntrinsic};
+    use language_core::sealed_intrinsics::{
+        CollectionPrimitive, CompilerPrimitive, SealedIntrinsic,
+    };
     use numerics::float_projection::FloatProjectionOperation;
     use syntax::types::TypeReferenceNode;
     use syntax_trees::{self as syntax, SyntaxTrees};
@@ -2595,14 +2597,19 @@ pub(crate) mod operator {
     ) -> Result<(), Diagnostic> {
         let name = machine.name.as_str(syntax_trees);
         let (namespace, leaf) = name.rsplit_once("::").unwrap_or(("", name));
-        let family = CatalogFamily::naming(namespace, leaf);
+        let custody = lowerer
+            .sources
+            .as_ref()
+            .and_then(|sources| sources.get(machine.name.source_span().source_id))
+            .and_then(|file| symbols::sealed_intrinsic_at(file, name));
+        let family = match custody {
+            Some(SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::Collection(operation))) => {
+                Some(CatalogFamily::Collection(operation))
+            }
+            _ => CatalogFamily::naming(namespace, leaf),
+        };
         let sealed_source = family.is_some_and(|family| {
-            lowerer
-                .sources
-                .as_ref()
-                .and_then(|sources| sources.get(machine.name.source_span().source_id))
-                .and_then(|file| symbols::sealed_intrinsic_at(file, name))
-                == Some(SealedIntrinsic::CompilerPrimitive(family.primitive()))
+            custody == Some(SealedIntrinsic::CompilerPrimitive(family.primitive()))
         });
         let Some(family) = family.filter(|_| sealed_source) else {
             let token = machine
@@ -2634,6 +2641,10 @@ pub(crate) mod operator {
         };
         let entry = syntax_trees.items.state(*entry);
         match family {
+            // The exact bundled declaration proceeds through the complete
+            // generic machine owner. Typed schema normalization retains every
+            // binder, lifetime relation and contract before a use is served.
+            CatalogFamily::Collection(_) => {}
             CatalogFamily::FloatProjection => {}
             CatalogFamily::AtomicFence => {
                 require_exact_atomic_fence_row(syntax_trees, machine, entry)?;
@@ -2656,6 +2667,7 @@ pub(crate) mod operator {
     */
     #[derive(Clone, Copy)]
     enum CatalogFamily {
+        Collection(CollectionPrimitive),
         /* Place-free portable fence (`atomic.omg`). */
         AtomicFence,
         /* `Float::meaning32` / `Float::meaning64` (`float_operations.omg`). */
@@ -2693,6 +2705,7 @@ pub(crate) mod operator {
 
         fn primitive(self) -> CompilerPrimitive {
             match self {
+                Self::Collection(operation) => CompilerPrimitive::Collection(operation),
                 Self::AtomicFence => CompilerPrimitive::AtomicFence,
                 Self::FloatProjection => CompilerPrimitive::FloatProjection,
                 Self::FloatSemantics => CompilerPrimitive::FloatSemantics,
