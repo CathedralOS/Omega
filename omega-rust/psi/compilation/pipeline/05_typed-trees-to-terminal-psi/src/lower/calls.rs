@@ -420,6 +420,12 @@ impl Lowering<'_> {
         callable: semantic_vocabulary::TargetMachineCallable,
         required_contract: Option<semantic_vocabulary::ContractId>,
     ) -> Checked<bool> {
+        let signature = self
+            .signatures
+            .invocation(callable, required_contract, self.id)?;
+        if crate::inhabitation::excludes_result(&self.records.inhabitation, signature.result) {
+            return Ok(false);
+        }
         // Requirement routing does not publish the chosen body's outcome.
         // Keep the continuation governed by that declared contract.
         if required_contract.is_some() {

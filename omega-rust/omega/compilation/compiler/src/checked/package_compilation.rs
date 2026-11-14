@@ -339,17 +339,43 @@ impl CompilationSession {
         selected.finish_check().result
     }
 
-    // Provider publication needs the lowered route's actual provider custody.
-    // The removed producer cannot be called with typed source.
+    /// Publishes the implementation a Build names as the backing of a
+    /// provider readiness request (provider_selection.md, "Build provider
+    /// readiness"). The dependency's source is checked as any Product
+    /// source is, and then judged again with the backing as a supply of the
+    /// trait it implements, so the module the Build host installs holds the
+    /// provider's machines, each judged against the requirement it
+    /// supplies. A dependency the checker does not accept supplies nothing.
     pub fn produce_package_build_provider(
         &mut self,
-        _build: PackageBuild,
-        _declaration_path: &str,
+        build: PackageBuild,
+        declaration_path: &str,
     ) -> Result<psi_compiler::ProducedBuildProvider, CompileFailure> {
-        Err(vec![Diagnostic::error(
-            "no product route yet: package Build provider publication requires lowered-route provider custody",
-        )]
-        .into())
+        super::run_on_compile_thread(|| {
+            let (_, _, inputs, rollback, prepared) = build.source.into_continuation();
+            let source = super::checking::complete_prepared_build(prepared, Some(&inputs))?;
+            let checked =
+                super::checking::check_product_source(source, Some(&inputs), &rollback, None)?;
+            let publication = &checked.terminal_publication;
+            let accepted = publication.accepted()?;
+            let supply = psi_compiler::AcceptedTerminalSource::build_backing_supply(
+                accepted.source(),
+                inputs.root(),
+                declaration_path,
+            )?;
+            let mut roster = publication.roster()?.clone();
+            if !roster.supplies.contains(&supply) {
+                roster.supplies.push(supply);
+            }
+            let supplied = compilation_products::ProductTerminalPublication::judge(
+                std::sync::Arc::clone(accepted.source()),
+                roster,
+                publication.optimizations().clone(),
+            )?;
+            Ok(supplied
+                .accepted()?
+                .produce_build_provider(inputs.root(), declaration_path)?)
+        })
     }
 
     pub fn complete_package_components<Owner: Send>(
@@ -366,22 +392,12 @@ impl CompilationSession {
         Vec<Diagnostic>,
     > {
         super::run_on_compile_thread(|| {
-            let mut completed = Vec::new();
-            let mut pending = Vec::new();
-            for (position, (owner, build)) in builds.into_iter().enumerate() {
-                let cache = super::component_cache::ComponentProductCache::for_build(&build.source)
-                    .ok()
-                    .flatten();
-                if let Some(cache) = &cache
-                    && let Ok(Some(product)) = cache.load()
-                {
-                    let description = product.description().clone();
-                    self.retain_component_product(product);
-                    completed.push((position, owner, Ok(description)));
-                    continue;
-                }
-                pending.push(((position, owner, cache), build.source));
-            }
+            let mut completed = Vec::with_capacity(builds.len());
+            let pending = builds
+                .into_iter()
+                .enumerate()
+                .map(|(position, (owner, build))| ((position, owner), build.source))
+                .collect();
             let mut requests = Vec::new();
             for (owner, selected) in self.select_build_batch(pending, None) {
                 let request = match selected.result {
@@ -393,14 +409,9 @@ impl CompilationSession {
                 };
                 requests.push((owner, request));
             }
-            for ((position, owner, cache), product) in
-                crate::target_batch::produce_products(requests)
-            {
+            for ((position, owner), product) in crate::target_batch::produce_products(requests) {
                 let description = match product.and_then(crate::CompilationOutput::into_component) {
                     Ok(product) => {
-                        if let Some(cache) = cache {
-                            let _ = cache.store(&product);
-                        }
                         let description = product.description().clone();
                         self.retain_component_product(product);
                         Ok(description)

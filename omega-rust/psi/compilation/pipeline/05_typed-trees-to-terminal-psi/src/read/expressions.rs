@@ -66,6 +66,46 @@ impl<'t> Program<'t> {
             })
     }
 
+    /// The rejection of a value path `Type::name` whose `Type` is a data
+    /// declaration with no member spelled `name`.
+    ///
+    /// data_and_literals.md: "Case values always use their carrier-qualified
+    /// member path", and "Cases, nested data and attached domains share
+    /// their owner's member namespace". A path through a data declaration to
+    /// a name it has no member of names nothing, in any program.
+    fn undeclared_data_member(
+        &self,
+        id: MachineId,
+        path: &TableNamePath,
+        source: SourceOrigin,
+    ) -> Checked<()> {
+        let typed = self.typed;
+        let (Some(symbol), [_, member]) = (
+            path.resolved_symbol(),
+            typed.expression_table.name_path_members(path.members),
+        ) else {
+            return Ok(());
+        };
+        if typed.symbols.get(symbol).kind != symbols::SymbolKind::Data
+            || typed
+                .symbols
+                .find_child_by_name(symbol, member.as_str())
+                .is_some()
+        {
+            return Ok(());
+        }
+        Err(reject(
+            id,
+            source,
+            format!(
+                "data `{}` has no member `{}`: a case value is written by its \
+                 carrier-qualified path, and this path names nothing the type declares",
+                typed.symbols.display_path(symbol, "::"),
+                member.as_str()
+            ),
+        ))
+    }
+
     pub(super) fn node(
         &self,
         id: MachineId,
@@ -106,6 +146,7 @@ impl<'t> Program<'t> {
                 (ExpressionKind::Boolean(*value), ScalarType::Boolean)
             }
             ExpressionNode::Name(path) => {
+                self.undeclared_data_member(id, path, source)?;
                 let slot = self.slot_of(id, slots, path)?;
                 let bound = &slots[slot];
                 match bound.value_type {
@@ -157,6 +198,7 @@ impl<'t> Program<'t> {
                 (ExpressionKind::Boolean(*value), ScalarType::Boolean)
             }
             ExpressionNode::Name(path) => {
+                self.undeclared_data_member(id, path, source)?;
                 let slot = self.slot_of(id, slots, path)?;
                 // The deleted checker rejected this program ("erased
                 // parameter ... has no runtime value"); this route does not
@@ -176,21 +218,7 @@ impl<'t> Program<'t> {
                     result: Some(slots[slot].value_type),
                     source,
                 };
-                // A reference context transports the permission descriptor.
-                // An ordinary value context observes its exact referent.
-                if !expected.is_some_and(|value| matches!(value,
-                    ValueType::Record(row, _, _) if matches!(self.records.get(row).map(|row| &row.shape),
-                        Some(crate::StorageShape::Reference { .. }))))
-                    && let Some((referent, _)) = self.reference_referent(id, slots[slot].value_type)?
-                {
-                    return Ok(Expression {
-                        call_context: None,
-                        kind: ExpressionKind::Referent(Box::new(value)),
-                        result: Some(referent),
-                        source,
-                    });
-                }
-                return Ok(value);
+                return self.observed(id, value, expected);
             }
             ExpressionNode::Unary(unary) => {
                 let operand = self.expression(id, slots, unary.operand, expected)?;
@@ -281,29 +309,74 @@ impl<'t> Program<'t> {
                 {
                     return self.case_test(id, slots, binary.left, case, source);
                 }
+                // A quoted literal is a byte view whatever its partner is
+                // (data_and_literals.md, "Quoted bytes"), so it is read
+                // with no scalar expected: which operator two such operands
+                // select is decided below, not where the literal lands.
+                let quoted = (
+                    matches!(self.node(id, binary.left)?, ExpressionNode::String(_)),
+                    matches!(self.node(id, binary.right)?, ExpressionNode::String(_)),
+                );
+                let operand = |quoted: bool, hint: Option<ScalarType>| {
+                    hint.filter(|_| !quoted).map(ValueType::plain)
+                };
                 let (left, right) = if self.wholly_anonymous(binary.left) {
                     let right =
-                        self.expression(id, slots, binary.right, hint.map(ValueType::plain))?;
+                        self.expression(id, slots, binary.right, operand(quoted.1, hint))?;
                     let partner = right.result.and_then(ValueType::scalar);
                     let left = self.expression(
                         id,
                         slots,
                         binary.left,
-                        hint.or(partner).map(ValueType::plain),
+                        operand(quoted.0, hint.or(partner)),
                     )?;
                     (left, right)
                 } else {
-                    let left =
-                        self.expression(id, slots, binary.left, hint.map(ValueType::plain))?;
+                    let left = self.expression(id, slots, binary.left, operand(quoted.0, hint))?;
                     let partner = left.result.and_then(ValueType::scalar);
                     let right = self.expression(
                         id,
                         slots,
                         binary.right,
-                        hint.or(partner).map(ValueType::plain),
+                        operand(quoted.1, hint.or(partner)),
                     )?;
                     (left, right)
                 };
+                // conformances.md, "Core equality acquisition": text is
+                // "compared by byte content". Two unqualified byte views
+                // compare by the bytes they hold; `!=` is that comparison
+                // negated (structural_predicates.md, "Byte-sequence equality
+                // compares live lengths and live byte prefixes").
+                if suffix.is_none()
+                    && matches!(
+                        binary.operator,
+                        BinaryOperator::Equal | BinaryOperator::NotEqual
+                    )
+                    && self.is_plain_readable_bytes(id, left.result)?
+                    && self.is_plain_readable_bytes(id, right.result)?
+                {
+                    let boolean = Some(ValueType::plain(ScalarType::Boolean));
+                    let equal = Expression {
+                        call_context: None,
+                        kind: ExpressionKind::Strict {
+                            operation: Strict::Equal,
+                            left: Box::new(left),
+                            right: Box::new(right),
+                        },
+                        result: boolean,
+                        source,
+                    };
+                    return Ok(if binary.operator == BinaryOperator::NotEqual {
+                        Expression {
+                            call_context: None,
+                            kind: ExpressionKind::Not(Box::new(equal)),
+                            result: boolean,
+                            source,
+                        }
+                    } else {
+                        equal
+                    });
+                }
                 let anonymous = (
                     self.wholly_anonymous(binary.left),
                     self.wholly_anonymous(binary.right),
@@ -386,7 +459,10 @@ impl<'t> Program<'t> {
             ExpressionNode::Indexed(indexed) => {
                 return self.indexed(id, slots, indexed, handle, expected);
             }
-            ExpressionNode::Member(member) => return self.member(id, slots, member, source),
+            ExpressionNode::Member(member) => {
+                let value = self.member(id, slots, member, source)?;
+                return self.observed(id, value, expected);
+            }
             ExpressionNode::Borrow(_) => {
                 let Some(expected) = expected else {
                     return unserved("reference formation without its retained contextual type");
@@ -407,6 +483,58 @@ impl<'t> Program<'t> {
             result: Some(ValueType::Scalar(result, Qualification::NONE)),
             source,
         })
+    }
+
+    /// A place that holds a reference, as the context that names it sees it.
+    /// A reference context transports the permission descriptor; an ordinary
+    /// value context observes its exact referent, so the path crosses the
+    /// descriptor there (structural_access.md: "the explicit `Referent` path
+    /// segment crosses the borrowed boundary"). The rule is the place's
+    /// type's, not the place's kind's: a local that holds a reference and a
+    /// record field that holds one (`carrier.cell.value`) cross alike.
+    pub(super) fn observed(
+        &mut self,
+        id: MachineId,
+        value: Expression,
+        expected: Option<ValueType>,
+    ) -> Checked<Expression> {
+        if let Some(expected) = expected
+            && self.reference_referent(id, expected)?.is_some()
+        {
+            return Ok(value);
+        }
+        let Some(held) = value.result else {
+            return Ok(value);
+        };
+        let Some((referent, _)) = self.reference_referent(id, held)? else {
+            return Ok(value);
+        };
+        Ok(Expression {
+            call_context: None,
+            source: value.source,
+            kind: ExpressionKind::Referent(Box::new(value)),
+            result: Some(referent),
+        })
+    }
+
+    /// The place a projected assignment target names. A member that holds a
+    /// reference is that descriptor's own place here, not its referent's:
+    /// the receiver before it is still read as a value, so
+    /// `configuration.builder.subsystem` crosses `builder`, and
+    /// `configuration.builder` does not.
+    pub(super) fn assigned_place(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        target: ExpressionHandle,
+    ) -> Checked<Expression> {
+        match self.node(id, target)? {
+            ExpressionNode::Member(member) => {
+                let source = SourceOrigin::of(self.typed.expression_table.source_span(target));
+                self.member(id, slots, member, source)
+            }
+            _ => self.expression(id, slots, target, None),
+        }
     }
 
     /// Value-position `match` over a sum with scalar arms. The subject must
@@ -585,7 +713,19 @@ impl<'t> Program<'t> {
         result: &mut Option<ValueType>,
     ) -> Checked<Expression> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
-        let value = self.expression(id, slots, value, *result)?;
+        // An earlier arm that produces no value supplies no expected type
+        // for a later, returning arm. Its own expression remains unchanged.
+        let expected = result.filter(|value_type| !self.type_excludes_values(*value_type));
+        let value = self.expression(id, slots, value, expected)?;
+        if value
+            .result
+            .is_some_and(|value_type| self.type_excludes_values(value_type))
+        {
+            if result.is_none() {
+                *result = value.result;
+            }
+            return Ok(value);
+        }
         let value_type = match value.result {
             Some(
                 value_type @ (ValueType::Scalar(_, Qualification::NONE)
@@ -599,7 +739,9 @@ impl<'t> Program<'t> {
             }
             None => return Err(unserved("match with a Unit arm")),
         };
-        if result.is_some_and(|result| result != value_type) {
+        if result.is_some_and(|result| {
+            !self.type_excludes_values(result) && !self.agrees(Some(value_type), result)
+        }) {
             return Err(self.mistyped(
                 id,
                 value.source,

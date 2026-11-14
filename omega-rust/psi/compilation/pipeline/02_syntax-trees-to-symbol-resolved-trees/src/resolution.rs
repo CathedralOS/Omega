@@ -1941,8 +1941,8 @@ pub use continuations::{
 };
 use diagnostics::Diagnostic;
 use lowerer::{ConstResolutionMode, Lowerer};
-use lowering::machine::mark_token_bound_domain_homes;
 use lowering::machine::reject_duplicate_direct_token_bindings;
+use lowering::machine::resolve_token_bound_domain_homes;
 use lowering::mathematical::lower_mathematical_definitions;
 use preparation::generic_data::const_destination_requires_proof;
 use preparation::generic_data::domain_heads::normalize;
@@ -2579,7 +2579,7 @@ fn settle_resolution(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(), 
     .map_err(|diagnostic| vec![diagnostic])?;
     body_completion::complete_initializer_receipt_dependencies(lowerer, syntax)?;
     crate::symbols::reject_unqualified_case_values(&lowerer.symbol_resolved_trees)?;
-    mark_token_bound_domain_homes(&mut lowerer.symbol_resolved_trees);
+    resolve_token_bound_domain_homes(&mut lowerer.symbol_resolved_trees);
     constant::finalize(lowerer)?;
     selection::finalize_authored_selections(lowerer)?;
     let expressions = lowerer

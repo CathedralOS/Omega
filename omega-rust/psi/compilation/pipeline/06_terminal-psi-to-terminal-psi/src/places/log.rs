@@ -501,6 +501,8 @@ impl Storage<'_> {
                 // Payload writes are tracked by descriptor backing analysis.
                 // The descriptor itself retains its extent and initialization.
             }
+            // A comparison observes both views and stores nothing.
+            OperationKind::ByteSequenceEqual { .. } => self.compared_byte_views(operation)?,
             // The operations that only observe storage.
             OperationKind::PrimitiveScalarRead { .. }
             | OperationKind::ByteSequenceLength { .. }

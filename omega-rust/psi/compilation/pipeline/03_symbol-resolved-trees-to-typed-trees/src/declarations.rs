@@ -699,7 +699,7 @@ pub(crate) mod machine {
             contracts: typed_machine.contracts,
             spelling: Some(spelling),
             token_count: 0,
-            home_domain: attached_domain_symbol(lowerer, typed_machine),
+            home_domain: machine.operator_home_domain,
         };
         let leaf = machine
             .name
@@ -717,27 +717,6 @@ pub(crate) mod machine {
             .typed_trees
             .push_operator_path_member(&mut view, typed::name::Identifier::generated(&leaf));
         Ok(Some(view))
-    }
-
-    fn attached_domain_symbol(
-        lowerer: &Lowerer,
-        typed_machine: &typed::machine::Machine,
-    ) -> SymbolHandle {
-        if typed_machine.attached_data_symbol.is_valid() {
-            return SymbolHandle::invalid();
-        }
-        let Some(attached) = typed_machine.attached_data.as_ref() else {
-            return SymbolHandle::invalid();
-        };
-        let mut matches = lowerer
-            .typed_trees
-            .domain_definitions()
-            .iter()
-            .filter(|domain| domain.name.as_str() == attached.as_str());
-        match (matches.next(), matches.next()) {
-            (Some(domain), None) => domain.symbol,
-            _ => SymbolHandle::invalid(),
-        }
     }
 
     fn retain_attached_data_type_reference(lowerer: &mut Lowerer, symbol: SymbolHandle) {

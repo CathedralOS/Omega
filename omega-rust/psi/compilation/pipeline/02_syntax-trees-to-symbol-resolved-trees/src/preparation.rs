@@ -1841,6 +1841,8 @@ pub(crate) mod declaration_selection {
         }
     }
 }
+#[path = "preparation_builtin_type_names.rs"]
+mod builtin_type_names;
 #[path = "preparation_callable_types.rs"]
 mod callable_types;
 #[path = "preparation_generic_data.rs"]
@@ -5448,6 +5450,7 @@ pub(crate) fn prepare(
     constants: crate::resolution::lowerer::ConstResolutionMode,
     base: Option<Arc<symbol_resolved_trees::SymbolResolvedTrees>>,
 ) -> Result<Prepared, Vec<Diagnostic>> {
+    builtin_type_names::validate(&syntax)?;
     target_families::normalize(&mut syntax, sources.as_deref())?;
     let constant_selection = declaration_selection::ConstantSelection::with_shared_base(
         &syntax,
@@ -5465,7 +5468,7 @@ pub(crate) fn prepare(
     if constants == crate::resolution::lowerer::ConstResolutionMode::Complete {
         generic_data::fold_closed_scalar_initializers(&mut syntax, &constant_selection)?;
     }
-    integer_widths::normalize(&mut syntax, &constant_selection)?;
+    integer_widths::normalize(&mut syntax)?;
     validate_with_const_resolution_mode(&syntax, &constant_selection, constants)?;
     synthesize_trait_defaults_after_module_validation(&mut syntax, &constant_selection)?;
     Ok(Prepared {

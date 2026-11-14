@@ -93,6 +93,7 @@ use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
 /// structural paths name each field by.
 pub(crate) struct Records<'a> {
     types: &'a IdTable<StructuralTypeId, RecordType>,
+    pub(crate) inhabitation: terminal_semantics::inhabitation::Inhabitation,
     /// Scalar homes retain their exact type identity and qualification. An
     /// array element of the same scalar width need not be the same home type.
     primitives: Vec<(ValueType, String, StructuralTypeId)>,
@@ -446,6 +447,16 @@ pub(crate) fn declare<'a>(
     Ok(Declared {
         records: Records {
             types,
+            inhabitation: terminal_semantics::inhabitation::Inhabitation::prepare(
+                &crate::inhabitation::SourceContracts(types),
+            )
+            .map_err(|_| {
+                refuse(
+                    entry,
+                    Construct::Machine,
+                    Unserved::Type("incomplete declared type contracts for emptiness"),
+                )
+            })?,
             primitives,
             field_identities,
             payload_identities,
@@ -2541,6 +2552,75 @@ impl<'a> Lowering<'a> {
                     access: StructuralAccess::SharedBorrow,
                 },
             },
+        )
+        .map(Reached::Value)
+    }
+
+    /// `left == right` on two borrowed byte views. Each operand is located
+    /// in source order, then each is measured, then the two are compared:
+    /// the comparison names each measurement as the length of its operand
+    /// (byte_views.md, "The operand retains its own dominating length
+    /// observation, readable access, and establishment").
+    pub(super) fn byte_equal(
+        &mut self,
+        left: &Expression,
+        right: &Expression,
+        source: SourceOrigin,
+    ) -> Evaluation<Value> {
+        let left = continuing!(self.located(left));
+        let right = continuing!(self.located(right));
+        let count = ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .expect("u64 is valid"),
+        );
+        let mut operands = Vec::with_capacity(2);
+        for at in [left, right] {
+            if !matches!(
+                self.record_type(at.record)?.shape,
+                StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
+                })
+            ) {
+                return Err(self.internal("a byte comparison has no byte descriptor"));
+            }
+            // The comparison names a whole view root, as a byte read does.
+            if !at.path.is_empty() {
+                return Err(refuse(
+                    self.id,
+                    Construct::Machine,
+                    Unserved::Expression("comparison of a view stored in a field"),
+                ));
+            }
+            self.name_contents(at.place, ValueType::record(at.record))?;
+            self.project(at.place, Segment::Extent)?;
+            let view = StructuralArgument {
+                place: at.root,
+                path: Vec::new(),
+                access: StructuralAccess::SharedBorrow,
+            };
+            let measurement = self.operation_identity(source);
+            let Value::Scalar(length) = self.emit(
+                measurement,
+                Some(count),
+                OperationKind::ByteSequenceLength {
+                    source: view.clone(),
+                },
+            )?
+            else {
+                return Err(self.internal("a length observation produced no scalar"));
+            };
+            operands.push(terminal_psi::control_flow::ByteSequenceOperand::Whole {
+                source: view,
+                length,
+            });
+        }
+        let right = operands.pop().expect("two operands");
+        let left = operands.pop().expect("two operands");
+        let operation = self.operation_identity(source);
+        self.emit(
+            operation,
+            Some(ScalarType::Boolean),
+            OperationKind::ByteSequenceEqual { left, right },
         )
         .map(Reached::Value)
     }

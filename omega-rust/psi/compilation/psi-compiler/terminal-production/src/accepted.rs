@@ -318,6 +318,97 @@ impl AcceptedTerminalSource {
         Ok(declared)
     }
 
+    /// The supply a Build names as the backing of a provider readiness
+    /// request: `declaration_path` is a public implementation of `package`,
+    /// and the supply is that implementation for the boundary trait it
+    /// implements. provider_selection.md, "Build provider readiness": the
+    /// backing is an exact named implementation of the awaited requirement
+    /// in the registered dependency. Nothing is judged here; a source judged
+    /// with this supply in its roster holds the provider's machines
+    /// (`produce_build_provider`).
+    pub fn build_backing_supply(
+        source: &FrozenTypedTrees,
+        package: semantic_vocabulary::PackageKeyIdentity,
+        declaration_path: &str,
+    ) -> Result<typed_trees_to_terminal_psi::Supply, Vec<Diagnostic>> {
+        let selected = build_backing(source, package, declaration_path)?;
+        Ok(typed_trees_to_terminal_psi::Supply {
+            slot: selected.trait_symbol,
+            provider: selected.symbol,
+        })
+    }
+
+    /// Publishes this accepted source as the provider `declaration_path`
+    /// of `package` for a Build host to install. The source must have been
+    /// judged with the backing's supply (`build_backing_supply`), so the
+    /// module holds a machine for each requirement the implementation
+    /// supplies and states it as a provider candidate. The identities are
+    /// the ones the awaiting Build's own module states for the same
+    /// declarations: the implementation and its trait by exact owner, and
+    /// the trait's application.
+    pub fn produce_build_provider(
+        &self,
+        package: semantic_vocabulary::PackageKeyIdentity,
+        declaration_path: &str,
+    ) -> Result<crate::ProducedBuildProvider, Vec<Diagnostic>> {
+        let refuse = |reason: &str| vec![Diagnostic::error(reason)];
+        let source = &*self.source;
+        let selected = build_backing(source, package, declaration_path)?;
+        let scope =
+            typed_trees::trait_definition::AppliedTraitScope::from_conformance(source, selected)
+                .ok_or_else(|| {
+                    refuse("Build backing has no complete checked requirement application")
+                })?;
+        let sources =
+            source::source_identity::toolchain_source_identities(source.symbols.source_files())
+                .map_err(|_| {
+                    refuse("Build backing has a toolchain source with no exact identity")
+                })?;
+        let nominal = |symbol| {
+            source
+                .exact_owner_nominal_identity(symbol, &sources)
+                .and_then(|identity| source.type_identity_text(identity))
+                .filter(|text| !text.is_empty())
+                .ok_or_else(|| refuse("Build provider declaration lost its exact portable owner"))
+        };
+        let declaration = nominal(selected.symbol)?;
+        let requirement = nominal(scope.declaration.symbol)?;
+        let application = scope
+            .portable_application_identity(source)
+            .and_then(|identity| source.type_identity_text(identity))
+            .filter(|text| !text.is_empty())
+            .ok_or_else(|| {
+                refuse("Build backing requirement application is not closed and portable")
+            })?;
+        let supplied = self
+            .supplied_requirements()
+            .iter()
+            .any(|row| row.provider == selected.symbol);
+        if !supplied && !selected.rows.is_empty() {
+            return Err(refuse(
+                "Build backing was not judged as a supply of its dependency's source",
+            ));
+        }
+        let code = if supplied {
+            let publication = self.closure.publish().map_err(|error| {
+                vec![Diagnostic::error(format!(
+                    "Build provider publication: {error:?}"
+                ))]
+            })?;
+            Some(Arc::new(publication.artifact))
+        } else {
+            None
+        };
+        Ok(crate::ProducedBuildProvider::new(
+            code,
+            declaration_path.to_owned(),
+            package,
+            declaration,
+            requirement,
+            application,
+        ))
+    }
+
     /// The machine of this module each chosen provider gives each
     /// requirement of the slot it supplies.
     pub fn supplied_requirements(&self) -> &[typed_trees_to_terminal_psi::SuppliedRequirement] {
@@ -485,6 +576,42 @@ fn route_defect(detail: &str) -> Diagnostic {
     Diagnostic::error(format!(
         "not supported yet: the checker could not judge this program ({detail}); this is a defect of the checker, and the program is refused rather than accepted without a verdict"
     ))
+}
+
+/// The one public implementation of `package` that a Build backing path
+/// names: a closed implementation of a boundary trait.
+fn build_backing<'source>(
+    source: &'source FrozenTypedTrees,
+    package: semantic_vocabulary::PackageKeyIdentity,
+    declaration_path: &str,
+) -> Result<&'source typed_trees::trait_definition::Conformance, Vec<Diagnostic>> {
+    let refuse = |reason: &str| vec![Diagnostic::error(reason)];
+    let mut candidates = source.conformances().iter().filter(|conformance| {
+        conformance.is_public
+            && source
+                .symbols
+                .symbol_product_package_identity(conformance.symbol)
+                == Some(package)
+            && source.symbols.display_path(conformance.symbol, "::") == declaration_path
+    });
+    let selected = candidates.next().ok_or_else(|| {
+        refuse("Build backing names no public implementation in its exact dependency package")
+    })?;
+    if candidates.next().is_some() {
+        return Err(refuse(
+            "Build backing declaration is ambiguous in its dependency package",
+        ));
+    }
+    let boundary = source
+        .trait_definition_by_symbol(selected.trait_symbol)
+        .is_some_and(|declaration| declaration.is_boundary);
+    if !boundary || !selected.type_parameters.is_empty() || !selected.lifetime_parameters.is_empty()
+    {
+        return Err(refuse(
+            "Build backing must name a closed implementation of a boundary requirement",
+        ));
+    }
+    Ok(selected)
 }
 
 #[cfg(test)]
