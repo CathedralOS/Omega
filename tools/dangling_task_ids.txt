@@ -1,5 +1,5 @@
 # Task IDs cited by samples/cli/facts READMEs that no board holds.
-# Written by `python tools/check_rules.py --update-dangling-task-ids`.
+# Written by `cargo xtask check-rules --update-dangling-task-ids`.
 # Entries may only be removed: repoint a citation to its current board
 # item, or delete it when the work is done.
 samples/cli/facts/abstract_signature_call/README.md CHECKED-PACKAGE-REUSE

@@ -427,7 +427,7 @@ fn cloud_session(claude_remote: Option<&str>, codex_environment: Option<&str>) -
 /// the first build takes as long as a cold one (about 11 minutes on 4 CPUs
 /// against under a minute). So in a cloud session a slot holding a restored
 /// build starts at that build's commit, and the worker rebases onto main only
-/// when the task needs something newer; the merge queue integrates the rest.
+/// when the task needs something newer; the squash merge integrates the rest.
 ///
 /// The SessionStart hook creates `worker-1` at that commit. Once the slot has
 /// moved (released to main, or checked out elsewhere), its `target/` holds a
