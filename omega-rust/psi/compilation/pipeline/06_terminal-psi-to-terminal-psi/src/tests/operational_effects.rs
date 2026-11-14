@@ -17,7 +17,16 @@ machine main() crashes Trap {
 "#;
 
 fn invocation(text: &str) -> Checked<typed_trees_to_terminal_psi::Elaboration> {
-    let typed = boundary_calls::typed(text);
+    elaborate(
+        boundary_calls::typed(text),
+        terminal_codec::TerminalPublication::Invocation,
+    )
+}
+
+fn elaborate(
+    typed: typed_trees::TypedTrees,
+    publication: terminal_codec::TerminalPublication,
+) -> Checked<typed_trees_to_terminal_psi::Elaboration> {
     let entry = typed
         .machines()
         .iter()
@@ -36,7 +45,7 @@ fn invocation(text: &str) -> Checked<typed_trees_to_terminal_psi::Elaboration> {
             bindings: &[],
             supplies: &[],
         },
-        terminal_codec::TerminalPublication::Invocation,
+        publication,
     )
 }
 
@@ -330,4 +339,27 @@ fn a_tail_call_keeps_its_conservative_service_interface_too() {
         RouteVerdict::Rejected { exceeded, .. } => assert!(!exceeded.is_empty()),
         _ => panic!("tail jump must preserve the callee's service contract"),
     }
+}
+
+#[test]
+fn canonical_roundtrip_keeps_bounds_and_source_acknowledgements() {
+    let typed = super::build_purpose::frontier_of(BLOCKING, "machine build_entry() {}");
+    let RouteVerdict::Accepted(accepted) = judge(elaborate(
+        typed,
+        terminal_codec::TerminalPublication::Portable,
+    ))
+    .unwrap() else {
+        panic!("portable source must be accepted");
+    };
+    let module = &accepted.elaboration.module;
+    let bytes = terminal_codec::encode_module(module).unwrap();
+    let decoded = terminal_codec::decode_module(&bytes).unwrap();
+    assert_eq!(&decoded, module);
+    assert!(decoded.machines[0].published_may_block);
+    assert!(
+        decoded.machines[0]
+            .call_formations
+            .iter()
+            .any(|row| row.acknowledgement.acknowledges_block)
+    );
 }

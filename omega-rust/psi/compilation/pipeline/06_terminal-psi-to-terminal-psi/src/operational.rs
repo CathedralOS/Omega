@@ -100,7 +100,7 @@ fn calls(elaboration: &Elaboration, machine: &TerminalMachine) -> Checked<Vec<Ca
                 .map(|position| blocks[position])
                 .ok_or_else(|| malformed("tail call names an unavailable loop head"))?;
             // Frame reuse currently carries scalar formals only. The block's
-            // telescope and the retained callable must describe that same
+            // parameter list and the retained callable must describe that same
             // arrival; ordinary arrival checking proves its predicates.
             if !structural_arguments.is_empty()
                 || !erased_arguments.is_empty()

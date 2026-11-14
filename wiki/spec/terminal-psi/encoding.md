@@ -942,7 +942,7 @@ after its block-entry claims. A site is tag 0 and an operation identity, or tag
 1 compiler-generated), suspend and block flags, whether the original call has a
 legal suspension position, and an optional tail-callee machine identity. The
 callee is present only for a source call whose frame reuse became a jump; its
-loop head carries the callable's formal telescope. Other calls name their
+loop head carries the callable's parameter list. Other calls name their
 callee on their operation or terminator. Missing acknowledgement metadata means
 no source markers. Duplicate sites or a site naming no call reject.
 

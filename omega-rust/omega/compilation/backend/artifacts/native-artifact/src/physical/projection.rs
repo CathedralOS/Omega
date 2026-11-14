@@ -327,7 +327,6 @@ mod tests {
                 structural_parameters: Vec::new(),
                 result: AbstractFunctionResult::Unit,
                 entry_claims: Vec::new(),
-                call_formations: Vec::new(),
                 block_entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![AbstractBlockEntry {

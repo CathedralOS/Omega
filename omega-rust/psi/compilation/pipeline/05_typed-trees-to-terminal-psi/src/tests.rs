@@ -149,6 +149,7 @@ fn scalars(types: Vec<ScalarType>) -> Vec<ValueType> {
 /// A machine that may return and publishes no crash route.
 fn returns_normally() -> Outcome {
     Outcome {
+        operational: [false; 2],
         completes_normally: true,
         service_reach: Vec::new(),
         synchronous_entries: Vec::new(),
@@ -879,6 +880,7 @@ fn a_call_with_no_normal_completion_is_a_no_successor_crash_site() {
         vec![
             returns_normally(),
             Outcome {
+                operational: [false; 2],
                 completes_normally: false,
                 service_reach: Vec::new(),
                 synchronous_entries: Vec::new(),
@@ -999,12 +1001,14 @@ fn a_call_that_may_return_or_crash_owes_coverage_at_its_operation() {
         ],
         vec![
             Outcome {
+                operational: [false; 2],
                 completes_normally: true,
                 service_reach: Vec::new(),
                 synchronous_entries: Vec::new(),
                 crash_routes: routes(&[CrashCause::Trap, CrashCause::Abort]),
             },
             Outcome {
+                operational: [false; 2],
                 completes_normally: true,
                 service_reach: Vec::new(),
                 synchronous_entries: Vec::new(),
@@ -1390,6 +1394,7 @@ fn authored(start: usize) -> SourceOrigin {
 
 fn never_returns() -> Outcome {
     Outcome {
+        operational: [false; 2],
         completes_normally: false,
         ..returns_normally()
     }
@@ -1658,6 +1663,7 @@ fn outcomes_follow_the_ceiling_or_the_body() {
     assert_eq!(
         callee_outcome,
         Outcome {
+            operational: [false; 2],
             completes_normally: false,
             service_reach: Vec::new(),
             synchronous_entries: Vec::new(),
@@ -1718,6 +1724,7 @@ fn a_body_that_declares_crashes_none_publishes_no_route() {
     // Reaching a crash, by its own statement or through the callee, the body
     // never completes normally and still publishes nothing.
     let never_returns = Outcome {
+        operational: [false; 2],
         completes_normally: false,
         service_reach: Vec::new(),
         synchronous_entries: Vec::new(),
@@ -1779,6 +1786,7 @@ fn a_skipped_operand_cannot_end_the_machine() {
     assert_eq!(
         table.get(id(1)).unwrap(),
         &Outcome {
+            operational: [false; 2],
             completes_normally: true,
             service_reach: Vec::new(),
             synchronous_entries: Vec::new(),
