@@ -1147,8 +1147,29 @@ pub(crate) mod tests {
             .expect("a private implementation postcondition is not a public promise");
         assert!(refusal.contains("ensures"), "{refusal}");
 
-        let entry = prepared.entry(requester, requester, &[]).unwrap();
-        let module = entry.accepted().module();
+        // The temporary actual-argument probe deliberately has no portable
+        // identity. Publish the same authored, packaged request closure through
+        // the ordinary source route; never relabel invocation code as portable.
+        let (portable_source, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+            source,
+            &typed_trees_to_typed_trees::PreparationRequest::settled(),
+        )
+        .unwrap();
+        let accepted = psi_terminal_production::AcceptedTerminalSource::judge(
+            Arc::new(portable_source),
+            psi_terminal_production::TerminalSourceCompilation {
+                declaration_metadata: &[],
+                entries: &[requester],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Portable,
+        )
+        .unwrap();
+        let module = accepted.module();
         let calls = module
             .machines
             .iter()
