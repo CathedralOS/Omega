@@ -44,6 +44,7 @@ mod machine_lifetimes;
 mod mathematical_clauses;
 mod mutable_formals;
 mod owned_dispatch;
+mod owned_match_results;
 mod proof_scope;
 mod provider_supplies;
 mod ranges;
