@@ -172,12 +172,11 @@ fn an_empty_input_can_be_syntactically_returned_without_creating_a_normal_value(
     );
 }
 
-#[test]
-fn a_bare_empty_input_needs_no_call_to_occupy_a_scalar_result_position() {
-    let accepted = accepted(
-        "public data Empty requires false {} \
-         machine main(value: Empty) -> u32 { value }",
-    );
+fn bare_empty_value(guarantee: &str) -> Box<crate::verdict::AcceptedClosure> {
+    let accepted = accepted(&format!(
+        "public data Empty requires false {{}} \
+         machine main(value: Empty) -> u32 {guarantee} {{ value }}",
+    ));
     let module = &accepted.elaboration.module;
     let [machine] = module.machines.as_slice() else {
         panic!("the actual body has no synthetic helper");
@@ -203,6 +202,50 @@ fn a_bare_empty_input_needs_no_call_to_occupy_a_scalar_result_position() {
             .expect("the bare empty expression must survive receiving admission");
     assert_eq!(received.semantic_bytes(), closed.semantic_bytes());
     assert_eq!(received.identity(), closed.identity());
+    accepted
+}
+
+#[test]
+fn a_bare_empty_input_needs_no_call_to_occupy_a_scalar_result_position() {
+    bare_empty_value("");
+}
+
+#[test]
+fn a_bare_empty_input_still_establishes_its_scalar_result_guarantee() {
+    bare_empty_value("ensures result == 7u32");
+}
+
+#[test]
+fn receiving_rejects_the_same_structural_return_when_its_type_is_inhabited() {
+    let accepted = bare_empty_value("");
+    let mut forged = accepted.elaboration.module.clone();
+    let [machine] = forged.machines.as_slice() else {
+        panic!("the actual bare-value program has one machine");
+    };
+    let parameter = machine.structural_parameters[0].structural_type;
+    let declaration = forged
+        .structural_types
+        .iter_mut()
+        .find(|declaration| declaration.id == parameter)
+        .unwrap();
+    let [predicate] = declaration.requires.as_mut_slice() else {
+        panic!("the actual input type has one false default-domain clause");
+    };
+    assert_eq!(*predicate, Proposition::Falsehood);
+    // Change only the actual type contract. The same owned structural return
+    // can no longer use empty-value compatibility under the u32 header.
+    *predicate = Proposition::Truth;
+    let closed = terminal_codec::ClosedTerminalModule::new(forged)
+        .expect("the single semantic mutation remains encodable");
+    let received =
+        terminal_codec::ClosedTerminalModule::from_semantic_bytes(closed.semantic_bytes());
+    assert!(
+        matches!(
+            received,
+            Err(terminal_codec::CodecError::MalformedStructuralFoundation(_))
+        ),
+        "the inhabited structural result must fail receiving type validation",
+    );
 }
 
 fn type_refusal(text: &str) {
