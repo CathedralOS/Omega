@@ -43,7 +43,7 @@ DELTA_COMPILER_SUPPORT_PACKED_SHA256=cfdf07cf8010eba2fd7da47e6936ea1e237f637f4de
 # development compiler is a diagnostic subject, not a second canonical
 # compiler. The identical pins in
 # tests/delta/staged-compiler/{README.md,run.sh} and
-# tests/bootstrap/source-closure.py are records of this one subject, not
+# tools/xtask/src/source_closure.rs are records of this one subject, not
 # independent identities. A digest here is an identity check on the entry
 # bytes; it is not a proof of the staged pipeline. Changing the driver changes
 # the packed development compiler and must update every record together.

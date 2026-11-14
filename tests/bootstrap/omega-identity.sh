@@ -193,7 +193,7 @@ echo "Omega program: actual source identity passes and a one-byte change refuses
 for record in \
   tests/bootstrap/omega-parser/gate.py \
   tests/bootstrap/gate_lib.py \
-  tests/bootstrap/source-closure.py \
+  tools/xtask/src/source_closure.rs \
   tests/epsilon/d-composition/customers.py
 do
   for needle in "$OMEGA_COMPILER_PACKED_SIZE" "$OMEGA_COMPILER_PACKED_SHA256"

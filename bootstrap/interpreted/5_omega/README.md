@@ -292,9 +292,7 @@ This reconstructs the source Gamma compiler and its successor evaluators before
 running the manifested bootstrap compiler and executing its emitted artifacts.
 It does not use Python to supply language semantics. Python frames and checks
 bytes; the native Alpha seed and documented source/tape admission remain trust
-inputs. The development comparator can also run these controls with
-`python3 bootstrap/compiled_vm/test.py --omega-values` and retains its separately
-disclosed Python semantic dependency.
+inputs.
 
 The scalar failure paths also record the canonical OCOUT outcome tuple
 (outcome tag, coordinate space, code, coordinate, canonical ordinals, limit,

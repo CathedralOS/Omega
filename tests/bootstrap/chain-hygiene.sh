@@ -20,8 +20,8 @@ command -v python3 >/dev/null 2>&1 || {
   exit 0
 }
 [ -x "$OMEGA_XTASK_BIN" ] || {
-  echo "bootstrap owner inventory: skipped (xtask binary absent)"
-  exit 0
+  echo "bootstrap owner inventory: xtask binary is not executable at $OMEGA_XTASK_BIN" >&2
+  exit 1
 }
 
 FIXTURE_PARENT=$(mktemp -d)

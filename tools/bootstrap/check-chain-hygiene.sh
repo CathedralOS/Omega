@@ -11,8 +11,8 @@ OMEGA_REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd -P)
 
 _xtask_bin=${OMEGA_XTASK_BIN:-"$OMEGA_REPO_ROOT/target/debug/xtask"}
 if [ ! -x "$_xtask_bin" ]; then
-  echo "bootstrap chain topology: skipped (xtask binary absent)"
-  exit 0
+  echo "bootstrap chain topology: xtask binary is not executable at $_xtask_bin" >&2
+  exit 1
 fi
 
 fail() {
@@ -128,10 +128,16 @@ for retired in \
   "$OMEGA_REPO_ROOT/tools/alpha" \
   "$OMEGA_REPO_ROOT/bootstrap/interpreted/0_alpha/checker" \
   "$OMEGA_REPO_ROOT/tests/proof-checker" \
-  "$OMEGA_REPO_ROOT/tools/bootstrap/proof-checker" \
-  "$OMEGA_REPO_ROOT/tools/bootstrap/epsilon/materialize_source_closure.py"
+  "$OMEGA_REPO_ROOT/tools/bootstrap/proof-checker"
 do
   [ ! -e "$retired" ] || fail "retired owner remains: $retired"
+done
+# The retired Epsilon packer name stays rejected. The glob is the whole name,
+# so a checkout that restores the file fails here.
+for retired in "$OMEGA_REPO_ROOT/tools/bootstrap/epsilon"/materialize_source_closure*
+do
+  [ -e "$retired" ] || continue
+  fail "retired owner remains: $retired"
 done
 
 tracked_source_roots=$(owner_roots source)
@@ -218,7 +224,7 @@ expected_compiler_tapes='bootstrap/interpreted/1_beta/beta_compiler_bytecode.tap
 stale_paths=$(grep -RInE \
   --exclude-dir=target --exclude-dir=build \
   --exclude=check-chain-hygiene.sh \
-  'tools/alpha(/|$)|tools/bootstrap/proof-checker(/|$)|bootstrap/interpreted/0_alpha/checker|tests/proof-checker|omega_compiler\.delta|\.alphaasm|alpha_tape_assembler|Alpha Tape Assembly|beta_evaluator|BETAREQ|OMEGA_PATH_ALPHA_TAPE|OMEGA_PATH_BETA_EVALUATOR|tools/bootstrap/epsilon/materialize_source_closure\.py|OMEGA_PATH_EPSILON_COMPILER_SOURCE([^S]|$)' \
+  'tools/alpha(/|$)|tools/bootstrap/proof-checker(/|$)|bootstrap/interpreted/0_alpha/checker|tests/proof-checker|omega_compiler\.delta|\.alphaasm|alpha_tape_assembler|Alpha Tape Assembly|beta_evaluator|BETAREQ|OMEGA_PATH_ALPHA_TAPE|OMEGA_PATH_BETA_EVALUATOR|tools/bootstrap/epsilon/materialize_source_closure|OMEGA_PATH_EPSILON_COMPILER_SOURCE([^S]|$)' \
   "$OMEGA_PATH_BOOTSTRAP" "$OMEGA_REPO_ROOT/source" "$OMEGA_REPO_ROOT/tests" \
   "$OMEGA_REPO_ROOT/tools" "$OMEGA_REPO_ROOT/wiki" \
   "$OMEGA_REPO_ROOT/README.md" "$OMEGA_REPO_ROOT/TASKS_BOOTSTRAP.md" || true)
