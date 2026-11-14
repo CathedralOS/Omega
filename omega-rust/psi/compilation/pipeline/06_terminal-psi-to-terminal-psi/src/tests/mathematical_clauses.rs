@@ -350,6 +350,21 @@ fn rule_coverage_of_a_mathematical_goal_is_read_from_its_form() {
         embedded(1),
         integer(7)
     )));
+    // Shared open terms cancel in the kernel, so both a true comparison and
+    // a false one have a rule. Distinct unknown subjects above still do not.
+    let first = sum(embedded(1), integer(1));
+    let second = sum(embedded(1), integer(2));
+    assert!(crate::has_rules_for(&Proposition::IntegerMathLessThan(
+        first.clone(),
+        second.clone()
+    )));
+    assert!(crate::has_rules_for(&Proposition::IntegerMathLessThan(
+        second.clone(),
+        first.clone()
+    )));
+    assert!(crate::has_rules_for(&Proposition::IntegerMathEqual(
+        first, second
+    )));
 }
 
 #[test]

@@ -43,7 +43,8 @@ use std::cmp::Ordering;
 
 use proof_admission::{
     IntegerAffineWitness, PrimitiveJudgment, ProofNode, ProofRule, check_integer_affine_witness,
-    check_value_equality_denotation, decide_primitive, map_integer_affine_bound,
+    check_value_equality_denotation, compare_integer_math_terms, decide_primitive,
+    map_integer_affine_bound,
 };
 use semantic_vocabulary::{
     IdTable, IntegerCarrier, IntegerMathTerm, IntegerType, IntegerValue, Proposition,
@@ -80,6 +81,16 @@ const CASE_BRANCH_BUDGET: usize = 64;
 /// (`Prover::by_transport`), so a comparison of two such terms is evaluated,
 /// not searched for (`Prover::has_rules_for`).
 fn covered(goal: &Proposition, fixed: &dyn Fn(ValueId) -> bool) -> bool {
+    // The kernel also decides open expressions whose difference is constant.
+    // Both comparison outcomes are covered: an unequal result is a refused
+    // obligation, rather than an unsupported mathematical goal.
+    if let Proposition::IntegerMathEqual(left, right)
+    | Proposition::IntegerMathLessThan(left, right)
+    | Proposition::IntegerMathLessOrEqual(left, right) = goal
+        && matches!(compare_integer_math_terms(left, right), Ok(Some(_)))
+    {
+        return true;
+    }
     match goal {
         Proposition::Truth | Proposition::Falsehood => true,
         Proposition::Conjunction(parts) | Proposition::Disjunction(parts) => {
@@ -426,17 +437,8 @@ impl<'a> Prover<'a> {
         if self.equations.is_empty() {
             return None;
         }
-        self.select_transport_inputs(goal);
+        let target = self.transported_goal(goal)?;
         let inputs = &self.transport.selected;
-        let denotation = |proposition: &Proposition| {
-            check_value_equality_denotation(
-                self.context,
-                proposition,
-                inputs.iter().map(|&index| &self.equations[index].0),
-            )
-            .ok()
-        };
-        let target = denotation(goal)?;
         let premise = if target == Proposition::Truth {
             primitive(Proposition::Truth, PrimitiveJudgment::Truth)
         } else if let Some(fact) = self.facts.iter().find(|fact| fact.proposition == target) {
@@ -478,19 +480,38 @@ impl<'a> Prover<'a> {
         );
     }
 
+    fn transported_goal(&mut self, goal: &Proposition) -> Option<Proposition> {
+        self.select_transport_inputs(goal);
+        check_value_equality_denotation(
+            self.context,
+            goal,
+            self.transport
+                .selected
+                .iter()
+                .map(|&index| &self.equations[index].0),
+        )
+        .ok()
+    }
+
     /// Whether the rules cover `goal`'s form (`covered`) at this prover's
     /// program point: a value one of its equations fixes to a literal is that
     /// literal.
-    pub(crate) fn has_rules_for(&self, goal: &Proposition) -> bool {
-        covered(goal, &|value| {
-            self.equations.iter().any(|(equation, _)| {
-                matches!(
-                    equation,
+    pub(crate) fn has_rules_for(&mut self, goal: &Proposition) -> bool {
+        let fixed = |equations: &[(Proposition, ProofNode)], value| {
+            equations.iter().any(|(equation, _)| {
+                matches!(equation,
                     Proposition::Equal(ScalarTerm::Value { id, .. }, ScalarTerm::Integer { .. })
-                        if *id == value
-                )
+                    if *id == value)
             })
-        })
+        };
+        if covered(goal, &|value| fixed(&self.equations, value)) {
+            return true;
+        }
+        // Use the same exact definitions as certificate construction. A
+        // checked update can expose `entry + 1 == entry + 2`: the kernel can
+        // decide that comparison even though its original result was open.
+        self.transported_goal(goal)
+            .is_some_and(|goal| covered(&goal, &|value| fixed(&self.equations, value)))
     }
 
     fn closed(&self, proposition: Proposition) -> Option<ProofNode> {
