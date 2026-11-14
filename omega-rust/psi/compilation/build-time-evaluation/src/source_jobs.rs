@@ -738,34 +738,57 @@ impl PreparedBuildMachineProgram {
                 "selected source invocation has no retained implementation declaration".into(),
             );
         }
-        if selection.type_reference.is_valid()
-            && !self
-                .source
-                .type_reference_table
-                .contains_type_reference(selection.type_reference)
-        {
-            return Err("selected source invocation has a stale operand reference".into());
+        let mut operands = vec![selection];
+        while let Some(operand) = operands.pop() {
+            if operand.symbol.is_valid()
+                && !self
+                    .source
+                    .symbols
+                    .symbols()
+                    .nodes()
+                    .is_valid(operand.symbol)
+            {
+                return Err("selected source invocation has a stale operand declaration".into());
+            }
+            if operand.type_reference.is_valid()
+                && !self
+                    .source
+                    .type_reference_table
+                    .contains_type_reference(operand.type_reference)
+            {
+                return Err("selected source invocation has a stale operand reference".into());
+            }
+            if let Some(application) = &operand.application {
+                operands.extend(application.arguments.iter());
+            }
         }
         self.source
             .static_operand_region_supplier(selection, selection_owner)?;
-        self.source
-            .declared_static_operand_identity(DeclaredStaticOperandIdentityRequest {
-                operand: IndexIdentityArgument::StaticArgument(selection),
-                lexical_owner: selection_owner,
-                binders: &[],
-                lifetime_binders: &[],
-            })
-            .ok_or("selected source invocation has no complete operand identity")?;
-        let (_, _, signature) = self
+        let identity = |operand| {
+            self.source
+                .declared_static_operand_identity(DeclaredStaticOperandIdentityRequest {
+                    operand: IndexIdentityArgument::StaticArgument(operand),
+                    lexical_owner: selection_owner,
+                    binders: &[],
+                    lifetime_binders: &[],
+                })
+                .ok_or("selected source invocation has no complete operand identity")
+        };
+        let retained = identity(selection)?;
+        let mut explicit = selection.clone();
+        explicit.type_reference = Default::default();
+        if identity(&explicit)? != retained {
+            return Err("selected source invocation changed its complete operand tuple".into());
+        }
+        // This is the requested public declaration only. The probe closes its
+        // exact application and authenticates the supplying row before reading
+        // the actual parameter and result types.
+        let (_, signature) = self
             .source
-            .named_conformance_member(selection.symbol, requirement)?
-            .ok_or("selected source invocation needs a named implementation requirement")?;
-        // The current named-member owner serves a closed, nongeneric map.
-        // Until it serves applied maps, extra arguments cannot be discarded.
+            .trait_machine_signature(requirement)
+            .ok_or("selected source invocation needs a public requirement declaration")?;
         if selection.application.as_ref().is_some_and(|application| {
-            application.member.is_valid()
-                || !application.arguments.is_empty()
-                || !application.lifetime_arguments.is_empty()
+            application.member.is_valid() || !application.lifetime_arguments.is_empty()
         }) || selection.const_literal.is_some()
             || selection.evidence_projection.is_some()
         {
@@ -1083,6 +1106,162 @@ pub(crate) mod tests {
             };
             assert!(error.contains("requires"), "{error}");
         }
+    }
+
+    #[test]
+    fn selected_entries_close_the_original_map_tuple_and_public_signature() {
+        // The trait's semantic argument follows the complete map application,
+        // including a binder unused by its public signature. A fixed trait
+        // argument must not be mistaken for the map's differently typed binder.
+        let source = typed(
+            "trait Policy<T> {
+                 machine plan(value: u64) -> u64 requires value > 0 ensures result > 0;
+             }
+             public Applied<T, Unused> satisfies Policy<T> {
+                 machine plan(value: u64) -> u64 requires true
+                 ensures result == 41u64 { 41u64 }
+             }
+             public FixedSubject<Unused> satisfies Policy<u32> {
+                 machine plan(value: u64) -> u64 requires true
+                 ensures result == 41u64 { 41u64 }
+             }
+             machine narrow() -> u64 { Applied<u32, u64>::plan(7u64) }
+             machine wide() -> u64 { Applied<u64, bool>::plan(7u64) }
+             machine fixed() -> u64 { FixedSubject<u64>::plan(7u64) }
+             machine hidden() -> u64 ensures result == 41u64 {
+                 Applied<u32, u64>::plan(7u64)
+             }",
+        );
+        let program = PreparedBuildMachineProgram::prepare(&source, None).unwrap();
+        for (name, semantic_type) in [("narrow", "u32"), ("wide", "u64"), ("fixed", "u32")] {
+            let (requester, expression) = returned_source_call(&source, name);
+            let call = source.expression_table.call_node(expression).unwrap();
+            let (operand, owner) = source
+                .source_call_selected_operand(
+                    requester,
+                    typed_trees::references::StaticArgumentCall::Expression(expression, call),
+                )
+                .unwrap();
+            let scope = source
+                .applied_requirement_scope(owner, call.requirement_application)
+                .unwrap();
+            let environment = scope.environment();
+            let mut materialized = source.clone();
+            let trait_arguments = materialized
+                .materialize_trait_application_arguments(&environment)
+                .unwrap();
+            assert_eq!(trait_arguments.len(), 1);
+            assert_eq!(
+                materialized
+                    .type_reference_table
+                    .primitive_type(trait_arguments[0]),
+                typed_trees::types::PrimitiveType::from_name(semantic_type),
+                "the selected trait's semantic T is resolved through its own map environment"
+            );
+            if name != "wide" {
+                assert_ne!(
+                    materialized
+                        .type_reference_table
+                        .primitive_type(trait_arguments[0]),
+                    typed_trees::types::PrimitiveType::from_name("u64"),
+                    "a genuine closed selection does not establish a different semantic subject"
+                );
+            }
+            let entry = program
+                .entry_selected(
+                    requester,
+                    owner,
+                    &operand,
+                    call.target_symbol,
+                    &[BuildTimeValue::Int(7)],
+                )
+                .expect("the exact generic application uses the shared source-call route");
+            assert_eq!(
+                entry.call().requirement_application,
+                call.requirement_application
+            );
+            let mut accounting = crate::SourceCompletionAccounting::default();
+            let result = entry.invoke_recorded(target(), &mut accounting).unwrap();
+            assert_eq!(result.value(), &BuildTimeValue::Int(41));
+            let [crate::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts() else {
+                panic!("one exact selected invocation")
+            };
+            let (_, invocation) = receipt.invocation().unwrap().unwrap();
+            assert!(invocation.inputs.required_contract.is_some());
+            let error = program
+                .entry_selected(
+                    requester,
+                    owner,
+                    &operand,
+                    call.target_symbol,
+                    &[BuildTimeValue::Int(0)],
+                )
+                .err()
+                .expect("the public input bound survives the total private body");
+            assert!(error.contains("requires"), "{error}");
+
+            let (_, other_expression) =
+                returned_source_call(&source, if name == "narrow" { "wide" } else { "narrow" });
+            let other = source.expression_table.call_node(other_expression).unwrap();
+            let typed_trees::types::TypeReferenceNode::Generic { arguments, .. } = source
+                .type_reference_table
+                .type_reference(other.requirement_application)
+            else {
+                panic!("the other authored map has its complete tuple")
+            };
+            let other_type = source
+                .type_reference_table
+                .type_reference_handles(*arguments)[0];
+            let mut changed = operand.clone().into_owned();
+            changed.application.as_mut().unwrap().arguments[0].type_reference = other_type;
+            let error = program
+                .entry_selected(
+                    requester,
+                    owner,
+                    &changed,
+                    call.target_symbol,
+                    &[BuildTimeValue::Int(7)],
+                )
+                .err()
+                .expect("a different semantic argument cannot replace the retained tuple");
+            assert!(
+                matches!(
+                    error.as_str(),
+                    "selected source invocation changed its complete operand tuple"
+                        | "static operand changed its retained selected application"
+                ),
+                "{error}"
+            );
+
+            let mut changed = operand.into_owned();
+            let application = changed.application.as_mut().unwrap();
+            let original = application.arguments[0].type_reference;
+            application.arguments[0].type_reference =
+                typed_trees::types::TypeReferenceHandle::from_parts(
+                    original.arena_index(),
+                    original.generation() + 1,
+                );
+            let error = program
+                .entry_selected(
+                    requester,
+                    owner,
+                    &changed,
+                    call.target_symbol,
+                    &[BuildTimeValue::Int(7)],
+                )
+                .err()
+                .expect("a stale child cannot be replaced from its remaining symbol");
+            assert_eq!(
+                error,
+                "selected source invocation has a stale operand reference"
+            );
+        }
+        let (hidden, _) = returned_source_call(&source, "hidden");
+        let error = program
+            .entry(hidden, hidden, &[])
+            .err()
+            .expect("the selected body's private promise is unavailable to its public caller");
+        assert!(error.contains("ensures"), "{error}");
     }
 
     #[test]

@@ -390,8 +390,72 @@ pub(crate) fn prepare_value_invocation(
     } else {
         None
     };
-    let shape = declaration.shape(program)?;
-    let parameters = shape.parameters;
+    let mut probe = program.clone();
+    // Allocate this call's real source owner before closing the selected
+    // application. Its result below comes from that public signature before
+    // the caller enters typed preparation or judgment.
+    let original_result = declaration.shape(program)?.return_type;
+    let (probe_machine, mut state) =
+        invocation_probe_declarations(&mut probe, requester, "@const-invocation", original_result);
+    let mut call = request.clone();
+    let concrete = probe
+        .expression_table
+        .insert(ExpressionNode::Call(call.clone()));
+    let selected_signature = if let Some((selection, selection_owner)) = selected {
+        if request_expression.is_valid() || request.receiver.is_valid() {
+            return Err("a selected invocation cannot replace an authored receiver".into());
+        }
+        if !program.symbols.symbols().nodes().is_valid(selection_owner) {
+            return Err("selected invocation lost its supplying declaration".into());
+        }
+        let mut selection = probe
+            .expression_table
+            .copy_static_argument_from_self(selection);
+        let name = typed_trees::name::Identifier::from(probe.symbols.name(selection.symbol));
+        if selection.path.is_empty() {
+            // The resolved declaration supplies diagnostic text only; its
+            // symbol and complete source operand remain the selected identity.
+            selection.path = vec![name.clone()].into_boxed_slice();
+        }
+        let application = if selection.type_reference.is_valid() {
+            selection.type_reference
+        } else {
+            probe.static_operand_type_reference_in_scope(&selection, selection_owner)?
+        };
+        call.requirement_application = application;
+        let mut path = probe_name_path(&mut probe, selection.symbol, name);
+        path.static_application = probe.expression_table.insert_static_member(selection);
+        call.receiver = probe.expression_table.insert(ExpressionNode::Name(path));
+        *probe.expression_table.expression_mut(concrete) = ExpressionNode::Call(call);
+        probe.retain_call_static_argument_context(concrete, probe_machine.symbol)?;
+        call = probe
+            .expression_table
+            .call_node(concrete)
+            .cloned()
+            .ok_or("selected invocation lost its retained source call")?;
+        probe.prepare_applied_callable_signatures_for_application(
+            probe_machine.symbol,
+            application,
+        )?;
+        Some(
+            probe
+                .named_conformance_call_member(&call)?
+                .ok_or("selected invocation has no exact public requirement row")?
+                .2
+                .clone(),
+        )
+    } else {
+        None
+    };
+    let declaration = selected_signature.as_ref().map_or(
+        declaration,
+        typed_trees::callable_signature_shapes::CallableDeclaration::Signature,
+    );
+    let shape = declaration.shape(&probe)?;
+    let parameters = shape.parameters.to_vec();
+    let declared_result = shape.return_type;
+    let type_parameters = declaration.static_parameters(&probe)?.to_vec();
+    let has_lifetimes = declaration.has_lifetime_parameters(&probe)?;
     let declaration_argument =
         typed_trees::reflection::construction::declaration_query_argument_role(
             program,
@@ -425,8 +489,7 @@ pub(crate) fn prepare_value_invocation(
             "source invocation static arguments differ from their retained application".into(),
         );
     }
-    let type_parameters = declaration.static_parameters(program)?;
-    if declaration.has_lifetime_parameters(program)? {
+    if has_lifetimes {
         return Err("source invocation lifetime arguments are not materialized".into());
     }
     if type_parameters
@@ -438,7 +501,6 @@ pub(crate) fn prepare_value_invocation(
     if type_parameters.len() != supplied.len() {
         return Err("source invocation lost its complete static argument list".into());
     }
-    let mut probe = program.clone();
     let owner = static_call.lexical_owner(program);
     if !supplied.is_empty() && !program.symbols.symbols().nodes().is_valid(owner) {
         return Err("source invocation static arguments lost their supplying declaration".into());
@@ -499,9 +561,8 @@ pub(crate) fn prepare_value_invocation(
     }
     let result_type = probe
         .type_reference_table
-        .instantiate(shape.return_type, &substitutions)?;
-    let (probe_machine, mut state) =
-        invocation_probe_declarations(&mut probe, requester, "@const-invocation", result_type);
+        .instantiate(declared_result, &substitutions)?;
+    state.return_type = result_type;
     let mut actuals = Vec::with_capacity(arguments.len());
     let mut context_inputs = Vec::new();
     for (position, (parameter, argument)) in parameters.iter().zip(arguments).enumerate() {
@@ -565,32 +626,13 @@ pub(crate) fn prepare_value_invocation(
         };
         actuals.push(actual);
     }
-    let mut call = request.clone();
-    if let Some((selection, selection_owner)) = selected {
-        if request_expression.is_valid() || request.receiver.is_valid() {
-            return Err("a selected invocation cannot replace an authored receiver".into());
-        }
-        if !program.symbols.symbols().nodes().is_valid(selection_owner) {
-            return Err("selected invocation lost its supplying declaration".into());
-        }
-        // This is a new ordinary call request. The operand's complete retained
-        // tuple is copied into its receiver; execution still goes through the
-        // same preparation, public contract and refinement judgments.
-        let selection = probe
-            .expression_table
-            .copy_static_argument_from_self(selection);
-        let name = typed_trees::name::Identifier::from(probe.symbols.name(selection.symbol));
-        let mut path = probe_name_path(&mut probe, selection.symbol, name);
-        path.static_application = probe.expression_table.insert_static_member(selection);
-        call.receiver = probe.expression_table.insert(ExpressionNode::Name(path));
-    }
     if materialized && !call.machine_arguments.is_empty() {
         call.machine_arguments = supplied.into_boxed_slice();
     }
     if !declaration_argument {
         call.arguments = probe.expression_table.insert_expression_handles(actuals);
     }
-    let concrete = probe.expression_table.insert(ExpressionNode::Call(call));
+    *probe.expression_table.expression_mut(concrete) = ExpressionNode::Call(call);
     let call_span = source_span
         .or_else(|| probe.symbols.symbol_provenance_source_span(requester))
         .ok_or("source invocation lost its actual requesting source")?;
