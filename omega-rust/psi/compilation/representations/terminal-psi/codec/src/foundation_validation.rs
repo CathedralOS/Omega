@@ -1050,7 +1050,11 @@ pub(crate) mod call_foundations {
         use semantic_vocabulary::{
             ContractId, EdgeId, MachineId, ObligationId, OperationId, Proposition,
         };
-        use terminal_psi::{ContractClause, MachineContract, ValueDeclaration};
+        use terminal_psi::{
+            BoundaryParameterKind, ContractClause, MachineContract, StructuralRecordStorage,
+            StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
+            TerminalIdentityIndex, ValueDeclaration,
+        };
         use terminal_semantics::inhabitation::{Inhabitation, TerminalContracts};
 
         fn invocation(required_contract: Option<ContractId>) -> Block {
@@ -1330,6 +1334,109 @@ pub(crate) mod call_foundations {
                 constant(&mut caller, unbound, true);
                 assert!(validate_caller(&module, &caller, &query).is_err());
             }
+        }
+
+        #[test]
+        fn an_empty_result_excludes_completion_despite_a_physical_structural_return() {
+            use semantic_vocabulary::{PlaceId, StructuralTypeId};
+
+            let mut module = TerminalModule::declarations();
+            let structural_type = StructuralTypeId::new(1).unwrap();
+            module.structural_types.push(StructuralTypeDeclaration {
+                id: structural_type,
+                identity: TerminalIdentityIndex::ABSENT,
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                copyable: true,
+                no_code_affine_cleanup: false,
+                descriptor_cleanup: false,
+                shape: StructuralTypeShape::Record {
+                    fields: Vec::new(),
+                    storage: StructuralRecordStorage::Packed,
+                },
+                scalar_restriction: None,
+                requires: vec![Proposition::Falsehood],
+            });
+            let parameter = StructuralParameterDeclaration {
+                place: PlaceId::new(1).unwrap(),
+                position: 0,
+                structural_type,
+                access: StructuralAccess::Owned,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                additional_input_qualifications: Vec::new(),
+            };
+            let input = StructuralPlaceDeclaration {
+                id: parameter.place,
+                kind: StructuralPlaceKind::Parameter { position: 0 },
+            };
+            let mut callee = crate::semantic_module::target_family_tests::unit_machine(
+                MachineId::new(1).unwrap(),
+            );
+            callee
+                .parameter_order
+                .push(BoundaryParameterKind::Structural);
+            callee.structural_parameters.push(parameter.clone());
+            callee.structural_places.push(input);
+            callee.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+                place: PlaceId::new(2).unwrap(),
+                structural_type,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                reference_sources: Vec::new(),
+            });
+            callee.structural_places.push(StructuralPlaceDeclaration {
+                id: PlaceId::new(2).unwrap(),
+                kind: StructuralPlaceKind::Result,
+            });
+            callee.blocks[0].terminator = Terminator::ReturnStructural {
+                edge: EdgeId::new(1).unwrap(),
+                source: parameter.place,
+                returned_claims: Vec::new(),
+                cleanup_actions: Vec::new(),
+            };
+            let callee_id = callee.id;
+            module.machines.push(callee);
+            let mut caller = crate::semantic_module::target_family_tests::unit_machine(
+                MachineId::new(2).unwrap(),
+            );
+            caller
+                .parameter_order
+                .push(BoundaryParameterKind::Structural);
+            caller.structural_parameters.push(parameter);
+            caller.structural_places.push(input);
+            caller.blocks[0] = invocation(None);
+            let Terminator::InvokeNoNormal {
+                structural_arguments,
+                ..
+            } = &mut caller.blocks[0].terminator
+            else {
+                unreachable!()
+            };
+            structural_arguments.push(StructuralArgument::whole(
+                PlaceId::new(1).unwrap(),
+                StructuralAccess::Owned,
+            ));
+            assert!(
+                terminal_semantics::control_graph::normal_completion_possible(&module, callee_id)
+                    .unwrap()
+            );
+            let query =
+                Inhabitation::prepare(&TerminalContracts::new(module.structural_types.iter()))
+                    .unwrap();
+            // This tests the raw type/physical-graph admission boundary. No
+            // source acceptance or proof receipt is manufactured for the call.
+            validate_caller(&module, &caller, &query).unwrap();
+            module.structural_types[0].requires[0] = Proposition::Truth;
+            let query =
+                Inhabitation::prepare(&TerminalContracts::new(module.structural_types.iter()))
+                    .unwrap();
+            assert_eq!(
+                validate_caller(&module, &caller, &query),
+                malformed("no-normal invocation callee has a normal return")
+            );
         }
     }
 }

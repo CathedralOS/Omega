@@ -161,15 +161,68 @@ fn an_empty_input_can_be_syntactically_returned_without_creating_a_normal_value(
          public machine identity(value: Empty) -> Empty crashes none { value } \
          machine main(value: Empty) -> u32 crashes none { identity(value) }",
     );
-    let callee = check_no_normal(&accepted);
+    let module = &accepted.elaboration.module;
+    assert_eq!(
+        module.machines.len(),
+        2,
+        "the original source needs no helper"
+    );
+    let query =
+        Inhabitation::prepare(&TerminalContracts::new(module.structural_types.iter())).unwrap();
+    let callee = module
+        .machines
+        .iter()
+        .find(|machine| machine.result.structural().is_some())
+        .expect("the actual identity body remains present");
+    assert_eq!(
+        query.status(callee.result.structural().unwrap().structural_type),
+        Status::ProvedEmpty
+    );
+    assert!(callee.blocks.iter().any(|block| matches!(
+        block.terminator,
+        terminal_psi::Terminator::ReturnStructural { .. }
+    )));
     assert!(
-        terminal_semantics::control_graph::normal_completion_possible(
-            &accepted.elaboration.module,
-            callee,
-        )
-        .unwrap(),
+        terminal_semantics::control_graph::normal_completion_possible(module, callee.id).unwrap(),
         "the declared-type proof must work independently of syntactic non-return",
     );
+    let main = module
+        .machines
+        .iter()
+        .find(|machine| machine.result.scalar_ref().is_some())
+        .expect("the actual scalar-result caller remains present");
+    let sources = terminal_semantics::normal_completion::ReturnSources::new(main).unwrap();
+    assert!(
+        main.blocks.iter().any(|block| sources
+            .is_uninhabited_return(&block.terminator, &query)
+            .unwrap()),
+        "evaluating the actual Empty argument ends before entering identity"
+    );
+    assert!(
+        module
+            .machines
+            .iter()
+            .all(|machine| machine.module_invocations().count() == 0)
+    );
+    assert!(
+        module
+            .operations()
+            .all(|operation| operation.result.scalar_ref().is_none()
+                && !matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::IntegerConstant { .. }
+                )),
+        "the impossible operand cannot fabricate a scalar or a helper call"
+    );
+    accepted
+        .publish_invocation()
+        .expect("actual accepted publication");
+    let closed = terminal_codec::ClosedTerminalModule::new(module.clone()).unwrap();
+    let received =
+        terminal_codec::ClosedTerminalModule::from_semantic_bytes(closed.semantic_bytes())
+            .expect("receiving admission retains the real Empty return and operand elimination");
+    assert_eq!(received.semantic_bytes(), closed.semantic_bytes());
+    assert_eq!(received.identity(), closed.identity());
 }
 
 fn bare_empty_value(guarantee: &str) -> Box<crate::verdict::AcceptedClosure> {
