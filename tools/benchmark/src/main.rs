@@ -10,11 +10,10 @@
    instead report an explicitly timed region with a checked checksum and work
    count; those values are labelled child-reported, never process timings.
 
-   Start with README.md's Rust comparison examples. experiment.rs owns the
+   README.md shows every subcommand with examples. experiment.rs owns the
    prepare -> alternate -> validate -> summarize lifecycle; process.rs reuses
-   Omega's bounded child runner. We do not invoke Cargo or settle package
-   decisions during measurement. Existing Python records remain readable by
-   their original workflow; a paired experiment has a separate schema.
+   Omega's bounded child runner. A comparison never builds a compiler or
+   settles package decisions while it measures.
 */
 
 mod experiment;
@@ -53,9 +52,9 @@ fn main() {
     if arguments.len() == 1 && (arguments[0] == "--help" || arguments[0] == "-h") {
         println!(
             "Any command may start with --address-space-gib N (Linux address-space cap, default 64).
-omega-bench compare <plan.json> <new-result-directory>\nomega-bench suite <suite.json> <new-result-directory>\nomega-bench validate <run-directory>\nomega-bench show <run-directory>\nomega-bench check <run-directory> <maximum-regression-percent>\nomega-bench history <old-run-directory> <new-run-directory>\nomega-bench profile <plan.json> <baseline|candidate> <allocations|wpr|perf-stat|perf-record> <new-result-directory>
-omega-bench progress [--omega <release-omega>] [--results <dir>] [--runs N] [--aa-runs N] [--only <workload>] [--completion]
-omega-bench scaling --omega <release-omega> [--sizes 0,1000,2000] [--runs N] [--max-ratio R]"
+omega-bench compare <plan.json> <new-result-directory>\nomega-bench suite <suite.json> <new-result-directory>\nomega-bench validate <run-directory>\nomega-bench show <run-directory>\nomega-bench check <run-directory> <maximum-regression-percent>\nomega-bench history <old-run-directory> <new-run-directory>\nomega-bench profile <plan.json> <baseline|candidate> <wpr|perf-stat|perf-record> <new-result-directory>
+omega-bench progress [--omega <release-omega>] [--results <dir>] [--runs N] [--aa-runs N] [--only <workload>]
+omega-bench scaling --omega <release-omega> [--shape machines|citations] [--sizes 0,1000,2000] [--runs N] [--max-ratio R]"
         );
         return;
     }
