@@ -550,6 +550,7 @@ fn request_operation(name: &str) -> Result<TerminalBuildRequestOperation, Diagno
         "artifact_only" => Request::ArtifactOnly,
         "register_path_dependency" => Request::PathDependency,
         "register_git_dependency" => Request::GitDependency,
+        "prepare_dependency" => Request::PrepareDependency,
         "write_log" => Request::LogLine,
         other => return Err(unknown("BuildRequestOperations", other)),
     })

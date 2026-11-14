@@ -275,8 +275,9 @@ public boundary trait BuildRequestOperations {
     machine application(builder: &Build, name: &[u8]) reaches none crashes none;
     machine member(builder: &Build, path: &[u8]) reaches none crashes none;
     machine artifact_only(builder: &Build) reaches none crashes none;
-    machine register_path_dependency(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], location: &[u8]) reaches none crashes none;
-    machine register_git_dependency(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], repository: &[u8], revision: &[u8], named_package: bool, package: &[u8]) reaches none crashes none;
+    machine register_path_dependency(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], location: &[u8]) -> DependencyRegistration reaches none crashes none;
+    machine register_git_dependency(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], repository: &[u8], revision: &[u8], named_package: bool, package: &[u8]) -> DependencyRegistration reaches none crashes none;
+    machine prepare_dependency(builder: &Build, registered: DependencyRegistration) reaches none crashes none suspends;
     machine write_log(log: &BuildLog, text: &[u8]) reaches none crashes none;
 }
 // Configured dependency description
@@ -289,8 +290,13 @@ public data DependencyDescription<'storage> {
     explicit_alias: bool;
     alias: &'storage [u8];
 }
-// The exact registration one executed request fixed. Retaining or copying it
-// grants nothing; it names the registered edge for later Build operations.
+// The exact registration one executed request fixed
+// (wiki/spec/build/scoped_execution.md#dependency-declarations-and-binding).
+// Only the evaluator issues one: the registration request returns a marker
+// whose row lives in the activation's request table, so an authored
+// `DependencyRegistration {}` has the same static shape and names no
+// registration. Retaining or copying the marker grants nothing; it names the
+// registered edge for later Build operations.
 public data DependencyRegistration [copy] {
 }
 // Namespace for ordinary dependency-description helpers.
@@ -304,30 +310,34 @@ public machine dependency::with_alias<'storage>(description: &mut DependencyDesc
     description.alias = alias;
 }
 public machine Build::dependency(builder: &mut Build, description: DependencyDescription) -> DependencyRegistration reaches BuildRequestOperations invokes BuildRequestOperations {
-    Build::request_dependency(builder, false, description.explicit_alias, description.alias, description.source);
-    DependencyRegistration {}
+    Build::request_dependency(builder, false, description.explicit_alias, description.alias, description.source)
 }
 public machine Build::build_dependency(builder: &mut Build, description: DependencyDescription) -> DependencyRegistration reaches BuildRequestOperations invokes BuildRequestOperations {
-    Build::request_dependency(builder, true, description.explicit_alias, description.alias, description.source);
-    DependencyRegistration {}
+    Build::request_dependency(builder, true, description.explicit_alias, description.alias, description.source)
 }
-machine Build::request_dependency(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], source: Source) reaches BuildRequestOperations {
+// The readiness boundary for one exact registration: the Build parks here
+// until the evaluator has acquired that dependency, run its Build and
+// prepared it, then resumes. Earlier statements never run again.
+public machine Build::prepare_dependency(builder: &mut Build, registered: DependencyRegistration) reaches BuildRequestOperations invokes BuildRequestOperations suspends {
+    suspend BuildRequestOperations::prepare_dependency(builder, registered);
+}
+machine Build::request_dependency(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], source: Source) -> DependencyRegistration reaches BuildRequestOperations {
     transition source {
         Source::Path { location } -> Build::request_path(builder, build_scope, explicit_alias, alias, location)
         Source::Git { repository, revision, selection } -> Build::request_git(builder, build_scope, explicit_alias, alias, repository, revision, selection)
     }
 }
-machine Build::request_path(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], location: &[u8]) reaches BuildRequestOperations {
-    BuildRequestOperations::register_path_dependency(builder, build_scope, explicit_alias, alias, location);
+machine Build::request_path(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], location: &[u8]) -> DependencyRegistration reaches BuildRequestOperations {
+    BuildRequestOperations::register_path_dependency(builder, build_scope, explicit_alias, alias, location)
 }
-machine Build::request_git(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], repository: &[u8], revision: &[u8], selection: PackageSelection) reaches BuildRequestOperations {
+machine Build::request_git(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], repository: &[u8], revision: &[u8], selection: PackageSelection) -> DependencyRegistration reaches BuildRequestOperations {
     transition selection {
         PackageSelection::Root -> Build::request_selected_git(builder, build_scope, explicit_alias, alias, repository, revision, false, "")
         PackageSelection::Named { package } -> Build::request_selected_git(builder, build_scope, explicit_alias, alias, repository, revision, true, package)
     }
 }
-machine Build::request_selected_git(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], repository: &[u8], revision: &[u8], named_package: bool, package: &[u8]) reaches BuildRequestOperations {
-    BuildRequestOperations::register_git_dependency(builder, build_scope, explicit_alias, alias, repository, revision, named_package, package);
+machine Build::request_selected_git(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], repository: &[u8], revision: &[u8], named_package: bool, package: &[u8]) -> DependencyRegistration reaches BuildRequestOperations {
+    BuildRequestOperations::register_git_dependency(builder, build_scope, explicit_alias, alias, repository, revision, named_package, package)
 }
 public machine Build::package(builder: &mut Build, name: &[u8]) reaches BuildRequestOperations invokes BuildRequestOperations {
     BuildRequestOperations::package(builder, name);
