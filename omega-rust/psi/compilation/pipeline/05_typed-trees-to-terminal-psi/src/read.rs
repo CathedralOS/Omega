@@ -27,6 +27,8 @@ mod arrays;
 mod authority;
 mod bytes;
 mod calls;
+#[cfg(test)]
+mod calls_visibility_tests;
 mod casts;
 mod constant_values;
 mod contracts;

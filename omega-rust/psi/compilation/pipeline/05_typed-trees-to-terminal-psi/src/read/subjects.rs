@@ -140,7 +140,7 @@ impl Program<'_> {
                     owner.is_boundary && requirement.symbol == *symbol
                 })
             {
-                self.boundary(entry, *symbol)?;
+                self.boundary_declaration(entry, *symbol)?;
             } else if let Some(owner) = typed
                 .trait_definition_by_symbol(*symbol)
                 .filter(|owner| owner.is_boundary)
