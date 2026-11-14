@@ -1732,6 +1732,9 @@ pub(crate) mod identity_context {
         pub(crate) resolved_lifetimes:
             &'binders [(LifetimeParameterIdentity, LifetimeParameterIdentity)],
         pub(crate) lifetime_binders: &'binders [(LifetimeParameterIdentity, usize)],
+        // A complete declaration schema gives `result` one exact header owner.
+        // Other identity requests keep their existing descriptive behavior.
+        pub(crate) signature_owners: Option<(SymbolHandle, SymbolHandle)>,
         pub(crate) invalid_application: Option<&'binders Cell<bool>>,
         pub(crate) encountered_regions: Option<&'binders Cell<bool>>,
         // A description can retain elision without claiming a concrete region.
@@ -2603,6 +2606,11 @@ pub(crate) mod identity_context {
                         .map(|argument| normalize_type_reference(program, *argument, context)),
                 ),
             ),
+            TypeReferenceNode::Named { symbol, name }
+                if context.signature_owners.is_some() && !symbol.is_valid() =>
+            {
+                substitution::rejected(context)
+            }
             TypeReferenceNode::Named { symbol, name } => compound(
                 TypeForm::Named,
                 [normalize_const_or_nominal_name(
@@ -2628,6 +2636,20 @@ pub(crate) mod identity_context {
     ) -> String {
         match program.expression_table.expression(expression) {
             ExpressionNode::Name(path) => {
+                if let Some((machine, entry)) = context.signature_owners {
+                    if path.reserved_result_of.is_valid() {
+                        return if path.reserved_result_of == machine
+                            || path.reserved_result_of == entry
+                        {
+                            atom(IndexForm::ConstName, "$result")
+                        } else {
+                            substitution::rejected(context)
+                        };
+                    }
+                    if program.expression_table.names_reserved_result(expression) {
+                        return substitution::rejected(context);
+                    }
+                }
                 if path.static_application.is_valid() {
                     return match program
                         .expression_table
@@ -2650,6 +2672,9 @@ pub(crate) mod identity_context {
                 } else {
                     SymbolHandle::invalid()
                 };
+                if context.signature_owners.is_some() && !symbol.is_valid() {
+                    return substitution::rejected(context);
+                }
                 let identity = substitution::index(program, symbol, &fallback, context)
                     .unwrap_or_else(|| {
                         substitution::index_name(program, symbol, fallback.as_str(), context)
@@ -2767,7 +2792,25 @@ pub(crate) mod identity_context {
                     member.receiver,
                     context,
                 ))
-                .chain(std::iter::once(atom(Label::Member, member.member.as_str())))
+                .chain(std::iter::once(if context.signature_owners.is_some() {
+                    // A schema identifies the typed selection, including the
+                    // distinction between a record field and a measurement.
+                    use crate::expression::MemberSelection;
+                    match member.selection {
+                        MemberSelection::Field(symbol) if symbol.is_valid() => atom(
+                            Label::Member,
+                            &context.name(program, symbol, member.member.as_str()),
+                        ),
+                        MemberSelection::CollectionMeasure(measure) => {
+                            atom(Label::Member, &format!("collection-measure:{measure:?}"))
+                        }
+                        MemberSelection::Field(_) | MemberSelection::Unresolved => {
+                            substitution::rejected(context)
+                        }
+                    }
+                } else {
+                    atom(Label::Member, member.member.as_str())
+                }))
                 .chain(
                     member
                         .case_variant
