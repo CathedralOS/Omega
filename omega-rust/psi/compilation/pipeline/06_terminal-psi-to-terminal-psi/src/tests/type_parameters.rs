@@ -306,6 +306,8 @@ fn rigid_result_transport(
         call_context: None,
         kind: ExpressionKind::Call {
             callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
+            required_contract: None,
+            source_call: None,
             arguments: vec![item(input_type)],
             designated: None,
         },
