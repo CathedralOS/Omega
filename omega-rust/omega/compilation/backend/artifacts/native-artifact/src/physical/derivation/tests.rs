@@ -1431,6 +1431,35 @@ fn physical_child_identity_binds_every_retained_field() {
         [machine_span, object_span, final_image_span],
     );
 
+    // Linking moves only final-image coordinates; producer and object spans
+    // remain in the private body's own namespace.
+    let child = crate::NativePhysicalChild::from_replayed_parts(crate::NativePhysicalChildParts {
+        parent: parent.clone(),
+        projection,
+        occurrence,
+        machine_spans: vec![machine_span],
+        object_spans: vec![object_span],
+        final_image_spans: vec![final_image_span],
+        machine_bytes_digest: [0xA1; 32],
+        object_bytes_digest: [0xA2; 32],
+        final_image_bytes_digest: [0xA3; 32],
+        relocation: PhysicalRelocationDisposition::ResolvedInternalCall,
+        identity: expected,
+    });
+    let original =
+        crate::physical::native_physical_evidence(physical_projection(), vec![child], [0; 32]);
+    let mut linked = original.clone();
+    super::evidence::relocate_final_spans(&mut linked, 512).unwrap();
+    assert_eq!(linked.children()[0].machine_spans(), &[machine_span]);
+    assert_eq!(linked.children()[0].object_spans(), &[object_span]);
+    assert_eq!(
+        linked.children()[0].final_image_spans(),
+        &[native_byte_span(744, 5)]
+    );
+    assert_eq!(linked.children()[0].parent(), &parent);
+    assert_ne!(linked.children()[0].identity(), &expected);
+    assert!(super::evidence::relocate_final_spans(&mut original.clone(), usize::MAX).is_err());
+
     for mutation in 0..15 {
         let changed = match mutation {
             0 => identity(

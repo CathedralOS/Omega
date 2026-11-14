@@ -65,6 +65,7 @@ pub(crate) fn derive_normalized_foreign_child(
     target: NativeTarget,
     module: &terminal_psi::TerminalModule,
     object: &image_emission::ObjectArtifact,
+    linked_object: &image_emission::ObjectArtifact,
     image: &[u8],
     final_image_symbol_digest: [u8; 32],
     foreign: &image_emission::ObjectForeignCall,
@@ -342,24 +343,42 @@ pub(crate) fn derive_normalized_foreign_child(
         }
         let ordinal = usize::try_from(callback.target.application.native_ordinal)
             .map_err(|_| "normalized foreign D41 callback ordinal does not fit this target")?;
-        if ordinal >= declaration.parameter_order.len() || callback_ordinals.contains(&ordinal) {
+        if ordinal >= foreign.binding.boundary_entry_plan.call.parameters.len()
+            || callback_ordinals.contains(&ordinal)
+        {
             return Err("normalized foreign D41 callback ordinal is outside its native signature");
         }
         callback_ordinals.push(ordinal);
     }
     callback_ordinals.sort_unstable();
+    // Native-only callbacks occupy ABI slots, not semantic formals. Walk the
+    // complete operand roster once so consecutive callbacks and callbacks after
+    // the last semantic argument retain the same correspondence as lowering.
+    let dispatch_count = foreign.binding.dispatch_operand_count();
+    let operand_count = foreign
+        .binding
+        .boundary_entry_plan
+        .call
+        .parameters
+        .len()
+        .checked_add(dispatch_count)
+        .ok_or("normalized foreign D41 operand count overflow")?;
+    let semantic_positions: Vec<_> = (0..operand_count)
+        .filter(|position| {
+            position
+                .checked_sub(dispatch_count)
+                .is_none_or(|ordinal| callback_ordinals.binary_search(&ordinal).is_err())
+        })
+        .collect();
+    if semantic_positions.len() != declaration.parameter_order.len() {
+        return Err("normalized foreign D41 child changed its complete native signature");
+    }
     for (physical, semantic_position) in foreign
         .scalar_arguments
         .iter()
         .zip(declaration.parameter_positions(terminal_psi::BoundaryParameterKind::Scalar))
     {
-        let native_position = semantic_position
-            + callback_ordinals
-                .iter()
-                .filter(|ordinal| {
-                    **ordinal + foreign.binding.dispatch_operand_count() <= semantic_position
-                })
-                .count();
+        let native_position = semantic_positions[semantic_position];
         if usize::try_from(physical.parameter_index).ok() != Some(native_position)
             || foreign.binding.operand_placements().get(native_position)
                 != Some(&physical.placement)
@@ -369,7 +388,7 @@ pub(crate) fn derive_normalized_foreign_child(
     }
     let mut scalar_shapes = parameter_shapes.into_iter();
     let mut structural_shapes = structural_parameter_shapes.into_iter().flatten();
-    let mut native_parameter_shapes = declaration
+    let semantic_shapes = declaration
         .parameter_order
         .iter()
         .map(|kind| {
@@ -380,17 +399,32 @@ pub(crate) fn derive_normalized_foreign_child(
             .ok_or("normalized foreign D41 child changed its parameter order")
         })
         .collect::<Result<Vec<_>, _>>()?;
-    for (callback, ordinal) in callbacks.iter().zip(callback_ordinals.iter()) {
-        native_parameter_shapes.insert(
-            *ordinal + foreign.binding.dispatch_operand_count(),
-            callback.target.application.shape,
-        );
+    let mut native_parameter_shapes = vec![None; operand_count];
+    for (position, shape) in semantic_positions.into_iter().zip(semantic_shapes) {
+        native_parameter_shapes[position] = Some(shape);
+    }
+    for callback in callbacks {
+        if !matches!(callback.target.destination, NativePlace::Parameter(_)) {
+            continue;
+        }
+        let ordinal = usize::try_from(callback.target.application.native_ordinal)
+            .map_err(|_| "normalized foreign D41 callback ordinal does not fit this target")?;
+        let position = ordinal
+            .checked_add(dispatch_count)
+            .ok_or("normalized foreign D41 callback position overflow")?;
+        let slot = native_parameter_shapes
+            .get_mut(position)
+            .ok_or("normalized foreign D41 callback ordinal is outside its native signature")?;
+        if slot.replace(callback.target.application.shape).is_some() {
+            return Err("normalized foreign D41 child repeats a native parameter");
+        }
     }
     let signature = calling_conventions::CallSignature {
         parameters: native_parameter_shapes
             .into_iter()
-            .skip(foreign.binding.dispatch_operand_count())
-            .collect(),
+            .skip(dispatch_count)
+            .collect::<Option<Vec<_>>>()
+            .ok_or("normalized foreign D41 child lost a native parameter")?,
         result: result_shape,
     };
 
@@ -734,11 +768,11 @@ pub(crate) fn derive_normalized_foreign_child(
                     .iter()
                     .zip(field.callback_materializations.iter())
                 {
-                    let (callback_symbol, _) = object_file::object_function_symbol(
-                        object.object(),
+                    let callback_symbol = callback_reference(
+                        object,
+                        linked_object,
                         custody.target.callback_function,
-                    )
-                    .ok_or("normalized foreign D41 callback lost its private object symbol")?;
+                    )?;
                     let exact_callback_relocation =
                         |section_offset: u64, kind: RelocationKind| -> Result<_, &'static str> {
                             let offset = usize::try_from(section_offset).map_err(|_| {
@@ -877,11 +911,8 @@ pub(crate) fn derive_normalized_foreign_child(
             };
             let mut callback_relocations = Vec::with_capacity(callbacks.len());
             for callback in callbacks {
-                let (callback_symbol, _) = object_file::object_function_symbol(
-                    object.object(),
-                    callback.target.callback_function,
-                )
-                .ok_or("normalized foreign D41 callback lost its private object symbol")?;
+                let callback_symbol =
+                    callback_reference(object, linked_object, callback.target.callback_function)?;
                 if !intervals.contains_object_span(callback.code_offset, callback.byte_count) {
                     return Err(
                         "normalized foreign D41 callback materialization left its operation interval",
@@ -1036,6 +1067,21 @@ pub(crate) fn derive_normalized_foreign_child(
         }
         .into(),
     ))
+}
+
+// A private body retains local unresolved symbol handles after composition.
+// Its relocation must name that local reference, while the completed object
+// must define the same function identity, not merely a matching symbol name.
+fn callback_reference(
+    object: &image_emission::ObjectArtifact,
+    linked_object: &image_emission::ObjectArtifact,
+    function: function_identity::MachineFunctionIdentity,
+) -> Result<object_file::ObjectSymbolHandle, &'static str> {
+    object_file::object_function_symbol(linked_object.object(), function)
+        .ok_or("normalized foreign D41 callback lost its linked private definition")?;
+    object_file::object_function_reference(object.object(), function)
+        .map(|(symbol, _)| symbol)
+        .ok_or("normalized foreign D41 callback lost its private object reference")
 }
 
 fn admitted_callback_relocation<'a>(

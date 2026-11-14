@@ -23,6 +23,15 @@ pub struct FragmentObjectProjection {
 }
 
 impl FragmentObjectProjection {
+    pub fn with_semantic_source(
+        mut self,
+        code: terminal_codec::RetainedTerminalCode,
+        coverage: boundary_applications::TerminalBoundaryApplicationCoverage,
+    ) -> Result<Self, &'static str> {
+        self.object = self.object.with_semantic_source(code, coverage)?;
+        Ok(self)
+    }
+
     pub fn object(&self) -> &image_emission::ObjectArtifact {
         &self.object
     }

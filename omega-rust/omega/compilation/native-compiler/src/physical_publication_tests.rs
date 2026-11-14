@@ -18,6 +18,50 @@ use terminal_psi::{
     TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
 };
 
+mod callback;
+
+fn emit_body<'execution>(
+    mut admitted: terminal_psi_to_abstract_operations::AdmittedNativeRealization<'execution>,
+) -> (
+    native_artifact::FragmentObjectProjection,
+    terminal_psi_to_abstract_operations::provider_admission::AdmittedNativeProviders<'execution>,
+) {
+    let profile = target::TargetProfile::WindowsX64;
+    let observation = crate::observations::NativePipelineObservation::new(
+        profile,
+        crate::observations::NativePipelineUnit::Application,
+    );
+    let target = crate::pipeline::lower_to_target(
+        admitted.input,
+        abstract_operations_to_target_operations::OptimizedTargetLoweringRequest {
+            target: profile.native_target(),
+            settlements: &admitted.providers.settlements,
+            installation: admitted.providers.installation.take(),
+        },
+        &optimization_core::PostTerminalOptimizationSelections::default(),
+        optimization_core::OptimizationWorkBudget::new(10000, 10000, 10000, 10000, 10000).unwrap(),
+        &observation,
+    )
+    .unwrap_or_else(|error| match error {
+        crate::pipeline::TargetLoweringError::AbstractOptimization(error) => {
+            panic!("constant optimization: {error:?}")
+        }
+        crate::pipeline::TargetLoweringError::Target(error) => {
+            panic!("constant target lowering: {error:?}")
+        }
+    });
+    let projection =
+        crate::pipeline::emit_target(target, &observation).unwrap_or_else(|error| match error {
+            crate::pipeline::BodyEmissionError::Physical(error) => {
+                panic!("constant emission: {error}")
+            }
+            crate::pipeline::BodyEmissionError::Object(errors) => {
+                panic!("constant object: {errors:?}")
+            }
+        });
+    (projection, admitted.providers)
+}
+
 fn constant_artifact(through_boundary: bool) -> Arc<CanonicalTerminalArtifact> {
     let entry = MachineId::new(1).unwrap();
     let result = ValueDeclaration {
@@ -177,42 +221,22 @@ fn check_publication(through_boundary: bool) {
         boundary_application_coverage: Some(&coverage),
         behavior_exclusions: &exclusions,
     };
-    let mut admitted =
+    let admitted =
         terminal_psi_to_abstract_operations::admit_native_realization(&artifact, &admission)
             .expect("canonical constant admits without provider authority");
-    let observation = crate::observations::NativePipelineObservation::new(
-        profile,
-        crate::observations::NativePipelineUnit::Application,
+    let (projection, providers) = emit_body(admitted);
+    let unrelated = constant_artifact(!through_boundary);
+    assert!(
+        projection
+            .object()
+            .clone()
+            .with_semantic_source(unrelated.retain_code(), coverage.clone(),)
+            .is_err(),
+        "an emitted object cannot adopt another semantic owner"
     );
-    let target = crate::pipeline::lower_to_target(
-        admitted.input,
-        abstract_operations_to_target_operations::OptimizedTargetLoweringRequest {
-            target: profile.native_target(),
-            settlements: &admitted.providers.settlements,
-            installation: admitted.providers.installation.take(),
-        },
-        &optimization_core::PostTerminalOptimizationSelections::default(),
-        optimization_core::OptimizationWorkBudget::new(10000, 10000, 10000, 10000, 10000).unwrap(),
-        &observation,
-    )
-    .unwrap_or_else(|error| match error {
-        crate::pipeline::TargetLoweringError::AbstractOptimization(error) => {
-            panic!("constant optimization: {error:?}")
-        }
-        crate::pipeline::TargetLoweringError::Target(error) => {
-            panic!("constant target lowering: {error:?}")
-        }
-    });
-    let projection =
-        crate::pipeline::emit_target(target, &observation).unwrap_or_else(|error| match error {
-            crate::pipeline::BodyEmissionError::Physical(error) => {
-                panic!("constant emission: {error}")
-            }
-            crate::pipeline::BodyEmissionError::Object(errors) => {
-                panic!("constant object: {errors:?}")
-            }
-        });
-
+    let projection = projection
+        .with_semantic_source(artifact.retain_code(), coverage.clone())
+        .expect("retain the emitted body's own semantic owner");
     let published = native_artifact::publish_fragment_object(
         projection,
         native_artifact::FragmentObjectPublicationRequest {
@@ -227,7 +251,7 @@ fn check_publication(through_boundary: bool) {
         published,
         image_emission::ExecutableImageEmissionRequest::direct(3),
         &selected,
-        admitted.providers,
+        providers,
         Some(coverage),
     )
     .expect("emit native image with retained physical scope");

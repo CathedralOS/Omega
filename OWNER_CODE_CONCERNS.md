@@ -235,13 +235,6 @@ framework or a list of features that remain unimplemented.
 - Cost: harmless renaming breaks tests while equivalent forbidden behavior can pass under another spelling. Move actual dependency rules to the boundary checker and use behavior tests for custody and execution claims; do not mechanically preserve old strings or test totals.
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### Linked private bodies need their own physical occurrence coverage
-- Category: incomplete evidence handoff
-- Where: `omega-rust/omega/compilation/backend/artifacts/native-artifact/src/physical/derivation/evidence.rs`, `.../native-compiler/src/realization/callable_objects.rs`
-- Saw: root publication retains its staged producer and derives physical children, but separately emitted callback bodies have independent semantic namespaces; the root projection cannot stand in for their occurrence coverage, so composition reports `UncoveredPrivateFunction`.
-- Cost: linked images cannot claim complete physical coverage until each private body retains its semantic owner and its children are joined to their relocated image spans and independently replayed.
-- Reported: 2026-11-13, Codex, while connecting physical publication to retained object producers; same outcome remains owned through composed-body validation.
-
 ### `pipeline.md` says the default compile runs no stage validators; two run, and one stage header misdescribes its own
 - Category: the documents disagree
 - Where: `omega-rust/pipeline.md:66-68` and `:91-93`; `omega-rust/omega/compilation/backend/machine-emission/src/exit_contract.rs:153` and `:205-222`; `omega-rust/omega/compilation/pipeline/07_post-allocation-machine-to-selected-form-encoding/src/lib.rs:45-47` against `.../src/validation.rs:630`, `:639` and `.../src/row_encoding.rs:661`, `:670`
