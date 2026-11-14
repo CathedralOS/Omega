@@ -46,8 +46,7 @@ pub enum CompileResolvedPackageReviewCause {
     },
     BuildStagingCleanup {
         path: PathBuf,
-        error: io::Error,
-        prior: Option<String>,
+        error: std::sync::Arc<io::Error>,
     },
     SourceCustody {
         compiling_package: PackageKey,
@@ -157,8 +156,15 @@ impl CompileResolvedPackageReviewsError {
         mut self,
         accounting: compilation_products::SourceCompletionAccounting,
     ) -> Self {
-        self.accounting.append(accounting);
+        self.append_source_completion_accounting(accounting);
         self
+    }
+
+    pub fn append_source_completion_accounting(
+        &mut self,
+        accounting: compilation_products::SourceCompletionAccounting,
+    ) {
+        self.accounting.append(accounting);
     }
 
     pub(super) fn compilation_inputs(
@@ -276,15 +282,12 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
                 "failed to sponsor package-review staging root `{}`: {error}",
                 path.display()
             ),
-            CompileResolvedPackageReviewCause::BuildStagingCleanup { path, error, prior } => {
+            CompileResolvedPackageReviewCause::BuildStagingCleanup { path, error } => {
                 write!(
                     formatter,
                     "could not dispose package-review build session `{}`: {error}",
                     path.display()
                 )?;
-                if let Some(prior) = prior {
-                    write!(formatter, "; review had already failed: {prior}")?;
-                }
                 Ok(())
             }
             CompileResolvedPackageReviewCause::SourceCustody {

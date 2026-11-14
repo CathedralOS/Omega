@@ -76,6 +76,17 @@ pub struct ProjectCompilationAdmissionRequest<'request> {
 
 impl ProjectCompilationAdmissionRequest<'_> {
     pub fn refuse(self, reason: String) -> Vec<ProjectCompilationOutcome> {
+        self.refuse_compilation(vec![Diagnostic::error(reason)].into())
+    }
+
+    pub fn refuse_compilation(
+        self,
+        refused: compilation_products::CompileFailure,
+    ) -> Vec<ProjectCompilationOutcome> {
+        let accounting = refused
+            .source_completion_accounting()
+            .cloned()
+            .unwrap_or_default();
         let (_, closure, targets) = self.prepared.into_target_review_parts();
         let invalid_role = invalid_production_root(&self.product, closure.root_role());
         targets
@@ -89,8 +100,10 @@ impl ProjectCompilationAdmissionRequest<'_> {
                         role: closure.root_role(),
                     })
                 } else {
-                    failure(closure.graph().root(), reason.clone())
-                })),
+                    Error::new(crate::review::CompileResolvedPackageReviewCause::Compilation {
+                        package: closure.graph().root().clone(), failure: refused.clone(),
+                    })
+                }.with_source_completion_accounting(accounting.clone()))),
             })
             .collect()
     }
@@ -289,6 +302,28 @@ impl ProjectCompilationCompletion {
         outputs: Vec<Result<CompilationOutput, compiler::PackageCompileFailure>>,
         session: &mut PackageBuildSession,
     ) -> Vec<ProjectCompilationOutcome> {
+        let mut outputs = outputs;
+        for output in &mut outputs {
+            match output {
+                Ok(CompilationOutput::Report(report)) => {
+                    session.record_source_completion(report.source_completion_accounting().clone())
+                }
+                Ok(CompilationOutput::Native(product)) => session.record_source_completion(
+                    product
+                        .settlement
+                        .source_completion_accounting_mut()
+                        .clone(),
+                ),
+                // These source-free payloads have no report account; their
+                // prepared Build custody was recorded before production.
+                Ok(CompilationOutput::Inspection(_) | CompilationOutput::Component(_)) => {}
+                Err(failure) => {
+                    if let Some(accounting) = failure.failure.source_completion_accounting() {
+                        session.record_source_completion(accounting.clone());
+                    }
+                }
+            }
+        }
         let expected = self
             .targets
             .iter()
@@ -313,14 +348,36 @@ impl ProjectCompilationCompletion {
             });
         }
         if let Err(error) = session.close() {
-            for outcome in &mut outcomes {
-                let message = match &outcome.result {
-                    Ok(_) => error.to_string(),
-                    Err(prior) => format!("{error}; prior compilation failure: {prior}"),
-                };
-                outcome.result = Err(ProjectCompilationError::Review(failure(
-                    &self.root, message,
-                )));
+            // One cleanup operation can fail after several target products.
+            // Share the actual IO cause and cost history, preserving any
+            // target's primary typed failure rather than stringifying it.
+            let accounting = error
+                .source_completion_accounting()
+                .cloned()
+                .unwrap_or_default();
+            if let crate::review::CompileResolvedPackageReviewCause::BuildStagingCleanup {
+                path,
+                error,
+            } = error.cause
+            {
+                for outcome in &mut outcomes {
+                    if outcome.result.is_ok() {
+                        outcome.result = Err(ProjectCompilationError::Review(Error::new(
+                            crate::review::CompileResolvedPackageReviewCause::BuildStagingCleanup {
+                                path: path.clone(), error: error.clone(),
+                            }
+                        ).with_source_completion_accounting(accounting.clone())));
+                    }
+                }
+            }
+        }
+        for outcome in &mut outcomes {
+            if let Err(ProjectCompilationError::Review(error)) = &mut outcome.result {
+                // Use the existing occurrence-union rule, including costs held
+                // by this invocation before a defensive result reconciliation.
+                error.append_source_completion_accounting(
+                    session.source_completion_accounting().clone(),
+                );
             }
         }
         outcomes

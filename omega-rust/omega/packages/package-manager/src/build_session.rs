@@ -275,6 +275,12 @@ impl PackageBuildSession {
         self.source_completion_accounting.append(accounting);
     }
 
+    pub fn source_completion_accounting(
+        &self,
+    ) -> &compilation_products::SourceCompletionAccounting {
+        &self.source_completion_accounting
+    }
+
     pub fn close(&mut self) -> Result<(), CompileResolvedPackageReviewsError> {
         if !self.active {
             return Ok(());
@@ -285,8 +291,7 @@ impl PackageBuildSession {
                 CompileResolvedPackageReviewsError::new(
                     crate::review::CompileResolvedPackageReviewCause::BuildStagingCleanup {
                         path: self.root.clone(),
-                        error,
-                        prior: None,
+                        error: std::sync::Arc::new(error),
                     },
                 )
                 .with_source_completion_accounting(self.source_completion_accounting.clone())

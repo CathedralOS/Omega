@@ -239,11 +239,8 @@ pub fn produce_fixture_products(
             "fixture Product completion already consumed",
         )]
     })?;
-    let outputs = orchestration::compile_packages(
-        prepared.session.compiler(),
-        requests,
-        &mut prepared.completed,
-    );
+    let outputs =
+        orchestration::compile_packages(&mut prepared.session, requests, &mut prepared.completed);
     let outcomes = completion.complete(outputs, prepared.session.resources());
     let mut reports = Vec::new();
     let mut failures = Vec::new();

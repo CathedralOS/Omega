@@ -157,9 +157,6 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
     }
 
     fn retain_source_accounting<T>(&mut self, result: &Result<T, ProjectSourceResolutionError>) {
-        self.session
-            .packages
-            .record_source_completion(self.source_completion_accounting.clone());
         if let Err(failure) = result {
             if let Some(accounting) = failure.source_completion_accounting() {
                 self.session
@@ -277,6 +274,9 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                         .map_err(Compilation)?;
                     self.source_completion_accounting
                         .append(invocation.source_completion_accounting().clone());
+                    self.session.packages.record_source_completion(
+                        invocation.source_completion_accounting().clone(),
+                    );
                     pending.push(Work::Start {
                         acquired,
                         invocation,
@@ -892,6 +892,9 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
             .map_err(Compilation)?;
         self.source_completion_accounting
             .append(prepared.source_completion_accounting().clone());
+        self.session
+            .packages
+            .record_source_completion(prepared.source_completion_accounting().clone());
         let retained = prepared
             .select_target(self.profile, prepared.package_inputs().clone())
             .map_err(Compilation)?;
