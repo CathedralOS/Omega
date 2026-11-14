@@ -488,7 +488,7 @@ pub(crate) fn describe(
     let equations: Vec<_> = known
         .equations
         .iter()
-        .map(|(proposition, _)| proposition)
+        .map(|&index| &known.facts[index].proposition)
         .collect();
     let definitions: Vec<_> = equations
         .iter()
