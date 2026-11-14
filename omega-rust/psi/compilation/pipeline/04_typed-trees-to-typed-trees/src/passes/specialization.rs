@@ -842,12 +842,8 @@ fn copied_parts(
         .chain([state.return_type])
         .collect::<Vec<_>>();
     for root in roots.into_iter().filter(|root| root.is_valid()) {
-        program.subtree_for_each(root, SubtreeEdges::default(), |handle, node| {
+        program.subtree_for_each(root, SubtreeEdges::default(), |_handle, node| {
             types.extend(held_types(node));
-            copied &= program
-                .expression_table
-                .index_expression_authority(handle)
-                .is_none();
             copied &= match node {
                 ExpressionNode::Call(call) => {
                     call.layout_query.is_none()

@@ -2952,17 +2952,6 @@ pub fn visit_expression(
     if authored.is_valid() && retained.type_expression(authored) {
         visit_expression(program, retained, authored);
     }
-    if retained.derived_declaration_references()
-        && let Some(operation) = program.expression_table.open_index_operation(expression)
-    {
-        visit_symbol(retained, operation.provider);
-        visit_symbol(retained, operation.operator);
-        visit_symbol(retained, operation.algebra_trait);
-        visit_type_reference(program, retained, operation.operand_type);
-        if let Some(application) = &operation.application {
-            visit_static_argument(program, retained, application);
-        }
-    }
     for occurrence in program
         .expression_table
         .authored_selection_occurrences(expression)

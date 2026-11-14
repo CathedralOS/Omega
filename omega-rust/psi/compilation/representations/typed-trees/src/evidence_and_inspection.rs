@@ -4543,8 +4543,6 @@ pub mod inspection {
                 },
                 ConstExpression {
                     expression: ExpressionSnapshot,
-                    #[serde(skip_serializing_if = "Option::is_none")]
-                    normalization: Option<OpenIndexNormalizationSnapshot>,
                 },
                 DynamicTrait {
                     name: String,
@@ -4557,31 +4555,6 @@ pub mod inspection {
                 Invalid {
                     handle: u32,
                 },
-            }
-
-            #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-            pub struct OpenIndexNormalizationSnapshot {
-                pub index_type: Box<TypeReferenceSnapshot>,
-                pub normalizer_version: u32,
-                pub operations: Vec<OpenIndexOperationSnapshot>,
-            }
-
-            #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-            pub struct OpenIndexOperationSnapshot {
-                pub expression: ExpressionSnapshot,
-                pub spelling: &'static str,
-                pub operation_contract_identity: String,
-                pub provider: String,
-                pub algebra_trait: String,
-                pub algebra_requirement: String,
-                pub algebra_alias: Option<String>,
-                pub commutativity_licensed: bool,
-                pub associativity_licensed: bool,
-                pub distributes_over: Vec<String>,
-                #[serde(skip_serializing_if = "String::is_empty")]
-                pub left_identity_literal: String,
-                #[serde(skip_serializing_if = "String::is_empty")]
-                pub right_identity_literal: String,
             }
 
             #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -4728,51 +4701,6 @@ pub mod inspection {
                     TypeReferenceNode::ConstExpression(expression) => {
                         TypeReferenceSnapshot::ConstExpression {
                             expression: expression_snapshot(program, *expression),
-                            normalization: program
-                                .expression_table
-                                .index_expression_authority(*expression)
-                                .and_then(|authority| authority.normalization.as_ref())
-                                .map(|normalization| OpenIndexNormalizationSnapshot {
-                                    index_type: Box::new(type_reference_snapshot(
-                                        program,
-                                        normalization.index_type,
-                                    )),
-                                    normalizer_version: normalization.normalizer_version,
-                                    operations: program
-                                        .expression_table
-                                        .open_index_operations(*expression)
-                                        .map(|operation| OpenIndexOperationSnapshot {
-                                            expression: expression_snapshot(
-                                                program,
-                                                operation.expression,
-                                            ),
-                                            spelling: operation.spelling.symbol(),
-                                            operation_contract_identity: operation
-                                                .operation_contract_identity(program),
-                                            provider: program
-                                                .symbols
-                                                .display_path(operation.provider, "::"),
-                                            algebra_trait: program
-                                                .symbols
-                                                .display_path(operation.algebra_trait, "::"),
-                                            algebra_requirement: operation
-                                                .algebra_requirement
-                                                .clone(),
-                                            algebra_alias: operation.algebra_alias.clone(),
-                                            commutativity_licensed: operation
-                                                .commutativity_licensed,
-                                            associativity_licensed: operation
-                                                .associativity_licensed,
-                                            distributes_over: operation.distributes_over.clone(),
-                                            left_identity_literal: operation
-                                                .left_identity_literal
-                                                .clone(),
-                                            right_identity_literal: operation
-                                                .right_identity_literal
-                                                .clone(),
-                                        })
-                                        .collect(),
-                                }),
                         }
                     }
                     TypeReferenceNode::DynamicTrait {
@@ -4878,8 +4806,7 @@ pub mod inspection {
             TransitionTargetSnapshot,
         };
         pub use type_snapshots::{
-            DomainConstraintSubjectSnapshot, OpenIndexNormalizationSnapshot,
-            OpenIndexOperationSnapshot, TypeConstraintSnapshot, TypeReferenceSnapshot,
+            DomainConstraintSubjectSnapshot, TypeConstraintSnapshot, TypeReferenceSnapshot,
             WireMemberSnapshot, WireSchemaSnapshot,
         };
 
@@ -5288,7 +5215,6 @@ pub mod inspection {
                 wire_encode_obligation_count: program.wire_encode_obligations.len(),
                 wire_schema_plan_count: program.wire_schema_plans.len(),
                 machine_specialization_count: program.machine_specializations.len(),
-                open_index_normalization_count: program.expression_table.open_index_normalization_count(),
                 evidence_forwarding_count: program.evidence_forwardings.len(),
                 proof_output_call_count: program.proof_output_calls.len(),
                 ranking_expression_custody_count: program.ranking_expression_custody.len(),
@@ -5580,7 +5506,6 @@ pub mod inspection {
             pub wire_encode_obligation_count: usize,
             pub wire_schema_plan_count: usize,
             pub machine_specialization_count: usize,
-            pub open_index_normalization_count: usize,
             pub evidence_forwarding_count: usize,
             pub proof_output_call_count: usize,
             pub ranking_expression_custody_count: usize,
