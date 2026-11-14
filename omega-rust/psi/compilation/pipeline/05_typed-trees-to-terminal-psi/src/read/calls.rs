@@ -405,13 +405,17 @@ impl<'t> Program<'t> {
         {
             self.declaration(id, machine)?;
         }
-        // The author named a declaration; where stage 04 generated the
-        // machine a static application of it selects, the call targets that
-        // generated machine and the selection still names the declaration.
-        let generated = self
-            .typed
-            .executable_callable_template(target)
-            .map_err(|what| refuse(id, Construct::Machine, Unserved::Call(what)))?;
+        // A closed callable targets its retained application while the author
+        // still names the declaration. Requirements retain that correspondence
+        // in their applied signature; body-bearing machines retain it in their
+        // executable application. Neither is established by generated names.
+        let generated = match self.typed.closed_requirement_application(target) {
+            Some(application) => Some(application.template),
+            None => self
+                .typed
+                .executable_callable_template(target)
+                .map_err(|what| refuse(id, Construct::Machine, Unserved::Call(what)))?,
+        };
         let names_target = |symbol: SymbolHandle| symbol == target || generated == Some(symbol);
         if let Some(occurrence) = selection {
             let Some(selected) = self.typed.authored_declaration_selections().get(occurrence)
@@ -2577,6 +2581,12 @@ mod tests {
         let row = MachineSpecialization {
             template: source,
             instance,
+            states: typed.captured_machine_states.insert_many([
+                typed_trees::CapturedMachineState {
+                    template: source_state,
+                    instance: state,
+                },
+            ]),
             ..Default::default()
         };
         typed.machine_specializations.push(row.clone());
@@ -2634,6 +2644,14 @@ mod tests {
             Program::new(&typed, false)
                 .direct_selection(id, state, None, Some(binding))
                 .is_err()
+        );
+        typed.machine_specializations[0] = row.clone();
+        typed.machine_specializations[0].states = Default::default();
+        assert!(
+            Program::new(&typed, false)
+                .direct_selection(id, state, None, Some(binding))
+                .is_err(),
+            "a machine receipt alone does not establish its entry correspondence"
         );
         typed.machine_specializations[0] = row.clone();
         typed.machine_specializations.push(row);
