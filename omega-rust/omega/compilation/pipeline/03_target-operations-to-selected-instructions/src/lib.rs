@@ -722,6 +722,7 @@ pub use selection::{ValidatedSelectedInstructions, selected_instruction_plan_ide
 
 pub use legalization::{
     LegalizationError as TargetOperationAuditError, verify_target_operation_plan,
+    verify_target_operation_plan_with_types,
 };
 
 #[cfg(test)]
