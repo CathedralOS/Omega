@@ -197,9 +197,9 @@ impl NormalCompletionGraph for ModuleCompletionGraph<'_> {
             Terminator::InvokeNoNormal { callee, .. } => {
                 NormalCompletionDisposition::Invoke(*callee)
             }
-            Terminator::Crash { .. } | Terminator::ExternalCompletion { .. } => {
-                NormalCompletionDisposition::Stop
-            }
+            Terminator::Crash { .. }
+            | Terminator::EliminateEmpty { .. }
+            | Terminator::ExternalCompletion { .. } => NormalCompletionDisposition::Stop,
             Terminator::Jump { .. }
             | Terminator::Conditional { .. }
             | Terminator::StructuralCase { .. } => {
