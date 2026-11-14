@@ -77,44 +77,21 @@ impl Program<'_> {
                 let Some(stored) = place.result else {
                     return Err(typing());
                 };
-                let mut at = &place;
-                let slot = loop {
-                    match &at.kind {
-                        ExpressionKind::Field { base, .. } => {
-                            at = base;
-                        }
-                        ExpressionKind::Index { base, .. } => {
-                            at = base;
-                        }
-                        ExpressionKind::Slot(slot) => break *slot,
+                let root = super::storage_path::walk(
+                    &place,
+                    |_| Err(unserved("store into a value that is not a local")),
+                    |projection, _| {
                         // A payload is stored into through its case's
                         // dispatch binding or a directly authored member
                         // (`s.at = x`); neither store is lowered yet.
-                        ExpressionKind::Payload { .. } => {
+                        if matches!(projection.kind, ExpressionKind::Payload { .. }) {
                             return Err(unserved("store into a case payload"));
                         }
-                        ExpressionKind::SavedSubject(_)
-                        | ExpressionKind::Integer(_)
-                        | ExpressionKind::ByteLiteral(_)
-                        | ExpressionKind::CollectionMeasure { .. }
-                        | ExpressionKind::Boolean(_)
-                        | ExpressionKind::Case { .. }
-                        | ExpressionKind::IsCase { .. }
-                        | ExpressionKind::Match { .. }
-                        | ExpressionKind::Record { .. }
-                        | ExpressionKind::Array { .. }
-                        | ExpressionKind::Strict { .. }
-                        | ExpressionKind::Not(_)
-                        | ExpressionKind::BitwiseNot(_)
-                        | ExpressionKind::Cast(_)
-                        | ExpressionKind::Requalify(_)
-                        | ExpressionKind::Establish { .. }
-                        | ExpressionKind::ShortCircuit { .. }
-                        | ExpressionKind::Borrow { .. }
-                        | ExpressionKind::Call { .. } => {
-                            return Err(unserved("store into a value that is not a local"));
-                        }
-                    }
+                        Ok(())
+                    },
+                )?;
+                let ExpressionKind::Slot(slot) = root.kind else {
+                    return Err(unserved("store into a value that is not a local"));
                 };
                 if !slots[slot].assignable {
                     return Err(unserved("store into an immutable binding"));
