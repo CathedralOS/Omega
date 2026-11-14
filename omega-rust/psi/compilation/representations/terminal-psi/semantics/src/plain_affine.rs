@@ -1557,4 +1557,73 @@ mod tests {
             Err(Error::Unsupported(_))
         ));
     }
+
+    #[test]
+    fn a_common_field_scope_does_not_require_or_invent_payload_membership() {
+        use semantic_vocabulary::StructuralCaseId;
+        use std::collections::BTreeSet;
+        use terminal_psi::{
+            StructuralCaseDeclaration, StructuralPathSegment as Path, StructuralTypeShape,
+            TerminalIdentityIndex as Identity,
+        };
+        let mut types = reconvergence_types();
+        let fields = types[0].shape.direct_fields().unwrap().to_vec();
+        let mut second_payload = fields[1].clone();
+        second_payload.id = StructuralFieldId::new(5).unwrap();
+        second_payload.identity = Identity(5);
+        types[0].shape = StructuralTypeShape::Mixed {
+            fields: vec![fields[0].clone()],
+            cases: vec![
+                StructuralCaseDeclaration {
+                    id: StructuralCaseId::new(1).unwrap(),
+                    identity: Identity(10),
+                    fields: vec![fields[1].clone()],
+                },
+                StructuralCaseDeclaration {
+                    id: StructuralCaseId::new(2).unwrap(),
+                    identity: Identity(11),
+                    fields: vec![second_payload],
+                },
+            ],
+        };
+        let root = StructuralTypeId::new(1).unwrap();
+        let common = [vec![Path::Field(Identity(1))]].into_iter().collect();
+        let missing = BTreeSet::new();
+        assert_eq!(
+            crate::partial_affine_residuals_in_regions(&types, root, &missing, &common, 1).unwrap(),
+            [(
+                vec![Path::Field(Identity(1))],
+                StructuralTypeId::new(2).unwrap()
+            ),]
+        );
+        let payload = [vec![
+            Path::Case(StructuralCaseId::new(1).unwrap()),
+            Path::Field(Identity(2)),
+        ]]
+        .into_iter()
+        .collect();
+        assert!(
+            crate::partial_affine_residuals_in_regions(&types, root, &missing, &payload, 1)
+                .is_none(),
+            "a receiving scope does not establish its payload case"
+        );
+        let moved = [vec![
+            Path::Case(StructuralCaseId::new(1).unwrap()),
+            Path::Field(Identity(2)),
+            Path::Field(Identity(3)),
+        ]]
+        .into_iter()
+        .collect();
+        assert_eq!(
+            crate::partial_affine_residuals_in_regions(&types, root, &moved, &payload, 1).unwrap(),
+            [(
+                vec![
+                    Path::Case(StructuralCaseId::new(1).unwrap()),
+                    Path::Field(Identity(2)),
+                    Path::Field(Identity(4))
+                ],
+                StructuralTypeId::new(3).unwrap()
+            ),]
+        );
+    }
 }

@@ -397,15 +397,23 @@ machine main() crashes Trap {
     machine bad() { crash Trap; }
 }
 "#;
-    for wrong_region in [false, true] {
-        let source = if wrong_region {
-            source.replace("outer.selected =", "outer.other =")
-        } else {
-            source.to_owned()
-        };
+    for (reversed, wrong_region) in [(false, false), (true, false), (false, true)] {
+        let mut source = source.to_owned();
+        if reversed {
+            source = source.replace("case Part; case Whole;", "case Whole; case Part;")
+                .replace(
+                    "Choice::Part -> take_item(outer.selected.first)\n        Choice::Whole -> take_pair(outer.selected)",
+                    "Choice::Whole -> take_pair(outer.selected)\n        Choice::Part -> take_item(outer.selected.first)",
+                );
+        }
+        if wrong_region {
+            source = source.replace("outer.selected =", "outer.other =");
+        }
         let frontier = unbuilt_frontier::staged_frontier(
             if wrong_region {
                 "join-wrong-region"
+            } else if reversed {
+                "join-refill-reversed"
             } else {
                 "join-refill"
             },

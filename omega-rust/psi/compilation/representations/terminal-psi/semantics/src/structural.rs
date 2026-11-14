@@ -1326,50 +1326,67 @@ pub(crate) mod partial_affine {
                 }
             }
             StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => {
-                let selected_case = moved
-                    .iter()
-                    .find_map(|path| match path.first() {
-                        Some(StructuralPathSegment::Case(case)) => Some(*case),
-                        _ => None,
-                    })
-                    .or_else(|| {
-                        let mut matching =
-                            cases.iter().filter(|case| admitted_case(prefix, case.id));
-                        let case = matching.next()?;
-                        matching.next().is_none().then_some(case.id)
-                    })?;
-                let selected = find_structural_case(cases, selected_case)?;
-                if moved.iter().any(|path| match path.first() {
-                    Some(StructuralPathSegment::Case(case)) => *case != selected_case,
-                    Some(StructuralPathSegment::Field(_)) => {
-                        declaration.shape.direct_fields().is_none()
+                // A common-field cleanup does not observe the case. Retain
+                // the payload namespace only when the receiving scope asks
+                // for it; a requested payload still needs actual membership.
+                let payload_regions = regions.map(|paths| {
+                    paths
+                        .iter()
+                        .copied()
+                        .filter(|path| matches!(path.first(), Some(StructuralPathSegment::Case(_))))
+                        .collect::<Vec<_>>()
+                });
+                if payload_regions
+                    .as_ref()
+                    .is_none_or(|paths| !paths.is_empty())
+                {
+                    let selected_case = moved
+                        .iter()
+                        .find_map(|path| match path.first() {
+                            Some(StructuralPathSegment::Case(case)) => Some(*case),
+                            _ => None,
+                        })
+                        .or_else(|| {
+                            let mut matching =
+                                cases.iter().filter(|case| admitted_case(prefix, case.id));
+                            let case = matching.next()?;
+                            matching.next().is_none().then_some(case.id)
+                        })?;
+                    let selected = find_structural_case(cases, selected_case)?;
+                    if moved.iter().any(|path| match path.first() {
+                        Some(StructuralPathSegment::Case(case)) => *case != selected_case,
+                        Some(StructuralPathSegment::Field(_)) => {
+                            declaration.shape.direct_fields().is_none()
+                        }
+                        _ => true,
+                    }) {
+                        return None;
                     }
-                    _ => true,
-                }) {
-                    return None;
+                    let payload_moves = moved
+                        .iter()
+                        .filter_map(|path| {
+                            matches!(path.first(), Some(StructuralPathSegment::Case(_)))
+                                .then_some(&path[1..])
+                        })
+                        .collect::<Vec<_>>();
+                    prefix.push(StructuralPathSegment::Case(selected_case));
+                    let case_regions = region_children(
+                        payload_regions.as_deref(),
+                        StructuralPathSegment::Case(selected_case),
+                    );
+                    count = fields_residuals(
+                        types,
+                        &selected.fields,
+                        &payload_moves,
+                        case_regions.as_deref(),
+                        prefix,
+                        max_residuals,
+                        residuals,
+                        emit,
+                        admitted_case,
+                    )?;
+                    prefix.pop();
                 }
-                let payload_moves = moved
-                    .iter()
-                    .filter_map(|path| {
-                        matches!(path.first(), Some(StructuralPathSegment::Case(_)))
-                            .then_some(&path[1..])
-                    })
-                    .collect::<Vec<_>>();
-                prefix.push(StructuralPathSegment::Case(selected_case));
-                let case_regions =
-                    region_children(regions, StructuralPathSegment::Case(selected_case));
-                count = fields_residuals(
-                    types,
-                    &selected.fields,
-                    &payload_moves,
-                    case_regions.as_deref(),
-                    prefix,
-                    max_residuals,
-                    residuals,
-                    emit,
-                    admitted_case,
-                )?;
-                prefix.pop();
                 if let Some(common) = declaration.shape.direct_fields() {
                     let common_moves = moved
                         .iter()
