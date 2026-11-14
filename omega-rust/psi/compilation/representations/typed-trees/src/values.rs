@@ -1150,12 +1150,8 @@ pub mod expression {
                 );
                 let mut destination = ExpressionTable::default();
                 destination.insert(ExpressionNode::Boolean(false));
-                let (arguments, _, copied, _) = destination.copy_call_operands_from(
-                    &source,
-                    &[value, value],
-                    application,
-                    None,
-                );
+                let (arguments, _, copied) =
+                    destination.copy_call_operands_from(&source, &[value, value], application);
                 let actuals = destination.expression_handles(arguments);
                 assert_eq!(actuals[0], actuals[1]);
                 let StaticMachineBindingValue::RuntimeValue { expression, .. } =
@@ -1199,55 +1195,14 @@ pub mod expression {
                 }
             }
 
-            fn copy_call_static_applications(
-                &mut self,
-                source: CopySource<'_>,
-                application: crate::static_applications::StaticMachineApplicationHandle,
-                mut dispatch: Option<crate::StaticRequirementDispatch>,
-                copies: &mut CopyGraph,
-            ) -> (
-                crate::static_applications::StaticMachineApplicationHandle,
-                Option<crate::StaticRequirementDispatch>,
-            ) {
-                let copied = self.copy_static_machine_application(source, application, copies);
-                if let Some(dispatch) = &mut dispatch {
-                    dispatch.selection_application =
-                        if dispatch.selection_application == application {
-                            copied
-                        } else {
-                            self.copy_static_machine_application(
-                                source,
-                                dispatch.selection_application,
-                                copies,
-                            )
-                        };
-                }
-                (copied, dispatch)
-            }
-
-            pub fn remap_call_static_applications<'scope>(
-                &mut self,
-                application: crate::static_applications::StaticMachineApplicationHandle,
-                dispatch: Option<&crate::StaticRequirementDispatch>,
-                symbols: impl Into<crate::SymbolRebinding<'scope>>,
-            ) {
-                let symbols = symbols.into();
-                let selected = dispatch.map_or(Default::default(), |dispatch| {
-                    dispatch.selection_application
-                });
-                if application.is_valid() {
-                    self.remap_static_application(application, symbols);
-                }
-                if selected.is_valid() && selected != application {
-                    self.remap_static_application(selected, symbols);
-                }
-            }
-
-            fn remap_static_application(
+            pub(crate) fn remap_static_application(
                 &mut self,
                 handle: crate::static_applications::StaticMachineApplicationHandle,
                 symbols: crate::SymbolRebinding<'_>,
             ) {
+                if !handle.is_valid() {
+                    return;
+                }
                 let application = self.static_machine_application_mut(handle);
                 application.lexical_owner = remapped(application.lexical_owner, symbols);
                 self.remap_static_application_operands(handle, symbols);
@@ -1496,11 +1451,7 @@ pub mod expression {
                     }
                     ExpressionNode::Call(call) => {
                         self.remap_symbols_in_inner(call.receiver, symbols, visited);
-                        self.remap_call_static_applications(
-                            call.authored_machine_application,
-                            call.static_requirement_dispatch.as_ref(),
-                            symbols,
-                        );
+                        self.remap_static_application(call.authored_machine_application, symbols);
                         let arguments = self.expression_handles(call.arguments).to_vec();
                         for argument in arguments {
                             self.remap_symbols_in_inner(argument, symbols, visited);
@@ -1599,12 +1550,10 @@ pub mod expression {
                 source: &ExpressionTable,
                 expressions: &[ExpressionHandle],
                 application: crate::static_applications::StaticMachineApplicationHandle,
-                dispatch: Option<crate::StaticRequirementDispatch>,
             ) -> (
                 HandleSpan<ExpressionHandle>,
                 Vec<(Handle<CompletedValueCapture>, ValueCaptureOwner)>,
                 crate::static_applications::StaticMachineApplicationHandle,
-                Option<crate::StaticRequirementDispatch>,
             ) {
                 let mut copies = CopyGraph::default();
                 let expressions = self.copy_expression_list_with_occurrences(
@@ -1613,10 +1562,9 @@ pub mod expression {
                     &retain_every_field,
                     &mut copies,
                 );
-                let (application, dispatch) = self.copy_call_static_applications(
+                let application = self.copy_static_machine_application(
                     CopySource::Table(source),
                     application,
-                    dispatch,
                     &mut copies,
                 );
                 (
@@ -1627,7 +1575,6 @@ pub mod expression {
                         .map(|(original, capture)| (capture, source.value_capture(original).owner))
                         .collect(),
                     application,
-                    dispatch,
                 )
             }
 
@@ -1884,13 +1831,11 @@ pub mod expression {
                             .cloned()
                             .map(|request| self.insert_build_selection_request(request))
                             .unwrap_or_default();
-                        let (authored_machine_application, static_requirement_dispatch) = self
-                            .copy_call_static_applications(
-                                source,
-                                call.authored_machine_application,
-                                call.static_requirement_dispatch,
-                                copies,
-                            );
+                        let authored_machine_application = self.copy_static_machine_application(
+                            source,
+                            call.authored_machine_application,
+                            copies,
+                        );
                         self.insert(ExpressionNode::Call(TableCallExpression {
                             authored_call_selection: call.authored_call_selection,
                             authored_call_binding: call.authored_call_binding,
@@ -1900,7 +1845,7 @@ pub mod expression {
                             receiver,
                             target_symbol: call.target_symbol,
                             target: call.target,
-                            static_requirement_dispatch,
+                            static_requirement_dispatch: call.static_requirement_dispatch,
                             static_machine_parameter: call.static_machine_parameter,
                             machine_arguments: call.machine_arguments,
                             quotient_operation: call.quotient_operation,

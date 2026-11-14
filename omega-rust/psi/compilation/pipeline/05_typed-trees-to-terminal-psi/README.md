@@ -205,11 +205,9 @@ literal (`StaticMachineArgument::const_literal`); a requirement is one
 machine per tuple of them (`Elaboration::value_arguments`). In a generated
 machine the same call targets the machine stage 04 generated from the
 selected member for those arguments, and its selection records the literals
-(`Selected::value_arguments`). Stage 04 also records the requirement's
-signature at those arguments beside the dispatch
-(`StaticRequirementDispatch::contract_signature`); the reader states that
-contract itself and does not read the record, which only Psi 05's helpers
-can resolve.
+(`Selected::value_arguments`). The reader states the requirement's contract
+from its declaration and those retained literals; dispatch carries the exact
+requirement and selected realization, not another prepared signature.
 
 **A type parameter** of the generic check form's entry is rigid: a formal
 or result of type `T` has `ValueType::Rigid`, which is neither a scalar nor a

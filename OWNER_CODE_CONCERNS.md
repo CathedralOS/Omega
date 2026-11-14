@@ -311,13 +311,6 @@ framework or a list of features that remain unimplemented.
 - Cost: a pass that sets one marker and not the other produces a machine the reader accepts and the declaration step refuses, or the reverse; a new expression node that holds a type is silently left pointing at the generic machine's type until someone adds it to the list
 - Reported: 2026-11-13, Claude Code, while rebuilding specialization as a typed preparation pass
 
-### Static requirement dispatch retains fields its producer never fills
-- Category: stale representation and consumers
-- Where: `typed-trees` (`StaticRequirementDispatch`, `selected_conformance_applications`); `04_typed-trees-to-typed-trees/src/passes/specialization.rs` (`selections`)
-- Saw: the dispatch producer writes five of nine fields; application fingerprint, commitment, selection application and contract signature stay at their defaults, but copy walks and conformance-signature lookup still consume them
-- Cost: readers cannot distinguish an empty commitment from an uncomputed one; retirement needs to reconcile those consumers with the actual specialization evidence, not substitute unchecked defaults
-- Reported: 2026-11-13, Claude Code, while serving implementation parameters in the specialization pass
-
 ### A typing unit test is red on `main` and nothing runs it before merge
 - Category: a test that pins nothing while it is red
 - Where: `03_symbol-resolved-trees-to-typed-trees/src/call_and_product_selections.rs`, `construction_destinations::tests::an_assigned_literal_lands_on_its_binding_or_refuses_its_own_machine`

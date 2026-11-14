@@ -883,6 +883,45 @@ fn an_owned_inline_parameter_dispatch_exposes_only_the_requirement_guarantee() {
 }
 
 #[test]
+fn an_owned_inline_parameter_dispatch_keeps_exact_selection_checks() {
+    use typed_trees::expression::ExpressionNode;
+
+    for (corruption, expected) in [
+        (0, "requirement dispatch with no requirement"),
+        (1, "static requirement dispatch"),
+        (2, "requirement dispatch that targets another machine"),
+    ] {
+        let mut prepared = inline_parameter_prepared("7", "").into_inner();
+        let expression = prepared
+            .expression_table
+            .iter_expressions()
+            .find_map(|(expression, node)| {
+                matches!(node, ExpressionNode::Call(call) if call.static_requirement_dispatch.is_some())
+                    .then_some(expression)
+            })
+            .expect("one generated requirement dispatch");
+        let ExpressionNode::Call(call) = prepared.expression_table.expression_mut(expression)
+        else {
+            panic!("selected call");
+        };
+        let dispatch = call.static_requirement_dispatch.as_mut().unwrap();
+        match corruption {
+            0 => dispatch.requirement = Default::default(),
+            1 => dispatch.evidence_parameter = Default::default(),
+            2 => dispatch.realization_state = Default::default(),
+            _ => unreachable!(),
+        }
+        let prepared = prepared.into();
+        let Err(refusal) =
+            inline_parameter_read(&prepared, terminal_codec::TerminalPublication::Invocation)
+        else {
+            panic!("a changed selection must refuse: {expected}");
+        };
+        assert!(refusal.detail.contains(expected), "{refusal:?}");
+    }
+}
+
+#[test]
 fn an_anonymous_parameter_application_cannot_transfer_its_template_identity() {
     let prepared = inline_parameter_prepared("7", "");
     let first =

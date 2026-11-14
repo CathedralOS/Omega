@@ -1021,24 +1021,9 @@ pub enum StaticArgumentCall<'call> {
 
 impl<'call> StaticArgumentCall<'call> {
     pub fn applications(&self) -> impl Iterator<Item = StaticMachineApplicationHandle> + use<> {
-        let invocation = self.application();
-        let selection = self.selection_application();
-        [invocation, selection]
+        [self.application()]
             .into_iter()
-            .enumerate()
-            .filter_map(move |(index, application)| {
-                (application.is_valid() && (index == 0 || application != invocation))
-                    .then_some(application)
-            })
-    }
-
-    pub fn selection_application(&self) -> StaticMachineApplicationHandle {
-        match self {
-            Self::Expression(_, call) => call.static_requirement_dispatch.as_ref(),
-            Self::Statement(call) => call.static_requirement_dispatch.as_ref(),
-        }
-        .map(|dispatch| dispatch.selection_application)
-        .unwrap_or_default()
+            .filter(|application| application.is_valid())
     }
 
     pub fn application(&self) -> StaticMachineApplicationHandle {
@@ -1464,12 +1449,10 @@ impl TypedReferences for TypeOccurrences {
                 }
             }
         }
-        for handle in [call.application(), call.selection_application()] {
-            if handle.is_valid() {
-                let source = program.static_machine_application(handle);
-                if source.lexical_owner == self.owner {
-                    self.applications.insert(handle);
-                }
+        for handle in call.applications() {
+            let source = program.static_machine_application(handle);
+            if source.lexical_owner == self.owner {
+                self.applications.insert(handle);
             }
         }
         true
@@ -3212,25 +3195,13 @@ fn visit_described_argument(
 }
 
 fn visit_static_requirement_dispatch(
-    program: &TypedTrees,
     retained: &mut impl TypedReferences,
     dispatch: &crate::StaticRequirementDispatch,
-    invocation: StaticMachineApplicationHandle,
 ) {
     visit_symbol(retained, dispatch.realization_machine);
     visit_symbol(retained, dispatch.realization_state);
     visit_symbol(retained, dispatch.requirement);
-    visit_symbol(retained, dispatch.contract_signature);
     visit_symbol(retained, dispatch.declaring_trait);
-    let selected = dispatch.selection_application;
-    if selected.is_valid() && selected != invocation {
-        let application = program.static_machine_application(selected);
-        visit_symbol(retained, application.registration_operation);
-        for argument in program.static_machine_application_arguments(selected) {
-            visit_static_argument(program, retained, argument);
-        }
-        visit_static_machine_bindings(program, retained, selected);
-    }
 }
 
 fn visit_call_expression(
@@ -3271,12 +3242,7 @@ fn visit_call_expression(
         visit_type_reference(program, retained, request.requirement);
     }
     if let Some(dispatch) = &call.static_requirement_dispatch {
-        visit_static_requirement_dispatch(
-            program,
-            retained,
-            dispatch,
-            call.authored_machine_application,
-        );
+        visit_static_requirement_dispatch(retained, dispatch);
     }
     if retained.call_arguments(program, StaticArgumentCall::Expression(expression, call)) {
         for argument in StaticArgumentCall::Expression(expression, call).arguments(program) {
@@ -3367,12 +3333,7 @@ fn visit_statement(
                 );
             }
             if let Some(dispatch) = &call.static_requirement_dispatch {
-                visit_static_requirement_dispatch(
-                    program,
-                    retained,
-                    dispatch,
-                    call.authored_machine_application,
-                );
+                visit_static_requirement_dispatch(retained, dispatch);
             }
             if let Some(request) = &call.installed_interrupt_operation {
                 visit_symbol(retained, request.registrar_trait);
