@@ -93,6 +93,7 @@ pub enum CompileResolvedPackageReviewsError {
     BuildConsentRequired {
         package: PackageKey,
         requests: Vec<UngrantedRestrictedBuildRequest>,
+        accounting: compilation_products::SourceCompletionAccounting,
     },
     Projection {
         package: PackageKey,
@@ -101,6 +102,7 @@ pub enum CompileResolvedPackageReviewsError {
     Encoding {
         package: PackageKey,
         error: PackageReviewEncodingError,
+        accounting: Option<compilation_products::SourceCompletionAccounting>,
     },
     SourceConsumptionMissing {
         package: PackageKey,
@@ -149,7 +151,10 @@ impl CompileResolvedPackageReviewsError {
             @ (CompileFailure::Diagnostics(_) | CompileFailure::SourceCompletion { .. }) => {
                 Self::Compilation { package, failure }
             }
-            CompileFailure::BuildConsentRequired(requests) => {
+            CompileFailure::BuildConsentRequired {
+                requests,
+                accounting,
+            } => {
                 let projected = requests
                     .iter()
                     .map(|request| {
@@ -162,8 +167,16 @@ impl CompileResolvedPackageReviewsError {
                     })
                     .collect::<Result<Vec<_>, _>>();
                 match projected {
-                    Ok(requests) => Self::BuildConsentRequired { package, requests },
-                    Err(error) => Self::Encoding { package, error },
+                    Ok(requests) => Self::BuildConsentRequired {
+                        package,
+                        requests,
+                        accounting,
+                    },
+                    Err(error) => Self::Encoding {
+                        package,
+                        error,
+                        accounting: Some(accounting),
+                    },
                 }
             }
         }
@@ -197,7 +210,9 @@ fn render_package_diagnostics(
 impl fmt::Display for CompileResolvedPackageReviewsError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::BuildConsentRequired { package, requests } => {
+            Self::BuildConsentRequired {
+                package, requests, ..
+            } => {
                 write!(
                     formatter,
                     "package `{}` Build review is pending explicit execution consent; generated-source and final product findings are unavailable",
@@ -307,7 +322,7 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
                         diagnostics,
                     )
                 }
-                CompileFailure::BuildConsentRequired(requests) => write!(
+                CompileFailure::BuildConsentRequired { requests, .. } => write!(
                     formatter,
                     "restricted Build execution requires explicit consent; pending requests: {requests:?}"
                 ),
@@ -316,7 +331,7 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
                 package,
                 diagnostics,
             } => render_package_diagnostics(formatter, "review projection", package, diagnostics),
-            Self::Encoding { package, error } => write!(
+            Self::Encoding { package, error, .. } => write!(
                 formatter,
                 "review encoding failed for package `{}`: {error}",
                 package.name().as_str()

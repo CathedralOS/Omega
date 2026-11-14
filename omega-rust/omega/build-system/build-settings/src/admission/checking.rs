@@ -138,6 +138,7 @@ pub(crate) fn prepare_admitted_build(
         Arc<psi_compiler::AcceptedTerminalSource>,
         super::provider_execution::BuildProviderPlans,
         compilation_products::BuildConstants,
+        build_time_evaluation::SourceCompletionAccounting,
     ),
     compilation_products::CompileFailure,
 > {
@@ -213,9 +214,13 @@ pub(crate) fn prepare_admitted_build(
             constants,
         ))
     })();
-    result.map_err(|diagnostics| {
-        compilation_products::CompileFailure::source_completion(diagnostics, accounting)
-    })
+    match result {
+        Ok((accepted, providers, constants)) => Ok((accepted, providers, constants, accounting)),
+        Err(diagnostics) => Err(compilation_products::CompileFailure::source_completion(
+            diagnostics,
+            accounting,
+        )),
+    }
 }
 
 #[cfg(test)]

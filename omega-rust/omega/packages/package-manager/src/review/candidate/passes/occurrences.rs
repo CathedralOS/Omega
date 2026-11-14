@@ -63,6 +63,7 @@ pub(super) fn projection_failure(
             package: key.clone(),
         },
         Error::Encoding(error) => CompileResolvedPackageReviewsError::Encoding {
+            accounting: None,
             package: key.clone(),
             error,
         },
@@ -737,6 +738,7 @@ impl<'pass> PackageReviewRound<'pass> {
         let (policy_rows, policy_commitment) =
             super::super::review_set::policy_rows_and_commitment(&policy).map_err(|error| {
                 CompileResolvedPackageReviewsError::Encoding {
+                    accounting: None,
                     package: key.clone(),
                     error,
                 }
@@ -832,6 +834,7 @@ impl<'pass> PackageReviewRound<'pass> {
                     .policy
                     .canonical_bytes()
                     .map_err(|error| CompileResolvedPackageReviewsError::Encoding {
+                        accounting: None,
                         package: review.key.clone(),
                         error,
                     })?
@@ -851,6 +854,7 @@ impl<'pass> PackageReviewRound<'pass> {
                     &review.policy,
                 )
                 .map_err(|error| CompileResolvedPackageReviewsError::Encoding {
+                    accounting: None,
                     package: review.key.clone(),
                     error,
                 })?;

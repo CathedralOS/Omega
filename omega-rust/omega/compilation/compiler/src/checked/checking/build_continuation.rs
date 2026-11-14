@@ -284,135 +284,144 @@ pub(super) fn complete_build_source(
     inputs_joined_after_build: bool,
     timings: &mut CompileTimings,
 ) -> Result<(BuiltTypedProgram, BuildSourceCustody), CompileFailure> {
-    let TypedCompilationFrontier {
-        preparation,
-        mut source,
-        mut anonymous_source,
-        product_sources,
-        build_source: _,
-        mut source_file_count,
-        mut generated_source_custody,
-        mut base_sources,
-    } = frontier;
-    let build_settings::EvaluatedBuild {
-        configuration: mut computed_build_config,
-        restricted_build_requests,
-        base_source_consumption_commitment,
-        constants: build_constants,
-    } = evaluated;
-    if let Some(pending) = product_sources {
-        let inputs =
-            package_compilation::ProductSourceInputs::new(package_inputs, build_execution_profile);
-        let product = match pending.retained(&inputs, package_inputs)? {
-            Some(product) => product,
-            None => {
-                let (count, syntax) = pending.sources().assemble(
-                    package_inputs,
-                    timings,
-                    &mut *preparation.catalogue()?,
-                )?;
-                let diagnostic_sources = syntax.sources.clone();
-                let product = lower_typed_frontier(
-                    preparation.clone(),
-                    count,
-                    syntax,
-                    build_execution_profile,
-                    package_inputs,
-                    timings,
-                )
-                .map_err(|mut diagnostics| {
-                    super::attribute_diagnostics(
-                        &mut diagnostics,
-                        &diagnostic_sources,
-                        package_inputs,
-                    );
-                    diagnostics
-                })?;
-                pending.retain(inputs, &product)?;
-                product
-            }
-        };
-        let selected = match computed_build_config.selected_build_machine_symbol {
-            Some(selected) => Some(product.source.rejoin_machine(&source, selected)?),
-            None => None,
-        };
-        source = product.source;
-        anonymous_source = product.anonymous_source;
-        base_sources = product.base_sources;
-        source_file_count = product.source_file_count;
-        generated_source_custody = product.generated_source_custody;
-        Arc::make_mut(&mut computed_build_config).selected_build_machine_symbol = selected;
-        // This frontier holds the Build source again, typed afresh, so a
-        // constant Build admission folded under its own provider plans is
-        // pending here. Settle it before the Product completes; left
-        // pending, the constant would be retained as a Product application
-        // and evaluated by the Product's targets. Constants that need no
-        // provider fold the same way on either frontier, so only a provider
-        // fold, or package inputs that joined after Build ran and may change
-        // what defers, calls for it. The settlement decides from what the
-        // admission recorded about its accepted module, not from this call.
-        if build_constants.folded_under_providers || inputs_joined_after_build {
-            let entry = selected.ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "deferred Product lost the Build entry whose constants it must settle",
-                )]
-            })?;
-            build_settings::settle_rejoined_build_slice(
-                &build_constants,
-                source.build_input(),
-                entry,
+    let spent = evaluated.source_completion_accounting.clone();
+    let result = (|| {
+        let TypedCompilationFrontier {
+            preparation,
+            mut source,
+            mut anonymous_source,
+            product_sources,
+            build_source: _,
+            mut source_file_count,
+            mut generated_source_custody,
+            mut base_sources,
+        } = frontier;
+        let build_settings::EvaluatedBuild {
+            configuration: mut computed_build_config,
+            restricted_build_requests,
+            base_source_consumption_commitment,
+            constants: build_constants,
+            source_completion_accounting: build_accounting,
+        } = evaluated;
+        if let Some(pending) = product_sources {
+            let inputs = package_compilation::ProductSourceInputs::new(
                 package_inputs,
-                dependency_activation,
                 build_execution_profile,
+            );
+            let product = match pending.retained(&inputs, package_inputs)? {
+                Some(product) => product,
+                None => {
+                    let (count, syntax) = pending.sources().assemble(
+                        package_inputs,
+                        timings,
+                        &mut *preparation.catalogue()?,
+                    )?;
+                    let diagnostic_sources = syntax.sources.clone();
+                    let product = lower_typed_frontier(
+                        preparation.clone(),
+                        count,
+                        syntax,
+                        build_execution_profile,
+                        package_inputs,
+                        timings,
+                    )
+                    .map_err(|mut diagnostics| {
+                        super::attribute_diagnostics(
+                            &mut diagnostics,
+                            &diagnostic_sources,
+                            package_inputs,
+                        );
+                        diagnostics
+                    })?;
+                    pending.retain(inputs, &product)?;
+                    product
+                }
+            };
+            let selected = match computed_build_config.selected_build_machine_symbol {
+                Some(selected) => Some(product.source.rejoin_machine(&source, selected)?),
+                None => None,
+            };
+            source = product.source;
+            anonymous_source = product.anonymous_source;
+            base_sources = product.base_sources;
+            source_file_count = product.source_file_count;
+            generated_source_custody = product.generated_source_custody;
+            Arc::make_mut(&mut computed_build_config).selected_build_machine_symbol = selected;
+            // This frontier holds the Build source again, typed afresh, so a
+            // constant Build admission folded under its own provider plans is
+            // pending here. Settle it before the Product completes; left
+            // pending, the constant would be retained as a Product application
+            // and evaluated by the Product's targets. Constants that need no
+            // provider fold the same way on either frontier, so only a provider
+            // fold, or package inputs that joined after Build ran and may change
+            // what defers, calls for it. The settlement decides from what the
+            // admission recorded about its accepted module, not from this call.
+            if build_constants.folded_under_providers || inputs_joined_after_build {
+                let entry = selected.ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "deferred Product lost the Build entry whose constants it must settle",
+                    )]
+                })?;
+                build_settings::settle_rejoined_build_slice(
+                    &build_constants,
+                    source.build_input(),
+                    entry,
+                    package_inputs,
+                    dependency_activation,
+                    build_execution_profile,
+                )?;
+            }
+        }
+        if computed_build_config
+            .declared_product_selections
+            .iter()
+            .any(|request| {
+                request
+                    .operands
+                    .iter()
+                    .any(|operand| operand.application.is_some())
+            })
+        {
+            source = source.materialize_authored_bodies(
+                &mut crate::observations::PsiStageTimings::new(timings),
             )?;
         }
-    }
-    if computed_build_config
-        .declared_product_selections
-        .iter()
-        .any(|request| {
-            request
-                .operands
-                .iter()
-                .any(|operand| operand.application.is_some())
-        })
-    {
-        source = source
-            .materialize_authored_bodies(&mut crate::observations::PsiStageTimings::new(timings))?;
-    }
-    super::product_selections::admit(
-        &mut source,
-        Arc::make_mut(&mut computed_build_config),
-        package_inputs,
-    )?;
-    let sources = BuildSourceCustody {
-        source_file_count,
-        build_execution_profile,
-        generated_source_custody,
-        base_source_consumption_commitment,
-    };
-    let admission = BuildAdmission {
-        application: match &computed_build_config.project_declaration {
-            Some(build_declarations::BuildDeclaration::Application(application)) => {
-                Some(application.clone())
-            }
-            _ => None,
-        },
-        selected_build_machine_identity: computed_build_config
-            .selected_machine_identity(source.typed())?,
-        restricted_build_requests,
-    };
-    Ok((
-        BuiltTypedProgram {
-            anonymous_source,
-            preparation,
-            source,
-            base_sources,
-            computed_build_config,
-            admission,
-        },
-        sources,
-    ))
+        super::product_selections::admit(
+            &mut source,
+            Arc::make_mut(&mut computed_build_config),
+            package_inputs,
+        )?;
+        let sources = BuildSourceCustody {
+            source_file_count,
+            build_execution_profile,
+            generated_source_custody,
+            base_source_consumption_commitment,
+        };
+        let admission = BuildAdmission {
+            application: match &computed_build_config.project_declaration {
+                Some(build_declarations::BuildDeclaration::Application(application)) => {
+                    Some(application.clone())
+                }
+                _ => None,
+            },
+            selected_build_machine_identity: computed_build_config
+                .selected_machine_identity(source.typed())?,
+            restricted_build_requests,
+        };
+        Ok((
+            BuiltTypedProgram {
+                build_accounting,
+                anonymous_source,
+                preparation,
+                source,
+                base_sources,
+                computed_build_config,
+                admission,
+            },
+            sources,
+        ))
+    })();
+    result.map_err(|failure: CompileFailure| failure.with_source_completion_accounting(spent))
 }
 
 pub(super) fn lower_typed_frontier(
@@ -473,70 +482,72 @@ pub(super) fn complete_product_frontend(
     timings: &mut CompileTimings,
 ) -> Result<
     (
-        typed_trees::TypedTrees,
+        psi_compiler::PreparedSource,
         build_time_evaluation::SourceCompletionAccounting,
         Arc<compilation_products::ComputedBuildConfig>,
         BuildAdmission,
     ),
-    Vec<Diagnostic>,
+    CompileFailure,
 > {
-    artifacts::compile_timings::counters::record_product_source_completion();
-    let BuiltTypedProgram {
-        anonymous_source: _,
-        preparation,
-        source,
-        base_sources,
-        mut computed_build_config,
-        admission,
-    } = built;
-    let source =
-        source.complete_authored(&mut crate::observations::PsiStageTimings::new(timings))?;
-    let prepared = if let Some((extension, package_inputs)) = sources.admit_generated_extension(
-        &base_sources,
-        package_inputs,
-        &computed_build_config.generated_sources,
-        &mut *preparation.catalogue()?,
-    )? {
-        let first_source = extension
-            .custody()
-            .first()
-            .map(|(source, _)| *source)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "admitted generated extension has no source coordinate",
-                )]
-            })?;
-        let (sources, units) = extension.parse(&base_sources, timings)?;
-        let diagnostic_sources = Arc::clone(&sources);
-        source
-            .extend(
-                psi_compiler::SourceExtensionRequest {
-                    units,
-                    sources,
-                    first_source,
-                    selection_authority: Arc::new(package_inputs.clone()),
-                },
-                &mut crate::observations::PsiStageTimings::new(timings),
-            )
-            .map_err(|mut diagnostics| {
-                super::attribute_diagnostics(
-                    &mut diagnostics,
-                    &diagnostic_sources,
-                    Some(package_inputs),
-                );
-                diagnostics
-            })?
-    } else {
-        source.finish()
-    };
-    let bindings = prepared.admit_root_bindings(&computed_build_config.root_binding_requests)?;
-    Arc::make_mut(&mut computed_build_config)
-        .config
-        .root_bindings = bindings;
-    Ok((
-        prepared.typed,
-        prepared.accounting,
-        computed_build_config,
-        admission,
-    ))
+    let spent = built.build_accounting.clone();
+    let result = (|| -> Result<_, Vec<Diagnostic>> {
+        artifacts::compile_timings::counters::record_product_source_completion();
+        let BuiltTypedProgram {
+            build_accounting,
+            anonymous_source: _,
+            preparation,
+            source,
+            base_sources,
+            mut computed_build_config,
+            admission,
+        } = built;
+        let source =
+            source.complete_authored(&mut crate::observations::PsiStageTimings::new(timings))?;
+        let prepared = if let Some((extension, package_inputs)) = sources
+            .admit_generated_extension(
+                &base_sources,
+                package_inputs,
+                &computed_build_config.generated_sources,
+                &mut *preparation.catalogue()?,
+            )? {
+            let first_source = extension
+                .custody()
+                .first()
+                .map(|(source, _)| *source)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "admitted generated extension has no source coordinate",
+                    )]
+                })?;
+            let (sources, units) = extension.parse(&base_sources, timings)?;
+            let diagnostic_sources = Arc::clone(&sources);
+            source
+                .extend(
+                    psi_compiler::SourceExtensionRequest {
+                        units,
+                        sources,
+                        first_source,
+                        selection_authority: Arc::new(package_inputs.clone()),
+                    },
+                    &mut crate::observations::PsiStageTimings::new(timings),
+                )
+                .map_err(|mut diagnostics| {
+                    super::attribute_diagnostics(
+                        &mut diagnostics,
+                        &diagnostic_sources,
+                        Some(package_inputs),
+                    );
+                    diagnostics
+                })?
+        } else {
+            source.finish()
+        };
+        let bindings =
+            prepared.admit_root_bindings(&computed_build_config.root_binding_requests)?;
+        Arc::make_mut(&mut computed_build_config)
+            .config
+            .root_bindings = bindings;
+        Ok((prepared, build_accounting, computed_build_config, admission))
+    })();
+    result.map_err(|diagnostics| CompileFailure::source_completion(diagnostics, spent))
 }

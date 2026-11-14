@@ -464,27 +464,25 @@ fn prepare_build_source_invocation(
 pub(super) fn complete_prepared_build(
     prepared: PreparedBuild,
     package_inputs: Option<&PackageCompilationInputs>,
-) -> Result<PreparedProductSource, Vec<Diagnostic>> {
+) -> Result<PreparedProductSource, CompileFailure> {
     let PreparedBuild {
         built,
         mut build_sources,
         mut timings,
     } = prepared;
     let base_sources = built.base_sources.clone();
-    let (typed, source_completion_accounting, computed_build_config, admission) =
+    let (source, build_accounting, computed_build_config, admission) =
         build_continuation::complete_product_frontend(
             built,
             &mut build_sources,
             package_inputs,
             &mut timings,
         )
-        .map_err(|mut diagnostics| {
-            attribute_diagnostics(&mut diagnostics, &base_sources, package_inputs);
-            diagnostics
-        })?;
+        .map_err(|failure| attribute_failure(failure, &base_sources, package_inputs))?;
     Ok(PreparedProductSource {
-        source_completion_accounting,
-        typed,
+        build_accounting,
+        source_completion_accounting: source.accounting,
+        typed: source.typed,
         computed_build_config,
         admission,
         build_sources,
@@ -504,7 +502,6 @@ pub(super) fn select_completed_build(
         .computed_build_config
         .independent_components();
     match complete_prepared_build(prepared, package_inputs)
-        .map_err(CompileFailure::from)
         .and_then(|source| check_product_source(source, package_inputs, rollback, frontier))
     {
         Ok(source) => crate::execution_settlement::select_product_target(

@@ -54,7 +54,7 @@ impl std::fmt::Display for ProjectSourceResolutionError {
                 CompileFailure::Diagnostics(diagnostics)
                 | CompileFailure::SourceCompletion { diagnostics, .. },
             ) => diagnostics::write_bounded_diagnostics(formatter, diagnostics),
-            Self::Compilation(CompileFailure::BuildConsentRequired(requests)) => write!(
+            Self::Compilation(CompileFailure::BuildConsentRequired { requests, .. }) => write!(
                 formatter,
                 "restricted Build execution requires explicit consent before effects; pending requests: {requests:?}"
             ),
