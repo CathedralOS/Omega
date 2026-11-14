@@ -1075,8 +1075,22 @@ pub mod closed_conformances {
         }
     }
 
+    fn application_key(
+        application: &terminal_psi::ClosedConformanceApplication,
+    ) -> (
+        semantic_vocabulary::MachineId,
+        terminal_psi::ClosedConformanceApplicationCommitment,
+        u64,
+    ) {
+        (
+            application.owner,
+            application.commitment,
+            application.report_fingerprint,
+        )
+    }
+
     fn dispatch_application<'module>(
-        module: &'module TerminalModule,
+        applications: &[&'module terminal_psi::ClosedConformanceApplication],
         caller: semantic_vocabulary::MachineId,
         dispatch: &terminal_psi::StaticRequirementDispatch,
         callee: semantic_vocabulary::MachineId,
@@ -1084,17 +1098,14 @@ pub mod closed_conformances {
         if callee != dispatch.realization {
             return Err("static requirement dispatch differs from its ordinary runtime call");
         }
-        let applications = module
-            .closed_conformance_applications
-            .iter()
-            .filter(|application| {
-                application.owner == caller
-                    && application.commitment == dispatch.conformance_application_commitment
-                    && application.report_fingerprint
-                        == dispatch.conformance_application_report_fingerprint
-            })
-            .collect::<Vec<_>>();
-        let [application] = applications.as_slice() else {
+        let key = (
+            caller,
+            dispatch.conformance_application_commitment,
+            dispatch.conformance_application_report_fingerprint,
+        );
+        let start = applications.partition_point(|application| application_key(application) < key);
+        let end = applications.partition_point(|application| application_key(application) <= key);
+        let [application] = &applications[start..end] else {
             return Err("static requirement dispatch has no unique closed conformance application");
         };
         if application
@@ -1398,6 +1409,15 @@ pub mod closed_conformances {
                 );
             }
         }
+        // Every selected call authenticates the same retained application key.
+        // Sort borrowed rows once so ordinary calls do not each scan and
+        // allocate a copy of the complete module roster. Equal keys remain in
+        // the slice so a demanded ambiguous application still refuses.
+        let mut applications = module
+            .closed_conformance_applications
+            .iter()
+            .collect::<Vec<_>>();
+        applications.sort_unstable_by_key(|application| application_key(application));
         for invocation in &module.proof_output_calls {
             let Some(dispatch) = &invocation.static_requirement_dispatch else {
                 continue;
@@ -1407,7 +1427,7 @@ pub mod closed_conformances {
                 .as_ref()
                 .ok_or("static requirement dispatch has no ordinary runtime call")?
                 .callee;
-            dispatch_application(module, invocation.caller, dispatch, callee)?;
+            dispatch_application(&applications, invocation.caller, dispatch, callee)?;
         }
         for machine in &module.machines {
             for invocation in machine.module_invocations() {
@@ -1434,8 +1454,12 @@ pub mod closed_conformances {
                     .selected_application
                     .as_ref()
                     .ok_or("selected call public contract has no closed application")?;
-                let application =
-                    dispatch_application(module, machine.id, dispatch, invocation.inputs.callee)?;
+                let application = dispatch_application(
+                    &applications,
+                    machine.id,
+                    dispatch,
+                    invocation.inputs.callee,
+                )?;
                 let declaration = contract
                     .declaration
                     .as_ref()

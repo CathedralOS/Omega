@@ -1093,7 +1093,7 @@ pub(crate) mod tests {
         // can be rejected without consulting the source trees.
         let source = typed(
             "trait Policy {
-                 machine plan(value: u64) -> u64 requires value > 0;
+                 machine plan(value: u64) -> u64 requires value > 0 ensures result > 0;
              }
              public First satisfies Policy {
                  machine plan(value: u64) -> u64 requires true
@@ -1164,7 +1164,7 @@ pub(crate) mod tests {
                 .invocation_machine_contract(*body, Some(*required))
                 .unwrap();
             assert_eq!(public.requires.len(), 1);
-            assert!(public.ensures.is_empty());
+            assert_eq!(public.ensures.len(), 1);
             assert!(public.selected_application.is_some());
         }
         let bytes = terminal_codec::encode_module(module).unwrap();
@@ -1186,10 +1186,32 @@ pub(crate) mod tests {
                 .as_mut()
                 .unwrap()
                 .realization = replacement;
+            let mut changed = 0;
+            for operation in forged
+                .machines
+                .iter_mut()
+                .flat_map(|machine| &mut machine.blocks)
+                .flat_map(|block| &mut block.operations)
+                .filter(|operation| operation.required_contract == Some(required))
+            {
+                let terminal_psi::OperationKind::Call { callee, .. } = &mut operation.kind else {
+                    panic!("this source selection is the ordinary scalar call")
+                };
+                *callee = replacement;
+                changed += 1;
+            }
+            assert_eq!(
+                changed, 1,
+                "change the exact header and physical call together"
+            );
             let bytes = terminal_codec::encode_module(&forged).unwrap();
-            assert!(
-                terminal_codec::decode_module(&bytes).is_err(),
-                "a same-arity body cannot replace the selected implementation"
+            let refusal = terminal_codec::decode_module(&bytes).unwrap_err();
+            assert_eq!(
+                refusal,
+                terminal_codec::CodecError::MalformedStructuralFoundation(
+                    "static requirement dispatch has no exact executable method application"
+                ),
+                "equal physical/header bodies must still match the closed selection"
             );
         }
     }

@@ -4727,9 +4727,11 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-// Marker 262 distinguishes an opaque supplied value from an empty record.
-// Earlier decoders cannot interpret that shape. The complete write frames,
-// numeric meanings and finite families published in 261/260/259 remain intact.
+// Marker 263 retains each selected call's public contract separately from its
+// executable body, including the complete closed selection on that contract.
+// Earlier decoders do not read those call/header fields. Opaque supplied values
+// from 262, complete write frames from 261, numeric meanings from 260 and finite
+// families from 259 keep their published encodings.
 pub(crate) const FORMAT_MARKER: u16 = 263;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
