@@ -4,9 +4,9 @@ Finish the change, run its focused checks, and squash-merge its pull request
 when `admission` passes. The session doing the work owns getting it onto main
 and confirming that it arrived; main is checked after merge.
 
-Follow [AGENTS.md](../AGENTS.md#sessions-and-subagents) for ownership and the
-[CI rebuild plan](../wiki/drafts/designs/ci_rebuild_plan.md) for the direction of
-CI work; implemented behavior is in [.github/workflows/](../.github/workflows/).
+Follow [AGENTS.md](../../AGENTS.md#sessions-and-subagents) for ownership and the
+[CI rebuild plan](../../wiki/drafts/designs/ci_rebuild_plan.md) for the direction of
+CI work; implemented behavior is in [.github/workflows/](../../.github/workflows/).
 There is no merge queue. Workers review and land their own work; a
 coordinator may review a change without becoming an additional approval gate.
 
@@ -23,12 +23,12 @@ consistency and link check. Do not expand these into a workspace sweep. There
 is no fixture corpus to run and no ledger.
 
 Review the actual diff using
-[coordinator-review](../.agents/skills/coordinator-review/SKILL.md), including
+[coordinator-review](../../.agents/skills/coordinator-review/SKILL.md), including
 when working alone. Preserve soundness, the intended program and its rejection
 controls. Follow the assigned acceptance and any explicit review requirement.
 Do not wait for a separate coordinator approval by default.
 
-Write the description using [Explain the change](../AGENTS.md#explain-the-change):
+Write the description using [Explain the change](../../AGENTS.md#explain-the-change):
 start with the problem and resulting behavior in ordinary language, then explain
 the mechanism, validation and material limits. Generate the required `Agent:`
 line with `mbx xtask provenance` and end both the commit body and PR description
@@ -119,7 +119,7 @@ never clean another session's files or shared caches.
 
 ## Resuming an older session
 
-Read current [AGENTS.md](../AGENTS.md) at a safe checkpoint and preserve existing
+Read current [AGENTS.md](../../AGENTS.md) at a safe checkpoint and preserve existing
 source, tests and evidence. The old `compiler-check`, `workspace-clippy`,
 `corpus-gate`, Post-merge smoke and merge queue are retired. Do not wait for,
 dispatch or recreate them, and do not use `xtask land` or the old queue helpers.

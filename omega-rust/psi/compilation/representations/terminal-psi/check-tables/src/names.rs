@@ -12,7 +12,7 @@ expression renders through `ExpressionTable::display_name`, the same
 rendering the deleted checker's messages use. So the reader records the
 names here as it reads, and the checker renders its messages from this table
 and the lowered form together. Nothing here is read back from source text
-(`tools/source_text_reads.txt`), and nothing here decides anything: no
+(`tools/ratchets/source_text_reads.txt`), and nothing here decides anything: no
 identity, verdict or obligation depends on it.
 
 Bindings and calls are keyed by the source span the lowered form already

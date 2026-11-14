@@ -235,7 +235,7 @@ than `1.29.0`, install or update it immediately before building:
   $v = "1.29.2"; Invoke-WebRequest "https://github.com/jdx/mr-boxington/releases/download/v$v/mbx-x86_64-pc-windows-msvc.zip" -OutFile "$env:TEMP\mbx.zip"; Expand-Archive "$env:TEMP\mbx.zip" "$HOME\.cargo\bin" -Force; mbx setup --yes; mbx xtask doctor
   ```
 
-See [tools/testing.md](tools/testing.md) for full details. Always close stdin
+See [tools/docs/testing.md](tools/docs/testing.md) for full details. Always close stdin
 with `< /dev/null` on non-interactive `omega` invocations so
 background processes never hang on open stdin:
 
@@ -266,7 +266,7 @@ run.
 
 Builds, test runs and compiled programs from every local agent share one
 machine. Before the first build on a host you share with its owner or with
-other agents, apply the [host build budget](tools/build_slot.md): cap the total
+other agents, apply the [host build budget](tools/docs/build_slot.md): cap the total
 load of all agents so the machine never reaches 100%, run at the lowest
 operating-system priority on a workstation its owner is using, and write the
 budget into every worker prompt. On the test VMs, run one heavy job per machine
@@ -301,9 +301,9 @@ refuses a second build or test run while one is active.
   Generalize the touched operation across all value placements and delete the
   superseded code path in the same commit.
 - **Data-oriented storage:** Dense IDs index flat tables (`Vec` / slice), not
-  `HashMap`/`BTreeMap` (`tools/dense_id_maps.txt`). Derived data is computed
+  `HashMap`/`BTreeMap` (`tools/ratchets/dense_id_maps.txt`). Derived data is computed
   once by its stage owner and passed forward, never re-parsed from source text
-  (`tools/source_text_reads.txt`) or cached in ad-hoc mutable maps (`tools/cache_state.txt`).
+  (`tools/ratchets/source_text_reads.txt`) or cached in ad-hoc mutable maps (`tools/ratchets/cache_state.txt`).
   This applies to membership sets too, including collections whose key type is
   inferred. Validate arena ownership and handle generations before indexing by
   slot. Size scratch storage to the operation's actual domain: a query over a

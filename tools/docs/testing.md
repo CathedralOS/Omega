@@ -4,10 +4,10 @@ Choose focused checks that show whether the changed behavior works, then land
 through [admission and a squash merge](landing.md). Main verification follows
 the merge; admission does not run the compiler tests for you.
 
-[AGENTS.md](../AGENTS.md) owns the common workflow. This guide supplies test
+[AGENTS.md](../../AGENTS.md) owns the common workflow. This guide supplies test
 selection, execution evidence and platform details. The
-[CI rebuild plan](../wiki/drafts/designs/ci_rebuild_plan.md) records intended CI
-work; [.github/workflows/](../.github/workflows/) defines what is implemented.
+[CI rebuild plan](../../wiki/drafts/designs/ci_rebuild_plan.md) records intended CI
+work; [.github/workflows/](../../.github/workflows/) defines what is implemented.
 Older qualification procedures below do not reinstate retired checks.
 
 Repository-dependent `xtask` commands default to the nearest Omega workspace
@@ -27,7 +27,7 @@ recorded the corpus under `tests/omega/` (`corpus_runner`, `cargo xtask corpus`,
 `cargo xtask corpus-gate`, the post-merge row measurement and the published
 ledger) was removed on the owner's ruling of 2026-11-13, and the fixtures
 themselves were deleted with it.
-[tests/README.md](../tests/README.md) says how to read a deleted fixture from
+[tests/README.md](../../tests/README.md) says how to read a deleted fixture from
 history. A program a test reads is kept beside the tests, under
 `tests/fixtures/`.
 
@@ -38,7 +38,7 @@ acceptance. Add tests for missing behavioral distinctions, not mechanically
 expanded combinations or test-count targets.
 
 An agent may take **VALIDATION-ENVIRONMENT** or **ITERATION-PERFORMANCE** after
-a round of compiler work (see [working the board](../TASKS.md#working-the-board)).
+a round of compiler work (see [working the board](../../TASKS.md#working-the-board)).
 Name the obstructed workflow and adequate target first. Repair the bottleneck
 or validation path, demonstrate the result and stop. Do not silently turn a
 feature assignment into profiling or repeated broad test runs.
@@ -119,7 +119,7 @@ revision, command and outcome in the existing PR/claim rather than building an
 ad hoc qualification framework. Report pending or failed extended validation
 honestly without describing the whole compiler or release as qualified.
 
-The [PR #730 retrospective](../wiki/drafts/measurements/merge_validation_2026_10_31/README.md)
+The [PR #730 retrospective](../../wiki/drafts/measurements/merge_validation_2026_10_31/README.md)
 records the cost and failure pattern behind this rule.
 
 ### Historical pilot records
@@ -139,7 +139,9 @@ programs with `--samples samples/project,...` and a new output directory with
 `--output`; an existing directory refuses rather than mixing runs. The
 selection is limited to 200 programs. These are exact paths, not search
 fragments, and each program's authored oracle is checked before compiler
-preparation.
+preparation. `--target <host>` defaults to this host and must match it; each
+sample must bind that target. The command refuses a dirty source tree: it
+qualifies only committed sources.
 
 ```sh
 mbx xtask qualify \
@@ -158,6 +160,9 @@ producer Cargo artifacts and fingerprints, binary digests, relevant build inputs
 and before/after source identities, with the accepted review decisions and
 consumed project/dependency locks. Never commit the raw directory. A failed
 summary is unfinished qualification.
+
+Qualification records observations. It does not approve a design, infer a
+complete dependency closure, or replace review and [landing](landing.md).
 
 ### Optimized validation compilers
 
@@ -232,7 +237,7 @@ demonstrated actual merge conflict, concrete prerequisite or changed affected
 source justifies targeted local work and reassessment against recorded inputs.
 
 When a release or trust-boundary assignment asks for sample qualification,
-run [`mbx xtask qualify`](qualification.md). An ordinary progress PR needs its
+run [`mbx xtask qualify`](#current-rust-qualification). An ordinary progress PR needs its
 scoped evidence and passing admission. Keep the checkpoint fixed through
 publication. After a justified source change, rerun the affected checks.
 Preserve original observation identities when reusing evidence.
@@ -286,7 +291,7 @@ When the assignment requires independent review, provide the exact submitted
 candidate and base, relevant accepted canonical passages and source identities,
 original baseline outcomes, preserved positives/controls, the evidence ledger,
 current versus historical observations, and known limitations. Review the
-[requirements and evidence](../AGENTS.md#requirements-and-evidence) established
+[requirements and evidence](../../AGENTS.md#requirements-and-evidence) established
 by those consumers, including the semantic premise behind a rewrite, exact
 subjects/actuals, effects/lifetime, formation and authority. For every fact
 witness under `samples/cli/facts/`, check the runtime counterfactual alongside
@@ -326,7 +331,7 @@ the few programs a test reads, never a matrix.
 
 `mbx xtask sample-gate` builds and runs applicable samples against their
 native oracles. It uses the role-aware
-[project discovery](../samples/README.md#project-roles-and-discovery), including
+[project discovery](../../samples/README.md#project-roles-and-discovery), including
 nested build roots and non-`main.omg` entries. Libraries qualify through consumers;
 external submodules use their own gates.
 
@@ -476,16 +481,16 @@ mbx nextest run --workspace --lib --no-fail-fast -E 'rdeps(=x86-encoding)'
 ```
 
 This command does not add source-reader edges or audits.
-[Nextest configuration](../.config/nextest.toml) disables retries, reserves the
+[Nextest configuration](../../.config/nextest.toml) disables retries, reserves the
 whole test pool for process resource-limit cases, and schedules long package
 fixtures early without a universal thread cap. Doctests remain a separate Cargo
-test mode. [Temporary Windows measurements](../wiki/drafts/measurements/test_cycle_measurements.md)
+test mode. [Temporary Windows measurements](../../wiki/drafts/measurements/test_cycle_measurements.md)
 explain why neither a thread cap nor nextest alone has an established full-suite
 speedup.
 
 ## Slow builds
 
-Use [test-cycle measurements](../wiki/drafts/measurements/test_cycle_measurements.md) to distinguish
+Use [test-cycle measurements](../../wiki/drafts/measurements/test_cycle_measurements.md) to distinguish
 compilation, test execution, and repeated landing validation. The Windows
 measurements did not establish a stable universal test-thread cap or a full-suite
 speedup from nextest alone; avoid unrelated test execution.

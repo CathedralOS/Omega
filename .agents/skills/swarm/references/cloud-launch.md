@@ -65,7 +65,7 @@ different cloud executor.
 4. **Toolchain and limits (compiler work only).** Run `bash tools/agent_setup.sh` so `mbx` is installed/updated, then
    run `mbx xtask doctor` and `mbx doctor` (`mbx` is mandatory; direct `cargo` fallback is forbidden).
    Use the pinned Rust toolchain and nextest under
-   [testing](../../../../tools/testing.md). Inspect CPU quota, available memory
+   [testing](../../../../tools/docs/testing.md). Inspect CPU quota, available memory
    and disk as well as visible processors; size build jobs to the effective
    limits. Keep one Rust build active per executor. Record the compiler's source
    revision; an unversioned preinstalled binary is not evidence about main.
@@ -82,7 +82,7 @@ different cloud executor.
    never add blanket approvals. Preserve pre-existing lockfiles, and clean up
    only files this probe generated after retaining its evidence. This validates
    the environment; it is not a new compiler advance.
-6. **Coordination.** Read [claims](../../../../tools/claims.md) before claiming.
+6. **Coordination.** Read [claims](../../../../tools/docs/claims.md) before claiming.
    Use the documented Rust subcommands; they have no timeout flag. A timeout
    does not establish that the registry is empty. Preserve the ticket and
    reconcile an uncertain write before retrying. Claims are informational:
@@ -94,7 +94,7 @@ different cloud executor.
    upload; a local archive alone is not a backup. Reconcile a disconnect with
    an actual read/command and process state before resuming. Keep builds and
    focused validation on the authorized executor, release build resources, and
-   follow [landing](../../../../tools/landing.md) through publication and remote
+   follow [landing](../../../../tools/docs/landing.md) through publication and remote
    main verification. Remove only this task's verified completed resources under
    the [recovery cleanup rules](recovery.md#completion-inventory-and-cleanup).
 

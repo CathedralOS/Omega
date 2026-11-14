@@ -1,7 +1,7 @@
 # Compiler integration CI
 
 A pull request merges by squash once its `admission` check passes, and main is
-checked after the merge. [Landing](../landing.md) is the author procedure;
+checked after the merge. [Landing](../docs/landing.md) is the author procedure;
 there is no merge queue.
 
 ## Admission
