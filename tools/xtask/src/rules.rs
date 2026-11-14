@@ -1486,7 +1486,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         i += 1;
     }
 
-    let root = repo_root();
+    let root = repo_root()?;
     let semantic_ids = semantic_id_names(&root);
 
     if !update_flags.is_empty() {
@@ -1684,7 +1684,7 @@ struct Ledger;
 
     #[test]
     fn ratchets_and_dangling_ids_match_checked_in_baselines() {
-        let root = repo_root();
+        let root = repo_root().expect("test runs in the Omega workspace");
         let semantic_ids = semantic_id_names(&root);
         for (idx, spec) in RATCHET_SPECS.iter().enumerate() {
             let counts = compute_ratchet_counts(&root, idx, &semantic_ids);
@@ -1923,7 +1923,7 @@ struct Ledger;
 
     #[test]
     fn validates_commit_titles_and_provenance() {
-        let root = repo_root();
+        let root = repo_root().expect("test runs in the Omega workspace");
         let allowed = lanes(&fs::read_to_string(root.join("AGENTS.md")).unwrap());
         assert!(subject_violations("tools: port repository checks to rust", &allowed).is_empty());
         assert!(!subject_violations("unknownlane: bad", &allowed).is_empty());
@@ -1973,7 +1973,7 @@ struct Ledger;
 
     #[test]
     fn spec_line_names_an_existing_page_or_says_why_none_governs() {
-        let root = repo_root();
+        let root = repo_root().expect("test runs in the Omega workspace");
         let check = |body: &str| spec_violations("psi: fix", body, &root);
         assert!(check("Spec: wiki/spec/language/domains.md#domain-only-casts\n").is_empty());
         assert!(

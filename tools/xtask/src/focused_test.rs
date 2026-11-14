@@ -110,7 +110,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         eprintln!("Invalid integration test target");
         return Err(1);
     }
-    let root = repo_root();
+    let root = repo_root()?;
     let target_args = if target.is_empty() {
         selected_unit_target(&root, &package)?
     } else {
