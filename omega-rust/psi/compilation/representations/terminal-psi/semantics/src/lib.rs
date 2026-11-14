@@ -34,6 +34,7 @@ pub mod control_graph;
 mod descriptor_replay;
 pub mod descriptors;
 pub mod inhabitation;
+pub mod normal_completion;
 pub mod plain_affine;
 pub mod references;
 pub mod scalars;
