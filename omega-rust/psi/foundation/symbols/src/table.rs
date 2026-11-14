@@ -970,10 +970,9 @@ mod modules {
             `reference` under module name law. A fully qualified spelling always
             selects its exact declaration. A relative spelling reaches a
             module-owned domain inside its own module or through an exposing
-            import: a narrow import of the exact declaration exposes its leaf and
-            its declared carrier-qualified spelling, while importing the declaring
-            module exposes its directly declared domains to the carrier-qualified
-            spelling. The carrier-qualified form additionally requires the
+            import. Both an exact declaration import and its declaring module
+            expose the domain's leaf and declared carrier-qualified spelling.
+            The carrier-qualified form additionally requires the
             authored carrier to resolve to the exact carrier the declaring context
             attached the domain to -- importing the carrier type, an ordinary
             sibling declaration, or merely loading another source exposes nothing.
@@ -1044,12 +1043,7 @@ mod modules {
             }
             if !authored.contains("::") {
                 return same_semantic_name(domain_name, authored)
-                    && self
-                        .source_module_import_paths(reference.source_id)
-                        .any(|path| {
-                            self.source_module_import_target(reference.source_id, path)
-                                == Some(domain)
-                        });
+                    && self.source_domain_is_exposed(reference, domain);
             }
             self.carrier_qualified_domain_reaches(domain, authored, reference)
         }
