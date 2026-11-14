@@ -201,6 +201,23 @@ impl<'t> Program<'t> {
         })
     }
 
+    /// Checking a declaration does not call its bare name. A boundary
+    /// conformer is checked under its declared slot, without publishing a
+    /// direct entry that a source call could use.
+    pub(super) fn subject_machine(&mut self, symbol: SymbolHandle) -> Checked<MachineId> {
+        let diagnostic = self.next_identity()?;
+        let (declared, _) = self.declaration(diagnostic, symbol)?;
+        if let Some((owner, requirement)) = self.conformer_requirement(diagnostic, declared)?
+            && self
+                .typed
+                .trait_definition_by_symbol(owner)
+                .is_some_and(|owner| owner.is_boundary)
+        {
+            return self.provider(symbol, owner, requirement.symbol);
+        }
+        self.machine(symbol)
+    }
+
     /// The `MachineId` of a callee, reading its signature the first time.
     pub fn machine(&mut self, symbol: SymbolHandle) -> Checked<MachineId> {
         let diagnostic = self.next_identity()?;
@@ -400,19 +417,84 @@ impl<'t> Program<'t> {
         declaring_trait: SymbolHandle,
         requirement: SymbolHandle,
         arguments: &[semantic_vocabulary::ScalarTerm],
+        implementation: SymbolHandle,
+        expected: Option<&'t StateSignature>,
     ) -> Checked<MachineId> {
         let id = self.next_identity()?;
-        let declared = self.declared_requirement(id, declaring_trait, requirement)?;
-        self.witnessed_signature(declared, arguments)
+        let mut declared = self.declared_requirement(id, declaring_trait, requirement)?;
+        // An owning body's unique map is also the witness's application.
+        // Recover that same prepared contract rather than checking a bare
+        // generic declaration or borrowing another implementation's scope.
+        if let Some(machine) = self.typed.machine_by_symbol(implementation)
+            && let Some((owner, applied)) = self.conformer_requirement(id, machine)?
+        {
+            if owner != declaring_trait || applied.symbol != requirement {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Machine("conformance witness cannot rebind a declared requirement"),
+                ));
+            }
+            declared = applied;
+        } else if self
+            .typed
+            .trait_definition_by_symbol(declaring_trait)
+            .is_some_and(|owner| {
+                !owner.type_parameters.is_empty() || !owner.lifetime_parameters.is_empty()
+            })
+        {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Machine("witness needs its exact closed trait application"),
+            ));
+        }
+        if expected.is_some_and(|signature| {
+            self.typed
+                .closed_requirement_application(signature.symbol)
+                .map_or(signature.symbol, |application| application.template)
+                != requirement
+        }) {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Machine("selected witness names another public declaration"),
+            ));
+        }
+        self.witnessed_signature(declared, arguments, expected)
     }
 
-    pub fn witnessed_signature(
+    fn witnessed_signature(
         &mut self,
         declared: &'t StateSignature,
         arguments: &[semantic_vocabulary::ScalarTerm],
+        expected: Option<&'t StateSignature>,
     ) -> Checked<MachineId> {
         let id = self.next_identity()?;
         let (signature, names) = self.requirement_signature(id, declared, arguments)?;
+        // The owning-row query chooses the witness contract. A selected call
+        // must agree with it; the call cannot replace the body's requirement
+        // or supply a different public contract to make the witness pass.
+        if let Some(expected) = expected.filter(|expected| *expected != declared) {
+            let (expected, _) = self.requirement_signature(
+                id,
+                expected,
+                if expected.type_parameters.is_empty() {
+                    &[]
+                } else {
+                    arguments
+                },
+            )?;
+            if expected != signature {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Machine(
+                        "selected call disagrees with its independent public witness",
+                    ),
+                ));
+            }
+        }
         self.symbols.push(declared.symbol);
         self.signatures.push(signature);
         self.names.push(names);
@@ -997,28 +1079,44 @@ impl<'t> Program<'t> {
         id: MachineId,
         machine: &'t Machine,
     ) -> Checked<Option<(SymbolHandle, &'t StateSignature)>> {
+        let typed = self.typed;
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
         let context = match self.declared_requirement_origin(id, machine)? {
             Some(context) => context,
             None => {
-                let Some((_, row)) = self.typed.owned_conformance_realization(machine.symbol)
+                let Some((implementation, row)) =
+                    typed.owned_conformance_realization(machine.symbol)
                 else {
                     return Ok(None);
                 };
-                (
-                    row.declaring_trait,
-                    self.declared_requirement(id, row.declaring_trait, row.requirement)?,
-                )
+                // The same exact map/row query closes named calls. Its
+                // prepared signature retains the complete trait application;
+                // the map's own open telescope remains unavailable.
+                let Some((owner, selected, requirement)) = typed
+                    .named_conformance_member(implementation.symbol, row.requirement)
+                    .map_err(unserved)?
+                else {
+                    return Err(unserved("conformer lost its exact owning requirement"));
+                };
+                let [entry] = typed.machine_states(machine) else {
+                    return Err(unserved("conformer without one owned entry state"));
+                };
+                if owner.symbol != implementation.symbol
+                    || selected != row
+                    || entry.symbol != row.realization_state
+                {
+                    return Err(unserved("conformer disagrees with its exact owning row"));
+                }
+                (row.declaring_trait, requirement)
             }
         };
         let (owner, requirement) = context;
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
         let definition = self
             .typed
             .trait_definition_by_symbol(owner)
             .ok_or_else(|| unserved("conformer lost its originating trait declaration"))?;
         self.requirement_termination(id, requirement)?;
-        if !definition.type_parameters.is_empty()
-            || !definition.lifetime_parameters.is_empty()
+        if !definition.lifetime_parameters.is_empty()
             || !definition.conformance_bounds.is_empty()
             || !definition.requires.is_empty()
             || definition.refines.is_some()
@@ -1027,6 +1125,22 @@ impl<'t> Program<'t> {
             return Err(unserved(
                 "declared requirement needs its complete trait application",
             ));
+        }
+        // Substituting a type does not establish an original parameter's
+        // storage, multiplicity or static-value obligations. Only ordinary
+        // unconstrained type parameters are served by this applied context.
+        if span(
+            &typed.data_type_parameters,
+            definition.type_parameters,
+            id,
+            "trait type parameter span",
+        )?
+        .iter()
+        .any(|parameter| {
+            !matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+                || parameter.bounds != typed_trees::data::DataProperties::default()
+        }) {
+            return Err(unserved("applied trait parameter eligibility"));
         }
         if machine.is_public && !definition.is_public {
             return Err(unserved("conformer is more visible than its requirement"));

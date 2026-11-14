@@ -402,7 +402,13 @@ pub fn elaborate_witness(
     implementation: SymbolHandle,
 ) -> Checked<Elaboration> {
     let mut program = read::Program::new(typed, false);
-    let entry = program.witnessed(declaring_trait, requirement, arguments)?;
+    let entry = program.witnessed(
+        declaring_trait,
+        requirement,
+        arguments,
+        implementation,
+        None,
+    )?;
     let callee = program.implementation(implementation, declaring_trait, requirement)?;
     elaborate_witness_call(program, entry, callee)
 }
@@ -416,13 +422,12 @@ fn elaborate_applied_witness(
     implementation: SymbolHandle,
 ) -> Checked<Elaboration> {
     let mut program = read::Program::new(typed, false);
-    let entry = program.witnessed_signature(
-        required,
-        if required.type_parameters.is_empty() {
-            &[]
-        } else {
-            arguments
-        },
+    let entry = program.witnessed(
+        declaring_trait,
+        requirement,
+        arguments,
+        implementation,
+        Some(required),
     )?;
     let callee = program.implementation(implementation, declaring_trait, requirement)?;
     elaborate_witness_call(program, entry, callee)

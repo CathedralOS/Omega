@@ -11,6 +11,7 @@ use diagnostics::Diagnostic;
 pub(crate) struct BuildProviderPlans {
     selected: effects::SelectedProviderPlanFacts,
     declarations: Vec<backend_plan::TerminalTargetProviderPlan>,
+    packages: Option<package_compilation::PackageCompilationInputs>,
 }
 
 pub(crate) struct BuildProviderInstallation {
@@ -19,6 +20,15 @@ pub(crate) struct BuildProviderInstallation {
 }
 
 impl BuildProviderPlans {
+    pub(crate) fn for_packages(
+        packages: Option<&package_compilation::PackageCompilationInputs>,
+    ) -> Self {
+        Self {
+            packages: packages.cloned(),
+            ..Self::default()
+        }
+    }
+
     pub(crate) fn admit(
         &self,
         artifact: terminal_codec::TerminalExecutionView<'_>,
@@ -35,6 +45,22 @@ impl BuildProviderPlans {
             .map_err(|reason| {
                 failure(format!("Build selected provider installation: {reason:?}"))
             })?;
+        if let Some(packages) = &self.packages {
+            let entry = module
+                .entry
+                .ok_or_else(|| failure("Build declaration admission has no entry"))?;
+            terminal_installation::admit_declaration_selections(
+                artifact,
+                None,
+                entry,
+                &checked,
+                semantic_vocabulary::compiler_evaluation::DeclarationCustody::Package(
+                    packages.root(),
+                ),
+                packages,
+            )
+            .map_err(failure)?;
+        }
         let program = terminal_interpreter::TerminalProgram::borrow(artifact);
         let supplies = program
             .admit_runtime_supplies(terminal_interpreter::TerminalRuntimeSupplyRequest {

@@ -764,6 +764,43 @@ fn judged_parts(name: &str, declaration: &str) -> Vec<Verdict> {
     .collect()
 }
 
+#[test]
+fn boundary_conformer_subject_is_checked_without_a_direct_entry() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let declaration = |body: &str| {
+        format!(
+            "public boundary trait Probe {{
+            machine probe(value: u8) -> u8 ensures result == value reaches;
+         }}
+         machine supplied(value: u8) -> u8 satisfies Probe::probe {{ {body} }}"
+        )
+    };
+    let valid = declaration("value");
+    let verdicts = judged_parts("boundary_subject_valid", &valid);
+    assert!(!verdicts.is_empty());
+    assert!(
+        verdicts
+            .iter()
+            .all(|verdict| matches!(verdict, Verdict::Accepted(_))),
+        "{verdicts:?}"
+    );
+    let invalid = judged_parts("boundary_subject_invalid", &declaration("0u8"));
+    assert!(invalid.contains(&Verdict::Rejected), "{invalid:?}");
+
+    let direct = unbuilt_frontier::staged_frontier(
+        "boundary_subject_direct_call",
+        &format!("{valid}\nmachine main() -> u8 {{ supplied(7u8) }}"),
+    );
+    let (_, verdict) = route_verdict(&direct);
+    assert!(
+        matches!(verdict, Ok(RouteVerdict::FallBack(ref refusal))
+        if refusal.detail.contains("a boundary conformer is callable only through its provider slot")),
+        "{verdict:?}"
+    );
+}
+
 /// A generic body that calls another generic machine at its own type
 /// parameter is judged, not handed back. `relay<T>` holds `forward<T>` as a
 /// contract with no body; `forward`'s own check form, judged in the same
