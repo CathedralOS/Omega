@@ -44,7 +44,7 @@ use std::cmp::Ordering;
 use proof_admission::{
     IntegerAffineWitness, PrimitiveJudgment, ProofNode, ProofRule, check_integer_affine_witness,
     check_value_equality_denotation, compare_integer_math_terms, decide_primitive,
-    map_integer_affine_bound,
+    lift_exact_integer_order, map_integer_affine_bound,
 };
 use semantic_vocabulary::{
     IdTable, IntegerCarrier, IntegerMathTerm, IntegerType, IntegerValue, Proposition,
@@ -1284,7 +1284,54 @@ impl<'a> Prover<'a> {
                 let bound = self.bound(*id, direction).ok_or("value has no bound")?;
                 Ok((bound.literal, Some(bound.proof)))
             }
-            _ => Err("comparison term outside the scalar subset"),
+            _ => {
+                // A formed expression still denotes its exact result when it has
+                // no SSA output. Carry the same checked mathematical bound back
+                // to that expression instead of requiring a synthetic value.
+                let Proposition::IntegerMathLessOrEqual(value, _) =
+                    lift_exact_integer_order(&Proposition::LessOrEqual(term.clone(), term.clone()))
+                        .ok_or("comparison term outside exact integer arithmetic")?
+                else {
+                    return Err("comparison has no mathematical order");
+                };
+                let image = self.arithmetic_image(&value, direction)?;
+                let limit = match (&image.conclusion, direction) {
+                    (Proposition::IntegerMathLessOrEqual(_, limit), Direction::Upper)
+                    | (Proposition::IntegerMathLessOrEqual(limit, _), Direction::Lower) => limit,
+                    _ => return Err("expression bound has the wrong direction"),
+                };
+                let IntegerMathTerm::IntegerLiteral(limit) = limit else {
+                    return Err("expression has no literal bound");
+                };
+                let integer = term
+                    .scalar_type()
+                    .as_integer()
+                    .ok_or("non-integer expression")?;
+                let literal = limit
+                    .as_integer_value(integer)
+                    .ok_or("expression bound outside carrier")?;
+                let bound =
+                    ScalarTerm::integer(integer, literal).map_err(|_| "expression bound")?;
+                let conclusion = Self::oriented(term, bound, direction);
+                let equality = primitive(
+                    Proposition::IntegerMathEqual(value.clone(), value),
+                    PrimitiveJudgment::ReflexiveEquality,
+                );
+                Ok((
+                    literal,
+                    Some(node(
+                        conclusion,
+                        ProofRule::IntegerOrderSubstitution {
+                            relation: Box::new(image),
+                            equality: Box::new(equality),
+                            endpoint: match direction {
+                                Direction::Upper => 0,
+                                Direction::Lower => 1,
+                            },
+                        },
+                    )),
+                ))
+            }
         }
     }
 
@@ -2032,7 +2079,140 @@ impl<'a> Prover<'a> {
             }
         }
         .map_err(|_| "operation term")?;
-        self.image(operation, &first, &second, target, direction)
+        let interval = self.image(operation, &first, &second, target.clone(), direction);
+        if !self.relations {
+            return interval;
+        }
+        let Some(related) = self.related_image(&target, term, direction) else {
+            return interval;
+        };
+        let Ok(interval) = interval else {
+            return Ok(related);
+        };
+        let limit = |proof: &ProofNode| match (&proof.conclusion, direction) {
+            (Proposition::IntegerMathLessOrEqual(_, limit), Direction::Upper)
+            | (Proposition::IntegerMathLessOrEqual(limit, _), Direction::Lower) => {
+                Some(limit.clone())
+            }
+            _ => None,
+        };
+        let stronger = limit(&related)
+            .zip(limit(&interval))
+            .is_some_and(|(related, interval)| {
+                let order = compare_integer_math_terms(&related, &interval)
+                    .ok()
+                    .flatten();
+                match direction {
+                    Direction::Upper => order == Some(Ordering::Less),
+                    Direction::Lower => order == Some(Ordering::Greater),
+                }
+            });
+        Ok(if stronger { related } else { interval })
+    }
+
+    /// Separate operand ranges lose constraints such as an addition's remaining
+    /// capacity. Offer the retained relations and their exact definitions to the
+    /// existing affine checker; it alone decides which bound follows.
+    fn related_image(
+        &self,
+        target: &ScalarTerm,
+        term: &IntegerMathTerm,
+        direction: Direction,
+    ) -> Option<ProofNode> {
+        let exchanged = match target {
+            ScalarTerm::ExactIntegerAdd {
+                scalar_type,
+                left,
+                right,
+            } => ScalarTerm::exact_integer_add(
+                *scalar_type,
+                right.as_ref().clone(),
+                left.as_ref().clone(),
+            )
+            .ok(),
+            ScalarTerm::ExactIntegerMultiply {
+                scalar_type,
+                left,
+                right,
+            } => ScalarTerm::exact_integer_multiply(
+                *scalar_type,
+                right.as_ref().clone(),
+                left.as_ref().clone(),
+            )
+            .ok(),
+            _ => None,
+        };
+        for target in std::iter::once(target).chain(exchanged.as_ref()) {
+            for fact in &self.facts {
+                let Proposition::LessOrEqual(left, right) = &fact.proposition else {
+                    continue;
+                };
+                for root in [left, right] {
+                    let mut witness = IntegerAffineWitness {
+                        root: root.clone(),
+                        target: target.clone(),
+                        definition_axioms: Vec::new(),
+                        literal_axioms: Vec::new(),
+                    };
+                    if let ScalarTerm::Value { id, .. } = root
+                        && let Some(Some(definition)) = self.definitions.get(*id)
+                        && let ProofRule::SemanticAxiom { index } =
+                            self.equations[*definition].1.rule
+                    {
+                        witness.definition_axioms.push(index);
+                        witness.literal_axioms.push(None);
+                    }
+                    let Ok(form) =
+                        check_integer_affine_witness(self.context, self.axioms, &witness)
+                    else {
+                        continue;
+                    };
+                    let Ok(conclusion) = map_integer_affine_bound(&form, &fact.proposition) else {
+                        continue;
+                    };
+                    let (actual, limit, endpoint) = match (&conclusion, direction) {
+                        (Proposition::IntegerMathLessOrEqual(actual, limit), Direction::Upper) => {
+                            (actual, limit, 0)
+                        }
+                        (Proposition::IntegerMathLessOrEqual(limit, actual), Direction::Lower) => {
+                            (actual, limit, 1)
+                        }
+                        _ => continue,
+                    };
+                    let goal = match direction {
+                        Direction::Upper => {
+                            Proposition::IntegerMathLessOrEqual(term.clone(), limit.clone())
+                        }
+                        Direction::Lower => {
+                            Proposition::IntegerMathLessOrEqual(limit.clone(), term.clone())
+                        }
+                    };
+                    // Commuting the operands must itself have checked evidence.
+                    // This also rejects an image for a different expression.
+                    let Some(equality) =
+                        self.closed(Proposition::IntegerMathEqual(actual.clone(), term.clone()))
+                    else {
+                        continue;
+                    };
+                    let image = node(
+                        conclusion,
+                        ProofRule::IntegerAffineBound {
+                            root_bound: Box::new(fact.proof.clone()),
+                            witness,
+                        },
+                    );
+                    return Some(node(
+                        goal,
+                        ProofRule::IntegerOrderSubstitution {
+                            relation: Box::new(image),
+                            equality: Box::new(equality),
+                            endpoint,
+                        },
+                    ));
+                }
+            }
+        }
+        None
     }
 
     /// The goal `term <= limit` (or `limit <= term`) from `affine`, the
