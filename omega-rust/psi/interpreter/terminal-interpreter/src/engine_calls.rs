@@ -845,6 +845,7 @@ pub(crate) mod frames {
                 attachment: None,
                 nominal_cleanup_subject: None,
                 structural_places: Vec::new(),
+                call_formations: Vec::new(),
                 block_entry_claims: Vec::new(),
                 loan_completions: Vec::new(),
                 entry,
@@ -3427,6 +3428,15 @@ impl<'artifact> TerminalExecution<'artifact> {
         {
             if parameter.access == StructuralAccess::Owned {
                 self.export_host_atom(value)?;
+            } else {
+                // A lent host value is still the value its host issued. The
+                // guest may keep it in a home of its own (an affine local
+                // has one), and the host knows it only by the identity it
+                // gave out, so a loan names that identity as a transfer
+                // does. Only a home that holds the unchanged host value
+                // whole is renamed; every other loan is the guest's own
+                // storage and keeps its place.
+                self.forward_host_atom(value);
             }
         }
         let site = crate::TerminalEffectWait {

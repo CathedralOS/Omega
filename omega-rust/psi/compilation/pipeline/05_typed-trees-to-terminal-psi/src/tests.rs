@@ -37,6 +37,7 @@ fn nowhere() -> SourceOrigin {
 
 fn expression(kind: ExpressionKind, result: Option<ScalarType>) -> Expression {
     Expression {
+        call_context: None,
         kind,
         result: result.map(ValueType::plain),
         source: nowhere(),
@@ -93,6 +94,7 @@ fn returns(value: Expression) -> Statement {
 
 fn signature(parameters: Vec<ScalarType>, result: Option<ScalarType>) -> Signature {
     Signature {
+        operational: Default::default(),
         parameters: scalars(parameters),
         erased: Vec::new(),
         borrowed: Vec::new(),
@@ -149,6 +151,7 @@ fn scalars(types: Vec<ScalarType>) -> Vec<ValueType> {
 /// A machine that may return and publishes no crash route.
 fn returns_normally() -> Outcome {
     Outcome {
+        operational: [false; 2],
         completes_normally: true,
         service_reach: Vec::new(),
         synchronous_entries: Vec::new(),
@@ -881,6 +884,7 @@ fn a_call_with_no_normal_completion_is_a_no_successor_crash_site() {
         vec![
             returns_normally(),
             Outcome {
+                operational: [false; 2],
                 completes_normally: false,
                 service_reach: Vec::new(),
                 synchronous_entries: Vec::new(),
@@ -1001,12 +1005,14 @@ fn a_call_that_may_return_or_crash_owes_coverage_at_its_operation() {
         ],
         vec![
             Outcome {
+                operational: [false; 2],
                 completes_normally: true,
                 service_reach: Vec::new(),
                 synchronous_entries: Vec::new(),
                 crash_routes: routes(&[CrashCause::Trap, CrashCause::Abort]),
             },
             Outcome {
+                operational: [false; 2],
                 completes_normally: true,
                 service_reach: Vec::new(),
                 synchronous_entries: Vec::new(),
@@ -1394,6 +1400,7 @@ fn authored(start: usize) -> SourceOrigin {
 
 fn never_returns() -> Outcome {
     Outcome {
+        operational: [false; 2],
         completes_normally: false,
         ..returns_normally()
     }
@@ -1664,6 +1671,7 @@ fn outcomes_follow_the_ceiling_or_the_body() {
     assert_eq!(
         callee_outcome,
         Outcome {
+            operational: [false; 2],
             completes_normally: false,
             service_reach: Vec::new(),
             synchronous_entries: Vec::new(),
@@ -1726,6 +1734,7 @@ fn a_body_that_declares_crashes_none_publishes_no_route() {
     // Reaching a crash, by its own statement or through the callee, the body
     // never completes normally and still publishes nothing.
     let never_returns = Outcome {
+        operational: [false; 2],
         completes_normally: false,
         service_reach: Vec::new(),
         synchronous_entries: Vec::new(),
@@ -1789,6 +1798,7 @@ fn a_skipped_operand_cannot_end_the_machine() {
     assert_eq!(
         table.get(id(1)).unwrap(),
         &Outcome {
+            operational: [false; 2],
             completes_normally: true,
             service_reach: Vec::new(),
             synchronous_entries: Vec::new(),
@@ -1850,6 +1860,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
 
 fn of_type(kind: ExpressionKind, result: ValueType) -> Expression {
     Expression {
+        call_context: None,
         kind,
         result: Some(result),
         source: nowhere(),
@@ -1880,6 +1891,7 @@ fn bind(slot: usize, value: Expression) -> Statement {
 
 fn shaped(parameters: Vec<ValueType>, result: Option<ValueType>) -> Signature {
     Signature {
+        operational: Default::default(),
         parameters,
         erased: Vec::new(),
         result,
@@ -2386,12 +2398,14 @@ fn a_module_with_records_declares_them_and_encodes() {
 
 fn store(slot: usize, path: &[usize], value: Expression) -> Statement {
     let mut destination = Expression {
+        call_context: None,
         kind: ExpressionKind::Slot(slot),
         result: None,
         source: nowhere(),
     };
     for field in path {
         destination = Expression {
+            call_context: None,
             kind: ExpressionKind::Field {
                 base: Box::new(destination),
                 field: *field,

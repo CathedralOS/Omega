@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "invalid_dup_counter");
     builder.freestanding = true;
-    builder.optimizations.selected[2] = 2;
+    builder.optimizations.selected[2] = 2 as +Saturating;
 }

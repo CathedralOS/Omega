@@ -300,6 +300,7 @@ impl Lowering<'_> {
                 *designated,
                 expression.result,
                 (source, *source_call),
+                expression.call_context.unwrap_or_default(),
             ),
         }
     }

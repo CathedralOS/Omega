@@ -463,6 +463,17 @@ impl<'t> Program<'t> {
         slots: &[Slot],
         call: &TableCall,
     ) -> Checked<Expression> {
+        let mut read = self.call_statement_body(id, slots, call)?;
+        crate::operational::retain(&mut read, call.operational_acknowledgement, true);
+        Ok(read)
+    }
+
+    fn call_statement_body(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        call: &TableCall,
+    ) -> Checked<Expression> {
         self.bound_target(id, call.target_symbol)?;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         if let Some(read) = self.rigid_call(
@@ -509,11 +520,6 @@ impl<'t> Program<'t> {
         if call.static_machine_parameter.is_valid() || !call.evidence_arguments.is_empty() {
             return unserved("machine parameter or evidence");
         }
-        if call.operational_acknowledgement.acknowledges_suspend
-            || call.operational_acknowledgement.acknowledges_block
-        {
-            return unserved("suspend or block acknowledgement");
-        }
         let arguments = self
             .typed
             .statement_table
@@ -545,7 +551,7 @@ impl<'t> Program<'t> {
         handle: ExpressionHandle,
         source: SourceOrigin,
     ) -> Checked<Expression> {
-        let mut read = self.read_call_expression(id, slots, call, handle, source)?;
+        let mut read = self.call_expression_body(id, slots, call, handle, source)?;
         if let ExpressionKind::Call { source_call, .. } = &mut read.kind {
             *source_call = Some((
                 id,
@@ -553,10 +559,11 @@ impl<'t> Program<'t> {
                 typed_trees::statement::StatementHandle::invalid(),
             ));
         }
+        crate::operational::retain(&mut read, call.operational_acknowledgement, false);
         Ok(read)
     }
 
-    fn read_call_expression(
+    fn call_expression_body(
         &mut self,
         id: MachineId,
         slots: &[Slot],
@@ -650,11 +657,6 @@ impl<'t> Program<'t> {
         }
         if call.static_machine_parameter.is_valid() || !call.evidence_arguments.is_empty() {
             return unserved("machine parameter or evidence");
-        }
-        if call.operational_acknowledgement.acknowledges_suspend
-            || call.operational_acknowledgement.acknowledges_block
-        {
-            return unserved("suspend or block acknowledgement");
         }
         let arguments = self
             .typed
@@ -767,9 +769,7 @@ impl<'t> Program<'t> {
                         || call.requirement_application.is_valid()
                         || call.exact_coercion_target.is_valid()
                         || call.static_machine_parameter.is_valid()
-                        || !call.evidence_arguments.is_empty()
-                        || call.operational_acknowledgement.acknowledges_suspend
-                        || call.operational_acknowledgement.acknowledges_block,
+                        || !call.evidence_arguments.is_empty(),
                     call.target_symbol,
                     call.authored_machine_application,
                     call.machine_arguments.as_ref(),
@@ -785,9 +785,7 @@ impl<'t> Program<'t> {
                         || call.receiver_symbol.is_valid()
                         || !call.receiver.is_empty()
                         || call.static_machine_parameter.is_valid()
-                        || !call.evidence_arguments.is_empty()
-                        || call.operational_acknowledgement.acknowledges_suspend
-                        || call.operational_acknowledgement.acknowledges_block,
+                        || !call.evidence_arguments.is_empty(),
                     call.target_symbol,
                     call.authored_machine_application,
                     call.machine_arguments.as_ref(),
@@ -1201,8 +1199,6 @@ impl<'t> Program<'t> {
             || call.exact_coercion_target.is_valid()
             || call.static_machine_parameter.is_valid()
             || !call.evidence_arguments.is_empty()
-            || call.operational_acknowledgement.acknowledges_suspend
-            || call.operational_acknowledgement.acknowledges_block
         {
             return unserved("type application with another call feature");
         }
@@ -1267,9 +1263,7 @@ impl<'t> Program<'t> {
                         || call.requirement_application.is_valid()
                         || call.exact_coercion_target.is_valid()
                         || call.static_machine_parameter.is_valid()
-                        || !call.evidence_arguments.is_empty()
-                        || call.operational_acknowledgement.acknowledges_suspend
-                        || call.operational_acknowledgement.acknowledges_block,
+                        || !call.evidence_arguments.is_empty(),
                 ),
                 StaticArgumentCall::Statement(call) => (
                     call.target_symbol,
@@ -1284,9 +1278,7 @@ impl<'t> Program<'t> {
                         || call.static_requirement_dispatch.is_some()
                         || call.reflected_field_origin.is_some()
                         || call.static_machine_parameter.is_valid()
-                        || !call.evidence_arguments.is_empty()
-                        || call.operational_acknowledgement.acknowledges_suspend
-                        || call.operational_acknowledgement.acknowledges_block,
+                        || !call.evidence_arguments.is_empty(),
                 ),
             };
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Call(what));
@@ -1689,6 +1681,7 @@ impl<'t> Program<'t> {
             ));
         }
         Ok(Expression {
+            call_context: None,
             kind: ExpressionKind::Call {
                 callee,
                 required_contract,
@@ -1699,6 +1692,28 @@ impl<'t> Program<'t> {
             result,
             source,
         })
+    }
+
+    /// Whether a value of this type lends observation only: a shared
+    /// reference, or a shared view of bytes or elements.
+    fn observes_only(&self, id: MachineId, value_type: Option<ValueType>) -> Checked<bool> {
+        use crate::StorageShape;
+        use terminal_psi::{ByteSequenceCarrier, StructuralAccess};
+        let Some(ValueType::Record(row, _, _)) = value_type else {
+            return Ok(false);
+        };
+        Ok(matches!(
+            self.data_type(id, row)?.shape,
+            StorageShape::Reference {
+                access: StructuralAccess::SharedBorrow,
+                ..
+            } | StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(StructuralAccess::SharedBorrow),
+            }) | StorageShape::ElementView {
+                access: Some(StructuralAccess::SharedBorrow),
+                ..
+            }
+        ))
     }
 
     /// The argument for a borrowed formal: `&place` or `&mut place`, or a
@@ -1734,6 +1749,7 @@ impl<'t> Program<'t> {
             let place = self.expression(id, slots, argument, Some(expected))?;
             return Ok((
                 Expression {
+                    call_context: None,
                     result: place.result,
                     kind: ExpressionKind::Borrow {
                         access: ReferenceAccess::Shared,
@@ -1761,6 +1777,27 @@ impl<'t> Program<'t> {
                 false,
             ),
         };
+        // ownership.md, "Borrows and aliases": `&T` grants "Shared
+        // observation under its loan contract", and "A callee cannot grant
+        // writable access that the caller's place lacks." So an argument
+        // that lends observation only is wrong for a formal that writes, in
+        // every program: an explicit `&place`, or a value that is itself a
+        // shared reference or a shared view.
+        if formal.access != ReferenceAccess::Shared
+            && if explicit {
+                access == ReferenceAccess::Shared
+            } else {
+                self.observes_only(id, place.result)?
+            }
+        {
+            return Err(crate::reject(
+                id,
+                source,
+                "the caller lends only immutable access to this argument and its parameter \
+                 writes through it: a callee cannot grant writable access that the caller's \
+                 place lacks",
+            ));
+        }
         if access != formal.access {
             return unserved("borrow whose access differs from its formal's");
         }
@@ -1768,6 +1805,7 @@ impl<'t> Program<'t> {
             && let Some((referent, _)) = self.reference_referent(id, value_type)?
         {
             place = Expression {
+                call_context: None,
                 source: place.source,
                 kind: ExpressionKind::Referent(Box::new(place)),
                 result: Some(referent),
@@ -1822,6 +1860,7 @@ impl<'t> Program<'t> {
         };
         Ok((
             Expression {
+                call_context: None,
                 result: place.result,
                 kind: ExpressionKind::Borrow {
                     access,
@@ -2154,6 +2193,7 @@ mod tests {
             IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
         ));
         let slot = |slot| Expression {
+            call_context: None,
             kind: ExpressionKind::Slot(slot),
             result: Some(if slot == 1 {
                 scalar
@@ -2165,6 +2205,7 @@ mod tests {
             source,
         };
         let saved = |capture| Expression {
+            call_context: None,
             kind: ExpressionKind::SavedSubject(capture),
             result: Some(record),
             source,
@@ -2172,6 +2213,7 @@ mod tests {
         let borrow = |place: Expression| {
             let result = place.result;
             Expression {
+                call_context: None,
                 kind: ExpressionKind::Borrow {
                     access: ReferenceAccess::Mutable,
                     place: Box::new(place),
@@ -2182,6 +2224,7 @@ mod tests {
             }
         };
         let payload = |capture| Expression {
+            call_context: None,
             kind: ExpressionKind::Payload {
                 base: Box::new(saved(capture)),
                 case: 0,
@@ -2193,6 +2236,7 @@ mod tests {
         let captures = vec![(
             capture,
             Expression {
+                call_context: None,
                 kind: ExpressionKind::Index {
                     base: Box::new(slot(0)),
                     index: Box::new(slot(1)),

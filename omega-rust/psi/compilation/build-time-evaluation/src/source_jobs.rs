@@ -1227,10 +1227,10 @@ pub(crate) mod tests {
             )
         );
         let mut previous_format = bytes.clone();
-        previous_format[8..10].copy_from_slice(&262u16.to_le_bytes());
+        previous_format[8..10].copy_from_slice(&263u16.to_le_bytes());
         assert_eq!(
             terminal_codec::decode_module(&previous_format).unwrap_err(),
-            terminal_codec::CodecError::UnsupportedFormatMarker(262)
+            terminal_codec::CodecError::UnsupportedFormatMarker(263)
         );
         for (required, replacement) in [(calls[0].0, calls[1].1), (calls[1].0, calls[0].1)] {
             let mut forged = module.clone();

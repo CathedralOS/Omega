@@ -151,6 +151,7 @@ fn an_empty_record_is_a_field_and_an_argument() {
                     ),
                 ),
                 returns(Expression {
+                    call_context: None,
                     kind: ExpressionKind::Call {
                         required_contract: None,
                         source_call: None,

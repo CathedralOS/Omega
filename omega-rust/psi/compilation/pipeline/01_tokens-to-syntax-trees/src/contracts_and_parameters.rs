@@ -5,6 +5,21 @@ parameter lists (`grammar::parameters`).
 */
 
 pub(crate) mod contracts {
+    /// A bare operational clause permits the effect. An explicit Boolean
+    /// states its bound without conflating `false` with omission.
+    pub(crate) fn operational_bound<'tokens, 'source>(
+        input: crate::tokens::token_cursor::Input<'tokens, 'source>,
+    ) -> crate::tokens::token_cursor::ParseResult<'tokens, 'source, bool> {
+        use tokens::KeywordKind;
+        if input.at_keyword(KeywordKind::False) {
+            Ok((false, input.take_keyword(KeywordKind::False, "false")?))
+        } else if input.at_keyword(KeywordKind::True) {
+            Ok((true, input.take_keyword(KeywordKind::True, "true")?))
+        } else {
+            Ok((true, input))
+        }
+    }
+
     pub(crate) mod conformance {
         pub(crate) mod external_binding {
             use crate::tokens::token_cursor::{Input, ParseResult};
@@ -816,22 +831,23 @@ pub(crate) mod contracts {
                 }
 
                 if input.at_contextual("suspends") {
-                    suspends_keyword_source_spans.push(input.current_source_span());
-                    if suspends {
+                    if !suspends_keyword_source_spans.is_empty() {
                         return Err(input.error_here("duplicate `suspends` operational clause"));
                     }
-                    suspends = true;
-                    input = input.take_contextual("suspends")?;
+                    suspends_keyword_source_spans.push(input.current_source_span());
+                    let after_keyword = input.take_contextual("suspends")?;
+                    (suspends, input) =
+                        crate::grammar::contracts::operational_bound(after_keyword)?;
                     continue;
                 }
 
                 if input.at_contextual("blocks") {
-                    blocks_keyword_source_spans.push(input.current_source_span());
-                    if blocks {
+                    if !blocks_keyword_source_spans.is_empty() {
                         return Err(input.error_here("duplicate `blocks` operational clause"));
                     }
-                    blocks = true;
-                    input = input.take_contextual("blocks")?;
+                    blocks_keyword_source_spans.push(input.current_source_span());
+                    let after_keyword = input.take_contextual("blocks")?;
+                    (blocks, input) = crate::grammar::contracts::operational_bound(after_keyword)?;
                     continue;
                 }
 
@@ -1440,22 +1456,23 @@ pub(crate) mod contracts {
                 }
 
                 if input.at_contextual("suspends") {
-                    suspends_keyword_source_spans.push(input.current_source_span());
-                    if suspends {
+                    if !suspends_keyword_source_spans.is_empty() {
                         return Err(input.error_here("duplicate `suspends` operational clause"));
                     }
-                    suspends = true;
-                    input = input.take_contextual("suspends")?;
+                    suspends_keyword_source_spans.push(input.current_source_span());
+                    let after_keyword = input.take_contextual("suspends")?;
+                    (suspends, input) =
+                        crate::grammar::contracts::operational_bound(after_keyword)?;
                     continue;
                 }
 
                 if input.at_contextual("blocks") {
-                    blocks_keyword_source_spans.push(input.current_source_span());
-                    if blocks {
+                    if !blocks_keyword_source_spans.is_empty() {
                         return Err(input.error_here("duplicate `blocks` operational clause"));
                     }
-                    blocks = true;
-                    input = input.take_contextual("blocks")?;
+                    blocks_keyword_source_spans.push(input.current_source_span());
+                    let after_keyword = input.take_contextual("blocks")?;
+                    (blocks, input) = crate::grammar::contracts::operational_bound(after_keyword)?;
                     continue;
                 }
 

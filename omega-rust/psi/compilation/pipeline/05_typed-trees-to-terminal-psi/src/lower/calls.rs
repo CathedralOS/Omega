@@ -476,6 +476,7 @@ impl Lowering<'_> {
         )>,
         arguments: &[Expression],
         source: SourceOrigin,
+        acknowledgement: terminal_psi::CallAcknowledgement,
     ) -> Evaluation<()> {
         let arguments = continuing!(self.arguments(callee, required_contract, arguments));
         let routes = self.call_routes(callee, required_contract)?;
@@ -502,6 +503,11 @@ impl Lowering<'_> {
             });
         }
         let edge = self.no_successor_edge(carried, source)?;
+        self.call_formations.push(terminal_psi::CallFormation {
+            site: terminal_psi::CallSite::Edge(edge),
+            acknowledgement,
+            tail_callee: None,
+        });
         let invocation_site = match callee {
             semantic_vocabulary::TargetMachineCallable::Machine(_) => {
                 InvocationSite::InvokeNoNormal(edge)
@@ -657,6 +663,7 @@ impl Lowering<'_> {
                 typed_trees::statement::StatementHandle,
             )>,
         ),
+        acknowledgement: terminal_psi::CallAcknowledgement,
     ) -> Evaluation<Value> {
         // A call with no normal completion is a terminator
         // (`invoke_no_normal`) and has no value: the path it lies on ends at
@@ -671,7 +678,8 @@ impl Lowering<'_> {
                 required_contract,
                 source_call,
                 arguments,
-                source
+                source,
+                acknowledgement
             ));
             return Ok(Reached::Ended(source));
         }
@@ -706,6 +714,11 @@ impl Lowering<'_> {
             canonical::substituted_routes(routes, &arguments.scalars, self.id)?;
         let before = self.here()?;
         let operation = self.operation_identity(source);
+        self.call_formations.push(terminal_psi::CallFormation {
+            site: terminal_psi::CallSite::Operation(operation),
+            acknowledgement,
+            tail_callee: None,
+        });
         let requirements = self.invocation(
             InvocationSite::Operation(operation),
             callable,
