@@ -1529,12 +1529,11 @@ pub(crate) mod order_discreteness {
             conclusion
         {
             let lifted = super::integer_math_normalization::lift_fixed_integer_relation(relation);
-            let Some(Proposition::IntegerMathLessThan(strict_left, strict_right)) =
-                (match relation {
-                    Proposition::IntegerMathLessThan(..) => Some(relation),
-                    _ => lifted.as_ref(),
-                })
-            else {
+            let Some(Proposition::IntegerMathLessThan(strict_left, strict_right)) = (match relation
+            {
+                Proposition::IntegerMathLessThan(..) => Some(relation),
+                _ => lifted.as_ref(),
+            }) else {
                 return Err(ProofError::RulePremiseMismatch(
                     "integer order discreteness",
                 ));
@@ -1895,15 +1894,17 @@ pub(crate) mod power_of_two_order {
         }
         (conclusion
             == &Proposition::IntegerMathLessOrEqual(power(low.clone()), power(high.clone())))
-        .then_some(())
-        .ok_or(ProofError::IntegerOrderConclusionMismatch)
+            .then_some(())
+            .ok_or(ProofError::IntegerOrderConclusionMismatch)
     }
 
     #[cfg(test)]
     mod tests {
         use super::power;
         use crate::proof::assumption_proof;
-        use crate::{AcceptedProofRule, PrimitiveJudgment, ProofNode, ProofRule, accept_certificate};
+        use crate::{
+            AcceptedProofRule, PrimitiveJudgment, ProofNode, ProofRule, accept_certificate,
+        };
         use semantic_vocabulary::{
             IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, MachineId, Proposition,
             PropositionContext, ScalarTerm, ScalarType, ValueId, WidthParameter,
@@ -1961,8 +1962,8 @@ pub(crate) mod power_of_two_order {
             )
             .unwrap();
             assert!(AcceptedProofRule::IntegerPowerOfTwoOrder.is_provisional());
-            let one =
-                ScalarTerm::integer(IntegerType::width_binder(), IntegerValue::Unsigned(1)).unwrap();
+            let one = ScalarTerm::integer(IntegerType::width_binder(), IntegerValue::Unsigned(1))
+                .unwrap();
             let scalar = Proposition::LessOrEqual(
                 one,
                 ScalarTerm::value(width(), ScalarType::Integer(IntegerType::width_binder())),
@@ -2042,8 +2043,16 @@ pub(crate) mod power_of_two_order {
                         PrimitiveJudgment::IntegerCarrierBound,
                     )
                 };
-                bound(&order(value.clone(), IntegerMathTerm::carrier_maximum(carrier))).unwrap();
-                bound(&order(IntegerMathTerm::carrier_minimum(carrier), value.clone())).unwrap();
+                bound(&order(
+                    value.clone(),
+                    IntegerMathTerm::carrier_maximum(carrier),
+                ))
+                .unwrap();
+                bound(&order(
+                    IntegerMathTerm::carrier_minimum(carrier),
+                    value.clone(),
+                ))
+                .unwrap();
                 for wrong in [
                     order(value.clone(), power(binder())),
                     order(value.clone(), number(1)),

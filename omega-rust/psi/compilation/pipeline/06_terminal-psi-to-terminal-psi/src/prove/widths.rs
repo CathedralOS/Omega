@@ -136,7 +136,10 @@ fn translate(proof: ProofNode, addend: IntegerMathTerm) -> Option<ProofNode> {
     let Proposition::IntegerMathLessOrEqual(low, high) = &proof.conclusion else {
         return None;
     };
-    let conclusion = order(add(low.clone(), addend.clone()), add(high.clone(), addend.clone()));
+    let conclusion = order(
+        add(low.clone(), addend.clone()),
+        add(high.clone(), addend.clone()),
+    );
     Some(node(
         conclusion,
         ProofRule::IntegerMathOrderTranslation {
@@ -239,7 +242,11 @@ impl Prover<'_> {
 
     /// `operand <= bound` (`bound <= operand` for `Lower`) for each bound
     /// this module knows.
-    fn operand_bounds(&mut self, operand: &IntegerMathTerm, direction: Direction) -> Vec<ProofNode> {
+    fn operand_bounds(
+        &mut self,
+        operand: &IntegerMathTerm,
+        direction: Direction,
+    ) -> Vec<ProofNode> {
         let mut bounds = Vec::new();
         match operand {
             IntegerMathTerm::IntegerLiteral(_) => {
@@ -276,7 +283,9 @@ impl Prover<'_> {
             let axiom = self.facts[index].axiom;
             match &proposition {
                 // The literal a result equation fixes the value to.
-                Proposition::Equal(left, literal @ ScalarTerm::Integer { .. }) if left == subject => {
+                Proposition::Equal(left, literal @ ScalarTerm::Integer { .. })
+                    if left == subject =>
+                {
                     let oriented = match direction {
                         Direction::Upper => Some(proof),
                         Direction::Lower => flip(proof).ok(),
@@ -304,7 +313,9 @@ impl Prover<'_> {
                 ) if left == subject && depth > 0 => {
                     let Some(axiom) = axiom else { continue };
                     for root in self.value_bounds(operand, *source_type, direction, depth - 1) {
-                        let Some((low, high)) = ends(&root) else { continue };
+                        let Some((low, high)) = ends(&root) else {
+                            continue;
+                        };
                         let conclusion = match direction {
                             Direction::Upper => order(value.clone(), high.clone()),
                             Direction::Lower => order(low.clone(), value.clone()),
@@ -387,7 +398,13 @@ impl Prover<'_> {
             Direction::Upper => {
                 // value + 1 <= other <= endpoint, then subtract the one.
                 let stepped = node(
-                    order(add(value.clone(), IntegerMathTerm::literal(IntegerValue::Unsigned(1))), other.clone()),
+                    order(
+                        add(
+                            value.clone(),
+                            IntegerMathTerm::literal(IntegerValue::Unsigned(1)),
+                        ),
+                        other.clone(),
+                    ),
                     ProofRule::IntegerOrderDiscreteness {
                         relation: Box::new(relation),
                     },
@@ -400,7 +417,13 @@ impl Prover<'_> {
             Direction::Lower => {
                 // endpoint + 1 <= other + 1 <= value.
                 let stepped = node(
-                    order(add(other.clone(), IntegerMathTerm::literal(IntegerValue::Unsigned(1))), value.clone()),
+                    order(
+                        add(
+                            other.clone(),
+                            IntegerMathTerm::literal(IntegerValue::Unsigned(1)),
+                        ),
+                        value.clone(),
+                    ),
                     ProofRule::IntegerOrderDiscreteness {
                         relation: Box::new(relation),
                     },
@@ -427,7 +450,10 @@ impl Prover<'_> {
             PrimitiveJudgment::IntegerCarrierBound,
         )
         .ok()?;
-        Some(primitive(conclusion, PrimitiveJudgment::IntegerCarrierBound))
+        Some(primitive(
+            conclusion,
+            PrimitiveJudgment::IntegerCarrierBound,
+        ))
     }
 
     /// A scalar order restated over the mathematical integers: chained with
@@ -488,8 +514,7 @@ impl Prover<'_> {
     /// `low <= high` for two terms that differ by a constant, or by a power
     /// of two the width's lower bound orders.
     fn width_order(&mut self, low: &IntegerMathTerm, high: &IntegerMathTerm) -> Option<ProofNode> {
-        if matches!(compare_integer_math_terms(low, high), Ok(Some(ordering)) if ordering.is_le())
-        {
+        if matches!(compare_integer_math_terms(low, high), Ok(Some(ordering)) if ordering.is_le()) {
             return self.closed(order(low.clone(), high.clone()));
         }
         let mut found = Vec::new();
