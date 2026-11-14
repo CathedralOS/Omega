@@ -473,7 +473,11 @@ ensures result == 9
     ));
 
     let changed = source.replace("pair.left = value;", "pair.right = value;");
-    let rejected = judged(&changed, &["root"]);
+    let rejected = crate::judge_compilation(prepared(
+        super::build_purpose::frontier_of(&changed, "machine build_entry() { }"),
+        &["root"],
+        terminal_codec::TerminalPublication::Portable,
+    ));
     let [
         Ok(RouteVerdict::Rejected {
             unproved,
