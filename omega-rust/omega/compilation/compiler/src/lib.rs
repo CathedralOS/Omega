@@ -54,7 +54,6 @@ pub use crate::checked::{
 };
 pub use build_settings::BuildSnapshotRequest;
 pub use checked::checking::ProductQueries;
-pub use execution_settlement::settled_slot_schemas;
 pub use checked::{PackageReviewFailure, PackageReviewProduct, PackageReviewSource};
 pub use compilation_products::{
     CompileFailure, CompileOptions, CompileOutcomes, CompileOutputKind, CompileReport,
@@ -62,6 +61,7 @@ pub use compilation_products::{
     OptimizationRollbackReceipt, RequestedCompileProduct, RetainedBuildOutputs,
     RetainedNativeArtifact,
 };
+pub use execution_settlement::settled_slot_schemas;
 pub use native_compiler::SourceEvaluatedImportSettlement;
 pub use package_compilation::BuildExecutionInputs;
 pub use package_evidence::permission_acceptance::TerminalPermissionAcceptance;

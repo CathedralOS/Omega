@@ -693,13 +693,15 @@ fn whole_slot() -> (
 #[test]
 fn a_chosen_provider_forms_one_plan_for_its_whole_slot() {
     let (publication, settled) = whole_slot();
-    let accepted = publication.accepted().expect("the product publication accepted");
+    let accepted = publication
+        .accepted()
+        .expect("the product publication accepted");
     assert_eq!(settled.requirements().len(), 1, "only `go` is reached");
     let module = accepted.module();
     assert_eq!(module.boundary_machines.len(), 2);
     assert_eq!(module.provider_candidates.len(), 2);
 
-    let execution = execution(Some(profile()), &accepted, &settled)
+    let execution = execution(Some(profile()), accepted, &settled)
         .expect("the chosen provider's plan covers its slot");
     let [plan] = execution.plans().plans() else {
         panic!("one provider is chosen: {:?}", execution.plans().plans());
@@ -714,7 +716,7 @@ fn a_chosen_provider_forms_one_plan_for_its_whole_slot() {
     methods.sort_unstable();
     assert_eq!(methods, ["go", "stop"]);
 
-    let artifact = produced(&accepted);
+    let artifact = produced(accepted);
     let proposal = execution
         .provider_proposal(
             artifact.view(),
@@ -749,8 +751,10 @@ fn a_chosen_provider_forms_one_plan_for_its_whole_slot() {
 #[test]
 fn a_plan_is_refused_by_the_requirement_it_does_not_bind() {
     let (publication, settled) = whole_slot();
-    let accepted = publication.accepted().expect("the product publication accepted");
-    let schemas = compiler::settled_slot_schemas(&accepted, &settled);
+    let accepted = publication
+        .accepted()
+        .expect("the product publication accepted");
+    let schemas = compiler::settled_slot_schemas(accepted, &settled);
     let reached = settled.requirements()[0].reached.boundary;
     let mut missing = accepted.module().clone();
     missing
@@ -768,7 +772,7 @@ fn a_plan_is_refused_by_the_requirement_it_does_not_bind() {
         "{refused}"
     );
 
-    let mut crossed = plans(&accepted, &settled).expect("the plan covers its slot");
+    let mut crossed = plans(accepted, &settled).expect("the plan covers its slot");
     let rows = &mut crossed[0].plan.rows;
     let machines = rows
         .iter()
@@ -787,7 +791,7 @@ fn a_plan_is_refused_by_the_requirement_it_does_not_bind() {
             *machine_identity = machine;
         }
     }
-    let artifact = produced(&accepted);
+    let artifact = produced(accepted);
     let refused =
         backend_plan::TerminalTargetProviderSelection::from_plans(crossed, artifact.view())
             .unwrap_err();

@@ -38,7 +38,10 @@ impl SelectedExecution {
         }
         let declared = supply.plans(planning)?;
         let plans = effects::SelectedProviderPlanFacts::from_selected_plans(
-            declared.iter().map(|declared| declared.plan.clone()).collect(),
+            declared
+                .iter()
+                .map(|declared| declared.plan.clone())
+                .collect(),
         )
         .map_err(|reason| {
             vec![Diagnostic::error(format!(
@@ -87,17 +90,15 @@ impl SelectedExecution {
         optimization_selection: optimization_core::OptimizationSelectionIdentity,
     ) -> Option<backend_plan::TerminalTargetProviderProposal> {
         let target = self.target_profile?.target_name();
-        let selection =
-            backend_plan::TerminalTargetProviderSelection::from_plans(self.declared.to_vec(), artifact)
-                .map(|mut selection| {
-                    selection.assumed_bindings = self.plans.assumed_bindings().to_vec();
-                    selection
-                })
-                .map_err(|reason| {
-                    vec![format!(
-                        "provider proposal for `{target}`: {reason}"
-                    )]
-                });
+        let selection = backend_plan::TerminalTargetProviderSelection::from_plans(
+            self.declared.to_vec(),
+            artifact,
+        )
+        .map(|mut selection| {
+            selection.assumed_bindings = self.plans.assumed_bindings().to_vec();
+            selection
+        })
+        .map_err(|reason| vec![format!("provider proposal for `{target}`: {reason}")]);
         Some(backend_plan::TerminalTargetProviderProposal {
             target: target.to_owned(),
             terminal_psi: artifact.identity(),

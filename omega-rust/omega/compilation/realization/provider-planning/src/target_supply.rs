@@ -472,9 +472,8 @@ fn slot_plan(
     let first = requirements[0];
     let selection = &first.supply.selection;
     let provider = &selection.provider_type;
-    let refuse = |what: String| {
-        Diagnostic::error(format!("provider settlement for `{target}`: {what}"))
-    };
+    let refuse =
+        |what: String| Diagnostic::error(format!("provider settlement for `{target}`: {what}"));
     let schema = planning
         .schemas
         .iter()
