@@ -546,6 +546,7 @@ pub(super) fn encode(
                     case_tag,
                     tag_byte_offset,
                     indices,
+                    pointer_slots,
                 } => {
                     bytes.push(24);
                     crate::codec_bytes::push_encoded(bytes, source.get().to_le_bytes());
@@ -554,6 +555,7 @@ pub(super) fn encode(
                     crate::codec_bytes::push_encoded(bytes, case_tag.to_le_bytes());
                     crate::codec_bytes::push_encoded(bytes, tag_byte_offset.to_le_bytes());
                     encode_runtime_indices(bytes, indices);
+                    encode_case_pointer_slots(bytes, pointer_slots);
                 }
                 LegalizedScalarInstructionKind::StructuralLeafCopy {
                     result,
@@ -1605,6 +1607,8 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
             root_shape,
             byte_offset,
             layout,
+            pointer_slots,
+            region_byte_size,
             cases,
             effect,
             ownership,
@@ -1615,6 +1619,8 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
             super::calling::encode_shape(bytes, *root_shape);
             crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
             encode_layout(bytes, layout);
+            encode_case_pointer_slots(bytes, pointer_slots);
+            crate::codec_bytes::push_encoded(bytes, region_byte_size.to_le_bytes());
             encode_len(bytes, cases.len());
             for case in cases {
                 for identity in [case.edge.get(), case.target.get(), case.case.get()] {
@@ -1758,6 +1764,16 @@ fn encode_obligated_pair(
     crate::codec_bytes::push_encoded(bytes, right.get().to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
     bytes.extend_from_slice(&accepted_fact.bytes());
+}
+
+fn encode_case_pointer_slots(bytes: &mut Vec<u8>, slots: &[crate::LegalizedCasePointerSlot]) {
+    encode_len(bytes, slots.len());
+    for slot in slots {
+        crate::codec_bytes::push_encoded(bytes, slot.byte_offset.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, slot.index_start.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, slot.index_end.to_le_bytes());
+        bytes.push(u8::from(slot.scalar_descriptor));
+    }
 }
 
 pub(super) fn encode_runtime_indices(

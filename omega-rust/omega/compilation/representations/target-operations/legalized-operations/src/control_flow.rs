@@ -29,12 +29,13 @@ architectural trap (`brk #0` / `ud2`) preserves a 1-to-1 control-flow correspond
 
 mod scalar_graph;
 pub use scalar_graph::{
-    LegalizedDescriptorOrigin, LegalizedNormalizedForeignCall, LegalizedRuntimeIndexOperand,
-    LegalizedScalarArgument, LegalizedScalarBlock, LegalizedScalarCall, LegalizedScalarComparison,
-    LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
-    LegalizedScalarParameter, LegalizedScalarReturn, LegalizedScalarReturnValue,
-    LegalizedScalarSuccessor, LegalizedScalarTerminator, LegalizedStructuralBinding,
-    LegalizedStructuralCaseSource, LegalizedValueDefinition,
+    LegalizedCasePointerSlot, LegalizedDescriptorOrigin, LegalizedNormalizedForeignCall,
+    LegalizedRuntimeIndexOperand, LegalizedScalarArgument, LegalizedScalarBlock,
+    LegalizedScalarCall, LegalizedScalarComparison, LegalizedScalarFunction,
+    LegalizedScalarInstruction, LegalizedScalarInstructionKind, LegalizedScalarParameter,
+    LegalizedScalarReturn, LegalizedScalarReturnValue, LegalizedScalarSuccessor,
+    LegalizedScalarTerminator, LegalizedStructuralBinding, LegalizedStructuralCaseSource,
+    LegalizedValueDefinition,
 };
 
 use optimization_unit::WorkSettlement;

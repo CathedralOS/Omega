@@ -1038,8 +1038,8 @@ mod scalar_applications {
             completed.require_product_formation()?;
             let primary = completed.primary();
             if completed.terminal() != artifact.view().identity()
-                || primary.targets() != targets
-                || primary.layouts() != layouts
+                || primary.targets() != Some(targets)
+                || primary.layouts() != Some(layouts)
             {
                 return Err(
                     "native scalar closure belongs to another artifact, target or layout selection"
@@ -1057,11 +1057,12 @@ mod scalar_applications {
                 }
             }
             for inputs in std::iter::once(primary).chain(completed.supplemental()) {
-                let profile =
-                    target::TargetProfile::from_canonical_target_name(inputs.targets().target())
-                        .map_err(|error| {
-                            format!("scalar closure address-model target: {error:?}")
-                        })?;
+                let selected_target = inputs
+                    .targets()
+                    .ok_or("native scalar closure has no deployment selection")?
+                    .target();
+                let profile = target::TargetProfile::from_canonical_target_name(selected_target)
+                    .map_err(|error| format!("scalar closure address-model target: {error:?}"))?;
                 if inputs.carrier_layout()
                     != profile
                         .native_realization()
@@ -1069,7 +1070,7 @@ mod scalar_applications {
                 {
                     return Err(format!(
                         "scalar closure for {} has different target carrier geometry",
-                        inputs.targets().target()
+                        selected_target
                     ));
                 }
                 let Some(model) = inputs.address_model() else {
@@ -1084,7 +1085,7 @@ mod scalar_applications {
                 {
                     return Err(format!(
                         "scalar closure for {} has a different target address model",
-                        inputs.targets().target(),
+                        selected_target,
                     ));
                 }
             }

@@ -3,14 +3,15 @@
 //! be attached to an artifact after the route has decided it.
 
 use diagnostics::Diagnostic;
-use lowered_discharge::{AcceptedClosure, CompilationRefusal, RouteVerdict};
 use std::sync::Arc;
+use terminal_psi_to_terminal_psi::{AcceptedClosure, CompilationRefusal, RouteVerdict};
 use typed_trees::FrozenTypedTrees;
 
 #[derive(Debug)]
 pub struct AcceptedTerminalSource {
     source: Arc<FrozenTypedTrees>,
     closure: Box<AcceptedClosure>,
+    correspondence: typed_trees_to_terminal_psi::SourceCorrespondence,
     publication: terminal_codec::TerminalPublication,
 }
 
@@ -31,14 +32,17 @@ pub struct ReachedBoundaryRequirement {
 impl AcceptedTerminalSource {
     pub fn judge(
         source: Arc<FrozenTypedTrees>,
-        compilation: structure_elaboration::Compilation<'_>,
+        compilation: typed_trees_to_terminal_psi::Compilation<'_>,
         publication: terminal_codec::TerminalPublication,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let verdicts = lowered_discharge::judge_compilation_for(&source, compilation, publication);
+        let prepared =
+            typed_trees_to_terminal_psi::prepare_compilation(&source, compilation, publication);
+        let verdicts = terminal_psi_to_terminal_psi::judge_compilation(prepared.program);
         let closure = accept_compilation(verdicts)?;
         Ok(Self {
             source,
             closure,
+            correspondence: prepared.source,
             publication,
         })
     }
@@ -110,8 +114,9 @@ impl AcceptedTerminalSource {
         // The published module is the elaboration's module, so the rows
         // name the artifact's own operations. Native formations stay empty:
         // the reader refuses the native binding that would need one.
-        let companions = crate::build_companions::produce(&self.source, elaboration)
-            .map_err(|diagnostic| vec![diagnostic])?;
+        let companions =
+            crate::build_companions::produce(&self.source, elaboration, &self.correspondence)
+                .map_err(|diagnostic| vec![diagnostic])?;
         crate::build_bindings::validate_companions(
             program.view(),
             &companions.bindings,
@@ -138,15 +143,19 @@ impl AcceptedTerminalSource {
             build_filesystem,
             applications,
             provenance,
-            source_records: elaboration.source_records.clone(),
+            source_records: self.correspondence.records.clone(),
         })
     }
 
     /// What this accepted Build program asks of its host, read from the
     /// same rows `produce` publishes.
     pub fn build_protocol_use(&self) -> Result<crate::BuildProtocolUse, Vec<Diagnostic>> {
-        let companions = crate::build_companions::produce(&self.source, &self.closure.elaboration)
-            .map_err(|diagnostic| vec![diagnostic])?;
+        let companions = crate::build_companions::produce(
+            &self.source,
+            &self.closure.elaboration,
+            &self.correspondence,
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
         Ok(crate::BuildProtocolUse {
             reaches_outside: companions.unowned != 0,
             filesystem: !companions.filesystem.is_empty(),
@@ -170,8 +179,8 @@ impl AcceptedTerminalSource {
             .map(|(_, symbol)| *symbol)
             .chain(elaboration.boundaries.iter().map(|(_, symbol)| *symbol))
             .chain(
-                elaboration
-                    .source_records
+                self.correspondence
+                    .records
                     .iter()
                     .map(|record| record.declaration),
             )
@@ -341,9 +350,9 @@ fn route_defect(detail: &str) -> Diagnostic {
 mod tests {
     use super::*;
     use semantic_vocabulary::{IdTable, MachineId};
-    use structure_elaboration::{Body, CrashCeiling, Signature, Termination};
+    use typed_trees_to_terminal_psi::{Body, CrashCeiling, Signature, Termination};
 
-    fn elaboration() -> structure_elaboration::Elaboration {
+    fn elaboration() -> typed_trees_to_terminal_psi::Elaboration {
         let mut bodies = IdTable::default();
         bodies.push(Body {
             slots: Vec::new(),
@@ -357,12 +366,12 @@ mod tests {
             result: None,
             requires: Vec::new(),
             ensures: Vec::new(),
-            reaches: structure_elaboration::Ceiling::Inferred,
-            invokes: structure_elaboration::Ceiling::Inferred,
+            reaches: typed_trees_to_terminal_psi::Ceiling::Inferred,
+            invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
         });
-        structure_elaboration::lower_bodies(
+        typed_trees_to_terminal_psi::lower_bodies(
             MachineId::new(1).unwrap(),
             &bodies,
             &signatures,
@@ -372,7 +381,7 @@ mod tests {
     }
 
     fn accepted() -> RouteVerdict {
-        lowered_discharge::judge(Ok(elaboration())).unwrap()
+        terminal_psi_to_terminal_psi::judge(Ok(elaboration())).unwrap()
     }
 
     #[test]
@@ -383,7 +392,8 @@ mod tests {
         stated.module.identities =
             terminal_psi::TerminalIdentityTableBuilder::for_invocation().build();
         let closure = accept_compilation(vec![
-            lowered_discharge::judge(Ok(stated)).map_err(CompilationRefusal::Elaboration),
+            terminal_psi_to_terminal_psi::judge(Ok(stated))
+                .map_err(CompilationRefusal::Elaboration),
         ])
         .unwrap();
         let published = closure.publish_invocation().unwrap();

@@ -988,12 +988,13 @@ pub(crate) mod compiler_evaluation {
         pub dependencies: Vec<ProofDeclarationId>,
     }
 
-    pub(crate) fn compiler_invocation_scope(
+    pub(crate) fn compiler_invocation_scope<'scope>(
         scope: &ProofApplicationScope,
-        target: &str,
+        target: impl Into<Option<&'scope str>>,
         providers: &crate::AdmittedProviderSelections,
         root: ProofDeclarationId,
     ) -> Result<CompilerInvocationScope, String> {
+        let target = target.into();
         let root = scope
             .plan
             .callable_for_target(root, target)

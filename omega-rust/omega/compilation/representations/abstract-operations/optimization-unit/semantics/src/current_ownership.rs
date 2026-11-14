@@ -9516,7 +9516,6 @@ mod value_custody {
     use abstract_operations::StructuralWindowRoot;
     use optimization_unit::PsiOptimizationFunction;
     use semantic_vocabulary::{BlockId, PlaceId, StructuralCaseId, StructuralTypeId};
-    use std::collections::BTreeSet;
     use terminal_psi::{
         StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralPathSegment,
         StructuralStoreDisposition, StructuralTypeDeclaration,
@@ -9538,50 +9537,6 @@ mod value_custody {
                 .is_some_and(|missing| {
                     missing.len() == 1 && missing.first().is_some_and(Vec::is_empty)
                 })
-    }
-
-    /// A receiving region must be wholly absent. Several missing children can
-    /// cover it, but an absent ancestor does not authorize installing just one
-    /// child and silently forgetting the ancestor's remaining missing region.
-    fn vacant_region(
-        types: &[StructuralTypeDeclaration],
-        root: StructuralTypeId,
-        missing: &BTreeSet<Vec<StructuralPathSegment>>,
-        hole: &[StructuralPathSegment],
-        admitted_case: &dyn Fn(&[StructuralPathSegment], StructuralCaseId) -> bool,
-    ) -> bool {
-        if missing.iter().any(|absent| {
-            terminal_semantics::structural_paths_may_overlap(absent, hole)
-                && !absent.starts_with(hole)
-        }) {
-            return false;
-        }
-        if missing.contains(hole) {
-            return true;
-        }
-        let Some(selected) =
-            terminal_semantics::runtime_structural_path_tip(types.iter(), root, hole)
-        else {
-            return false;
-        };
-        let children = missing
-            .iter()
-            .filter_map(|absent| absent.strip_prefix(hole).map(<[_]>::to_vec))
-            .collect();
-        // Zero residual output proves coverage without enumerating untouched
-        // array elements. The existing typed partition checks the paths.
-        super::residuals::selected_affine_residuals(
-            types,
-            selected.id,
-            &children,
-            0,
-            &|path, case| {
-                let mut selected = hole.to_vec();
-                selected.extend_from_slice(path);
-                admitted_case(&selected, case)
-            },
-        )
-        .is_some_and(|residuals| residuals.is_empty())
     }
 
     impl ValueUse<'_> {
@@ -9621,7 +9576,7 @@ mod value_custody {
             }
             let ready = match disposition {
                 StructuralStoreDisposition::Vacant => missing.is_some_and(|missing| {
-                    vacant_region(
+                    terminal_semantics::structural_region_is_vacant(
                         self.types,
                         destination.structural_type(),
                         missing,
@@ -10008,7 +9963,7 @@ mod value_custody {
     mod store_tests {
         use super::*;
         use semantic_vocabulary::{PsiSemanticId, StructuralPlaceKind};
-        use std::collections::BTreeMap;
+        use std::collections::{BTreeMap, BTreeSet};
         use terminal_psi::{
             ArrayExtent, StructuralParameterDeclaration, StructuralPlaceDeclaration,
             StructuralRecordStorage, StructuralTypeShape, TerminalIdentityIndex,
@@ -10102,6 +10057,52 @@ mod value_custody {
                 .iter()
                 .map(|index| StructuralPathSegment::FixedIndex(*index))
                 .collect()
+        }
+
+        #[test]
+        fn vacancy_keeps_the_admitted_case_context_when_only_common_fields_moved() {
+            let (_, mut types, _) = context();
+            let field = TerminalIdentityIndex(10);
+            let mut mixed = types[0].clone();
+            mixed.id = id(4);
+            mixed.identity = TerminalIdentityIndex(4);
+            mixed.shape = StructuralTypeShape::Mixed {
+                fields: vec![terminal_psi::StructuralFieldDeclaration {
+                    inline_carrier: None,
+                    id: id(1),
+                    identity: field,
+                    relevance: terminal_psi::BindingRelevance::Relevant,
+                    field_type: terminal_psi::StructuralFieldType::Structural(id(1)),
+                    storage: None,
+                }],
+                cases: [1, 2]
+                    .map(|raw| terminal_psi::StructuralCaseDeclaration {
+                        id: id(raw),
+                        identity: TerminalIdentityIndex(10 + raw as u32),
+                        fields: Vec::new(),
+                    })
+                    .to_vec(),
+            };
+            types.push(mixed);
+            let missing = BTreeSet::from([vec![StructuralPathSegment::Field(field)]]);
+            let vacant = |admitted: &dyn Fn(&[StructuralPathSegment], StructuralCaseId) -> bool| {
+                terminal_semantics::structural_region_is_vacant(
+                    &types,
+                    id(4),
+                    &missing,
+                    &[],
+                    admitted,
+                )
+            };
+            assert!(
+                !vacant(&|_, _| false),
+                "an absent payload is not evidence of its case"
+            );
+            assert!(vacant(&|path, case| path.is_empty() && case == id(1)));
+            assert!(
+                !vacant(&|_, _| true),
+                "two admitted cases do not select one payload"
+            );
         }
 
         #[test]

@@ -122,7 +122,7 @@ pub(crate) mod scalar_graph {
         use legalized_operations::{
             LegalizedScalarInstruction, LegalizedScalarInstructionKind, LegalizedValueDefinition,
         };
-        use scalar_graph_input::aggregate_results::{home_layout, sum_layout};
+        use scalar_graph_input::aggregate_results::home_layout;
         use scalar_graph_input::structural_fields::{
             byte_index_operands, view_slot_index_operands,
         };
@@ -776,9 +776,7 @@ pub(crate) mod scalar_graph {
             };
             use abstract_operations::AbstractOperation;
             use legalized_operations::LegalizedScalarInstructionKind;
-            use scalar_graph_input::structural_case::{
-                membership_layout, source_result, structural_transport_layout,
-            };
+            use scalar_graph_input::structural_case::structural_transport_layout;
             use semantic_vocabulary::ScalarType;
 
             macro_rules! o {
@@ -794,6 +792,7 @@ pub(crate) mod scalar_graph {
                 optimized: &optimization_unit::PsiOptimizationFunction,
                 plan: &AbstractOperationPlan,
                 unit: &PsiOptimizationUnit,
+                targeted: &target_operations::TargetUnitOperation,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let AbstractOperation::StructuralCaseMembership {
                     psi_operation,
@@ -805,25 +804,68 @@ pub(crate) mod scalar_graph {
                 else {
                     unreachable!("dispatched project_structural_case_membership")
                 };
-                if result.scalar_type != ScalarType::Boolean {
+                let target_operations::TargetUnitOperation::StructuralCaseMembership {
+                    source: stored_source,
+                    path: stored_path,
+                    case: stored_case,
+                    case_tag,
+                    tag_byte_offset,
+                    indices: stored_indices,
+                    pointer_slots,
+                    ..
+                } = targeted
+                else {
+                    return Err(Error::custody());
+                };
+                if result.scalar_type != ScalarType::Boolean
+                    || stored_source != source
+                    || stored_path != path
+                    || stored_case != case
+                {
                     return Err(Error::custody());
                 }
-                let (case_tag, tag_byte_offset, elements) = membership_layout(
-                    optimized,
-                    *source,
-                    path,
-                    *case,
-                    plan,
-                    source_result(optimized, *source),
-                )?;
-                let indices = o!(optimized => unit => *psi_operation => &elements)?;
+                // Extent and obligation live on the runtime-index operand, not
+                // on the retained chase. A path with no runtime index has an
+                // empty operand list, so this does not walk the type.
+                let indices = if path.iter().any(|segment| {
+                    matches!(
+                        segment,
+                        terminal_psi::StructuralPathSegment::RuntimeIndex { .. }
+                    )
+                }) {
+                    let elements = scalar_graph_input::structural_case::membership_address(
+                        optimized, *source, path, plan,
+                    )?;
+                    o!(optimized => unit => *psi_operation => &elements)?
+                } else {
+                    Vec::new()
+                };
+                if stored_indices.len() != indices.len()
+                    || stored_indices
+                        .iter()
+                        .zip(&indices)
+                        .any(|(stored, resolved)| {
+                            stored.stride != resolved.stride
+                                || stored.operand.source_value() != resolved.operand.value
+                        })
+                    || pointer_slots.iter().any(|slot| {
+                        slot.scalar_descriptor
+                            || slot.index_start > slot.index_end
+                            || usize::try_from(slot.index_end)
+                                .ok()
+                                .is_none_or(|end| end > indices.len())
+                    })
+                {
+                    return Err(Error::custody());
+                }
                 Ok(LegalizedScalarInstructionKind::StructuralCaseMembership {
                     source: *source,
                     path: path.clone(),
                     case: *case,
-                    case_tag,
-                    tag_byte_offset,
+                    case_tag: *case_tag,
+                    tag_byte_offset: *tag_byte_offset,
                     indices,
+                    pointer_slots: pointer_slots.clone(),
                 })
             }
 
@@ -1532,6 +1574,13 @@ pub(crate) mod scalar_graph {
         use crate::legalization::accepted_fact;
         use crate::legalization::scalar_graph_input;
         use semantic_vocabulary::IntegerValue;
+
+        fn stored_sum_layout(
+            home: &target_operations::TargetStructuralHomeRequirement,
+        ) -> Result<calling_conventions::ConventionalSumLayout, Error> {
+            home.layout.sum().cloned().ok_or(Error::custody())
+        }
+
         pub(crate) fn project<'a, 'g>(
             node: &optimization_unit::OptimizationNode,
             optimized: &optimization_unit::PsiOptimizationFunction,
@@ -1930,15 +1979,24 @@ pub(crate) mod scalar_graph {
                         established_case,
                         rejected_case,
                         ..
-                    } => LegalizedScalarInstructionKind::EstablishActivationClaim {
-                        result: result.clone(),
-                        bound: *bound,
-                        committed: *committed,
-                        backing_type: *backing_type,
-                        established_case: *established_case,
-                        rejected_case: *rejected_case,
-                        layout: sum_layout(result, plan)?,
-                    },
+                    } => {
+                        let target_operations::TargetUnitOperation::EstablishActivationClaim {
+                            result_home,
+                            ..
+                        } = targeted
+                        else {
+                            return Err(Error::custody());
+                        };
+                        LegalizedScalarInstructionKind::EstablishActivationClaim {
+                            result: result.clone(),
+                            bound: *bound,
+                            committed: *committed,
+                            backing_type: *backing_type,
+                            established_case: *established_case,
+                            rejected_case: *rejected_case,
+                            layout: stored_sum_layout(result_home)?,
+                        }
+                    }
                     AbstractOperation::ReleaseActivationClaim { source, claim, .. } => {
                         LegalizedScalarInstructionKind::ReleaseActivationClaim {
                             source: source.clone(),
@@ -1954,16 +2012,25 @@ pub(crate) mod scalar_graph {
                         covered_case,
                         rejected_case,
                         ..
-                    } => LegalizedScalarInstructionKind::SplitActivationClaim {
-                        result: result.clone(),
-                        source: source.clone(),
-                        claim: *claim,
-                        bound_at: *bound_at,
-                        committed_at: *committed_at,
-                        covered_case: *covered_case,
-                        rejected_case: *rejected_case,
-                        layout: sum_layout(result, plan)?,
-                    },
+                    } => {
+                        let target_operations::TargetUnitOperation::SplitActivationClaim {
+                            result_home,
+                            ..
+                        } = targeted
+                        else {
+                            return Err(Error::custody());
+                        };
+                        LegalizedScalarInstructionKind::SplitActivationClaim {
+                            result: result.clone(),
+                            source: source.clone(),
+                            claim: *claim,
+                            bound_at: *bound_at,
+                            committed_at: *committed_at,
+                            covered_case: *covered_case,
+                            rejected_case: *rejected_case,
+                            layout: stored_sum_layout(result_home)?,
+                        }
+                    }
                     AbstractOperation::MergeActivationClaim {
                         result,
                         lower,
@@ -1973,16 +2040,25 @@ pub(crate) mod scalar_graph {
                         covered_case,
                         rejected_case,
                         ..
-                    } => LegalizedScalarInstructionKind::MergeActivationClaim {
-                        result: result.clone(),
-                        lower: lower.clone(),
-                        upper: upper.clone(),
-                        lower_claim: *lower_claim,
-                        upper_claim: *upper_claim,
-                        covered_case: *covered_case,
-                        rejected_case: *rejected_case,
-                        layout: sum_layout(result, plan)?,
-                    },
+                    } => {
+                        let target_operations::TargetUnitOperation::MergeActivationClaim {
+                            result_home,
+                            ..
+                        } = targeted
+                        else {
+                            return Err(Error::custody());
+                        };
+                        LegalizedScalarInstructionKind::MergeActivationClaim {
+                            result: result.clone(),
+                            lower: lower.clone(),
+                            upper: upper.clone(),
+                            lower_claim: *lower_claim,
+                            upper_claim: *upper_claim,
+                            covered_case: *covered_case,
+                            rejected_case: *rejected_case,
+                            layout: stored_sum_layout(result_home)?,
+                        }
+                    }
                     AbstractOperation::EstablishNativeCodeLayout {
                         result, machine, ..
                     } => LegalizedScalarInstructionKind::EstablishNativeCodeLayout {
@@ -2009,12 +2085,21 @@ pub(crate) mod scalar_graph {
                         result_case,
                         fields,
                         ..
-                    } => LegalizedScalarInstructionKind::EstablishCase {
-                        result: result.clone(),
-                        result_case: *result_case,
-                        fields: fields.clone(),
-                        layout: sum_layout(result, plan)?,
-                    },
+                    } => {
+                        let target_operations::TargetUnitOperation::EstablishCase {
+                            result_home,
+                            ..
+                        } = targeted
+                        else {
+                            return Err(Error::custody());
+                        };
+                        LegalizedScalarInstructionKind::EstablishCase {
+                            result: result.clone(),
+                            result_case: *result_case,
+                            fields: fields.clone(),
+                            layout: stored_sum_layout(result_home)?,
+                        }
+                    }
                     AbstractOperation::EstablishPrimitiveLocal { result, value, .. } => {
                         LegalizedScalarInstructionKind::EstablishPrimitiveLocal {
                             result: result.clone(),
@@ -2031,7 +2116,7 @@ pub(crate) mod scalar_graph {
                     },
                     AbstractOperation::StructuralCaseMembership { .. } => {
                         storage_instructions::project_structural_case_membership(
-                            node, optimized, plan, unit,
+                            node, optimized, plan, unit, targeted,
                         )?
                     }
                     AbstractOperation::StructuralLeafCopy { .. }
@@ -2523,6 +2608,7 @@ pub(crate) mod scalar_graph {
             function: &optimization_unit::PsiOptimizationFunction,
             plan: &AbstractOperationPlan,
             unit: &optimization_unit::PsiOptimizationUnit,
+            targeted: &target_operations::TargetControlTerminator,
         ) -> Result<LegalizedScalarTerminator, LegalizationError> {
             let AbstractOperation::StructuralCase {
                 source,
@@ -2532,51 +2618,79 @@ pub(crate) mod scalar_graph {
             else {
                 return Err(Error::custody());
             };
-            let (selected, byte_offset, root_shape, layout) =
-                scalar_graph_input::structural_case::dispatch_projection(
-                    function, *source, path, plan,
-                )?;
-            let source = scalar_graph_input::structural_case::case_source(function, *source)?;
-            let declaration = plan.structural_type(selected).ok_or(Error::custody())?;
-            let declared: &[terminal_psi::StructuralCaseDeclaration] = match &declaration.shape {
-                terminal_psi::StructuralTypeShape::Sum { cases }
-                | terminal_psi::StructuralTypeShape::Mixed { cases, .. } => cases,
-                _ => return Err(Error::custody()),
+            let target_operations::TargetControlTerminator::StructuralCase {
+                source: stored_source,
+                path: stored_path,
+                byte_offset,
+                layout,
+                pointer_slots,
+                region_byte_size,
+                cases: stored_cases,
+            } = targeted
+            else {
+                return Err(Error::custody());
             };
-            if cases.len() != declared.len()
-                || cases.len() != node.successors.len()
+            if stored_source.place() != *source || stored_path != path {
+                return Err(Error::custody());
+            }
+            let byte_offset = *byte_offset;
+            if pointer_slots
+                .iter()
+                .any(|slot| slot.scalar_descriptor || slot.index_start != slot.index_end)
+                || byte_offset
+                    .checked_add(layout.shape.byte_size)
+                    .is_none_or(|end| end > *region_byte_size)
+            {
+                return Err(Error::custody());
+            }
+            let root_shape = stored_source.layout().shape();
+            let layout = layout.clone();
+            let source = scalar_graph_input::structural_case::case_source(function, *source)?;
+            if cases.len() != node.successors.len()
                 || cases.len() != layout.cases.len()
+                || cases.len() != stored_cases.len()
             {
                 return Err(Error::custody());
             }
             let mut successors = Vec::with_capacity(cases.len());
-            for (case_position, ((case, edge), declared)) in
-                cases.iter().zip(&node.successors).zip(declared).enumerate()
+            for (case_position, ((case, edge), stored)) in cases
+                .iter()
+                .zip(&node.successors)
+                .zip(stored_cases)
+                .enumerate()
             {
                 let destination = function.block(case.target).ok_or(Error::custody())?;
-                let fields = declared
-                    .fields
-                    .iter()
-                    .filter(|field| !field.relevance.is_erased())
-                    .collect::<Vec<_>>();
-                if case.payloads.len() != destination.parameters.len()
-                    || fields.len() != layout.cases[case_position].fields.len()
+                let case_tag = i32::try_from(case_position).map_err(|_| Error::custody())?;
+                if stored.psi_edge != case.psi_edge
+                    || stored.target != case.target
+                    || stored.case != case.case
+                    || stored.case_tag != case_tag
+                    || stored.payloads.len() != case.payloads.len()
+                    || case.payloads.len() != destination.parameters.len()
+                    || stored.structural_bindings != case.structural_bindings
+                    || stored.cleanup_actions != case.cleanup_actions
                 {
                     return Err(Error::custody());
                 }
                 let mut payloads = Vec::with_capacity(case.payloads.len());
-                for (payload, parameter) in case.payloads.iter().zip(&destination.parameters) {
-                    let field_position = fields
-                        .iter()
-                        .position(|field| field.id == payload.field)
-                        .ok_or(Error::custody())?;
+                for ((payload, parameter), stored_payload) in case
+                    .payloads
+                    .iter()
+                    .zip(&destination.parameters)
+                    .zip(&stored.payloads)
+                {
+                    if stored_payload.field != payload.field
+                        || stored_payload.parameter.block != case.target
+                        || stored_payload.parameter.value != payload.parameter
+                        || stored_payload.parameter.value != parameter.value
+                        || stored_payload.parameter.scalar_type != payload.scalar_type
+                        || stored_payload.parameter.scalar_type != parameter.scalar_type
+                    {
+                        return Err(Error::custody());
+                    }
                     payloads.push(LegalizedStructuralCasePayload {
                         field: payload.field,
-                        field_byte_offset: byte_offset
-                            .checked_add(
-                                layout.cases[case_position].fields[field_position].byte_offset,
-                            )
-                            .ok_or(Error::custody())?,
+                        field_byte_offset: stored_payload.field_byte_offset,
                         parameter: LegalizedValueDefinition {
                             value: parameter.value,
                             scalar_type: parameter.scalar_type,
@@ -2588,7 +2702,7 @@ pub(crate) mod scalar_graph {
                     edge: case.psi_edge,
                     target: case.target,
                     case: case.case,
-                    case_tag: i32::try_from(case_position).map_err(|_| Error::custody())?,
+                    case_tag,
                     payloads,
                     structural_bindings: super::terminator::successor(edge, function, plan, unit)?
                         .structural_bindings,
@@ -2603,6 +2717,8 @@ pub(crate) mod scalar_graph {
                 root_shape,
                 byte_offset,
                 layout,
+                pointer_slots: pointer_slots.clone(),
+                region_byte_size: *region_byte_size,
                 cases: successors,
                 effect: node.effect,
                 ownership: node.ownership.clone(),
@@ -2624,6 +2740,7 @@ pub(crate) mod scalar_graph {
             plan: &AbstractOperationPlan,
             native: &target_operations::TargetOperationPlan,
             unit: &optimization_unit::PsiOptimizationUnit,
+            targeted: &target_operations::TargetControlTerminator,
         ) -> Result<LegalizedScalarTerminator, LegalizationError> {
             let function = function_inputs.function();
             let cleanup_calls = scalar_graph_input::cleanup_calls::expected(
@@ -2840,7 +2957,7 @@ pub(crate) mod scalar_graph {
                     }))
                 }
                 AbstractOperation::StructuralCase { .. } => {
-                    super::structural_case::project(node, function, plan, unit)
+                    super::structural_case::project(node, function, plan, unit, targeted)
                 }
                 AbstractOperation::ReturnUnit { psi_edge, .. } => {
                     Ok(LegalizedScalarTerminator::Return(LegalizedScalarReturn {
@@ -2963,6 +3080,7 @@ pub(crate) mod scalar_graph {
             })
         }
     }
+
     pub(crate) fn derive<'a, 'g>(
         target: &target_operations::TargetFunction,
         abstracted: &abstract_operations::AbstractFunction,
@@ -3039,7 +3157,14 @@ pub(crate) mod scalar_graph {
                     parameters: block.parameters.clone(),
                     structural_parameters: block.structural_parameters.clone(),
                     instructions,
-                    terminator: terminator::project(last, &function_inputs, plan, native, unit)?,
+                    terminator: terminator::project(
+                        last,
+                        &function_inputs,
+                        plan,
+                        native,
+                        unit,
+                        &targeted.terminator,
+                    )?,
                 })
             })
             .collect::<Result<Vec<_>, LegalizationError>>()?;

@@ -1980,39 +1980,24 @@ pub(crate) mod case_membership {
         let LegalizedScalarInstructionKind::StructuralCaseMembership {
             source: place,
             path,
-            case,
             case_tag,
             tag_byte_offset,
             indices,
+            pointer_slots,
+            ..
         } = &row.kind
         else {
             return Err(invalid());
         };
         let result = row.result.ok_or_else(|| invalid())?;
-        let Some((expected_tag, expected_offset, geometry)) =
-            crate::selection::aggregate_result_input::membership_layout(
-                source, *place, path, *case,
-            )
-        else {
-            return Err(invalid());
-        };
-        if result.scalar_type != ScalarType::Boolean
-            || (expected_tag, expected_offset) != (*case_tag, *tag_byte_offset)
-            || !crate::structural_inputs::runtime_indices_match(indices, &geometry.elements)
-        {
+        if result.scalar_type != ScalarType::Boolean {
             return Err(invalid());
         }
         let place = *place;
         let tag = transport_register(builder, place, *tag_byte_offset)?;
         let provenance = operation_provenance(row, vec![result.value]);
-        let (pointer, pointer_slots) = projection_origin(
-            source,
-            builder,
-            row,
-            place,
-            *tag_byte_offset,
-            &geometry.pointer_slots,
-        )?;
+        let (pointer, pointer_slots) =
+            projection_origin(source, builder, row, place, *tag_byte_offset, pointer_slots)?;
         if let Some(pointer) = pointer {
             let (pointer, leaf_index) =
                 cross_references(builder, row, place, pointer, indices, pointer_slots)?;
@@ -4425,19 +4410,56 @@ pub(crate) mod runtime_address {
         Ok(Some(base))
     }
 
-    pub(crate) fn projection_origin<'slots>(
+    pub(crate) trait PreparedPointerChase {
+        fn byte_offset(&self) -> u32;
+        fn index_range(&self) -> Option<std::ops::Range<usize>>;
+        fn scalar_descriptor(&self) -> bool;
+    }
+
+    impl PreparedPointerChase for PointerSlot {
+        fn byte_offset(&self) -> u32 {
+            self.byte_offset
+        }
+
+        fn index_range(&self) -> Option<std::ops::Range<usize>> {
+            Some(self.indices.clone())
+        }
+
+        fn scalar_descriptor(&self) -> bool {
+            self.scalar_descriptor
+        }
+    }
+
+    impl PreparedPointerChase for target_operations::TargetCasePointerSlot {
+        fn byte_offset(&self) -> u32 {
+            self.byte_offset
+        }
+
+        fn index_range(&self) -> Option<std::ops::Range<usize>> {
+            Some(usize::try_from(self.index_start).ok()?..usize::try_from(self.index_end).ok()?)
+        }
+
+        fn scalar_descriptor(&self) -> bool {
+            self.scalar_descriptor
+        }
+    }
+
+    pub(crate) fn projection_origin<'slots, Slot: PreparedPointerChase>(
         source: &super::LegalizedScalarFunction,
         builder: &mut Builder<'_>,
         row: &impl crate::selection::construction::scalar_graph::call_arguments::InvocationArgumentSource,
         place: PlaceId,
         byte_offset: u32,
-        mut slots: &'slots [PointerSlot],
-    ) -> Result<(Option<VirtualRegisterId>, &'slots [PointerSlot]), SelectedInstructionError> {
+        mut slots: &'slots [Slot],
+    ) -> Result<(Option<VirtualRegisterId>, &'slots [Slot]), SelectedInstructionError> {
         let root_view =
             view_type(source, place).is_some() || element_view_type(source, place).is_some();
         let pointer = if root_view {
             if let Some(first) = slots.first() {
-                if first.byte_offset != 0 || first.indices != (0..0) || first.scalar_descriptor {
+                if first.byte_offset() != 0
+                    || first.index_range() != Some(0..0)
+                    || first.scalar_descriptor()
+                {
                     return Err(invalid());
                 }
                 slots = &slots[1..];
@@ -4619,13 +4641,13 @@ pub(crate) mod runtime_address {
         Ok(())
     }
 
-    pub(crate) fn cross_references(
+    pub(crate) fn cross_references<Slot: PreparedPointerChase>(
         builder: &mut Builder<'_>,
         row: &impl crate::selection::construction::scalar_graph::call_arguments::InvocationArgumentSource,
         place: PlaceId,
         pointer: VirtualRegisterId,
         indices: &[LegalizedRuntimeIndexOperand],
-        pointer_slots: &[PointerSlot],
+        pointer_slots: &[Slot],
     ) -> Result<(VirtualRegisterId, usize), SelectedInstructionError> {
         cross_references_at_site(
             builder,
@@ -4640,26 +4662,27 @@ pub(crate) mod runtime_address {
         )
     }
 
-    pub(crate) fn cross_references_at_site(
+    pub(crate) fn cross_references_at_site<Slot: PreparedPointerChase>(
         builder: &mut Builder<'_>,
         provenance: SelectedInstructionProvenance,
         origin: selected_instructions::SelectedMemoryAccessOrigin,
         place: PlaceId,
         mut pointer: VirtualRegisterId,
         indices: &[LegalizedRuntimeIndexOperand],
-        pointer_slots: &[PointerSlot],
+        pointer_slots: &[Slot],
     ) -> Result<(VirtualRegisterId, usize), SelectedInstructionError> {
         let mut leaf_index = 0;
         for slot in pointer_slots {
-            if slot.scalar_descriptor {
+            if slot.scalar_descriptor() {
                 return Err(invalid());
             }
-            let slot_indices = indices.get(slot.indices.clone()).ok_or(invalid())?;
+            let range = slot.index_range().ok_or(invalid())?;
+            let slot_indices = indices.get(range.clone()).ok_or(invalid())?;
             let address = scale_at_site(
                 builder,
                 provenance.clone(),
                 place,
-                slot.byte_offset,
+                slot.byte_offset(),
                 pointer,
                 slot_indices,
             )?;
@@ -4667,7 +4690,7 @@ pub(crate) mod runtime_address {
                 builder,
                 place,
                 address,
-                slot.byte_offset,
+                slot.byte_offset(),
                 8,
                 provenance.clone(),
             )?;
@@ -4675,15 +4698,15 @@ pub(crate) mod runtime_address {
                 builder,
                 origin,
                 place,
-                slot.byte_offset,
+                slot.byte_offset(),
                 8,
                 slot_indices,
                 Written::None,
             )?;
-            let loaded = super::transport_register(builder, place, slot.byte_offset)?;
+            let loaded = super::transport_register(builder, place, slot.byte_offset())?;
             builder.emit_load64(displacement, address, loaded, provenance.clone())?;
             pointer = loaded;
-            leaf_index = slot.indices.end;
+            leaf_index = range.end;
         }
         Ok((pointer, leaf_index))
     }

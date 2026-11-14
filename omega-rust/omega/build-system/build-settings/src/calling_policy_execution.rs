@@ -145,7 +145,7 @@ pub fn evaluate_terminal_calling_policy(
             host_imports: &[],
             entry: Some(entry),
             target_machines: Some(&selected),
-            target_layouts: Some(scalars.primary().layouts()),
+            target_layouts: scalars.primary().layouts(),
         })
         .map_err(|error| format!("calling policy scalar installation: {error:?}"))?;
     let entry = program

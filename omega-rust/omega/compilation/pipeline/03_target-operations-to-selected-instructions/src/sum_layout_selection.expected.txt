@@ -1,0 +1,102 @@
+== tag-only
+block SelectedBlockId(0) Source(BlockId(1))
+  CopyI64
+  Load32 { byte_offset: 0 }
+  CompareI64Zero
+  term ConditionalBranchNonZero
+  case tag=1 size=4
+  case tag=0 size=4
+block SelectedBlockId(1) Source(BlockId(2))
+  term ReturnUnit
+block SelectedBlockId(2) Source(BlockId(3))
+  term ReturnUnit
+access offset=0 count=4
+== payload-behind-pointer
+block SelectedBlockId(0) Source(BlockId(1))
+  CopyI64
+  Load64 { byte_offset: 0 }
+  Load32 { byte_offset: 0 }
+  CompareI64Zero
+  term ConditionalBranchNonZero
+  case tag=1 size=8
+  case tag=0 size=8
+block SelectedBlockId(1) Source(BlockId(2))
+  term ReturnUnit
+block SelectedBlockId(2) Source(BlockId(3))
+  term ReturnUnit
+access offset=0 count=8
+access offset=0 count=4
+== tag-only-behind-pointer
+block SelectedBlockId(0) Source(BlockId(1))
+  CopyI64
+  Load64 { byte_offset: 0 }
+  Load32 { byte_offset: 0 }
+  CompareI64Zero
+  term ConditionalBranchNonZero
+  case tag=1 size=4
+  case tag=0 size=4
+block SelectedBlockId(1) Source(BlockId(2))
+  term ReturnUnit
+block SelectedBlockId(2) Source(BlockId(3))
+  term ReturnUnit
+access offset=0 count=8
+access offset=0 count=4
+== sum-inside-record
+block SelectedBlockId(0) Source(BlockId(1))
+  CopyI64
+  Load32 { byte_offset: 4 }
+  CompareI64Zero
+  term ConditionalBranchNonZero
+  case tag=1 size=8
+  case tag=0 size=8
+block SelectedBlockId(1) Source(BlockId(2))
+  term ReturnUnit
+block SelectedBlockId(2) Source(BlockId(3))
+  term ReturnUnit
+access offset=4 count=4
+== membership-behind-pointer
+block SelectedBlockId(0) Source(BlockId(1))
+  CopyI64
+  CopyI64
+  Load64 { byte_offset: 0 }
+  Load32 { byte_offset: 0 }
+  MaterializeI64 Unsigned(0)
+  CompareI64
+  MaterializeBooleanEqual
+  term ReturnUnit
+access offset=0 count=8
+access offset=0 count=4
+== establish-case
+slot size=4 align=4
+block SelectedBlockId(0) Source(BlockId(1))
+  FrameAddress { slot: Local(Structural { operation: OperationId(1), place: PlaceId(1) }), byte_offset: 0 }
+  MaterializeI64 Unsigned(0)
+  Store { byte_offset: 0, byte_size: 4 }
+  MaterializeI64 Unsigned(0)
+  Store { byte_offset: 0, byte_size: 4 }
+  term ReturnUnit
+access offset=0 count=4
+access offset=0 count=4
+access offset=0 count=4
+== activation-claim
+slot size=32 align=8
+block SelectedBlockId(0) Source(BlockId(1))
+  MaterializeI64 Unsigned(4)
+  FrameAddress { slot: Local(Structural { operation: OperationId(2), place: PlaceId(1) }), byte_offset: 0 }
+  MaterializeI64 Unsigned(32)
+  ZeroBytes
+  MaterializeI64 Unsigned(8)
+  CompareI64
+  MaterializeBooleanU64LessThan
+  Store { byte_offset: 0, byte_size: 4 }
+  AddressOffset { byte_offset: 24 }
+  Store64 { slot: Local(Structural { operation: OperationId(2), place: PlaceId(1) }), byte_offset: 8 }
+  Store64 { slot: Local(Structural { operation: OperationId(2), place: PlaceId(1) }), byte_offset: 16 }
+  Store64 { slot: Local(Structural { operation: OperationId(2), place: PlaceId(1) }), byte_offset: 16 }
+  term ReturnUnit
+access offset=0 count=32
+access offset=0 count=32
+access offset=0 count=4
+access offset=8 count=8
+access offset=16 count=8
+access offset=16 count=8

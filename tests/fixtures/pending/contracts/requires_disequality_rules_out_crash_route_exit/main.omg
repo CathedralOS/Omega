@@ -12,7 +12,7 @@
 // no route published the right side is false, and the implication holds
 // because the requirement contradicts `D`.
 //
-// The checker on the lowered form (`lowered-discharge`) accepts this program;
+// The checker on the lowered form (`terminal-psi-to-terminal-psi`) accepts this program;
 // `compiler/tests/lowered_route_subjects.rs` pins that. The current checker
 // reports, on linux_x86_64 at the commit that added this file, "call from
 // `divide` to `bad` at statement 1 call 0 has an uncovered Trap crash route"

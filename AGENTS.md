@@ -137,7 +137,7 @@ are the one looking at it, it is yours: finish it or close it.
    obligations at the exact projected place (`root.field` or case variant
    payload), invalidating overlapping writes without discarding provably
    disjoint sibling storage.
-4. **Full pipeline carry-through (lowered-form checker `-> 08 -> Native`):**
+4. **Full pipeline carry-through (Psi 05 `-> 06 -> publication -> Native`):**
    Carry every semantic repair through the lowered-form checker, Terminal Psi
    and native execution (`omega run --both`, exit 0).
 5. **Board closure:** Delete completed bullets from `TASKS.md` outright (never
@@ -211,7 +211,7 @@ and [omega-rust/pipeline.md](omega-rust/pipeline.md):
 - **Identity, lifetime & soundness:** Snapshots and loans track exact storage
   versions; proof preserves ownership, authority, and termination obligations
   while respecting the boundary between erased math and executable values.
-- **Checked-to-Terminal Psi (`Psi 06–08`):** Lower constructs without loss into
+- **Typed-to-Terminal Psi (`Psi 05–06`):** Lower and check constructs without loss in
   canonical target-neutral Terminal Psi (`PSITERM\0`), materializing explicit
   affine cleanup, restoration windows, crash routes, and ranking edges.
 - **Native realization & execution:** Lower Terminal Psi through ABI calling
@@ -293,6 +293,9 @@ refuses a second build or test run while one is active.
   representation (`Y-to-Y`). Carry needed semantic facts in that representation;
   do not bypass the pipeline with sidecars, callbacks into earlier stages or
   source re-analysis. Private stage scratch is not a second inter-stage product.
+- **Cleanup priority within an assigned area:** Repair broken stage topology,
+  ownership and representation handoffs before local polish in that area.
+  This does not displace unrelated user-assigned work.
 - **Compositional lowering ([pipeline.md](omega-rust/pipeline.md#compositional-lowering)):**
   Generalize the touched operation across all value placements and delete the
   superseded code path in the same commit.

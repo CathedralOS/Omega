@@ -56,11 +56,22 @@ const SOURCE_STAGES: &[&str] = &[
     "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees",
     "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees",
     "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees",
+    "omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi",
 ];
 
 const PARSER_STAGES: &[&str] = &[
     "omega-rust/psi/compilation/pipeline/00_source-files-to-tokens",
     "omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees",
+];
+
+const PSI_STAGES: &[&str] = &[
+    "omega-rust/psi/compilation/pipeline/00_source-files-to-tokens",
+    "omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees",
+    "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees",
+    "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees",
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees",
+    "omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi",
+    "omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi",
 ];
 
 const TERMINAL_STAGES: &[&str] = &[
@@ -273,10 +284,13 @@ pub fn forbidden_rules() -> Vec<Rule> {
             allowed: FIREWALL_ALLOWANCES.to_vec(),
         },
     ];
-    for &owner in OMEGA_STAGES {
-        rules.push(Rule {
+    // The new Terminal stages have representation-owned handoffs. Earlier Psi
+    // stages still have a separately tracked 03 -> 02 deferred-frontier edge.
+    for (owners, stages) in [(&PSI_STAGES[5..], PSI_STAGES), (OMEGA_STAGES, OMEGA_STAGES)] {
+        for &owner in owners {
+            rules.push(Rule {
             owners: vec![owner],
-            forbidden: OMEGA_STAGES
+            forbidden: stages
                 .iter()
                 .copied()
                 .filter(|&other| other != owner)
@@ -285,6 +299,7 @@ pub fn forbidden_rules() -> Vec<Rule> {
             except_owners: vec![],
             allowed: FIREWALL_ALLOWANCES.to_vec(),
         });
+        }
     }
     rules
 }
@@ -685,6 +700,31 @@ mod tests {
                 permitted,
                 "{owner} -> {dependency}: {violations:?}"
             );
+        }
+    }
+
+    #[test]
+    fn terminal_checking_consumes_shared_data_not_its_source_producer() {
+        for (dependency, kind, permitted) in [
+            (PSI_STAGES[5], None, false),
+            (PSI_STAGES[5], Some("dev"), true),
+            (
+                "omega-rust/psi/compilation/representations/terminal-psi/check-tables",
+                None,
+                true,
+            ),
+        ] {
+            let metadata = Metadata {
+                workspace_root: "/repo".to_owned(),
+                packages: vec![pkg(
+                    "checker",
+                    PSI_STAGES[6],
+                    &[("input", dependency, kind)],
+                )],
+            };
+            let violations =
+                forbidden_dependency_violations(&metadata, &forbidden_rules()).unwrap();
+            assert_eq!(violations.is_empty(), permitted, "{violations:?}");
         }
     }
 

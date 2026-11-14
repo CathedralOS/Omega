@@ -1063,6 +1063,33 @@ pub(crate) mod target_families {
     }
 
     impl AdmittedTargetMachineSelections {
+        /// Resolve an ordinary entry without manufacturing a deployment.
+        /// Target-family members require the caller's explicit selection.
+        pub fn resolve_entry(
+            selected: Option<&Self>,
+            identity: TerminalPsiIdentity,
+            module: &terminal_psi::TerminalModule,
+            root: TargetMachineCallable,
+        ) -> Result<semantic_vocabulary::MachineId, TargetMachineSelectionError> {
+            if let Some(selected) = selected {
+                return selected.entry(identity, module, root);
+            }
+            let TargetMachineCallable::Machine(machine) = root else {
+                return Err(TargetMachineSelectionError::MissingDeployment { head: root });
+            };
+            if module
+                .target_machine_families
+                .iter()
+                .any(|family| family.members.iter().any(|member| member.callable == root))
+            {
+                return Err(TargetMachineSelectionError::MissingDeployment { head: root });
+            }
+            if module.machine(machine).is_none() {
+                return Err(TargetMachineSelectionError::MissingMachine(machine));
+            }
+            Ok(machine)
+        }
+
         pub fn entry(
             &self,
             identity: TerminalPsiIdentity,
@@ -1196,6 +1223,10 @@ pub(crate) mod target_families {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum TargetMachineSelectionError {
         TerminalIdentityMismatch,
+        MissingDeployment {
+            head: TargetMachineCallable,
+        },
+        MissingMachine(semantic_vocabulary::MachineId),
         NonExecutableEntry {
             head: TargetMachineCallable,
             target: String,
@@ -1209,6 +1240,13 @@ pub(crate) mod target_families {
     impl std::fmt::Display for TargetMachineSelectionError {
         fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
+                Self::MissingDeployment { head } => write!(
+                    formatter,
+                    "entry {head:?} requires an explicit deployment selection"
+                ),
+                Self::MissingMachine(machine) => {
+                    write!(formatter, "entry machine {machine:?} is absent")
+                }
                 Self::TerminalIdentityMismatch => {
                     formatter.write_str("entry selection names a different Terminal artifact")
                 }
