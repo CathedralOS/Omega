@@ -3786,7 +3786,13 @@ pub mod operator {
             bind_operator_const(
                 const_bindings,
                 parameter.symbol,
-                CanonicalConstIdentity::integer(primitive.name(), value),
+                CanonicalConstIdentity::integer(
+                    match primitive.landed_landing() {
+                        Some(carrier) => carrier,
+                        None => return false,
+                    },
+                    value,
+                ),
             )
         }
 
@@ -3803,9 +3809,12 @@ pub mod operator {
             if let Some(value) = CanonicalConstValue::from_atom(name.as_str()) {
                 return Some(value.identity());
             }
-            let value = name.as_str().parse::<i128>().ok()?;
+            let value = numerics::bignum::BigInt::from_decimal_str(name.as_str())?;
             let primitive = program.primitive_type_reference(declared_carrier)?;
-            Some(CanonicalConstIdentity::integer(primitive.name(), value))
+            Some(CanonicalConstIdentity::integer(
+                primitive.landed_landing()?,
+                value,
+            ))
         }
 
         fn bind_operator_const(
