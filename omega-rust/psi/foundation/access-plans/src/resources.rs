@@ -190,10 +190,6 @@ pub(crate) mod resource_compatibility {
         pub fn field_regions(&self) -> &[FieldRegion] {
             &self.field_regions
         }
-
-        pub(crate) fn field(&self, key: AccessFieldKey) -> Option<&EffectiveFieldSupply> {
-            self.fields.iter().find(|field| field.key == key)
-        }
     }
 
     pub fn validate_access_resources(
