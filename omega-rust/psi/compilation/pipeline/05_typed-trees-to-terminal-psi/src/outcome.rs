@@ -50,7 +50,7 @@ use crate::body::{
 use crate::canonical;
 use crate::{Unserved, refuse};
 
-/// What a machine publishes about how it may leave.
+/// Call-visible outcomes in this compilation's fixed source unit.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Outcome {
     /// Published suspension and blocking, independently bounded by the header.
@@ -82,20 +82,21 @@ pub struct Outcome {
 ///
 /// A machine in `requirements` is a requirement's contract and has no body:
 /// its member may return, and it may crash only as its authored ceiling says.
-/// Source body summaries are restricted to `local_results`; all other rows
+/// Source body summaries are restricted to `local_bodies`; all other rows
 /// retain a possible normal return while their actual bodies are still walked
 /// for service, crash and operational contributions.
 pub(crate) fn outcomes(
     bodies: &IdTable<MachineId, Body>,
     signatures: Signatures<'_>,
     requirements: &[MachineId],
-    local_results: Option<&[MachineId]>,
+    local_bodies: Option<&[MachineId]>,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
 ) -> Checked<IdTable<MachineId, Outcome>> {
     // A closed-body input has no source-unit boundary. Source compilations
-    // supply the same actual private-body roster as result-summary checking.
-    let mut local = bodies.map(|_, _| local_results.is_none());
-    for &machine in local_results.unwrap_or_default() {
+    // supply their exact local-body roster, independently of whether result
+    // facts can be published as additional clauses of those bodies.
+    let mut local = bodies.map(|_, _| local_bodies.is_none());
+    for &machine in local_bodies.unwrap_or_default() {
         *local.get_mut(machine).ok_or_else(|| {
             refuse(
                 machine,

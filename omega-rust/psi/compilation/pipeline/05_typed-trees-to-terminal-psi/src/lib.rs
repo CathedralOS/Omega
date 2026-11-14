@@ -793,11 +793,11 @@ fn lower_generic_for<'source>(
         operational::positions(machine, body)?;
     }
     let components = components::components(bodies, signatures.machines)?;
-    // Result facts and non-return are both checked body summaries. Their
-    // source visibility is decided once by the same verification-unit owner;
-    // a requirement or independent caller cannot borrow a selected body.
-    let local_results = declarations
-        .map(|source| source.local_result_bodies(entry))
+    // One source owner fixes the local inference boundary. Result clauses
+    // retain their private publication restriction; local non-return does not
+    // become a public clause and can use every eligible body in that unit.
+    let local_summaries = declarations
+        .map(|source| source.local_summary_bodies(entry))
         .transpose()?;
     let mut module = match entry {
         Some(entry) => TerminalModule::for_entry(entry),
@@ -819,7 +819,9 @@ fn lower_generic_for<'source>(
         bodies,
         signatures,
         requirements,
-        local_results.as_deref(),
+        local_summaries
+            .as_ref()
+            .map(|local| local.outcomes.as_slice()),
         &declared.records.inhabitation,
     )?;
     // Declaration checking publishes no executable arrival or root reach.
@@ -1110,7 +1112,7 @@ fn lower_generic_for<'source>(
             names: IdTable::default(),
             machines: IdTable::default(),
             private_inputs: Vec::new(),
-            local_results: local_results.unwrap_or_default(),
+            local_results: local_summaries.map_or_else(Vec::new, |local| local.result_contracts),
             domains,
             requirements: requirements.to_vec(),
             selections: Vec::new(),
