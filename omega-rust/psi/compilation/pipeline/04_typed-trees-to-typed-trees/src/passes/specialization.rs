@@ -277,7 +277,13 @@ fn serve(program: &mut TypedTrees, site: Site, generated: &mut Vec<Generated>) -
         return Ok(());
     }
     let Some(machine) = program.machine_by_symbol(callee) else {
-        return bind_requirement(program, &applied, &arguments);
+        if program
+            .evidence_requirement_declaration(applied.target)
+            .is_ok_and(|requirement| requirement.is_some())
+        {
+            return bind_requirement(program, &applied, &arguments);
+        }
+        return apply_requirement(program, site, &applied, &arguments);
     };
     // Its type and value parameters, then each implementation parameter
     // its bounds declare: the order a call's static arguments are given in.
@@ -372,6 +378,77 @@ fn bind_requirement(
         operands.push(Operand::read(program, *parameter, kind, argument)?);
     }
     bind(program, applied.application, &operands);
+    Ok(())
+}
+
+/// A call that names a trait's requirement and applies the requirement's own
+/// parameters, `Probe::take<Reading>(reading)`. A requirement has no body to
+/// copy, so what the application selects is the requirement's signature and
+/// contract with each parameter replaced: one closed requirement per
+/// application, which the call then names. generics.md, "Closed applications
+/// and canonical identity": two calls at the same arguments name the same
+/// closed requirement (`TypedTrees::instantiate_requirement_application`
+/// keys it by the application's identity).
+///
+/// Served for a requirement of a trait with no parameters of its own, given
+/// the operands every application here reads ([`Operand::read`]). A trait
+/// applied at arguments, and any operand that reading does not serve, leave
+/// the call as typing wrote it.
+fn apply_requirement(
+    program: &mut TypedTrees,
+    site: Site,
+    applied: &Applied,
+    arguments: &[StaticMachineArgument],
+) -> Served<()> {
+    let Some((owner, requirement)) = program.trait_machine_signature(applied.target) else {
+        return Ok(());
+    };
+    if requirement.symbol != applied.target {
+        return Ok(());
+    }
+    let parameters = program
+        .state_signature_type_parameters(requirement)
+        .iter()
+        .map(|parameter| (parameter.symbol, parameter.kind.clone()))
+        .collect::<Vec<_>>();
+    if parameters.is_empty() {
+        return Ok(());
+    }
+    if !owner.type_parameters.is_empty()
+        || !owner.lifetime_parameters.is_empty()
+        || !requirement.lifetime_parameters.is_empty()
+        || parameters.len() != arguments.len()
+    {
+        return Err(Stop::Unserved);
+    }
+    let environment =
+        typed_trees::trait_definition::AppliedTraitScope::abstract_scope(owner).environment();
+    let mut operands = Vec::with_capacity(parameters.len());
+    for ((parameter, kind), argument) in parameters.iter().zip(arguments) {
+        operands.push(Operand::read(program, *parameter, kind, argument)?);
+    }
+    bind(program, applied.application, &operands);
+    // Open at a parameter of the enclosing generic machine: closed in each
+    // machine generated from that one.
+    if operands.iter().any(|operand| operand.is_open(program)) {
+        return Ok(());
+    }
+    let table = &mut program.expression_table;
+    if table
+        .static_machine_application(applied.application)
+        .registration_operation
+        != applied.target
+    {
+        return Err(Stop::Unserved);
+    }
+    table
+        .static_machine_application_mut(applied.application)
+        .binding_declaration = applied.target;
+    table.set_static_machine_application_lifetimes(applied.application, applied.target, &[]);
+    let closed = program
+        .instantiate_requirement_application(&environment, applied.target, &[], applied.application)
+        .map_err(|_| Stop::Unserved)?;
+    site.enter(program, closed);
     Ok(())
 }
 
