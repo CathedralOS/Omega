@@ -186,11 +186,11 @@ framework or a list of features that remain unimplemented.
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
 
-### Default ISA preparation rebuilds the register and machine-effect catalogs it just made
+### Default ISA preparation rebuilds the register-constraint catalog it just made
 - Category: re-deriving
-- Where: `omega-rust/omega/compilation/backend/instruction-set-architectures/isa-x86_64/src/register_model.rs` and `.../isa-aarch64/src/register_model.rs` (constraint validators); `omega-rust/omega/compilation/representations/selected-instructions/src/effects/catalog.rs` (`validate_isa_machine_effect_catalog`); `selected-instructions/analyses/src/machine_effects.rs` (`build_validated_catalog`)
-- Saw: default preparation builds a target-owned catalog and passes it to a validator that builds the canonical catalog again to compare it; the register-constraint path does the same. Canonical comparison also serves separately supplied catalogs
-- Cost: ordinary compilation repeats construction and comparison of its own target data. That establishes conformance to the same builder, not an independent check of that builder's ISA description; foreign-catalog comparison still needs an honest boundary owner
+- Where: `omega-rust/omega/compilation/backend/instruction-set-architectures/isa-x86_64/src/register_model.rs` and `.../isa-aarch64/src/register_model.rs` (constraint validators); `backend/register-environment/src/lib.rs` (`build_baseline_target_register_environment`)
+- Saw: default preparation builds a target-owned register-constraint catalog and passes it to a validator that builds the canonical catalog again to compare it. Canonical comparison also serves separately supplied catalogs
+- Cost: ordinary compilation repeats construction and comparison of its own target data. That establishes conformance to the same builder, not an independent check of that builder's ISA description; supplied-catalog comparison still needs its boundary owner
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
 ### Native lowering accepts module bytes without artifact-bound host producer trust
