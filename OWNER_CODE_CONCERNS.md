@@ -73,6 +73,13 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### A provider default may still name a data type, which the spec says is not a provider value
+- Category: zombie machinery
+- Where: `omega-rust/psi/compilation/build-time-evaluation/src/product.rs` `ProviderForm::DefaultClosure` (from #3015) and its test `a_provider_default_may_name_the_data_type_that_owns_its_closure`
+- Saw: `form` refuses a data type in a Build's choice but accepts one in a `provider_defaults` machine. provider_selection.md, "Declaration and choice", says a target package "supplies ordinary named default provider implementations" and "A data type or runtime provider descriptor is not such a value", with no exception for defaults. `std`'s ProcessExit defaults, its only user, now select the named `NativeProcessExit`; the last user anywhere is `samples/cli/probes/device_extent_access` (`LoopbackDeviceLoanProvider`), which is written in other retired forms too (`via`, target-prefixed machines)
+- Cost: a second, looser reading of the Provider position stays served for no library; delete `DefaultClosure` and the `ProviderForm` parameter, turn the test into the refusal twin, and give the probe a named implementation
+- Reported: 2026-11-14, worker-15 (Claude Code), while moving std's ProcessExit defaults to a named implementation
+
 ### Compiler operations are recognized by their bare spelling, and no declaration answers them
 - Category: one idea, several implementations
 - Where: `"code_layout"` in stage 02 `constant.rs:2063,2362`, `selection_authored.rs:392,1265` and stage 03 `statement_lowering.rs:1336`, `expression_lowering.rs:1445`; `"address_of"` in `expression_lowering.rs:1076`; `Quotient::lift`/`define` and `LayoutPlan::place_private` by namespace spelling in `expression_lowering.rs`
