@@ -531,6 +531,9 @@ impl TableTerm for ProofNode {
             ProofRule::IntegerOrderDiscreteness { relation } => {
                 premises.push(relation);
             }
+            ProofRule::IntegerPowerOfTwoOrder { order } => {
+                premises.push(order);
+            }
             ProofRule::IntegerMathOrderTranslation { relation, .. } => {
                 premises.push(relation);
             }
@@ -740,6 +743,9 @@ fn write_proof_row(writer: &mut Writer, node: &ProofNode) -> Result<(), CodecErr
             index(writer, witness.lower_bound_axiom)?;
             index(writer, witness.upper_bound_axiom)?;
             encode_proposition(writer, &witness.conclusion)?;
+        }
+        ProofRule::IntegerPowerOfTwoOrder { .. } => {
+            writer.u8(28);
         }
     }
     encode_proposition(writer, &node.conclusion)
