@@ -2797,6 +2797,19 @@ pub(crate) mod declaration_tables {
             self.tables.authored_declaration_selections = selections;
         }
 
+        /// Retain one resolved source selection without copying the program's
+        /// complete selection table. A failed finalization changes no row.
+        pub fn finalize_authored_declaration_selection(
+            &mut self,
+            occurrence: language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
+            binding: language_semantics::declaration_selection::AuthoredDeclarationSelectionLateBinding,
+            selected: symbols::SymbolHandle,
+        ) -> Result<(), language_semantics::declaration_selection::AuthoredDeclarationSelectionFinalizationError>{
+            self.tables
+                .authored_declaration_selections
+                .finalize_late_bound(occurrence, binding, selected)
+        }
+
         pub fn authored_declaration_selections(
             &self,
         ) -> &language_semantics::declaration_selection::AuthoredDeclarationSelections {

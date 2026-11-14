@@ -286,7 +286,7 @@ for record in \
   tests/delta/request-boundary/run.sh \
   tests/delta/generated-function-census/gate.py \
   tests/delta/staged-compiler/run.sh \
-  tests/bootstrap/source-closure.py
+  tools/xtask/src/source_closure.rs
 do
   for needle in "$DELTA_COMPILER_PACKED_SIZE" "$DELTA_COMPILER_PACKED_SHA256"
   do
@@ -296,7 +296,7 @@ do
 done
 for record in \
   tests/delta/staged-compiler/run.sh \
-  tests/bootstrap/source-closure.py
+  tools/xtask/src/source_closure.rs
 do
   for needle in \
     "$DELTA_COMPILER_SUPPORT_PACKED_SIZE" "$DELTA_COMPILER_SUPPORT_PACKED_SHA256"
@@ -309,7 +309,7 @@ for needle in "151292" "4e82f36aa94a5cad71297687e2643982d88942bda4750c877fe8d633
 do
   grep -q "$needle" "$OMEGA_REPO_ROOT/tests/delta/staged-compiler/run.sh" ||
     fail "staged-compiler gate lacks packed development record $needle"
-  grep -q "$needle" "$OMEGA_REPO_ROOT/tests/bootstrap/source-closure.py" ||
+  grep -q "$needle" "$OMEGA_REPO_ROOT/tools/xtask/src/source_closure.rs" ||
     fail "source-closure gate lacks packed development record $needle"
 done
 echo "records: bound identities match delta_compiler.composed and the consuming gates' closure, support, and development records"

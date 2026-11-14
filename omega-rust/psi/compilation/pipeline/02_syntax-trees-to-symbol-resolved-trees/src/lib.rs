@@ -73,10 +73,9 @@ mod tables;
     name.
 */
 pub use resolution::{
-    DeferredResolvedExtension, DeferredResolvedFrontier, ExtensionRequest,
-    RebasedResolvedBodyCompletion, RebasedSeededSymbolResolvedTrees, ResolutionRequest,
-    ResolvedBodyCompletion, SeededSymbolResolvedTrees, resolve, resolve_deferred,
-    resolve_deferred_extension, resolve_extension,
+    DeferredResolvedExtension, DeferredResolvedFrontier, ExtensionRequest, ResolutionRequest,
+    ResolvedBodyCompletion, resolve, resolve_deferred, resolve_deferred_extension,
+    resolve_extension,
 };
 
 /*
@@ -93,9 +92,6 @@ pub mod pre_resolution {
     };
     pub use crate::constant::initializer_normalization::InitializerCustodyPurpose;
     pub use crate::constant::requires_const_initializer_evaluation;
-    pub use crate::preparation::declaration_selection::{
-        select_data_declarations, select_data_declarations_with_retained,
-    };
     pub use crate::preparation::declared_types::normalize_declared_types;
     pub use crate::preparation::generic_data::{
         ClosedConstArguments, ClosedDeclarationConstantUses, GenericDataRequest,
@@ -110,17 +106,6 @@ pub mod pre_resolution {
         ConstInitializerSelection, prepare_const_initializer_selection,
         prepare_const_qualification_selection, resolve_call_result_selection,
         resolve_const_argument_selection, resolve_deferred_initializer_probe,
-        resolve_deferred_numeric_probe, resolve_numeric_probe,
-    };
-}
-
-/*
-    Exact declaration lookup for retained, signature-free metadata operands.
-    This reads resolved declarations and keeps ordinary visibility/ambiguity rules.
-*/
-pub mod declaration_selection {
-    pub use crate::selection::signature_free_requirements::{
-        ExactSignatureFreeRequirement, SignatureFreeRequirementResolutionError,
-        resolve_signature_free_requirement,
+        resolve_deferred_numeric_probe,
     };
 }

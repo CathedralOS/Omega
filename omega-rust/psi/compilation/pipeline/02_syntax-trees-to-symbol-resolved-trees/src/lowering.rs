@@ -1750,6 +1750,7 @@ pub(crate) mod expression {
                 }
             }),
             symbol: SymbolHandle::invalid(),
+            signature_free_requirement: None,
         })
     }
 

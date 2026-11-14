@@ -250,6 +250,55 @@ fn adding_a_routed_domain_outside_its_routes_is_rejected() {
     );
 }
 
+/// A route may be a trait requirement instead of a machine. The machine that
+/// declares that requirement's edge is invoked only through the requirement,
+/// so its body may add the domain (`wiki/spec/resources/authority.md`,
+/// "Requirement and exact-machine routes": the origin "includes a call by
+/// name to a machine that declares that edge").
+const REQUIREMENT_ROUTE: &str = "data Pass {
+    number: i32;
+}
+trait Grants {
+    machine grant(pass: Pass) -> Pass in Granted;
+}
+domain Pass::Granted established by Grants::grant;
+";
+
+#[test]
+fn a_declared_conformer_adds_the_domain_its_requirement_routes() {
+    let verdicts = verdicts(
+        "requirement_route",
+        &format!(
+            "{REQUIREMENT_ROUTE}machine issue(pass: Pass) -> Pass in Granted satisfies Grants::grant {{ pass as +Granted }}
+"
+        ),
+    );
+    assert!(
+        !verdicts.is_empty() && verdicts.iter().all(|verdict| verdict == "accepted"),
+        "{verdicts:#?}"
+    );
+}
+
+/// The twin has the conformer's body and signature and declares no edge, so
+/// nothing invokes it through the requirement and its cast mints nothing.
+#[test]
+fn a_plain_machine_does_not_add_a_domain_routed_through_a_requirement() {
+    let verdicts = verdicts(
+        "requirement_route_plain",
+        &format!(
+            "{REQUIREMENT_ROUTE}machine wrong(pass: Pass) -> Pass in Granted {{ pass as +Granted }}
+"
+        ),
+    );
+    assert!(
+        verdicts.iter().any(|verdict| verdict.starts_with("rejected")
+            && verdict.contains(
+                "this cast adds `Pass::Granted` in a machine that is not one of the domain's establishment routes"
+            )),
+        "{verdicts:#?}"
+    );
+}
+
 /// A value its route issued travels on, and the domain is not cast off it.
 #[test]
 fn removing_a_routed_domain_is_refused_by_name() {

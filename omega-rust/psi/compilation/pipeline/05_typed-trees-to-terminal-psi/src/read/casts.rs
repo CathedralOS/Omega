@@ -355,11 +355,11 @@ impl Program<'_> {
     /// A route names "an exact trait requirement or concrete machine as an
     /// alternative authorized origin", and "An exact machine is authorized
     /// during its invocation": the machine whose body holds the cast is one
-    /// of the routes, or the cast is refused. A requirement route
+    /// of the routes, or the cast is rejected. A requirement route
     /// authorizes "the invocation through that requirement and its selected
-    /// implementation", which this reader does not follow, so it admits no
-    /// machine here. A policy states its issuers in its plan, which no pass
-    /// evaluates (`DomainIssuance::Planned`): nobody is shown to be one.
+    /// implementation": the machine that declares that requirement's edge.
+    /// A policy states its issuers in its plan, which no pass evaluates
+    /// (`DomainIssuance::Planned`): nobody is shown to be one.
     ///
     /// Authorization proves no predicate ("Policy authorization cannot
     /// prove those predicates"): the cast owes the domain's predicates of
@@ -381,22 +381,52 @@ impl Program<'_> {
             DomainIssuance::Only(routes) => {
                 let machine =
                     *terminal_check_tables::row(&self.symbols, id, id, Construct::Machine)?;
-                let routed = routes.iter().any(|route| {
-                    matches!(route, DomainEstablishmentRoute::ExactMachine { machine: origin }
-                        if *origin == machine)
+                // authority.md, "Requirement and exact-machine routes":
+                //
+                // | Trait requirement | An exact invocation through that
+                //   requirement and a valid selected conformance. This
+                //   includes a call by name to a machine that declares that
+                //   edge ... |
+                // | Plain machine declaration | That exact machine's direct
+                //   invocation. |
+                //
+                // A machine that declares the edge (`machine issue(..)
+                // satisfies Issues::issue`, or an inline member of a
+                // `satisfies` block) "has no separately callable direct
+                // entry" (conformances.md, "A conformer's name is its routed
+                // entry"), so every invocation of its body is through the
+                // requirement and the cast in it is authorized. A plain
+                // machine bound by a selection row or binding expression
+                // declares no edge and gets none: "its body was checked
+                // without that authority, and a machine that relies on it
+                // rejects at its own declaration".
+                let edges = match self.typed.machine_by_symbol(machine) {
+                    Some(declared) => self.typed.machine_trait_conformances(declared),
+                    None => &[],
+                };
+                let routed = routes.iter().any(|route| match route {
+                    DomainEstablishmentRoute::ExactMachine { machine: origin } => {
+                        *origin == machine
+                    }
+                    DomainEstablishmentRoute::CheckedRequirement {
+                        trait_definition,
+                        requirement,
+                    } => edges.iter().any(|edge| {
+                        edge.symbol == *trait_definition && edge.requirement_symbol == *requirement
+                    }),
+                    // A boundary requirement "additionally requires provider
+                    // selection and admission", which is not followed here.
+                    DomainEstablishmentRoute::BoundaryRequirement { .. } => false,
                 });
-                // authority.md, "Requirement and exact-machine routes": a
-                // plain machine declaration authorizes "That exact
-                // machine's direct invocation", and "Naming a machine is
-                // neither trait sealing nor an implicit grant to other
-                // machines in its package". So when every route is an
-                // exact machine and none is this one, the cast is wrong in
-                // every program: "a cast cannot mint it". A requirement
-                // route may still authorize this machine as a conformer,
-                // which is not followed here, so that stays a refusal.
-                let exact = routes
-                    .iter()
-                    .all(|route| matches!(route, DomainEstablishmentRoute::ExactMachine { .. }));
+                // "Naming a machine is neither trait sealing nor an implicit
+                // grant to other machines in its package." So when no route
+                // is a boundary requirement and none admits this machine,
+                // the cast is wrong in every program: "a cast cannot mint
+                // it". With a boundary route the machine may yet be an
+                // admitted provider, so that stays a refusal.
+                let exact = !routes.iter().any(|route| {
+                    matches!(route, DomainEstablishmentRoute::BoundaryRequirement { .. })
+                });
                 if !routed && exact {
                     return Err(reject(
                         id,

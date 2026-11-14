@@ -6176,6 +6176,99 @@ mod generic_bodies {
         (form, found)
     }
 
+    fn prepared_refinement(
+        selections: usize,
+        implementation: Machine,
+        refinement: Checked<typed_trees_to_terminal_psi::Elaboration>,
+    ) -> terminal_check_tables::compilation::TerminalCompilation {
+        use terminal_check_tables::compilation::{
+            GenericForms, PreparedCompilation, TerminalCompilation,
+        };
+        use terminal_check_tables::program::Selected;
+
+        let template = symbols::SymbolHandle::from_parts(1, 1);
+        let requirement = symbols::SymbolHandle::from_parts(2, 1);
+        let mut form = generic(vec![advance(21), step()]);
+        form.machines = IdTable::default();
+        form.machines.push(template);
+        form.machines.push(requirement);
+        form.value_arguments.push(Vec::new());
+        form.value_arguments.push(Vec::new());
+        let mut closure = lower(vec![advance(21), implementation]).unwrap();
+        closure.machines = form.machines.clone();
+        closure.selections = vec![
+            Selected {
+                caller: id(1),
+                parameter: symbols::SymbolHandle::from_parts(3, 1),
+                declaring_trait: symbols::SymbolHandle::from_parts(4, 1),
+                requirement,
+                implementation: id(2),
+                value_arguments: Vec::new(),
+            };
+            selections
+        ];
+        let mut specializations = IdTable::default();
+        specializations.push(Some(template));
+        specializations.push(None);
+        TerminalCompilation::Prepared(PreparedCompilation {
+            closure: Ok(closure),
+            forms: vec![GenericForms {
+                template,
+                name: "advance".to_owned(),
+                forms: Ok(vec![form]),
+                applies: Some(Vec::new()),
+            }],
+            witnesses: vec![refinement],
+            specializations,
+            selection_witnesses: (0..selections).map(|selection| (selection, 0)).collect(),
+        })
+    }
+
+    #[test]
+    fn compilation_reuses_one_witness_discharge_for_every_selection_and_its_verdict() {
+        // Both selections cite the same prepared witness. Adding a selection
+        // must not start another proof search or add another witness verdict.
+        let check = |selections| {
+            let prepared =
+                prepared_refinement(selections, double(), lower(vec![witness(), double()]));
+            let before = searches();
+            let verdicts = crate::judge_compilation(prepared);
+            assert_eq!(verdicts.len(), 3);
+            assert!(
+                verdicts
+                    .iter()
+                    .all(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
+                "{verdicts:?}"
+            );
+            searches() - before
+        };
+        let one_selection = check(1);
+        assert!(one_selection > 0);
+        assert!(check(0) > one_selection);
+        assert_eq!(check(2), one_selection);
+    }
+
+    #[test]
+    fn compilation_keeps_the_failed_verdict_of_a_reused_witness() {
+        let prepared = prepared_refinement(2, wide(), lower(vec![witness(), wide()]));
+        let verdicts = crate::judge_compilation(prepared);
+        assert_eq!(verdicts.len(), 3);
+        assert!(matches!(verdicts[2], Ok(RouteVerdict::Rejected { .. })));
+
+        let refused = Refusal {
+            reason: RefusalReason::Unsupported,
+            machine: id(1),
+            concerns: Construct::Machine,
+            detail: "refinement unavailable".to_owned(),
+        };
+        let verdicts = crate::judge_compilation(prepared_refinement(2, double(), Err(refused)));
+        assert_eq!(verdicts.len(), 3);
+        assert!(matches!(
+            &verdicts[2],
+            Ok(RouteVerdict::FallBack(refusal)) if refusal.detail == "refinement unavailable"
+        ));
+    }
+
     /// Carries the generic body's certificates into `advance` specialized
     /// to `implementation`, whose refinement proof is `refines`' witness.
     fn carried(
