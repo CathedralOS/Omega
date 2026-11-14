@@ -149,11 +149,11 @@ pub struct ValueShape {
 
 impl ValueShape {
     pub fn for_integer(integer: IntegerType) -> Option<Self> {
-        if integer.is_address() && integer.bits() == 64 {
+        if integer.is_address() && integer.bits() == Some(64) {
             return Some(Self::integer(8, 8));
         }
         if integer.carrier() != semantic_vocabulary::IntegerCarrier::Fixed
-            || !matches!(integer.bits(), 8 | 16 | 32 | 64)
+            || !matches!(integer.bits(), Some(8 | 16 | 32 | 64))
         {
             return None;
         }

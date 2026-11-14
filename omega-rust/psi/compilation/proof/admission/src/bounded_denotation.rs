@@ -378,7 +378,10 @@ mod addition {
                 integer_type.minimum_value()
             } else {
                 integer_type.maximum_value()
-            };
+            }
+            .ok_or(BoundedDenotationError::Unsupported(
+                "a carrier bound of an integer whose width is a parameter",
+            ))?;
             let endpoint = ScalarTerm::integer(*integer_type, value)
                 .expect("carrier endpoint is representable");
             let position = self.interned_keyed_assumption(
@@ -638,7 +641,7 @@ mod addition {
                 } else {
                     integer.maximum_value()
                 };
-                let endpoint = ScalarTerm::integer(integer, endpoint).unwrap();
+                let endpoint = ScalarTerm::integer(integer, endpoint.unwrap()).unwrap();
                 let difference =
                     ScalarTerm::exact_integer_subtract(integer, value(4), value(2)).unwrap();
                 let sum = IntegerMathTerm::Add(
@@ -715,7 +718,8 @@ mod addition {
                 integer.minimum_value()
             } else {
                 integer.maximum_value()
-            };
+            }
+            .unwrap();
             let left = literal(left);
             let right = literal(right);
             let root =
@@ -9680,10 +9684,10 @@ mod forbidden_roots {
         ) -> Result<Option<TermHandle>, BoundedDenotationError> {
             let integer = self.integer_constant()?;
             let (lower, upper) = interval;
-            let IntegerValue::Signed(minimum) = integer_type.minimum_value() else {
+            let Some(IntegerValue::Signed(minimum)) = integer_type.minimum_value() else {
                 return Ok(None);
             };
-            let IntegerValue::Signed(maximum) = integer_type.maximum_value() else {
+            let Some(IntegerValue::Signed(maximum)) = integer_type.maximum_value() else {
                 return Ok(None);
             };
             match outcome {
@@ -9830,7 +9834,7 @@ mod forbidden_roots {
             {
                 return Ok(None);
             }
-            let IntegerValue::Signed(minimum) = integer_type.minimum_value() else {
+            let Some(IntegerValue::Signed(minimum)) = integer_type.minimum_value() else {
                 return Ok(None);
             };
             let Some(minimum_plus_one) = minimum.checked_add(1) else {
@@ -10193,7 +10197,7 @@ mod forbidden_roots {
             divisor: &ScalarTerm,
         ) -> Proposition {
             let minimum_plus_one = match integer_type.minimum_value() {
-                IntegerValue::Signed(minimum) => minimum + 1,
+                Some(IntegerValue::Signed(minimum)) => minimum + 1,
                 _ => unreachable!("signed fixed carrier"),
             };
             Proposition::Disjunction(vec![
@@ -11278,10 +11282,12 @@ mod multiplication {
             let IntegerMathTerm::IntegerLiteral(bound_literal) = bound else {
                 return Ok(None);
             };
-            let endpoint_value = if lower {
+            let Some(endpoint_value) = (if lower {
                 scalar_type.minimum_value()
             } else {
                 scalar_type.maximum_value()
+            }) else {
+                return Ok(None);
             };
             if super::math_literal_value(*bound_literal).map(unbounded_integer)
                 != Some(unbounded_integer(endpoint_value))
@@ -13160,7 +13166,7 @@ mod subtraction {
             let scalar = ScalarType::Integer(integer);
             let value = |index| ScalarTerm::value(ValueId::new(index).unwrap(), scalar);
             let context = value_context(scalar, 4);
-            let endpoint = ScalarTerm::integer(integer, integer.maximum_value()).unwrap();
+            let endpoint = ScalarTerm::integer(integer, integer.maximum_value().unwrap()).unwrap();
             let addend = ScalarTerm::integer(integer, IntegerValue::Unsigned(7)).unwrap();
             let expression =
                 ScalarTerm::exact_integer_add(integer, value(4), addend.clone()).unwrap();
@@ -14136,7 +14142,7 @@ fn affine_carrier_endpoint_equality<'a>(
         scalar_type.minimum_value()
     } else {
         scalar_type.maximum_value()
-    };
+    }?;
     let endpoint_literal = ScalarTerm::integer(scalar_type, endpoint_value)
         .expect("carrier endpoint is representable");
     if endpoint.integer_value() == Some((scalar_type, endpoint_value)) {

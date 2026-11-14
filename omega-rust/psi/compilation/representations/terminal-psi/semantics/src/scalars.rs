@@ -663,7 +663,7 @@ pub(crate) mod proof_bearing_scalar {
                         ScalarTerm::integer(integer_type, IntegerValue::Signed(-1))
                             .map_err(OperationSemanticError::InvalidProposition)?,
                     );
-                    if integer_type.bits() == 1 {
+                    if integer_type.bits() == Some(1) {
                         negative
                     } else {
                         Proposition::Disjunction(vec![
@@ -725,7 +725,7 @@ pub(crate) mod proof_bearing_scalar {
                     left.clone(),
                 ),
             ]);
-            if integer_type.bits() == 1 {
+            if integer_type.bits() == Some(1) {
                 return Ok(minus_one_case);
             }
 
@@ -3358,7 +3358,7 @@ pub(crate) mod scalar_representation_view {
         if !integer.admits(value) || integer.bits() > 64 {
             return None;
         }
-        let mask = if integer.bits() == 64 {
+        let mask = if integer.bits() == Some(64) {
             u64::MAX
         } else {
             (1u64 << integer.bits()) - 1

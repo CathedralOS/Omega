@@ -43,17 +43,17 @@ impl ScalarStorageCodec {
     pub fn from_scalar(scalar: ScalarType) -> Option<Self> {
         match scalar {
             ScalarType::Boolean => Some(Self::Boolean),
-            ScalarType::Integer(integer) if integer.is_address() && integer.bits() == 64 => {
+            ScalarType::Integer(integer) if integer.is_address() && integer.bits() == Some(64) => {
                 Some(Self::Address)
             }
             ScalarType::Integer(integer)
                 if integer.carrier() == IntegerCarrier::Fixed
-                    && integer.bits() != 0
-                    && integer.bits() <= 64
-                    && integer.bits() % 8 == 0 =>
+                    && integer
+                        .bits()
+                        .is_some_and(|bits| bits != 0 && bits <= 64 && bits % 8 == 0) =>
             {
                 Some(Self::Integer {
-                    byte_size: u8::try_from(integer.bits() / 8).ok()?,
+                    byte_size: u8::try_from(integer.bits()? / 8).ok()?,
                     sign: integer.sign(),
                 })
             }

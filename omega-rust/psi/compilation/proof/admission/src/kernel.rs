@@ -126,9 +126,10 @@ fn integer_carrier_bound(left: &ScalarTerm, right: &ScalarTerm) -> bool {
     let Some((literal_type, literal_value)) = literal.integer_value() else {
         return false;
     };
+    // A parameter width has no literal endpoint, so no literal is one.
     integer_type.carrier() == IntegerCarrier::Fixed
         && literal_type == *integer_type
-        && literal_value
+        && Some(literal_value)
             == if lower {
                 integer_type.minimum_value()
             } else {
@@ -148,12 +149,13 @@ fn mathematical_integer_carrier_bound(left: &IntegerMathTerm, right: &IntegerMat
         ) => (literal, source_type, false),
         _ => return false,
     };
-    literal.as_integer_value(*source_type)
-        == Some(if lower {
-            source_type.minimum_value()
-        } else {
-            source_type.maximum_value()
-        })
+    // Both sides are `None` at a parameter width; that is no bound.
+    let bound = if lower {
+        source_type.minimum_value()
+    } else {
+        source_type.maximum_value()
+    };
+    bound.is_some() && literal.as_integer_value(*source_type) == bound
 }
 
 fn mathematical_integer_carrier_bound_exclusive(
@@ -166,9 +168,12 @@ fn mathematical_integer_carrier_bound_exclusive(
     if !source_type.is_address() {
         return Ok(false);
     }
+    let Some(maximum) = source_type.maximum_value() else {
+        return Ok(false);
+    };
     let bound = IntegerMathTerm::Add(
         Box::new(IntegerMathTerm::IntegerLiteral(
-            IntegerMathLiteral::from_integer_value(source_type.maximum_value()),
+            IntegerMathLiteral::from_integer_value(maximum),
         )),
         Box::new(IntegerMathTerm::IntegerLiteral(
             IntegerMathLiteral::from_integer_value(semantic_vocabulary::IntegerValue::Unsigned(1)),
@@ -416,8 +421,8 @@ mod carrier_bounds {
                 let identity = ValueId::new(1).unwrap();
                 let value = ScalarTerm::value(identity, scalar);
                 let context = PropositionContext::from_value_types([(identity, scalar)]).unwrap();
-                let minimum = ScalarTerm::integer(integer, integer.minimum_value()).unwrap();
-                let maximum = ScalarTerm::integer(integer, integer.maximum_value()).unwrap();
+                let minimum = ScalarTerm::integer(integer, integer.minimum_value().unwrap()).unwrap();
+                let maximum = ScalarTerm::integer(integer, integer.maximum_value().unwrap()).unwrap();
                 for goal in [
                     Proposition::LessOrEqual(minimum.clone(), value.clone()),
                     Proposition::LessOrEqual(value.clone(), maximum.clone()),
@@ -512,8 +517,8 @@ mod carrier_bounds {
                 source_type: address,
                 value: identity,
             };
-            let minimum = IntegerMathTerm::literal(address.minimum_value());
-            let maximum = IntegerMathTerm::literal(address.maximum_value());
+            let minimum = IntegerMathTerm::literal(address.minimum_value().unwrap());
+            let maximum = IntegerMathTerm::literal(address.maximum_value().unwrap());
             for goal in [
                 Proposition::IntegerMathLessOrEqual(minimum.clone(), value.clone()),
                 Proposition::IntegerMathLessOrEqual(value.clone(), maximum.clone()),
@@ -562,7 +567,7 @@ mod carrier_bounds {
             value: identity,
         };
         let goal = Proposition::IntegerMathLessOrEqual(
-            IntegerMathTerm::literal(address.minimum_value()),
+            IntegerMathTerm::literal(address.minimum_value().unwrap()),
             value.clone(),
         );
         for (declared_identity, declared_type) in [
@@ -603,7 +608,7 @@ mod carrier_bounds {
                     .expect("exact model context");
             let endpoint = IntegerMathTerm::Add(
                 Box::new(IntegerMathTerm::IntegerLiteral(
-                    IntegerMathLiteral::from_integer_value(address.maximum_value()),
+                    IntegerMathLiteral::from_integer_value(address.maximum_value().unwrap()),
                 )),
                 Box::new(IntegerMathTerm::IntegerLiteral(
                     IntegerMathLiteral::from_integer_value(IntegerValue::Unsigned(1)),
@@ -623,7 +628,7 @@ mod carrier_bounds {
                 IntegerType::address(if bits == 16 { 32 } else { 16 }).expect("other model");
             let wrong_bound = IntegerMathTerm::Add(
                 Box::new(IntegerMathTerm::IntegerLiteral(
-                    IntegerMathLiteral::from_integer_value(wrong_model.maximum_value()),
+                    IntegerMathLiteral::from_integer_value(wrong_model.maximum_value().unwrap()),
                 )),
                 Box::new(IntegerMathTerm::IntegerLiteral(
                     IntegerMathLiteral::from_integer_value(IntegerValue::Unsigned(1)),

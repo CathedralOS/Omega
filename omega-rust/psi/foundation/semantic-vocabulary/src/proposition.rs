@@ -71,14 +71,14 @@ mod integer_types {
                     self.interval_known_bits(left)?,
                     self.interval_known_bits(right)?,
                 );
-                let sign_bit = 1_u128 << (self.bits - 1);
+                let sign_bit = 1_u128 << (self.bits()? - 1);
                 let mut low = bits.ones;
-                let mut high = self.bit_range_mask() & !bits.zeros;
+                let mut high = self.bit_range_mask()? & !bits.zeros;
                 if self.sign == IntegerSign::Signed && (bits.ones | bits.zeros) & sign_bit == 0 {
                     low |= sign_bit;
                     high &= !sign_bit;
                 }
-                Some((self.bit_range_value(low), self.bit_range_value(high)))
+                Some((self.bit_range_value(low)?, self.bit_range_value(high)?))
             }
 
             fn interval_known_bits(
@@ -99,7 +99,7 @@ mod integer_types {
                 {
                     return Some(KnownBits { ones: 0, zeros: 0 });
                 }
-                let mask = self.bit_range_mask();
+                let mask = self.bit_range_mask()?;
                 let low = bits(low) & mask;
                 let difference = low ^ (bits(high) & mask);
                 let variable_width = u128::BITS - difference.leading_zeros();
@@ -115,23 +115,23 @@ mod integer_types {
                 })
             }
 
-            fn bit_range_mask(self) -> u128 {
-                super::bit_width_mask(self.bits)
+            fn bit_range_mask(self) -> Option<u128> {
+                Some(super::bit_width_mask(self.bits()?))
             }
 
-            fn bit_range_value(self, bits: u128) -> IntegerValue {
-                match self.sign {
+            fn bit_range_value(self, bits: u128) -> Option<IntegerValue> {
+                Some(match self.sign {
                     IntegerSign::Unsigned => IntegerValue::Unsigned(bits),
                     IntegerSign::Signed => {
-                        let mask = self.bit_range_mask();
-                        let extended = if bits & (1_u128 << (self.bits - 1)) != 0 {
+                        let mask = self.bit_range_mask()?;
+                        let extended = if bits & (1_u128 << (self.bits()? - 1)) != 0 {
                             bits | !mask
                         } else {
                             bits
                         };
                         IntegerValue::Signed(extended as i128)
                     }
-                }
+                })
             }
         }
 
@@ -240,7 +240,40 @@ mod integer_types {
     pub struct IntegerType {
         carrier: IntegerCarrier,
         sign: IntegerSign,
-        bits: u16,
+        width: IntegerWidth,
+    }
+
+    /*
+        How many bits an integer type has. A closed width is a number from 1
+        to 128. A generic form's `u<N>` or `i<N>` has the rigid `const`
+        parameter `N` as its width (numeric_values.md, "Integer carrier
+        families"): its value is not known, so no host-side answer that needs
+        the number of bits exists for it, and every such accessor answers
+        only for a closed width.
+    */
+    #[derive(
+        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
+    )]
+    pub enum IntegerWidth {
+        Bits(u16),
+        /// The value of the generic form's rigid width parameter.
+        Parameter(ValueId),
+    }
+
+    impl IntegerWidth {
+        /// The width in a canonical identity encoding, passed to `write`. A
+        /// closed width is its two little-endian bytes, as it was before a
+        /// width could be a parameter. A parameter width is `0xFFFF`, which
+        /// no closed width is, then its value's identity.
+        pub fn write_identity(self, mut write: impl FnMut(&[u8])) {
+            match self {
+                Self::Bits(bits) => write(&bits.to_le_bytes()),
+                Self::Parameter(value) => {
+                    write(&u16::MAX.to_le_bytes());
+                    write(&value.get().to_le_bytes());
+                }
+            }
+        }
     }
 
     macro_rules! exact_arith {
@@ -264,18 +297,15 @@ mod integer_types {
             $(#[$m])*
             pub fn $name(self, left: IntegerValue, right: IntegerValue) -> Option<IntegerValue> {
                 self.admits_both(left, right)?;
-                let mask = if self.bits == 128 {
-                    u128::MAX
-                } else {
-                    (1_u128 << self.bits) - 1
-                };
+                let width = self.bits()?;
+                let mask = bit_width_mask(width);
                 self.dispatch_sign(
                     left,
                     right,
                     |left, right| Some(IntegerValue::Unsigned(left.$op(right) & mask)),
                     |left, right| {
                         let bits = (left as u128).$op(right as u128) & mask;
-                        let value = if self.bits == 128 || bits & (1_u128 << (self.bits - 1)) == 0 {
+                        let value = if width == 128 || bits & (1_u128 << (width - 1)) == 0 {
                             bits as i128
                         } else {
                             (bits | !mask) as i128
@@ -292,7 +322,7 @@ mod integer_types {
             let count = Self {
                 carrier: IntegerCarrier::Fixed,
                 sign: IntegerSign::Unsigned,
-                bits: 64,
+                width: IntegerWidth::Bits(64),
             };
             if self.is_address() {
                 (left == self && right == count) || (left == count && right == self)
@@ -401,27 +431,36 @@ mod integer_types {
             }
         }
 
-        pub fn minimum_value(self) -> IntegerValue {
-            match self.sign {
-                IntegerSign::Signed if self.bits == 128 => IntegerValue::Signed(i128::MIN),
-                IntegerSign::Signed => IntegerValue::Signed(-(1_i128 << (self.bits - 1))),
+        /// The least value of a closed width; `None` at a parameter width.
+        pub fn minimum_value(self) -> Option<IntegerValue> {
+            let bits = self.bits()?;
+            Some(match self.sign {
+                IntegerSign::Signed if bits == 128 => IntegerValue::Signed(i128::MIN),
+                IntegerSign::Signed => IntegerValue::Signed(-(1_i128 << (bits - 1))),
                 IntegerSign::Unsigned => IntegerValue::Unsigned(0),
-            }
+            })
         }
 
-        pub fn maximum_value(self) -> IntegerValue {
-            match self.sign {
-                IntegerSign::Signed if self.bits == 128 => IntegerValue::Signed(i128::MAX),
-                IntegerSign::Signed => IntegerValue::Signed((1_i128 << (self.bits - 1)) - 1),
-                IntegerSign::Unsigned if self.bits == 128 => IntegerValue::Unsigned(u128::MAX),
-                IntegerSign::Unsigned => IntegerValue::Unsigned((1_u128 << self.bits) - 1),
-            }
+        /// The greatest value of a closed width; `None` at a parameter width.
+        pub fn maximum_value(self) -> Option<IntegerValue> {
+            let bits = self.bits()?;
+            Some(match self.sign {
+                IntegerSign::Signed if bits == 128 => IntegerValue::Signed(i128::MAX),
+                IntegerSign::Signed => IntegerValue::Signed((1_i128 << (bits - 1)) - 1),
+                IntegerSign::Unsigned if bits == 128 => IntegerValue::Unsigned(u128::MAX),
+                IntegerSign::Unsigned => IntegerValue::Unsigned((1_u128 << bits) - 1),
+            })
         }
 
+        /// Whether every value of this type is one of `target`'s, decided
+        /// only between two closed widths.
         pub fn can_widen_to(self, target: Self) -> bool {
+            let (Some(bits), Some(target_bits)) = (self.bits(), target.bits()) else {
+                return false;
+            };
             self.carrier == IntegerCarrier::Fixed
                 && target.carrier == IntegerCarrier::Fixed
-                && self.bits < target.bits
+                && bits < target_bits
                 && (self.sign == target.sign
                     || matches!(
                         (self.sign, target.sign),
@@ -454,7 +493,7 @@ mod integer_types {
             Ok(Self {
                 carrier: IntegerCarrier::Fixed,
                 sign,
-                bits,
+                width: IntegerWidth::Bits(bits),
             })
         }
 
@@ -474,7 +513,7 @@ mod integer_types {
             Ok(Self {
                 carrier: IntegerCarrier::Address,
                 sign: IntegerSign::Unsigned,
-                bits,
+                width: IntegerWidth::Bits(bits),
             })
         }
 
@@ -482,7 +521,7 @@ mod integer_types {
             Self {
                 carrier: IntegerCarrier::Address,
                 sign: IntegerSign::Unsigned,
-                bits: 64,
+                width: IntegerWidth::Bits(64),
             }
         }
 
@@ -498,20 +537,34 @@ mod integer_types {
             self.sign
         }
 
-        pub const fn bits(self) -> u16 {
-            self.bits
+        pub const fn width(self) -> IntegerWidth {
+            self.width
         }
 
+        /// The number of bits of a closed width; `None` at a parameter width.
+        pub const fn bits(self) -> Option<u16> {
+            match self.width {
+                IntegerWidth::Bits(bits) => Some(bits),
+                IntegerWidth::Parameter(_) => None,
+            }
+        }
+
+        /// Whether `value` is one of this type's values. A parameter width
+        /// has no host-side answer, so nothing is admitted there: a value in
+        /// such a carrier is an obligation for the checker, not a fact here.
         pub fn admits(self, value: IntegerValue) -> bool {
+            let Some(bits) = self.bits() else {
+                return false;
+            };
             match (self.sign, value) {
                 (IntegerSign::Signed, IntegerValue::Signed(value)) => {
-                    self.bits == 128 || {
-                        let limit = 1_i128 << (self.bits - 1);
+                    bits == 128 || {
+                        let limit = 1_i128 << (bits - 1);
                         (-limit..limit).contains(&value)
                     }
                 }
                 (IntegerSign::Unsigned, IntegerValue::Unsigned(value)) => {
-                    self.bits == 128 || value < (1_u128 << self.bits)
+                    bits == 128 || value < (1_u128 << bits)
                 }
                 _ => false,
             }
@@ -592,11 +645,7 @@ mod integer_types {
                     Some(IntegerValue::Signed(!operand))
                 }
                 (IntegerSign::Unsigned, IntegerValue::Unsigned(operand)) => {
-                    let mask = if self.bits == 128 {
-                        u128::MAX
-                    } else {
-                        (1_u128 << self.bits) - 1
-                    };
+                    let mask = bit_width_mask(self.bits()?);
                     Some(IntegerValue::Unsigned(!operand & mask))
                 }
                 _ => None,
@@ -640,11 +689,11 @@ mod integer_types {
             }
         }
 
-        fn signed_minimum(self) -> i128 {
-            let IntegerValue::Signed(minimum) = self.minimum_value() else {
-                unreachable!("signed type has a signed minimum")
-            };
-            minimum
+        fn signed_minimum(self) -> Option<i128> {
+            match self.minimum_value()? {
+                IntegerValue::Signed(minimum) => Some(minimum),
+                IntegerValue::Unsigned(_) => None,
+            }
         }
 
         fn signed_truncating_or(
@@ -655,7 +704,7 @@ mod integer_types {
             op: impl Fn(i128, i128) -> Option<i128>,
             on_overflow: IntegerValue,
         ) -> Option<IntegerValue> {
-            let minimum = self.signed_minimum();
+            let minimum = self.signed_minimum()?;
             if left == minimum && right == -1 {
                 Some(on_overflow)
             } else {
@@ -683,7 +732,7 @@ mod integer_types {
                 |left, right| Some(IntegerValue::Unsigned(left.checked_rem(right)?)),
                 |left, right| {
                     Some({
-                        let minimum = self.signed_minimum();
+                        let minimum = self.signed_minimum()?;
                         if left == minimum && right == -1 {
                             return None;
                         }
@@ -705,7 +754,7 @@ mod integer_types {
                         left,
                         right,
                         |left, right| left.checked_div(right),
-                        IntegerValue::Signed(self.signed_minimum()),
+                        IntegerValue::Signed(self.signed_minimum()?),
                     )
                 },
             )
@@ -743,7 +792,7 @@ mod integer_types {
                         left,
                         right,
                         |left, right| left.checked_div(right),
-                        self.maximum_value(),
+                        self.maximum_value()?,
                     )
                 },
             )
@@ -774,14 +823,14 @@ mod integer_types {
             if !self.admits(value) || !count_type.admits(count) {
                 return None;
             }
-            let count = wrapping_shift_count(self.bits, count)?;
-            let mask = self.bit_mask();
+            let count = wrapping_shift_count(self.bits()?, count)?;
+            let mask = self.bit_mask()?;
             match (self.sign, value) {
                 (IntegerSign::Unsigned, IntegerValue::Unsigned(value)) => {
                     Some(IntegerValue::Unsigned(value.wrapping_shl(count) & mask))
                 }
                 (IntegerSign::Signed, IntegerValue::Signed(value)) => Some(IntegerValue::Signed(
-                    self.signed_from_bits((value as u128).wrapping_shl(count) & mask),
+                    self.signed_from_bits((value as u128).wrapping_shl(count) & mask)?,
                 )),
                 _ => None,
             }
@@ -796,7 +845,7 @@ mod integer_types {
             if !self.admits(value) || !count_type.admits(count) {
                 return None;
             }
-            let count = wrapping_shift_count(self.bits, count)?;
+            let count = wrapping_shift_count(self.bits()?, count)?;
             match (self.sign, value) {
                 (IntegerSign::Unsigned, IntegerValue::Unsigned(value)) => {
                     Some(IntegerValue::Unsigned(value >> count))
@@ -809,13 +858,10 @@ mod integer_types {
         }
 
         fn exact_shift_count(self, count: IntegerValue) -> Option<u32> {
+            let bits = u128::from(self.bits()?);
             match count {
-                IntegerValue::Unsigned(count) if count < u128::from(self.bits) => {
-                    u32::try_from(count).ok()
-                }
-                IntegerValue::Signed(count)
-                    if count >= 0 && (count as u128) < u128::from(self.bits) =>
-                {
+                IntegerValue::Unsigned(count) if count < bits => u32::try_from(count).ok(),
+                IntegerValue::Signed(count) if count >= 0 && (count as u128) < bits => {
                     u32::try_from(count).ok()
                 }
                 _ => None,
@@ -905,43 +951,41 @@ mod integer_types {
             let count = self.exact_shift_count(count)?;
             match (self.sign, value) {
                 (IntegerSign::Unsigned, IntegerValue::Unsigned(value)) => {
-                    let maximum = match self.maximum_value() {
-                        IntegerValue::Unsigned(maximum) => maximum,
-                        IntegerValue::Signed(_) => {
-                            unreachable!("unsigned type has unsigned maximum")
-                        }
+                    let IntegerValue::Unsigned(maximum) = self.maximum_value()? else {
+                        return None;
                     };
                     (value <= (maximum >> count))
                         .then_some(IntegerValue::Unsigned(value.wrapping_shl(count)))
                 }
                 (IntegerSign::Signed, IntegerValue::Signed(value)) => {
                     let (IntegerValue::Signed(minimum), IntegerValue::Signed(maximum)) =
-                        (self.minimum_value(), self.maximum_value())
+                        (self.minimum_value()?, self.maximum_value()?)
                     else {
-                        unreachable!("signed type has signed bounds")
+                        return None;
                     };
                     if value < (minimum >> count) || value > (maximum >> count) {
                         return None;
                     }
                     Some(IntegerValue::Signed(self.signed_from_bits(
-                        (value as u128).wrapping_shl(count) & self.bit_mask(),
-                    )))
+                        (value as u128).wrapping_shl(count) & self.bit_mask()?,
+                    )?))
                 }
                 _ => None,
             }
         }
 
-        fn bit_mask(self) -> u128 {
-            bit_width_mask(self.bits)
+        fn bit_mask(self) -> Option<u128> {
+            Some(bit_width_mask(self.bits()?))
         }
 
-        fn signed_from_bits(self, bits: u128) -> i128 {
-            let mask = self.bit_mask();
-            if self.bits == 128 || bits & (1_u128 << (self.bits - 1)) == 0 {
+        fn signed_from_bits(self, bits: u128) -> Option<i128> {
+            let width = self.bits()?;
+            let mask = bit_width_mask(width);
+            Some(if width == 128 || bits & (1_u128 << (width - 1)) == 0 {
                 bits as i128
             } else {
                 (bits | !mask) as i128
-            }
+            })
         }
 
         pub fn saturating_add(
@@ -950,24 +994,25 @@ mod integer_types {
             right: IntegerValue,
         ) -> Option<IntegerValue> {
             self.admits_both(left, right)?;
+            let bits = self.bits()?;
             self.dispatch_sign(
                 left,
                 right,
                 |left, right| {
-                    let maximum = if self.bits == 128 {
+                    let maximum = if bits == 128 {
                         u128::MAX
                     } else {
-                        (1_u128 << self.bits) - 1
+                        (1_u128 << bits) - 1
                     };
                     Some(IntegerValue::Unsigned(
                         left.saturating_add(right).min(maximum),
                     ))
                 },
                 |left, right| {
-                    let value = if self.bits == 128 {
+                    let value = if bits == 128 {
                         left.saturating_add(right)
                     } else {
-                        let limit = 1_i128 << (self.bits - 1);
+                        let limit = 1_i128 << (bits - 1);
                         (left + right).clamp(-limit, limit - 1)
                     };
                     Some(IntegerValue::Signed(value))
@@ -981,15 +1026,16 @@ mod integer_types {
             right: IntegerValue,
         ) -> Option<IntegerValue> {
             self.admits_both(left, right)?;
+            let bits = self.bits()?;
             self.dispatch_sign(
                 left,
                 right,
                 |left, right| Some(IntegerValue::Unsigned(left.saturating_sub(right))),
                 |left, right| {
-                    let value = if self.bits == 128 {
+                    let value = if bits == 128 {
                         left.saturating_sub(right)
                     } else {
-                        let limit = 1_i128 << (self.bits - 1);
+                        let limit = 1_i128 << (bits - 1);
                         (left - right).clamp(-limit, limit - 1)
                     };
                     Some(IntegerValue::Signed(value))
@@ -1003,24 +1049,25 @@ mod integer_types {
             right: IntegerValue,
         ) -> Option<IntegerValue> {
             self.admits_both(left, right)?;
+            let bits = self.bits()?;
             self.dispatch_sign(
                 left,
                 right,
                 |left, right| {
-                    let maximum = if self.bits == 128 {
+                    let maximum = if bits == 128 {
                         u128::MAX
                     } else {
-                        (1_u128 << self.bits) - 1
+                        (1_u128 << bits) - 1
                     };
                     Some(IntegerValue::Unsigned(
                         left.saturating_mul(right).min(maximum),
                     ))
                 },
                 |left, right| {
-                    let value = if self.bits == 128 {
+                    let value = if bits == 128 {
                         left.saturating_mul(right)
                     } else {
-                        let limit = 1_i128 << (self.bits - 1);
+                        let limit = 1_i128 << (bits - 1);
                         left.saturating_mul(right).clamp(-limit, limit - 1)
                     };
                     Some(IntegerValue::Signed(value))
@@ -2749,6 +2796,7 @@ mod value_ids {
 
 pub use integer_types::{
     IntegerCarrier, IntegerMathLiteral, IntegerMathTerm, IntegerSign, IntegerType, IntegerValue,
+    IntegerWidth,
 };
 pub use proof_terms::{MathematicalArgument, ProofFormalScope, ProofTerm, ProofTermField};
 pub use propositions::{Proposition, PropositionContext, PropositionError};

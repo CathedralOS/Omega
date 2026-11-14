@@ -2665,7 +2665,7 @@ pub(crate) mod collection_backing {
                         && matches!(declaration.shape,
                         StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
                             if integer.sign() == IntegerSign::Unsigned
-                                && integer.bits() == 8 && !integer.is_address())
+                                && integer.bits() == Some(8) && !integer.is_address())
                 })
                 && region == terminal_psi::ElementViewRegion::WholeCollection
                 && !matches!(
@@ -2713,7 +2713,7 @@ pub(crate) mod collection_backing {
                         && matches!(declaration.shape,
                                 StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
                                     if integer.sign() == IntegerSign::Unsigned
-                                        && integer.bits() == 8 && !integer.is_address())
+                                        && integer.bits() == Some(8) && !integer.is_address())
                 }) =>
             {
                 Some(CollectionBacking {
@@ -2810,7 +2810,7 @@ pub(crate) mod element_representation {
         match scalar {
             ScalarType::Boolean => Some(1),
             ScalarType::Integer(integer)
-                if !integer.is_address() && matches!(integer.bits(), 8 | 16 | 32 | 64) =>
+                if !integer.is_address() && matches!(integer.bits(), Some(8 | 16 | 32 | 64)) =>
             {
                 Some(u64::from(integer.bits() / 8))
             }

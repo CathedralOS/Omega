@@ -2137,7 +2137,7 @@ pub(crate) mod reference_origins {
             StructuralTypeShape::ByteSequence(_) => {
                 let mut matching = types.filter(|declaration| declaration.scalar_restriction.is_none()
                     && matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
-                        if integer.sign() == IntegerSign::Unsigned && integer.bits() == 8 && !integer.is_address()));
+                        if integer.sign() == IntegerSign::Unsigned && integer.bits() == Some(8) && !integer.is_address()));
                 let element = matching.next()?;
                 matching.next().is_none().then_some(element.id)
             }
@@ -4728,7 +4728,7 @@ pub(crate) mod reference_views {
             return false;
         };
         let byte_endpoint = matches!(source_shape, StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
-            if !integer.is_address() && integer.bits() == 8
+            if !integer.is_address() && integer.bits() == Some(8)
                 && integer.sign() == IntegerSign::Unsigned);
         let Some(target) = crate::structural_shape(types.clone(), *referent) else {
             return false;
@@ -4781,7 +4781,7 @@ pub(crate) mod reference_views {
 
     fn is_byte_scalar(scalar: ScalarType) -> bool {
         matches!(scalar, ScalarType::Integer(integer) if !integer.is_address()
-            && integer.bits() == 8 && integer.sign() == IntegerSign::Unsigned)
+            && integer.bits() == Some(8) && integer.sign() == IntegerSign::Unsigned)
     }
 
     fn storage_scalars_satisfy<'types>(

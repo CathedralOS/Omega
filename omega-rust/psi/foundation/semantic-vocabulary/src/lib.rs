@@ -1430,7 +1430,7 @@ pub use identity::{
 pub use proposition::{
     ByteSequenceStructuralField, CanonicalStructuralPathSegment, IeeeFloatComparisonKind,
     IeeeFloatFormat, IeeeFloatStructuralField, IeeeFloatValue, IntegerCarrier, IntegerMathLiteral,
-    IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, MathematicalArgument,
+    IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, IntegerWidth, MathematicalArgument,
     ProofFormalScope, ProofTerm, ProofTermField, Proposition, PropositionContext, PropositionError,
     ScalarReadProjection, ScalarTerm, ScalarType, StructuralCaseSubject, StructuralIdentitySubject,
 };

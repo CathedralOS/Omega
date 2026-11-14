@@ -285,7 +285,7 @@ pub(crate) mod byte_sequence_predicates {
                 crate::structural_declaration(types.clone(), element).is_some_and(|row| {
                     matches!(row.shape, StructuralTypeShape::PrimitiveScalar(
                         semantic_vocabulary::ScalarType::Integer(integer)
-                    ) if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 8 && !integer.is_address())
+                    ) if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == Some(8) && !integer.is_address())
                 })
             }
             _ => false,

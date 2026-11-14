@@ -207,7 +207,9 @@ impl TargetSemantics {
         commitment.update(b"omega.target-semantics.default-address-model.v1");
         commitment.update(profile.identity().as_str().as_bytes());
         commitment.update(semantics_version.to_le_bytes());
-        commitment.update(carrier.bits().to_le_bytes());
+        carrier
+            .width()
+            .write_identity(|bytes| commitment.update(bytes));
         Some(TargetAddressModel {
             profile,
             carrier,
