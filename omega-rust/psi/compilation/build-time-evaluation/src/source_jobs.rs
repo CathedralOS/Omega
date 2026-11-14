@@ -2657,8 +2657,9 @@ pub(crate) mod tests {
                 BuildTimeValue::Int(expected),
             );
         }
-        let negated =
-            program("machine answer(value: bool) -> bool { let inverted = !value; inverted }");
+        let negated = program(
+            "machine answer(value: bool) -> bool { let inverted: bool = !value; inverted }",
+        );
         for value in [false, true] {
             assert_eq!(
                 run(

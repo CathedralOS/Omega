@@ -1504,7 +1504,7 @@ pub(crate) mod statement {
 #[cfg(test)]
 mod boolean_result_tests {
     #[test]
-    fn inferred_boolean_locals_and_dispatch_subjects_keep_their_real_type() {
+    fn boolean_locals_and_inferred_dispatch_subjects_keep_their_real_type() {
         let source = r#"
             data Choice { case A; case B; }
             domain u64::Small requires self <= 8;
@@ -1518,11 +1518,11 @@ mod boolean_result_tests {
                 transition !value { true -> 41u64 _ -> 0u64 }
             }
             machine ordinary(value: Choice, bit: bool, count: u64) -> bool {
-                let membership = value in Choice::A;
-                let domain_membership = count in Small;
-                let literal = true;
-                let negated = !bit;
-                let comparison = count <= 8u64;
+                let membership: bool = value in Choice::A;
+                let domain_membership: bool = count in Small;
+                let literal: bool = true;
+                let negated: bool = !bit;
+                let comparison: bool = count <= 8u64;
                 comparison
             }
         "#;
