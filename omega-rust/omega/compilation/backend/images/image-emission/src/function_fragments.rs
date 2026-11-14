@@ -3936,12 +3936,13 @@ pub(crate) mod replay {
             .source()
             .optimized_target();
         let optimized = current.optimized();
-        target_operations_to_selected_instructions::verify_target_operation_plan(
+        target_operations_to_selected_instructions::verify_target_operation_plan_with_closed_module(
             current.target_operations(),
             optimized.plan(),
             optimized.unit(),
             current.boundary_origins(),
             current.lowering_facts().installed_interrupts(),
+            current.lowering_facts().closed_module(),
         )
         .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))
     }
