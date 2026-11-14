@@ -13,10 +13,12 @@ fn declaration_only_checking_preserves_role_and_requires_an_entry_for_execution(
             build_declarations::BuildDeclarationKind::Application,
         ),
     ] {
-        let root = std::env::temp_dir().join(format!(
-            "omega-declaration-only-{}-{operation}",
-            std::process::id()
-        ));
+        let root = fixture_package_inputs::repo_root()
+            .join("build")
+            .join(format!(
+                "omega-declaration-only-{}-{operation}",
+                std::process::id()
+            ));
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(&root).unwrap();
         let main = root.join("main.omg");
