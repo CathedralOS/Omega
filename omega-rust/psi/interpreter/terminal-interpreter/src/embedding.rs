@@ -2160,8 +2160,12 @@ pub(crate) mod program {
     }
 
     pub(crate) enum ProgramStorage<'artifact> {
-        Borrowed(&'artifact TerminalModule),
-        Owned(TerminalModule),
+        Borrowed(terminal_codec::TerminalExecutionView<'artifact>),
+        Owned(terminal_codec::ClosedTerminalModule),
+        // Existing engine fixtures intentionally edit unsealed rows. They
+        // cannot borrow or mutate a production closed-code owner.
+        #[cfg(test)]
+        Fixture(TerminalModule),
         Retained(terminal_codec::RetainedTerminalCode),
     }
 
@@ -2170,9 +2174,11 @@ pub(crate) mod program {
 
         fn deref(&self) -> &Self::Target {
             match self {
-                Self::Borrowed(module) => module,
-                Self::Owned(module) => module,
+                Self::Borrowed(code) => code.module(),
+                Self::Owned(module) => module.module(),
                 Self::Retained(code) => code.view().module(),
+                #[cfg(test)]
+                Self::Fixture(module) => module,
             }
         }
     }
@@ -2188,7 +2194,7 @@ pub(crate) mod program {
         pub(crate) fn fixture_module_mut(&mut self) -> &mut TerminalModule {
             let storage = std::sync::Arc::get_mut(&mut self.catalogs)
                 .expect("fixture construction requires unshared storage");
-            let ProgramStorage::Owned(module) = storage else {
+            let ProgramStorage::Fixture(module) = storage else {
                 panic!("fixture construction requires its own module");
             };
             module
@@ -2480,10 +2486,9 @@ pub(crate) mod program {
         }
 
         pub fn load(semantic_bytes: &[u8]) -> Result<Self, TerminalArtifactInterpretError> {
-            let module = terminal_codec::decode_module(semantic_bytes)
+            let module = terminal_codec::ClosedTerminalModule::from_semantic_bytes(semantic_bytes)
                 .map_err(TerminalArtifactInterpretError::SemanticDecode)?;
-            let identity = terminal_codec::terminal_psi_identity(&module)
-                .map_err(TerminalArtifactInterpretError::SemanticDecode)?;
+            let identity = module.identity();
             Ok(Self::from_admitted(AdmittedTerminalProgram {
                 identity: terminal_codec::TerminalExecutionIdentity::portable(identity),
                 catalogs: std::sync::Arc::new(ProgramStorage::Owned(module)),
@@ -2498,7 +2503,7 @@ pub(crate) mod program {
             let artifact = artifact.into();
             Self::from_admitted(AdmittedTerminalProgram {
                 identity: artifact.custody_identity(),
-                catalogs: std::sync::Arc::new(ProgramStorage::Borrowed(artifact.module())),
+                catalogs: std::sync::Arc::new(ProgramStorage::Borrowed(artifact)),
                 target_layouts: None,
                 scalar_geometry: None,
             })
