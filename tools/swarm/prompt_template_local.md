@@ -72,16 +72,15 @@ tool rather than guessing a jobs cap. Keep targets independent; do not override
 `CARGO_TARGET_DIR` to another agent's target to manufacture cache hits.
 
 Close delegated build/compiler stdin. On macOS/Linux use the configured guard
-or `< /dev/null`; on Windows use a verified native launcher or
-`subprocess.run(..., stdin=subprocess.DEVNULL)`. A POSIX `dup2`/`execvp` wrapper
-is not a qualified Windows entrypoint. Native coverage belongs to this host's
+or `< /dev/null`; on Windows use a verified native launcher. A POSIX
+`dup2`/`execvp` wrapper is not a qualified Windows entrypoint. Native coverage belongs to this host's
 actual architecture, not every OS supported by the repository.
 
 ## Coordination
 
 From the repository root (`{repository}`):
 
-    python3 tools/claims.py status
+    mbx xtask claims status
     {claim_command}
 
 The claim records what you are doing so other sessions can see it; it grants
@@ -90,7 +89,7 @@ paths is information: read its note, continue in this worktree and reconcile
 at rebase. There are no handoffs; you finish this work. Renew before expiry.
 A checkpoint does not end the work.
 
-Keep a short record in the claim note (`python3 tools/claims.py note --ticket
+Keep a short record in the claim note (`mbx xtask claims note --ticket
 <ticket> --text "<finding>"`): parent task, remaining acceptance, witness and
 requirement it discharges, current failure, next action and prerequisites.
 Reread it after compaction. A new obstacle
@@ -98,19 +97,13 @@ belongs to this work: fix it rather than filing a task for someone else. When
 the sample is too large to trace, cut a smaller sample that isolates the failing
 construct, make it run and land it, then return to this one.
 
-Exit 3 means coordination timed out, not a live conflict. Keep the pending
-claim record, report the outage, and continue the assigned work in this isolated
-worktree. Do not repeatedly wait for registration. Inspect status before retrying
-an uncertain write. The landing queue remains mandatory.
-
 Keep `TASKS*.md` out of claimed paths; they are hot shared files. A sample
 that still fails keeps its current failure in its own README. If a `TASKS.md`
 item names this sample or its root cause, update it in the same commit as the
-repair. For verified already-satisfied acceptance with no implementation diff,
-use the documented `--board-update` landing route; never invent code or an empty
-commit to publish closure. Ordinary repairs carry their board update with them.
+repair. Never invent code or an empty commit to publish closure. Ordinary
+repairs carry their board update with them.
 
-Release the claim with `python3 tools/claims.py release --ticket <ticket>`
+Release the claim with `mbx xtask claims release --ticket <ticket>`
 when the assigned capability acceptance is met, an explicitly standalone sample
 runs on main, or the session stops; a stopped session records
 its frontier in the claim note and the sample README first.
@@ -150,7 +143,7 @@ Follow `tools/landing.md` and `.agents/skills/coordinator-review/SKILL.md`:
 validate the submitted source, push its branch, and open a draft PR (`gh pr create --draft`).
 When controlled by a coordinator session, stop at the draft PR and report `candidate_ready`
 so the coordinator can review the diff before landing. Only when running standalone without
-a coordinator, run `python3 tools/landing.py enqueue NUMBER --expected-head
+a coordinator, run `mbx xtask land enqueue NUMBER --expected-head
 FULL_SOURCE_SHA`. GitHub checks integration and squash-merges; never push main.
 Verify the merged PR's source head and published commit on fetched main before
 cleanup. Source HEAD itself need not be an ancestor of main after squash.
