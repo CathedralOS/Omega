@@ -66,6 +66,46 @@ impl<'t> Program<'t> {
             })
     }
 
+    /// The rejection of a value path `Type::name` whose `Type` is a data
+    /// declaration with no member spelled `name`.
+    ///
+    /// data_and_literals.md: "Case values always use their carrier-qualified
+    /// member path", and "Cases, nested data and attached domains share
+    /// their owner's member namespace". A path through a data declaration to
+    /// a name it has no member of names nothing, in any program.
+    fn undeclared_data_member(
+        &self,
+        id: MachineId,
+        path: &TableNamePath,
+        source: SourceOrigin,
+    ) -> Checked<()> {
+        let typed = self.typed;
+        let (Some(symbol), [_, member]) = (
+            path.resolved_symbol(),
+            typed.expression_table.name_path_members(path.members),
+        ) else {
+            return Ok(());
+        };
+        if typed.symbols.get(symbol).kind != symbols::SymbolKind::Data
+            || typed
+                .symbols
+                .find_child_by_name(symbol, member.as_str())
+                .is_some()
+        {
+            return Ok(());
+        }
+        Err(reject(
+            id,
+            source,
+            format!(
+                "data `{}` has no member `{}`: a case value is written by its \
+                 carrier-qualified path, and this path names nothing the type declares",
+                typed.symbols.display_path(symbol, "::"),
+                member.as_str()
+            ),
+        ))
+    }
+
     pub(super) fn node(
         &self,
         id: MachineId,
@@ -106,6 +146,7 @@ impl<'t> Program<'t> {
                 (ExpressionKind::Boolean(*value), ScalarType::Boolean)
             }
             ExpressionNode::Name(path) => {
+                self.undeclared_data_member(id, path, source)?;
                 let slot = self.slot_of(id, slots, path)?;
                 let bound = &slots[slot];
                 match bound.value_type {
@@ -157,6 +198,7 @@ impl<'t> Program<'t> {
                 (ExpressionKind::Boolean(*value), ScalarType::Boolean)
             }
             ExpressionNode::Name(path) => {
+                self.undeclared_data_member(id, path, source)?;
                 let slot = self.slot_of(id, slots, path)?;
                 // The deleted checker rejected this program ("erased
                 // parameter ... has no runtime value"); this route does not
