@@ -29,45 +29,38 @@ fn is_shared_bytes(shape: &StructuralTypeShape) -> bool {
 }
 
 impl Storage<'_> {
-    fn readable_descriptor(
+    fn descriptor_access(
         &self,
         root: PlaceId,
         path: &[StructuralPathSegment],
         concerns: Construct,
+        requested: StructuralAccess,
     ) -> Checked<bool> {
-        let (multiplicity, authority) =
-            if let Some(parameter) = self.lowered.structural_parameter(root) {
-                (parameter.multiplicity, parameter.access)
-            } else {
-                match self.root_kind(root, concerns)? {
-                    StructuralPlaceKind::OperationResult { producer, .. } => {
-                        let result = self
-                            .operation(producer, concerns)?
-                            .result
-                            .as_structural()
-                            .filter(|result| result.place == root)
-                            .ok_or_else(|| {
-                                self.foreign(concerns, "a descriptor source lost its exact result")
-                            })?;
-                        (result.multiplicity, StructuralAccess::Owned)
-                    }
-                    StructuralPlaceKind::ByteSequenceLiteral { .. } => (
-                        StructuralMultiplicity::Unrestricted,
-                        StructuralAccess::SharedBorrow,
-                    ),
-                    _ => {
-                        return Err(self
-                            .unsupported(concerns, "a descriptor source without storage access"));
-                    }
-                }
-            };
+        let (multiplicity, authority) = if matches!(
+            self.root_kind(root, concerns)?,
+            StructuralPlaceKind::ByteSequenceLiteral { .. }
+        ) {
+            (
+                StructuralMultiplicity::Unrestricted,
+                StructuralAccess::SharedBorrow,
+            )
+        } else {
+            let source = terminal_semantics::structural_argument_source(self.lowered, root, 0)
+                .ok_or_else(|| {
+                    self.foreign(
+                        concerns,
+                        "a descriptor source has no actual storage declaration",
+                    )
+                })?;
+            (source.multiplicity, source.access)
+        };
         Ok(terminal_semantics::reference_source_projection_accessible(
             self.types.iter(),
             self.root_type(root, concerns)?,
             multiplicity,
             authority,
             path,
-            StructuralAccess::SharedBorrow,
+            requested,
         ))
     }
 
@@ -179,10 +172,44 @@ impl Storage<'_> {
                     | Some(StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
             })
         );
-        if !readable || !self.readable_descriptor(root, &[], concerns)? {
+        if !readable
+            || !self.descriptor_access(root, &[], concerns, StructuralAccess::SharedBorrow)?
+        {
             return Err(self.unsupported(
                 concerns,
                 "a byte read without a readable descriptor occurrence",
+            ));
+        }
+        Ok(())
+    }
+
+    pub(super) fn writable_byte_view(&self, operation: &Operation, root: PlaceId) -> Checked<()> {
+        let concerns = Construct::Operation(operation.id);
+        let source = terminal_semantics::structural_argument_source(self.lowered, root, 0)
+            .ok_or_else(|| {
+                self.foreign(concerns, "a byte store lost its descriptor declaration")
+            })?;
+        let mutable = matches!(
+            self.byte_shape(root, &[], concerns)?,
+            StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: None | Some(StructuralAccess::MutableBorrow),
+            })
+        );
+        if !mutable
+            || !self.descriptor_access(root, &[], concerns, StructuralAccess::MutableBorrow)?
+            || source.access == StructuralAccess::Owned
+                && source.multiplicity != StructuralMultiplicity::Affine
+            || !source.qualifications.is_empty()
+            || !source.projected_qualifications.is_empty()
+            || !source.additional_input_qualifications.is_empty()
+            || !self
+                .domains
+                .get(source.structural_type)
+                .is_some_and(Vec::is_empty)
+        {
+            return Err(self.unsupported(
+                concerns,
+                "a byte store without an unqualified exclusive descriptor",
             ));
         }
         Ok(())
@@ -220,7 +247,12 @@ impl Storage<'_> {
         if !is_shared_bytes(&selected)
             || !is_shared_bytes(destination)
             || source.access != StructuralAccess::SharedBorrow
-            || !self.readable_descriptor(source.place, &source.path, concerns)?
+            || !self.descriptor_access(
+                source.place,
+                &source.path,
+                concerns,
+                StructuralAccess::SharedBorrow,
+            )?
             || !terminal_semantics::descriptor_reborrow_shapes_match(
                 &selected,
                 source.access,
@@ -264,7 +296,12 @@ impl Storage<'_> {
                         self.root_kind(source, concerns)?,
                         StructuralPlaceKind::Parameter { .. }
                     ) && is_shared_bytes(&self.byte_shape(source, &projection.path, concerns)?)
-                        && self.readable_descriptor(source, &projection.path, concerns)?
+                        && self.descriptor_access(
+                            source,
+                            &projection.path,
+                            concerns,
+                            StructuralAccess::SharedBorrow,
+                        )?
                 }
                 DescriptorCallOrigin::Literal { machine, place } => self
                     .module

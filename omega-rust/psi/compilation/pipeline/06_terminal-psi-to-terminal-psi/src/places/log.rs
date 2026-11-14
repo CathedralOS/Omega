@@ -494,6 +494,11 @@ impl Storage<'_> {
             OperationKind::EstablishPrimitiveLocal { value, .. } => {
                 rows.push((fresh()?, Stored::Value(*value)));
             }
+            OperationKind::ByteSequenceWrite { destination, .. } => {
+                self.writable_byte_view(operation, *destination)?;
+                // Payload writes are tracked by descriptor backing analysis.
+                // The descriptor itself retains its extent and initialization.
+            }
             // The operations that only observe storage.
             OperationKind::PrimitiveScalarRead { .. }
             | OperationKind::ByteSequenceLength { .. }

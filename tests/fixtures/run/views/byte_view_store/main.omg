@@ -1,0 +1,21 @@
+// Expected exit: 0
+// A mutable slice store updates the original array and preserves its neighbors.
+machine put(bytes: &mut [u8], position: u64, value: u8)
+requires position < bytes.len {
+    bytes[position] = value;
+}
+data Packet { before: u8; bytes: [u8; 3]; after: u8; }
+machine main() crashes Trap {
+    let mut bytes: [u8; 3] = [17, 42, 99];
+    put(&mut bytes, 1, 73);
+    let mut packet: Packet = Packet { before: 11, bytes: [31, 57, 89], after: 97 };
+    put(&mut packet.bytes, 1, 61);
+    transition bytes[0] == 17 && bytes[1] == 73 && bytes[2] == 99
+        && packet.before == 11 && packet.after == 97
+        && packet.bytes[0] == 31 && packet.bytes[1] == 61 && packet.bytes[2] == 89 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

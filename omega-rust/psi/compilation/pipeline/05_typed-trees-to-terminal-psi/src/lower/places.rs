@@ -2637,6 +2637,9 @@ impl<'a> Lowering<'a> {
         value: &Expression,
         source: SourceOrigin,
     ) -> Evaluation<()> {
+        if let ExpressionKind::ByteElement { base, index } = &destination.kind {
+            return self.store_byte_element(base, index, value, source);
+        }
         // Capturing visits the destination before the right-hand side and
         // retains each selector's exact SSA value in the existing Step roster.
         let (root, steps, place, expected) = continuing!(self.capture_place(destination, None));
@@ -2743,6 +2746,77 @@ impl<'a> Lowering<'a> {
                 .map(Reached::Value)
             }
         }
+    }
+
+    /// Capture the destination before evaluating its index and replacement.
+    /// The view lends backing storage; writing a byte never replaces its descriptor.
+    fn store_byte_element(
+        &mut self,
+        base: &Expression,
+        index: &Expression,
+        value: &Expression,
+        source: SourceOrigin,
+    ) -> Evaluation<()> {
+        let (root, path, exact, actual) = continuing!(self.capture_place(base, None));
+        let ValueType::Record(record, _, _) = actual else {
+            return Err(self.internal("a byte store has no descriptor type"));
+        };
+        if !path.is_empty() {
+            return Err(refuse(
+                self.id,
+                Construct::Machine,
+                Unserved::Statement("byte store through a descriptor stored in a field"),
+            ));
+        }
+        if !matches!(
+            self.record_type(record)?.shape,
+            StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: Some(StructuralAccess::MutableBorrow)
+            })
+        ) {
+            return Err(self.internal("a byte store lost mutable descriptor access"));
+        }
+        self.name_contents(exact, actual)?;
+        let selector = continuing!(self.scalar(index));
+        let replacement = continuing!(self.scalar(value));
+        let count = ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .expect("u64 is valid"),
+        );
+        let measurement = self.operation_identity(source);
+        let Value::Scalar(length) = self.emit(
+            measurement,
+            Some(count),
+            OperationKind::ByteSequenceLength {
+                source: StructuralArgument::whole(root, StructuralAccess::SharedBorrow),
+            },
+        )?
+        else {
+            return Err(self.internal("a byte extent produced no scalar"));
+        };
+        let operation = self.operation_identity(source);
+        let before = self.here()?;
+        let obligation = self.obligation(
+            ObligationKind::OperationSafety {
+                site: ExecutionSite::Operation(operation),
+            },
+            before,
+            source,
+        );
+        self.emit(
+            operation,
+            None,
+            OperationKind::ByteSequenceWrite {
+                destination: root,
+                index: selector,
+                value: replacement,
+                length,
+                obligation,
+            },
+        )?;
+        // The payload changed; the descriptor and its extent did not. There
+        // is no structural descriptor-store row to publish for this operation.
+        Ok(Reached::Value(()))
     }
 
     /// A constant zero of a scalar type.

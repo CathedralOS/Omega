@@ -157,10 +157,6 @@ machine use(byte: u8) { }"
         ),
         "expression byte of a view stored in a field"
     );
-    assert_eq!(
-        verdict("machine build_entry(path: &mut [u8]) requires path.len > 0 { path[0] = 1; }"),
-        "statement store into a value that is not a local"
-    );
 }
 
 #[test]
@@ -441,4 +437,110 @@ fn an_empty_byte_window_requires_existing_array_backing() {
     };
     *length = terminal_psi::ArrayExtent::Literal(0);
     assert!(terminal_semantics::fixed_byte_storage_window(types.iter(), array, &[]).is_none());
+}
+
+#[test]
+fn mutable_byte_stores_preserve_the_descriptor_and_its_bound() {
+    for program in [
+        "machine build_entry(bytes: &mut [u8]) requires bytes.len > 0 { bytes[0] = 42; use(bytes[0], bytes.len); } machine use(value: u8, length: u64) {}",
+        "machine prefix(bytes: &mut [u8]) -> u8 requires bytes.len > 1 { bytes[0] = 7; 42 } machine build_entry(bytes: &mut [u8]) requires bytes.len > 1 { bytes[1] = prefix(bytes); use(bytes[1]); } machine use(value: u8) {}",
+    ] {
+        assert_eq!(verdict(program), "accepted", "{program}");
+    }
+}
+
+#[test]
+fn a_byte_store_needs_mutable_access_and_its_own_index_bound() {
+    for program in [
+        "machine build_entry(bytes: &mut [u8]) { bytes[0] = 42; }",
+        "machine build_entry(bytes: &mut [u8]) requires bytes.len > 0 { bytes[1] = 42; }",
+        "machine build_entry(other: &[u8], bytes: &mut [u8]) requires other.len > 0 { bytes[0] = 42; }",
+    ] {
+        assert_eq!(verdict(program), "rejected", "{program}");
+    }
+    assert_eq!(
+        verdict("machine build_entry(bytes: &[u8]) requires bytes.len > 0 { bytes[0] = 42; }"),
+        "statement store through a byte view without mutable access"
+    );
+    assert_eq!(
+        verdict(
+            "machine build_entry(bytes: & &mut [u8]) requires bytes.len > 0 { bytes[0] = 42; }"
+        ),
+        "statement store through shared descriptor storage"
+    );
+}
+
+#[test]
+fn a_byte_store_cannot_claim_another_measurement_or_access() {
+    use super::build_purpose::{frontier_of, package, roster, symbol};
+    let typed = frontier_of(
+        "machine product_entry() {}",
+        "machine build_entry(bytes: &mut [u8], other: &[u8]) requires bytes.len > 0 && other.len > 0 { bytes[0] = 42; }",
+    );
+    let entry = symbol(&typed, "build_entry");
+    let elaborate = || {
+        typed_trees_to_terminal_psi::elaborate_for(
+            &typed,
+            roster(&[entry], &[Some(package())], source::DependencyScope::Build),
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .unwrap()
+    };
+    assert!(matches!(
+        judge(Ok(elaborate())).unwrap(),
+        RouteVerdict::Accepted(_)
+    ));
+    for fault in 0..3 {
+        let mut changed = elaborate();
+        let machine = changed
+            .module
+            .machines
+            .iter_mut()
+            .find(|machine| {
+                machine.operations().any(|operation| {
+                    matches!(operation.kind, OperationKind::ByteSequenceWrite { .. })
+                })
+            })
+            .unwrap();
+        match fault {
+            0 => {
+                let other = machine.structural_parameters[1].place;
+                let measurement = machine
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|block| &mut block.operations)
+                    .find(|operation| {
+                        matches!(operation.kind, OperationKind::ByteSequenceLength { .. })
+                    })
+                    .unwrap();
+                let OperationKind::ByteSequenceLength { source } = &mut measurement.kind else {
+                    unreachable!()
+                };
+                source.place = other;
+            }
+            1 => {
+                machine.structural_parameters[0].access =
+                    terminal_psi::StructuralAccess::SharedBorrow
+            }
+            2 => {
+                let store = machine
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|block| &mut block.operations)
+                    .find(|operation| {
+                        matches!(operation.kind, OperationKind::ByteSequenceWrite { .. })
+                    })
+                    .unwrap();
+                let OperationKind::ByteSequenceWrite { value, length, .. } = &mut store.kind else {
+                    unreachable!()
+                };
+                *value = *length;
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            !matches!(judge(Ok(changed)), Ok(RouteVerdict::Accepted(_))),
+            "fault {fault} accepted"
+        );
+    }
 }
