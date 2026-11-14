@@ -812,6 +812,9 @@ pub(crate) mod component_memberships {
         right: &TerminalModule,
         target: &StructuralDomainDeclaration,
     ) -> bool {
+        if source.establishment_routes.is_none() != target.establishment_routes.is_none() {
+            return false;
+        }
         let same_name = |a, b| {
             NominalDeclarationIdentity::new(a).same_identity_as(
                 &left.identities,
@@ -862,6 +865,8 @@ pub(crate) mod component_memberships {
         let routes = |module: &TerminalModule, domain: &StructuralDomainDeclaration| {
             let mut rows = domain
                 .establishment_routes
+                .as_deref()
+                .unwrap_or_default()
                 .iter()
                 .map(|route| {
                     let kind = match route {
@@ -895,6 +900,94 @@ pub(crate) mod component_memberships {
         routes(left, source)
             .zip(routes(right, target))
             .is_some_and(|(a, b)| a == b)
+    }
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use semantic_vocabulary::{DomainSemanticId, MachineId, PlaceId, Proposition};
+        use terminal_psi::{
+            StructuralDomainPredicate, StructuralRecordStorage, StructuralTypeDeclaration,
+            StructuralTypeShape, TerminalIdentityTableBuilder,
+        };
+
+        fn module(
+            domain: u64,
+            carrier: u64,
+            pad_identity: bool,
+            deny_issuance: bool,
+        ) -> TerminalModule {
+            let mut identities = TerminalIdentityTableBuilder::default();
+            if pad_identity {
+                identities.intern("unrelated declaration");
+            }
+            let carrier_identity = identities.intern("test::Cell");
+            let domain_identity = identities.intern("test::Cell::Controlled");
+            let carrier = StructuralTypeId::new(carrier).unwrap();
+            let mut module = TerminalModule::for_entry(MachineId::new(1).unwrap());
+            module.identities = identities.build();
+            module.structural_types.push(StructuralTypeDeclaration {
+                requires: Vec::new(),
+                id: carrier,
+                identity: carrier_identity,
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                no_code_affine_cleanup: true,
+                copyable: true,
+                descriptor_cleanup: false,
+                scalar_restriction: None,
+                shape: StructuralTypeShape::Record {
+                    storage: StructuralRecordStorage::Packed,
+                    fields: Vec::new(),
+                },
+            });
+            module.structural_domains.push(StructuralDomainDeclaration {
+                required_memberships: Some(Vec::new()),
+                complete_predicate_theory: true,
+                predicate: Some(StructuralDomainPredicate {
+                    subject: PlaceId::new(1).unwrap(),
+                    proposition: Proposition::Truth,
+                }),
+                id: StructuralDomainId::new(domain).unwrap(),
+                semantic_domain: DomainSemanticId::new(domain).unwrap(),
+                identity: domain_identity,
+                carrier,
+                content_projection: None,
+                byte_predicate: None,
+                establishment_routes: deny_issuance.then(Vec::new),
+            });
+            module
+        }
+
+        // Provider membership compatibility compares the actual declarations,
+        // including issuer choice, even when each module numbers them differently.
+        #[test]
+        fn component_memberships_distinguish_empty_denial_from_unrestricted_issuance() {
+            for deny in [false, true] {
+                let receiver = module(1, 1, false, deny);
+                let provider = module(7, 9, true, deny);
+                let source = &receiver.structural_domains[0];
+                let target = &provider.structural_domains[0];
+                assert_ne!(source.identity, target.identity);
+                assert_eq!(
+                    admit_memberships(
+                        &receiver,
+                        source.carrier,
+                        &[source.id],
+                        &provider,
+                        target.carrier,
+                        &[target.id]
+                    )
+                    .unwrap(),
+                    [(source.id, target.id)],
+                );
+
+                let mismatched = module(7, 9, true, !deny);
+                let target = &mismatched.structural_domains[0];
+                let reason = admit_memberships(&receiver, source.carrier, &[source.id], &mismatched, target.carrier, &[target.id])
+                    .expect_err("an empty issuer denial cannot substitute for unrestricted issuance in either direction");
+                assert!(reason.contains("membership theories differ"), "{reason}");
+            }
+        }
     }
 }
 

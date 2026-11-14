@@ -257,7 +257,36 @@ pub mod types {
             pub carrier: StructuralTypeId,
             pub content_projection: Option<StructuralContentProjection>,
             pub byte_predicate: Option<crate::ByteSequencePredicate>,
-            pub establishment_routes: Vec<StructuralEstablishmentRoute>,
+            /// None adds no issuer restriction; Some(empty) permits nobody.
+            /// This is separate from predicate truth and backing authority.
+            pub establishment_routes: Option<Vec<StructuralEstablishmentRoute>>,
+        }
+
+        #[cfg(test)]
+        mod issuer_choice_tests {
+            use super::*;
+
+            // Both choices have zero alternative routes, but only an absent
+            // issuer restriction can be treated as a pure predicate domain.
+            #[test]
+            fn explicit_empty_issuance_is_not_an_unrestricted_predicate() {
+                let mut domain = StructuralDomainDeclaration {
+                    required_memberships: Some(Vec::new()),
+                    complete_predicate_theory: true,
+                    predicate: None,
+                    id: StructuralDomainId::new(1).unwrap(),
+                    semantic_domain: DomainSemanticId::new(1).unwrap(),
+                    identity: TerminalIdentityIndex(1),
+                    carrier: StructuralTypeId::new(1).unwrap(),
+                    content_projection: None,
+                    byte_predicate: None,
+                    establishment_routes: None,
+                };
+                assert!(domain.is_pure_predicate());
+                domain.establishment_routes = Some(Vec::new());
+                assert!(!domain.is_pure_predicate());
+                assert!(!domain.authorizes_boundary_requirement(TerminalIdentityIndex(2), None));
+            }
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -270,7 +299,7 @@ pub mod types {
             pub fn is_pure_predicate(&self) -> bool {
                 self.complete_predicate_theory
                     && self.has_no_required_memberships()
-                    && self.establishment_routes.is_empty()
+                    && self.establishment_routes.is_none()
                     && self.content_projection.is_none()
             }
 
@@ -279,12 +308,16 @@ pub mod types {
                 requirement: TerminalIdentityIndex,
                 declaration: Option<TerminalIdentityIndex>,
             ) -> bool {
-                self.establishment_routes.iter().any(|route| {
-                    matches!(route, StructuralEstablishmentRoute::BoundaryRequirement {
+                self.establishment_routes
+                    .as_deref()
+                    .unwrap_or_default()
+                    .iter()
+                    .any(|route| {
+                        matches!(route, StructuralEstablishmentRoute::BoundaryRequirement {
                         requirement_identity: authorized,
                         declaration: owner,
                     } if *authorized == requirement && Some(owner.identity()) == declaration)
-                })
+                    })
             }
 
             pub fn carrier_qualified_identity(family: &str, carrier_identity: &str) -> String {
@@ -492,7 +525,8 @@ pub mod types {
             pub semantic_domain: DomainSemanticId,
             pub identity: TerminalIdentityIndex,
             pub carrier: ScalarType,
-            pub establishment_routes: Vec<ScalarDomainEstablishmentRoute>,
+            /// None adds no issuer restriction; Some(empty) permits nobody.
+            pub establishment_routes: Option<Vec<ScalarDomainEstablishmentRoute>>,
         }
 
         #[derive(Debug, Clone, PartialEq, Eq)]
