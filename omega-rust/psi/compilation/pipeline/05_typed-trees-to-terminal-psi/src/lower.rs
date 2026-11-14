@@ -388,6 +388,8 @@ impl<'a> Lowering<'a> {
             invariants: Vec::new(),
             borrowed_roots: Vec::new(),
             joining: 0,
+            fallthrough: None,
+            ended: None,
         }
     }
 }
@@ -605,6 +607,24 @@ struct Lowering<'a> {
     /// is being lowered. A home made there would hold the local on those
     /// paths only, so a loan that needs one is refused.
     joining: usize,
+    /// The block a guarded arm's guard turns away to, when nothing has been
+    /// lowered into it yet: an unguarded arm that begins there is taken
+    /// only on that edge and is an authored branch too.
+    fallthrough: Option<crate::Branch>,
+    /// The call that ended the open path, from the moment it is lowered as
+    /// a terminator until the construct whose path it ended takes it
+    /// (`end_path`, `reached`).
+    ended: Option<SourceOrigin>,
+}
+
+/// What `end_path`'s refusal says, should no construct take it.
+const PATH_ENDED: &str = "evaluation ended at a call that never returns where no path ends";
+
+/// What lowering an evaluation reached: its result, or the call that never
+/// returns at which every path of it ended.
+pub(super) enum Reached<T> {
+    Value(T),
+    Ended(SourceOrigin),
 }
 
 #[derive(Default)]
@@ -647,25 +667,26 @@ impl<'a> Lowering<'a> {
     ///
     /// `wiki/spec/language/state_contracts.md`, "Statements after a call
     /// that never returns": "When checked call information excludes normal
-    /// return, the call has no normal successor." The statements after such
-    /// a call are not lowered: "Unreachable statements contribute no
-    /// executed continuation, no synthetic Unit result, no cleanup edge
-    /// after the call, no ownership frontier, and no `ensures` fact handed
-    /// to a surviving continuation", and they owe "no fresh proofs,
-    /// resources or ownership dispositions". They are source all the same,
-    /// and the stages before this one checked their names and types and the
-    /// reader read them. The evidence is the callee's outcome (`no_normal`):
-    /// a callee some path of which returns keeps its continuation.
+    /// return, the call has no normal successor." A statement every path of
+    /// which ends at such a call, written as the statement itself or inside
+    /// its expression (`let x: u32 = never();`), ends the body there, and
+    /// the statements after it are not lowered: "Unreachable statements
+    /// contribute no executed continuation, no synthetic Unit result, no
+    /// cleanup edge after the call, no ownership frontier, and no `ensures`
+    /// fact handed to a surviving continuation", and they owe "no fresh
+    /// proofs, resources or ownership dispositions". They are source all the
+    /// same, and the stages before this one checked their names and types
+    /// and the reader read them. The evidence is the callee's outcome
+    /// (`completes_normally`): a callee some path of which returns keeps its
+    /// continuation, and so does a statement some path of which goes on past
+    /// the call (the right operand of `&&`, one arm of a `match`).
     fn body(&mut self, body: &Body) -> Checked<()> {
         let mut statements = body.statements.iter();
         while let Some(statement) = statements.next() {
-            self.statement(statement)?;
-            let Statement::Evaluate(call) = statement else {
+            let lowered = self.statement(statement);
+            let Reached::Ended(call) = self.reached(lowered)? else {
                 continue;
             };
-            if self.no_normal(call)?.is_none() {
-                continue;
-            }
             // An erased binding evaluates nothing, so it is no executable
             // statement and none is reported for it.
             let first = statements.find_map(|statement| match statement {
@@ -680,10 +701,9 @@ impl<'a> Lowering<'a> {
                 }
             });
             if let Some(statement) = first {
-                self.sources.unreachable.push(crate::Unreachable {
-                    statement,
-                    call: call.source,
-                });
+                self.sources
+                    .unreachable
+                    .push(crate::Unreachable { statement, call });
             }
             break;
         }
@@ -793,6 +813,33 @@ impl<'a> Lowering<'a> {
             machine: self.id,
             concerns: self.current.map_or(Construct::Machine, Construct::Block),
             detail: format!("completion {detail}"),
+        }
+    }
+
+    /// Ends the open path at `call`, a call that never returns and is now
+    /// the open block's terminator. Nothing after the call on this path is
+    /// lowered, so the evaluation that holds it stops: the returned refusal
+    /// travels up through every evaluation that holds the call to the
+    /// construct whose path ends here (`reached`), which takes it. That
+    /// construct is a statement (`body`), the right operand of `&&` or `||`
+    /// (`short_circuit`), a `match` arm (`match_value`) or a transition arm
+    /// (`complete`). Should nothing take it, it refuses the machine.
+    pub(super) fn end_path(&mut self, call: SourceOrigin) -> Refusal {
+        self.ended = Some(call);
+        self.internal(PATH_ENDED)
+    }
+
+    /// `lowered`, or the call at which its every path ended (`end_path`).
+    /// Any other refusal is returned as it is.
+    pub(super) fn reached<T>(&mut self, lowered: Checked<T>) -> Checked<Reached<T>> {
+        match lowered {
+            Ok(value) => Ok(Reached::Value(value)),
+            Err(refusal) => match self.ended.take() {
+                Some(call) if !self.open() && refusal.detail.ends_with(PATH_ENDED) => {
+                    Ok(Reached::Ended(call))
+                }
+                _ => Err(refusal),
+            },
         }
     }
 

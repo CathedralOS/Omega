@@ -58,6 +58,10 @@ pub struct MachineNames {
     /// The statement position of the exit that falls off the end of a unit
     /// body: the last statement when it is an expression, else one past it.
     pub fall_off: usize,
+    /// The span of each transition arm that tests a value, and the value as
+    /// authored (`true`, `false`), or `_` for an arm that takes whatever the
+    /// arms before it did not: how a warning about the arm names it.
+    pub arms: Vec<(SourceSpan, String)>,
 }
 
 /// What receives the value an operation computes.

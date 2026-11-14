@@ -151,6 +151,51 @@ impl AcceptedClosure {
                 unreachable.call,
             ));
         }
+        // Each authored arm no arrival can take is one warning at its
+        // condition, naming the arm and the premises the condition
+        // contradicts (state_contracts.md, "Unreachable branches": "The
+        // diagnostic identifies the branch condition and the conflicting
+        // premises").
+        for (machine, branch) in self.elaboration.authored_branches() {
+            let Some(impossible) = self.discharge.machines.get(machine).and_then(|discharge| {
+                discharge
+                    .impossible
+                    .iter()
+                    .find(|arm| arm.block == branch.block)
+            }) else {
+                continue;
+            };
+            let names = self.elaboration.names.get(machine);
+            let arm = match (names, branch.arm) {
+                (Some(names), SourceOrigin::Authored(span)) => names
+                    .arms
+                    .iter()
+                    .find(|(at, _)| *at == span)
+                    .map(|(_, label)| format!("the `{label}` arm")),
+                _ => None,
+            }
+            .unwrap_or_else(|| String::from("an arm"));
+            let owner = describe::owner(names, branch.condition);
+            let premises: Vec<String> = impossible
+                .premises
+                .iter()
+                .map(|premise| describe::premise(&self.elaboration, machine, *premise))
+                .collect();
+            let reason = if premises.is_empty() {
+                String::from("its condition can never hold")
+            } else {
+                format!(
+                    "its condition contradicts the facts in force here: {}",
+                    premises.join(", ")
+                )
+            };
+            advisories.push(located(
+                Diagnostic::warning(format!(
+                    "unreachable branch: {arm} of a transition in {owner} can never run; {reason}"
+                )),
+                branch.condition,
+            ));
+        }
         advisories
     }
 }

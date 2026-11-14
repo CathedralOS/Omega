@@ -78,7 +78,7 @@ fn a_transition_arm_contradicting_the_entry_requirement_warns() {
 fn a_relational_contradiction_names_both_values() {
     assert_one_warning(
         "contradictory_relational_branch_exit",
-        &["the `true` arm of a transition", "high >= low"],
+        &["the `true` arm of a transition", "low <= high"],
     );
 }
 

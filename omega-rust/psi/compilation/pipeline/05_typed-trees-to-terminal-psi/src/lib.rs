@@ -134,8 +134,8 @@ pub struct Supply {
 }
 
 pub use terminal_check_tables::program::{
-    ConformanceWitness, Elaboration, MachineSources, Selected, SourceOrigin, SuppliedRequirement,
-    Unpositioned, Unreachable,
+    Branch, ConformanceWitness, Elaboration, MachineSources, Selected, SourceOrigin,
+    SuppliedRequirement, Unpositioned, Unreachable,
 };
 
 /// What the subset does not serve, named for the refusal. Closed: a new

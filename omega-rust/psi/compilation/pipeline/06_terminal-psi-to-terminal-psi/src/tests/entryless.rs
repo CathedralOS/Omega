@@ -3,7 +3,7 @@
 use super::boundary_calls::typed;
 use super::*;
 
-fn judged(text: &str, select_first: bool) -> RouteVerdict {
+pub(super) fn judged(text: &str, select_first: bool) -> RouteVerdict {
     let typed = typed(text);
     let selected = if select_first {
         vec![typed.machines()[0].symbol]

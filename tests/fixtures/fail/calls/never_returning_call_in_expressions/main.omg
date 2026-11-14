@@ -1,0 +1,22 @@
+// Rejected. Twin of `run/calls/never_returning_call_in_expressions`, which
+// differs only in `||`: here `&&` reaches `stop` when `count < 10` holds and
+// goes on past it when `count < 10` is false. The statements after `let ok`
+// are checked on that returning path, where `count + 1` can overflow.
+machine stop() -> bool crashes Trap {
+    crash Trap;
+}
+machine halt() -> u32 crashes Trap {
+    crash Trap;
+}
+machine settle(count: u32) -> u32
+requires true
+crashes Trap
+{
+    let ok: bool = count < 10 && stop();
+    count + 1
+}
+machine main() crashes Trap {
+    let next: u32 = settle(4);
+    let held: u32 = halt();
+    let after: u32 = held + next;
+}

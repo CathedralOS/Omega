@@ -2924,24 +2924,46 @@ pub(crate) mod namespaces {
             let Some(receiver) = self.expression_table.name_path_node(call.receiver) else {
                 return Ok(None);
             };
-            let Some(selected) = self.conformance_by_symbol(receiver.symbol) else {
-                return if receiver.symbol.is_valid()
-                    && self.symbols.get(receiver.symbol).kind == SymbolKind::Conformance
-                {
-                    Err("named public view lost its selected implementation")
-                } else {
-                    Ok(None)
-                };
-            };
+            self.named_conformance_member(receiver.symbol, call.target_symbol)
+                .map(|member| member.map(|(_, _, signature)| signature))
+        }
+
+        /// The named operation record, its unique requirement row and that
+        /// row's public signature at the retained application. This identifies
+        /// a choice; body validity and invocation authority remain separate.
+        pub fn named_conformance_member(
+            &self,
+            namespace: SymbolHandle,
+            requirement: SymbolHandle,
+        ) -> Result<
+            Option<(
+                &crate::trait_definition::Conformance,
+                &crate::trait_definition::ConformanceRow,
+                &signature::StateSignature,
+            )>,
+            &'static str,
+        > {
+            if !namespace.is_valid() {
+                return Ok(None);
+            }
+            if !self.symbols.symbols().nodes().is_valid(namespace) {
+                return Err("named public view has a foreign namespace");
+            }
+            if self.symbols.get(namespace).kind != SymbolKind::Conformance {
+                return Ok(None);
+            }
+            let selected = self
+                .conformance_by_symbol(namespace)
+                .ok_or("named public view lost its selected implementation")?;
             // Applied generic maps retain their independently supplied tuple in
             // the ordinary dispatch path above; a bare declaration cannot supply it.
             if !selected.type_parameters.is_empty() || !selected.lifetime_parameters.is_empty() {
                 return Err("named public view has no complete selected application");
             }
-            let closed = self.closed_requirement_application(call.target_symbol);
+            let closed = self.closed_requirement_application(requirement);
             let template = closed
                 .as_ref()
-                .map_or(call.target_symbol, |selected| selected.template);
+                .map_or(requirement, |selected| selected.template);
             let mut rows = selected
                 .rows
                 .iter()
@@ -2956,8 +2978,7 @@ pub(crate) mod namespaces {
                 .ok_or("named public view lost its complete trait application")?
                 .declaring_scope(self, row.declaring_trait)
                 .ok_or("named public view lost its declaring trait scope")?;
-            if closed.is_some()
-                && !self.requirement_application_matches_scope(call.target_symbol, &scope)
+            if closed.is_some() && !self.requirement_application_matches_scope(requirement, &scope)
             {
                 return Err("named public view disagrees with its selected trait application");
             }
@@ -2968,7 +2989,7 @@ pub(crate) mod namespaces {
                     .then(|| self.trait_machine_signature_by_symbol(scope.declaration, template))
                     .flatten()
                 })
-                .map(Some)
+                .map(|signature| Some((selected, row, signature)))
                 .ok_or("named public view has no prepared applied signature")
         }
     }
