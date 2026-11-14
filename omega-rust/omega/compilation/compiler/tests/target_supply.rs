@@ -671,13 +671,16 @@ fn a_reached_requirement_settles_to_its_one_declared_default() {
 const WHOLE_SLOT: &str = "public boundary trait Service {\n    machine go() reaches none crashes none;\n    machine stop() reaches none crashes none;\n}\ndata NativeDefaults {}\nNative satisfies Service {\n    machine go() reaches none crashes none {\n    }\n    machine stop() reaches none crashes none {\n    }\n}\n";
 
 /// The settled supply of `WHOLE_SLOT`'s provider for a program that reaches
-/// `go`, and the module that judged the provider.
-fn whole_slot() -> (Arc<AcceptedTerminalSource>, SettledTargetSupply) {
+/// `go`, and the product whose module judged the provider.
+fn whole_slot() -> (
+    Arc<compilation_products::ProductTerminalPublication>,
+    SettledTargetSupply,
+) {
     let target = supplied_target(&format!("{WHOLE_SLOT}{NATIVE_DEFAULT}"), REACHES)
         .expect("the provider refines both requirements");
-    let accepted = target.accepted.expect("the chosen provider was judged");
+    assert!(target.rejudged, "the chosen provider was judged");
     let settled = target.supply.settle().expect("one default is chosen");
-    (accepted, settled)
+    (target.publication, settled)
 }
 
 /// A chosen provider forms one plan for its whole slot. The program reaches
@@ -689,7 +692,8 @@ fn whole_slot() -> (Arc<AcceptedTerminalSource>, SettledTargetSupply) {
 /// conditions check against it.
 #[test]
 fn a_chosen_provider_forms_one_plan_for_its_whole_slot() {
-    let (accepted, settled) = whole_slot();
+    let (publication, settled) = whole_slot();
+    let accepted = publication.accepted().expect("the product publication accepted");
     assert_eq!(settled.requirements().len(), 1, "only `go` is reached");
     let module = accepted.module();
     assert_eq!(module.boundary_machines.len(), 2);
@@ -744,7 +748,8 @@ fn a_chosen_provider_forms_one_plan_for_its_whole_slot() {
 /// each row must name the machine stated for its own requirement.
 #[test]
 fn a_plan_is_refused_by_the_requirement_it_does_not_bind() {
-    let (accepted, settled) = whole_slot();
+    let (publication, settled) = whole_slot();
+    let accepted = publication.accepted().expect("the product publication accepted");
     let schemas = compiler::settled_slot_schemas(&accepted, &settled);
     let reached = settled.requirements()[0].reached.boundary;
     let mut missing = accepted.module().clone();
