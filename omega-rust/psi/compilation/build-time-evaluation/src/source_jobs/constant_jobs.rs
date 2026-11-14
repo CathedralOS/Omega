@@ -67,8 +67,22 @@ pub fn validate_constant_evaluations(
     }
     let mut receipts = vec![None; wanted.len()];
     for record in accounting.receipts() {
-        if let crate::PureEvaluationRecord::Invocation(receipt) = record
-            && let Some(index) = family_position(&wanted, receipt.requester())
+        let crate::PureEvaluationRecord::Invocation(receipt) = record else {
+            continue;
+        };
+        if receipt
+            .request_source()
+            .const_declaration_by_symbol(receipt.requester())
+            .is_some()
+        {
+            if program.identity.get() != receipt.request_source().identity.get() {
+                return Err("constant receipt belongs to another source owner".into());
+            }
+            if family_position(&wanted, receipt.requester()).is_none() {
+                return Err("constant receipt lost its requesting declaration".into());
+            }
+        }
+        if let Some(index) = family_position(&wanted, receipt.requester())
             && receipts[index].replace(receipt).is_some()
         {
             return Err("constant result has ambiguous invocation custody".into());
