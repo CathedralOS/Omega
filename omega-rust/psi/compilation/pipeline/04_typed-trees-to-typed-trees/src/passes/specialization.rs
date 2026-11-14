@@ -68,8 +68,8 @@ use typed_trees::static_applications::{
 
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use typed_trees::{
-    MachineSpecialization, StaticRequirementDispatch, SubtreeEdges, SymbolRebinding,
-    TypedTreeTables, TypedTrees,
+    MachineSpecialization, PreparedSymbolRebinding, StaticRequirementDispatch, SubtreeEdges,
+    SymbolRebinding, TypedTreeTables, TypedTrees,
 };
 
 pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
@@ -1100,7 +1100,7 @@ fn holds_expression(program: &TypedTrees, references: &[TypeReferenceHandle]) ->
 struct CopiedDeclarations {
     machine: SymbolHandle,
     state: SymbolHandle,
-    symbols: Vec<(SymbolHandle, SymbolHandle)>,
+    symbols: PreparedSymbolRebinding,
     originals: Vec<(Machine, State)>,
 }
 
@@ -1144,18 +1144,14 @@ fn copy_declarations(
         SymbolKind::Machine,
         &root_name,
     );
-    let mut renamed = vec![(template_symbol, machine_symbol)];
-    let mut authored = Vec::new();
+    let mut renamed = PreparedSymbolRebinding::default();
+    record_symbol(&mut renamed, template_symbol, machine_symbol, false)?;
     // Allocate the complete declaration graph before rebinding any body.
     // Forward sibling calls and recursive calls then use the same exact map.
     for (source, source_state) in &parts {
-        let owner = renamed
-            .iter()
-            .find(|(original, _)| *original == source.symbol)
-            .map(|(_, fresh)| *fresh)
-            .ok_or(Stop::Defect(
-                "a copied nested declaration lost its lexical owner",
-            ))?;
+        let owner = renamed.execution_symbol(source.symbol).ok_or(Stop::Defect(
+            "a copied nested declaration lost its lexical owner",
+        ))?;
         let nested = |parent| {
             program
                 .symbols
@@ -1194,13 +1190,14 @@ fn copy_declarations(
             ),
         );
         let state = children.handle_at(0);
-        renamed.push((source_state.symbol, state));
-        renamed.extend(
-            machine_children
-                .iter()
-                .map(|(symbol, _)| *symbol)
-                .zip(children.handles().skip(1)),
-        );
+        record_symbol(&mut renamed, source_state.symbol, state, false)?;
+        for (original, fresh) in machine_children
+            .iter()
+            .map(|(symbol, _)| *symbol)
+            .zip(children.handles().skip(1))
+        {
+            record_symbol(&mut renamed, original, fresh, false)?;
+        }
         let parameters = program.state_parameters(source_state).to_vec();
         let locals = program
             .statement_table
@@ -1239,23 +1236,23 @@ fn copy_declarations(
             .chain(locals.iter().map(|(symbol, _)| *symbol))
             .zip(children.handles())
         {
-            renamed.push((original, fresh));
-            authored.push((original, fresh));
+            record_symbol(&mut renamed, original, fresh, true)?;
         }
-        renamed.extend(
-            state_children
-                .iter()
-                .map(|(symbol, _)| *symbol)
-                .zip(children.handles().skip(local_count)),
-        );
+        for (original, fresh) in state_children
+            .iter()
+            .map(|(symbol, _)| *symbol)
+            .zip(children.handles().skip(local_count))
+        {
+            record_symbol(&mut renamed, original, fresh, false)?;
+        }
     }
-    let state_symbol = renamed_symbol(&renamed, parts[0].1.symbol);
-    let symbols = SymbolRebinding::new(&renamed, &authored);
+    let state_symbol = copied_symbol(&renamed, parts[0].1.symbol)?;
+    let symbols = renamed.rebinding();
     let mut copied = Vec::with_capacity(parts.len());
     for ((source, source_state), staged) in parts.iter().zip(staged) {
         let first_expression = program.expression_table.expression_count() + 1;
         let mut machine = source.clone();
-        machine.symbol = renamed_symbol(&renamed, source.symbol);
+        machine.symbol = copied_symbol(&renamed, source.symbol)?;
         if source.symbol == template_symbol {
             machine.name = Identifier::generated(root_name.clone());
         }
@@ -1269,7 +1266,7 @@ fn copy_declarations(
             program.push_machine_contract(&mut machine, contract);
         }
         let mut state = source_state.clone();
-        state.symbol = renamed_symbol(&renamed, source_state.symbol);
+        state.symbol = copied_symbol(&renamed, source_state.symbol)?;
         state.parameters = HandleSpan::empty();
         state.contracts = HandleSpan::empty();
         state.return_type = copy_type(program, source_state.return_type, symbols)?;
@@ -1282,7 +1279,7 @@ fn copy_declarations(
             .tables
             .remap_statement_symbols(state.statement_nodes, symbols);
         for mut parameter in program.state_parameters(source_state).to_vec() {
-            parameter.symbol = renamed_symbol(&renamed, parameter.symbol);
+            parameter.symbol = copied_symbol(&renamed, parameter.symbol)?;
             parameter.type_reference = copy_type(program, parameter.type_reference, symbols)?;
             program.push_state_parameter(&mut state, parameter);
         }
@@ -1353,7 +1350,7 @@ fn generate(
             .collect::<Vec<_>>();
         program.machine_specializations.push(MachineSpecialization {
             template: source.symbol,
-            instance: renamed_symbol(&copied.symbols, source.symbol),
+            instance: copied_symbol(&copied.symbols, source.symbol)?,
             template_parameters: copied.originals[0].0.type_parameters,
             binding_application: application,
             type_arguments: spellings.clone(),
@@ -1374,11 +1371,26 @@ fn generate(
     })
 }
 
-fn renamed_symbol(renamed: &[(SymbolHandle, SymbolHandle)], symbol: SymbolHandle) -> SymbolHandle {
-    renamed
-        .iter()
-        .find(|(original, _)| *original == symbol)
-        .map_or(symbol, |(_, fresh)| *fresh)
+fn record_symbol(
+    symbols: &mut PreparedSymbolRebinding,
+    source: SymbolHandle,
+    fresh: SymbolHandle,
+    authored: bool,
+) -> Served<()> {
+    if symbols.insert_execution(source, fresh).is_some()
+        || (authored && symbols.insert_authored(source, fresh).is_some())
+    {
+        return Err(Stop::Defect(
+            "a copied declaration has repeated source coordinates",
+        ));
+    }
+    Ok(())
+}
+
+fn copied_symbol(symbols: &PreparedSymbolRebinding, source: SymbolHandle) -> Served<SymbolHandle> {
+    symbols
+        .execution_symbol(source)
+        .ok_or(Stop::Defect("a copied declaration lost its fresh symbol"))
 }
 
 /// The types an expression node holds beside its operands.
