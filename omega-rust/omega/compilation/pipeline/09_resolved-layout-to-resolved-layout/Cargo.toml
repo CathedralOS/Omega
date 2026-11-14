@@ -5,10 +5,10 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-isa-x86_64 = { path = "../../backend/instruction-set-architectures/isa-x86_64" }
+isa-x86_64 = { path = "../../backend/isa/isa-x86_64" }
 machine-code = { path = "../../representations/machine-code" }
 optimization-core = { path = "../../../foundation/optimization-core" }
-physical-instructions = { path = "../../representations/post-allocation-machine" }
+post-allocation-machine = { path = "../../representations/post-allocation-machine" }
 register-model = { path = "../../backend/register-model" }
 selected-instructions = { path = "../../representations/selected-instructions" }
 target = { path = "../../backend/target" }

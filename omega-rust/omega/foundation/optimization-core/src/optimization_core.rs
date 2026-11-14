@@ -28,15 +28,24 @@ routes a stage's local subset of optimizations while retaining the full
   definition.
 */
 
+#[path = "contracts/mod.rs"]
 pub(crate) mod contracts;
+#[path = "decisions/mod.rs"]
 pub(crate) mod decisions;
+#[path = "identities/mod.rs"]
 pub(crate) mod identities;
+#[path = "manifest/mod.rs"]
 pub(crate) mod manifest;
 #[cfg(any(test, feature = "test-support"))]
+#[path = "mutation_matrix.rs"]
 pub(crate) mod mutation_matrix;
+#[path = "post_terminal.rs"]
 pub(crate) mod post_terminal;
+#[path = "refusal_site.rs"]
 pub(crate) mod refusal_site;
+#[path = "report_request.rs"]
 pub(crate) mod report_request;
+#[path = "rollback.rs"]
 pub(crate) mod rollback;
 
 use std::fmt;
@@ -694,6 +703,7 @@ impl fmt::Display for SelectionDecodeError {
 impl std::error::Error for SelectionDecodeError {}
 
 #[cfg(test)]
+#[path = "optimization_core_tests/mod.rs"]
 mod tests;
 
 pub use crate::digest_encoder::hex;

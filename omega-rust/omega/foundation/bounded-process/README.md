@@ -14,8 +14,8 @@ Follow its two lifecycle inputs:
   and completion. Its children contain native limits, descriptor handling,
   completion records, and Windows Job Object support.
 
-The run loop's subordinate [capture contract](src/bounded_process/capture_contract.rs)
-defines input, output, limits, and errors; [budget.rs](src/bounded_process/budget.rs)
+The run loop's subordinate [capture contract](src/capture_contract.rs)
+defines input, output, limits, and errors; [budget.rs](src/budget.rs)
 accounts for aggregate retained output. `lib.rs` only wires and exports these
 owners. Callers can also use the prepared-child lifecycle directly without
 requesting duplex capture.

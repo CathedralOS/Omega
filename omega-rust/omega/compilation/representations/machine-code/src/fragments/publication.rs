@@ -77,7 +77,7 @@ pub struct FunctionFragmentEmissionManifest {
     pub work_schedule: WorkScheduleIdentity,
     pub selected: selected_instructions::SelectedInstructionPlanIdentity,
     pub post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
-    pub post_allocation_machine: physical_instructions::PostAllocationMachineIdentity,
+    pub post_allocation_machine: post_allocation_machine::PostAllocationMachineIdentity,
     pub final_pre_layout: SelectedFormEncodingIdentity,
     pub final_resolved_layout: crate::ResolvedSelectedFormLayoutIdentity,
     pub whole_function_exit_contract: WholeFunctionExitContractIdentity,
@@ -145,7 +145,7 @@ impl FunctionFragmentEmissionManifest {
         let post_allocation_manifest =
             PostAllocationOptimizationManifestIdentity::from_bytes(cursor.array()?);
         let post_allocation_machine =
-            physical_instructions::PostAllocationMachineIdentity::from_bytes(cursor.array()?);
+            post_allocation_machine::PostAllocationMachineIdentity::from_bytes(cursor.array()?);
         let final_pre_layout = SelectedFormEncodingIdentity::from_bytes(cursor.array()?);
         let final_resolved_layout =
             crate::ResolvedSelectedFormLayoutIdentity::from_bytes(cursor.array()?);
@@ -314,7 +314,7 @@ mod tests {
                 [6; 32],
             ),
             post_allocation_machine:
-                physical_instructions::PostAllocationMachineIdentity::from_bytes([7; 32]),
+                post_allocation_machine::PostAllocationMachineIdentity::from_bytes([7; 32]),
             final_pre_layout: SelectedFormEncodingIdentity::from_bytes([8; 32]),
             final_resolved_layout: crate::ResolvedSelectedFormLayoutIdentity::from_bytes([9; 32]),
             whole_function_exit_contract: WholeFunctionExitContractIdentity::from_bytes([10; 32]),

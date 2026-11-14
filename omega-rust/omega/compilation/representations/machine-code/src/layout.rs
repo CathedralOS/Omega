@@ -17,7 +17,7 @@ pub mod text_section;
 
 use std::sync::Arc;
 
-use physical_instructions::{
+use post_allocation_machine::{
     PostAllocationMachineIdentity, PostAllocationMachineOptimizationCustody,
     PostAllocationMachinePlan,
 };
@@ -426,7 +426,7 @@ pub mod evidence {
         pub struct RevisionRoots {
             pub source: ResolvedSelectedFormLayoutIdentity,
             pub selected: selected_instructions::SelectedInstructionPlanIdentity,
-            pub machine: physical_instructions::PostAllocationMachineIdentity,
+            pub machine: post_allocation_machine::PostAllocationMachineIdentity,
             pub pre_layout: crate::SelectedFormEncodingIdentity,
             pub target: NativeTarget,
         }

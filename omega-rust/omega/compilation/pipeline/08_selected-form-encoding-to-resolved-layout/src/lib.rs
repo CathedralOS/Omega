@@ -34,7 +34,9 @@ use machine_code::{
     ResolvedMachineLayout, SelectedFormEncoding, SelectedFormEncodingIdentity,
     resolved_machine_layout_identity as layout_identity,
 };
-use physical_instructions::{PostAllocationMachineOptimizationCustody, PostAllocationMachinePlan};
+use post_allocation_machine::{
+    PostAllocationMachineOptimizationCustody, PostAllocationMachinePlan,
+};
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{
     CurrentSelectedProgram, MachineSizeKnowledge, SelectedFunction, SelectedInstructionId,
@@ -110,7 +112,7 @@ impl StagedOptimizedResolvedSelectedFormLayout {
         self.program.selected
     }
 
-    pub fn machine(&self) -> physical_instructions::PostAllocationMachineIdentity {
+    pub fn machine(&self) -> post_allocation_machine::PostAllocationMachineIdentity {
         self.program.machine
     }
 

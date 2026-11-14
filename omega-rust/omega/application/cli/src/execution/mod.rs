@@ -96,7 +96,7 @@ pub enum ExecutionSelection {
 
 pub struct RunRequest {
     pub build_snapshot: Option<compiler::BuildSnapshotRequest>,
-    pub private_entry_ram: Vec<compilation_products::PrivateEntryRamInitialization>,
+    pub private_entry_ram: Vec<products::PrivateEntryRamInitialization>,
     pub root_path: PathBuf,
     pub target_name: Option<String>,
     pub selection: ExecutionSelection,
@@ -106,7 +106,7 @@ pub struct RunRequest {
 
 pub struct RunOutcome {
     pub build_dir: PathBuf, // Removed on return unless keep_artifacts was requested.
-    pub test_roster: Vec<compilation_products::TestRosterEntry>, // Registered tests that ran before the program.
+    pub test_roster: Vec<products::TestRosterEntry>, // Registered tests that ran before the program.
     pub execution: ExecutionOutcome,
 }
 
@@ -398,7 +398,7 @@ fn format_work_tsv(
 
 pub struct CaseRunRequest {
     pub build_snapshot: Option<compiler::BuildSnapshotRequest>,
-    pub private_entry_ram: Vec<compilation_products::PrivateEntryRamInitialization>,
+    pub private_entry_ram: Vec<products::PrivateEntryRamInitialization>,
     pub root_path: PathBuf,
     pub compare_interpreter: bool,
     pub psi_work_budget: Option<std::num::NonZeroU64>,

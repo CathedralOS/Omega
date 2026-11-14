@@ -33,5 +33,5 @@ effects = { path = "../../backend/plans/effects" }
 target = { path = "../../backend/target" }
 
 [dev-dependencies]
-optimization-unit-semantics = { path = "../../representations/abstract-operations/optimization-unit/semantics" }
+optimization-unit-semantics = { path = "../../representations/abstract-operations/optimization-unit-semantics" }
 terminal-work = { path = "../../../../psi/compilation/representations/terminal-psi/work" }

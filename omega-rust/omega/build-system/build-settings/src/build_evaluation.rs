@@ -32,13 +32,13 @@ the returned activation via `validate_return`, `source_result`,
 
 use crate::{PreparedBuildExecution, PureBuildCompilation};
 use artifacts::compile_timings::CompileTimings;
-use compilation_products::CompileFailure;
 use diagnostics::Diagnostic;
 pub use package_compilation::build_execution::RestrictedBuildGrants;
 use package_compilation::build_execution::{RestrictedBuildRequest, select_build_machine};
 use package_compilation::{
     BuildExecutionInputs, PackageCompilationInputs, PackageSourceConsumptionCommitment,
 };
+use products::CompileFailure;
 use std::path::Path;
 use std::sync::Arc;
 use typed_trees::TypedTrees;
@@ -69,13 +69,13 @@ pub struct BuildStageRequest<'request> {
     pub anonymous_source: Option<&'request package_compilation::AnonymousSourceCapture>,
 }
 
-pub use compilation_products::EvaluatedBuild;
+pub use products::EvaluatedBuild;
 
 pub struct PreparedBuildEvaluation {
     execution: PreparedBuildExecution,
     restricted_build_requests: Vec<RestrictedBuildRequest>,
     base_source_consumption_commitment: Option<PackageSourceConsumptionCommitment>,
-    constants: compilation_products::BuildConstants,
+    constants: products::BuildConstants,
     source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
     restricted_build_grants: Option<Box<dyn RestrictedBuildGrants>>,
     dependency_activation: bool,

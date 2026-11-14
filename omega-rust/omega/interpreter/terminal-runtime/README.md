@@ -19,7 +19,7 @@ The CLI, corpus and embedding consumers call this owner directly; there is no
 
 This extraction changes ownership, not runtime semantics. It does not complete
 **TERMINAL-RUNTIME-DRIVERS**: provisions come directly from their source-free
-`native-artifact` owner, not through the source-aware `compilation-products`
+`native-artifact` owner, not through the source-aware `products`
 re-export. The common loaded/borrowed Terminal view and production
 artifact-execution command remain required. Moving host code must not put target
 knowledge into Psi or replace missing execution with native fallback.

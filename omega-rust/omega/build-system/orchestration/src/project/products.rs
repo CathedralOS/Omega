@@ -111,7 +111,7 @@ impl ProjectProduct {
                 destination,
                 private_entry_ram,
                 installation_assumptions,
-            } => compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
+            } => compiler::CompilationProduct::Native(products::NativeProductRequest {
                 // Output admission may refuse a target; its conditions must not
                 // become inputs to a surviving sibling's compilation.
                 installation_assumptions: installation_assumptions
@@ -123,7 +123,7 @@ impl ProjectProduct {
                 image: destination.image_demand(),
                 private_entry_ram: private_entry_ram.clone(),
                 terminal_authority_policy:
-                    compilation_products::compile_request::current_terminal_authority_policy(),
+                    products::compile_request::current_terminal_authority_policy(),
                 terminal_authority_permission_policy: None,
                 optimization_rollback: optimization_rollback.clone(),
             }),
@@ -136,9 +136,9 @@ fn compile_standalone_reports(
     directory: &Path,
     targets: &[TargetProfile],
     product: RequestedCompileProduct,
-    private_entry_ram: &[compilation_products::PrivateEntryRamInitialization],
-    installation_assumptions: &[compilation_products::InstallationEnvironmentAssumption],
-    native_image: compilation_products::NativeImageDemand,
+    private_entry_ram: &[products::PrivateEntryRamInitialization],
+    installation_assumptions: &[products::InstallationEnvironmentAssumption],
+    native_image: products::NativeImageDemand,
 ) -> Result<Vec<(TargetProfile, Result<CompilationOutput, BuildError>)>, BuildError> {
     let mut reports = Vec::with_capacity(targets.len());
     let explicit = !matches!(request.targets, BuildTargets::Host);

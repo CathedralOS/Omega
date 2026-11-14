@@ -14,11 +14,11 @@
 use crate::checked::CheckedCompilation;
 use crate::checked::PreparedProductTarget;
 use artifacts::compile_timings::CompileTimings;
-use compilation_products::{
+use diagnostics::Diagnostic;
+use products::{
     BuildAdmission, CheckedCompilationInputs, CheckedCompileOutcome, CheckedProductSource,
     CompileFailure,
 };
-use diagnostics::Diagnostic;
 use provider_planning::target_supply::{SettledTargetSupply, SlotSchema, SupplyPlanning};
 use selected_dispatch::SelectedExecution;
 use std::sync::Arc;
@@ -46,11 +46,11 @@ pub fn settled_slot_schemas(
 }
 
 pub(crate) struct SelectedProviderCustody {
-    pub(crate) terminal_publication: Arc<compilation_products::ProductTerminalPublication>,
+    pub(crate) terminal_publication: Arc<products::ProductTerminalPublication>,
     pub(crate) source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
     pub(crate) execution: SelectedExecution,
-    pub(crate) source_inspection: Arc<compilation_products::SelectedProviderSource>,
-    pub(crate) build: Arc<compilation_products::ComputedBuildConfig>,
+    pub(crate) source_inspection: Arc<products::SelectedProviderSource>,
+    pub(crate) build: Arc<products::ComputedBuildConfig>,
     pub(crate) build_admission: BuildAdmission,
     pub(crate) provider_defaults:
         Arc<[build_time_evaluation::provider_declarations::TargetProviderDefaults]>,
@@ -90,7 +90,7 @@ impl SelectedProductTarget {
             custody: SelectedProviderCustody {
                 terminal_publication: Arc::clone(&source.terminal_publication),
                 source_completion_accounting: source.source_completion_accounting.clone(),
-                source_inspection: Arc::new(compilation_products::SelectedProviderSource::new(
+                source_inspection: Arc::new(products::SelectedProviderSource::new(
                     Arc::clone(&source.provider_inventory),
                     Arc::clone(execution.shared_plans()),
                 )),
@@ -176,14 +176,14 @@ impl SelectedProductTarget {
 
 pub(crate) struct SelectedCompileOutcome {
     pub(crate) result: Result<SelectedProductTarget, CompileFailure>,
-    pub(crate) independent_components: compilation_products::IndependentComponentDiscovery,
+    pub(crate) independent_components: products::IndependentComponentDiscovery,
     // Separately selected test roots over the same checked source, in roster
     // order (wiki/spec/build/testing.md). Empty when no enabled group exists.
     pub(crate) tests: Vec<(
-        compilation_products::TestRootIdentity,
+        products::TestRootIdentity,
         Result<SelectedProductTarget, CompileFailure>,
     )>,
-    pub(crate) test_notes: Vec<compilation_products::TestRosterEntry>,
+    pub(crate) test_notes: Vec<products::TestRosterEntry>,
 }
 
 impl SelectedCompileOutcome {

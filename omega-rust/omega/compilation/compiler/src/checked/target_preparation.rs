@@ -9,9 +9,9 @@
 // plan this route cannot form yet is refused by the name of what it demands.
 // Typed declarations alone decide nothing here.
 
-use compilation_products::CheckedProductSource;
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
+use products::CheckedProductSource;
 use provider_planning::target_supply::{
     JudgedProvider, PreparedTargetSupply, ReachedBoundaryRequirement, TargetSupplyRequest,
 };
@@ -52,7 +52,7 @@ pub(crate) fn selected_supplies(
 /// declare.
 pub struct ProductSupplySource<'a> {
     /// The source and complete roster authenticated by one actual judgment.
-    pub publication: std::sync::Arc<compilation_products::ProductTerminalPublication>,
+    pub publication: std::sync::Arc<products::ProductTerminalPublication>,
     /// The evaluated Build's provider selections and the target packages'
     /// defaults.
     pub build: &'a [build_time_evaluation::provider_declarations::ProviderSelection],
@@ -60,7 +60,7 @@ pub struct ProductSupplySource<'a> {
 }
 
 /// The existing authenticated publication, extended by every chosen supply.
-pub type SuppliedProduct = std::sync::Arc<compilation_products::ProductTerminalPublication>;
+pub type SuppliedProduct = std::sync::Arc<products::ProductTerminalPublication>;
 
 /// What the demand walk of any target reads from one accepted module.
 struct ModuleDemand {
@@ -72,7 +72,7 @@ struct ModuleDemand {
 impl ModuleDemand {
     fn read(
         accepted: &source_compiler::AcceptedTerminalSource,
-        roster: &compilation_products::ProductRoster,
+        roster: &products::ProductRoster,
     ) -> Result<Self, Vec<Diagnostic>> {
         let declared = accepted
             .boundary_requirements_declared()
@@ -189,7 +189,7 @@ pub fn judge_supplied_product(
         if roster.supplies.len() == before {
             return Ok(publication);
         }
-        publication = std::sync::Arc::new(compilation_products::ProductTerminalPublication::judge(
+        publication = std::sync::Arc::new(products::ProductTerminalPublication::judge(
             std::sync::Arc::clone(accepted.source()),
             roster,
             publication.optimizations().clone(),
@@ -201,7 +201,7 @@ pub fn judge_supplied_product(
 /// that target's supply.
 pub struct TargetSupplySource<'a> {
     /// The Product's source and supplied roster, paired by their judgment.
-    pub publication: &'a compilation_products::ProductTerminalPublication,
+    pub publication: &'a products::ProductTerminalPublication,
     /// The evaluated Build's provider selections and the target packages'
     /// defaults.
     pub build: &'a [build_time_evaluation::provider_declarations::ProviderSelection],

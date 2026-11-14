@@ -10,13 +10,13 @@ and type any generated source extension without replaying Build effects.
 */
 
 use artifacts::compile_timings::CompileTimings;
-use compilation_products::{
-    BuildAdmission, BuiltTypedProgram, CheckedExecutionRequest, CompileFailure,
-    TypedCompilationFrontier,
-};
 use diagnostics::Diagnostic;
 use package_compilation::BuildSourceCustody;
 use package_compilation::PackageCompilationInputs;
+use products::{
+    BuildAdmission, BuiltTypedProgram, CheckedExecutionRequest, CompileFailure,
+    TypedCompilationFrontier,
+};
 use std::path::Path;
 use std::sync::Arc;
 
@@ -25,7 +25,7 @@ pub(super) struct BuildSourceInvocation {
     /// current stage has them mounted.
     prepared: Vec<package_compilation::source_imports::ProductQueryDependency>,
     execution_contract: package_compilation::build_execution::BuildExecutionContract,
-    parsed: compilation_products::PreparedCheckedSource,
+    parsed: products::PreparedCheckedSource,
     frontier: TypedCompilationFrontier,
     evaluation: build_settings::PreparedBuildEvaluation,
     package_inputs: Option<PackageCompilationInputs>,
@@ -39,7 +39,7 @@ pub(super) struct BuildSourceInvocation {
 pub(super) fn prepare_build_invocation(
     root_path: &Path,
     child: CheckedExecutionRequest<'_>,
-    parsed: compilation_products::PreparedCheckedSource,
+    parsed: products::PreparedCheckedSource,
     frontier: TypedCompilationFrontier,
     mut timings: CompileTimings,
     pure_build_compilation: Option<&build_settings::PureBuildCompilation>,
@@ -247,7 +247,7 @@ impl BuildSourceInvocation {
         returned: Option<build_settings::ReturnedBuild>,
         joined_inputs: Option<&PackageCompilationInputs>,
         product_target: Option<target::TargetProfile>,
-    ) -> Result<compilation_products::PreparedBuild, CompileFailure> {
+    ) -> Result<products::PreparedBuild, CompileFailure> {
         let settled = self.settle(returned, joined_inputs, product_target)?;
         let inputs = settled.package_inputs.clone();
         prepare_settled_product(settled, inputs.as_ref())
@@ -258,7 +258,7 @@ impl BuildSourceInvocation {
         returned: Option<build_settings::ReturnedBuild>,
         joined_inputs: Option<&PackageCompilationInputs>,
         product_target: Option<target::TargetProfile>,
-    ) -> Result<compilation_products::SettledBuildSource, CompileFailure> {
+    ) -> Result<products::SettledBuildSource, CompileFailure> {
         let spent = self.evaluation.source_completion_accounting().clone();
         self.settle_source(returned, joined_inputs, product_target)
             .map_err(|failure| failure.with_source_completion_accounting(spent))
@@ -269,7 +269,7 @@ impl BuildSourceInvocation {
         mut returned: Option<build_settings::ReturnedBuild>,
         joined_inputs: Option<&PackageCompilationInputs>,
         product_target: Option<target::TargetProfile>,
-    ) -> Result<compilation_products::SettledBuildSource, CompileFailure> {
+    ) -> Result<products::SettledBuildSource, CompileFailure> {
         let Self {
             prepared: _,
             execution_contract,
@@ -343,7 +343,7 @@ impl BuildSourceInvocation {
                 .into());
             }
         }
-        Ok(compilation_products::SettledBuildSource {
+        Ok(products::SettledBuildSource {
             execution_contract,
             parsed,
             frontier,
@@ -359,18 +359,18 @@ impl BuildSourceInvocation {
 }
 
 pub(super) fn prepare_settled_product(
-    settled: compilation_products::SettledBuildSource,
+    settled: products::SettledBuildSource,
     inputs: Option<&PackageCompilationInputs>,
-) -> Result<compilation_products::PreparedBuild, CompileFailure> {
+) -> Result<products::PreparedBuild, CompileFailure> {
     let spent = settled.evaluated.source_completion_accounting.clone();
     prepare_settled_source_product(settled, inputs)
         .map_err(|failure| failure.with_source_completion_accounting(spent))
 }
 
 fn prepare_settled_source_product(
-    settled: compilation_products::SettledBuildSource,
+    settled: products::SettledBuildSource,
     inputs: Option<&PackageCompilationInputs>,
-) -> Result<compilation_products::PreparedBuild, CompileFailure> {
+) -> Result<products::PreparedBuild, CompileFailure> {
     if settled
         .package_inputs
         .as_ref()
@@ -411,7 +411,7 @@ fn prepare_settled_source_product(
             .build_elapsed_micros
             .saturating_add(started.elapsed().as_micros()),
     );
-    Ok(compilation_products::PreparedBuild {
+    Ok(products::PreparedBuild {
         built: completed.0,
         build_sources: completed.1,
         timings,
@@ -570,7 +570,7 @@ pub(super) fn complete_build_source(
 }
 
 pub(super) fn lower_typed_frontier(
-    preparation: compilation_products::SourcePreparation,
+    preparation: products::SourcePreparation,
     source_file_count: usize,
     mut syntax: package_compilation::source_assembly::AssembledSyntax,
     execution_profile: Option<target::TargetProfile>,
@@ -626,7 +626,7 @@ pub(super) fn lower_typed_frontier(
         anonymous_source: syntax.anonymous_owner,
         product_sources: syntax
             .product_sources
-            .map(compilation_products::DeferredProductCompilation::new),
+            .map(products::DeferredProductCompilation::new),
         build_source,
         source_file_count,
         generated_source_custody,
@@ -643,7 +643,7 @@ pub(super) fn complete_product_frontend(
     (
         source_compiler::PreparedSource,
         build_time_evaluation::SourceCompletionAccounting,
-        Arc<compilation_products::ComputedBuildConfig>,
+        Arc<products::ComputedBuildConfig>,
         BuildAdmission,
     ),
     CompileFailure,

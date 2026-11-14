@@ -99,6 +99,6 @@ effective receipt, and defines verification and restoration steps.
 
 Changing a row from `Experimental` to `Recommended` or `Default` requires the
 owner decision and evidence specified by the public promotion contract.
-Completed records belong in [promotions/](promotions/README.md); unfinished
+Completed records belong in [exact-rule promotion records](README.md#exact-rule-promotion-records); unfinished
 investigation belongs in its linked draft. Markdown presence alone establishes
 neither successful validation nor approval.

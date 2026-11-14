@@ -1973,7 +1973,7 @@ fn completed_build_target_fanout() {
     }));
     products.push(((host, true), compiler::PreparedPackageProduct {
         build,
-        product: compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
+        product: compiler::CompilationProduct::Native(products::NativeProductRequest {
             installation_assumptions: Vec::new(),
             retain_native_inputs: false,
             image: Default::default(),

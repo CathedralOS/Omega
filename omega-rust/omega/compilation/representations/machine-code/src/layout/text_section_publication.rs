@@ -66,7 +66,7 @@ pub struct FunctionFragmentTextSectionManifest {
     pub work_schedule: WorkScheduleIdentity,
     pub selected: SelectedInstructionPlanIdentity,
     pub post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
-    pub post_allocation_machine: physical_instructions::PostAllocationMachineIdentity,
+    pub post_allocation_machine: post_allocation_machine::PostAllocationMachineIdentity,
     pub final_pre_layout: SelectedFormEncodingIdentity,
     pub final_resolved_layout: ResolvedSelectedFormLayoutIdentity,
     pub whole_function_exit_contract: WholeFunctionExitContractIdentity,
@@ -162,7 +162,7 @@ impl FunctionFragmentTextSectionManifest {
         let post_allocation_manifest =
             PostAllocationOptimizationManifestIdentity::from_bytes(cursor.array()?);
         let post_allocation_machine =
-            physical_instructions::PostAllocationMachineIdentity::from_bytes(cursor.array()?);
+            post_allocation_machine::PostAllocationMachineIdentity::from_bytes(cursor.array()?);
         let final_pre_layout = SelectedFormEncodingIdentity::from_bytes(cursor.array()?);
         let final_resolved_layout = ResolvedSelectedFormLayoutIdentity::from_bytes(cursor.array()?);
         let whole_function_exit_contract =
@@ -389,7 +389,7 @@ mod tests {
             work_schedule: WorkScheduleIdentity::new(5).unwrap(),
             selected: SelectedInstructionPlanIdentity::from_bytes([6; 32]),
             post_allocation_manifest: PostAllocationOptimizationManifestIdentity::from_bytes([7; 32]),
-            post_allocation_machine: physical_instructions::PostAllocationMachineIdentity::from_bytes(
+            post_allocation_machine: post_allocation_machine::PostAllocationMachineIdentity::from_bytes(
                 [8; 32],
             ),
             final_pre_layout: SelectedFormEncodingIdentity::from_bytes([9; 32]),

@@ -89,7 +89,7 @@ fn validate() {
     // Clone the exact retained semantic payload/provisions before ordinary
     // product publication consumes the native report. No source is recompiled.
     let published =
-        compilation_products::publication::publish_compilation(report, &output.join("native"))
+        products::publication::publish_compilation(report, &output.join("native"))
             .unwrap();
     let executable = published
         .checked_native_executable_path()

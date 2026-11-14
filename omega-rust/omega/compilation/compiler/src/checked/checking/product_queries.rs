@@ -8,7 +8,7 @@ use diagnostics::Diagnostic;
 use package_compilation::source_imports::{ProductQueryDependency, ProductQueryInputs};
 
 pub struct ProductQueries {
-    preparation: compilation_products::SourcePreparation,
+    preparation: products::SourcePreparation,
     sources: Option<package_compilation::source_assembly::DeferredProductSources>,
     initial: source_compiler::SourceContinuation,
     inputs: Option<package_compilation::PackageCompilationInputs>,
@@ -22,7 +22,7 @@ pub struct ProductQueries {
 
 impl ProductQueries {
     pub(super) fn new(
-        frontier: &compilation_products::TypedCompilationFrontier,
+        frontier: &products::TypedCompilationFrontier,
         inputs: Option<package_compilation::PackageCompilationInputs>,
         execution_profile: Option<target::TargetProfile>,
         prepared: Vec<ProductQueryDependency>,

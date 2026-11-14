@@ -20,13 +20,13 @@ use target::TargetProfile;
 
 pub struct RuntimePermissionInput<'a> {
     pub(crate) declarations: &'a PreparedRuntimePolicy,
-    pub(crate) compilation: &'a compilation_products::CheckedCompilation,
+    pub(crate) compilation: &'a products::CheckedCompilation,
 }
 
 impl<'a> RuntimePermissionInput<'a> {
     pub fn from_compilation(
         declarations: &'a PreparedRuntimePolicy,
-        checked: &'a compilation_products::CheckedCompilation,
+        checked: &'a products::CheckedCompilation,
     ) -> Self {
         Self {
             declarations,

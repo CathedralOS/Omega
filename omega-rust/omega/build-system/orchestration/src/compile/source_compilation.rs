@@ -52,7 +52,7 @@ pub fn compile_sources(
 pub fn check_source(
     compiler: &mut CompilationSession,
     request: CheckedCompileRequest,
-) -> compilation_products::CheckedCompileOutcome {
+) -> products::CheckedCompileOutcome {
     let result = compiler::checked::run_on_compile_thread(|| {
         let mut prepared = compiler.begin_source_compilation(request)?;
         let returned = execute_prepared_source_build(&mut prepared);
@@ -60,7 +60,7 @@ pub fn check_source(
     });
     match result {
         Ok(outcome) => outcome,
-        Err(failure) => compilation_products::CheckedCompileOutcome {
+        Err(failure) => products::CheckedCompileOutcome {
             result: Err(failure),
             independent_components: Default::default(),
         },

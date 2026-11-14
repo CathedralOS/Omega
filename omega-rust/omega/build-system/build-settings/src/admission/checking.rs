@@ -53,15 +53,14 @@ Provider-dependent folding still requires a provider-aware producer and is
 refused before an unsupported rejoin can be treated as settled.
 */
 pub fn settle_rejoined_build_slice(
-    constants: &compilation_products::BuildConstants,
+    constants: &products::BuildConstants,
     rejoined: source_compiler::BuildSourceInput<'_>,
     entry: symbols::SymbolHandle,
     packages: Option<&PackageCompilationInputs>,
     anonymous_source: Option<&package_compilation::AnonymousSourceCapture>,
     dependency_activation: bool,
     timings: &mut artifacts::compile_timings::CompileTimings,
-) -> Result<build_time_evaluation::SourceCompletionAccounting, compilation_products::CompileFailure>
-{
+) -> Result<build_time_evaluation::SourceCompletionAccounting, products::CompileFailure> {
     if constants.folded_under_providers {
         return Err(vec![Diagnostic::error(
             "no product route yet: Build admission folded a constant under its provider plans, and settling it on a Product frontier typed after Build ran requires the constant evaluator",
@@ -89,14 +88,14 @@ pub fn settle_rejoined_build_slice(
         timings,
     )?;
     let result = compare_rejoined_constants(constants, &current, accepted.source());
-    result.map(|()| accounting.clone()).map_err(|diagnostics| {
-        compilation_products::CompileFailure::source_completion(diagnostics, accounting)
-    })
+    result
+        .map(|()| accounting.clone())
+        .map_err(|diagnostics| products::CompileFailure::source_completion(diagnostics, accounting))
 }
 
 fn compare_rejoined_constants(
-    original: &compilation_products::BuildConstants,
-    current: &compilation_products::BuildConstants,
+    original: &products::BuildConstants,
+    current: &products::BuildConstants,
     typed: &typed_trees::TypedTrees,
 ) -> Result<(), Vec<Diagnostic>> {
     // Index only this constant family. The source anchor still authenticates
@@ -171,10 +170,10 @@ pub(crate) fn prepare_admitted_build(
     (
         Arc<source_compiler::AcceptedTerminalSource>,
         super::provider_execution::BuildProviderPlans,
-        compilation_products::BuildConstants,
+        products::BuildConstants,
         build_time_evaluation::SourceCompletionAccounting,
     ),
-    compilation_products::CompileFailure,
+    products::CompileFailure,
 > {
     let mut accounting = build_time_evaluation::SourceCompletionAccounting::default();
     let result = (|| -> Result<_, Vec<Diagnostic>> {
@@ -231,7 +230,7 @@ pub(crate) fn prepare_admitted_build(
         // Source preparation retains the demanded family before literal
         // substitution. Its genuine receipts travel as Build costs, while
         // the declaration/value ledger describes a later independent rejoin.
-        let constants = compilation_products::BuildConstants {
+        let constants = products::BuildConstants {
             folded_under_providers: false,
             read,
         };
@@ -243,7 +242,7 @@ pub(crate) fn prepare_admitted_build(
     })();
     match result {
         Ok((accepted, providers, constants)) => Ok((accepted, providers, constants, accounting)),
-        Err(diagnostics) => Err(compilation_products::CompileFailure::source_completion(
+        Err(diagnostics) => Err(products::CompileFailure::source_completion(
             diagnostics,
             accounting,
         )),
@@ -253,7 +252,7 @@ pub(crate) fn prepare_admitted_build(
 #[cfg(test)]
 mod tests {
     use super::settle_rejoined_build_slice;
-    use compilation_products::BuildConstants;
+    use products::BuildConstants;
 
     fn settle(constants: &BuildConstants) -> Result<(), Vec<String>> {
         let mut typed = typed_trees::TypedTrees::default();
@@ -489,10 +488,10 @@ mod tests {
 
     #[test]
     fn later_refusal_and_pending_consent_retain_the_actual_earlier_work() {
-        use compilation_products::CompileFailure;
         use package_compilation::build_execution::{
             RestrictedBuildBounds, RestrictedBuildOperation, RestrictedBuildRequest,
         };
+        use products::CompileFailure;
         let prepared = prepare(source(
             "const VALUE:u64=answer(); machine answer()->u64 {4u64} machine build()->u64 {VALUE}",
         ))

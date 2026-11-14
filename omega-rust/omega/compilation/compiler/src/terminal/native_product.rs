@@ -37,10 +37,10 @@ pub(crate) fn prepare(
     application: ProducedTerminalApplication,
     metadata: target::NativeApplicationMetadata,
     optimizations: &OptimizationSelections,
-    request: Option<&compilation_products::NativeProductRequest>,
+    request: Option<&products::NativeProductRequest>,
 ) -> Result<
     (
-        compilation_products::RetainedTerminalArtifact,
+        products::RetainedTerminalArtifact,
         native_compiler::TerminalAuthorityPermissionPolicy,
         Option<Vec<u8>>,
     ),

@@ -1419,7 +1419,7 @@ program stage. A general `psi/semantics/` bucket obscures these distinct
 responsibilities.
 
 The independent `optimization-unit-semantics` checker lives at
-`omega/compilation/representations/abstract-operations/optimization-unit/semantics/`, beside the representation
+`omega/compilation/representations/abstract-operations/optimization-unit-semantics/`, beside the representation
 whose meaning and rewrites it checks. Its own manifest depends on representation
 and semantic libraries, not on candidate-producing stages. The representation
 does not acquire a dependency on the checker. Domain-local placement does not
