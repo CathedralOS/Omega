@@ -201,6 +201,23 @@ impl<'t> Program<'t> {
         })
     }
 
+    /// Checking a declaration does not call its bare name. A boundary
+    /// conformer is checked under its declared slot, without publishing a
+    /// direct entry that a source call could use.
+    pub(super) fn subject_machine(&mut self, symbol: SymbolHandle) -> Checked<MachineId> {
+        let diagnostic = self.next_identity()?;
+        let (declared, _) = self.declaration(diagnostic, symbol)?;
+        if let Some((owner, requirement)) = self.conformer_requirement(diagnostic, declared)?
+            && self
+                .typed
+                .trait_definition_by_symbol(owner)
+                .is_some_and(|owner| owner.is_boundary)
+        {
+            return self.provider(symbol, owner, requirement.symbol);
+        }
+        self.machine(symbol)
+    }
+
     /// The `MachineId` of a callee, reading its signature the first time.
     pub fn machine(&mut self, symbol: SymbolHandle) -> Checked<MachineId> {
         let diagnostic = self.next_identity()?;

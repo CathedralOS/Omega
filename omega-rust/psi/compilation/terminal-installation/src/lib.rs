@@ -759,7 +759,9 @@ pub(crate) mod target_layouts {
     }
 }
 
-pub use compiler_evaluation::{AdmittedCompilerEvaluation, admit_compiler_evaluation};
+pub use compiler_evaluation::{
+    AdmittedCompilerEvaluation, admit_compiler_evaluation, admit_declaration_selections,
+};
 pub use component_provider::{AdmittedComponentProvider, admit_component_provider};
 pub use entry_values::{
     TerminalAccessViewEstablishment, TerminalScalarValue, TerminalStructuralValue,

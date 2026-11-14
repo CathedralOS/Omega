@@ -270,7 +270,7 @@ impl Program<'_> {
             // form, not as a closed body (`Elaboration::generic_templates`).
             // One whose only parameters are implementations is generic too.
             if !machine.has_specialization_parameters() {
-                let id = self.machine(machine.symbol)?;
+                let id = self.subject_machine(machine.symbol)?;
                 self.subject_machines.push(id);
             } else {
                 self.generic_templates.push(machine.symbol);
@@ -356,11 +356,10 @@ impl Program<'_> {
 }
 
 /// Whether a trait is a list of requirements and nothing else: no
-/// parameter, bound, schema clause or refinement of another trait, and not a
-/// boundary, whose requirements a provider supplies.
+/// parameter, bound, schema clause or refinement of another trait. A boundary
+/// declares contracts too; checking those contracts does not supply a provider.
 fn lists_requirements_only(declared: &typed_trees::trait_definition::TraitDefinition) -> bool {
-    !declared.is_boundary
-        && declared.lifetime_parameters.is_empty()
+    declared.lifetime_parameters.is_empty()
         && declared.type_parameters.is_empty()
         && declared.conformance_bounds.is_empty()
         && declared.requires.is_empty()
@@ -382,9 +381,7 @@ impl<'t> Program<'t> {
             return Err(refuse(
                 entry,
                 Construct::Machine,
-                Unserved::Declaration(
-                    "trait with parameters, schema clauses, a refinement or a boundary",
-                ),
+                Unserved::Declaration("trait with parameters, schema clauses or a refinement"),
             ));
         }
         for requirement in self.typed.trait_machine_signatures(declared) {
