@@ -560,3 +560,34 @@ impl Program<'_> {
         Ok(self.intern_regions(elements.to_vec()))
     }
 }
+
+impl Program<'_> {
+    /// A nested argument expression may determine a callee lifetime that no
+    /// earlier argument bound. Give that expectation an existing region
+    /// variable, not the callee's rigid parameter. The real argument is still
+    /// unified with the original declared type by `call_of` afterward.
+    pub(super) fn argument_context(
+        &mut self,
+        value_type: ValueType,
+        free: &[LifetimeParameterIdentity],
+        bound: &Substitution,
+    ) -> ValueType {
+        let tuple = self.region_tuple(value_type.regions()).to_vec();
+        let mut contextual = Substitution::new();
+        for region in tuple {
+            let Region::Parameter(parameter) = region else {
+                continue;
+            };
+            if !free.contains(&parameter)
+                || bound.iter().any(|(known, _)| *known == parameter)
+                || contextual.iter().any(|(known, _)| *known == parameter)
+            {
+                continue;
+            }
+            let variable = Region::Variable(self.region_variables.len() as u32);
+            self.region_variables.push(None);
+            contextual.push((parameter, variable));
+        }
+        self.substitute(value_type, &contextual)
+    }
+}

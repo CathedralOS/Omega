@@ -1147,7 +1147,8 @@ impl<'t> Program<'t> {
         let mut read = Vec::with_capacity(arguments.len());
         let mut lenders = Vec::new();
         for (argument, (declared, erased, borrowed)) in arguments.iter().zip(&formals) {
-            let formal = &self.substitute(*declared, &bound);
+            let formal = self.substitute(*declared, &bound);
+            let formal = &self.argument_context(formal, &free, &bound);
             // The argument for an erased formal is a term, not a
             // computation; the argument for a borrowed formal is a loan of
             // a place.
@@ -1224,9 +1225,15 @@ impl<'t> Program<'t> {
             ));
         }
         let result = declared_result.map(|result| self.substitute(result, &bound));
-        if let Some(result) = result
-            && self.names_any(result, &free)
-        {
+        // Binding is an invocation relation, even when a recursive call's
+        // actual region has the same declaration identity as a free formal.
+        // Test missing bindings on the declared result, before substitution.
+        let unbound: Vec<_> = free
+            .iter()
+            .copied()
+            .filter(|parameter| !bound.iter().any(|(known, _)| known == parameter))
+            .collect();
+        if declared_result.is_some_and(|result| self.names_any(result, &unbound)) {
             return Err(refuse(
                 id,
                 Construct::Machine,
