@@ -2939,6 +2939,11 @@ pub(crate) mod namespaces {
             )>,
             &'static str,
         > {
+            // Parameter dispatch already owns its requirement and realization.
+            // A nominal receiver cannot reinterpret that independent selection.
+            if call.static_requirement_dispatch.is_some() {
+                return Ok(None);
+            }
             let Some(receiver) = self.expression_table.name_path_node(call.receiver) else {
                 return Ok(None);
             };
@@ -3002,6 +3007,34 @@ pub(crate) mod namespaces {
                 .applied_requirement_scope(source.lexical_owner, call.requirement_application)
                 .ok_or("named application lost its complete trait application")?;
             self.named_conformance_member_at(receiver.symbol, call.target_symbol, Some(scope))
+        }
+
+        /// Include every map argument, even one unused by the trait scope,
+        /// and its actual supplying owner when reusing a captured body.
+        /// This key identifies a selection; it grants no body proof.
+        pub fn named_conformance_capture_key(
+            &self,
+            call: &TableCallExpression,
+        ) -> Result<
+            Option<(SymbolHandle, crate::type_identity::NormalizedTypeIdentity)>,
+            &'static str,
+        > {
+            if self.named_conformance_call_member(call)?.is_none()
+                || !call.requirement_application.is_valid()
+            {
+                return Ok(None);
+            }
+            let source = self.static_machine_application(call.authored_machine_application);
+            let identity = crate::type_identity::applied_index_identity(
+                self,
+                crate::type_identity::IndexIdentityArgument::TypeReference(
+                    call.requirement_application,
+                ),
+                source.lexical_owner,
+                &[],
+            )
+            .ok_or("named application lost its complete capture identity")?;
+            Ok(Some((source.lexical_owner, identity)))
         }
 
         /// The named operation record, its unique requirement row and that

@@ -1760,3 +1760,90 @@ fn generic_named_map_body_cannot_be_an_unapplied_runtime_entry() {
         "{refusal:?}"
     );
 }
+
+#[test]
+fn generic_named_map_source_keeps_parameter_dispatch_separate() {
+    let program = typed(generic_named_map_source());
+    let call = generic_named_map_call(&program);
+    let (owner, row, _) = program
+        .named_conformance_call_member(call)
+        .unwrap()
+        .unwrap();
+    let mut mixed = call.clone();
+    mixed.static_requirement_dispatch = Some(typed_trees::StaticRequirementDispatch {
+        evidence_parameter: program.conformance_type_parameters(owner)[0].symbol,
+        declaring_trait: row.declaring_trait,
+        requirement: row.requirement,
+        realization_machine: row.realization_machine,
+        realization_state: row.realization_state,
+    });
+    assert!(
+        program
+            .named_conformance_call_member(&mixed)
+            .unwrap()
+            .is_none(),
+        "a nominal receiver cannot replace an existing parameter dispatch"
+    );
+    assert!(
+        program
+            .named_conformance_capture_key(&mixed)
+            .unwrap()
+            .is_none()
+    );
+}
+
+#[test]
+fn generic_named_map_source_capture_identity_keeps_unused_binders() {
+    let text = generic_named_map_source()
+        .replacen(
+            "Selected<Value> satisfies",
+            "Selected<Value, Unused> satisfies",
+            1,
+        )
+        .replacen(
+            "Selected<u32>::apply(7)",
+            "let first: u32 = Selected<u32, u64>::apply(7); Selected<u32, bool>::apply(8)",
+            1,
+        );
+    let program = typed(&text);
+    let calls = program
+        .expression_table
+        .expression_entries()
+        .filter_map(|(_, node)| {
+            let typed_trees::expression::ExpressionNode::Call(call) = node else {
+                return None;
+            };
+            program
+                .expression_table
+                .name_path_node(call.receiver)
+                .filter(|path| program.conformance_by_symbol(path.symbol).is_some())
+                .map(|_| call)
+        })
+        .collect::<Vec<_>>();
+    let [left, right] = calls[..] else {
+        panic!("two explicit applications")
+    };
+    let left_key = program
+        .named_conformance_capture_key(left)
+        .unwrap()
+        .unwrap();
+    let right_key = program
+        .named_conformance_capture_key(right)
+        .unwrap()
+        .unwrap();
+    assert_eq!(left_key.0, right_key.0, "one actual lexical source owner");
+    assert_ne!(
+        left_key.1, right_key.1,
+        "the map's unused binder still belongs to its body identity"
+    );
+    let left_scope = program
+        .applied_requirement_scope(left_key.0, left.requirement_application)
+        .unwrap();
+    let right_scope = program
+        .applied_requirement_scope(right_key.0, right.requirement_application)
+        .unwrap();
+    assert!(
+        left_scope.same_application(&program, &right_scope),
+        "equal public trait scopes must not collapse the independently bound map tuples"
+    );
+}
