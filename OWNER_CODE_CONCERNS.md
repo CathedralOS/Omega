@@ -157,6 +157,13 @@ framework or a list of features that remain unimplemented.
 - Cost: Repeated closed-type queries pay for the same structure; nested types also copy descendant text at multiple levels. Give prepared closed types durable canonical identities and compose structural identity keys from child IDs, with textual encoding at the publication/diagnostic boundary. Start with ordinary closed identities; scoped identities must retain binder, substitution, lifetime, qualification and owner distinctions rather than reuse a handle-only cache. Preserve canonical wire bytes and invalid/open-type behavior. Acceptance counts normalization visits and allocated/copied bytes for repeated identical requests, deep types and shared subtypes, plus mutation/continuation and distinct-scope controls; retained storage should track distinct prepared structures, not query count. Do not introduce a persistent compiler cache.
 - Reported: 2026-11-14, Codex, during the owner-requested architecture/data-flow audit at `07d22466d48ff`; cost follows the call path, with no measured speedup claimed
 
+### Specialization receipt queries scan every receipt per dispatched call
+- Category: re-deriving
+- Where: [receipt lookup](omega-rust/psi/compilation/representations/typed-trees/src/callable_signature_shapes.rs#L127)
+- Saw: `selected_implementation_receipt` filters all of `machine_specializations` for the one receipt of an instance, once per dispatched call read by stage 05, proof scope and build-time evaluation. Stage 04 application lookup and the repeated scan in `source_call_requirement_signature` are indexed or removed already.
+- Cost: D dispatched calls over S receipts cost D*S symbol comparisons. A carried instance-to-receipt index has to survive `machine_specializations` being a public `Vec` that declaration projection retains and tests mutate, so it needs one stage-owned construction point rather than a cache. Keep the missing/ambiguous/stale refusals.
+- Reported: 2026-11-14, Claude Code, while indexing stage 04 generated applications; structural bound, not a benchmark
+
 ### Native operand validation rediscovers tied-register components for each early clobber
 - Category: re-deriving
 - Where: [constraint collection](omega-rust/omega/compilation/representations/selected-instructions/analyses/src/liveness.rs#L839), [per-row validation](omega-rust/omega/compilation/representations/selected-instructions/analyses/src/liveness.rs#L1007), [component fixed point](omega-rust/omega/compilation/representations/selected-instructions/analyses/src/liveness.rs#L1049)
