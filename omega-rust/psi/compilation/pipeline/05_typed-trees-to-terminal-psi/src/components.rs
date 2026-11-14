@@ -244,7 +244,7 @@ fn expression(value: &Expression, sites: &mut Vec<CallSite>) {
                 expression(element, sites);
             }
         }
-        ExpressionKind::Index { base, index } => {
+        ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index } => {
             expression(base, sites);
             expression(index, sites);
         }
@@ -307,6 +307,7 @@ fn uses_storage(body: &Body, signature: &Signature) -> bool {
             | ExpressionKind::Index { .. }
             | ExpressionKind::Record { .. }
             | ExpressionKind::Field { .. }
+            | ExpressionKind::ByteElement { .. }
             | ExpressionKind::CollectionMeasure { .. }
             | ExpressionKind::Case { .. }
             | ExpressionKind::Payload { .. }

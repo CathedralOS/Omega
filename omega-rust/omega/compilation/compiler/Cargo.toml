@@ -137,8 +137,7 @@ path = "tests/product_query_suspension.rs"
 name = "anonymous_module_owner"
 path = "tests/anonymous_module_owner.rs"
 
-# The checker receives a dependency's default provider only for a boundary
-# trait the program reaches.
+# Product publication retains the accepted module, evidence and selected entry.
 [[test]]
 name = "checked_projection"
 path = "tests/checked_projection.rs"

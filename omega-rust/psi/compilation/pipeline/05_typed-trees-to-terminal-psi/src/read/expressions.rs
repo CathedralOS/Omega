@@ -710,7 +710,6 @@ impl<'t> Program<'t> {
             let named = |truth: bool| {
                 arms.iter().any(|(selector, _)| {
                     matches!(selector, Selector::Value(Expression {
-                        call_context: None,
                         kind: ExpressionKind::Boolean(value), ..
                     }) if *value == truth)
                 })
@@ -1097,6 +1096,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 a.len() == b.len() && a.iter().zip(b).all(|(a, b)| both(a, b))
             }
             (ExpressionKind::Index { base: a, index: ai }, ExpressionKind::Index { base: b, index: bi }) => both(a, b) && both(ai, bi),
+            (ExpressionKind::ByteElement { base: a, index: ai }, ExpressionKind::ByteElement { base: b, index: bi }) => both(a, b) && both(ai, bi),
             (ExpressionKind::Record { fields: a }, ExpressionKind::Record { fields: b }) => {
                 a.len() == b.len()
                     && a.iter()
@@ -1190,6 +1190,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 | ExpressionKind::Integer(_)
             | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::CollectionMeasure { .. }
+                | ExpressionKind::ByteElement { .. }
                 | ExpressionKind::Boolean(_)
                 | ExpressionKind::Slot(_)
                 | ExpressionKind::Array { .. }

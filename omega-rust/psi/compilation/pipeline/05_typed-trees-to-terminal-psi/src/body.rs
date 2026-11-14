@@ -823,6 +823,15 @@ pub enum ExpressionKind {
         base: Box<Expression>,
         measure: typed_trees::expression::CollectionMeasure,
     },
+    /// One byte of a borrowed byte view, read at `index`. The view is
+    /// measured where the byte is read, and the read owes `index < length`
+    /// against that measurement (byte_views.md, `ByteSequenceRead`). A byte
+    /// of a view is a value and never a place: it is neither assigned nor
+    /// lent.
+    ByteElement {
+        base: Box<Expression>,
+        index: Box<Expression>,
+    },
     Array {
         elements: Vec<Expression>,
     },

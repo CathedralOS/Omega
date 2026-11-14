@@ -2585,7 +2585,7 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
                 spans(element, binder, out);
             }
         }
-        ExpressionKind::Index { base, index } => {
+        ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index } => {
             spans(base, binder, out);
             spans(index, binder, out);
         }
@@ -2737,7 +2737,7 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
                 expression_slot_uses(element, uses);
             }
         }
-        ExpressionKind::Index { base, index } => {
+        ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index } => {
             expression_slot_uses(base, uses);
             expression_slot_uses(index, uses);
         }

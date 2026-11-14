@@ -1412,6 +1412,28 @@ impl<'t> Program<'t> {
         })
     }
 
+    /// Whether a value of this type lends observation only: a shared
+    /// reference, or a shared view of bytes or elements.
+    fn observes_only(&self, id: MachineId, value_type: Option<ValueType>) -> Checked<bool> {
+        use crate::StorageShape;
+        use terminal_psi::{ByteSequenceCarrier, StructuralAccess};
+        let Some(ValueType::Record(row, _, _)) = value_type else {
+            return Ok(false);
+        };
+        Ok(matches!(
+            self.data_type(id, row)?.shape,
+            StorageShape::Reference {
+                access: StructuralAccess::SharedBorrow,
+                ..
+            } | StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(StructuralAccess::SharedBorrow),
+            }) | StorageShape::ElementView {
+                access: Some(StructuralAccess::SharedBorrow),
+                ..
+            }
+        ))
+    }
+
     /// The argument for a borrowed formal: `&place` or `&mut place`, or a
     /// borrowed formal of this machine named whole, which lends its
     /// referent on (a reborrow). The place is a slot or a field path
@@ -1473,6 +1495,27 @@ impl<'t> Program<'t> {
                 false,
             ),
         };
+        // ownership.md, "Borrows and aliases": `&T` grants "Shared
+        // observation under its loan contract", and "A callee cannot grant
+        // writable access that the caller's place lacks." So an argument
+        // that lends observation only is wrong for a formal that writes, in
+        // every program: an explicit `&place`, or a value that is itself a
+        // shared reference or a shared view.
+        if formal.access != ReferenceAccess::Shared
+            && if explicit {
+                access == ReferenceAccess::Shared
+            } else {
+                self.observes_only(id, place.result)?
+            }
+        {
+            return Err(crate::reject(
+                id,
+                source,
+                "the caller lends only immutable access to this argument and its parameter \
+                 writes through it: a callee cannot grant writable access that the caller's \
+                 place lacks",
+            ));
+        }
         if access != formal.access {
             return unserved("borrow whose access differs from its formal's");
         }
@@ -1669,7 +1712,7 @@ fn mentions<'a>(
             }
             Ok(false)
         }
-        ExpressionKind::Index { base, index } => {
+        ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index } => {
             Ok(mentions(id, base, slots, captures)? || mentions(id, index, slots, captures)?)
         }
         ExpressionKind::Record { fields } | ExpressionKind::Case { fields, .. } => {

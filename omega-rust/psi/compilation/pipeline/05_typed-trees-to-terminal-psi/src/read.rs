@@ -376,7 +376,7 @@ mod tests {
                     target: invalid,
                     access: ReferenceAccess::Shared,
                 }),
-                "expression borrow",
+                "expression reference formation without its retained contextual type",
             ),
             (
                 ExpressionNode::Range(TableRangeExpression {
@@ -413,6 +413,19 @@ mod tests {
             .filter(|(found, expected)| found != expected)
             .collect();
         assert!(wrong.is_empty(), "{wrong:?}");
+    }
+
+    /// The record type the hand-built slots below name as type 1. A slot's
+    /// type is looked up before a place is read (a reference is written
+    /// through, not replaced), so the type must be a row of the program.
+    fn plain_record() -> RecordType {
+        RecordType {
+            owns_linear_claim: false,
+            copyable: false,
+            identity: String::from("point"),
+            shape: crate::StorageShape::Record(Vec::new()),
+            requires: Vec::new(),
+        }
     }
 
     fn unit_machines() -> (TypedTrees, [SymbolHandle; 2]) {
@@ -949,7 +962,7 @@ mod tests {
             homed: false,
             erased: false,
             borrowed: None,
-            borrowed_regions: crate::body::Regions::default(),
+            borrowed_regions: crate::body::Regions::NONE,
         };
         let slots = [slot()];
         let values = [Some(value)];
@@ -1366,6 +1379,7 @@ mod tests {
             borrowed_regions: crate::body::Regions::NONE,
         }];
         let mut program = Program::new(&typed, false);
+        program.records.push(plain_record());
         let mut assigned = |target| {
             program
                 .assignment(machine(), &slots, &TableAssignment { target, value })
@@ -1562,6 +1576,7 @@ mod tests {
             borrowed_regions: crate::body::Regions::NONE,
         }];
         let mut program = Program::new(&typed, false);
+        program.records.push(plain_record());
         program.record_sources.push(places::RecordSource {
             declaration: point,
             application: None,

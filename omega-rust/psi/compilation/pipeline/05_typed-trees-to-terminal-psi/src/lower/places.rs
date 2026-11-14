@@ -551,7 +551,7 @@ fn expression_homes<'b>(
                 expression_homes(element, homes);
             }
         }
-        ExpressionKind::Index { base, index } => {
+        ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index } => {
             expression_homes(base, homes);
             expression_homes(index, homes);
         }
@@ -1321,6 +1321,7 @@ impl<'a> Lowering<'a> {
             ExpressionKind::Integer(_)
             | ExpressionKind::Boolean(_)
             | ExpressionKind::IsCase { .. }
+            | ExpressionKind::ByteElement { .. }
             | ExpressionKind::CollectionMeasure { .. }
             | ExpressionKind::Strict { .. }
             | ExpressionKind::Not(_)
@@ -2313,6 +2314,86 @@ impl<'a> Lowering<'a> {
                     path,
                     access: StructuralAccess::SharedBorrow,
                 },
+            },
+        )
+        .map(Reached::Value)
+    }
+
+    /// `view[index]` on a borrowed byte view. The view is measured and then
+    /// read, in that order and with nothing between: the read names the
+    /// measurement as its length and owes `index < length` against it
+    /// (byte_views.md, `ByteSequenceRead`: "dominating length observation of
+    /// the identical view; checked `index < length`"). The base is located
+    /// before the index is evaluated, as source order has it.
+    pub(super) fn read_byte_element(
+        &mut self,
+        base: &Expression,
+        index: &Expression,
+        source: SourceOrigin,
+    ) -> Evaluation<Value> {
+        let at = continuing!(self.located(base));
+        if !matches!(
+            self.record_type(at.record)?.shape,
+            StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: Some(StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
+            })
+        ) {
+            return Err(self.internal("a byte read has no byte descriptor"));
+        }
+        // `ByteSequenceRead` names a whole view root. A view stored in a
+        // field is read by the field form, which this lowering does not
+        // emit yet.
+        if !at.path.is_empty() {
+            return Err(refuse(
+                self.id,
+                Construct::Machine,
+                Unserved::Expression("byte of a view stored in a field"),
+            ));
+        }
+        let selector = continuing!(self.scalar(index));
+        let unsigned = |bits| {
+            ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    bits,
+                )
+                .expect("valid width"),
+            )
+        };
+        self.name_contents(at.place, ValueType::record(at.record))?;
+        self.project(at.place, Segment::Extent)?;
+        let measurement = self.operation_identity(source);
+        let Value::Scalar(length) = self.emit(
+            measurement,
+            Some(unsigned(64)),
+            OperationKind::ByteSequenceLength {
+                source: StructuralArgument {
+                    place: at.root,
+                    path: Vec::new(),
+                    access: StructuralAccess::SharedBorrow,
+                },
+            },
+        )?
+        else {
+            return Err(self.internal("a length observation produced no scalar"));
+        };
+        let operation = self.operation_identity(source);
+        let before = self.here()?;
+        let obligation = self.obligation(
+            ObligationKind::OperationSafety {
+                site: ExecutionSite::Operation(operation),
+            },
+            before,
+            source,
+        );
+        self.emit(
+            operation,
+            Some(unsigned(8)),
+            OperationKind::ByteSequenceRead {
+                source: at.root,
+                index: selector,
+                length,
+                obligation,
             },
         )
         .map(Reached::Value)
