@@ -459,6 +459,18 @@ pub(crate) mod compiler_evaluation {
                     .unwrap(),
                     Some(false)
                 );
+                let mismatched = Proposition::ScalarIeeeFloatComparison {
+                    kind: IeeeFloatComparisonKind::LessThan,
+                    format: IeeeFloatFormat::Binary32,
+                    left: ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary32(0x3f80_0000)),
+                    right: ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary64(
+                        0x4000_0000_0000_0000,
+                    )),
+                };
+                assert_eq!(
+                    super::closed_guard(&mismatched, &mut integers).unwrap(),
+                    None
+                );
             }
 
             #[test]

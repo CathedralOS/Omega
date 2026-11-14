@@ -1,18 +1,25 @@
 /*
-    One decision for a closed crash guard.
+    Closed crash-guard evaluation. This is not predicate-denotation normalization.
 
-    Build-time admission and the interpreter each walked this proposition, and
-    an unknown child made the answers disagree: `false && unknown` stayed
-    unknown at run time, while a float literal stayed unknown at build time.
-    The Crash section removes a route only when it is false. An unknown sibling
-    does not hide a deciding child, and an unknown premise with a true
-    conclusion is true. IEEE-float literals are decided here as well, so both
-    sides give the same answer.
+    Build-time admission (`exclude_failure_routes`) and the interpreter (a
+    boundary crash guard, and `InputObservations::evaluate`) ask whether one
+    published route is true, false, or still unknown. The Crash section of
+    `wiki/spec/terminal-psi/calls_and_outcomes.md` removes a route only when
+    that route is false. An unknown sibling does not hide a deciding child,
+    and an unknown premise with a true conclusion is true.
+
+    `wiki/spec/terminal-psi/fact_validity.md` leaves IEEE relations unchanged
+    in the bounded predicate-denotation conversion. `normalize`,
+    `check_predicate_denotations`, and `verify_obligation` do not call this
+    module. A float literal is decided here only while evaluating a crash
+    guard, and only when both operands carry that comparison's declared IEEE
+    format. A binary32 literal beside a binary64 literal stays unknown.
+    Formation rejects that mismatch before admission calls this walk.
 
     The walk lives in this crate because both callers already depend on it and
     the decision needs `ClosedIntegerEvaluator`, which this crate owns.
     `semantic-vocabulary` cannot take that evaluator without a dependency
-    cycle. No new crate edge is added.
+    cycle.
 */
 
 use numerics::float_semantics::{FloatMeaning, FloatSemantics};
@@ -79,13 +86,21 @@ fn closed_leaf(
         Proposition::Truth => Some(true),
         Proposition::Falsehood => Some(false),
         Proposition::ScalarIeeeFloatComparison {
-            kind, left, right, ..
+            kind,
+            format,
+            left,
+            right,
         } => {
             let (ScalarTerm::IeeeFloatLiteral(left), ScalarTerm::IeeeFloatLiteral(right)) =
                 (left, right)
             else {
                 return Ok(None);
             };
+            // A declared format is part of the relation. Mixed binary32 and
+            // binary64 operands are not a comparison the Crash section decides.
+            if left.format() != *format || right.format() != *format {
+                return Ok(None);
+            }
             let meaning = |value: IeeeFloatValue| match value {
                 IeeeFloatValue::Binary32(bits) => FloatMeaning::from_f32(f32::from_bits(bits)),
                 IeeeFloatValue::Binary64(bits) => FloatMeaning::from_f64(f64::from_bits(bits)),
@@ -130,4 +145,56 @@ fn closed_leaf(
             }),
         _ => None,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::check_predicate_denotations;
+    use crate::integer_rules::closed_integer::ClosedIntegerEvaluator;
+    use semantic_vocabulary::{
+        IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatValue, PropositionContext, ValueId,
+    };
+
+    fn literal(value: IeeeFloatValue) -> ScalarTerm {
+        ScalarTerm::IeeeFloatLiteral(value)
+    }
+
+    #[test]
+    fn mismatched_float_formats_stay_unknown() {
+        let mut integers = ClosedIntegerEvaluator::default();
+        let guard = Proposition::ScalarIeeeFloatComparison {
+            kind: IeeeFloatComparisonKind::LessThan,
+            format: IeeeFloatFormat::Binary32,
+            left: literal(IeeeFloatValue::Binary32(0x3f80_0000)),
+            right: literal(IeeeFloatValue::Binary64(0x4000_0000_0000_0000)),
+        };
+        assert_eq!(closed_guard(&guard, &mut integers).unwrap(), None);
+    }
+
+    #[test]
+    fn predicate_denotation_leaves_an_open_ieee_relation_unchanged() {
+        // The denotation conversion is a different owner. An IEEE relation it
+        // does not rewrite stays that relation, which is the fact-validity rule
+        // for this conversion. This walk is not on that path.
+        let value = ValueId::new(1).unwrap();
+        let subject = ScalarTerm::value(value, ScalarType::IeeeFloat(IeeeFloatFormat::Binary32));
+        let goal = Proposition::ScalarIeeeFloatComparison {
+            kind: IeeeFloatComparisonKind::Equal,
+            format: IeeeFloatFormat::Binary32,
+            left: subject.clone(),
+            right: subject,
+        };
+        let context = PropositionContext::from_value_types([(
+            value,
+            ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
+        )])
+        .unwrap();
+        assert_eq!(
+            check_predicate_denotations(&context, &goal, &[], &[])
+                .unwrap()
+                .goal(),
+            &goal
+        );
+    }
 }

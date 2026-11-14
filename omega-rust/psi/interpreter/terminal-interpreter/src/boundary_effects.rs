@@ -481,6 +481,15 @@ pub(crate) mod boundary_predicates {
                 .unwrap(),
                 Some(false)
             );
+            let mismatched = Proposition::ScalarIeeeFloatComparison {
+                kind: IeeeFloatComparisonKind::LessThan,
+                format: IeeeFloatFormat::Binary32,
+                left: binary32(0x3f80_0000),
+                right: ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary64(
+                    0x4000_0000_0000_0000,
+                )),
+            };
+            assert_eq!(closed_guard(&mismatched, &mut integers).unwrap(), None);
         }
 
         fn idle_boundary() -> terminal_psi::BoundaryMachineDeclaration {

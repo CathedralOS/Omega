@@ -29,8 +29,9 @@
     terms; `integer_rules` and `integer_affine` replay integer normalizations
     and witnesses; `predicate_denotation` checks boolean predicate denotations;
     `kernel` decides closed primitive judgments; `closed_proposition` decides a
-    closed crash guard for build-time admission and the interpreter; and
-    `classicality` classifies proof-rule foundations.
+    closed crash guard for build-time admission and the interpreter and is not
+    the predicate-denotation conversion; and `classicality` classifies
+    proof-rule foundations.
 */
 
 #![forbid(unsafe_code)]
