@@ -131,23 +131,9 @@ pub(super) fn source_byte_view(
 pub(super) fn primitive_byte_domain(
     typed: &typed_trees::TypedTrees,
     definition: &typed_trees::domain::DomainDefinition,
-    machine: MachineId,
+    _machine: MachineId,
 ) -> bool {
-    let table = &typed.type_reference_table;
-    typed_trees::byte_predicates::domain_byte_predicate(typed, definition.symbol).is_some()
-        && table.contains_type_reference(definition.target_type)
-        && matches!(table.type_reference(definition.target_type),
-        TypeReferenceNode::Slice { element_type }
-            if table.contains_type_reference(*element_type)
-                && matches!(table.type_reference(*element_type),
-                    TypeReferenceNode::Named { symbol, .. }
-                        if typed.symbols.builtin_type_atom(*symbol).is_some_and(|atom| {
-                            matches!(super::types::atom_type(atom, machine),
-                                Ok(semantic_vocabulary::ScalarType::Integer(integer))
-                                    if integer.bits() == Some(8)
-                                        && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
-                                        && !integer.is_address())
-                        })))
+    typed_trees::byte_predicates::primitive_byte_slice_domain(typed, definition.symbol).is_some()
 }
 
 /// A byte view type as the reader keeps it: the descriptor's carrier, the

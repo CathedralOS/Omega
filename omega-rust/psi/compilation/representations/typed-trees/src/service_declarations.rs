@@ -2588,6 +2588,8 @@ pub mod signatures {
 
         pub struct PreparedCallingRequest {
             pub boundary: SymbolHandle,
+            /// The exact ordinary parent relationship this owner consumes.
+            pub relationship: SymbolHandle,
             pub name: String,
             pub span: source::SourceSpan,
             instances: Result<HandleSpan<PreparedCallingInstance>, Vec<Diagnostic>>,
@@ -2597,6 +2599,7 @@ pub mod signatures {
             fn default() -> Self {
                 Self {
                     boundary: SymbolHandle::invalid(),
+                    relationship: SymbolHandle::invalid(),
                     name: String::new(),
                     span: source::SourceSpan::default(),
                     instances: Ok(HandleSpan::default()),
@@ -2761,6 +2764,7 @@ pub mod signatures {
                     })();
                     prepared.requests.insert(PreparedCallingRequest {
                         boundary: boundary.symbol,
+                        relationship: relationship.symbol,
                         name: boundary.name.as_str().to_owned(),
                         span,
                         instances,

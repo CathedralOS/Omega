@@ -754,27 +754,35 @@ fn finish_reading<'source>(
     let selected_providers = providers
         .map(|selected| program.prepare_provider_selections(diagnostic, selected))
         .transpose()?;
-    let policies = calling
-        .map(|selected| program.prepare_calling_policies(diagnostic, selected))
-        .transpose()?;
-    // `program.machine` appends callees while bodies are read, so the bound
-    // is re-read on every step.
-    while bodies.len() < program.symbols.len() {
-        let next = MachineId::new(bodies.len() as u64 + 1).ok_or_else(|| {
-            refuse(
-                diagnostic,
-                Construct::Machine,
-                Unserved::Machine("identity overflow"),
-            )
-        })?;
-        let body = program.body(next)?;
-        bodies.push(body);
+    let mut policies = read::calling::SourceCallingPolicies::default();
+    loop {
+        program.prepare_calling_policies(diagnostic, calling, &mut policies)?;
+        // Bodies and policy bodies share one discovery closure. Reading either
+        // may introduce another boundary's ordinary parent contract.
+        while bodies.len() < program.symbols.len() {
+            let next = MachineId::new(bodies.len() as u64 + 1).ok_or_else(|| {
+                refuse(
+                    diagnostic,
+                    Construct::Machine,
+                    Unserved::Machine("identity overflow"),
+                )
+            })?;
+            let body = program.body(next)?;
+            bodies.push(body);
+        }
+        program.finish_operational_envelopes(&bodies)?;
+        program.prepare_service_bindings(diagnostic)?;
+        if !program.prepare_calling_policies(diagnostic, calling, &mut policies)? {
+            break;
+        }
     }
     let private_inputs = program.private_input_contracts(entry, diagnostic)?;
     program.finish_operational_envelopes(&bodies)?;
     program.finish_declarations(diagnostic)?;
     program.prepare_external_providers(diagnostic)?;
     let services = program.service_map(diagnostic)?;
+    program.require_complete_boundary_parent_contracts(diagnostic, &policies)?;
+    let policies = (!policies.requests.is_empty()).then_some(policies);
     program.begin_declaration_storage(diagnostic, bodies.len())?;
     let declarations = program.declaration_metadata.clone();
     let calling_abis = program.prepare_calling_abis(diagnostic, &declarations)?;

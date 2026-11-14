@@ -17,8 +17,30 @@ pub mod evidence {
             program: &TypedTrees,
             expression: ExpressionHandle,
         ) -> Option<(ByteSequencePredicate, ExpressionHandle)> {
+            if !program.expression_table.expression_is_valid(expression) {
+                return None;
+            }
             let call = program.expression_table.call_node(expression)?;
-            if call.target_symbol.is_valid() || call.receiver.is_valid() {
+            if call.target_symbol != SymbolHandle::invalid()
+                || call.receiver != ExpressionHandle::invalid()
+                || call.runtime_call.is_some()
+                || call.authored_call_binding.is_some()
+                || call.build_selection != arena::Handle::invalid()
+                || call.authored_machine_application
+                    != crate::static_applications::StaticMachineApplicationHandle::invalid()
+                || call.exact_coercion_target != TypeReferenceHandle::invalid()
+                || call.requirement_application != TypeReferenceHandle::invalid()
+                || call.static_machine_parameter != SymbolHandle::invalid()
+                || call.static_requirement_dispatch.is_some()
+                || !call.machine_arguments.is_empty()
+                || !call.evidence_arguments.is_empty()
+                || call.quotient_operation.is_some()
+                || call.private_layout_operation.is_some()
+                || call.installed_interrupt_operation.is_some()
+                || call.layout_query.is_some()
+                || call.native_code_layout.is_some()
+                || call.operational_acknowledgement != Default::default()
+            {
                 return None;
             }
             let predicate = ByteSequencePredicate::from_name(call.target.as_str())?;
@@ -26,6 +48,9 @@ pub mod evidence {
             let [argument] = arguments else {
                 return None;
             };
+            if !program.expression_table.expression_is_valid(*argument) {
+                return None;
+            }
             Some((predicate, *argument))
         }
 
@@ -34,7 +59,12 @@ pub mod evidence {
             domain_symbol: SymbolHandle,
         ) -> Option<ByteSequencePredicate> {
             let domain = program.domain_definition(domain_symbol)?;
-            if domain.alias.is_some()
+            if !program
+                .symbols
+                .symbols()
+                .nodes()
+                .is_valid(domain.subject_symbol)
+                || domain.alias.is_some()
                 || !domain.index_arguments.is_empty()
                 || domain.issuance() != crate::domain::DomainIssuance::Unrestricted
                 || !crate::domain::index_parameters(program, domain).is_empty()
@@ -48,6 +78,38 @@ pub mod evidence {
             };
             let (predicate, argument) = byte_predicate_call(program, *expression)?;
             crate::domain::domain_subject_reference(program, domain, argument).then_some(predicate)
+        }
+
+        /// The exact primitive predicate of a declared byte-slice domain.
+        /// Its subject is the domain's immutable carrier, not a callable
+        /// formal reconstructed from the predicate's spelling.
+        pub fn primitive_byte_slice_domain(
+            program: &TypedTrees,
+            domain_symbol: SymbolHandle,
+        ) -> Option<ByteSequencePredicate> {
+            let domain = program.domain_definition(domain_symbol)?;
+            let table = &program.type_reference_table;
+            if !table.contains_type_reference(domain.target_type) {
+                return None;
+            }
+            let TypeReferenceNode::Slice { element_type } =
+                table.type_reference(domain.target_type)
+            else {
+                return None;
+            };
+            if !table.contains_type_reference(*element_type) {
+                return None;
+            }
+            let TypeReferenceNode::Named { symbol, .. } = table.type_reference(*element_type)
+            else {
+                return None;
+            };
+            if !program.symbols.symbols().nodes().is_valid(*symbol)
+                || program.symbols.builtin_type_atom(*symbol) != Some(symbols::BuiltinTypeAtom::U8)
+            {
+                return None;
+            }
+            domain_byte_predicate(program, domain_symbol)
         }
 
         pub fn type_reference_domain_predicates(

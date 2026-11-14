@@ -892,6 +892,25 @@ pub(crate) fn defer_unbound_calls(
     {
         let program = &*program;
         let targets = DeclaredCallTargets::new(program);
+        // These clauses already have the compiler's primitive byte meaning.
+        // Keep every other unbound call for its ordinary declaration reader.
+        let mut byte_domain_clauses = program
+            .domain_definitions()
+            .iter()
+            .filter(|domain| {
+                typed_trees::byte_predicates::primitive_byte_slice_domain(program, domain.symbol)
+                    .is_some()
+            })
+            .filter_map(
+                |domain| match program.proof_facts.span_or_empty(domain.facts) {
+                    [typed_trees::domain::ProofFact::Expression(expression)] => Some(*expression),
+                    _ => None,
+                },
+            )
+            .collect::<Vec<_>>();
+        byte_domain_clauses
+            .sort_unstable_by_key(|handle| (handle.arena_index(), handle.generation()));
+        byte_domain_clauses.dedup();
         // Value names resolution left unbound, with their one written member,
         // until `names_nothing_has` says which of them name nothing.
         let mut unbound_names = Vec::new();
@@ -905,6 +924,14 @@ pub(crate) fn defer_unbound_calls(
             let ExpressionNode::Call(call) = expression else {
                 continue;
             };
+            if byte_domain_clauses
+                .binary_search_by_key(&(handle.arena_index(), handle.generation()), |handle| {
+                    (handle.arena_index(), handle.generation())
+                })
+                .is_ok()
+            {
+                continue;
+            }
             if call.runtime_call.is_some() {
                 program
                     .declared_callable_expression_type_reference(handle)
@@ -1511,6 +1538,194 @@ mod tests {
             .iter()
             .map(|row| (row.declaration, row.request))
             .collect())
+    }
+
+    #[test]
+    fn primitive_byte_domain_calls_keep_their_exact_builtin_meaning() {
+        use typed_trees::byte_predicates::{ByteSequencePredicate, primitive_byte_slice_domain};
+        use typed_trees::domain::ProofFact;
+        use typed_trees::expression::{StaticMachineArgument, TableCallExpression};
+
+        fn typed(source: &str) -> TypedTrees {
+            let tokens = source_files_to_tokens::Lexer::new(source)
+                .tokenize()
+                .unwrap();
+            let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+            let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+                syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
+            )
+            .unwrap();
+            crate::lower_symbol_resolved_trees(&resolved).unwrap()
+        }
+
+        fn call_mut(
+            program: &mut TypedTrees,
+            expression: ExpressionHandle,
+        ) -> &mut TableCallExpression {
+            let ExpressionNode::Call(call) = program.expression_table.expression_mut(expression)
+            else {
+                panic!("the domain retains its actual predicate call")
+            };
+            call
+        }
+
+        let program = typed("public domain [u8]::Path requires no_nul(self);");
+        let domain = &program.domain_definitions()[0];
+        let symbol = domain.symbol;
+        let target_type = domain.target_type;
+        let [ProofFact::Expression(expression)] = program.proof_facts.span_or_empty(domain.facts)
+        else {
+            panic!("the domain retains one authored clause")
+        };
+        let expression = *expression;
+        let (_, argument) = typed_trees::byte_predicates::byte_predicate_call(&program, expression)
+            .expect("the primitive retains its exact subject");
+        assert_eq!(
+            primitive_byte_slice_domain(&program, symbol),
+            Some(ByteSequencePredicate::NoNul)
+        );
+        assert!(deferred(&program).unwrap().is_empty());
+
+        let original = program.expression_table.call_node(expression).unwrap();
+        for (index, generation) in [(0, 1), (1, 0)] {
+            for malformed_call in [
+                TableCallExpression {
+                    target_symbol: SymbolHandle::from_parts(index, generation),
+                    ..original.clone()
+                },
+                TableCallExpression {
+                    receiver: ExpressionHandle::from_parts(index, generation),
+                    ..original.clone()
+                },
+                TableCallExpression {
+                    build_selection: arena::Handle::from_parts(index, generation),
+                    ..original.clone()
+                },
+                TableCallExpression {
+                    authored_machine_application: arena::Handle::from_parts(index, generation),
+                    ..original.clone()
+                },
+                TableCallExpression {
+                    exact_coercion_target: TypeReferenceHandle::from_parts(index, generation),
+                    ..original.clone()
+                },
+                TableCallExpression {
+                    requirement_application: TypeReferenceHandle::from_parts(index, generation),
+                    ..original.clone()
+                },
+                TableCallExpression {
+                    static_machine_parameter: SymbolHandle::from_parts(index, generation),
+                    ..original.clone()
+                },
+            ] {
+                let mut malformed = program.clone();
+                *call_mut(&mut malformed, expression) = malformed_call;
+                assert_eq!(
+                    primitive_byte_slice_domain(&malformed, symbol),
+                    None,
+                    "a malformed optional handle is present metadata, not exact absence"
+                );
+            }
+        }
+
+        let mut computed = program.clone();
+        let callee = computed
+            .expression_table
+            .insert(ExpressionNode::Boolean(true));
+        for callee in [
+            callee,
+            ExpressionHandle::from_parts(callee.arena_index(), callee.generation() + 1),
+            ExpressionHandle::from_parts(0, 1),
+            ExpressionHandle::invalid(),
+        ] {
+            call_mut(&mut computed, expression).runtime_call =
+                Some(typed_trees::callable_values::RuntimeCallBinding {
+                    callee,
+                    contract: Default::default(),
+                });
+            assert_eq!(
+                primitive_byte_slice_domain(&computed, symbol),
+                None,
+                "a retained computed call cannot acquire a primitive meaning from target text"
+            );
+        }
+
+        let mut malformed = program.clone();
+        call_mut(&mut malformed, expression).arguments = Default::default();
+        assert_eq!(primitive_byte_slice_domain(&malformed, symbol), None);
+        assert_eq!(
+            deferred(&malformed).unwrap(),
+            vec![(symbol, DeferredRequest::UndeclaredCallName)]
+        );
+
+        let mut applied = program.clone();
+        call_mut(&mut applied, expression).machine_arguments = Box::new([StaticMachineArgument {
+            type_reference: target_type,
+            ..Default::default()
+        }]);
+        assert_eq!(primitive_byte_slice_domain(&applied, symbol), None);
+        assert_eq!(
+            deferred(&applied).unwrap(),
+            vec![(symbol, DeferredRequest::UndeclaredCallName)]
+        );
+
+        let mut stale = program.clone();
+        call_mut(&mut stale, expression).target_symbol =
+            SymbolHandle::from_parts(symbol.arena_index(), symbol.generation() + 1);
+        assert_eq!(primitive_byte_slice_domain(&stale, symbol), None);
+        assert_eq!(
+            deferred(&stale).unwrap(),
+            vec![(symbol, DeferredRequest::UncallableCallTarget)]
+        );
+        call_mut(&mut stale, expression).target_symbol = SymbolHandle::invalid();
+        let stale_argument =
+            ExpressionHandle::from_parts(argument.arena_index(), argument.generation() + 1);
+        let arguments = stale
+            .expression_table
+            .insert_expression_handles([stale_argument]);
+        call_mut(&mut stale, expression).arguments = arguments;
+        assert_eq!(primitive_byte_slice_domain(&stale, symbol), None);
+
+        let wrong_carrier = typed("domain [u16]::Words requires no_nul(self);");
+        let wrong_domain = wrong_carrier.domain_definitions()[0].symbol;
+        assert_eq!(
+            primitive_byte_slice_domain(&wrong_carrier, wrong_domain),
+            None
+        );
+        assert_eq!(
+            deferred(&wrong_carrier).unwrap(),
+            vec![(wrong_domain, DeferredRequest::UndeclaredCallName)]
+        );
+
+        let mut write_only = program.clone();
+        let slice = write_only.type_reference_table.insert(
+            program
+                .type_reference_table
+                .type_reference(target_type)
+                .clone(),
+        );
+        write_only.type_reference_table.substitute_node(
+            target_type,
+            TypeReferenceNode::Reference {
+                referee: slice,
+                access: language_core::ReferenceAccess::WriteOnly,
+                lifetime: None,
+            },
+        );
+        assert_eq!(primitive_byte_slice_domain(&write_only, symbol), None);
+
+        let shadowed = typed(
+            "machine no_nul(value: &[u8]) -> bool { true }\npublic domain [u8]::Path requires no_nul(self);",
+        );
+        let shadowed_domain = shadowed.domain_definitions()[0].symbol;
+        assert_eq!(
+            primitive_byte_slice_domain(&shadowed, shadowed_domain),
+            None
+        );
+        assert!(
+            deferred(&shadowed).unwrap().is_empty(),
+            "the resolved machine keeps the ordinary declared-call route"
+        );
     }
 
     fn call(

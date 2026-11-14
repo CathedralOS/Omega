@@ -40,6 +40,7 @@ pub(crate) struct SourceCallingPolicies {
     catalog: Option<Arc<PreparedServiceCatalog>>,
     pub(crate) signatures: Vec<SourceCallingSignature>,
     pub(crate) entries: Vec<SourceProgramEntryContract>,
+    completed_applications: Vec<(SymbolHandle, SymbolHandle, String)>,
 }
 
 pub(crate) struct SourceCallingSignature {
@@ -107,42 +108,86 @@ fn application_identity(typed: &TypedTrees, scope: &AppliedTraitScope<'_>) -> Op
 }
 
 impl Program<'_> {
+    pub(crate) fn require_complete_boundary_parent_contracts(
+        &self,
+        context: MachineId,
+        prepared: &SourceCallingPolicies,
+    ) -> Checked<()> {
+        for environment in &self.boundary_parent_contracts {
+            let scope = environment.scope(self.typed).ok_or_else(|| {
+                services::unavailable(
+                    context,
+                    "boundary parent contract lost its exact application",
+                )
+            })?;
+            let identity = application_identity(self.typed, &scope).ok_or_else(|| {
+                services::unavailable(
+                    context,
+                    "boundary parent contract has no complete application identity",
+                )
+            })?;
+            if !prepared.completed_applications.contains(&(
+                scope.declaration.symbol,
+                scope.argument_owner,
+                identity,
+            )) {
+                return Err(services::unavailable(
+                    context,
+                    "boundary parent contract has no admitted contract owner",
+                ));
+            }
+        }
+        Ok(())
+    }
+
     pub(crate) fn prepare_calling_policies<'source>(
         &mut self,
         context: MachineId,
-        selected: CallingPolicySelections<'source>,
-    ) -> Checked<SourceCallingPolicies> {
+        selected: Option<CallingPolicySelections<'source>>,
+        prepared: &mut SourceCallingPolicies,
+    ) -> Checked<bool> {
         let typed = self.typed;
-        if !std::ptr::eq(typed, selected.source) {
-            return Err(services::unavailable(
-                context,
-                "calling policy selections belong to another source owner",
-            ));
-        }
+        let (applications, entries) = match selected {
+            Some(selected) => {
+                if !std::ptr::eq(typed, selected.source) {
+                    return Err(services::unavailable(
+                        context,
+                        "calling policy selections belong to another source owner",
+                    ));
+                }
+                (selected.applications, selected.entries)
+            }
+            None => (&[][..], &[][..]),
+        };
         let context_source = ProviderPlanningContext::new(typed, source::DependencyScope::Product);
-        let sources =
-            source::source_identity::toolchain_source_identities(typed.symbols.source_files())
+        let environments = applications
+            .iter()
+            .cloned()
+            .chain(entries.iter().map(|entry| entry.application.clone()))
+            .chain(self.boundary_parent_contracts.iter().cloned())
+            .collect::<Vec<_>>();
+        if environments.is_empty() && entries.is_empty() {
+            return Ok(false);
+        }
+        let before = prepared.completed_applications.len();
+        let prepared_catalog = match &prepared.catalog {
+            Some(catalog) => Arc::clone(catalog),
+            None => {
+                let sources = source::source_identity::toolchain_source_identities(
+                    typed.symbols.source_files(),
+                )
                 .map_err(|reason| services::unavailable(context, reason))?;
-        let prepared_catalog =
-            std::sync::Arc::new(PreparedServiceCatalog::prepare(context_source, &sources));
+                let catalog = Arc::new(PreparedServiceCatalog::prepare(context_source, &sources));
+                prepared.catalog = Some(Arc::clone(&catalog));
+                catalog
+            }
+        };
         let bound_catalog = prepared_catalog
             .bind(context_source)
             .map_err(|diagnostic| services::unavailable(context, diagnostic.message))?;
         let catalog = bound_catalog.signatures();
         let calling = catalog.calling();
-        let mut prepared = SourceCallingPolicies {
-            catalog: Some(Arc::clone(&prepared_catalog)),
-            ..SourceCallingPolicies::default()
-        };
-        let mut seen = std::collections::HashSet::<
-            (SymbolHandle, SymbolHandle, String),
-            symbols::BuildSymbolHasher,
-        >::default();
-        for environment in selected
-            .applications
-            .iter()
-            .chain(selected.entries.iter().map(|entry| entry.application))
-        {
+        for environment in &environments {
             let scope = environment.scope(typed).ok_or_else(|| {
                 services::unavailable(
                     context,
@@ -155,11 +200,12 @@ impl Program<'_> {
                     "selected calling schema has no complete application identity",
                 )
             })?;
-            if !seen.insert((
+            let coordinate = (
                 scope.declaration.symbol,
                 scope.argument_owner,
                 owner.clone(),
-            )) {
+            );
+            if prepared.completed_applications.contains(&coordinate) {
                 continue;
             }
             if !scope.declaration.is_boundary {
@@ -206,6 +252,23 @@ impl Program<'_> {
                     ));
                 }
             };
+            // The Calling owner consumes only the relationship it actually
+            // prepared. Every other ordinary parent remains an obligation.
+            scope
+                .try_visit(typed, &mut |parent| {
+                    if !parent.declaration.is_boundary
+                        && (parent.declaration.symbol != request.relationship
+                            || !typed
+                                .trait_machine_signatures(parent.declaration)
+                                .is_empty())
+                    {
+                        return Err(
+                            "boundary parent contract is not covered by its admitted relationship",
+                        );
+                    }
+                    Ok(())
+                })
+                .map_err(|reason| services::unavailable(context, reason))?;
             let instances = calling.instances(request).map_err(|diagnostics| {
                 services::unavailable(
                     context,
@@ -372,8 +435,17 @@ impl Program<'_> {
                     instances: vec![new_instance],
                 }),
             }
+            prepared.completed_applications.push(coordinate);
         }
-        for entry in selected.entries {
+        let mut entry_targets = Vec::with_capacity(entries.len());
+        for entry in entries {
+            if entry_targets.contains(&entry.target) {
+                return Err(services::unavailable(
+                    context,
+                    "selected entry target has competing source contract nominations",
+                ));
+            }
+            entry_targets.push(entry.target);
             if entry.target.is_empty() {
                 return Err(services::unavailable(
                     context,
@@ -407,17 +479,24 @@ impl Program<'_> {
                     "selected entry contract has no admitted normalized schema application",
                 ));
             }
-            if prepared
+            let implementation = self.machine(entry.implementation)?;
+            if let Some(known) = prepared
                 .entries
                 .iter()
-                .any(|known| known.target == entry.target)
+                .find(|known| known.target == entry.target)
             {
-                return Err(services::unavailable(
-                    context,
-                    "selected entry target has competing source contract nominations",
-                ));
+                if known.declaration != declaration
+                    || known.application != application
+                    || known.physical_source_digest != entry.physical_source_digest
+                    || known.entry != implementation
+                {
+                    return Err(services::unavailable(
+                        context,
+                        "selected entry target has competing source contract nominations",
+                    ));
+                }
+                continue;
             }
-            let implementation = self.machine(entry.implementation)?;
             if !self.fixed_inputs.contains(&implementation) {
                 self.fixed_inputs.push(implementation);
             }
@@ -430,6 +509,6 @@ impl Program<'_> {
             });
         }
         prepared.signatures.sort_by_key(|signature| signature.id);
-        Ok(prepared)
+        Ok(prepared.completed_applications.len() != before)
     }
 }

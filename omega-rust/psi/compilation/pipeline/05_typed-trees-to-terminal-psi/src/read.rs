@@ -85,6 +85,10 @@ pub(crate) struct Program<'t> {
     /// Applied signatures can share a declaration symbol while owning
     /// different source expressions. Capture the views this reader formed.
     pub(crate) admitted_signature_views: Vec<typed_trees::signature::StateSignature>,
+    /// Boundary applications whose ordinary parents need contract-owner admission.
+    /// They are not service parents and grant no service reach.
+    pub(crate) boundary_parent_contracts:
+        Vec<typed_trees::trait_definition::TraitApplicationEnvironment>,
     /// Choices made by this reader, prepared once before source admission.
     pub(crate) completed_operators: crate::selection_questions::CompletedOperators,
     named_captures: crate::NamedCaptures,
@@ -313,6 +317,7 @@ impl<'t> Program<'t> {
             value_records: Vec::new(),
             admitted_declarations: typed_trees::references::DeclarationSelection::from_symbols([]),
             admitted_signature_views: Vec::new(),
+            boundary_parent_contracts: Vec::new(),
             completed_operators: crate::selection_questions::CompletedOperators::default(),
             named_captures: captures,
             symbols: IdTable::default(),

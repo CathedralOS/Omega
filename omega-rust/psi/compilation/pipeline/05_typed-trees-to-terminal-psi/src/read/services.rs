@@ -912,7 +912,10 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) 
 }
 
 impl Program<'_> {
-    pub(crate) fn service_map(&mut self, context: MachineId) -> Checked<crate::reach::ServiceMap> {
+    pub(crate) fn prepare_service_bindings(
+        &mut self,
+        context: MachineId,
+    ) -> Checked<Vec<(ServiceReachId, semantic_vocabulary::ServiceId)>> {
         let mut roots = Vec::new();
         for (_, row) in self.callables.contracts.iter() {
             source_roots(&row.envelope, &mut roots);
@@ -952,6 +955,11 @@ impl Program<'_> {
             let id = self.declared_service(context, declaration)?;
             bindings.push((source, id));
         }
+        Ok(bindings)
+    }
+
+    pub(crate) fn service_map(&mut self, context: MachineId) -> Checked<crate::reach::ServiceMap> {
+        let bindings = self.prepare_service_bindings(context)?;
         let services =
             crate::reach::ServiceMap::prepare(self.typed, context, &self.services, bindings)?;
         let contracts = self.callables.contracts.keys().collect::<Vec<_>>();
@@ -1027,6 +1035,11 @@ impl<'t> Program<'t> {
     ) -> Checked<ServiceId> {
         let unavailable =
             |reason| refuse(caller, Construct::Machine, Unserved::Declaration(reason));
+        if !scope.declaration.is_boundary {
+            return Err(unavailable(
+                "ordinary trait cannot declare a service identity",
+            ));
+        }
         if let Some((service, _)) = self
             .services
             .iter()
@@ -1043,13 +1056,21 @@ impl<'t> Program<'t> {
             ));
         }
         self.resolving_services.push(scope.declaration.symbol);
-        let parents = (|| {
-            scope
-                .parent_scopes(self.typed)
-                .map_err(unavailable)?
-                .into_iter()
-                .map(|parent| self.service(caller, parent))
-                .collect::<Checked<Vec<_>>>()
+        let parents: Checked<Vec<ServiceId>> = (|| {
+            let declared = scope.parent_scopes(self.typed).map_err(unavailable)?;
+            let mut services = Vec::new();
+            let mut has_ordinary_parent = false;
+            for parent in declared {
+                if parent.declaration.is_boundary {
+                    services.push(self.service(caller, parent)?);
+                } else {
+                    has_ordinary_parent = true;
+                }
+            }
+            if has_ordinary_parent {
+                self.require_boundary_parent_contract(caller, &scope)?;
+            }
+            Ok(services)
         })();
         self.resolving_services.pop();
         let mut parents = parents?;

@@ -74,6 +74,23 @@ impl ServiceMap {
     ) -> Checked<Self> {
         let mut declarations = Vec::with_capacity(registry.len());
         for (id, (scope, parents)) in registry.iter() {
+            if !scope.declaration.is_boundary {
+                return Err(unavailable(
+                    context,
+                    "ordinary trait cannot enter the service namespace",
+                ));
+            }
+            for parent in parents {
+                let (parent_scope, _) = registry.get(*parent).ok_or_else(|| {
+                    unavailable(context, "service parent has no exact registry row")
+                })?;
+                if !parent_scope.declaration.is_boundary {
+                    return Err(unavailable(
+                        context,
+                        "service parent names an ordinary contract trait",
+                    ));
+                }
+            }
             let identity = scope
                 .portable_application_identity(typed)
                 .and_then(|identity| typed.type_identity_text(identity))
@@ -430,4 +447,42 @@ fn union<T: Ord + Clone>(to: &mut Vec<T>, from: &[T]) {
     to.extend_from_slice(from);
     to.sort();
     to.dedup();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+    use typed_trees::trait_definition::{AppliedTraitScope, TraitDefinition};
+
+    #[test]
+    fn ordinary_contract_traits_cannot_enter_the_service_namespace() {
+        let mut symbols = SymbolTableBuilder::default();
+        let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let declaration = symbols
+            .insert_children(
+                root,
+                [(SymbolKind::Trait, SymbolNameRef::Static("Contract"))],
+            )
+            .handle_at(0);
+        let typed = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        let ordinary = TraitDefinition {
+            symbol: declaration,
+            name: typed_trees::name::Identifier::generated("Contract"),
+            is_boundary: false,
+            ..Default::default()
+        };
+        let mut registry = IdTable::default();
+        registry.push((AppliedTraitScope::abstract_scope(&ordinary), Vec::new()));
+        let refusal =
+            ServiceMap::prepare(&typed, MachineId::new(1).unwrap(), &registry, Vec::new())
+                .unwrap_err();
+        assert_eq!(
+            refusal.detail,
+            "ordinary trait cannot enter the service namespace"
+        );
+    }
 }

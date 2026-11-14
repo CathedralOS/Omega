@@ -137,6 +137,14 @@ impl Program<'_> {
     ) -> Checked<()> {
         let typed = self.typed;
         for symbol in selected {
+            if let Some(owner) = typed
+                .trait_definition_by_symbol(*symbol)
+                .filter(|owner| owner.is_boundary)
+            {
+                self.boundary_trait_declaration(entry, owner)?;
+                self.declared_service(entry, owner)?;
+                continue;
+            }
             if self.trait_declaration(entry, *symbol)?
                 || self.conformance_declaration(entry, *symbol)?
             {
@@ -162,11 +170,6 @@ impl Program<'_> {
                 })
             {
                 self.boundary_declaration(entry, *symbol)?;
-            } else if let Some(owner) = typed
-                .trait_definition_by_symbol(*symbol)
-                .filter(|owner| owner.is_boundary)
-            {
-                self.declared_service(entry, owner)?;
             } else {
                 return Err(refuse(
                     entry,
@@ -334,7 +337,12 @@ impl Program<'_> {
         }
         for declaration in typed.traits() {
             if self.owner(entry, declaration.symbol, subjects, purpose)? == Owner::Subject {
-                self.trait_declaration(entry, declaration.symbol)?;
+                if declaration.is_boundary {
+                    self.boundary_trait_declaration(entry, declaration)?;
+                    self.declared_service(entry, declaration)?;
+                } else {
+                    self.trait_declaration(entry, declaration.symbol)?;
+                }
                 self.admitted_declarations.include(declaration.symbol);
             }
         }

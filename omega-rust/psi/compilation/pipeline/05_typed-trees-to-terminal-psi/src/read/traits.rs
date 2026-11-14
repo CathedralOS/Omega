@@ -78,6 +78,33 @@ impl Program<'_> {
         let Some(declaration) = typed.trait_definition_by_symbol(symbol) else {
             return Ok(false);
         };
+        if declaration.is_boundary {
+            return Ok(false);
+        }
+        self.read_trait_schema(context, declaration)
+    }
+
+    pub(super) fn boundary_trait_declaration(
+        &mut self,
+        context: MachineId,
+        declaration: &TraitDefinition,
+    ) -> Checked<()> {
+        if !declaration.is_boundary {
+            return Err(services::unavailable(
+                context,
+                "boundary schema names an ordinary trait",
+            ));
+        }
+        self.read_trait_schema(context, declaration).map(|_| ())
+    }
+
+    fn read_trait_schema(
+        &mut self,
+        context: MachineId,
+        declaration: &TraitDefinition,
+    ) -> Checked<bool> {
+        let typed = self.typed;
+        let symbol = declaration.symbol;
         self.admitted_declarations.include(symbol);
         let position = match self
             .static_contracts
@@ -87,7 +114,30 @@ impl Program<'_> {
             Ok(_) => return Ok(true),
             Err(position) => position,
         };
-        schema_shape(typed, context, declaration)?;
+        if declaration.is_boundary {
+            schema_local_shape(typed, context, declaration)?;
+            if !declaration.requires.is_empty() {
+                let scope = AppliedTraitScope::new(
+                    typed,
+                    declaration,
+                    typed_trees::trait_definition::TraitApplicationArguments {
+                        lexical_owner: declaration.symbol,
+                        enclosing_data_applications: &[],
+                        arguments: &[],
+                        lifetimes: &[],
+                    },
+                )
+                .ok_or_else(|| {
+                    services::unavailable(
+                        context,
+                        "boundary parent contracts need their complete declaration application",
+                    )
+                })?;
+                self.require_boundary_parent_contract(context, &scope)?;
+            }
+        } else {
+            schema_shape(typed, context, declaration)?;
+        }
         let parameters = typed
             .data_type_parameters
             .span(declaration.type_parameters)
@@ -215,6 +265,49 @@ impl Program<'_> {
         Ok(true)
     }
 
+    pub(super) fn require_boundary_parent_contract(
+        &mut self,
+        context: MachineId,
+        scope: &AppliedTraitScope<'_>,
+    ) -> Checked<()> {
+        let typed = self.typed;
+        if !scope.declaration.is_boundary {
+            return Err(services::unavailable(
+                context,
+                "boundary parent contract has no boundary owner",
+            ));
+        }
+        let mut ordinary = false;
+        scope
+            .try_visit(typed, &mut |view| {
+                if !view.declaration.is_boundary {
+                    ordinary = true;
+                    if view
+                        .parent_scopes(typed)?
+                        .iter()
+                        .any(|parent| parent.declaration.is_boundary)
+                    {
+                        return Err("ordinary contract trait inherits a boundary service");
+                    }
+                } else if view.declaration.symbol != scope.declaration.symbol
+                    && !typed.trait_machine_signatures(view.declaration).is_empty()
+                {
+                    return Err(
+                        "boundary schema needs its inherited callable requirement projection",
+                    );
+                }
+                Ok(())
+            })
+            .map_err(|reason| services::unavailable(context, reason))?;
+        if ordinary {
+            let environment = scope.environment();
+            if !self.boundary_parent_contracts.contains(&environment) {
+                self.boundary_parent_contracts.push(environment);
+            }
+        }
+        Ok(())
+    }
+
     pub(super) fn conformance_declaration(
         &mut self,
         context: MachineId,
@@ -242,12 +335,12 @@ impl Program<'_> {
                 "static implementation family needs its general binder or region proof",
             ));
         }
-        if !self.trait_declaration(context, declaration.trait_symbol)? {
-            return Err(services::unavailable(
-                context,
-                "implementation has no exact schema declaration",
-            ));
-        }
+        let schema = typed
+            .trait_definition_by_symbol(declaration.trait_symbol)
+            .ok_or_else(|| {
+                services::unavailable(context, "implementation has no exact schema declaration")
+            })?;
+        self.read_trait_schema(context, schema)?;
         let application =
             AppliedTraitScope::from_conformance(typed, declaration).ok_or_else(|| {
                 services::unavailable(
@@ -502,10 +595,23 @@ fn schema_shape(
     context: MachineId,
     schema: &TraitDefinition,
 ) -> Checked<()> {
+    if !schema.requires.is_empty() {
+        return Err(services::unavailable(
+            context,
+            "ordinary trait schema needs its required trait contract projection",
+        ));
+    }
+    schema_local_shape(typed, context, schema)
+}
+
+fn schema_local_shape(
+    typed: &typed_trees::TypedTrees,
+    context: MachineId,
+    schema: &TraitDefinition,
+) -> Checked<()> {
     if !typed.symbols.symbols().nodes().is_valid(schema.symbol)
         || !schema.lifetime_parameters.is_empty()
         || !schema.conformance_bounds.is_empty()
-        || !schema.requires.is_empty()
         || schema.refines.is_some()
         || !schema.refinement_clauses.is_empty()
     {
@@ -527,7 +633,7 @@ fn schema_shape(
         return Err(services::unavailable(
             context,
             format!(
-                "trait `{declaration}` cannot be lowered: resolved declaration={resolved}, lifetime parameters={}, conformance bounds={}, required laws={}, inheritance={}, refinements={}; source {source:?}",
+                "trait `{declaration}` cannot be lowered: resolved declaration={resolved}, lifetime parameters={}, conformance bounds={}, required traits={}, inheritance={}, refinements={}; source {source:?}",
                 schema.lifetime_parameters.len(),
                 schema.conformance_bounds.len(),
                 schema.requires.len(),
@@ -648,4 +754,88 @@ fn validate_references(
     references
         .error
         .map_or(Ok(()), |reason| Err(services::unavailable(context, reason)))
+}
+
+#[cfg(test)]
+mod parent_contract_tests {
+    use super::*;
+    use source::{SourceMap, SourceOrigin, SourceSpan, Span};
+    use std::sync::Arc;
+    use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+    use typed_trees::trait_definition::TraitRequirement;
+
+    #[test]
+    fn ordinary_boundary_parents_require_a_contract_owner_without_service_reach() {
+        let mut sources = SourceMap::default();
+        let source = sources
+            .add_with_metadata(
+                "parents/main.omg".into(),
+                "Wire Marker".into(),
+                "parents".into(),
+                semantic_vocabulary::PackageKeyIdentity::from_digest([7; 32]),
+                SourceOrigin::User,
+            )
+            .source_id;
+        let mut symbols = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
+        let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let declarations = symbols.insert_children(
+            root,
+            [
+                (
+                    SymbolKind::Trait,
+                    SymbolNameRef::Source(SourceSpan::new(source, Span::new(0, 4))),
+                ),
+                (
+                    SymbolKind::Trait,
+                    SymbolNameRef::Source(SourceSpan::new(source, Span::new(5, 11))),
+                ),
+            ],
+        );
+        let boundary = declarations.handle_at(0);
+        let ordinary = declarations.handle_at(1);
+        let mut typed = typed_trees::TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        let parents = typed.trait_requirements.insert_many([TraitRequirement {
+            symbol: ordinary,
+            name: typed_trees::name::Identifier::generated("Marker"),
+            lifetime_arguments: Vec::new(),
+            arguments: Default::default(),
+            source_span: SourceSpan::new(source, Span::new(5, 11)),
+        }]);
+        typed.push_trait_definition(TraitDefinition {
+            symbol: ordinary,
+            name: typed_trees::name::Identifier::generated("Marker"),
+            ..Default::default()
+        });
+        typed.push_trait_definition(TraitDefinition {
+            symbol: boundary,
+            name: typed_trees::name::Identifier::generated("Wire"),
+            is_boundary: true,
+            requires: parents,
+            ..Default::default()
+        });
+        let context = MachineId::new(1).unwrap();
+        let mut program = Program::new(&typed, false);
+        program.selected_declarations(context, &[boundary]).unwrap();
+        assert_eq!(program.services.len(), 1);
+        assert!(program.services.iter().all(|(_, (scope, parents))| {
+            scope.declaration.symbol == boundary && parents.is_empty()
+        }));
+        assert_eq!(program.boundary_parent_contracts.len(), 1);
+        let mut policies = super::super::calling::SourceCallingPolicies::default();
+        let refusal = program
+            .prepare_calling_policies(context, None, &mut policies)
+            .expect_err("an ordinary parent cannot disappear without its contract owner");
+        assert_eq!(
+            refusal.reason,
+            terminal_check_tables::RefusalReason::Unsupported
+        );
+        assert!(
+            program
+                .require_complete_boundary_parent_contracts(context, &policies)
+                .is_err()
+        );
+    }
 }
