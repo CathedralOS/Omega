@@ -60,7 +60,7 @@ pub fn prepare_compilation(
                     machine: semantic_vocabulary::MachineId::new(1)
                         .expect("nonzero diagnostic identity"),
                     concerns: terminal_check_tables::Construct::Machine,
-                    detail,
+                    detail: detail.to_owned(),
                 })?;
             let (_, required) = typed.trait_machine_signature(requirement).ok_or_else(|| {
                 crate::refuse(

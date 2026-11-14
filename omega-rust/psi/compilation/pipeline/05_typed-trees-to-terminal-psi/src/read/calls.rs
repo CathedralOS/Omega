@@ -101,7 +101,7 @@ impl<'t> Program<'t> {
     /// static or selected arguments, bindings, lifetimes, inputs, conformance
     /// or contract source. Stage 03 records one for every authored call; one
     /// that applies anything is a generic or static call and is refused.
-    fn applies_nothing(
+    pub(super) fn applies_nothing(
         &self,
         id: MachineId,
         target: SymbolHandle,
