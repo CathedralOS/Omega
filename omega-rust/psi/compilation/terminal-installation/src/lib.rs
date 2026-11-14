@@ -113,7 +113,7 @@ pub(crate) mod entry_values {
 
 pub(crate) mod private_entry_ram {
     use semantic_vocabulary::{
-        IntegerSign, IntegerValue, ScalarTerm, ScalarType, StructuralTypeId,
+        ClosedScalarType, IntegerSign, IntegerValue, ScalarTerm, ScalarType, StructuralTypeId,
     };
     use terminal_psi::{StructuralFieldType, StructuralPathSegment, StructuralTypeShape};
 
@@ -328,20 +328,32 @@ pub(crate) mod private_entry_ram {
                         .into(),
                 );
             }
-            match scalar {
-                ScalarType::Boolean if bytes != [0] && bytes != [1] => {
+            // The recipe decodes storage in this artifact, not an independently
+            // chosen host carrier. Retain its exact closed logical and stored
+            // descriptors before performing byte-width or sign arithmetic.
+            let catalog = artifact.closed_module().closed_types();
+            let logical = catalog.scalar(scalar).map_err(|reason| {
+                format!("private entry RAM logical scalar is not closed: {reason:?}")
+            })?;
+            let stored = catalog.scalar(projection.stored_scalar).map_err(|reason| {
+                format!("private entry RAM stored scalar is not closed: {reason:?}")
+            })?;
+            match logical {
+                ClosedScalarType::Boolean if bytes != [0] && bytes != [1] => {
                     return Err("private entry RAM boolean initialization is not canonical".into());
                 }
-                ScalarType::Integer(integer) if integer.is_address() || integer.bits() % 8 != 0 => {
+                ClosedScalarType::Integer(integer)
+                    if integer.is_address() || integer.bits() % 8 != 0 =>
+                {
                     return Err(
                         "private entry RAM requires ordinary whole-byte integer fields".into(),
                     );
                 }
                 _ => {}
             }
-            let value = match projection.stored_scalar {
-                ScalarType::Boolean => ScalarTerm::Boolean(bytes == [1]),
-                ScalarType::Integer(stored)
+            let value = match stored {
+                ClosedScalarType::Boolean => ScalarTerm::Boolean(bytes == [1]),
+                ClosedScalarType::Integer(stored)
                     if width <= 16 && !stored.is_address() && stored.bits() % 8 == 0 =>
                 {
                     let mut encoded = [0u8; 16];
@@ -353,17 +365,17 @@ pub(crate) mod private_entry_ram {
                             ((bits << (128 - stored.bits())) as i128) >> (128 - stored.bits()),
                         ),
                     };
-                    let ScalarType::Integer(logical) = scalar else {
+                    let ClosedScalarType::Integer(logical) = logical else {
                         return Err("private entry RAM codec changes scalar class".into());
                     };
-                    if !logical.admits(integer) {
+                    if !logical.as_checking().admits(integer) {
                         return Err(
                         "private entry RAM initializer does not inhabit its complete scalar type"
                             .into(),
                     );
                     }
                     ScalarTerm::Integer {
-                        scalar_type: logical,
+                        scalar_type: logical.as_checking(),
                         value: integer,
                     }
                 }

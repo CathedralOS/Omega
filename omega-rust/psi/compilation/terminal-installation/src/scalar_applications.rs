@@ -1487,7 +1487,7 @@ pub(crate) mod closure {
         AdmittedProviderSelections, AdmittedTargetLayouts, AdmittedTargetMachineSelections,
     };
     use numerics::bignum::BigInt;
-    use semantic_vocabulary::IntegerType;
+    use semantic_vocabulary::ClosedIntegerType;
     use terminal_codec::TerminalArtifactView;
     use terminal_psi::{
         ScalarCompletionCondition, ScalarConditionSubject, ScalarRangeCondition,
@@ -1497,7 +1497,7 @@ pub(crate) mod closure {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct ScalarAddressModel {
         pub target: String,
-        pub carrier: IntegerType,
+        pub carrier: ClosedIntegerType,
         pub semantics_version: u32,
         pub commitment: [u8; 32],
     }
