@@ -291,6 +291,7 @@ pub(crate) mod declaration_selection {
                 }
                 builder.finish()
             };
+            crate::symbols::spelled_integers(syntax).install(&mut symbols);
             namespaces.register(&mut symbols)?;
             Ok(Self {
                 symbols,
@@ -1079,6 +1080,13 @@ pub(crate) mod declaration_selection {
             self.symbols.builtin_type_atom(selected)
         }
 
+        pub(super) fn install_integer_types(
+            &mut self,
+            carriers: impl IntoIterator<Item = numerics::integer_carrier::FixedInteger>,
+        ) {
+            self.symbols.install_integer_types(carriers);
+        }
+
         pub(super) fn type_declaration_kind(
             &self,
             syntax: &SyntaxTrees,
@@ -1841,6 +1849,8 @@ pub(crate) mod declaration_selection {
         }
     }
 }
+#[path = "preparation_builtin_type_names.rs"]
+mod builtin_type_names;
 #[path = "preparation_callable_types.rs"]
 mod callable_types;
 #[path = "preparation_generic_data.rs"]
@@ -1882,7 +1892,6 @@ pub(crate) mod module_normalization {
     */
 
     use crate::constant::validate_scalar_initializer;
-    use crate::preparation::generic_data::canonicalize_declared_const_definition;
     use crate::preparation::generic_data::canonicalize_selected_declared_const_definition;
     use crate::resolution::lowerer::ConstResolutionMode;
     use crate::tables::syntax_expressions;
@@ -1932,12 +1941,17 @@ pub(crate) mod module_normalization {
                 continue;
             }
             if mode != ConstResolutionMode::Complete {
-            } else if module_literal_constant(syntax, constant) {
+            } else if module_literal_constant(syntax, constant, Some(selection)) {
                 if matches!(
                     syntax_type_references(syntax).type_reference(constant.type_reference),
                     TypeReferenceNode::FixedArray { .. }
                 ) {
-                    canonicalize_declared_const_definition(syntax, constant).map_err(|reason| {
+                    canonicalize_selected_declared_const_definition(
+                        syntax,
+                        constant,
+                        Some(selection),
+                    )
+                    .map_err(|reason| {
                         vec![
                             Diagnostic::error(format!(
                                 "module array constant `{}` is invalid: {reason}",
@@ -1947,15 +1961,17 @@ pub(crate) mod module_normalization {
                         ]
                     })?;
                 } else {
-                    validate_scalar_initializer(syntax, constant).map_err(|reason| {
-                        vec![
-                            Diagnostic::error(format!(
-                                "module scalar constant `{}` is invalid: {reason}",
-                                constant.name.as_str(syntax)
-                            ))
-                            .with_source_span(constant.name.source_span()),
-                        ]
-                    })?;
+                    validate_scalar_initializer(syntax, constant, Some(selection)).map_err(
+                        |reason| {
+                            vec![
+                                Diagnostic::error(format!(
+                                    "module scalar constant `{}` is invalid: {reason}",
+                                    constant.name.as_str(syntax)
+                                ))
+                                .with_source_span(constant.name.source_span()),
+                            ]
+                        },
+                    )?;
                 }
             } else if let Some(base_name) = generic_const_carrier_leaf(syntax, constant) {
                 let selected = selection.data(syntax, base_name).and_then(|definition| {
@@ -1997,6 +2013,7 @@ pub(crate) mod module_normalization {
     pub(crate) fn module_literal_constant(
         syntax: &SyntaxTrees,
         constant: &ConstDefinition,
+        selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
     ) -> bool {
         use syntax_trees::expression::ExpressionNode;
         if !scalar_literal_tree(syntax, constant.value) {
@@ -2018,8 +2035,17 @@ pub(crate) mod module_normalization {
         loop {
             match syntax.type_references.type_reference(type_reference) {
                 TypeReferenceNode::Named(name) => {
-                    return crate::constant::is_structural_scalar_carrier(name.as_str(syntax))
-                        || (!is_array && matches!(name.as_str(syntax), "f32" | "f64"));
+                    return selection
+                        .and_then(|selection| selection.builtin_type(syntax, name))
+                        .is_some_and(|atom| {
+                            crate::constant::is_structural_scalar_carrier(atom)
+                                || (!is_array
+                                    && matches!(
+                                        atom,
+                                        symbols::BuiltinTypeAtom::F32
+                                            | symbols::BuiltinTypeAtom::F64
+                                    ))
+                        });
                 }
                 TypeReferenceNode::FixedArray {
                     element_type,
@@ -5448,14 +5474,18 @@ pub(crate) fn prepare(
     constants: crate::resolution::lowerer::ConstResolutionMode,
     base: Option<Arc<symbol_resolved_trees::SymbolResolvedTrees>>,
 ) -> Result<Prepared, Vec<Diagnostic>> {
+    builtin_type_names::validate(&syntax)?;
     target_families::normalize(&mut syntax, sources.as_deref())?;
-    let constant_selection = declaration_selection::ConstantSelection::with_shared_base(
+    let mut constant_selection = declaration_selection::ConstantSelection::with_shared_base(
         &syntax,
         sources,
         top_level_bindings,
         base,
     )?;
     declared_types::normalize(&mut syntax, &constant_selection)?;
+    // Closed literal widths must name carriers before constants land in them.
+    // Named widths remain for resolution in their lexical scope.
+    constant_selection.install_integer_types(integer_widths::normalize(&mut syntax)?);
     generic_data::domain_heads::normalize(&mut syntax, Some(&constant_selection))?;
     /*
         Only the complete route owns a constant's value. The selection routes
@@ -5465,7 +5495,14 @@ pub(crate) fn prepare(
     if constants == crate::resolution::lowerer::ConstResolutionMode::Complete {
         generic_data::fold_closed_scalar_initializers(&mut syntax, &constant_selection)?;
     }
-    integer_widths::normalize(&mut syntax, &constant_selection)?;
+    let integer_types = integer_widths::normalize(&mut syntax)?;
+    let new_integer_types = !integer_types.is_empty();
+    constant_selection.install_integer_types(integer_types);
+    if new_integer_types && constants == crate::resolution::lowerer::ConstResolutionMode::Complete {
+        // Rewritten literal widths can make another initializer's carrier
+        // available without resolving named widths outside their lexical scope.
+        generic_data::fold_closed_scalar_initializers(&mut syntax, &constant_selection)?;
+    }
     validate_with_const_resolution_mode(&syntax, &constant_selection, constants)?;
     synthesize_trait_defaults_after_module_validation(&mut syntax, &constant_selection)?;
     Ok(Prepared {

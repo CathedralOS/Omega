@@ -453,7 +453,7 @@ fn check_callback_publication(retain_body_source: bool) {
         entry_call: None,
     };
     let input = VerifiedNativeArtifactInput::prepare_with_private_entry_ram(
-        artifact,
+        &super::authorize_fixture(artifact),
         target::TargetProfile::WindowsX64,
         request.entry,
         &[],
@@ -473,7 +473,7 @@ fn check_callback_publication(retain_body_source: bool) {
         ..request
     };
     let input = VerifiedNativeArtifactInput::prepare_with_private_entry_ram(
-        artifact,
+        &super::authorize_fixture(artifact),
         target::TargetProfile::WindowsX64,
         body_request.entry,
         &[],

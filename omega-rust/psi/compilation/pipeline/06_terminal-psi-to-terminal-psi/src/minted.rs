@@ -690,13 +690,11 @@ pub(crate) fn follow_the_lowered_form(
         if let Terminator::Return { edge, .. }
         | Terminator::ReturnUnit { edge, .. }
         | Terminator::ReturnStructural { edge, .. } = &block.terminator
-        {
-            if !returned
+            && !returned
                 .is_uninhabited_return(&block.terminator, inhabitation)
                 .map_err(|detail| minted.foreign(Construct::Block(block.id), detail))?
-            {
-                minted.returns(lowered, block.id, *edge)?;
-            }
+        {
+            minted.returns(lowered, block.id, *edge)?;
         }
     }
 

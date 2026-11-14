@@ -756,23 +756,25 @@ pub(crate) mod canonical_values {
     ) -> Option<ExpressionNode> {
         match value {
             DecodedCanonicalConstValue::Float { .. } => None,
-            DecodedCanonicalConstValue::Integer { type_name, value } => {
-                let primitive = program.type_reference_table.primitive_type(declared_type)?;
-                if *type_name != primitive.name() {
+            DecodedCanonicalConstValue::Integer {
+                integer_type,
+                value,
+            } => {
+                let primitive = program.primitive_type_reference(declared_type)?;
+                if Some(*integer_type) != primitive.landed_landing() {
                     return None;
                 }
                 let literal = IntegerLiteral::from_parts(
-                    *value < 0,
+                    value.is_negative(),
                     IntegerRadix::Decimal,
-                    &value.unsigned_abs().to_string(),
+                    &value.abs().to_string(),
                 )
                 .ok()?;
                 integer_value(program, declared_type, literal)
             }
             DecodedCanonicalConstValue::Boolean(value) => {
-                (program.type_reference_table.primitive_type(declared_type)
-                    == Some(PrimitiveType::Bool))
-                .then_some(ExpressionNode::Boolean(*value))
+                (program.primitive_type_reference(declared_type) == Some(PrimitiveType::Bool))
+                    .then_some(ExpressionNode::Boolean(*value))
             }
             DecodedCanonicalConstValue::Array { type_name, values } => {
                 if *type_name != program.display_type_reference(declared_type) {
@@ -874,7 +876,7 @@ pub(crate) mod canonical_values {
         declared_type: TypeReferenceHandle,
         literal: IntegerLiteral,
     ) -> Option<ExpressionNode> {
-        let primitive = program.type_reference_table.primitive_type(declared_type)?;
+        let primitive = program.primitive_type_reference(declared_type)?;
         let landed_type = primitive.landed_landing()?;
         Some(ExpressionNode::Integer(
             literal.with_landing(IntegerLanding {
@@ -1838,7 +1840,7 @@ pub fn canonical_const_declaration_value(
     let encoding = declaration.evaluated_value.as_ref()?.encoding()?;
     let decoded = CanonicalConstValue::new("", encoding, "").decode_encoding()?;
     let carrier = match decoded {
-        DecodedCanonicalConstValue::Integer { type_name, .. } => type_name,
+        DecodedCanonicalConstValue::Integer { integer_type, .. } => integer_type.name(),
         DecodedCanonicalConstValue::Boolean(_) => "bool".to_owned(),
         DecodedCanonicalConstValue::Array { .. }
         | DecodedCanonicalConstValue::Record { .. }

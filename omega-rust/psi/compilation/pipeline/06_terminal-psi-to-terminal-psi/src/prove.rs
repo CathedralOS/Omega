@@ -275,9 +275,6 @@ pub(crate) struct Prover<'a> {
     transport: crate::known::TransportInputs,
     /// `[upper, lower]` per value, indexed by `ValueId - 1`.
     bounds: Vec<[Slot; 2]>,
-    /// Whether relations between values are searched (off only to measure
-    /// what they buy).
-    relations: bool,
     /// Whether a failed goal may split over a disjunctive fact. Guard
     /// contradiction search disables this to avoid re-entering itself.
     case_split: bool,
@@ -401,7 +398,6 @@ impl<'a> Prover<'a> {
         assumptions: &'a [Proposition],
         axioms: &'a [Proposition],
         values: &'a IdTable<ValueId, ValueRow>,
-        relations: bool,
     ) -> Self {
         #[cfg(test)]
         SEARCHES.with(|searches| searches.set(searches.get() + 1));
@@ -423,7 +419,6 @@ impl<'a> Prover<'a> {
             bounds: (0..values.len())
                 .map(|_| [Slot::Unknown, Slot::Unknown])
                 .collect(),
-            relations,
             case_split: true,
             remaining_case_branches: CASE_BRANCH_BUDGET,
             active_cuts: Vec::new(),
@@ -626,7 +621,6 @@ impl<'a> Prover<'a> {
         let direct = self.prove_direct(goal);
         if direct.is_ok()
             || !self.case_split
-            || !self.relations
             || !matches!(
                 goal,
                 Proposition::LessOrEqual(..)
@@ -875,13 +869,7 @@ impl<'a> Prover<'a> {
         }
         let mut assumptions = self.assumptions.to_vec();
         assumptions.push(part.clone());
-        let mut branch = Prover::new(
-            self.context,
-            &assumptions,
-            self.axioms,
-            self.values,
-            self.relations,
-        );
+        let mut branch = Prover::new(self.context, &assumptions, self.axioms, self.values);
         branch.case_split = self.case_split;
         branch.remaining_case_branches = self.remaining_case_branches;
         branch.active_cuts.clone_from(&self.active_cuts);
@@ -923,13 +911,7 @@ impl<'a> Prover<'a> {
     ) -> Result<ProofNode, Unproven> {
         let mut assumptions = self.assumptions.to_vec();
         assumptions.push(premise.clone());
-        let mut under = Prover::new(
-            self.context,
-            &assumptions,
-            self.axioms,
-            self.values,
-            self.relations,
-        );
+        let mut under = Prover::new(self.context, &assumptions, self.axioms, self.values);
         under.case_split = self.case_split;
         under.remaining_case_branches = self.remaining_case_branches;
         under.active_cuts.clone_from(&self.active_cuts);
@@ -1066,8 +1048,7 @@ impl<'a> Prover<'a> {
         let ScalarType::Integer(integer) = left.scalar_type() else {
             return Err("order of non-integers");
         };
-        if self.relations
-            && let (ScalarTerm::Value { .. }, ScalarTerm::Value { .. }) = (left, right)
+        if let (ScalarTerm::Value { .. }, ScalarTerm::Value { .. }) = (left, right)
             && let Some(proof) = self.relation(left, right, strict)
         {
             return Ok(proof);
@@ -1881,7 +1862,7 @@ impl<'a> Prover<'a> {
         right: &IntegerMathTerm,
     ) -> Result<ProofNode, Unproven> {
         let interval = self.arithmetic_interval(left, right);
-        if interval.is_ok() || !self.relations {
+        if interval.is_ok() {
             return interval;
         }
         self.correlated_subtract(left, right)

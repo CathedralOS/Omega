@@ -1,0 +1,10 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "qualified_operator_home");
+    let mut selected: DependencyDescription = dependency::from_source(Source::Path { location: "../provider" });
+    dependency::with_alias(&mut selected, "measure");
+    let registration: DependencyRegistration = Build::dependency(builder, selected);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+}

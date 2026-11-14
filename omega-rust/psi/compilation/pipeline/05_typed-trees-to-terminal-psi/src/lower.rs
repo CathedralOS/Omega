@@ -677,8 +677,8 @@ struct Lowering<'a> {
     fallthrough: Option<crate::Branch>,
 }
 
-/// What lowering an evaluation reached: its result, or the call that never
-/// returns at which every path of it ended.
+/// What lowering an evaluation reached: its result, or the expression with
+/// no normal result at which every path of it ended.
 #[derive(Debug)]
 pub(super) enum Reached<T> {
     Value(T),

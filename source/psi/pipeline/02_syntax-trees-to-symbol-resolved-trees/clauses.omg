@@ -1,0 +1,418 @@
+// Clause names (wiki/spec/language/machines.md#supply). A `satisfies` clause
+// names one exact requirement of a visible trait, `Trait<arguments>::name`:
+// the trait binds like a trait position, its static arguments like any
+// static argument in the machine's generic scope, and the requirement is
+// the trait's member of that name. Its `via` payload is a compile-time value
+// (wiki/spec/build/foreign_bindings.md), so it binds in the machine's static
+// scope: its value binders and constants, never its parameters. A
+// `terminates by subjects [-> View]` witness ranks the body's entry
+// parameters: its subjects and view bind as a `requires` fact's names do
+// (wiki/spec/language/termination.md). A trait reached through a module
+// path rejects as unsupported.
+public machine bind_clause_names(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
+crashes Trap
+{
+    transition { _ -> next_machine(resolver, sources, syntax, 0) }
+
+    machine next_machine(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+        transition index < syntax.machine_count && resolver.output.accepted {
+            true -> machine(resolver, sources, syntax, index)
+            _ -> done()
+        }
+    }
+
+    machine machine(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+        let item: MachineItem = machine_item(syntax, index);
+        transition { _ -> next_clause(resolver, sources, syntax, index, item, 0) }
+    }
+
+    machine next_clause(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
+        transition offset < item.clause_count && resolver.output.accepted {
+            true -> clause(resolver, sources, syntax, index, item, offset)
+            _ -> next_machine(resolver, sources, syntax, index + 1)
+        }
+    }
+
+    machine clause(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
+        let handle: u64 in Trapping = item.first_clause + offset;
+        let clause: Clause = syntax_trees_clause(syntax, handle);
+        transition clause.kind {
+            ClauseKind::Satisfies -> satisfies(resolver, sources, syntax, index, item, offset, handle, clause)
+            ClauseKind::Terminates -> terminates(resolver, sources, syntax, index, item, offset, handle, clause)
+            _ -> next_clause(resolver, sources, syntax, index, item, offset + 1)
+        }
+    }
+
+    machine satisfies(
+        resolver: &mut Resolver,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        index: u64 in Trapping,
+        item: MachineItem,
+        offset: u64 in Trapping,
+        handle: u64 in Trapping,
+        clause: Clause
+    ) {
+        bind_satisfied_requirement(resolver, sources, syntax, index, handle, clause);
+        transition { _ -> next_clause(resolver, sources, syntax, index, item, offset + 1) }
+    }
+
+    machine terminates(
+        resolver: &mut Resolver,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        index: u64 in Trapping,
+        item: MachineItem,
+        offset: u64 in Trapping,
+        handle: u64 in Trapping,
+        clause: Clause
+    ) {
+        let scope: NameScope = fact_scope(true, index, item.first_parameter, item.parameter_count, ValueBinding::NotAName);
+        bind_ranking(resolver, sources, syntax, scope, handle, clause);
+        transition clause.argument_count > 0 {
+            true -> ranked(resolver, sources, syntax, index, item, offset)
+            _ -> next_clause(resolver, sources, syntax, index, item, offset + 1)
+        }
+    }
+
+    machine ranked(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
+        transition { _ -> next_clause(resolver, sources, syntax, index, item, offset + 1) }
+    }
+
+    machine done() {}
+}
+
+// One `satisfies` clause of machine `machine`: its trait's static
+// arguments, its trait and requirement, then its `via` payload.
+machine bind_satisfied_requirement(
+    resolver: &mut Resolver,
+    sources: &SourceSet,
+    syntax: &SyntaxTrees,
+    machine: u64 in Trapping,
+    clause_handle: u64 in Trapping,
+    clause: Clause
+)
+crashes Trap
+{
+    let scope: TypeScope = resolver_machine_scope(&resolver.output, syntax, machine);
+    transition { _ -> argument(resolver, sources, syntax, machine, clause_handle, clause, scope, 0) }
+
+    machine argument(
+        resolver: &mut Resolver,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        machine: u64 in Trapping,
+        clause_handle: u64 in Trapping,
+        clause: Clause,
+        scope: TypeScope,
+        offset: u64 in Trapping
+    ) {
+        transition offset < clause.argument_count && resolver.output.accepted {
+            true -> bind_argument(resolver, sources, syntax, machine, clause_handle, clause, scope, offset)
+            _ -> path(resolver, sources, syntax, machine, clause_handle, clause, scope)
+        }
+    }
+
+    machine bind_argument(
+        resolver: &mut Resolver,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        machine: u64 in Trapping,
+        clause_handle: u64 in Trapping,
+        clause: Clause,
+        scope: TypeScope,
+        offset: u64 in Trapping
+    ) {
+        let row: u64 in Trapping = type_argument(syntax, clause.first_argument + offset);
+        bind_type_reference(resolver, sources, syntax, scope, row, TypeRole::StaticArgument);
+        transition { _ -> argument(resolver, sources, syntax, machine, clause_handle, clause, scope, offset + 1) }
+    }
+
+    // The trait's path is one name: `Trait::requirement`.
+    machine path(
+        resolver: &mut Resolver,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        machine: u64 in Trapping,
+        clause_handle: u64 in Trapping,
+        clause: Clause,
+        scope: TypeScope
+    ) {
+        transition resolver.output.accepted && clause.member_count == 2 {
+            true -> named(resolver, sources, syntax, machine, clause_handle, clause, scope)
+            _ -> qualified(resolver, clause)
+        }
+    }
+
+    machine named(
+        resolver: &mut Resolver,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        machine: u64 in Trapping,
+        clause_handle: u64 in Trapping,
+        clause: Clause,
+        scope: TypeScope
+    ) {
+        let owner: IdentifierSpan = syntax_trees_member(syntax, clause.first_member);
+        let binding: TypeBinding = type_binding(sources, syntax, scope, owner.source_span);
+        transition binding {
+            TypeBinding::Trait { item } -> requirement(resolver, sources, syntax, machine, clause_handle, clause, item)
+            TypeBinding::Unresolved -> reject(resolver, ResolveDiagnosticCode::UnknownDataType, owner.source_span)
+            TypeBinding::Ambiguous -> reject(resolver, ResolveDiagnosticCode::AmbiguousName, owner.source_span)
+            _ -> reject(resolver, ResolveDiagnosticCode::NotATrait, owner.source_span)
+        }
+    }
+
+    machine requirement(
+        resolver: &mut Resolver,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        machine: u64 in Trapping,
+        clause_handle: u64 in Trapping,
+        clause: Clause,
+        trait_index: u64 in Trapping
+    ) {
+        let name: IdentifierSpan = syntax_trees_member(syntax, clause.first_member + 1);
+        let member: Lookup = trait_member_named(sources, syntax, trait_index, name.source_span);
+        transition member {
+            Lookup::Found { handle } -> found(resolver, sources, syntax, machine, clause_handle, clause, handle)
+            _ -> reject(resolver, ResolveDiagnosticCode::NotARequirement, name.source_span)
+        }
+    }
+
+    machine found(
+        resolver: &mut Resolver,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        machine: u64 in Trapping,
+        clause_handle: u64 in Trapping,
+        clause: Clause,
+        requirement: u64 in Trapping
+    ) {
+        set_requirement(resolver, clause_handle, ValueBinding::Machine { handle: requirement });
+        transition clause.has_expression {
+            true -> payload(resolver, sources, syntax, machine, clause)
+            _ -> done()
+        }
+    }
+
+    // The payload sees the machine's binders and constants, not its
+    // parameters.
+    machine payload(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, machine: u64 in Trapping, clause: Clause) {
+        let scope: NameScope = fact_scope(true, machine, 0, 0, ValueBinding::NotAName);
+        bind_tree(resolver, sources, syntax, scope, clause.expression);
+    }
+
+    machine qualified(resolver: &mut Resolver, clause: Clause) {
+        transition resolver.output.accepted {
+            true -> reject(resolver, ResolveDiagnosticCode::UnsupportedClause, clause.source_span)
+            _ -> done()
+        }
+    }
+
+    machine reject(resolver: &mut Resolver, code: ResolveDiagnosticCode, source_span: SourceSpan) {
+        name_resolution_reject(&mut resolver.output, code, source_span);
+    }
+
+    machine done() {}
+}
+
+// A `terminates by` witness: each ranked subject, then its view, which
+// names the compiler's ranking vocabulary by spelling rather than a
+// declaration (representations/symbol_resolved_trees.omg, `RankingView`); `Nat::IncreasingTo`'s limit
+// binds as a subject does.
+machine bind_ranking(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, handle: u64 in Trapping, clause: Clause)
+crashes Trap
+{
+    transition clause.has_range {
+        true -> range(resolver, sources, syntax, scope, handle, clause)
+        _ -> subject(resolver, sources, syntax, scope, handle, clause, 0)
+    }
+
+    // The rank range's endpoints bind as the subjects do
+    // (wiki/spec/language/termination.md#ranking).
+    machine range(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, handle: u64 in Trapping, clause: Clause) {
+        bind_tree(resolver, sources, syntax, scope, clause.range);
+        transition { _ -> subject(resolver, sources, syntax, scope, handle, clause, 0) }
+    }
+
+    machine subject(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, handle: u64 in Trapping, clause: Clause, offset: u64 in Trapping) {
+        transition offset < clause.argument_count && resolver.output.accepted {
+            true -> bind_subject(resolver, sources, syntax, scope, handle, clause, offset)
+            _ -> view(resolver, sources, syntax, scope, handle, clause)
+        }
+    }
+
+    machine bind_subject(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, handle: u64 in Trapping, clause: Clause, offset: u64 in Trapping) {
+        let root: u64 in Trapping = syntax_trees_argument(syntax, clause.first_argument + offset);
+        bind_tree(resolver, sources, syntax, scope, root);
+        transition { _ -> subject(resolver, sources, syntax, scope, handle, clause, offset + 1) }
+    }
+
+    machine view(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, handle: u64 in Trapping, clause: Clause) {
+        transition clause.has_expression && resolver.output.accepted {
+            true -> spelled(resolver, sources, syntax, scope, handle, clause)
+            _ -> chosen(resolver, handle, RankingView::Default)
+        }
+    }
+
+    machine spelled(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, handle: u64 in Trapping, clause: Clause) {
+        let spelling: ViewSpelling = spelled_view(sources, syntax, clause.expression);
+        let written: Expression = syntax_trees_expression(syntax, clause.expression);
+        transition spelling.known {
+            true -> known(resolver, sources, syntax, scope, handle, spelling.view, written)
+            _ -> declared(resolver, sources, syntax, handle, written)
+        }
+    }
+
+    // Outside the vocabulary, a two-member path names a declared measure
+    // (wiki/spec/language/termination.md#ranking).
+    machine declared(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, handle: u64 in Trapping, written: Expression) {
+        transition written.kind == ExpressionKind::Path && written.count == 2 {
+            true -> measure(resolver, sources, syntax, handle, written)
+            _ -> unsupported(resolver, written.source_span)
+        }
+    }
+
+    machine measure(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, handle: u64 in Trapping, written: Expression) {
+        let owner: IdentifierSpan = syntax_trees_member(syntax, written.first);
+        let name: IdentifierSpan = syntax_trees_member(syntax, written.first + 1);
+        let found: u64 in Trapping = measure_named(sources, syntax, owner.source_span, name.source_span);
+        transition found > 0 {
+            true -> measured(resolver, handle, found - 1)
+            _ -> unsupported(resolver, written.source_span)
+        }
+    }
+
+    machine measured(resolver: &mut Resolver, handle: u64 in Trapping, measure: u64 in Trapping) {
+        set_ranking_view(&mut resolver.output, handle, RankingView::Measure);
+        set_ranking_measure(&mut resolver.output, handle, measure);
+    }
+
+    machine known(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, handle: u64 in Trapping, view: RankingView, written: Expression) {
+        set_ranking_view(&mut resolver.output, handle, view);
+        transition view {
+            RankingView::IncreasingTo -> limit(resolver, sources, syntax, scope, written)
+            _ -> done()
+        }
+    }
+
+    machine limit(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, written: Expression) {
+        let root: u64 in Trapping = syntax_trees_argument(syntax, written.first);
+        bind_tree(resolver, sources, syntax, scope, root);
+    }
+
+    machine chosen(resolver: &mut Resolver, handle: u64 in Trapping, view: RankingView) {
+        set_ranking_view(&mut resolver.output, handle, view);
+    }
+
+    machine unsupported(resolver: &mut Resolver, source_span: SourceSpan) {
+        name_resolution_reject(&mut resolver.output, ResolveDiagnosticCode::UnsupportedRankingView, source_span);
+    }
+
+    machine done() {}
+}
+
+// A ranking view's spelling: whether it is one of the vocabulary's.
+data ViewSpelling [copy] {
+    known: bool;
+    view: RankingView;
+}
+
+// The view a `-> View` expression spells: a two-member path, or for
+// `Nat::IncreasingTo` a call of one with one argument.
+machine spelled_view(sources: &SourceSet, syntax: &SyntaxTrees, handle: u64 in Trapping) -> ViewSpelling
+crashes Trap
+{
+    let written: Expression = syntax_trees_expression(syntax, handle);
+    transition written.kind {
+        ExpressionKind::Path -> path(sources, syntax, written, false)
+        ExpressionKind::Call -> call(sources, syntax, written)
+        _ -> unknown()
+    }
+
+    machine call(sources: &SourceSet, syntax: &SyntaxTrees, written: Expression) -> ViewSpelling {
+        let callee: Expression = syntax_trees_expression(syntax, written.left);
+        transition callee.kind == ExpressionKind::Path && written.count == 1 {
+            true -> path(sources, syntax, callee, true)
+            _ -> unknown()
+        }
+    }
+
+    machine path(sources: &SourceSet, syntax: &SyntaxTrees, path: Expression, argumented: bool) -> ViewSpelling {
+        transition path.count == 2 {
+            true -> members(sources, syntax, path, argumented)
+            _ -> unknown()
+        }
+    }
+
+    machine members(sources: &SourceSet, syntax: &SyntaxTrees, path: Expression, argumented: bool) -> ViewSpelling {
+        let owner: IdentifierSpan = syntax_trees_member(syntax, path.first);
+        let name: IdentifierSpan = syntax_trees_member(syntax, path.first + 1);
+        let nat: bool = span_spells(sources, owner.source_span, "Nat");
+        let slice: bool = span_spells(sources, owner.source_span, "Slice");
+        let descending: bool = span_spells(sources, name.source_span, "Descending");
+        let bounded: bool = span_spells(sources, name.source_span, "BoundedDistance");
+        let increasing: bool = span_spells(sources, name.source_span, "IncreasingTo");
+        let length: bool = span_spells(sources, name.source_span, "Length");
+        transition argumented {
+            true -> argumented_view(nat && increasing)
+            _ -> plain_view(nat && descending, nat && bounded, slice && length)
+        }
+    }
+
+    machine argumented_view(increasing: bool) -> ViewSpelling {
+        transition increasing {
+            true -> known(RankingView::IncreasingTo)
+            _ -> unknown()
+        }
+    }
+
+    machine plain_view(descending: bool, bounded: bool, length: bool) -> ViewSpelling {
+        transition descending {
+            true -> known(RankingView::Descending)
+            _ -> distance(bounded, length)
+        }
+    }
+
+    machine distance(bounded: bool, length: bool) -> ViewSpelling {
+        transition bounded {
+            true -> known(RankingView::BoundedDistance)
+            _ -> sliced(length)
+        }
+    }
+
+    machine sliced(length: bool) -> ViewSpelling {
+        transition length {
+            true -> known(RankingView::SliceLength)
+            _ -> unknown()
+        }
+    }
+
+    machine known(view: RankingView) -> ViewSpelling {
+        ViewSpelling { known: true, view: view }
+    }
+
+    machine unknown() -> ViewSpelling {
+        ViewSpelling { known: false, view: RankingView::Default }
+    }
+}
+
+machine set_requirement(resolver: &mut Resolver, clause: u64 in Trapping, binding: ValueBinding)
+crashes Trap
+{
+    transition clause < 2048 {
+        true -> store(resolver, clause, binding)
+        _ -> invalid()
+    }
+
+    machine store(resolver: &mut Resolver, clause: u64 in Trapping, binding: ValueBinding)
+    requires clause < 2048
+    {
+        resolver.output.requirements[clause] = binding;
+    }
+
+    machine invalid() {
+        crash Trap;
+    }
+}

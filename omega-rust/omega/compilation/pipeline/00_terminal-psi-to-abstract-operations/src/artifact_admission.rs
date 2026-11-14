@@ -3,9 +3,9 @@
   and distinct ordinary, optimizer, and native admission (`lower_artifact`,
   `VerifiedNativeArtifactInput`, `AdmittedNativeArtifact`).
 
-  `lower_artifact` is the single loose-byte entrance that runs
-  `terminal_codec::decode_module`; callers holding a `CanonicalTerminalArtifact`
-  read its already-decoded `semantic_module()`. Every admitted result retains
+  Canonical decoding permits inspection, not native lowering. Every lowering
+  entrance requires the host-authorized immutable artifact and reads its existing
+  semantic module. Every admitted result retains that authorization and
   its exact access-view input roster (`TerminalAccessViewEstablishment`) and
   can downgrade from native authority to optimizer custody, never the reverse.
 */
@@ -16,7 +16,7 @@ mod error {
     pub enum ArtifactLoweringError {
         TargetSelectionRequired,
         TargetFamily(String),
-        SemanticDecode(terminal_codec::CodecError),
+        HostAuthorization(terminal_installation::ArtifactTrustError),
         AccessViewInputsRequireCustodyLowering,
         AccessViewEstablishmentUnexpected {
             machine: semantic_vocabulary::MachineId,
@@ -164,6 +164,7 @@ mod native {
     }
 
     pub(crate) struct NativeScopePreparation {
+        authorization: terminal_installation::AuthorizedTerminalArtifact,
         profile: target::TargetProfile,
         entry: semantic_vocabulary::MachineId,
         pub(crate) targets: AdmittedTargetMachineSelections,
@@ -174,11 +175,12 @@ mod native {
 
     impl NativeScopePreparation {
         pub(crate) fn prepare(
-            artifact: &terminal_codec::CanonicalTerminalArtifact,
+            authorization: &terminal_installation::AuthorizedTerminalArtifact,
             profile: target::TargetProfile,
             root: terminal_psi::TargetMachineCallable,
             selection: &NativeExecutionSelection<'_>,
         ) -> Result<Self, ArtifactLoweringError> {
+            let artifact = authorization.artifact();
             profile
                 .admit_address_representation()
                 .map_err(ArtifactLoweringError::TargetFamily)?;
@@ -235,6 +237,7 @@ mod native {
             }
             .map_err(ArtifactLoweringError::TargetFamily)?;
             Ok(Self {
+                authorization: authorization.clone(),
                 profile,
                 entry,
                 targets: selections,
@@ -252,6 +255,7 @@ mod native {
             evidence: Option<&terminal_codec::EvidenceSeals>,
         ) -> Result<VerifiedNativeArtifactInput, ArtifactLoweringError> {
             let Self {
+                authorization,
                 profile,
                 entry,
                 targets: selections,
@@ -259,6 +263,9 @@ mod native {
                 scope,
                 scalar_demand,
             } = self;
+            authorization
+                .require_artifact(artifact)
+                .map_err(ArtifactLoweringError::HostAuthorization)?;
             let module = artifact.semantic_module();
             let full_machines;
             let machines = match scope.as_ref() {
@@ -321,7 +328,7 @@ mod native {
                 Some(&layouts),
             )
             .map_err(ArtifactLoweringError::Lowering)?;
-            let mut input = retain_native_plan(artifact.closed_module(), plan, Some(selections))
+            let mut input = retain_native_plan(&authorization, plan, Some(selections))?
                 .try_into_native_input(establishments)?;
             input
                 .optimization_input
@@ -359,14 +366,14 @@ mod native {
         }
 
         pub fn prepare(
-            artifact: &terminal_codec::CanonicalTerminalArtifact,
+            artifact: &terminal_installation::AuthorizedTerminalArtifact,
             profile: target::TargetProfile,
             root: terminal_psi::TargetMachineCallable,
             establishments: &[TerminalAccessViewEstablishment],
             selection: &NativeExecutionSelection<'_>,
         ) -> Result<Self, ArtifactLoweringError> {
             NativeScopePreparation::prepare(artifact, profile, root, selection)?.lower(
-                artifact,
+                artifact.artifact(),
                 establishments,
                 selection,
                 None,
@@ -378,14 +385,14 @@ mod native {
         }
 
         pub fn prepare_with_private_entry_ram(
-            artifact: &terminal_codec::CanonicalTerminalArtifact,
+            artifact: &terminal_installation::AuthorizedTerminalArtifact,
             profile: target::TargetProfile,
             root: terminal_psi::TargetMachineCallable,
             recipes: &[terminal_installation::CheckedPrivateEntryRamRecipe],
             selection: &NativeExecutionSelection<'_>,
         ) -> Result<Self, ArtifactLoweringError> {
             NativeScopePreparation::prepare(artifact, profile, root, selection)?
-                .lower_with_private_entry_ram(artifact, recipes, selection, None)
+                .lower_with_private_entry_ram(artifact.artifact(), recipes, selection, None)
         }
 
         pub fn plan(&self) -> &AbstractOperationPlan {
@@ -475,6 +482,10 @@ mod native {
             artifact: &terminal_codec::CanonicalTerminalArtifact,
             selected: &effects::SelectedProviderPlanFacts,
         ) -> Result<Self, String> {
+            self.context()
+                .authorization()
+                .require_artifact(artifact)
+                .map_err(|error| error.to_string())?;
             let selections = self
                 .optimization_input
                 .target_machine_selections()
@@ -549,10 +560,8 @@ mod native {
             &self.optimization_input
         }
 
-        /// Attaches seals that name exactly the module this input was
-        /// lowered from, as `lower_module_with_evidence` does for a module
-        /// lowered on its own: the product's application is lowered from
-        /// the artifact in memory, so its seals are still beside it.
+        /// Retains optional seals for this exact authorized module. Seals do
+        /// not replace the host producer authorization already held by input.
         pub fn attach_evidence(
             &mut self,
             evidence: terminal_codec::EvidenceSeals,
@@ -561,7 +570,7 @@ mod native {
                 return Err("the evidence seals name a different module than the one lowered");
             }
             self.optimization_input
-                .attach_in_memory_evidence(evidence.seals);
+                .retain_evidence_seals(evidence.seals);
             Ok(())
         }
 
@@ -589,7 +598,7 @@ mod native {
                 return Err(ArtifactLoweringError::EvidenceForAnotherModule);
             }
             self.optimization_input
-                .attach_in_memory_evidence(evidence.seals);
+                .retain_evidence_seals(evidence.seals);
             Ok(())
         }
 
@@ -634,27 +643,41 @@ mod native {
     }
 
     pub(super) fn lower_decoded_native_module(
-        closed: &terminal_codec::ClosedTerminalModule,
+        authorization: &terminal_installation::AuthorizedTerminalArtifact,
         entry: semantic_vocabulary::MachineId,
         selections: Option<AdmittedTargetMachineSelections>,
     ) -> Result<AdmittedNativeArtifact, ArtifactLoweringError> {
-        let plan = lower_decoded_module(closed.module(), entry)
+        let plan = lower_decoded_module(authorization.artifact().semantic_module(), entry)
             .map_err(ArtifactLoweringError::Lowering)?;
-        Ok(retain_native_plan(closed, plan, selections))
+        retain_native_plan(authorization, plan, selections)
     }
 
     fn retain_native_plan(
-        module: &terminal_codec::ClosedTerminalModule,
+        authorization: &terminal_installation::AuthorizedTerminalArtifact,
         plan: AbstractOperationPlan,
         selections: Option<AdmittedTargetMachineSelections>,
-    ) -> AdmittedNativeArtifact {
-        AdmittedNativeArtifact {
+    ) -> Result<AdmittedNativeArtifact, ArtifactLoweringError> {
+        Ok(AdmittedNativeArtifact {
             optimization_input: VerifiedPsiOptimizationInput::lowered(
                 plan,
-                module.clone(),
+                authorization.clone(),
                 selections,
-            ),
-        }
+            )
+            .map_err(|reason| ArtifactLoweringError::TargetFamily(reason.to_owned()))?,
+        })
+    }
+
+    #[cfg(test)]
+    fn authorize_test_artifact(
+        artifact: &terminal_codec::CanonicalTerminalArtifact,
+    ) -> terminal_installation::AuthorizedTerminalArtifact {
+        let producer =
+            terminal_installation::HostProducerTrust::accept("controlled native fixture");
+        terminal_installation::authorize_terminal_artifact(
+            std::sync::Arc::new(artifact.clone()),
+            Some(&producer),
+        )
+        .unwrap()
     }
 
     #[cfg(test)]
@@ -757,7 +780,7 @@ mod native {
                 .expect("other target has independently admitted geometry");
                 assert_ne!(recipe.layouts(), &other);
                 let failure = VerifiedNativeArtifactInput::prepare_with_private_entry_ram(
-                    &artifact,
+                    &authorize_test_artifact(&artifact),
                     profile,
                     terminal_psi::TargetMachineCallable::Machine(entry),
                     std::slice::from_ref(&recipe),
@@ -902,7 +925,7 @@ mod native {
             let artifact = CanonicalTerminalArtifact::from_parts(module, record, None).unwrap();
             let reloaded = CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
             VerifiedNativeArtifactInput::prepare(
-                &reloaded,
+                &authorize_test_artifact(&reloaded),
                 profile,
                 reloaded
                     .semantic_module()
@@ -967,13 +990,13 @@ mod native {
         fn optimizer_only_facts_do_not_claim_an_empty_native_scope() {
             let mut module = graph();
             module.machines.truncate(1);
-            let bytes = terminal_codec::encode_module(&module).unwrap();
-            let input = crate::lower_artifact(crate::ArtifactSections {
-                semantic_bytes: &bytes,
-            })
-            .unwrap()
-            .into_optimization_artifact()
-            .into_optimization_input();
+            let record =
+                terminal_codec::build_identity_optimization_execution_record(&module).unwrap();
+            let artifact = CanonicalTerminalArtifact::from_parts(module, record, None).unwrap();
+            let input = crate::lower_artifact(&authorize_test_artifact(&artifact), None)
+                .unwrap()
+                .into_optimization_artifact()
+                .into_optimization_input();
             let plan = input.plan().clone();
             let facts = input.into_lowering_facts();
             assert!(
@@ -1133,43 +1156,20 @@ pub(crate) use native::NativeScopePreparation;
 pub use native::{NativeExecutionSelection, VerifiedNativeArtifactInput};
 pub use scalar_applications::NativeScalarApplications;
 
-#[derive(Clone, Copy)]
-pub struct ArtifactSections<'artifact> {
-    pub semantic_bytes: &'artifact [u8],
-}
-
+/// Lowers an exact host-authorized product, with optional seals kept by its host.
+/// Neither seals nor canonical decoding supply producer trust.
 pub fn lower_artifact(
-    sections: ArtifactSections<'_>,
+    authorization: &terminal_installation::AuthorizedTerminalArtifact,
+    evidence: Option<terminal_codec::EvidenceSeals>,
 ) -> Result<AdmittedNativeArtifact, ArtifactLoweringError> {
-    let module = terminal_codec::ClosedTerminalModule::from_semantic_bytes(sections.semantic_bytes)
-        .map_err(ArtifactLoweringError::SemanticDecode)?;
-    lower_decoded_artifact(&module)
-}
-
-/// Lowers an in-memory module, from the lowered-form route, with the evidence
-/// seals produced beside it. The module goes through the same canonical
-/// encoding and decoding as `lower_artifact`, so it is validated the same way;
-/// the seals are attached only when they name this module's identity. This is
-/// the only way an input gets seals: an input lowered from bytes has
-/// `ObligationEvidence::ReadFromBytes`.
-pub fn lower_module_with_evidence(
-    module: &terminal_psi::TerminalModule,
-    evidence: terminal_codec::EvidenceSeals,
-) -> Result<AdmittedNativeArtifact, ArtifactLoweringError> {
-    let bytes =
-        terminal_codec::encode_module(module).map_err(ArtifactLoweringError::SemanticDecode)?;
-    let mut lowered = lower_artifact(ArtifactSections {
-        semantic_bytes: &bytes,
-    })?;
-    lowered.attach_evidence(evidence)?;
-    Ok(lowered)
-}
-
-pub(crate) fn lower_decoded_artifact(
-    module: &terminal_codec::ClosedTerminalModule,
-) -> Result<AdmittedNativeArtifact, ArtifactLoweringError> {
-    let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = module.module().entry else {
+    let Some(terminal_psi::TargetMachineCallable::Machine(entry)) =
+        authorization.artifact().semantic_module().entry
+    else {
         return Err(ArtifactLoweringError::TargetSelectionRequired);
     };
-    native::lower_decoded_native_module(module, entry, None)
+    let mut lowered = native::lower_decoded_native_module(authorization, entry, None)?;
+    if let Some(evidence) = evidence {
+        lowered.attach_evidence(evidence)?;
+    }
+    Ok(lowered)
 }

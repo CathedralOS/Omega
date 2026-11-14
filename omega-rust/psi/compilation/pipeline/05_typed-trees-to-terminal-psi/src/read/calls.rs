@@ -251,26 +251,19 @@ impl<'t> Program<'t> {
         }
     }
 
-    /// A declaration qualifier only completes the callee's name; it is not
-    /// an implicit receiver or a source of arguments. Both a trait requirement
-    /// and a machine attached under a data declaration keep that same rule:
-    /// `Counter::clear(&mut counter)` names the machine `Counter::clear` and
-    /// passes it one argument. machines.md, "Static declarations and
-    /// explicit state": "Every argument, including context and
-    /// capabilities, is ordinary and explicit." The two are compared as
-    /// symbols, and the qualifier is the declaration itself, never a
-    /// value of the type, so no receiver is passed. Any other qualifier or
-    /// receiver stays refused.
-    pub(super) fn names_carrier(&self, target: SymbolHandle, qualifier: SymbolHandle) -> bool {
+    /// A boundary trait qualifier identifies its exact requirement; it adds
+    /// no receiver or argument (machines.md, "Static declarations and
+    /// explicit state"). Ordinary module qualification is already resolved
+    /// in the target symbol and does not use this receiver-shaped route.
+    pub(super) fn names_requirement(&self, target: SymbolHandle, qualifier: SymbolHandle) -> bool {
         if !qualifier.is_valid() || !target.is_valid() {
             return false;
         }
-        if let Some((owner, requirement)) = self.typed.trait_machine_signature(target) {
-            return owner.is_boundary && requirement.symbol == target && owner.symbol == qualifier;
-        }
-        self.entered_machine(target)
-            .and_then(|machine| self.typed.machine_by_symbol(machine))
-            .is_some_and(|machine| machine.attached_data_symbol == qualifier)
+        self.typed
+            .trait_machine_signature(target)
+            .is_some_and(|(owner, requirement)| {
+                owner.is_boundary && requirement.symbol == target && owner.symbol == qualifier
+            })
     }
 
     /// The checked named row retains its public requirement and exact body
@@ -404,6 +397,14 @@ impl<'t> Program<'t> {
     ) -> Checked<()> {
         use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
+        // Admit the selected declaration before interpreting the call's
+        // qualifier. A retired data-owned target is invalid source, not an
+        // unsupported receiver call. Requirements keep their separate owner.
+        if self.typed.symbols.symbols().nodes().is_valid(target)
+            && let Some(machine) = self.entered_machine(target)
+        {
+            self.declaration(id, machine)?;
+        }
         // The author named a declaration; where stage 04 generated the
         // machine a static application of it selects, the call targets that
         // generated machine and the selection still names the declaration.
@@ -575,9 +576,8 @@ impl<'t> Program<'t> {
             &call.machine_arguments,
         )?;
         self.direct_selection(id, call.target_symbol, call.authored_call_selection, None)?;
-        // A receiver that is the callee's data type by name, and nothing
-        // beneath it, is part of the callee's name (`names_carrier`); any
-        // other is a value passed outside the argument list.
+        // A boundary qualifier names a requirement without supplying a
+        // receiver. An actual value outside the argument list is refused.
         let receiver = call.receiver_root_symbol.is_valid()
             || call.receiver_symbol.is_valid()
             || !call.receiver.is_empty();
@@ -585,7 +585,7 @@ impl<'t> Program<'t> {
         let qualified = named.is_some()
             || (call.receiver_root_symbol == call.receiver_symbol
                 && call.receiver.len() == 1
-                && self.names_carrier(call.target_symbol, call.receiver_symbol));
+                && self.names_requirement(call.target_symbol, call.receiver_symbol));
         if receiver && !qualified {
             return unserved("receiver call");
         }
@@ -710,15 +710,14 @@ impl<'t> Program<'t> {
         {
             return unserved("compiler operation call");
         }
-        // A receiver that is the callee's data type by name is part of the
-        // callee's name (`names_carrier`); any other is a value passed
-        // outside the argument list.
+        // A boundary qualifier names a requirement; an actual receiver
+        // would supply an undeclared argument and is refused.
         let named = self.named_expression_target(id, call)?;
         let qualified = named.is_some()
             || (call.receiver.is_valid()
                 && matches!(
                     self.node(id, call.receiver)?,
-                    ExpressionNode::Name(path) if self.names_carrier(call.target_symbol, path.symbol)
+                    ExpressionNode::Name(path) if self.names_requirement(call.target_symbol, path.symbol)
                 ));
         if (call.receiver.is_valid() && !qualified)
             || (call.requirement_application.is_valid() && named.is_none())
@@ -745,7 +744,7 @@ impl<'t> Program<'t> {
             self.call(id, slots, call.target_symbol, arguments, source, expected)?
         };
         if call.build_selection.is_valid() {
-            self.designate(id, call.build_selection, &mut read)?;
+            self.designate(id, slots, call.build_selection, &mut read)?;
         }
         Ok(read)
     }
@@ -781,7 +780,7 @@ impl<'t> Program<'t> {
             .expression_table
             .name_path_node(call.receiver)
             .map_or_else(SymbolHandle::invalid, |path| path.symbol);
-        if (call.receiver.is_valid() && !self.names_carrier(call.target_symbol, namespace))
+        if (call.receiver.is_valid() && !self.names_requirement(call.target_symbol, namespace))
             || call.build_selection.is_valid()
             || call.static_requirement_dispatch.is_some()
             || call.requirement_application.is_valid()
@@ -941,6 +940,7 @@ impl<'t> Program<'t> {
     fn designate(
         &mut self,
         id: MachineId,
+        slots: &[Slot],
         selection: arena::Handle<typed_trees::expression::BuildSelectionRequest>,
         read: &mut Expression,
     ) -> Checked<()> {
@@ -973,6 +973,32 @@ impl<'t> Program<'t> {
             });
         if !protocol {
             return unserved("Build selection outside the toolchain's selection protocol");
+        }
+        // entry_roots.md, "Source selection is not invocation": "The
+        // root-binding form is `Build::bind(builder, Target::Slot,
+        // Product::entry)`. The first argument explicitly supplies the
+        // current activation's mutable Build value; ordinary helpers may
+        // forward that value." The protocol's own operation takes the Build
+        // shared and the host authenticates only which Build it is, so the
+        // access the author must supply is judged here, where the argument
+        // is a place: a Build reached shared supplies no mutable value, in
+        // every program.
+        if matches!(request, BuildSelectionRequest::Entry(_))
+            && let ExpressionKind::Call { arguments, .. } = &read.kind
+            && let Some(Expression {
+                kind: ExpressionKind::Borrow { place, .. },
+                ..
+            }) = arguments.first()
+            && !self.lends_exclusively(id, slots, place)?
+        {
+            return Err(crate::reject(
+                id,
+                place.source,
+                "root binding requires the current activation's mutable Build value, and this \
+                 argument supplies only shared access to it: the first argument of the \
+                 root-binding form is the `&mut Build` the activation was lent, forwarded with \
+                 that access",
+            ));
         }
         // Provider readiness names a boundary trait application. Its host
         // row states that application and the boundaries it covers, so the
@@ -1699,10 +1725,9 @@ impl<'t> Program<'t> {
     /// is not public. Which package a declaration belongs to is the package
     /// of the source file its symbol was declared in, as for subjects
     /// (`subjects`); a declaration with no source file cannot be placed and
-    /// is refused. The typed trees can hold such a call: the deleted checker
-    /// rejected it after them, where a product selected the callee, so a
-    /// reader that took every resolved call as permitted would accept a
-    /// program that reaches into a dependency's private machine.
+    /// is refused. Resolution supplies identity, not permission: modules.md,
+    /// "Visibility" makes independently nameable machines private unless
+    /// public, regardless of their qualifier or argument types.
     pub(super) fn visible_to(&self, id: MachineId, callee: SymbolHandle) -> Checked<()> {
         let is_public = self
             .typed
@@ -1902,6 +1927,41 @@ impl<'t> Program<'t> {
         lent_storage_is_untouched(id, &read, &self.captures, |place| {
             place.result.is_some_and(|held| self.is_borrowed_view(held))
         })?;
+        // An exclusive loan written for a shared formal is lowered as the
+        // shared loan the callee receives (`lent`). ownership.md, "Borrows
+        // and aliases": "exclusive loans must not overlap incompatibly", so
+        // the root it lends is lent by no other argument of this call; the
+        // lowered shared loans alone would not show that overlap.
+        for (position, (argument, (_, _, borrowed))) in arguments.iter().zip(&formals).enumerate() {
+            let exclusive_for_shared = borrowed
+                .as_ref()
+                .is_some_and(|formal| formal.access == ReferenceAccess::Shared)
+                && matches!(self.node(id, *argument)?,
+                    ExpressionNode::Borrow(borrow) if borrow.access == ReferenceAccess::Mutable);
+            let Some(Expression {
+                kind: ExpressionKind::Borrow { place, .. },
+                ..
+            }) = read.get(position).filter(|_| exclusive_for_shared)
+            else {
+                continue;
+            };
+            let root = root_slot(id, place, &self.captures)?;
+            for (other, lent) in read.iter().enumerate() {
+                if other != position
+                    && let ExpressionKind::Borrow { place, .. } = &lent.kind
+                    && root.is_some()
+                    && root_slot(id, place, &self.captures)? == root
+                {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Call(
+                            "exclusive loan for a shared formal beside another loan of its storage",
+                        ),
+                    ));
+                }
+            }
+        }
         if let SourceOrigin::Authored(span) = source
             && let Some(names) = self.names.get_mut(id)
         {
@@ -1981,11 +2041,8 @@ impl<'t> Program<'t> {
                 .is_some_and(|result| self.names_any(result, &[*parameter]))
                 && !bound.iter().any(|(known, _)| known == parameter);
             if chosen_by_caller {
-                self.region_variables.push(None);
-                bound.push((
-                    *parameter,
-                    super::regions::Region::Variable((self.region_variables.len() - 1) as u32),
-                ));
+                let chosen = self.fresh_region();
+                bound.push((*parameter, chosen));
             }
         }
         let result = declared_result.map(|result| self.substitute(result, &bound));
@@ -2015,6 +2072,40 @@ impl<'t> Program<'t> {
             },
             result,
             source,
+        })
+    }
+
+    /// Whether `place` could be lent exclusively from here: every reference
+    /// its path crosses grants mutable access, and the storage it starts
+    /// from is this machine's to change (a `&mut` formal, or a local that
+    /// is `mut` or only holds the reference the path crosses).
+    fn lends_exclusively(
+        &self,
+        id: MachineId,
+        slots: &[Slot],
+        place: &Expression,
+    ) -> Checked<bool> {
+        let crossed = match self.reference_place_access(id, slots, place, ReferenceAccess::Mutable)
+        {
+            Ok(crossed) => crossed,
+            Err(refusal)
+                if matches!(
+                    refusal.reason,
+                    terminal_check_tables::RefusalReason::Violation(_)
+                ) =>
+            {
+                return Ok(false);
+            }
+            Err(refusal) => return Err(refusal),
+        };
+        let Some(holder) = root_slot(id, place, &self.captures)?.and_then(|slot| slots.get(slot))
+        else {
+            return Ok(false);
+        };
+        Ok(match holder.borrowed {
+            Some(ReferenceAccess::Mutable) => true,
+            Some(ReferenceAccess::Shared | ReferenceAccess::WriteOnly) => false,
+            None => crossed || holder.assignable,
         })
     }
 
@@ -2122,7 +2213,17 @@ impl<'t> Program<'t> {
                  place lacks",
             ));
         }
-        if access != formal.access {
+        // loans.md, "Reborrow lineage and access": a Mutable parent may
+        // form a Shared child, "Freeze mutation until the complete shared
+        // cohort ends; restore once." So `&mut place` given to a `&T`
+        // parameter is the exclusive loan the program wrote, lent on for
+        // observation: the place must admit that exclusive loan (every
+        // check below is made at the written access), and the callee
+        // receives the formal's access. No other difference has a row.
+        let attenuated = explicit
+            && access == ReferenceAccess::Mutable
+            && formal.access == ReferenceAccess::Shared;
+        if access != formal.access && !attenuated {
             return unserved("borrow whose access differs from its formal's");
         }
         // An existing view already carries its backing; an owned array still
@@ -2157,7 +2258,7 @@ impl<'t> Program<'t> {
                 result: Some(referent),
             };
         }
-        let crossed = self.reference_place_access(id, &place, access)?;
+        let crossed = self.reference_place_access(id, slots, &place, access)?;
         let slot = root_slot(id, &place, &self.captures)?;
         if !crossed {
             let Some(slot) = slot else {
@@ -2209,7 +2310,7 @@ impl<'t> Program<'t> {
                 call_context: None,
                 result: place.result,
                 kind: ExpressionKind::Borrow {
-                    access,
+                    access: formal.access,
                     place: Box::new(place),
                     home,
                 },

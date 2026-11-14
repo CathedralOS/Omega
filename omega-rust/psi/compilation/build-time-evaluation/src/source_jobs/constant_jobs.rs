@@ -243,11 +243,7 @@ pub fn validate_constant_evaluations(
                         ..
                     },
                     ExpressionNode::Integer(current),
-                ) if current
-                    .value_i64()
-                    .map(i128::from)
-                    .or_else(|| current.value_u64().map(i128::from))
-                    == Some(*value) => {}
+                ) if current.value_bignum().as_ref() == Some(value) => {}
                 _ => {
                     return Err(
                         "constant materialization differs from its invocation outcome".into(),
@@ -356,11 +352,13 @@ fn decoded(
         }
         (primitive, BuildTimeValue::Int(value)) if primitive.accepts_integer_literal() => {
             Ok(DecodedCanonicalConstValue::Integer {
-                type_name: primitive.name().to_owned(),
+                integer_type: primitive
+                    .landed_landing()
+                    .ok_or("constant result has no integer carrier")?,
                 value: if primitive.is_signed_integer() {
-                    i128::from(*value)
+                    numerics::bignum::BigInt::from(*value)
                 } else {
-                    i128::from(*value as u64)
+                    numerics::bignum::BigInt::from(*value as u64)
                 },
             })
         }

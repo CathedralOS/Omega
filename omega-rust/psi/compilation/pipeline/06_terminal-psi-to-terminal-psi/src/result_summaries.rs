@@ -36,7 +36,7 @@ a contract only once it is proved, so a machine never reads its own, and
 "assuming a proposed summary around a cycle is not a proof" cannot happen.
 
 Summaries run before input inference and once more after it
-(`discharge_with`). A helper that omits `requires` is first summarized under
+(`discharge`). A helper that omits `requires` is first summarized under
 no input, and what it returns because of the input its callers establish is
 a further clause the second run adds; a clause already in the contract is
 not added again.
@@ -67,15 +67,14 @@ use terminal_check_tables::{
 use terminal_psi::{ContractClause, TerminalMachine, TerminalMachineResult, Terminator};
 
 use crate::{
-    Bindings, Knowledge, Unbound, decide, entry_inputs, hypotheses, joins,
-    prepare_with_inhabitation, prove, refusal, returned_for_result, terminal_machine,
+    Bindings, Unbound, decide, entry_inputs, hypotheses, joins, prepare_with_inhabitation, prove,
+    refusal, returned_for_result, terminal_machine,
 };
 
 /// Adds a proved result summary to the contract of each machine in
 /// `Elaboration::local_results` that has one, callees first.
 pub(crate) fn infer(
     elaboration: &mut Elaboration,
-    knowledge: Knowledge,
     unreached: &mut crate::Unreached,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
 ) -> Checked<()> {
@@ -83,7 +82,7 @@ pub(crate) fn infer(
         return Ok(());
     }
     for id in callees_first(elaboration)? {
-        summarize(elaboration, id, knowledge, unreached, inhabitation)?;
+        summarize(elaboration, id, unreached, inhabitation)?;
     }
     Ok(())
 }
@@ -253,7 +252,6 @@ fn widest(
 fn summarize(
     elaboration: &mut Elaboration,
     id: MachineId,
-    knowledge: Knowledge,
     unreached: &mut crate::Unreached,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
 ) -> Checked<()> {
@@ -279,14 +277,8 @@ fn summarize(
     let original =
         terminal_check_tables::row(&elaboration.tables.machines, id, id, Construct::Machine)?;
     let mut scratch = original.clone();
-    let prepared = prepare_with_inhabitation(
-        module,
-        &elaboration.domains,
-        id,
-        &mut scratch,
-        knowledge,
-        inhabitation,
-    )?;
+    let prepared =
+        prepare_with_inhabitation(module, &elaboration.domains, id, &mut scratch, inhabitation)?;
     let declared_joins = joins::prepare(
         lowered,
         id,
@@ -294,7 +286,6 @@ fn summarize(
         &prepared.graph,
         &prepared.context,
         &module.scalar_block_invariants,
-        knowledge == Knowledge::All,
     )?;
     let references = prepared.references(&module.structural_types);
     let storage = crate::places::Storage::new(
@@ -307,7 +298,6 @@ fn summarize(
         &prepared.types,
         &references,
     )?;
-    let relations = knowledge != Knowledge::LiteralIntervals;
     let beyond = unreached.values(lowered, &scratch);
     let mut decided = (0..scratch.obligations.len())
         .map(|_| None)
@@ -321,7 +311,6 @@ fn summarize(
             types: &prepared.types,
             graph: &prepared.graph,
             context: &prepared.context,
-            relations,
             declared: &declared_joins,
             unreached: &beyond,
         },
@@ -371,7 +360,6 @@ fn summarize(
                 &known.assumptions,
                 &known.axioms,
                 &scratch.values,
-                relations,
             );
             // A caller's goal on this result then depends on an operation
             // the integer rules do not reach, whatever is described of it.
@@ -428,7 +416,6 @@ fn summarize(
             row_identity(index + 1)?,
             ProgramPoint::Edge(*edge),
             goal,
-            relations,
             &beyond,
         )
         .is_err()

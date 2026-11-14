@@ -17,15 +17,12 @@ copied into the module's identity table in the text form that table holds,
 exactly as a record type's is (`RecordType::identity`). Nothing here or in
 the checker compares those texts, and none is formed from a name.
 
-The contract commitment is this route's own. The deleted checker committed to
-the contract as it published it, which this crate may not
-read. Here the commitment is a digest of the contract the lowered form
+The contract commitment is a digest of the contract the lowered form
 publishes for the machine: its callable identity, each formal's type and
 binding mode, its result type, the `requires` and `ensures` propositions and
 crash routes of its `MachineContract`, and what its header says about
-termination. Two machines with one commitment publish one contract. A
-commitment from this route and one from the deleted checker are never equal,
-so a consumer that compares the two refuses instead of pairing them.
+termination. Consumers compare this commitment only under its domain and
+encoding; a digest from another contract representation is not interchangeable.
 
 A machine this cannot state is left without a declaration and listed in
 `Elaboration::undeclared` with the reason. That changes no verdict: the
@@ -53,8 +50,7 @@ const COMMITMENT_DOMAIN: &[u8] = b"omega.lowered-machine-public-contract.v2\0";
 /// Domain of the commitment a generated machine makes to its application.
 const APPLICATION_DOMAIN: &[u8] = b"omega.lowered-machine-static-application.v1\0";
 
-/// Feeds what `Hash` writes into the commitment digest, as the current
-/// checker's `ContractHasher` does for its own commitment.
+/// Feeds the contract's structured fields into its domain-separated digest.
 struct Commitment(DomainDigestEncoder);
 
 impl Hasher for Commitment {
@@ -535,7 +531,7 @@ fn application(
                     .type_identity_text(typed.package_qualified_type_identity(*type_reference))
                     .filter(|text| !text.is_empty())
                     .ok_or("an application's value parameter type has no identity")?;
-                let is_bool = typed.type_reference_table.primitive_type(*type_reference)
+                let is_bool = typed.primitive_type_reference(*type_reference)
                     == Some(typed_trees::types::PrimitiveType::Bool);
                 match (&argument.const_literal, argument.closed_boolean()) {
                     (Some(literal), None) if !is_bool => {

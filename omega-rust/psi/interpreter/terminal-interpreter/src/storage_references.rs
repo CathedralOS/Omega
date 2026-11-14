@@ -3147,7 +3147,16 @@ impl TerminalExecution<'_> {
         storage: Option<terminal_psi::ReferenceStorageView>,
     ) -> Result<(), TerminalInterpretError> {
         let result = operation.result.structural().ok_or_else(malformed)?;
-        if result.multiplicity != StructuralMultiplicity::Affine
+        // Formation owns the new permission's lifecycle. Shared type copy
+        // permission governs later copies; use the same creation contract
+        // as the producer and receiving semantics for this actual operation.
+        self.reference_contract(result.structural_type)?;
+        let declared = terminal_semantics::StructuralEffectSemanticRow::for_tag(
+            terminal_semantics::OperationSemanticTag::for_operation(&operation.kind),
+        )
+        .and_then(|row| row.schema().required_result_multiplicity())
+        .ok_or_else(malformed)?;
+        if result.multiplicity != declared
             || !result.qualifications.is_empty()
             || !result.claims.is_empty()
             || self.structural_values.contains_key(&result.place)
@@ -3181,8 +3190,11 @@ impl TerminalExecution<'_> {
         self.reference_referents
             .insert(StructuralRuntimePlace::from(&carrier), prepared.referent)?;
         self.structural_values.insert(result.place, carrier)?;
-        self.live_affine_frontier
-            .insert(whole_path_discard(result.place, result.structural_type));
+        // Only an affine carrier is a value a later operation must end.
+        if declared == StructuralMultiplicity::Affine {
+            self.live_affine_frontier
+                .insert(whole_path_discard(result.place, result.structural_type));
+        }
         Ok(())
     }
 

@@ -30,8 +30,8 @@ use terminal_check_tables::{
 use terminal_psi::{OperationKind, TerminalMachine, Terminator};
 
 use crate::{
-    Bindings, Knowledge, Unbound, graph::Graph, joins, prepare_with_inhabitation, refusal,
-    scalar_actuals, substitute, terminal_machine,
+    Bindings, Unbound, graph::Graph, joins, prepare_with_inhabitation, refusal, scalar_actuals,
+    substitute, terminal_machine,
 };
 
 /// Callers precede helpers. The lowering of terminal call components already
@@ -39,7 +39,6 @@ use crate::{
 /// here supplies no inferred condition and still faces ordinary discharge.
 pub(crate) fn infer(
     elaboration: &mut Elaboration,
-    knowledge: Knowledge,
     unreached: &mut crate::Unreached,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
 ) -> Checked<()> {
@@ -75,7 +74,6 @@ pub(crate) fn infer(
         describe_calls(
             elaboration,
             id,
-            knowledge,
             &sites,
             &mut incoming,
             unreached,
@@ -96,7 +94,6 @@ pub(crate) fn infer(
 fn describe_calls(
     elaboration: &Elaboration,
     id: MachineId,
-    knowledge: Knowledge,
     sites: &CallSites,
     incoming: &mut IdTable<MachineId, Vec<Proposition>>,
     unreached: &mut crate::Unreached,
@@ -116,7 +113,6 @@ fn describe_calls(
         &elaboration.domains,
         id,
         &mut tables,
-        knowledge,
         inhabitation,
     )?;
     let lowered = terminal_machine(&elaboration.module.machines, id, id)?;
@@ -127,7 +123,6 @@ fn describe_calls(
         &prepared.graph,
         &prepared.context,
         &elaboration.module.scalar_block_invariants,
-        knowledge == Knowledge::All,
     )?;
     let references = prepared.references(&elaboration.module.structural_types);
     let storage = crate::places::Storage::new(
@@ -144,7 +139,6 @@ fn describe_calls(
         .map(|_| None)
         .collect::<Vec<_>>();
     let beyond = unreached.values(lowered, &tables);
-    let relations = knowledge != Knowledge::LiteralIntervals;
     joins::check(
         &joins::Machine {
             module: &elaboration.module,
@@ -154,7 +148,6 @@ fn describe_calls(
             types: &prepared.types,
             graph: &prepared.graph,
             context: &prepared.context,
-            relations,
             declared: &declared,
             unreached: &beyond,
         },
@@ -202,7 +195,6 @@ fn describe_calls(
             id,
             site.before,
             &crossing,
-            relations,
             &beyond,
         )?;
         // What the helper learns of such a formal describes an operation
@@ -401,7 +393,6 @@ fn derived(
     id: MachineId,
     point: ProgramPoint,
     crossing: &[(ScalarTerm, ValueId)],
-    relations: bool,
     beyond: &[ValueId],
 ) -> Checked<Derived> {
     let mut assumptions = Vec::new();
@@ -421,8 +412,7 @@ fn derived(
             }
         }
     }
-    let mut prover =
-        crate::prove::Prover::new(context, &assumptions, &axioms, &tables.values, relations);
+    let mut prover = crate::prove::Prover::new(context, &assumptions, &axioms, &tables.values);
     let mut found = Derived {
         bounds: Vec::new(),
         unreached: Vec::new(),

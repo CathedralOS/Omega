@@ -63,6 +63,7 @@ mod policy;
 mod proof_scope;
 mod read;
 mod reference_results;
+mod suspension;
 
 // One compilation's forms read the same frozen owner and its immutable
 // capture index. Sharing this scratch never transfers source or proof authority.
@@ -573,7 +574,17 @@ fn elaborate_witness_call(
         source,
     };
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
-    bodies.push(Body {
+    bodies.push(callable_refinement_body(&required, call));
+    finish_reading(program, Some(entry), bodies).map(|prepared| prepared.program)
+}
+
+/// A callable refines its requirement by making this call under the
+/// requirement's inputs and proving its normal completion afterward. Both
+/// ordinary and projected witnesses use the canonical call/return operations;
+/// the callee's guarantees become available only after that call completes.
+pub(crate) fn callable_refinement_body(required: &body::Signature, call: Expression) -> Body {
+    let source = call.source;
+    Body {
         slots: required.parameters.clone(),
         statements: vec![match required.result {
             Some(_) => Statement::Arm {
@@ -583,8 +594,7 @@ fn elaborate_witness_call(
             },
             None => Statement::Evaluate(call),
         }],
-    });
-    finish_reading(program, Some(entry), bodies).map(|prepared| prepared.program)
+    }
 }
 
 fn elaborate_form(
@@ -659,6 +669,8 @@ fn finish_reading<'source>(
                 &mut elaboration.module,
             )
         })
+        // Last, over the finished operations and published contracts.
+        .and_then(|()| suspension::publish_crossings(&mut elaboration.module))
         .map_err(|reason| {
             refuse(
                 diagnostic,
@@ -875,7 +887,7 @@ fn lower_generic_for<'source>(
                 Unserved::Machine("identity overflow"),
             )
         })?;
-        let component = terminal_check_tables::row(&components, id, id, Construct::Machine)?;
+        let component = components.members(id)?;
         let contract = u64::try_from(module.declaration_contracts.len())
             .ok()
             .and_then(|count| count.checked_add(id.get()))

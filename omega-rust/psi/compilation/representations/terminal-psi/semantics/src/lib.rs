@@ -41,6 +41,7 @@ pub mod scalars;
 pub mod storage;
 pub mod structural;
 pub mod substitution;
+pub mod suspension_frontier;
 
 pub use access::access_lifecycles::{
     AccessResultContract, access_result_contract, access_view_reference_slot,

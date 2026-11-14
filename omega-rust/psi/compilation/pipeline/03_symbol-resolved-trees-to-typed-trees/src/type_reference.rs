@@ -1361,7 +1361,7 @@ pub(crate) mod const_arguments {
                         evaluated_value: Some(
                             language_core::constant_value::EvaluatedConstant::Encoded(
                                 language_semantics::const_value::CanonicalConstIdentity::integer(
-                                    "u64", 0,
+                                    LandedIntegerType::U64, 0,
                                 )
                                 .encoding,
                             ),
@@ -2122,6 +2122,23 @@ pub(crate) mod direct {
                 typed::types::FixedArrayLength::Literal(*value)
             }
             resolved::types::FixedArrayLength::ConstParameter { symbol, name } => {
+                /*
+                    The extent was read in the type's lexical scope, so a
+                    runtime parameter or local that hides a same-spelled
+                    constant arrives as itself; an extent is known before the
+                    program runs, so such a value is refused here.
+                */
+                if symbol.is_valid()
+                    && matches!(
+                        source_trees.symbols.get(*symbol).kind,
+                        symbols::SymbolKind::Parameter | symbols::SymbolKind::Local
+                    )
+                {
+                    return Err(Diagnostic::error(format!(
+                        "the extent of `[_; {name}]` is a runtime value: `{name}` is a parameter or local here, and an array extent is known before the program runs"
+                    ))
+                    .with_source_span(name.source_span()));
+                }
                 if symbol.is_valid()
                     && source_trees.symbols.get(*symbol).kind == symbols::SymbolKind::Const
                 {
@@ -3334,7 +3351,7 @@ pub(crate) fn retain_type_reference_selection(
     };
     if !name.is_source_backed()
         || !symbol.is_valid()
-        || resolved::types::PrimitiveType::from_name(name.as_str()).is_some()
+        || source_trees.symbols.builtin_type_atom(symbol).is_some()
     {
         return Ok(());
     }
@@ -3407,6 +3424,18 @@ pub(crate) fn lower_named_type_reference(
     name: &resolved::name::DiagnosticName,
     exposure: Option<AuthoredDeclarationSelectionExposure>,
 ) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
+    /*
+        A builtin type spelling in type position names only a builtin type
+        (`wiki/spec/language/modules.md#builtin-type-names`), and Psi 02 binds
+        every valid one. One left unbound is a family spelling that is not a
+        type, such as `u0`; a same-spelled value never stands in for it.
+    */
+    if !symbol.is_valid() && symbols::is_builtin_type_spelling(name.as_str()) {
+        return Err(Diagnostic::error(format!(
+            "`{name}` is spelled like a builtin type but is not one: an integer width is a positive `u64`, and a value named `{name}` is never read as a type"
+        ))
+        .with_source_span(name.source_span()));
+    }
     retain_type_reference_selection(
         source_trees,
         typed_trees,

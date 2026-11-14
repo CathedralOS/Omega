@@ -2521,15 +2521,27 @@ pub(crate) mod product_queries {
 
     pub(crate) fn operation(
         source: &SymbolResolvedTrees,
-        namespace: SymbolHandle,
         target: SymbolHandle,
-        name: &str,
+        qualifier: Option<SymbolHandle>,
     ) -> Option<ProductQueryOperation> {
-        if !source.symbols.is_build_prelude_symbol(namespace)
-            || (target.is_valid() && !source.symbols.is_build_prelude_symbol(target))
+        // Static normalization removes a module qualifier, not the selected
+        // declaration or authored occurrence. Use that declaration's real
+        // owner so a query is rewritten at its caller, never executed in the
+        // toolchain wrapper's package. A value receiver grants no such route.
+        let declaration = match source.symbols.get(target).kind {
+            symbols::SymbolKind::State => source.symbols.get(target).parent,
+            symbols::SymbolKind::Machine => target,
+            _ => return None,
+        };
+        let namespace = source.symbols.symbol_module(declaration);
+        if qualifier.is_some_and(|qualifier| qualifier != namespace || !qualifier.is_valid())
+            || !source.symbols.is_build_prelude_symbol(namespace)
+            || source.symbols.get(namespace).kind != symbols::SymbolKind::Module
+            || !source.symbols.is_build_prelude_symbol(declaration)
         {
             return None;
         }
+        let name = source.symbols.name(declaration);
         let name = match (source.symbols.name(namespace), name) {
             ("BuildProduct", "entry" | "schema" | "provider") => name,
             ("ProductTypeSchema", "path") => "schema_path",
@@ -2627,7 +2639,7 @@ pub(crate) mod product_selections {
         a designated Build registration (wiki/spec/build/testing.md). It shares
         the one designated-operand carrier with `Build::<operation><…>(builder)`:
         the `tests` facet becomes the one explicit argument and the Build
-        prelude data the namespace, so typing, checking, execution and admission
+        prelude module the namespace, so typing, checking, execution and admission
         never see a second receiver-shaped route. A resolved user method keeps
         ordinary resolution; only the unresolved toolchain spelling with no
         ordinary arguments takes this route. Its preparation (`prepare_tests`)
@@ -2667,12 +2679,13 @@ pub(crate) mod product_selections {
             return None;
         }
         source
-            .data_definitions
-            .iter()
-            .find(|data| {
-                data.name.as_str() == "Build" && source.symbols.is_build_prelude_symbol(data.symbol)
-            })
-            .map(|data| data.symbol)
+            .symbols
+            .find_top_level_by_name_and_kinds_from_source_matching(
+                "Build",
+                &[symbols::SymbolKind::Module],
+                expressions.source_span(receiver),
+                |namespace| source.symbols.is_build_prelude_symbol(namespace),
+            )
     }
 
     pub(crate) fn request(
@@ -2720,10 +2733,8 @@ pub(crate) mod product_selections {
         if target.is_valid()
             || !namespace.is_valid()
             || !source.symbols.is_build_prelude_symbol(namespace)
-            || !source
-                .data_definitions
-                .iter()
-                .any(|data| data.symbol == namespace && data.name.as_str() == "Build")
+            || source.symbols.get(namespace).kind != symbols::SymbolKind::Module
+            || source.symbols.name(namespace) != "Build"
         {
             return Ok(None);
         }

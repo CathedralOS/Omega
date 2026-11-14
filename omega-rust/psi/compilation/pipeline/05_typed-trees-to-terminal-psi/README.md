@@ -55,6 +55,12 @@ involved.
 
 ## The subset
 
+Data declarations do not own machines or provide code namespaces.
+The reader rejects retained data-attachment metadata, even with explicit
+arguments, under [static declarations and explicit state](../../../../../wiki/spec/language/machines.md#static-declarations-and-explicit-state).
+Module and trait qualification still identify ordinary static declarations;
+they do not supply implicit arguments.
+
 Machines with one state and a complete body whose formals, locals and result
 are builtin integers (`i8` to `u64`) or `bool`, using: scalar locals and
 assignment to them; integer and Boolean literals; wholly anonymous `+`, `-`,
@@ -179,17 +185,16 @@ The closure includes "the Build and preparation entries the compile
 executes":
 
 - **The Build program in `build.omg`.** It is read under the Build's
-  dependency scope, and the Build activation checks it with the current
-  checker before it runs and before these trees exist.
+  dependency scope, and Build activation checks it before execution with
+  the lowered-form checker.
 - **The bound target's entry-contract source**
   (`source/library/std/targets/<target>/entry.omg`), whose machines plan the
-  entry boundary. The deleted checker kept that whole source as a subject
-  (`check_product_source`); here it is a toolchain file, so its machines are
-  judged only if something reaches them.
+  entry boundary. It is a toolchain file here, so its machines are judged
+  only if something reaches them.
 
-Which check judges these two when the route governs a Product compilation is
-undecided. Making them roots today would refuse every program with a bound
-entry, since neither is inside the lowered subset.
+Build activation owns checking the first closure. The second remains a
+closure-coverage limit: this reader does not make every entry-contract helper
+a root, and acceptance does not cover those unreached bodies.
 
 ### Generic machines
 
@@ -784,9 +789,8 @@ that still resolves to a constant is refused as `expression const`.
 ## How identity is fixed
 
 - **Types** are scalar only through `SymbolTable::builtin_type_atom` on the
-  resolved symbol of a `Named` type: the compiler-installed root slot. The
-  typed trees' `PrimitiveType::from_name` classifies by spelling and is not
-  used. A `Named` type with an invalid symbol is refused as a spelling; a
+  resolved symbol of a `Named` type, using the shared builtin classification
+  in `symbols`. A `Named` type with an invalid symbol is refused as a spelling; a
   declaration spelled `u32` is a different symbol and is refused as nominal.
   Integer literals take their type from the landing stage 04 recorded.
 - **Record types** are the `StructuralTypeId` minted for a `SymbolKind::Data`
@@ -1122,8 +1126,8 @@ established value or the type is gated
 ([terminal-psi-to-terminal-psi](../06_terminal-psi-to-terminal-psi/README.md#zero-establishment)).
 
 A scalar local is zero-constructed by the same rule
-(`local-without-initializer`): `let mut x: u32; f(x)` reads zero, as the
-deleted checker accepted. Lowering logs `Content::Value(zero)` on the scalar
+(`local-without-initializer`): `let mut x: u32; f(x)` reads zero.
+Lowering logs `Content::Value(zero)` on the scalar
 home at its `EstablishPrimitiveLocal`, naming the zero constant emitted just
 before it
 ([dependent values](../../../../../wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization):
@@ -1257,7 +1261,7 @@ An origin is the authored span, or `Unpositioned` with the reason
 `LoweredSourceCustody` was not used: it records call occurrences only and
 depended on a removed representation.
 
-`Elaboration::names` ([names.rs](src/names.rs)) is what diagnostics call
+`Elaboration::names` ([names.rs](../../representations/terminal-psi/check-tables/src/names.rs)) is what diagnostics call
 those constructs, because the lowered form carries identities and spans but
 no binder names. The reader records, per machine, its name (a template's for
 a generated specialization) and its state's, its formals' names, the
@@ -1397,12 +1401,10 @@ worked around by adding to `terminal-check-tables`.
 20. **A record pattern carries its field roster as symbols.**
     `let { x, y as _ } = p;` reaches the typed trees as a marker local
     followed by one ordinary field-read local per bound field. The marker
-    used to name its fields only in its own name (`__destructure#x#y`), which
-    the deleted checker split and compared by spelling. It now carries a
-    roster (`TableLocalData::pattern_fields`, one row per named field, bound
-    or waived) that typed preparation resolves against the subject's declared
+    carries a roster (`TableLocalData::pattern_fields`, one row per named
+    field, bound or waived) that typed preparation resolves against the subject's declared
     record (`pattern_subject`), and `validate_destructure_exhaustiveness`
-    and this route both decide coverage from those symbols.
+    and this reader decide coverage from those symbols.
     [Patterns](../../../../../wiki/spec/language/patterns.md#irrefutable-data-bindings)
     requires the pattern to name every field, so a roster that omits one is
     refused here as it is rejected there.
@@ -1472,11 +1474,9 @@ worked around by adding to `terminal-check-tables`.
     its published routes"; "`crashes none` admitting only crash-free
     members"). Both publish no route in the generic form, so the generic
     check decides nothing about crashes through the call either way. The
-    deleted checker refused a member that is not crash-free where it
-    satisfies a `crashes none` requirement, and gives each application of a
-    deferring requirement the selected member's routes
-    (`tests/omega/fail/traits/omitted_requirement_crashes_reach_generic_caller`).
-    This route hands those programs back (conformances are outside it).
+    selected member must satisfy an explicit `crashes none` ceiling;
+    an omitted ceiling instead uses that member's published routes. A
+    requirement description alone does not prove either obligation.
 31. **The declared machine's call through a parameter names a child of the
     parameter.** In the generic declaration `Selected::apply(x)` targets a
     state symbol under the parameter's symbol, with no requirement recorded
@@ -1492,25 +1492,20 @@ worked around by adding to `terminal-check-tables`.
     wants requirements out of `module.machines` needs a callee row for one.
 
 33. **A resolved call is not a permitted call.** The typed trees hold a call
-    into a dependency's private machine fully resolved; the deleted checker
-    rejects it later, where a product selects the callee. The reader
-    therefore checks visibility itself: a callee that is not public must be
-    declared in the caller's package, by the source file each symbol was
+    into a dependency's private machine fully resolved. Resolution grants
+    no visibility, so the reader checks that separately: a callee that is not
+    public must be declared in the caller's package, by the source file each symbol was
     declared in, with a generated machine placed where its declaration is
     (`visible_to`). Any other call is refused as `call private machine of
-    another package`, so the deleted checker decided the compilation
-    (`tests/fixtures/fail/build/executed_dependency_private_call`).
-34. **A runtime read of an erased binding falls back; it is not yet rejected
-    here.** The deleted checker rejected `let total: i32 = bound;` for an
-    erased `bound` ("erased parameter `bound` has no runtime value"). That is
-    a verdict about the program, and this route has no refusal reason for it,
-    so the reader refuses the closure as `Unsupported` and the current
-    checker decides. The slice that owns the rejection adds the reason.
-35. **The current pipeline cannot lower an erased local supplied as an erased
-    term.** `let witness [erased]: i32 = limit; keep(n, witness)` passes the
-    deleted checker and then fails in Psi 06 ("scalar read has no authored
-    binding"). This route lowers it: the local names the term. The witness is
-    `tests/omega/pending/relevance/erased_local_forwarded_to_erased_formal`.
+    another package`; it cannot produce an accepted closure.
+34. **A runtime read of an erased binding is not served.** An erased
+    binding has no runtime value. The reader refuses this use as
+    `Unsupported`, so no artifact is accepted. Classifying that invalid
+    source as a rule violation remains separate from supporting the read.
+35. **An erased local supplied as an erased term needs its term identity.**
+    Lowering an erased local does not create executable storage for it.
+    Forwarding it must retain the proof term; a scalar storage read cannot
+    stand in for that correspondence.
 36. **A recursive call records its selection as the entry state.** A call of
     another machine carries an authored selection that resolves to the
     symbol the call names. A call of the machine being read names the
@@ -1528,5 +1523,4 @@ worked around by adding to `terminal-check-tables`.
 38. **A final value counts as terminal position.** Stage 01 leaves a body's
     final expression as an expression, and the reader makes it the
     unguarded arm that completes the machine, so `machine f(n: u32) -> u32
-    { f(n) }` is a jump back like `transition { _ -> f(n) }`. Whether the
-    deleted checker treated the two alike was not measured.
+    { f(n) }` is a jump back like `transition { _ -> f(n) }`.

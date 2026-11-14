@@ -752,6 +752,16 @@ mod module_namespaces {
                 );
             }
             assert_eq!(
+                symbols.domain_name_reaches(declarations[2], "Far", reference(0)),
+                path == "dependency::units",
+                "a module import exposes its direct domain's semantic leaf"
+            );
+            assert_eq!(
+                symbols.domain_name_reaches(declarations[1], "Near", reference(0)),
+                path != "dependency::units::Item"
+            );
+            assert!(!symbols.domain_name_reaches(declarations[3], "Child", reference(0)));
+            assert_eq!(
                 domain_reference(&symbols, 0, "dependency::units::u64::Far"),
                 Some(declarations[2])
             );
@@ -2198,6 +2208,76 @@ mod source_scoped_bindings {
     use source::{SourceMap, SourceSpan, Span};
     use std::path::PathBuf;
     use std::sync::Arc;
+
+    #[test]
+    fn build_prelude_custody_covers_its_modules_but_not_user_sources() {
+        let cases = [
+            ("<build-prelude>", source::SourceOrigin::Toolchain, true),
+            (
+                "<build-prelude:Build>",
+                source::SourceOrigin::Toolchain,
+                true,
+            ),
+            ("<build-prelude:Build>", source::SourceOrigin::User, false),
+            (
+                "<build-prelude:Build>",
+                source::SourceOrigin::ToolchainContract,
+                false,
+            ),
+            (
+                "<build-prelude-other:Build>",
+                source::SourceOrigin::Toolchain,
+                false,
+            ),
+            (
+                "<build-prelude:Build>/nested",
+                source::SourceOrigin::Toolchain,
+                false,
+            ),
+        ];
+        let mut sources = SourceMap::default();
+        let spans = cases.map(|(path, origin, _)| {
+            let source = sources
+                .add_with_metadata(
+                    PathBuf::from(path),
+                    String::from("helper"),
+                    PathBuf::from("package"),
+                    None,
+                    origin,
+                )
+                .source_id;
+            SourceSpan::new(source, Span::new(0, 6))
+        });
+        let mut builder = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let declarations = builder.insert_children(
+            root,
+            spans.map(|span| (SymbolKind::Machine, SymbolNameRef::Source(span))),
+        );
+        let declarations: Vec<_> = SymbolTableBuilder::child_handles(declarations).collect();
+        let entries: Vec<_> = declarations
+            .iter()
+            .map(|&declaration| {
+                builder
+                    .insert_children(
+                        declaration,
+                        [(SymbolKind::State, SymbolNameRef::Static("entry"))],
+                    )
+                    .start()
+            })
+            .collect();
+        let symbols = builder.finish();
+        for ((symbol, entry), (path, _, expected)) in
+            declarations.into_iter().zip(entries).zip(cases)
+        {
+            assert_eq!(symbols.is_build_prelude_symbol(symbol), expected, "{path}");
+            assert_eq!(
+                symbols.is_build_prelude_symbol(entry),
+                expected,
+                "{path}: synthetic entry"
+            );
+        }
+    }
 
     #[test]
     fn source_scoped_top_level_binding_selects_exact_declaration_source() {
