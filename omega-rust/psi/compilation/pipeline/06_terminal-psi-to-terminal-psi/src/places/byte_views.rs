@@ -239,11 +239,10 @@ impl Storage<'_> {
         {
             return Err(self.foreign(concerns, "a byte subslice endpoint or length is not a u64"));
         }
-        let value = |id| semantic_vocabulary::ScalarTerm::value(id, count);
-        Ok(Proposition::Conjunction(vec![
-            Proposition::LessOrEqual(value(start), value(end)),
-            Proposition::LessOrEqual(value(end), value(length)),
-        ]))
+        terminal_semantics::operation_safety_goal(operation, types)
+            .map_err(crate::semantics_refusal(self.machine, operation.id))?
+            .map(|(_, goal)| goal)
+            .ok_or_else(|| self.foreign(concerns, "a byte subslice has no canonical bounds goal"))
     }
 
     /// The reaching-storage walk has already followed copies at their capture

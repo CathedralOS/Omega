@@ -356,7 +356,7 @@ impl<'t> Program<'t> {
             ExpressionNode::Float(_) => return unserved("float literal"),
             ExpressionNode::UndeterminedNaN(_) => return unserved("undetermined NaN"),
             ExpressionNode::Indexed(indexed) => {
-                return self.indexed(id, slots, indexed, handle, source);
+                return self.indexed(id, slots, indexed, handle, expected);
             }
             ExpressionNode::Member(member) => return self.member(id, slots, member, source),
             ExpressionNode::Borrow(_) => {

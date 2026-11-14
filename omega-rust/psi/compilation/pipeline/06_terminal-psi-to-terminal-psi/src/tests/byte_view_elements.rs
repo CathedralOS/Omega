@@ -190,6 +190,9 @@ fn a_length_can_be_used_directly_as_a_call_argument() {
 #[test]
 fn shared_subslices_compose_with_literals_calls_and_stored_views() {
     for program in [
+        r#"machine first(path: &[u8]) -> u8 requires path.len > 0 { path[0] }
+            machine build_entry() { use(first("AXYZ"[1..3])); }
+            machine use(byte: u8) {}"#,
         r#"machine build_entry() { let bytes: &[u8] = "AXYZ"; let selected: &[u8] = bytes[1..3]; use(selected[1]); }
             machine use(byte: u8) {}"#,
         r#"machine build_entry(path: &[u8]) requires path.len > 2 {

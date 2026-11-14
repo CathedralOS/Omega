@@ -1860,10 +1860,10 @@ impl<'a> Storage<'a> {
         if types.get(index).copied() != Some(count) || types.get(length).copied() != Some(count) {
             return Err(self.foreign(concerns, "a byte read's index or length is not a u64"));
         }
-        Ok(Proposition::LessThan(
-            ScalarTerm::value(index, count),
-            ScalarTerm::value(length, count),
-        ))
+        terminal_semantics::operation_safety_goal(operation, types)
+            .map_err(crate::semantics_refusal(self.machine, operation.id))?
+            .map(|(_, goal)| goal)
+            .ok_or_else(|| self.foreign(concerns, "a byte read has no canonical bounds goal"))
     }
 
     fn block(&self, id: BlockId) -> Checked<&'a Block> {

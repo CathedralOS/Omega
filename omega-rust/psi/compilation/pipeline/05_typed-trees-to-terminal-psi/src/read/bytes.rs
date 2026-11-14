@@ -350,8 +350,8 @@ impl Program<'_> {
         let mut endpoint = |handle: typed_trees::expression::ExpressionHandle| -> Checked<Option<Box<Expression>>> {
             if !handle.is_valid() { return Ok(None); }
             let value = self.expression(machine, slots, handle, Some(ValueType::plain(count)))?;
-            if value.result.and_then(ValueType::scalar) != Some(count) {
-                return Err(unavailable("byte range endpoint that is not a u64"));
+            if value.result != Some(ValueType::plain(count)) {
+                return Err(unavailable("byte range endpoint that is not a plain u64"));
             }
             Ok(Some(Box::new(value)))
         };
