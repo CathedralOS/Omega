@@ -102,12 +102,16 @@ pub(crate) mod statement {
                     .find(|signature| signature.symbol == operation.target)
                     .ok_or_else(|| Diagnostic::error("Product query lost its exact operation"))?;
                 lowered.target = crate::lowerer::name::lower_name(&signature.name);
-                if let Some(occurrence) = call.authored_call_selection {
-                    crate::call_and_product_selections::bind_generated_call_selection(
+                if let Some(occurrence) = call.authored_call_selection
+                    && !crate::call_and_product_selections::bind_generated_call_selection(
                         &mut lowerer.typed_trees,
                         occurrence,
                         operation.target,
-                    )?;
+                    )?
+                {
+                    // The author named the declared query of the prelude; the
+                    // protocol call typing spells is not that call.
+                    lowered.authored_call_selection = None;
                 }
                 return Ok(StatementNode::Call(lowered));
             }
