@@ -535,6 +535,12 @@ impl Storage<'_> {
                     "exclusive representation view without establishment and handback evidence",
                 ));
             }
+            terminal_semantics::validate_reference_view_source(
+                self.module,
+                self.lowered,
+                source.place,
+            )
+            .map_err(|reason| self.unsupported(concerns, reason))?;
             let offset = tables
                 .values
                 .get(storage.byte_offset)

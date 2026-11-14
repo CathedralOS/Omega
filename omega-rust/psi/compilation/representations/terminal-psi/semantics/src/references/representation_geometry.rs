@@ -9,6 +9,40 @@ use terminal_psi::{
     TargetLayoutApplication, TargetLayoutInput, TargetLayoutRealization, TerminalModule,
 };
 
+/// A borrowed scalar can carry a narrower codec than its displayed type.
+/// Require its declared ingress to promise a fixed footprint before exporting
+/// that storage as a whole byte region. Owned homes retain their own geometry.
+pub fn validate_reference_view_source(
+    module: &TerminalModule,
+    machine: &terminal_psi::TerminalMachine,
+    source: semantic_vocabulary::PlaceId,
+) -> Result<(), &'static str> {
+    if let Some(parameter) = crate::arrival_parameter(machine, source) {
+        let declared = module
+            .structural_type(parameter.structural_type)
+            .ok_or("reference view source lost its declared ingress type")?;
+        if parameter.access != terminal_psi::StructuralAccess::Owned
+            && let StructuralTypeShape::PrimitiveScalar(logical) = &declared.shape
+        {
+            let width = crate::reference_storage_export_byte_width(*logical, parameter.access)
+                .ok_or("reference view source has no fixed incoming storage width")?;
+            if Some(width) != crate::reference_storage_byte_width(*logical) {
+                return Err("reference view source changes its incoming storage width");
+            }
+        }
+        return Ok(());
+    }
+    let declaration = machine
+        .structural_place(source)
+        .ok_or("reference view source has no declared storage root")?;
+    match declaration.kind {
+        semantic_vocabulary::StructuralPlaceKind::OperationResult { .. }
+        | semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral { .. }
+        | semantic_vocabulary::StructuralPlaceKind::TrivialAffineLocal { .. } => Ok(()),
+        _ => Err("reference view source has no established owned or incoming storage"),
+    }
+}
+
 /// Whole-region views retain the captured region's first byte. Another
 /// offset needs its own bounds/alignment evidence, which this operation lacks.
 pub fn reference_view_offset_is_zero(
@@ -232,6 +266,83 @@ mod tests {
             scalar_restriction: None,
             requires: Vec::new(),
         }
+    }
+
+    #[test]
+    fn borrowed_scalar_views_use_the_declared_storage_width() {
+        use semantic_vocabulary::{BlockId, ContractId, MachineId, PlaceId};
+        let place = PlaceId::new(1).unwrap();
+        let mut module = TerminalModule::declarations();
+        module.structural_types.push(declaration(
+            1,
+            StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+            )),
+        ));
+        let mut machine = terminal_psi::TerminalMachine {
+            id: MachineId::new(1).unwrap(),
+            entry: BlockId::new(1).unwrap(),
+            assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
+            attachment: None,
+            nominal_cleanup_subject: None,
+            ranked_scc: None,
+            structural_places: vec![terminal_psi::StructuralPlaceDeclaration {
+                id: place,
+                kind: semantic_vocabulary::StructuralPlaceKind::Parameter { position: 0 },
+            }],
+            call_formations: Vec::new(),
+            block_entry_claims: Vec::new(),
+            loan_completions: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            blocks: Vec::new(),
+            contract: terminal_psi::MachineContract::empty(ContractId::new(1).unwrap()),
+        };
+        machine
+            .structural_parameters
+            .push(terminal_psi::StructuralParameterDeclaration {
+                place,
+                position: 0,
+                structural_type: ty(1),
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                access: StructuralAccess::SharedBorrow,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                additional_input_qualifications: Vec::new(),
+            });
+        // A logical u64 can arrive through a u32 codec. Looking at its
+        // displayed type alone cannot establish an eight-byte byte view.
+        assert_eq!(
+            validate_reference_view_source(&module, &machine, place),
+            Err("reference view source has no fixed incoming storage width")
+        );
+        machine.structural_parameters[0].access = StructuralAccess::MutableBorrow;
+        machine.structural_parameters[0].multiplicity =
+            terminal_psi::StructuralMultiplicity::Affine;
+        assert_eq!(
+            validate_reference_view_source(&module, &machine, place),
+            Ok(())
+        );
+        machine.structural_parameters[0].access = StructuralAccess::Owned;
+        machine.structural_parameters[0].multiplicity =
+            terminal_psi::StructuralMultiplicity::Unrestricted;
+        assert_eq!(
+            validate_reference_view_source(&module, &machine, place),
+            Ok(())
+        );
+        machine.structural_parameters[0].access = StructuralAccess::SharedBorrow;
+        module.structural_types[0].shape = StructuralTypeShape::PrimitiveScalar(
+            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap()),
+        );
+        assert_eq!(
+            validate_reference_view_source(&module, &machine, place),
+            Ok(())
+        );
+        machine.structural_parameters.clear();
+        assert_eq!(
+            validate_reference_view_source(&module, &machine, place),
+            Err("reference view source has no established owned or incoming storage")
+        );
     }
 
     #[test]

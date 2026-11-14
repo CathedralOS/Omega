@@ -562,7 +562,7 @@ pub use references::reference_views::{
     scalar_reference_view_value, shared_descriptor_copy_matches, stored_reference_access,
 };
 pub use references::representation_geometry::{
-    reference_view_compatible, reference_view_offset_is_zero,
+    reference_view_compatible, reference_view_offset_is_zero, validate_reference_view_source,
 };
 pub use scalars::proof_bearing_scalar::{
     CanonicalScalarGoal, ProofBearingIntegerPolicyBinding, ProofBearingScalarLeafSchema,

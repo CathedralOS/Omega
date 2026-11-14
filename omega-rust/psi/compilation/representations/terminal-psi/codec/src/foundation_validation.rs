@@ -7208,6 +7208,8 @@ pub(crate) mod storage_foundations {
             *access,
         )?;
         if let Some(storage) = storage {
+            terminal_semantics::validate_reference_view_source(module, machine, source.place)
+                .map_err(CodecError::MalformedStructuralFoundation)?;
             let producer = machine.operations().find(|candidate| {
                 candidate
                     .result
