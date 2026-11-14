@@ -50,10 +50,13 @@ nothing else: lowering never asks what a place holds.
   (`local-without-initializer`: a builtin scalar admits zero, so the zero is
   an established value).
 - What a formal holds at entry is not a write. It is one value per scalar
-  leaf with `ValueOrigin::InitialContent { place }`, minted the first time an
-  operation names the leaf or a place above it, whatever is stored there
-  later.
+  leaf with `ValueOrigin::StorageContent { place, after: None }`. Clauses
+  and operations request the leaves; final lowering names them in place order.
+  A call that returns a result or an exclusive argument supplies a distinct
+  `after: Some(call)` version. Later writes do not change either snapshot.
 */
+
+mod contents;
 
 use crate::body::Qualification;
 use semantic_vocabulary::{
@@ -825,61 +828,43 @@ impl<'a> Lowering<'a> {
         Ok(())
     }
 
-    /// A scalar leaf's initial logical value: supplied at entry for a formal,
-    /// or produced by the exact declared call that establishes its root.
-    /// The checker authenticates that origin and follows later writes separately.
-    fn initial_content(&mut self, leaf: ExactPlaceId, scalar_type: ScalarType) -> Checked<ValueId> {
+    /// Register a demanded scalar leaf. Logical identities are allocated in
+    /// exact-place order after lowering, including leaves named only in clauses.
+    fn initial_content(&mut self, leaf: ExactPlaceId, scalar_type: ScalarType) -> Checked<()> {
         let index = usize::try_from(leaf.get() - 1)
             .map_err(|_| self.internal("place identity exceeds the address space"))?;
-        if self.initial_contents.len() <= index {
-            self.initial_contents.resize(index + 1, None);
+        if self.demanded_contents.len() <= index {
+            self.demanded_contents.resize(index + 1, None);
         }
-        if let Some(value) = self.initial_contents[index] {
-            return Ok(value);
+        if self.demanded_contents[index].is_some_and(|previous| previous != scalar_type) {
+            return Err(self.internal("a demanded storage leaf has two scalar types"));
         }
-        let value = self.value(scalar_type, ValueOrigin::InitialContent { place: leaf });
-        self.initial_contents[index] = Some(value);
-        Ok(value)
+        self.demanded_contents[index] = Some(scalar_type);
+        Ok(())
     }
 
-    /// Mints the entry content of every scalar leaf at or beneath `place`
-    /// when `root` is a formal: an operation is about to name that storage,
-    /// and what it held at entry is the value the checker's walk ends at on
-    /// every path with no store. Other roots hold nothing at entry.
-    fn name_entry(
-        &mut self,
-        root: PlaceId,
-        place: ExactPlaceId,
-        value_type: ValueType,
-    ) -> Checked<()> {
-        let (kind, _) =
-            *terminal_check_tables::row(&self.roots, root, self.id, Construct::Place(place))?;
-        match kind {
-            StructuralPlaceKind::Parameter { .. } => self.initial_leaves(place, value_type),
-            StructuralPlaceKind::BlockParameter { .. }
-            | StructuralPlaceKind::Result
-            | StructuralPlaceKind::OperationResult { .. }
-            | StructuralPlaceKind::ByteSequenceLiteral { .. }
-            | StructuralPlaceKind::ProviderAttachment { .. }
-            | StructuralPlaceKind::TrivialAffineLocal { .. } => Ok(()),
-        }
-    }
-
-    pub(super) fn initial_leaves(
+    /// Register the storage leaves a use or type contract observes. Calls and
+    /// invocation entry supply identities only at independently checked boundaries.
+    pub(super) fn name_contents(
         &mut self,
         place: ExactPlaceId,
         value_type: ValueType,
     ) -> Checked<()> {
         match value_type {
             ValueType::Rigid(_) => Err(self.internal("a field of a rigid type")),
-            ValueType::Scalar(scalar_type, _) => self.initial_content(place, scalar_type).map(drop),
+            ValueType::Scalar(scalar_type, _) => self.initial_content(place, scalar_type),
             ValueType::Record(record, _, _) => {
                 let data = self.record_type(record)?;
+                let subject = terminal_check_tables::program::self_place()
+                    .ok_or_else(|| self.internal("data subject identity"))?;
+                for clause in &data.requires {
+                    self.name_clause_contents(clause, &[(subject, place)])?;
+                }
                 if matches!(data.shape, StorageShape::FixedArray { .. }) {
                     return Ok(());
                 }
                 if let StorageShape::PrimitiveScalar { scalar_type, .. } = data.shape {
-                    return self.initial_content(place, scalar_type).map(drop);
+                    return self.initial_content(place, scalar_type);
                 }
                 if matches!(
                     data.shape,
@@ -897,11 +882,11 @@ impl<'a> Lowering<'a> {
                         )
                         .expect("u64 is valid"),
                     );
-                    return self.initial_content(extent, scalar_type).map(drop);
+                    return self.initial_content(extent, scalar_type);
                 }
                 for field in data.fields() {
                     let leaf = self.project(place, Segment::Field(field.id))?;
-                    self.initial_leaves(leaf, field.value_type)?;
+                    self.name_contents(leaf, field.value_type)?;
                 }
                 // Which case an input or call result holds is not known, so
                 // every payload leaf gets an initial identity; the checker lets
@@ -910,7 +895,7 @@ impl<'a> Lowering<'a> {
                     let payload = self.project(place, Segment::Case(case.id))?;
                     for field in &case.fields {
                         let leaf = self.project(payload, Segment::Field(field.id))?;
-                        self.initial_leaves(leaf, field.value_type)?;
+                        self.name_contents(leaf, field.value_type)?;
                     }
                 }
                 Ok(())
@@ -1366,7 +1351,7 @@ impl<'a> Lowering<'a> {
                 Unserved::Expression("owned extraction from borrowed storage"),
             ));
         }
-        self.name_entry(at.root, at.place, ValueType::record(at.record))?;
+        self.name_contents(at.place, ValueType::record(at.record))?;
         let operation = self.operation_identity(expression.source);
         let path = self.storage_path(
             &at.path,
@@ -1521,7 +1506,7 @@ impl<'a> Lowering<'a> {
         if actual.erased() != value_type.erased() {
             return Err(self.internal("a loan has another type than its captured place"));
         }
-        self.name_entry(root, exact, value_type)?;
+        self.name_contents(exact, value_type)?;
         let lender = if self.borrowed_roots.contains(&root) {
             Lender::Incoming
         } else {
@@ -1923,7 +1908,7 @@ impl<'a> Lowering<'a> {
     ) -> Evaluation<Value> {
         let at = continuing!(self.located(subject));
         let case = self.case_of(at.record, case)?.id;
-        self.name_entry(at.root, at.place, ValueType::record(at.record))?;
+        self.name_contents(at.place, ValueType::record(at.record))?;
         let operation = self.operation_identity(source);
         let path = self.storage_path(&at.path, ExecutionSite::Operation(operation), source)?;
         self.emit(
@@ -1969,7 +1954,7 @@ impl<'a> Lowering<'a> {
             return Err(self.internal("a dispatch on storage that is no sum"));
         }
         let path = self.storage_path(&at.path, ExecutionSite::Block(self.current()?), source)?;
-        self.name_entry(at.root, at.place, ValueType::record(at.record))?;
+        self.name_contents(at.place, ValueType::record(at.record))?;
         let mut blocks = Vec::with_capacity(arms.len());
         let mut payloads = Vec::with_capacity(arms.len());
         for case in arms {
@@ -2122,11 +2107,7 @@ impl<'a> Lowering<'a> {
         scalar_type: ScalarType,
         source: SourceOrigin,
     ) -> Checked<Value> {
-        self.name_entry(
-            root,
-            leaf,
-            ValueType::Scalar(scalar_type, Qualification::NONE),
-        )?;
+        self.name_contents(leaf, ValueType::Scalar(scalar_type, Qualification::NONE))?;
         let operation = self.operation_identity(source);
         let path = self.storage_path(steps, ExecutionSite::Operation(operation), source)?;
         self.emit(
@@ -2196,7 +2177,7 @@ impl<'a> Lowering<'a> {
             semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
                 .expect("u64 is valid"),
         );
-        self.name_entry(at.root, at.place, ValueType::record(at.record))?;
+        self.name_contents(at.place, ValueType::record(at.record))?;
         self.project(at.place, Segment::Extent)?;
         let operation = self.operation_identity(source);
         let path = self.storage_path(&at.path, ExecutionSite::Operation(operation), source)?;
@@ -2319,11 +2300,7 @@ impl<'a> Lowering<'a> {
     ) -> Checked<Value> {
         // A borrowed scalar formal's place holds the caller's value at entry.
         let place = self.exact_root(home)?;
-        self.name_entry(
-            home,
-            place,
-            ValueType::Scalar(scalar_type, Qualification::NONE),
-        )?;
+        self.name_contents(place, ValueType::Scalar(scalar_type, Qualification::NONE))?;
         let operation = self.operation_identity(source);
         self.emit(
             operation,

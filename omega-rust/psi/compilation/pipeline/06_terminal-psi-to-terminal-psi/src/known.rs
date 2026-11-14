@@ -178,7 +178,7 @@ impl Known {
                                 || (fact.axiom.is_some()
                                     && matches!(
                                         values.get(*id).map(|row| row.origin),
-                                        Some(ValueOrigin::InitialContent { .. })
+                                        Some(ValueOrigin::StorageContent { .. })
                                     ))
                         }
                         // Actual integer operation equations retain their

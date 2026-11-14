@@ -545,7 +545,6 @@ fn machine(
     branches: &[terminal_check_tables::program::Branch],
 ) -> Checked<MachineDischarge> {
     let machines = &module.machines;
-    let structural_types = &module.structural_types;
     let invariants = &module.scalar_block_invariants;
     let lowered = terminal_machine(machines, id, id)?;
     if !tables.knowledge.is_empty() {
@@ -561,15 +560,7 @@ fn machine(
         graph,
         context,
     } = prepare(module, domains, id, tables, knowledge)?;
-    let storage = places::Storage::new(
-        id,
-        lowered,
-        structural_types,
-        domains,
-        &graph,
-        tables,
-        &types,
-    )?;
+    let storage = places::Storage::new(id, lowered, module, domains, &graph, tables, &types)?;
     let mut decided: Vec<Option<Checked<Discharged>>> =
         (0..tables.obligations.len()).map(|_| None).collect();
     // Loans are judged by structure, not proved (`places::loans`).
@@ -1037,7 +1028,11 @@ fn fill_knowledge(
                 );
             }
             // And what the type of the storage it reads says of that value.
-            for premise in storage.read_premises(tables, operation)? {
+            for premise in storage
+                .read_premises(tables, operation)?
+                .into_iter()
+                .chain(storage.returned_type_premises(tables, operation)?)
+            {
                 push_knowledge(
                     tables,
                     premise,
@@ -1203,15 +1198,7 @@ pub(crate) fn prepare(
     minted::domains_are_declared(id, structural_types, domains)?;
     let graph = Graph::new(id, lowered, tables)?;
     if fill {
-        let storage = places::Storage::new(
-            id,
-            lowered,
-            structural_types,
-            domains,
-            &graph,
-            tables,
-            &types,
-        )?;
+        let storage = places::Storage::new(id, lowered, module, domains, &graph, tables, &types)?;
         storage.owed_are_minted(tables)?;
         fill_knowledge(module, id, lowered, tables, knowledge, &types, &storage)?;
     }
