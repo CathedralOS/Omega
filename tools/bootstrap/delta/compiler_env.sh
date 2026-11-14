@@ -43,7 +43,7 @@ DELTA_COMPILER_SUPPORT_PACKED_SHA256=cfdf07cf8010eba2fd7da47e6936ea1e237f637f4de
 # development compiler is a diagnostic subject, not a second canonical
 # compiler. The identical pins in
 # tests/delta/staged-compiler/{README.md,run.sh} and
-# tests/bootstrap/source-closure.py are records of this one subject, not
+# tools/xtask/src/source_closure.rs are records of this one subject, not
 # independent identities. A digest here is an identity check on the entry
 # bytes; it is not a proof of the staged pipeline. Changing the driver changes
 # the packed development compiler and must update every record together.
@@ -80,8 +80,9 @@ DELTA_EMISSION_CONTROLS_PACKED_SHA256=dffa334b13d250c7372fff0dd511f4f0c43cf724b9
 # each manifest reproduces exactly the bound packed bytes. Every
 # materialization runs it; tests may call it
 # directly. bootstrap_sha256 and require_bound_identity live in
-# alpha/seed_env.sh. Repacking needs python3; without it the closure identity
-# cannot be established and the check refuses rather than skipping.
+# alpha/seed_env.sh. Repacking needs the built xtask binary; without it the
+# closure identity cannot be established and the check refuses rather than
+# skipping.
 require_delta_compiler_identity() {
   require_bound_identity "delta_compiler.gamma" \
     "$OMEGA_PATH_DELTA_COMPILER_SOURCE" \
@@ -110,19 +111,15 @@ support-length $DELTA_COMPILER_SUPPORT_PACKED_SIZE"
     echo "bootstrap artifact: delta_compiler.composed does not bind the selected evaluator, packed closure, and packed support section (bootstrap/interpreted/2_gamma/COMPOSED_ARTIFACT.md)" >&2
     return 3
   }
-  command -v python3 >/dev/null 2>&1 || {
-    echo "bootstrap artifact: no python3 to repack the Delta source closure" >&2
-    return 2
-  }
   DELTA_IDENTITY_TMP=$(mktemp -d)
-  python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+  bootstrap_xtask source-closure \
     "$OMEGA_PATH_DELTA_COMPILER_SOURCES" "$DELTA_IDENTITY_TMP/compiler.gamma" \
     --prefix "$OMEGA_PATH_DELTA_COMPILER_SOURCE" || {
       DELTA_IDENTITY_RC=$?
       rm -rf -- "$DELTA_IDENTITY_TMP"
       return "$DELTA_IDENTITY_RC"
     }
-  python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+  bootstrap_xtask source-closure \
     "$OMEGA_PATH_DELTA_COMPILER_SUPPORT_SOURCES" \
     "$DELTA_IDENTITY_TMP/support.bin" || {
       DELTA_IDENTITY_RC=$?
@@ -184,8 +181,8 @@ require_delta_normalization_driver_identity() {
 #   PACKED_SIZE PACKED_SHA256 RECORD : a gate-owned controls closure's
 #   manifest is the bound file and repacking it reproduces the bound packed
 #   prefix bytes. Shared by the internal-boundary and emission controls.
-#   Repacking needs python3; without it the check refuses rather than
-#   skipping.
+#   Repacking needs the built xtask binary; without it the check refuses
+#   rather than skipping.
 require_delta_controls_identity() {
   DELTA_CONTROLS_LABEL=$1
   DELTA_CONTROLS_SOURCES=$2
@@ -228,13 +225,13 @@ require_delta_emission_controls_identity() {
 }
 
 # materialize_delta_compiler DEST : write the canonical entry-plus-member
-# Gamma source to DEST after the bound identity check. source_closure.py
+# Gamma source to DEST after the bound identity check. source-closure
 # checks every member row and writes atomically; a changed member refuses
 # before DEST is written.
 materialize_delta_compiler() {
   DELTA_COMPILER_DEST=$1
   require_delta_compiler_identity || return $?
-  python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+  bootstrap_xtask source-closure \
     "$OMEGA_PATH_DELTA_COMPILER_SOURCES" "$DELTA_COMPILER_DEST" \
     --prefix "$OMEGA_PATH_DELTA_COMPILER_SOURCE"
 }
@@ -245,6 +242,6 @@ materialize_delta_compiler() {
 materialize_delta_support() {
   DELTA_SUPPORT_DEST=$1
   require_delta_compiler_identity || return $?
-  python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+  bootstrap_xtask source-closure \
     "$OMEGA_PATH_DELTA_COMPILER_SUPPORT_SOURCES" "$DELTA_SUPPORT_DEST"
 }

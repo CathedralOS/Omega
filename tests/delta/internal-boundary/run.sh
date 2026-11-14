@@ -9,12 +9,12 @@ GATE_ENVS="delta/compiler_env.sh"
 
 INTERNAL_TMP=$(mktemp -d)
 trap 'rm -rf -- "$INTERNAL_TMP"' EXIT HUP INT TERM
-python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+bootstrap_xtask source-closure \
     "$GATE_DIR/controls.gamma.sources" "$INTERNAL_TMP/controls.gamma"
 # The bound member closure is checked against its audited record; the gate's
 # packed controls entry packs on top of those bound members.
 require_delta_compiler_identity
-python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+bootstrap_xtask source-closure \
     "$OMEGA_PATH_DELTA_COMPILER_SOURCES" "$INTERNAL_TMP/diagnostic.gamma" \
     --prefix "$INTERNAL_TMP/controls.gamma"
 materialize_delta_compiler "$INTERNAL_TMP/canonical.gamma"

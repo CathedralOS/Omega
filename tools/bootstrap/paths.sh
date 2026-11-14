@@ -153,3 +153,16 @@ install_mingw_python3_shim() {
     PATH=$_shim_dir:$PATH
     export PATH
 }
+
+# Run one xtask subcommand. The same command is the repository task runner's
+# source-closure, alpha-forge, and gamma-invoke entry. These step files are
+# omission-audited, so they call the built binary (OMEGA_XTASK_BIN, or
+# target/debug/xtask) rather than naming the launcher.
+bootstrap_xtask() {
+  _bootstrap_xtask_bin=${OMEGA_XTASK_BIN:-"$OMEGA_REPO_ROOT/target/debug/xtask"}
+  if [ ! -x "$_bootstrap_xtask_bin" ]; then
+    echo "bootstrap artifact: xtask binary is not executable at $_bootstrap_xtask_bin" >&2
+    return 2
+  fi
+  "$_bootstrap_xtask_bin" "$@"
+}

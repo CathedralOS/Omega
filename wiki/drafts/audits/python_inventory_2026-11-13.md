@@ -38,7 +38,7 @@ A file landed in `LIVE-OTHER` only when the chain was an execution: a `python3` 
 
 Two accelerator modules load only behind flags. `successor_test.py:110` loads `literal_controls.py` when the command is `successor_test.py --literals` (`bootstrap/independent/README.md:204`). `successor_test.py:126` loads `compile_test.py` when the command is `successor_test.py --compile-epsilon --literals --omega` (`bootstrap/independent/README.md:236`); `compile_test.py:16` and `:250` then load `composition.py` and `enum_test.py`. The `python3 ... --omega-utf8` line at `bootstrap/compiled_vm/README.md:627` does not pass those flags.
 
-The shell gates also call `tools/bootstrap/source_closure.py` and the other Python under `tools/`. Those files are outside this census. Replacing the 149 files here leaves that `tools/` Python in place.
+At the census commit the shell gates also called the Python helpers under `tools/bootstrap/`. Those files are outside this census. Replacing the 149 files here left that `tools/` Python in place; the bootstrap packing, forge, and invoke helpers are now `mbx xtask` commands.
 
 ## Uncertain
 

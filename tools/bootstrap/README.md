@@ -87,7 +87,7 @@ may retain concept-owned folders but not a redundant root `compiler/` directory.
 The separate `bootstrap/proofs/` owner contains the checker and encoding theory;
 it is not another language rung.
 
-`source_closure.py MANIFEST OUTPUT` checks and concatenates explicitly ordered
+`mbx xtask source-closure MANIFEST OUTPUT` checks and concatenates explicitly ordered
 source members. `GammaSourceClosureV1` selects `.gamma` members for the proof
 closures; `DeltaSourceClosureV1` selects `.delta` members for the Epsilon
 evaluator; `EpsilonSourceClosureV1` selects `.epsilon` members for Omega D. All
@@ -105,9 +105,10 @@ Inventory traversal checks membership only; it never selects or orders inputs.
 paths may be named while absent; the topology gate does not pretend they exist.
 Proof gates use `OMEGA_PATH_DERIVATION_CHECKER_SOURCES` and
 `OMEGA_PATH_BETA_ENCODING_SOURCES` from that same registry.
-Shell and Python remain replaceable invocation plumbing and may not parse an
-accepted language, lower code, manufacture proof premises, or decide
-admission.
+Shell remains replaceable invocation plumbing. Source-closure packing, the
+Alpha Windows listing forge, and Gamma evaluator invocation are xtask
+commands. None of them may parse an accepted language, lower code, manufacture
+proof premises, or decide admission.
 
 The component directories hold sourceable materializers or deliberate artifact
 construction commands. Tests consume them from `tests/`; canonical artifacts
@@ -126,7 +127,7 @@ remain under their language owner.
 | `epsilon/evaluator_env.sh` | Bound identity and canonical closure materialization for the Delta-authored Epsilon evaluator. | Delete only when every caller has an equally direct canonical invocation. |
 | `omega/compiler_env.sh` | Bound identity and canonical closure materialization for the Epsilon-written Omega compiler D. | Delete only when every caller has an equally direct canonical invocation. |
 | `proofs/sources_env.sh` | Bound identity and canonical member-closure materialization for the derivation checker and Beta encoding theory. | Delete only when every caller has an equally direct canonical invocation. |
-| `source_closure.py` | Byte-exact assembly of the Gamma proof, Delta-written Epsilon evaluator, and Epsilon-written Omega D source closures. | Delete only when the selected lower compilers accept the same canonical member closures directly. |
+| `mbx xtask source-closure` | Byte-exact assembly of the Gamma proof, Delta-written Epsilon evaluator, and Epsilon-written Omega D source closures. | Delete only when the selected lower compilers accept the same canonical member closures directly. |
 
 The retired `verify-lattice.sh`, `test-paths.sh`, historical bootstrap-role facade,
 future-artifact locators, root compiler cache, and receipt profiles had no
