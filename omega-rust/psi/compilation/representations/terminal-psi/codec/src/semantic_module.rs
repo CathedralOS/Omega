@@ -5097,6 +5097,27 @@ mod normal_qualification_tests {
         module
     }
 
+    #[test]
+    fn an_authored_record_keeps_its_invariant_through_public_module_readback() {
+        let mut module = module();
+        let record = &mut module.structural_types[0];
+        let StructuralTypeShape::Record { storage, fields } = &mut record.shape else {
+            panic!("the fixture starts with an empty record");
+        };
+        assert!(fields.is_empty());
+        *storage = terminal_psi::StructuralRecordStorage::Authored(
+            semantic_vocabulary::AuthoredRecordStorage {
+                byte_size: 0,
+                byte_alignment: 1,
+            },
+        );
+        record.requires = vec![semantic_vocabulary::Proposition::Truth];
+        let bytes = encode_module(&module).unwrap();
+        let decoded = decode_module(&bytes).unwrap();
+        assert_eq!(decoded, module);
+        assert_eq!(encode_module(&decoded).unwrap(), bytes);
+    }
+
     // A dormant structural declaration still commits its issuer choice. No
     // boundary in this module may establish membership merely to test its wire.
     #[test]
