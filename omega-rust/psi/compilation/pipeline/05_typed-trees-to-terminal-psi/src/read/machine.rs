@@ -48,7 +48,7 @@ impl<'t> Program<'t> {
     }
 
     pub(super) fn is_generic_template(&self, machine: &Machine) -> bool {
-        machine.has_specialization_parameters() || self.unapplied_map_body(machine.symbol)
+        crate::is_generic_template(self.typed, machine)
     }
 
     fn generic_parameters(

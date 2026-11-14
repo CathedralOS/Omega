@@ -63,7 +63,18 @@ pub fn prepare_compilation(
                 }),
         );
         for (_, symbol) in closure.machines.iter() {
-            specializations.push(crate::template_of(typed, *symbol));
+            let template = crate::template_of(typed, *symbol);
+            // A closed invocation still owes the generic source declaration's
+            // universal check, even when no whole-package subject was requested.
+            if let Some(template) = template
+                && typed
+                    .machine_by_symbol(template)
+                    .is_some_and(|machine| crate::is_generic_template(typed, machine))
+                && !templates.contains(&template)
+            {
+                templates.push(template);
+            }
+            specializations.push(template);
         }
         for (selection, selected) in closure.selections.iter().enumerate() {
             let Some(implementation) = closure.machines.get(selected.implementation) else {

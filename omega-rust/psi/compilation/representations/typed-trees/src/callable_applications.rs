@@ -1415,7 +1415,9 @@ pub(crate) mod machine_instances {
                 Self::Capture(receipt) => receipt.instance,
             }
         }
-        pub fn binding_application(self) -> crate::static_applications::StaticMachineApplicationHandle {
+        pub fn binding_application(
+            self,
+        ) -> crate::static_applications::StaticMachineApplicationHandle {
             match self {
                 Self::Specialization(receipt) => receipt.binding_application,
                 Self::Capture(receipt) => receipt.binding_application,

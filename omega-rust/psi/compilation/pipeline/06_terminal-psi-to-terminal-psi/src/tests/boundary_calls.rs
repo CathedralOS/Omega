@@ -1992,7 +1992,9 @@ fn prepare_named_map(text: &str) -> typed_trees::FrozenTypedTrees {
     typed_trees_to_typed_trees::prepare_typed_trees(
         typed(text),
         &typed_trees_to_typed_trees::PreparationRequest::settled(),
-    ).unwrap().0
+    )
+    .unwrap()
+    .0
 }
 
 fn generic_owned_source(actual: &str, promised: &str, body: &str) -> String {
@@ -2004,23 +2006,41 @@ fn generic_owned_source(actual: &str, promised: &str, body: &str) -> String {
 #[test]
 fn generic_named_map_captures_keep_every_unused_binder() {
     let text = generic_named_map_source()
-        .replace("Selected<Value> satisfies", "Selected<Value, Unused> satisfies")
-        .replace("Selected<u32>::apply(7)",
-                 "let first = Selected<u32, u64>::apply(3); Selected<u32, bool>::apply(7)");
+        .replace(
+            "Selected<Value> satisfies",
+            "Selected<Value, Unused> satisfies",
+        )
+        .replace(
+            "Selected<u32>::apply(7)",
+            "let first: u32 = Selected<u32, u64>::apply(3); Selected<u32, bool>::apply(7)",
+        );
     let prepared = prepare_named_map(&text);
-    let captures = prepared.captured_machine_applications.iter().map(|(_, row)| row).collect::<Vec<_>>();
+    let captures = prepared
+        .captured_machine_applications
+        .iter()
+        .map(|(_, row)| row)
+        .collect::<Vec<_>>();
     assert_eq!(captures.len(), 2);
     assert_ne!(captures[0].instance, captures[1].instance);
-    assert_ne!(captures[0].conformance_application.identity_encoding,
-               captures[1].conformance_application.identity_encoding);
-    assert_named_invocation_value(compilation_verdicts_of(&prepared),
-                                  semantic_vocabulary::IntegerValue::Unsigned(7));
+    assert_ne!(
+        captures[0].conformance_application.identity_encoding,
+        captures[1].conformance_application.identity_encoding
+    );
+    assert_named_invocation_value(
+        compilation_verdicts_of(&prepared),
+        semantic_vocabulary::IntegerValue::Unsigned(7),
+    );
     let mut missing = (*prepared).clone();
     missing.captured_machine_applications = Default::default();
-    missing.captured_machine_applications.insert(captures[1].clone());
+    missing
+        .captured_machine_applications
+        .insert(captures[1].clone());
     let verdicts = compilation_verdicts_of(&missing);
-    assert!(matches!(&verdicts[0], RouteVerdict::FallBack(refusal)
-        if refusal.detail.contains("named map body has no prepared capture")), "{verdicts:?}");
+    assert!(
+        matches!(&verdicts[0], RouteVerdict::FallBack(refusal)
+        if refusal.detail.contains("named map body has no prepared capture")),
+        "{verdicts:?}"
+    );
 }
 
 #[test]
@@ -2028,16 +2048,30 @@ fn generic_named_map_captures_keep_the_actual_source_owner() {
     let text = generic_named_map_source().replace(
         "machine entry() -> u32 reaches none crashes none { Selected<u32>::apply(7) }",
         "machine other() -> u32 reaches none crashes none { Selected<u32>::apply(3) }
-         machine entry() -> u32 reaches none crashes none { let first = other(); Selected<u32>::apply(7) }",
+         machine entry() -> u32 reaches none crashes none { let first: u32 = other(); Selected<u32>::apply(7) }",
     );
     let prepared = prepare_named_map(&text);
-    let captures = prepared.captured_machine_applications.iter().map(|(_, row)| row).collect::<Vec<_>>();
+    let captures = prepared
+        .captured_machine_applications
+        .iter()
+        .map(|(_, row)| row)
+        .collect::<Vec<_>>();
     assert_eq!(captures.len(), 2);
     assert_ne!(captures[0].instance, captures[1].instance);
-    assert_ne!(prepared.static_machine_application(captures[0].binding_application).lexical_owner,
-               prepared.static_machine_application(captures[1].binding_application).lexical_owner);
-    assert_named_invocation_value(compilation_verdicts_of(&prepared),
-                                  semantic_vocabulary::IntegerValue::Unsigned(7));
+    assert_ne!(
+        prepared
+            .expression_table
+            .static_machine_application(captures[0].binding_application)
+            .lexical_owner,
+        prepared
+            .expression_table
+            .static_machine_application(captures[1].binding_application)
+            .lexical_owner
+    );
+    assert_named_invocation_value(
+        compilation_verdicts_of(&prepared),
+        semantic_vocabulary::IntegerValue::Unsigned(7),
+    );
 }
 
 #[test]
@@ -2045,45 +2079,77 @@ fn generic_named_map_calls_keep_public_requirements_and_guarantees() {
     for (actual, promised, bad_input) in [("0", "", true), ("7", "ensures result == 0", false)] {
         let prepared = prepare_named_map(&generic_owned_source(actual, promised, "0"));
         let verdicts = compilation_verdicts_of(&prepared);
-        assert!(matches!(&verdicts[0], RouteVerdict::Rejected { unproved, .. }
+        assert!(
+            matches!(&verdicts[0], RouteVerdict::Rejected { unproved, .. }
             if unproved.iter().any(|row| if bad_input {
                 matches!(row.kind, ObligationKind::CallRequirement { .. })
             } else {
                 matches!(row.kind, ObligationKind::NormalGuarantee { .. })
-            })), "{verdicts:?}");
-        assert!(matches!(verdicts[1], RouteVerdict::Accepted(_)), "{verdicts:?}");
+            })),
+            "{verdicts:?}"
+        );
+        assert!(
+            verdicts
+                .iter()
+                .skip(1)
+                .all(|verdict| matches!(verdict, RouteVerdict::Accepted(_))),
+            "{verdicts:?}"
+        );
     }
 }
 
 #[test]
 fn generic_named_map_body_still_owes_its_weaker_written_input() {
-    let text = generic_owned_source("7", "", "input - 1")
-        .replacen("ensures result == 0", "ensures result < input", 1);
+    let text = generic_owned_source("7", "", "input - 1").replacen(
+        "ensures result == 0",
+        "ensures result < input",
+        1,
+    );
     let prepared = prepare_named_map(&text);
     let verdicts = compilation_verdicts_of(&prepared);
-    assert!(matches!(&verdicts[0], RouteVerdict::Accepted(_)), "{verdicts:?}");
-    assert!(verdicts.iter().skip(1).any(|verdict| matches!(verdict,
+    assert!(
+        matches!(&verdicts[0], RouteVerdict::Accepted(_)),
+        "{verdicts:?}"
+    );
+    assert!(
+        verdicts.iter().skip(1).any(|verdict| matches!(verdict,
         RouteVerdict::Rejected { unproved, .. }
         if unproved.iter().any(|row| matches!(row.kind, ObligationKind::OperationSafety { .. })))),
-        "{verdicts:?}");
+        "{verdicts:?}"
+    );
 }
 
 #[test]
 fn generic_named_map_preserves_the_written_member_reach_ceiling() {
-    let text = format!("boundary trait Service {{}}\n{}", generic_named_map_source())
-        .replace("machine apply(input: Value) -> Value reaches none",
-                 "machine apply(input: Value) -> Value reaches Service");
+    let text = format!(
+        "boundary trait Service {{}}\n{}",
+        generic_named_map_source()
+    )
+    .replace(
+        "machine apply(input: Value) -> Value reaches none",
+        "machine apply(input: Value) -> Value reaches Service",
+    );
     let prepared = prepare_named_map(&text);
     let verdicts = compilation_verdicts_of(&prepared);
-    assert!(matches!(&verdicts[0], RouteVerdict::Accepted(_)), "{verdicts:?}");
-    assert!(verdicts.iter().skip(1).any(|verdict| matches!(verdict,
-        RouteVerdict::Rejected { exceeded, .. } if !exceeded.is_empty())), "{verdicts:?}");
+    assert!(
+        matches!(&verdicts[0], RouteVerdict::Accepted(_)),
+        "{verdicts:?}"
+    );
+    assert!(
+        verdicts.iter().skip(1).any(|verdict| matches!(verdict,
+        RouteVerdict::Rejected { exceeded, .. } if !exceeded.is_empty())),
+        "{verdicts:?}"
+    );
 }
 
 #[test]
 fn generic_named_map_closed_call_also_judges_its_original_template() {
     let prepared = prepare_named_map(&generic_named_map_source().replace("{ input }", "{ 0 }"));
     let verdicts = compilation_verdicts_of(&prepared);
-    assert!(verdicts.iter().any(|verdict| !matches!(verdict, RouteVerdict::Accepted(_))),
-        "a selected integer instance cannot validate an arbitrary Value body: {verdicts:?}");
+    assert!(
+        verdicts
+            .iter()
+            .any(|verdict| !matches!(verdict, RouteVerdict::Accepted(_))),
+        "a selected integer instance cannot validate an arbitrary Value body"
+    );
 }

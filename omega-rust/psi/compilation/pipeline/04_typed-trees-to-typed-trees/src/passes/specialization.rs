@@ -933,9 +933,10 @@ fn copied_parts(
         && program.ranking_expression_custody_for(symbol).is_none()
         && program.authored_service_reach_rows_for(symbol).all(|row| {
             !row.installation_bound
-                && row.targets.iter().all(|target| {
-                    program.symbols.symbols().nodes().is_valid(target.service)
-                })
+                && row
+                    .targets
+                    .iter()
+                    .all(|target| program.symbols.symbols().nodes().is_valid(target.service))
         })
         && !program
             .proof_output_calls

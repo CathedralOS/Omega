@@ -363,6 +363,20 @@ pub fn elaborate_generic_forms(
     Ok(forms)
 }
 
+/// Source forms include an owning map's independent telescope even when
+/// its member declares no additional parameters of its own.
+pub(crate) fn is_generic_template(
+    typed: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+) -> bool {
+    machine.has_specialization_parameters()
+        || typed
+            .owned_conformance_realization(machine.symbol)
+            .is_some_and(|(owner, _)| {
+                !owner.type_parameters.is_empty() || !owner.lifetime_parameters.is_empty()
+            })
+}
+
 /// The declaration a machine was generated from, when stage 04 generated it
 /// to close a static application: the generic machine it specializes.
 pub fn template_of(typed: &TypedTrees, machine: SymbolHandle) -> Option<SymbolHandle> {
