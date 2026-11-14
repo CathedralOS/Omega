@@ -120,7 +120,7 @@ machine route(source: Source) -> u32 {{
     // place twice.
     assert_eq!(
         verdict(&scalar("both(&mut held, &location)")),
-        "state `both` receives `<saved subject #1:1>` as both mutable and read-only"
+        "state `both` receives `&<saved subject #1:1>.location` as both mutable and read-only"
     );
 }
 
@@ -175,6 +175,9 @@ machine route() -> u32 {{
     {before}
     bump(&mut held.location)
 }}
+machine replace_with_git(held: &mut Source) {{
+    held = Source::Git {{ repository: 1, revision: 2 }};
+}}
 "#
         )
     };
@@ -185,8 +188,10 @@ machine route() -> u32 {{
         )),
         NO_CASE
     );
-    // An exclusive loan of the sum lets its holder replace the case.
-    assert_eq!(verdict(&scalar("replace(&mut held);")), NO_CASE);
+    // Permission alone writes nothing. An actual replacing call changes
+    // the case and invalidates the caller's payload selection.
+    assert_eq!(verdict(&scalar("replace(&mut held);")), "accepted");
+    assert_eq!(verdict(&scalar("replace_with_git(&mut held);")), NO_CASE);
 }
 
 /// A sum never known to hold the case lends no payload of it.
@@ -221,6 +226,6 @@ machine route() -> u32 {{
     assert_eq!(verdict(&lent("revision")), "accepted");
     assert_eq!(
         verdict(&lent("repository")),
-        "state `two` receives `held` as both mutable and read-only"
+        "state `two` receives `&held.repository` as both mutable and read-only"
     );
 }

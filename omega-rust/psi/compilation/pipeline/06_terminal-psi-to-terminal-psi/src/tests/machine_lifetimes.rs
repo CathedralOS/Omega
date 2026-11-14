@@ -222,11 +222,10 @@ machine take(view: &[u8]) { }
     }
 }
 
-/// What a signature may write with a lifetime. A view names a lifetime its
-/// machine declares. A reference to anything else is a loan of one place,
-/// and what its lifetime relates it to is not read yet.
+/// Views and scalar references name lifetimes their machine declares.
+/// An undeclared tag supplies neither kind of input with a region identity.
 #[test]
-fn a_signature_names_only_lifetimes_its_machine_declares_and_only_on_views() {
+fn a_signature_names_only_lifetimes_its_machine_declares() {
     assert_eq!(
         verdict(
             r#"
@@ -243,7 +242,16 @@ machine build_entry() { let count: u32 = 1; take(&count); }
 machine take<'a>(count: &'a u32) { }
 "#
         ),
-        "parameter reference parameter with a named lifetime"
+        "accepted"
+    );
+    assert_eq!(
+        verdict(
+            r#"
+machine build_entry() { let count: u32 = 1; take(&count); }
+machine take(count: &'missing u32) { }
+"#
+        ),
+        "type borrowed view has no complete owned region identity"
     );
 }
 
