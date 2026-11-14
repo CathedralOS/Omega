@@ -1937,8 +1937,9 @@ fn generic_named_map_source_application_retains_actual_constructor_bindings() {
         let operand = program
             .static_operand_from_type_reference(call.requirement_application)
             .unwrap();
-        let typed_trees::types::TypeReferenceNode::Generic { arguments, .. } =
-            program.type_reference_node(call.requirement_application)
+        let typed_trees::types::TypeReferenceNode::Generic { arguments, .. } = program
+            .type_reference_table
+            .type_reference(call.requirement_application)
         else {
             panic!("the source retains its complete map application")
         };
