@@ -925,20 +925,26 @@ pub(crate) mod boundary_call {
                         insert_scalar_home(scalar_values, scalar_homes, home)?;
                     }
                     let catalog = structural_types.catalog();
-                    let descriptor_input = target_operations::descriptor_input_guard_for_call(
-                        foreign,
-                        catalog,
-                        &scalar_arguments,
-                        &structural_arguments,
-                        &target_result,
-                        |buffer| crate::borrowed_storage::capture_type(buffer, structural_types),
-                    )
-                    .map_err(|reason| LoweringError::DescriptorInputGuard {
-                        machine: function.machine,
-                        operation: *psi_operation,
-                        boundary: *boundary,
-                        reason,
-                    })?;
+                    let descriptor_input =
+                        target_operations::descriptor_input_guard_for_call_with_closed_scalars(
+                            foreign,
+                            catalog,
+                            &scalar_arguments,
+                            &structural_arguments,
+                            &target_result,
+                            |buffer| {
+                                crate::borrowed_storage::capture_type(buffer, structural_types)
+                            },
+                            |scalar| structural_types.closed_scalar(scalar),
+                        )
+                        .map_err(|reason| {
+                            LoweringError::DescriptorInputGuard {
+                                machine: function.machine,
+                                operation: *psi_operation,
+                                boundary: *boundary,
+                                reason,
+                            }
+                        })?;
                     operations.push(TargetUnitOperation::NormalizedForeignCall {
                         psi_operation: *psi_operation,
                         boundary: *boundary,
