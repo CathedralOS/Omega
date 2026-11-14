@@ -520,8 +520,17 @@ fn finish_reading(
             typed,
             &program.symbols,
             &program.signatures,
+            &program.declaration_symbols,
+            &program.declaration_signatures,
             &mut elaboration,
-        );
+        )
+        .map_err(|reason| {
+            refuse(
+                diagnostic,
+                Construct::Machine,
+                Unserved::Declaration(reason),
+            )
+        })?;
     }
     source.records = program.source_record_correspondence(diagnostic)?;
     elaboration.machines = program.symbols;
@@ -662,6 +671,20 @@ fn lower_generic_for(
     }
     let mut tables = CheckTables::default();
     let mut sources = IdTable::default();
+    if let Some(source) = declarations {
+        for (id, signature) in source.declaration_signatures.iter() {
+            module
+                .declaration_contracts
+                .push(lower::declaration_contract(
+                    diagnostic,
+                    id,
+                    signature,
+                    signatures,
+                    &outcomes,
+                    &declared.records,
+                )?);
+        }
+    }
     let mut source = SourceCorrespondence::default();
     for position in 1..=bodies.len() as u64 {
         let id = MachineId::new(position).ok_or_else(|| {
@@ -672,8 +695,20 @@ fn lower_generic_for(
             )
         })?;
         let component = terminal_check_tables::row(&components, id, id, Construct::Machine)?;
+        let contract = u64::try_from(module.declaration_contracts.len())
+            .ok()
+            .and_then(|count| count.checked_add(id.get()))
+            .and_then(semantic_vocabulary::ContractId::new)
+            .ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Machine("contract identity overflow"),
+                )
+            })?;
         let lowered = lower::machine(
             id,
+            contract,
             bodies,
             component,
             signatures,

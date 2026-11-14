@@ -109,49 +109,51 @@ mod tests {
         let structural_type = StructuralTypeId::new(4).expect("structural type");
         let machine = TerminalMachine {
             assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
-            closed_reach_application: None,
-            published_synchronous_entries: Vec::new(),
-            declared_service_reach: Vec::new(),
             id: MachineId::new(1).expect("machine"),
             attachment: None,
-            declaration: None,
             nominal_cleanup_subject: None,
-            parameter_order: vec![
-                terminal_psi::BoundaryParameterKind::Structural,
-                terminal_psi::BoundaryParameterKind::Scalar,
-            ],
-            parameters: vec![ValueDeclaration {
-                qualifications: Default::default(),
-                id: scalar_parameter,
-                scalar_type: ScalarType::Integer(integer),
-            }],
-            structural_parameters: vec![StructuralParameterDeclaration {
-                place: structural_parameter,
-                position: 0,
-                structural_type,
-                multiplicity: StructuralMultiplicity::Affine,
-                access: StructuralAccess::Owned,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-                additional_input_qualifications: Vec::new(),
-            }],
             ranked_scc: None,
-            result: TerminalMachineResult::Scalar(ValueDeclaration {
-                qualifications: Default::default(),
-                id: result,
-                scalar_type: ScalarType::Integer(integer),
-            }),
             structural_places: Vec::new(),
-            entry_claims: Vec::new(),
             block_entry_claims: Vec::new(),
             loan_completions: Vec::new(),
-            published_service_ceiling: Vec::new(),
-            content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(1).expect("entry"),
             blocks: Vec::new(),
-            contract: terminal_psi::MachineContract::empty(ContractId::new(1).expect("contract")),
+            contract: terminal_psi::MachineContract {
+                closed_reach_application: None,
+                published_synchronous_entries: Vec::new(),
+                declared_service_reach: None,
+                declaration: None,
+                parameter_order: vec![
+                    terminal_psi::BoundaryParameterKind::Structural,
+                    terminal_psi::BoundaryParameterKind::Scalar,
+                ],
+                parameters: vec![ValueDeclaration {
+                    qualifications: Default::default(),
+                    id: scalar_parameter,
+                    scalar_type: ScalarType::Integer(integer),
+                }],
+                structural_parameters: vec![StructuralParameterDeclaration {
+                    place: structural_parameter,
+                    position: 0,
+                    structural_type,
+                    multiplicity: StructuralMultiplicity::Affine,
+                    access: StructuralAccess::Owned,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    additional_input_qualifications: Vec::new(),
+                }],
+                result: TerminalMachineResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
+                    id: result,
+                    scalar_type: ScalarType::Integer(integer),
+                }),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                content_entry_claims: Vec::new(),
+                ..terminal_psi::MachineContract::empty(ContractId::new(1).expect("contract"))
+            },
         };
         let abi = MixedStructuralScalarFunctionAbi {
             scalar_parameters: vec![ScalarAbiValue {
