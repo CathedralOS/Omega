@@ -73,13 +73,6 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
-### MSVC refuses an existing 266-character managed dependency path
-- Category: verifying costs more than writing
-- Where: mbx 1.29.2 managed targets (`target.views` / `target.lanes`), [tools/docs/testing.md:537](tools/docs/testing.md#L537)
-- Saw: worker-18's focused `mbx test -p machine-emission --lib` compiled its source, then failed linking with LNK1104 on the stage-07 dependency rlib. The file exists and opens through .NET. MSVC's own `/dump /headers` fails on its 266-character managed path (1104) and succeeds on the same file's 209-character checkout alias (0). A command-local `MBX_TARGET_VIEWS=false` retry still supplied the retained long dependency path; no target cleanup or global settings change was requested.
-- Cost: a compiled focused test never executes, and a plain retry repeats the same infrastructure failure. Repair or isolate the long-path publication route without cleaning shared caches or changing settings of live peer builds.
-- Reported: 2026-11-14, Codex, while removing default native stage-output replay
-
 ### The standard library declares two public things named `DarwinClock`
 - Category: one idea, several implementations
 - Where: [source/library/std/macos_gui.omg:586](source/library/std/macos_gui.omg#L586) (`public boundary trait DarwinClock`) and [source/library/std/targets/macos_arm64/clock_impl.omg:26](source/library/std/targets/macos_arm64/clock_impl.omg#L26) (`public DarwinClock satisfies Clock`)
