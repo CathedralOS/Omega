@@ -177,7 +177,8 @@ fn a_failed_actual_refinement_is_kept_by_the_whole_source_driver() {
     );
     assert!(
         matches!(verdicts.first(), Some(Ok(RouteVerdict::Accepted(_)))),
-        "the first closure's conditional proofs do not admit the failed actual witness"
+        "the first closure must be accepted before the separate failed witness: {:?}",
+        verdicts.first()
     );
     let mut accepted = 0;
     let mut rejected = 0;
