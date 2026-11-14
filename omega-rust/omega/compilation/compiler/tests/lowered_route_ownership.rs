@@ -369,8 +369,8 @@ data Choice [copy] { case Part; case Whole; }
 data Item { value: u32; }
 data Pair { first: Item; second: Item; }
 data Outer { selected: Pair; other: Pair; }
-machine take_item(item: Item) -> u32 { return item.value; }
-machine take_pair(pair: Pair) -> u32 { return pair.second.value; }
+machine take_item(item: Item) -> u32 { item.value }
+machine take_pair(pair: Pair) -> u32 { pair.second.value }
 machine restored(choice: Choice) -> u64 {
     let mut outer: Outer = Outer {
         selected: Pair { first: Item { value: 3 }, second: Item { value: 5 } },
@@ -382,9 +382,9 @@ machine restored(choice: Choice) -> u64 {
     };
     outer.selected = Pair { first: Item { value: 7 }, second: Item { value: 11 } };
     let owner: Outer = outer;
-    return (consumed as+ u64)
+    (consumed as+ u64)
         + (owner.selected.first.value as+ u64) + (owner.selected.second.value as+ u64)
-        + (owner.other.first.value as+ u64) + (owner.other.second.value as+ u64);
+        + (owner.other.first.value as+ u64) + (owner.other.second.value as+ u64)
 }
 machine main() crashes Trap {
     let partial: u64 = restored(Choice::Part {});
