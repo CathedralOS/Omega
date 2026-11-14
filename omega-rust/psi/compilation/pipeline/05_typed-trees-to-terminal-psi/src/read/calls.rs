@@ -1312,7 +1312,7 @@ impl<'t> Program<'t> {
     /// records it (`StaticMachineArgument::const_literal`), and there must be
     /// exactly one per parameter; the application may apply nothing more.
     /// With no value parameter the call may carry no static argument.
-    fn static_value_arguments(
+    pub(super) fn static_value_arguments(
         &self,
         id: MachineId,
         binders: &[(SymbolHandle, semantic_vocabulary::ScalarType)],

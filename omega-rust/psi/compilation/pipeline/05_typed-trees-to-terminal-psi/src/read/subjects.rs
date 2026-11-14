@@ -233,6 +233,7 @@ impl Program<'_> {
                     declaring_trait: owner.symbol,
                     requirement,
                     implementation: machine.symbol,
+                    value_arguments: Vec::new(),
                 };
                 let root = self.provider(machine.symbol, owner.symbol, requirement)?;
                 if !self.fixed_inputs.contains(&root) {
@@ -572,6 +573,7 @@ impl<'t> Program<'t> {
                 declaring_trait: row.declaring_trait,
                 requirement: row.requirement,
                 implementation: row.realization_machine,
+                value_arguments: Vec::new(),
             };
             if !self.conformance_witnesses.contains(&witness) {
                 self.conformance_witnesses.push(witness);

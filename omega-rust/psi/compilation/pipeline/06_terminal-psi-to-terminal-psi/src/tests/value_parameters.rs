@@ -15,6 +15,39 @@ use super::*;
 use crate::prove::SEARCHES;
 use crate::reverify_specialization;
 
+#[test]
+fn an_authored_value_parameter_application_retains_its_requirement_binders() {
+    // The declaration identity of Units matters: the source deliberately also
+    // declares a data type with that name. Keep its complete application through
+    // ordinary source preparation before asking the checker for every part.
+    let source = include_str!(
+        "../../../../../../../tests/fixtures/pass/facts/lexical_generic_bound_through_local_exit/main.omg"
+    );
+    let typed = super::build_purpose::frontier_of(source, "machine build_entry() {}");
+    let entry = super::build_purpose::symbol(&typed, "main");
+    let (frozen, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+        typed,
+        &typed_trees_to_typed_trees::PreparationRequest::settled(),
+    )
+    .unwrap();
+    let program = typed_trees_to_terminal_psi::prepare_compilation(
+        &frozen,
+        super::build_purpose::roster(
+            &[entry],
+            &[Some(super::build_purpose::package())],
+            source::DependencyScope::Product,
+        ),
+        terminal_codec::TerminalPublication::Invocation,
+    )
+    .program;
+    let verdicts = crate::judge_compilation(program);
+    assert!(!verdicts.is_empty());
+    for verdict in verdicts {
+        let verdict = verdict.unwrap();
+        assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+    }
+}
+
 fn searches() -> usize {
     SEARCHES.with(std::cell::Cell::get)
 }

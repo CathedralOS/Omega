@@ -1104,6 +1104,7 @@ impl<'t> Program<'t> {
                 declaring_trait: definition.symbol,
                 requirement: requirement.symbol,
                 implementation: machine.symbol,
+                value_arguments: Vec::new(),
             });
         }
         Ok(witnesses)
@@ -1360,7 +1361,8 @@ impl<'t> Program<'t> {
         if matches!(reading, Reading::Closed | Reading::Provider)
             && let Some((owner, requirement)) = self.conformer_requirement(id, machine)?
         {
-            let (routed, routed_names) = self.requirement_signature(id, requirement, &[])?;
+            let arguments = self.conformer_value_arguments(id, machine, requirement)?;
+            let (routed, routed_names) = self.requirement_signature(id, requirement, &arguments)?;
             self.same_conformer_shape(id, &signature, &routed, machine.symbol)?;
             // There is one executable entry: its caller-facing contract is
             // the requirement's. The member's own clauses remain owed by
@@ -1382,6 +1384,7 @@ impl<'t> Program<'t> {
                 declaring_trait: owner,
                 requirement: requirement.symbol,
                 implementation: machine.symbol,
+                value_arguments: arguments,
             };
             if !self.conformance_witnesses.contains(&witness) {
                 self.conformance_witnesses.push(witness);
@@ -1482,6 +1485,72 @@ impl<'t> Program<'t> {
             return Err(unserved("conformer is more visible than its requirement"));
         }
         Ok(Some(context))
+    }
+
+    /// The member's closed method application supplies the requirement's
+    /// value arguments too. Rejoin the actual entry and complete telescope;
+    /// matching names or a generated symbol alone cannot supply this context.
+    fn conformer_value_arguments(
+        &self,
+        id: MachineId,
+        machine: &Machine,
+        requirement: &StateSignature,
+    ) -> Checked<Vec<semantic_vocabulary::ScalarTerm>> {
+        let binders = self.requirement_binders(id, requirement)?;
+        if binders.is_empty() {
+            return Ok(Vec::new());
+        }
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
+        let typed = self.typed;
+        let application = typed
+            .machine_instantiation(machine.symbol)
+            .map_err(unserved)?
+            .ok_or_else(|| unserved("conformer value parameters need their exact application"))?;
+        let template = typed
+            .machine_by_symbol(application.template())
+            .ok_or_else(|| unserved("conformer value application lost its template"))?;
+        let [entry] = typed.machine_states(machine) else {
+            return Err(unserved("conformer value application needs one entry"));
+        };
+        application
+            .entry_template(typed, entry.symbol)
+            .map_err(unserved)?;
+        let parameters = typed.machine_type_parameters(template);
+        let handle = application.binding_application();
+        if !typed
+            .expression_table
+            .static_machine_application_is_valid(handle)
+        {
+            return Err(unserved("conformer value application is stale"));
+        }
+        let source = typed.expression_table.static_machine_application(handle);
+        let bindings = typed
+            .expression_table
+            .static_machine_application_bindings(handle);
+        if source.binding_declaration != template.symbol
+            || parameters.len() != binders.len()
+            || bindings.len() != parameters.len()
+        {
+            return Err(unserved(
+                "conformer value application has another telescope",
+            ));
+        }
+        for ((parameter, binding), (_, carrier)) in parameters.iter().zip(bindings).zip(&binders) {
+            let typed_trees::data::TypeParameterKind::Const { type_reference } = parameter.kind
+            else {
+                return Err(unserved(
+                    "conformer value application binds another parameter kind",
+                ));
+            };
+            if parameter.symbol != binding.parameter
+                || self.scalar_type(id, type_reference)? != *carrier
+            {
+                return Err(unserved(
+                    "conformer value application changes a declared binder",
+                ));
+            }
+        }
+        self.static_value_arguments(id, &binders, handle, &[])
     }
 
     fn declared_requirement_origin(
@@ -1589,7 +1658,9 @@ impl<'t> Program<'t> {
         if !requires && !ensures {
             return Ok(());
         }
-        let (inherited, inherited_names) = self.requirement_signature(id, requirement, &[])?;
+        let arguments = self.conformer_value_arguments(id, machine, requirement)?;
+        let (inherited, inherited_names) =
+            self.requirement_signature(id, requirement, &arguments)?;
         self.same_conformer_shape(id, signature, &inherited, machine.symbol)?;
         if requires {
             // Implicit formal-domain obligations remain alongside inherited
