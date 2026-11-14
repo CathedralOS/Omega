@@ -1252,7 +1252,9 @@ mod builtin_ordinal_tests {
     /* The integer family is open-ended; a value-like spelling is not a type name. */
     #[test]
     fn builtin_type_spellings_cover_the_roster_and_the_integer_family() {
-        for name in ["bool", "addr", "f32", "u32", "i", "u", "u0", "i7", "u257", "Never"] {
+        for name in [
+            "bool", "addr", "f32", "u32", "i", "u", "u0", "i7", "u257", "Never",
+        ] {
             assert!(super::is_builtin_type_spelling(name), "{name}");
         }
         for name in ["count", "ui", "u8x", "i_1", "uint", "U32", ""] {

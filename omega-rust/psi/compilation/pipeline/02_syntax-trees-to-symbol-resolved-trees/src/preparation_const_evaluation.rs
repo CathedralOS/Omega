@@ -5247,17 +5247,14 @@ mod values {
                 syntax,
                 actual_length,
                 &GenericApplicationSubstitution::new(),
-            )? == closed_fixed_array_length(
-                syntax,
-                demanded_length,
-                substitution,
-            )? && same_carrier_in_application(
-                syntax,
-                *actual,
-                *demanded,
-                selection,
-                substitution,
-            )?),
+            )? == closed_fixed_array_length(syntax, demanded_length, substitution)?
+                && same_carrier_in_application(
+                    syntax,
+                    *actual,
+                    *demanded,
+                    selection,
+                    substitution,
+                )?),
             (TypeReferenceNode::Constrained { base_type, .. }, _) => {
                 same_carrier_in_application(syntax, *base_type, required, selection, substitution)
             }

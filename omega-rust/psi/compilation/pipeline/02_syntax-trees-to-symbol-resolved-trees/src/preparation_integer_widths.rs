@@ -208,10 +208,9 @@ mod tests {
 
     #[test]
     fn a_literal_width_application_is_the_decimal_shorthand() {
-        let (named, applied) = spellings(
-            "machine next(word: u<32>, small: i<13>, bit: i<1>) -> u<257> { 0 }",
-        )
-        .unwrap();
+        let (named, applied) =
+            spellings("machine next(word: u<32>, small: i<13>, bit: i<1>) -> u<257> { 0 }")
+                .unwrap();
         for carrier in ["u32", "i13", "i1", "u257"] {
             assert!(
                 named.iter().any(|name| name == carrier),
