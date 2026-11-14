@@ -57,8 +57,9 @@ framing for compiler completion live in [AGENTS.md](../../../AGENTS.md)
 1. **Build or reuse the warm optimized producer** in the worktree's `target/`
    (`CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR=<dir> mbx build -p omega`;
    close stdin with `< /dev/null` on manual background runs).
-2. **Witness the failure first:** Run the target witness (`omega run --both` or
-   `cargo xtask sample-gate --facts --filter <fact>`).
+2. **Witness the failure first:** Run the focused test on the affected mechanism
+   or the existing program witness (`omega run --both` or
+   `mbx xtask sample-gate --filter <sample_path>`).
 3. **Read the spec, then cut the refusal down:** Read the governing page in
    `wiki/spec/` first. Isolate the failing construct, decide from that spec whether the refusal is a
    language rule or a compiler precision/lowering gap, and check
