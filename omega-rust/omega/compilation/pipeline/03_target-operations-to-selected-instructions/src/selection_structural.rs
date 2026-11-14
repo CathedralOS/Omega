@@ -2251,7 +2251,7 @@ pub(crate) mod primitive_locals {
     };
     use super::{
         Builder, IntegerSign, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
-        ScalarType, SelectedMemoryAccessRole, VirtualRegisterId, memory,
+        SelectedMemoryAccessRole, VirtualRegisterId, memory,
     };
     use crate::SelectedInstructionError;
     use crate::selection::construction::scalar_graph::structural::invalid;
