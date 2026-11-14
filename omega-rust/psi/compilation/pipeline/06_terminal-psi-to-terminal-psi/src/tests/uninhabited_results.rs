@@ -125,7 +125,9 @@ fn a_false_default_domain_preserves_the_actual_call_and_sibling_value() {
 fn a_first_empty_match_arm_does_not_choose_the_common_or_inferred_type() {
     for matched in [
         "match fatal { true -> halt() false -> value }",
-        "let inferred = match fatal { true -> halt() false -> value }; inferred",
+        // Comparisons read their left operand without an expected carrier.
+        // This exercises arm inference without a local type annotation.
+        "let compared: bool = (match fatal { true -> halt() false -> value }) == value; value",
     ] {
         let original = river("public data Empty requires false {}", "Empty");
         let dispatch = "transition fatal { true -> halt() false -> value }";
