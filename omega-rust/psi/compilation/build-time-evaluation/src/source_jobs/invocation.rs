@@ -398,6 +398,29 @@ pub(crate) fn prepare_value_invocation(
     let (probe_machine, mut state) =
         invocation_probe_declarations(&mut probe, requester, "@const-invocation", original_result);
     let mut call = request.clone();
+    if request_expression.is_valid()
+        && matches!(
+            declaration,
+            typed_trees::callable_signature_shapes::CallableDeclaration::Signature(_)
+        )
+    {
+        // This is another actual call of the same public requirement. Its
+        // application belongs to this caller, while the original source row
+        // and every supplied operand keep their existing owner and identity.
+        let (_, captures, application) = probe.expression_table.copy_call_operands_from(
+            &program.expression_table,
+            &[],
+            request.authored_machine_application,
+        );
+        if !captures.is_empty() || !application.is_valid() {
+            return Err("copied public call has no complete source application".into());
+        }
+        probe
+            .expression_table
+            .static_machine_application_mut(application)
+            .lexical_owner = probe_machine.symbol;
+        call.authored_machine_application = application;
+    }
     let concrete = probe
         .expression_table
         .insert(ExpressionNode::Call(call.clone()));
@@ -538,7 +561,7 @@ pub(crate) fn prepare_value_invocation(
             .map_err(|reason| format!("source invocation type argument ownership: {reason}"))?;
     }
     if materialized {
-        let application = static_call.application();
+        let application = call.authored_machine_application;
         if application.is_valid() {
             let retained = probe
                 .expression_table
@@ -548,7 +571,10 @@ pub(crate) fn prepare_value_invocation(
             }
             retained.clone_from_slice(&supplied);
         }
-        if request_expression.is_valid() && !request.machine_arguments.is_empty() {
+        if request_expression.is_valid()
+            && !request.machine_arguments.is_empty()
+            && call.authored_machine_application == request.authored_machine_application
+        {
             let ExpressionNode::Call(original) =
                 probe.expression_table.expression_mut(request_expression)
             else {

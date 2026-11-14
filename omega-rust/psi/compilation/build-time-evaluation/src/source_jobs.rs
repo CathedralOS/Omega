@@ -1095,9 +1095,51 @@ pub(crate) mod tests {
             let retained = receipt.call().unwrap();
             assert_eq!(retained.target_symbol, authored.target_symbol);
             assert_eq!(retained.receiver, authored.receiver);
+            assert_ne!(
+                retained.authored_machine_application, authored.authored_machine_application,
+                "the actual caller owns a distinct copy of this application"
+            );
+            let accepted = entry.accepted_source();
+            let original = source
+                .expression_table
+                .static_machine_application(authored.authored_machine_application);
             assert_eq!(
-                retained.authored_machine_application,
-                authored.authored_machine_application
+                accepted
+                    .expression_table
+                    .static_machine_application(authored.authored_machine_application,),
+                original,
+                "constructing another invocation does not mutate its authored source row"
+            );
+            let copied = accepted
+                .expression_table
+                .static_machine_application(retained.authored_machine_application);
+            assert_eq!(
+                copied.registration_operation,
+                original.registration_operation
+            );
+            assert_eq!(copied.binding_declaration, original.binding_declaration);
+            let canonical_caller = entry.accepted().entry().unwrap();
+            let actual_caller = entry
+                .accepted()
+                .closure()
+                .elaboration
+                .machines
+                .get(canonical_caller)
+                .unwrap();
+            assert_eq!(copied.lexical_owner, *actual_caller);
+            assert_eq!(original.lexical_owner, requester);
+            assert_eq!(
+                accepted
+                    .expression_table
+                    .static_machine_application_arguments(retained.authored_machine_application,),
+                source
+                    .expression_table
+                    .static_machine_application_arguments(authored.authored_machine_application,),
+                "every original static operand survives the owned application copy"
+            );
+            assert_eq!(
+                retained.requirement_application,
+                authored.requirement_application
             );
             assert_eq!(retained.machine_arguments, authored.machine_arguments);
             let error = match program.entry_call(requester, call, &[BuildTimeValue::Int(0)]) {
