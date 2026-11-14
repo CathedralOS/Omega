@@ -200,6 +200,7 @@ fn field_at_most_ten(field: u64) -> Proposition {
     };
     Proposition::LessOrEqual(
         ScalarTerm::IntegerField {
+            version: semantic_vocabulary::ContentPlaceVersion::Current,
             root: id(1),
             path: vec![CanonicalStructuralPathSegment::Field(id(field))],
             scalar_type: integer,

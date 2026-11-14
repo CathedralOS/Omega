@@ -238,6 +238,7 @@ impl terminal_semantics::substitution::clauses::ClauseBindings for ScalarFormals
 
     fn field(
         &mut self,
+        _: semantic_vocabulary::ContentPlaceVersion,
         _: semantic_vocabulary::PlaceId,
         _: &[semantic_vocabulary::CanonicalStructuralPathSegment],
         _: semantic_vocabulary::ScalarType,

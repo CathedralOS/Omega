@@ -598,8 +598,12 @@ impl Lowering<'_> {
                     .map(|exact| (formal.place, exact))
             })
             .collect::<Checked<_>>()?;
-        for clause in &signature.requires {
-            self.name_clause_contents(clause, &bindings)?;
+        for clause in signature.requires.iter().chain(&signature.ensures) {
+            self.name_clause_contents(
+                clause,
+                &bindings,
+                result.structural().map(|result| result.place),
+            )?;
         }
         Ok((formals, result))
     }

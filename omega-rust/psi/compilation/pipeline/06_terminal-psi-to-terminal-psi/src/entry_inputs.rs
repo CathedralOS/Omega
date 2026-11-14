@@ -558,6 +558,7 @@ impl Bindings for InputBindings<'_> {
     }
     fn field(
         &mut self,
+        _: semantic_vocabulary::ContentPlaceVersion,
         _: PlaceId,
         _: &[CanonicalStructuralPathSegment],
         _: ScalarType,

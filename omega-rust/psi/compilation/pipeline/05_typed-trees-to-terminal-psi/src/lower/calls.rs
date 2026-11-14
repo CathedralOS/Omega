@@ -326,8 +326,9 @@ impl Lowering<'_> {
                 }
             }
         }
-        // Requirements observe the exact actual subtree, even when no body
-        // operation reads that leaf. Recording a name grants no premise.
+        // Contracts observe the exact actual subtree, even when no body
+        // operation reads that leaf. Naming a leaf supplies no premise; a
+        // guarantee will use its independently checked after-call identity.
         let bindings = evaluated
             .actuals
             .iter()
@@ -342,8 +343,9 @@ impl Lowering<'_> {
                 Ok((formal, actual))
             })
             .collect::<Checked<Vec<_>>>()?;
-        for clause in &signature.requires {
-            self.name_clause_contents(clause, &bindings)?;
+        let result = signature.structural_result_place();
+        for clause in signature.requires.iter().chain(&signature.ensures) {
+            self.name_clause_contents(clause, &bindings, result)?;
         }
         Ok(Reached::Value(evaluated))
     }

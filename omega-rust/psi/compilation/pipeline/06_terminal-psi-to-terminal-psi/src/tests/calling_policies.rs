@@ -31,7 +31,7 @@ const TARGETS: [(&str, &str); 4] = [
 
 /// Judge the actual source roots as the normal compile-time invocation does.
 /// Keep the full verdict so rejection controls can pin its real obligation.
-fn prepared(
+pub(super) fn prepared(
     typed: typed_trees::TypedTrees,
     roots: &[&str],
     publication: terminal_codec::TerminalPublication,

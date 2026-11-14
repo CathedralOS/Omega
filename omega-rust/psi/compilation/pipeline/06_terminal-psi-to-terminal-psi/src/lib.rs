@@ -1697,11 +1697,12 @@ impl Bindings for ErasedTerms<'_> {
 
     fn field(
         &mut self,
+        version: semantic_vocabulary::ContentPlaceVersion,
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         scalar_type: ScalarType,
     ) -> Result<ScalarTerm, Unbound> {
-        self.runtime.field(root, path, scalar_type)
+        self.runtime.field(version, root, path, scalar_type)
     }
 
     fn extent(
@@ -1781,6 +1782,7 @@ impl Bindings for ScalarActuals<'_> {
 
     fn field(
         &mut self,
+        _: semantic_vocabulary::ContentPlaceVersion,
         _: PlaceId,
         _: &[CanonicalStructuralPathSegment],
         _: ScalarType,

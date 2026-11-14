@@ -859,7 +859,7 @@ impl<'a> Lowering<'a> {
                 let subject = terminal_check_tables::program::self_place()
                     .ok_or_else(|| self.internal("data subject identity"))?;
                 for clause in &data.requires {
-                    self.name_clause_contents(clause, &[(subject, place)])?;
+                    self.name_clause_contents(clause, &[(subject, place)], None)?;
                 }
                 if matches!(data.shape, StorageShape::FixedArray { .. }) {
                     return Ok(());

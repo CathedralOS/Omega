@@ -230,17 +230,18 @@ pub(crate) mod boundary_predicates {
                     path,
                     scalar_type,
                 } => Some(self.read_extent(*root, path, *scalar_type)?),
-                ScalarTerm::BooleanField { root, path } => {
+                ScalarTerm::BooleanField { root, path, .. } => {
                     Some(self.read(*root, path, ScalarType::Boolean)?)
                 }
                 ScalarTerm::IntegerField {
+                    version: _,
                     root,
                     path,
                     scalar_type,
                 } => Some(self.read(*root, path, ScalarType::Integer(*scalar_type))?),
-                ScalarTerm::IeeeFloatField { root, path, format } => {
-                    Some(self.read(*root, path, ScalarType::IeeeFloat(*format))?)
-                }
+                ScalarTerm::IeeeFloatField {
+                    root, path, format, ..
+                } => Some(self.read(*root, path, ScalarType::IeeeFloat(*format))?),
                 _ => None,
             };
             if let Some(value) = observed {

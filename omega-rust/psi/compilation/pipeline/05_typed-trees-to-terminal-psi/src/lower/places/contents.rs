@@ -38,6 +38,7 @@ impl ClauseBindings for Named {
 
     fn field(
         &mut self,
+        version: semantic_vocabulary::ContentPlaceVersion,
         root: PlaceId,
         selected: &[CanonicalStructuralPathSegment],
         scalar_type: ScalarType,
@@ -45,11 +46,13 @@ impl ClauseBindings for Named {
         self.leaves.push((root, path(selected)?, scalar_type));
         match scalar_type {
             ScalarType::Integer(scalar_type) => Ok(ScalarTerm::IntegerField {
+                version,
                 root,
                 path: selected.to_vec(),
                 scalar_type,
             }),
             ScalarType::Boolean => Ok(ScalarTerm::BooleanField {
+                version,
                 root,
                 path: selected.to_vec(),
             }),
@@ -91,10 +94,17 @@ impl Lowering<'_> {
         &mut self,
         clause: &Proposition,
         bindings: &[(PlaceId, ExactPlaceId)],
+        result: Option<PlaceId>,
     ) -> Checked<()> {
         let mut named = Named { leaves: Vec::new() };
         let _ = substitute_clause(clause, &mut named);
         for (root, path, scalar_type) in named.leaves {
+            // The declared output is not an invocation input. Its actual
+            // returned storage is observed at the exit, not named as an
+            // entry snapshot of an unavailable result.
+            if Some(root) == result {
+                continue;
+            }
             let Some((_, mut leaf)) = bindings.iter().find(|(formal, _)| *formal == root).copied()
             else {
                 return Err(self.internal("a contract observation has no structural subject"));

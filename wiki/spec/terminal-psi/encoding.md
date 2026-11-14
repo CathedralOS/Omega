@@ -562,6 +562,18 @@ A scalar term is a [term table](#term-tables) of scalar rows. Each row is a
 | 38 | IeeeFloatField | root place id + counted canonical path segments + IEEE format |
 | 39 | ByteSequencePredicate | predicate `u8` + root place id + counted canonical path segments |
 | 40 | StructuralRead | root place id + scalar type + counted scalar-read projections |
+| 41 | Application | scalar application id + scalar type |
+| 42 | EntryBooleanField | root place id + counted canonical path segments |
+| 43 | EntryIntegerField | root place id + counted canonical path segments + integer type |
+| 44 | EntryIeeeFloatField | root place id + counted canonical path segments + IEEE format |
+
+An entry field observation names an invocation input and requests that
+input's entry contents. It cannot name a local or a result. The ordinary
+field forms retain their existing encoding: an owned input's inline fields
+mean the supplied value, while a borrowed input in a normal guarantee is
+observed at completion. Both forms keep the same exact root, path and carrier
+checks. An entry observation supplies no ownership or permission to read
+unavailable storage.
 
 The byte-predicate tag selects exactly one primitive: `1` is `valid_utf8`, `2`
 is `no_nul`, `4` is `ascii_only`, and `8` is `non_empty`. Other values reject.
@@ -930,6 +942,11 @@ The affine cleanup actions a terminator carries are a closed `u8` space:
 | 4 | RetireHome | place id |
 
 ## Machine rows
+
+Marker 265 distinguishes entry field observations (scalar tags 42–44) from
+ordinary field observations. It keeps the selected public-call, operational,
+context and write-summary data of the preceding format. A decoder rejects
+marker 264 before interpreting its payload as this format.
 
 Marker 264 additionally retains each selected invocation's public contract
 identity separately from its executable machine. Its declaration contract

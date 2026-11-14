@@ -1017,13 +1017,14 @@ mod tests {
         }];
         assert_eq!(
             read(&scope(&borrowed, false)).unwrap_err().detail,
-            "contract clause that names a borrowed formal outside requires"
+            "contract borrowed formal outside an admitted storage clause"
         );
     }
 
     #[test]
-    fn old_names_only_an_existing_runtime_scalar_input_and_keeps_its_policy() {
+    fn old_retains_the_existing_scalar_or_storage_input_and_its_policy() {
         use crate::body::{DomainSet, Policy, Qualification};
+        use semantic_vocabulary::PlaceId;
         use symbols::{BuiltinFunction, builtin_function_symbols};
         use typed_trees::expression::TableCallExpression;
         use typed_trees::name::Identifier;
@@ -1215,7 +1216,7 @@ mod tests {
                 .unwrap_err()
                 .detail
         };
-        let no_input = "contract old of a subject without a scalar invocation input";
+        let no_input = "contract old of a subject without an admitted invocation input";
         assert_eq!(
             program
                 .term(machine(), &scope, old_literal, Some(scalar_type))
@@ -1239,7 +1240,7 @@ mod tests {
                 "contract old of other than one subject"
             );
         }
-        assert!(program.term(machine(), &scope, old_foreign, None).is_err());
+        let no_foreign = detail(&scope, old_foreign);
         let forged = [(
             foreign,
             ScalarTerm::value(ValueId::new(999).unwrap(), scalar_type),
@@ -1252,7 +1253,19 @@ mod tests {
                 },
                 old_foreign
             ),
-            no_input
+            no_foreign
+        );
+        let copied_input = [(foreign, ScalarTerm::value(value, scalar_type))];
+        assert_eq!(
+            detail(
+                &ClauseScope {
+                    bound: &copied_input,
+                    ..scope
+                },
+                old_foreign
+            ),
+            no_foreign,
+            "a matching value ID does not turn a static name into a runtime input"
         );
         let wrong_carrier = [(foreign, ScalarTerm::value(value, ScalarType::Boolean))];
         assert_eq!(
@@ -1263,7 +1276,7 @@ mod tests {
                 },
                 old_foreign
             ),
-            no_input
+            no_foreign
         );
         let bound_constant = [(
             foreign,
@@ -1280,7 +1293,7 @@ mod tests {
                 },
                 old_foreign
             ),
-            no_input
+            no_foreign
         );
         let erased = [Slot {
             erased: true,
@@ -1311,14 +1324,48 @@ mod tests {
             ..slot()
         }];
         assert_eq!(
-            detail(
+            program.term(
+                machine(),
                 &ClauseScope {
                     slots: &borrowed,
                     ..scope
                 },
-                old
+                old,
+                None
             ),
-            "contract clause that names a borrowed formal outside requires"
+            Ok((
+                ScalarTerm::IntegerField {
+                    version: semantic_vocabulary::ContentPlaceVersion::Entry,
+                    root: PlaceId::new(1).unwrap(),
+                    path: Vec::new(),
+                    scalar_type: integer,
+                },
+                borrowed[0].value_type
+            ))
+        );
+        let forged_field = [(
+            foreign,
+            ScalarTerm::IntegerField {
+                version: semantic_vocabulary::ContentPlaceVersion::Current,
+                root: PlaceId::new(1).unwrap(),
+                path: Vec::new(),
+                scalar_type: integer,
+            },
+        )];
+        assert!(
+            program
+                .term(
+                    machine(),
+                    &ClauseScope {
+                        slots: &borrowed,
+                        bound: &forged_field,
+                        ..scope
+                    },
+                    old_foreign,
+                    None
+                )
+                .is_err(),
+            "a bound constant cannot impersonate the runtime input's field"
         );
         let domain = [Slot {
             value_type: ValueType::Scalar(
@@ -1353,7 +1400,7 @@ mod tests {
                 },
                 old_foreign
             ),
-            no_input
+            no_foreign
         );
         let qualified = [Slot {
             value_type: ValueType::Scalar(scalar_type, Qualification::of_policy(Policy::Wrapping)),
