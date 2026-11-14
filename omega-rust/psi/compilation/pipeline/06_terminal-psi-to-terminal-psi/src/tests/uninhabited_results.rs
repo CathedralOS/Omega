@@ -81,7 +81,17 @@ fn check_no_normal(accepted: &crate::verdict::AcceptedClosure) -> MachineId {
     let received =
         terminal_codec::ClosedTerminalModule::from_semantic_bytes(closed.semantic_bytes())
             .expect("receiving admission retains the empty-result proof");
-    assert_eq!(received.module(), module);
+    assert_eq!(received.semantic_bytes(), closed.semantic_bytes());
+    assert_eq!(received.identity(), closed.identity());
+    assert_eq!(
+        received
+            .module()
+            .machine(*callee)
+            .unwrap()
+            .result
+            .structural(),
+        Some(result),
+    );
     *callee
 }
 
