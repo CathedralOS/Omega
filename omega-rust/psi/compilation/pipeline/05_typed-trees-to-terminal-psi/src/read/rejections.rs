@@ -2,14 +2,21 @@
 The reader's rejections: where it meets a program the specification says is
 wrong, as opposed to one it does not read yet.
 
-The reader types every expression itself, so it is the first place a
-compilation learns that a value's type is not its destination's. Most such
-differences are forms it cannot judge (two carriers it does not relate, a
-view whose region it does not follow), and those stay refusals
+The reader computes each supported expression's type while resolving its
+body, so receiving-type comparisons share this diagnostic owner. Differences
+it cannot judge (a view whose region it does not follow, for example) stay
+refusals
 (`crate::refuse`, "not supported yet"). A difference is a rejection
 (`crate::reject`) only when the specification defines the error for every
 program of that form, and each rule here names its sentence:
 
+- `wiki/spec/language/numeric_values.md`, "Integer equality and order":
+  comparison "adds neither implicit arithmetic widening nor conversion at
+  assignments, arguments, or returns", and "Literal landing and
+  destinations": a suffixed literal retains its carrier through storage,
+  arguments and returns. Once source and destination have scalar types,
+  different carriers cannot agree by value or by sharing a storage width. Anonymous
+  literal landing has already happened in the expression reader.
 - `wiki/spec/language/domains.md`, "Literals and expected types": "the same
   rule governs arguments, field initializers, returns and arm results: the
   supplied expression's static type must carry exactly the domains the
@@ -32,7 +39,7 @@ Every other rejection is made where its rule is checked (`casts`,
 naming nothing in `services`), through the same `crate::reject`.
 */
 
-use semantic_vocabulary::MachineId;
+use semantic_vocabulary::{IeeeFloatFormat, IntegerSign, MachineId, ScalarType};
 use terminal_check_tables::{Construct, Refusal};
 
 use super::Program;
@@ -40,12 +47,14 @@ use super::regions::Region;
 use crate::body::{Policy, Qualification, ValueType};
 use crate::{SourceOrigin, Unserved, refuse, reject};
 
-/// What a value is supplied to, for the two rules above.
+/// What a value is supplied to, for the rules above.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Destination {
     Parameter,
     /// The machine's result, from a returned value or an arm's value.
     Result,
+    /// The common scalar type chosen by a match's destination or earlier arm.
+    MatchArm,
     Field,
     Local,
     /// The place an assignment stores into.
@@ -57,6 +66,7 @@ impl Destination {
         match self {
             Self::Parameter => "the parameter it is passed for",
             Self::Result => "the machine's result",
+            Self::MatchArm => "the match's common result type",
             Self::Field => "the field it initializes",
             Self::Local => "the local it initializes",
             Self::Assigned => "the place it is assigned to",
@@ -82,6 +92,21 @@ impl Program<'_> {
         let (Some(expected), Some(found)) = (expected, found) else {
             return refused;
         };
+        if let (ValueType::Scalar(expected, _), ValueType::Scalar(found, _)) = (expected, found)
+            && expected != found
+        {
+            return reject(
+                id,
+                at,
+                format!(
+                    "this value has scalar carrier `{}` but {} requires `{}`: there is no \
+                     implicit scalar conversion at a receiving type",
+                    scalar_named(found),
+                    destination.named(),
+                    scalar_named(expected),
+                ),
+            );
+        }
         let (wanted, carried) = (expected.qualification(), found.qualification());
         let carrier = |value_type: ValueType| value_type.erased().qualified(Qualification::NONE);
         if wanted != carried && carrier(expected).is_some() && carrier(expected) == carrier(found) {
@@ -159,6 +184,136 @@ impl Program<'_> {
         match self.typed.domain_definition(domain) {
             Some(definition) => format!("`{}`", definition.name.as_str()),
             None => "a domain with no declaration".to_owned(),
+        }
+    }
+}
+
+/// The resolved scalar carrier, without domains or physical storage choices.
+fn scalar_named(scalar: ScalarType) -> String {
+    match scalar {
+        ScalarType::Boolean => "bool".to_owned(),
+        ScalarType::Integer(integer) if integer.is_address() => "addr".to_owned(),
+        ScalarType::Integer(integer) => {
+            let sign = match integer.sign() {
+                IntegerSign::Signed => 'i',
+                IntegerSign::Unsigned => 'u',
+            };
+            match integer.width() {
+                semantic_vocabulary::IntegerWidth::Bits(bits) => format!("{sign}{bits}"),
+                semantic_vocabulary::IntegerWidth::Parameter(_) => {
+                    format!("{sign}<width parameter>")
+                }
+            }
+        }
+        ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => "f32".to_owned(),
+        ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => "f64".to_owned(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use semantic_vocabulary::{IntegerType, StructuralTypeId, ValueId, WidthParameter};
+    use terminal_check_tables::{RefusalReason, values::RigidType};
+    use typed_trees::TypedTrees;
+
+    #[test]
+    fn scalar_names_distinguish_closed_and_parameter_widths() {
+        assert_eq!(
+            scalar_named(ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 1).unwrap()
+            )),
+            "u1",
+        );
+        assert_eq!(
+            scalar_named(ScalarType::Integer(IntegerType::parameterized(
+                IntegerSign::Signed,
+                WidthParameter {
+                    owner: MachineId::new(1).unwrap(),
+                    value: ValueId::new(1).unwrap(),
+                },
+            ))),
+            "i<width parameter>",
+        );
+    }
+
+    #[test]
+    fn distinct_scalar_carriers_reject_for_every_receiving_destination() {
+        let typed = TypedTrees::default();
+        let program = Program::new(&typed, false);
+        let scalars = [
+            ScalarType::Boolean,
+            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 1).unwrap()),
+            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap()),
+            ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap()),
+            ScalarType::Integer(IntegerType::supported_address_representation()),
+            ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
+            ScalarType::IeeeFloat(IeeeFloatFormat::Binary64),
+        ];
+        for destination in [
+            Destination::Parameter,
+            Destination::Result,
+            Destination::MatchArm,
+            Destination::Field,
+            Destination::Local,
+            Destination::Assigned,
+        ] {
+            for expected in scalars {
+                for found in scalars {
+                    if expected == found {
+                        continue;
+                    }
+                    let refusal = program.mistyped(
+                        MachineId::new(1).unwrap(),
+                        SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent),
+                        destination,
+                        Some(ValueType::plain(expected)),
+                        Some(ValueType::plain(found)),
+                        "test mismatch",
+                    );
+                    assert_eq!(refusal.reason, RefusalReason::Violation(None));
+                    assert!(
+                        refusal
+                            .detail
+                            .contains(&format!("`{}`", scalar_named(expected)))
+                    );
+                    assert!(
+                        refusal
+                            .detail
+                            .contains(&format!("`{}`", scalar_named(found)))
+                    );
+                    assert!(refusal.detail.contains(destination.named()));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn an_undecided_type_relationship_stays_unsupported() {
+        let typed = TypedTrees::default();
+        let program = Program::new(&typed, false);
+        let boolean = Some(ValueType::plain(ScalarType::Boolean));
+        let record = Some(ValueType::record(StructuralTypeId::new(1).unwrap()));
+        for (expected, found) in [
+            (None, boolean),
+            (boolean, None),
+            (boolean, Some(ValueType::Rigid(RigidType(1)))),
+            (record, boolean),
+            (
+                record,
+                Some(ValueType::record(StructuralTypeId::new(2).unwrap())),
+            ),
+        ] {
+            let refusal = program.mistyped(
+                MachineId::new(1).unwrap(),
+                SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent),
+                Destination::Result,
+                expected,
+                found,
+                "undecided relationship",
+            );
+            assert_eq!(refusal.reason, RefusalReason::Unsupported, "{refusal:?}");
+            assert_eq!(refusal.detail, "typing undecided relationship");
         }
     }
 }

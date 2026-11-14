@@ -629,7 +629,11 @@ pub(crate) fn trait_requirement(
         .trait_machine_signature(requirement.symbol)
         .filter(|(_, declared)| declared.symbol == requirement.symbol)
         .ok_or("requirement declaration has no exact owning trait and requirement")?;
-    if !requirement.type_parameters.is_empty() || !requirement.lifetime_parameters.is_empty() {
+    // Invocation lifetimes remain binders of this public callable, not
+    // static arguments an application must close. Its callable and type
+    // identities retain their relations; type/value arguments still need
+    // the existing complete application before declaration publication.
+    if !requirement.type_parameters.is_empty() {
         return Err("requirement declaration needs its complete applied arguments");
     }
     let owner_identity = nominal(typed, sources, owner.symbol, identities)?;

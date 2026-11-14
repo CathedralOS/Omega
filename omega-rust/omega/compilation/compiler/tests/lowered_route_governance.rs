@@ -143,6 +143,12 @@ fn an_invalid_bound_entry_reports_the_routes_rejection() {
             "0 == 1",
             1,
         ),
+        (
+            "tests/fixtures/fail/build/program_entry_named_predicate_requires",
+            "launch",
+            "is_zero(1)",
+            4,
+        ),
     ] {
         let (messages, verdict) = rejected(fixture);
         let RouteVerdict::Rejected {
@@ -176,4 +182,23 @@ fn an_invalid_bound_entry_reports_the_routes_rejection() {
             "{messages:#?}"
         );
     }
+    let (messages, verdict) =
+        rejected("tests/fixtures/fail/proofs/unused_partial_mathematical_predicate");
+    let RouteVerdict::FallBack(refusal) = verdict else {
+        panic!("unavailable operand formation must refuse the declaration: {verdict:?}");
+    };
+    assert_eq!(
+        refusal.reason,
+        terminal_check_tables::RefusalReason::Unsupported
+    );
+    assert_eq!(
+        refusal.detail,
+        "contract carrier arithmetic in a clause term"
+    );
+    assert!(
+        messages
+            .iter()
+            .any(|message| message.contains(&refusal.detail)),
+        "{messages:#?}"
+    );
 }

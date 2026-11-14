@@ -5556,9 +5556,7 @@ pub(crate) mod portable_machine_applications {
             receipt: &crate::MachineSpecialization,
             context: &TypeIdentityContext<'_>,
         ) -> Result<String, String> {
-            if !receipt.binding_application.is_valid()
-                || receipt.normalized_template_identity.is_empty()
-            {
+            if !receipt.binding_application.is_valid() {
                 return Err(
                     "specialized callable lost its original declaration or binding application"
                         .into(),
@@ -5571,6 +5569,9 @@ pub(crate) mod portable_machine_applications {
             let template = program
                 .machine_by_symbol(receipt.template)
                 .ok_or("specialized callable lost its original machine declaration")?;
+            let template_identity = program
+                .machine_callable_identity_text(template)
+                .ok_or("specialized callable lost its original overload identity")?;
             let parameters = program
                 .data_type_parameters
                 .span(receipt.template_parameters)
@@ -5583,7 +5584,7 @@ pub(crate) mod portable_machine_applications {
                 program,
                 receipt.instance,
                 receipt.template,
-                &receipt.normalized_template_identity,
+                &template_identity,
                 context,
             )?;
             let argument_context = TypeIdentityContext {
@@ -5882,6 +5883,129 @@ pub(crate) mod static_operand_identity {
     }
 
     impl TypedTrees {
+        /// Reconstructs the original callable operand from one retained argument
+        /// tuple. Build capture and its identity must read the same actuals,
+        /// including literal values kept beside their receiving carriers.
+        pub fn specialization_source_operand(
+            &self,
+            receipt: &crate::MachineSpecialization,
+        ) -> Result<crate::expression::StaticMachineArgument, &'static str> {
+            use crate::data::TypeParameterKind;
+            use crate::expression::{StaticMachineArgument, StaticSymbolApplication};
+            use crate::static_applications::StaticMachineBindingValue;
+            if !self
+                .expression_table
+                .static_machine_application_is_valid(receipt.binding_application)
+            {
+                return Err("source application lost its retained bindings");
+            }
+            let template = self
+                .machine_by_symbol(receipt.template)
+                .ok_or("source application lost its original declaration")?;
+            let source = self.static_machine_application(receipt.binding_application);
+            if source.binding_declaration != receipt.template {
+                return Err("source application bindings belong to another declaration");
+            }
+            let parameters = self.machine_callable_parameters(template);
+            let bindings = self.static_machine_application_bindings(receipt.binding_application);
+            let authored = self.static_machine_application_arguments(receipt.binding_application);
+            if parameters.len() != bindings.len() || parameters.len() != authored.len() {
+                return Err("source application has an incomplete argument tuple");
+            }
+            let mut arguments = Vec::with_capacity(parameters.len());
+            for (parameter, authored) in parameters.iter().zip(authored) {
+                let mut selected = bindings
+                    .iter()
+                    .filter(|binding| binding.parameter == parameter.symbol);
+                let (Some(binding), None) = (selected.next(), selected.next()) else {
+                    return Err("source application has no unique parameter binding");
+                };
+                if !matches!(
+                    (&parameter.kind, &binding.value),
+                    (TypeParameterKind::Type, StaticMachineBindingValue::Type(_))
+                        | (
+                            TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. },
+                            StaticMachineBindingValue::Const(_)
+                        )
+                        | (
+                            TypeParameterKind::Machine { .. },
+                            StaticMachineBindingValue::Machine(_)
+                        )
+                        | (
+                            TypeParameterKind::Implementation,
+                            StaticMachineBindingValue::Conformance(_)
+                        )
+                ) {
+                    return Err("source application binding disagrees with its parameter kind");
+                }
+                arguments.push(match &binding.value {
+                    StaticMachineBindingValue::Type(reference) => {
+                        self.static_operand_from_type_reference(*reference)?
+                    }
+                    // The current source producer retains a literal beside its
+                    // receiving carrier. A nonliteral const binding instead
+                    // retains the complete const type-reference operand.
+                    StaticMachineBindingValue::Const(_) if authored.const_literal.is_some() => {
+                        authored.clone()
+                    }
+                    StaticMachineBindingValue::Const(reference) => {
+                        self.static_operand_from_type_reference(*reference)?
+                    }
+                    StaticMachineBindingValue::Machine(argument)
+                    | StaticMachineBindingValue::Conformance(argument) => argument.clone(),
+                    StaticMachineBindingValue::RuntimeValue { .. } => {
+                        return Err("a runtime value is not a static source application key");
+                    }
+                });
+            }
+            let bindings = self.static_application_lifetimes_for_declaration(
+                receipt.binding_application,
+                receipt.template,
+            )?;
+            if bindings.len() != template.lifetime_parameters.len() {
+                return Err("source application has an incomplete lifetime tuple");
+            }
+            let lifetimes = template
+                .lifetime_parameters
+                .iter()
+                .map(|parameter| {
+                    let mut selected = bindings
+                        .iter()
+                        .filter(|binding| &binding.parameter == parameter);
+                    let (Some(binding), None) = (selected.next(), selected.next()) else {
+                        return Err("source application has no unique lifetime binding");
+                    };
+                    Ok(binding.argument.clone())
+                })
+                .collect::<Result<Vec<_>, &'static str>>()?;
+            Ok(StaticMachineArgument {
+                symbol: receipt.template,
+                application: Some(Box::new(StaticSymbolApplication {
+                    member: Default::default(),
+                    lifetime_arguments: lifetimes.into_boxed_slice(),
+                    arguments: arguments.into_boxed_slice(),
+                })),
+                ..Default::default()
+            })
+        }
+
+        /// Identifies the source application, independent of generated names or
+        /// allocation order, through ordinary static-operand normalization.
+        pub fn specialization_source_identity(
+            &self,
+            receipt: &crate::MachineSpecialization,
+        ) -> Result<String, &'static str> {
+            let operand = self.specialization_source_operand(receipt)?;
+            let source = self.static_machine_application(receipt.binding_application);
+            self.static_operand_identity(StaticOperandIdentityRequest {
+                operand: IndexIdentityArgument::StaticArgument(&operand),
+                lexical_owner: source.lexical_owner,
+                substitutions: &[],
+            })
+            .and_then(|identity| self.type_identity_text(identity))
+            .ok_or("source application lost its static operand or lifetime identity")
+        }
+
         pub fn declared_static_operand_identity(
             &self,
             request: DeclaredStaticOperandIdentityRequest<'_>,

@@ -60,6 +60,7 @@ mod result_fields;
 mod result_summaries;
 mod rule_violations;
 mod runtime_indexed_elements;
+mod scalar_joins;
 mod sequence_regions;
 mod stored_views;
 mod type_parameters;

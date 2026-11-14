@@ -1,5 +1,5 @@
 /*
-We independently validate candidate function-relative layouts in stage 08 before publication or cross-stage admission. We verify root identities, re-derive the layout policy and canonical block order through an independent `BTreeMap`-backed traversal (`derive_order`), recompute block and instruction byte spans including monotone AArch64 conditional-branch widening, and check every resolved row's bytes, fixup custody, and target-decoded branch footprints against the pre-layout encoding store and physical register model.
+We validate retained function-relative layouts when explicitly requested, not on the producer's ordinary construction path. We verify root identities, re-derive canonical block order, recompute byte spans including AArch64 branch widening, and check row bytes, fixups and decoded branch footprints against the pre-layout store and physical register model.
 */
 
 use std::collections::BTreeMap;

@@ -156,45 +156,72 @@ impl Program<'_> {
         call: &TableCallExpression,
     ) -> Checked<Proposition> {
         let (definition, bound) = self.mathematical_application(id, scope, call)?;
+        let model = scope.logical.and_then(|logical| logical.model);
+        let expanding = scope.logical.map_or(&[][..], |logical| logical.expanding);
+        let expression =
+            self.mathematical_predicate_definition(id, definition, model, expanding)?;
+        let mut expanding = expanding.to_vec();
+        expanding.push(definition.symbol);
+        let actual_inputs = MathematicalInputs::empty();
+        let scope = ClauseScope {
+            slots: &[],
+            values: &[],
+            bound: &bound,
+            owner: definition.symbol,
+            result: ResultTerm::Absent("result in a mathematical predicate"),
+            subject: None,
+            formal_fields: true,
+            mathematical: scope.mathematical,
+            logical: Some(actual_inputs.scope(id, model, &expanding)),
+        };
+        self.clause(id, &scope, expression)
+    }
+
+    /// Check a transparent predicate under its own formals before unfolding it
+    /// at any caller. A caller's facts cannot form the declaration's operands,
+    /// and an unused subject declaration owes exactly the same formation.
+    pub(super) fn mathematical_predicate_definition(
+        &self,
+        id: MachineId,
+        definition: &MathematicalDefinition,
+        model: Option<&typed_trees::callable_signature_shapes::CallableAddressModel>,
+        expanding: &[SymbolHandle],
+    ) -> Checked<ExpressionHandle> {
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        if !self
+            .typed
+            .symbols
+            .symbols()
+            .nodes()
+            .is_valid(definition.symbol)
+            || self.typed.symbols.get(definition.symbol).kind
+                != symbols::SymbolKind::MathematicalDefinition
+        {
+            return Err(unserved("mathematical predicate has no exact declaration"));
+        }
+        if !definition.binders.is_empty() {
+            return Err(unserved("open mathematical predicate declaration"));
+        }
+        let parameters = self.typed.mathematical_parameters(definition.parameters);
+        if parameters.len() != definition.parameters.len() {
+            return Err(unserved("mathematical predicate formal correspondence"));
+        }
         if !self.predicate_result(definition) {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Contract("mathematical premise requires a formed Core Strict<0> result"),
+            return Err(unserved(
+                "mathematical premise requires a formed Core Strict<0> result",
             ));
         }
         let MathematicalBody::Definition(expression) = definition.body else {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Contract("uninterpreted mathematical premise theory"),
-            ));
+            return Err(unserved("uninterpreted mathematical premise theory"));
         };
-        let logical = scope.logical.ok_or_else(|| {
-            refuse(
-                id,
-                Construct::Machine,
-                Unserved::Contract("mathematical premise without a logical input environment"),
-            )
-        })?;
-        if logical.expanding.contains(&definition.symbol) {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Contract("recursive mathematical premise theory"),
-            ));
+        if expanding.contains(&definition.symbol) {
+            return Err(unserved("recursive mathematical premise theory"));
         }
-        let mut expanding = logical.expanding.to_vec();
+        let mut expanding = expanding.to_vec();
         expanding.push(definition.symbol);
-        // Declaration formation sees only its own formals, never the caller's
-        // runtime values, domain subject or facts. A supported proposition is
-        // a Strict<0> term by construction, validated at all formal inputs.
-        let formal_inputs = MathematicalInputs::new(
-            self.typed,
-            id,
-            self.typed.mathematical_parameters(definition.parameters),
-            logical.model,
-        )?;
+        // This environment has only declaration formals. Actual argument terms
+        // enter later by exact symbol substitution, without caller assumptions.
+        let formal_inputs = MathematicalInputs::new(self.typed, id, parameters, model)?;
         let declaration_scope = ClauseScope {
             slots: &[],
             values: &[],
@@ -204,17 +231,11 @@ impl Program<'_> {
             subject: None,
             formal_fields: true,
             mathematical: super::contracts::MathematicalTerms::Served,
-            logical: Some(formal_inputs.scope(id, logical.model, &expanding)),
+            logical: Some(formal_inputs.scope(id, model, &expanding)),
         };
         let formed = self.clause(id, &declaration_scope, expression)?;
         formal_inputs.validate(id, &formed)?;
-        let actual_inputs = MathematicalInputs::empty();
-        let scope = ClauseScope {
-            bound: &bound,
-            logical: Some(actual_inputs.scope(id, logical.model, &expanding)),
-            ..declaration_scope
-        };
-        self.clause(id, &scope, expression)
+        Ok(expression)
     }
 
     fn predicate_result(&self, definition: &MathematicalDefinition) -> bool {

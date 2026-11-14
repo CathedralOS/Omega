@@ -1,0 +1,16 @@
+// Expected exit: 0. Matching bool/u32 carriers survive calls and match joins.
+// Every returned value is observed; a wrong value traps instead of exiting 0.
+machine keep_number(value: u32) -> u32 { value }
+machine keep_bool(value: bool) -> bool { value }
+machine choose_number(flag: bool, value: u32) -> u32 {
+    match flag { true -> value, false -> 0 }
+}
+machine main() crashes Trap {
+    transition keep_number(37) == 37 && keep_bool(true) && !keep_bool(false)
+        && choose_number(true, 37) == 37 && choose_number(false, 37) == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
