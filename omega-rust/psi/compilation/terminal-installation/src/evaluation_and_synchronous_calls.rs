@@ -568,27 +568,12 @@ pub(crate) mod compiler_evaluation {
                 TerminalMachine {
                     assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
                     id: MachineId::new(id).unwrap(),
-                    declaration: None,
                     attachment: None,
                     nominal_cleanup_subject: None,
-                    parameters: vec![terminal_psi::ValueDeclaration {
-                        id: ValueId::FIRST,
-                        scalar_type: ScalarType::Integer(integer_type()),
-                        qualifications: Default::default(),
-                    }],
-                    parameter_order: vec![terminal_psi::BoundaryParameterKind::Scalar],
-                    structural_parameters: Vec::new(),
                     ranked_scc: None,
-                    result: TerminalMachineResult::Unit,
                     structural_places: Vec::new(),
-                    entry_claims: Vec::new(),
                     block_entry_claims: Vec::new(),
                     loan_completions: Vec::new(),
-                    declared_service_reach: Vec::new(),
-                    closed_reach_application: None,
-                    published_synchronous_entries: Vec::new(),
-                    published_service_ceiling: Vec::new(),
-                    content_entry_claims: Vec::new(),
                     content_identity_reshuffles: Vec::new(),
                     content_partition_compositions: Vec::new(),
                     entry: block,
@@ -600,7 +585,24 @@ pub(crate) mod compiler_evaluation {
                             cleanup_actions: Vec::new(),
                         },
                     )],
-                    contract: terminal_psi::MachineContract::empty(ContractId::new(1).unwrap()),
+                    contract: terminal_psi::MachineContract {
+                        declaration: None,
+                        parameters: vec![terminal_psi::ValueDeclaration {
+                            id: ValueId::FIRST,
+                            scalar_type: ScalarType::Integer(integer_type()),
+                            qualifications: Default::default(),
+                        }],
+                        parameter_order: vec![terminal_psi::BoundaryParameterKind::Scalar],
+                        structural_parameters: Vec::new(),
+                        result: TerminalMachineResult::Unit,
+                        entry_claims: Vec::new(),
+                        declared_service_reach: None,
+                        closed_reach_application: None,
+                        published_synchronous_entries: Vec::new(),
+                        published_service_ceiling: Vec::new(),
+                        content_entry_claims: Vec::new(),
+                        ..terminal_psi::MachineContract::empty(ContractId::new(1).unwrap())
+                    },
                 }
             }
 

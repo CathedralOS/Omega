@@ -101,7 +101,12 @@ fn rows(accepted: &crate::AcceptedClosure, position: u64) -> (Vec<String>, Vec<S
             .collect::<Vec<_>>()
     };
     (
-        names(&machine.declared_service_reach),
+        names(
+            machine
+                .declared_service_reach
+                .as_deref()
+                .unwrap_or_default(),
+        ),
         names(&machine.published_service_ceiling),
     )
 }

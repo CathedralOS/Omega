@@ -717,41 +717,22 @@ pub(crate) mod invocations {
 }
 pub(crate) mod machines {
     use crate::{
-        ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition, EntryClaim,
-        ErasedProofFormal, MachineContract, Operation, StructuralParameterDeclaration,
-        StructuralPlaceDeclaration, TerminalMachineResult, TerminalRankedScc, Terminator,
-        ValueDeclaration,
+        ContentIdentityReshuffle, ContentPartitionComposition, EntryClaim, ErasedProofFormal,
+        MachineContract, Operation, StructuralParameterDeclaration, StructuralPlaceDeclaration,
+        TerminalMachineResult, TerminalRankedScc, Terminator, ValueDeclaration,
     };
-    use semantic_vocabulary::{
-        BlockId, MachineId, OperationId, PlaceId, ServiceId, StructuralTypeId,
-    };
+    use semantic_vocabulary::{BlockId, MachineId, OperationId, PlaceId, StructuralTypeId};
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct TerminalMachine {
         pub assembly_target_requirement: crate::RegisterTargetApplicability,
         pub id: MachineId,
-        pub declaration: Option<crate::CheckedMachineDeclaration>,
         pub attachment: Option<StructuralTypeId>,
         pub nominal_cleanup_subject: Option<StructuralTypeId>,
-        pub parameters: Vec<ValueDeclaration>,
-        pub parameter_order: Vec<crate::BoundaryParameterKind>,
-        pub structural_parameters: Vec<StructuralParameterDeclaration>,
         pub ranked_scc: Option<TerminalRankedScc>,
-        pub result: TerminalMachineResult,
         pub structural_places: Vec<StructuralPlaceDeclaration>,
-        pub entry_claims: Vec<EntryClaim>,
         pub block_entry_claims: Vec<EntryClaim>,
         pub loan_completions: Vec<crate::LoanCompletion>,
-        pub declared_service_reach: Vec<ServiceId>,
-        pub closed_reach_application: Option<crate::ClosedReachApplication>,
-        pub published_service_ceiling: Vec<ServiceId>,
-        /// The callbacks and inbound entries control may arrive at before
-        /// this machine returns, as the requirement identities that name
-        /// them, strictly increasing: its written `invokes` ceiling, or else
-        /// what its calls contribute. effects.md, "Direct synchronous
-        /// invocation". Empty is "enters nothing". No parent closure.
-        pub published_synchronous_entries: Vec<ServiceId>,
-        pub content_entry_claims: Vec<ContentEntryClaim>,
         pub content_identity_reshuffles: Vec<ContentIdentityReshuffle>,
         pub content_partition_compositions: Vec<ContentPartitionComposition>,
         pub entry: BlockId,
@@ -785,6 +766,22 @@ pub(crate) mod machines {
                 operations: Vec::new(),
                 terminator,
             }
+        }
+    }
+
+    // Existing machine-header readers borrow the same declaration contract.
+    // This view stores nothing and cannot give a bodyless contract executable code.
+    impl std::ops::Deref for TerminalMachine {
+        type Target = MachineContract;
+
+        fn deref(&self) -> &Self::Target {
+            &self.contract
+        }
+    }
+
+    impl std::ops::DerefMut for TerminalMachine {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            &mut self.contract
         }
     }
 
@@ -827,38 +824,6 @@ pub(crate) mod machines {
                         }
                     })
                 })
-        }
-
-        pub fn validate_parameter_order(&self) -> Result<(), &'static str> {
-            let scalar_count = self
-                .parameter_order
-                .iter()
-                .filter(|kind| **kind == crate::BoundaryParameterKind::Scalar)
-                .count();
-            let structural_count = self.parameter_order.len() - scalar_count;
-            if scalar_count != self.parameters.len()
-                || structural_count != self.structural_parameters.len()
-            {
-                return Err("machine runtime parameter order does not cover its signature");
-            }
-            Ok(())
-        }
-
-        pub fn runtime_parameter_formals(&self) -> Result<Vec<u32>, &'static str> {
-            self.validate_parameter_order()?;
-            let positions =
-                |kind| {
-                    self.parameter_order.iter().enumerate().filter_map(
-                        move |(position, candidate)| (*candidate == kind).then_some(position),
-                    )
-                };
-            positions(crate::BoundaryParameterKind::Scalar)
-                .chain(positions(crate::BoundaryParameterKind::Structural))
-                .map(|position| {
-                    u32::try_from(position)
-                        .map_err(|_| "machine runtime formal ordinal cannot be represented")
-                })
-                .collect()
         }
 
         pub fn block(&self, id: &BlockId) -> Option<&Block> {

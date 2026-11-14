@@ -95,6 +95,7 @@ struct Head {
 /// `bodies` is read for those members only.
 pub(crate) fn machine(
     id: MachineId,
+    contract: ContractId,
     bodies: &IdTable<MachineId, Body>,
     component: &[MachineId],
     signatures: Signatures<'_>,
@@ -124,14 +125,14 @@ pub(crate) fn machine(
     if requirement {
         lowering.blocks = IdTable::default();
         lowering.sources.blocks = IdTable::default();
-        return lowering.finish(entry, formals, result);
+        return lowering.finish(entry, formals, result, contract);
     }
     if component.is_empty() {
         lowering.body(body)?;
     } else {
         lowering.component(id, bodies, component, &formals)?;
     }
-    lowering.finish(entry, formals, result)
+    lowering.finish(entry, formals, result, contract)
 }
 
 /// Declare a bodyless interface using the same formal/storage construction
@@ -257,6 +258,100 @@ struct Formals {
     /// The `[erased]` scalar formals, in position order: declared in the
     /// contract, absent from both runtime lanes and from `order`.
     erased: Vec<ValueDeclaration>,
+}
+
+fn contract_header(
+    id: ContractId,
+    signature: &Signature,
+    formals: Formals,
+    result: TerminalMachineResult,
+    ensures: Vec<ContractClause>,
+    outcome: &Outcome,
+) -> MachineContract {
+    MachineContract {
+        parameters: formals.scalars,
+        parameter_order: formals.order,
+        structural_parameters: formals.records,
+        result,
+        declared_service_reach: match &signature.reaches {
+            crate::Ceiling::Authored(ceiling) => Some(ceiling.clone()),
+            crate::Ceiling::Inferred => None,
+        },
+        declared_synchronous_entries: match &signature.invokes {
+            crate::Ceiling::Authored(ceiling) => Some(ceiling.clone()),
+            crate::Ceiling::Inferred => None,
+        },
+        declared_crash_routes: signature.declared_crash_routes().map(<[_]>::to_vec),
+        published_service_ceiling: outcome.service_reach.clone(),
+        published_synchronous_entries: outcome.synchronous_entries.clone(),
+        termination: match signature.termination {
+            crate::Termination::Silent => semantic_vocabulary::Termination::NoGuarantee,
+            crate::Termination::Promised | crate::Termination::Witnessed => {
+                semantic_vocabulary::Termination::Terminates
+            }
+        },
+        crash_routes: outcome.crash_routes.clone(),
+        erased_scalar_formals: formals.erased,
+        requires: signature.requires.clone(),
+        ensures,
+        ..MachineContract::empty(id)
+    }
+}
+
+/// Read a requirement's full header through the same formal construction as a
+/// machine, without allocating a block or claiming a body. An omitted effect
+/// clause stays open in the declared fields; it gains no empty-effect promise.
+pub(crate) fn declaration_contract(
+    caller: MachineId,
+    id: ContractId,
+    signature: &Signature,
+    signatures: Signatures<'_>,
+    outcomes: &IdTable<MachineId, Outcome>,
+    records: &Records<'_>,
+) -> Checked<MachineContract> {
+    let outcome = Outcome {
+        completes_normally: true,
+        crash_routes: signature
+            .declared_crash_routes()
+            .unwrap_or_default()
+            .to_vec(),
+        service_reach: match &signature.reaches {
+            crate::Ceiling::Authored(row) => row.clone(),
+            crate::Ceiling::Inferred => Vec::new(),
+        },
+        synchronous_entries: match &signature.invokes {
+            crate::Ceiling::Authored(row) => row.clone(),
+            crate::Ceiling::Inferred => Vec::new(),
+        },
+    };
+    let mut lowering = Lowering::new(
+        caller,
+        signature,
+        signatures,
+        outcomes,
+        records,
+        &signature.parameters,
+    );
+    let (formals, result) = lowering.formals()?;
+    let ensures = signature
+        .ensures
+        .iter()
+        .enumerate()
+        .map(|(position, proposition)| {
+            let obligation = u64::try_from(position)
+                .ok()
+                .and_then(|position| position.checked_add(1))
+                .and_then(ObligationId::new)
+                .ok_or_else(|| lowering.internal("public guarantee coordinate overflow"))?;
+            Ok(ContractClause {
+                obligation,
+                proposition: proposition.clone(),
+            })
+        })
+        .collect::<Checked<Vec<_>>>()?;
+    Ok(contract_header(
+        id, signature, formals, result, ensures, &outcome,
+    ))
 }
 
 impl<'a> Lowering<'a> {
@@ -788,6 +883,7 @@ impl<'a> Lowering<'a> {
         entry: BlockId,
         formals: Formals,
         result: TerminalMachineResult,
+        contract_id: ContractId,
     ) -> Checked<Lowered> {
         let ensures = self
             .signature
@@ -819,25 +915,14 @@ impl<'a> Lowering<'a> {
         }
         let outcome =
             terminal_check_tables::row(self.outcomes, self.id, self.id, Construct::Machine)?;
-        let crash_routes = outcome.crash_routes.clone();
-        // The written ceiling beside the row callers rely on. They are the
-        // same row when a clause is written; an omitted clause declares
-        // nothing and publishes what the body's calls contribute.
-        let declared_service_reach = match &self.signature.reaches {
-            crate::Ceiling::Authored(ceiling) => ceiling.clone(),
-            crate::Ceiling::Inferred => Vec::new(),
-        };
-        let published_service_ceiling = outcome.service_reach.clone();
-        let published_synchronous_entries = outcome.synchronous_entries.clone();
-        let contract = MachineContract {
-            crash_routes,
-            erased_scalar_formals: formals.erased,
-            requires: self.signature.requires.clone(),
+        let contract = contract_header(
+            contract_id,
+            self.signature,
+            formals,
+            result,
             ensures,
-            ..MachineContract::empty(
-                ContractId::new(self.id.get()).ok_or_else(|| self.internal("contract identity"))?,
-            )
-        };
+            outcome,
+        );
         let structural_places = self
             .roots
             .iter()
@@ -846,25 +931,12 @@ impl<'a> Lowering<'a> {
         let machine = TerminalMachine {
             assembly_target_requirement: RegisterTargetApplicability::Any,
             id: self.id,
-            // Stated by `declare` for a compilation's module, from the typed
-            // trees; lowering has only the closed body.
-            declaration: None,
             attachment: None,
             nominal_cleanup_subject: None,
-            parameters: formals.scalars,
-            parameter_order: formals.order,
-            structural_parameters: formals.records,
             ranked_scc: None,
-            result,
             structural_places,
-            entry_claims: Vec::new(),
             block_entry_claims: Vec::new(),
             loan_completions: Vec::new(),
-            declared_service_reach,
-            closed_reach_application: None,
-            published_synchronous_entries,
-            published_service_ceiling,
-            content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
             content_partition_compositions: Vec::new(),
             entry,

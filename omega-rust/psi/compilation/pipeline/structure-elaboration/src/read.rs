@@ -57,6 +57,9 @@ pub(crate) struct Program<'t> {
     /// The typed-tree machine of each discovered `MachineId`.
     pub symbols: IdTable<MachineId, SymbolHandle>,
     pub signatures: IdTable<MachineId, Signature>,
+    /// A subject requirement is a declaration, never an executable machine.
+    pub declaration_signatures: IdTable<semantic_vocabulary::ContractId, Signature>,
+    pub declaration_symbols: IdTable<semantic_vocabulary::ContractId, SymbolHandle>,
     /// Exact requirement declarations use their own canonical namespace and
     /// the same formal/contract reader as body-backed machine declarations.
     pub boundary_symbols: IdTable<BoundaryMachineId, SymbolHandle>,
@@ -206,6 +209,8 @@ impl<'t> Program<'t> {
             typed,
             symbols: IdTable::default(),
             signatures: IdTable::default(),
+            declaration_signatures: IdTable::default(),
+            declaration_symbols: IdTable::default(),
             boundary_symbols: IdTable::default(),
             boundary_signatures: IdTable::default(),
             boundary_completions: IdTable::default(),

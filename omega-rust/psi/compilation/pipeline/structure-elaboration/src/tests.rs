@@ -213,6 +213,7 @@ fn lower_records(
     )?;
     crate::lower::machine(
         id(1),
+        semantic_vocabulary::ContractId::new(1).unwrap(),
         &bodies,
         &[],
         signatures,

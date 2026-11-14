@@ -124,10 +124,15 @@ pub(crate) fn judge(module: &TerminalModule, tables: &CheckTables) -> Checked<Ve
             module,
             machine.id,
             Axis::Reach,
-            &machine.declared_service_reach,
+            machine
+                .declared_service_reach
+                .as_deref()
+                .unwrap_or_default(),
         )?;
-        if !machine.declared_service_reach.is_empty()
-            && machine.declared_service_reach != machine.published_service_ceiling
+        if machine
+            .declared_service_reach
+            .as_ref()
+            .is_some_and(|reach| *reach != machine.published_service_ceiling)
         {
             return Err(fault(
                 machine.id,

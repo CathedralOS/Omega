@@ -172,8 +172,4 @@ pub struct CrashRoute {
 /// `wiki/spec/language/termination.md`: "Bare `terminates` authors the
 /// promise. Omission on a bodyless requirement or export publishes no
 /// guarantee".
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Termination {
-    Terminates,
-    NoGuarantee,
-}
+pub use semantic_vocabulary::Termination;

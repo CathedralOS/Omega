@@ -1437,3 +1437,11 @@ pub use storage::content::{
 pub use storage::structural_places::{AffineConstructionElement, StructuralPlaceKind};
 
 pub use boundary::foreign_locator::{ForeignLocatorCandidate, NativeBindingLocator};
+
+/// The termination promise a callable publishes. A local body proof is kept
+/// separately; absence of a promise never asserts that execution will finish.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Termination {
+    Terminates,
+    NoGuarantee,
+}

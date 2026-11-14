@@ -713,6 +713,21 @@ fn finish_reading(
             &mut elaboration,
         );
     }
+    if let Some(typed) = declared {
+        declare::public_requirements(
+            typed,
+            &program.declaration_symbols,
+            &program.declaration_signatures,
+            &mut elaboration,
+        )
+        .map_err(|reason| {
+            refuse(
+                diagnostic,
+                Construct::Machine,
+                Unserved::Declaration(reason),
+            )
+        })?;
+    }
     elaboration.source_records = program.source_record_correspondence(diagnostic)?;
     elaboration.machines = program.symbols;
     elaboration.boundaries = program.boundary_symbols;
@@ -848,6 +863,20 @@ fn lower_generic_for(
     }
     let mut tables = CheckTables::default();
     let mut sources = IdTable::default();
+    if let Some(source) = declarations {
+        for (id, signature) in source.declaration_signatures.iter() {
+            module
+                .declaration_contracts
+                .push(lower::declaration_contract(
+                    diagnostic,
+                    id,
+                    signature,
+                    signatures,
+                    &outcomes,
+                    &declared.records,
+                )?);
+        }
+    }
     for position in 1..=bodies.len() as u64 {
         let id = MachineId::new(position).ok_or_else(|| {
             refuse(
@@ -857,8 +886,20 @@ fn lower_generic_for(
             )
         })?;
         let component = terminal_check_tables::row(&components, id, id, Construct::Machine)?;
+        let contract = u64::try_from(module.declaration_contracts.len())
+            .ok()
+            .and_then(|count| count.checked_add(id.get()))
+            .and_then(semantic_vocabulary::ContractId::new)
+            .ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Machine("contract identity overflow"),
+                )
+            })?;
         let lowered = lower::machine(
             id,
+            contract,
             bodies,
             component,
             signatures,

@@ -382,7 +382,15 @@ impl<'t> Program<'t> {
                     Unserved::Declaration("trait requirement with value parameters"),
                 ));
             }
-            self.requirement_signature(entry, requirement, &[])?;
+            let (signature, _) = self.requirement_signature(entry, requirement, &[])?;
+            let id = self.declaration_signatures.push(signature);
+            if self.declaration_symbols.push(requirement.symbol) != id {
+                return Err(refuse(
+                    entry,
+                    Construct::Machine,
+                    Unserved::Declaration("public requirement lost its declaration coordinate"),
+                ));
+            }
         }
         Ok(())
     }

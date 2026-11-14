@@ -47,7 +47,7 @@ use typed_trees::TypedTrees;
 
 use crate::{Elaboration, Signature};
 
-const COMMITMENT_DOMAIN: &[u8] = b"omega.lowered-machine-public-contract.v1\0";
+const COMMITMENT_DOMAIN: &[u8] = b"omega.lowered-machine-public-contract.v2\0";
 /// Domain of the commitment a generated machine makes to its application.
 const APPLICATION_DOMAIN: &[u8] = b"omega.lowered-machine-static-application.v1\0";
 
@@ -144,6 +144,72 @@ pub(crate) fn declare(
     elaboration.module.identities = identities.build();
 }
 
+/// Retain the exact source declaration of each subject requirement. These rows
+/// have no body or acceptance marker; retaining a promise does not prove it.
+pub(crate) fn public_requirements(
+    typed: &TypedTrees,
+    symbols: &IdTable<semantic_vocabulary::ContractId, SymbolHandle>,
+    signatures: &IdTable<semantic_vocabulary::ContractId, Signature>,
+    elaboration: &mut Elaboration,
+) -> Result<(), &'static str> {
+    let services = elaboration
+        .module
+        .services
+        .iter()
+        .map(|service| {
+            elaboration
+                .module
+                .identities
+                .text(service.identity)
+                .filter(|identity| !identity.is_empty())
+                .map(|identity| (service.id, identity.to_owned()))
+                .ok_or("a public contract service has no exact identity")
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let names = |row: &[semantic_vocabulary::ServiceId]| {
+        row.iter()
+            .map(|id| {
+                services
+                    .iter()
+                    .find(|(service, _)| service == id)
+                    .map(|(_, identity)| identity.as_str())
+                    .ok_or("a public contract names an unknown service")
+            })
+            .collect::<Result<Vec<_>, _>>()
+    };
+    let mut identities = std::mem::take(&mut elaboration.module.identities).into_builder();
+    let result = (|| {
+        for contract in &mut elaboration.module.declaration_contracts {
+            let symbol = *symbols
+                .get(contract.id)
+                .ok_or("public contract lost its source declaration coordinate")?;
+            let signature = signatures
+                .get(contract.id)
+                .ok_or("public contract lost its exact source signature")?;
+            let (_, requirement) = typed
+                .trait_machine_signature(symbol)
+                .filter(|(_, requirement)| requirement.symbol == symbol)
+                .ok_or("public contract no longer names its declaring requirement")?;
+            let reach = names(&contract.published_service_ceiling)?;
+            let entries = names(&contract.published_synchronous_entries)?;
+            let (_, declaration) = trait_requirement(
+                typed,
+                requirement,
+                signature,
+                Published {
+                    reach: &reach,
+                    entries: &entries,
+                },
+                &mut identities,
+            )?;
+            contract.declaration = Some(declaration);
+        }
+        Ok(())
+    })();
+    elaboration.module.identities = identities.build();
+    result
+}
+
 fn declaration(
     typed: &TypedTrees,
     sources: &[(source::SourceId, [u8; 32])],
@@ -211,7 +277,7 @@ fn declaration(
             .iter()
             .map(|clause| &clause.proposition),
         &machine.contract.crash_routes,
-        signature.termination,
+        signature,
         published,
     );
 
@@ -373,16 +439,43 @@ pub(crate) fn boundary(
     {
         return Err("boundary declaration needs its complete applied telescope");
     }
+    let (owner, source) = trait_requirement(typed, requirement, signature, published, identities)?;
+    Ok((
+        owner,
+        terminal_psi::CheckedBoundaryCallable {
+            source,
+            execution: terminal_psi::CheckedBoundaryExecution::Provider,
+            method_arguments: Vec::new(),
+        },
+    ))
+}
+
+// A public requirement names its trait and declared member. Its source
+// identity must not be borrowed from the body that happens to implement it.
+pub(crate) fn trait_requirement(
+    typed: &TypedTrees,
+    requirement: &typed_trees::signature::StateSignature,
+    signature: &Signature,
+    published: Published<'_>,
+    identities: &mut TerminalIdentityTableBuilder,
+) -> Result<(NominalDeclarationIdentity, CheckedMachineDeclaration), &'static str> {
+    let (owner, declared) = typed
+        .trait_machine_signature(requirement.symbol)
+        .filter(|(_, declared)| declared.symbol == requirement.symbol)
+        .ok_or("requirement declaration has no exact owning trait and requirement")?;
+    if !requirement.type_parameters.is_empty() || !requirement.lifetime_parameters.is_empty() {
+        return Err("requirement declaration needs its complete applied arguments");
+    }
     let sources =
         source::source_identity::toolchain_source_identities(typed.symbols.source_files())
             .map_err(|_| "a boundary toolchain source has no exact identity")?;
     let owner_identity = nominal(typed, &sources, owner.symbol, identities)?;
-    let requirement_identity = nominal(typed, &sources, symbol, identities)?;
-    let semantic = match invocation_local(typed, symbol, identities)? {
+    let requirement_identity = nominal(typed, &sources, declared.symbol, identities)?;
+    let semantic = match invocation_local(typed, requirement.symbol, identities)? {
         Some(identity) => identity,
         None => identities.intern(
             &typed
-                .normalized_hermetic_symbol_identity(symbol)
+                .normalized_hermetic_symbol_identity(requirement.symbol)
                 .map_err(|_| "boundary requirement has no hermetic declaration identity")?,
         ),
     };
@@ -412,10 +505,8 @@ pub(crate) fn boundary(
         &result_type,
         &signature.requires,
         signature.ensures.iter(),
-        signature
-            .declared_crash_routes()
-            .ok_or("boundary declaration has no published crash ceiling")?,
-        signature.termination,
+        signature.declared_crash_routes().unwrap_or_default(),
+        signature,
         published,
     );
     let source = CheckedMachineDeclaration {
@@ -433,14 +524,7 @@ pub(crate) fn boundary(
         published_may_block: requirement.blocks,
         specialization: None,
     };
-    Ok((
-        NominalDeclarationIdentity::new(owner_identity),
-        terminal_psi::CheckedBoundaryCallable {
-            source,
-            execution: terminal_psi::CheckedBoundaryExecution::Provider,
-            method_arguments: Vec::new(),
-        },
-    ))
+    Ok((NominalDeclarationIdentity::new(owner_identity), source))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -452,7 +536,7 @@ fn declaration_contract_commitment<'a>(
     requires: &[semantic_vocabulary::Proposition],
     ensures: impl IntoIterator<Item = &'a semantic_vocabulary::Proposition>,
     crash_routes: &[terminal_psi::CrashRouteBucket],
-    termination: crate::Termination,
+    signature: &Signature,
     published: Published<'_>,
 ) -> [u8; 32] {
     let mut commitment = Commitment(DomainDigestEncoder::new(COMMITMENT_DOMAIN));
@@ -472,7 +556,14 @@ fn declaration_contract_commitment<'a>(
         proposition.hash(&mut commitment);
     }
     crash_routes.hash(&mut commitment);
-    termination.hash(&mut commitment);
+    signature.termination.hash(&mut commitment);
+    // Open requirements and explicit empty promises must not share identity.
+    (
+        matches!(signature.reaches, crate::Ceiling::Authored(_)),
+        matches!(signature.invokes, crate::Ceiling::Authored(_)),
+        signature.declared_crash_routes().is_some(),
+    )
+        .hash(&mut commitment);
     // The published service reach is part of what a caller relies on. An
     // empty row adds nothing, so a contract with no reach commits as it
     // did before reach was read; a nonempty one is hashed with its length.

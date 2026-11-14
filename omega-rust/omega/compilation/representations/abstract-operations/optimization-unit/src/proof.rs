@@ -497,7 +497,7 @@ pub fn attach_verified_module_context(
             .filter(|lane| lane.machine == function.machine)
             .cloned()
             .collect();
-        function.declared_service_reach = source.declared_service_reach.clone();
+        function.declared_service_reach = source.declared_service_reach.clone().unwrap_or_default();
     }
     unit.identity = super::recompute_psi_optimization_unit_identity(unit);
     Ok(())
