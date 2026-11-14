@@ -368,7 +368,6 @@ macro_rules! terminator_successors_match {
             | SelectedTerminator::InvokeNoNormal { .. }
             | SelectedTerminator::OperationInvokeNoNormal { .. }
             | SelectedTerminator::Return { .. }
-            | SelectedTerminator::EliminateEmpty { .. }
             | SelectedTerminator::Crash { .. }
             | SelectedTerminator::OperationTrap { .. }
             | SelectedTerminator::HostedExitProcess { .. } => Vec::new(),
