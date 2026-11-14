@@ -549,7 +549,7 @@ fn finish_reading(
         })?;
     }
     source.records = program.source_record_correspondence(diagnostic)?;
-    reference_results::publish(&mut elaboration)?;
+    reference_results::publish(&mut elaboration, &program.selections)?;
     elaboration.machines = program.symbols;
     elaboration.boundaries = program.boundary_symbols;
     elaboration.private_inputs = private_inputs;

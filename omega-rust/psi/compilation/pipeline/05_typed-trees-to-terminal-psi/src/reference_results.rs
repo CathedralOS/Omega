@@ -11,7 +11,33 @@ use terminal_semantics::descriptor_results::{
     DescriptorAnalysis, terminal_borrowed_storage_graph_from,
 };
 
-pub(crate) fn publish(elaboration: &mut crate::Elaboration) -> Checked<()> {
+pub(crate) fn publish(
+    elaboration: &mut crate::Elaboration,
+    selections: &[crate::Selected],
+) -> Checked<()> {
+    // A selected body can return a narrower permission than its public
+    // requirement promises. Until calls retain that public result contract,
+    // its body origins cannot authorize a reference escaping the call.
+    for selected in selections {
+        let unavailable =
+            |reason| refuse(selected.caller, Construct::Machine, Unserved::Call(reason));
+        let implementation = elaboration
+            .module
+            .machine(selected.implementation)
+            .ok_or_else(|| {
+                unavailable("selected reference result lost its actual implementation")
+            })?;
+        if implementation.result.structural().is_some_and(|result| {
+            terminal_psi::structural_type_contains_reference_by(
+                |id| elaboration.module.structural_type(id),
+                result.structural_type,
+            )
+        }) {
+            return Err(unavailable(
+                "selected reference result requires its public requirement contract",
+            ));
+        }
+    }
     publish_results(&mut elaboration.module)?;
     publish_parents(elaboration)
 }

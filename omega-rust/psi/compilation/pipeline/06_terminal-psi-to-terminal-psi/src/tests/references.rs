@@ -679,6 +679,52 @@ fn a_home_a_loan_gives_a_local_in_an_arm_is_not_the_continuations() {
 }
 
 #[test]
+fn a_selected_reference_result_needs_its_public_requirement_contract() {
+    // The implementation's body returns its input, but that private fact
+    // cannot supply the requirement's result origins to a selected caller.
+    let text = r#"
+trait Handoff {
+    machine hand(source: &mut i64) -> &mut i64 crashes none;
+}
+Direct satisfies Handoff {
+    machine hand(source: &mut i64) -> &mut i64 crashes none { source }
+}
+machine relay<Chosen satisfies Handoff>(source: &mut i64) -> &mut i64
+crashes none { Chosen::hand(source) }
+machine entry() crashes none {
+    let mut backing: i64 = 17;
+    let child: &mut i64 = relay<Direct>(&mut backing);
+    child = 41;
+}
+"#;
+    let (typed, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+        super::boundary_calls::typed(text),
+        &typed_trees_to_typed_trees::PreparationRequest::settled(),
+    )
+    .unwrap();
+    let entry = super::boundary_calls::entry(&typed);
+    let refused = typed_trees_to_terminal_psi::elaborate_for(
+        &typed,
+        typed_trees_to_terminal_psi::Compilation {
+            declaration_metadata: &[],
+            entries: &[entry],
+            subjects: &[],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        },
+        terminal_codec::TerminalPublication::Invocation,
+    )
+    .expect_err("a private implementation result cannot authorize the selected call");
+    assert_eq!(refused.reason, RefusalReason::Unsupported);
+    assert_eq!(
+        refused.detail,
+        "call selected reference result requires its public requirement contract"
+    );
+}
+
+#[test]
 fn an_original_returned_reference_keeps_its_backing_and_excludes_its_parent() {
     use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus, TerminalProgram};
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
