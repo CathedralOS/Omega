@@ -222,3 +222,40 @@ fn a_nonreturning_initializer_does_not_replace_an_unreachable_locals_annotation(
          machine main() crashes Trap { let n: u32 = halt(); let b: bool = n; }",
     );
 }
+
+#[test]
+fn empty_results_keep_call_requirements_crash_coverage_and_progress() {
+    let requires = program(
+        "public data Empty requires false {} \
+         public machine halt(value: u32) -> Empty requires value > 0u32 \
+         crashes Trap { crash Trap; } \
+         machine main() crashes Trap { let value: u32 = halt(0u32); }",
+    );
+    assert!(
+        matches!(&requires[0], Ok(RouteVerdict::Rejected { unproved, .. })
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. }))),
+        "an empty result does not discharge the call's entry condition: {requires:?}",
+    );
+
+    let crashes = program(
+        "public data Empty requires false {} \
+         public machine halt() -> Empty crashes Trap { crash Trap; } \
+         machine main() crashes none { let value: u32 = halt(); }",
+    );
+    assert!(
+        matches!(&crashes[0], Ok(RouteVerdict::Rejected { unproved, .. })
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CrashCoverage { .. }))),
+        "an empty result does not grant permission to crash: {crashes:?}",
+    );
+
+    let termination = program(
+        "public data Empty requires false {} \
+         public machine recur() -> Empty terminates { recur() } \
+         machine main() {}",
+    );
+    assert!(
+        matches!(&termination[0], Ok(RouteVerdict::FallBack(refusal))
+            if refusal.detail.contains("termination promise over a call cycle")),
+        "an empty result does not prove an unranked call cycle terminates: {termination:?}",
+    );
+}
