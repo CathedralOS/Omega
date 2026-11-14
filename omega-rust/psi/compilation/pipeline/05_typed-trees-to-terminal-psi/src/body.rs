@@ -842,16 +842,23 @@ pub enum ExpressionKind {
         subject: Box<Expression>,
         case: usize,
     },
-    /// Value-position `match` over a sum whose arms are scalar: the subject
-    /// is observed once, the selected arm's value is the result
+    /// Value-position `match` whose arms are scalar: the subject is
+    /// evaluated once, the selected arm's value is the result
     /// (`wiki/spec/language/expressions.md`: "Value-position `match` |
-    /// Subject once; first matching arm only."). `subject` names storage, a
-    /// slot or a path beneath one, so observing it evaluates nothing. Arms
-    /// and `default` are as in `Statement::Dispatch`.
+    /// Subject once; first matching arm only.").
+    ///
+    /// Over a sum every arm is a `Selector::Case`, `subject` names storage
+    /// (a slot or a path beneath one, so observing it evaluates nothing),
+    /// and arms and `default` are as in `Statement::Dispatch`. Over a scalar
+    /// every arm is a `Selector::Value` tested in authored order against the
+    /// one value the subject evaluated to, there is no capture, and
+    /// `default` is always present: the wildcard, or the last arm of a
+    /// Boolean match whose arms name both values (patterns.md: "Boolean
+    /// coverage includes true/false").
     Match {
         capture: Option<arena::Handle<typed_trees::expression::CompletedValueCapture>>,
         subject: Box<Expression>,
-        arms: Vec<(usize, Expression)>,
+        arms: Vec<(Selector, Expression)>,
         default: Option<Box<Expression>>,
     },
     /// Both operands, left then right, then the operation.
@@ -931,6 +938,28 @@ pub enum ExpressionKind {
 }
 
 pub use crate::publication::DesignatedOperands;
+
+/// What one arm of a value-position `match` selects.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Selector {
+    /// The case at this position of the sum the subject names.
+    Case(usize),
+    /// A value pattern on a scalar subject: the arm runs when the subject
+    /// equals it (patterns.md: "Scalars use value patterns"). Always an
+    /// `Integer` or `Boolean` literal of the subject's carrier, so it has no
+    /// operand, storage use or call for a walker to visit.
+    Value(Expression),
+}
+
+impl Selector {
+    /// The case this arm selects, when the subject is a sum.
+    pub fn case(&self) -> Option<usize> {
+        match self {
+            Self::Case(case) => Some(*case),
+            Self::Value(_) => None,
+        }
+    }
+}
 
 /// Builtin strict binary operations on `Exact` integers and `bool`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

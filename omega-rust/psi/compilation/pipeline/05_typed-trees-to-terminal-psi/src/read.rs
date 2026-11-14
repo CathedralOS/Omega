@@ -854,10 +854,11 @@ mod tests {
     }
 
     /// Dispatch forms outside the slice are refused by name before anything
-    /// is read from them: a `match` on a scalar, a case arm with a guard of
-    /// its own, and a pattern whose head names no case.
+    /// is read from them: a case arm with a guard of its own and a pattern
+    /// whose head names no case. A `match` on a scalar that covers nothing
+    /// is rejected.
     #[test]
-    fn each_dispatch_form_outside_the_slice_is_refused_by_name() {
+    fn each_dispatch_form_outside_the_slice_is_refused_by_name_or_rejected() {
         use semantic_vocabulary::StructuralTypeId;
         use typed_trees::expression::{TableDestructurePattern, TableMatchExpression};
         let mut typed = TypedTrees::default();
@@ -870,13 +871,16 @@ mod tests {
                     ..Default::default()
                 }));
         let mut program = Program::new(&typed, false);
-        assert_eq!(
-            program
-                .expression(machine(), &[], scalar_match, None)
-                .unwrap_err()
-                .detail,
-            "expression match on a scalar subject"
-        );
+        // A scalar match is read; one whose arms do not cover its subject
+        // is the program's error, not a form the reader cannot judge.
+        let uncovered = program
+            .expression(machine(), &[], scalar_match, None)
+            .unwrap_err();
+        assert!(matches!(
+            uncovered.reason,
+            terminal_check_tables::RefusalReason::Violation(_)
+        ));
+        assert!(uncovered.detail.contains("does not cover every value"));
         let record = StructuralTypeId::new(1).unwrap();
         let pattern = |guard, head| TableDestructurePattern {
             guard,

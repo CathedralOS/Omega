@@ -310,8 +310,20 @@ fn uses_storage(body: &Body, signature: &Signature) -> bool {
             | ExpressionKind::Case { .. }
             | ExpressionKind::Payload { .. }
             | ExpressionKind::IsCase { .. }
-            | ExpressionKind::Match { .. }
             | ExpressionKind::Borrow { .. } => true,
+            // Over a sum the dispatch observes storage; over a scalar it
+            // compares values, and only its operands can hold data.
+            ExpressionKind::Match {
+                subject,
+                arms,
+                default,
+                ..
+            } => {
+                !matches!(subject.result, Some(ValueType::Scalar(..)))
+                    || stored(subject)
+                    || arms.iter().any(|(_, arm)| stored(arm))
+                    || default.as_deref().is_some_and(stored)
+            }
             ExpressionKind::Not(operand)
             | ExpressionKind::BitwiseNot(operand)
             | ExpressionKind::Cast(operand)
