@@ -230,7 +230,12 @@ impl<'a> WindowsHandleInputs<'a> {
             calls.machines().map(|(identity, _)| identity),
             &selected_bodies,
         )
-        .map_err(|reason| format!("handle replay cannot reconstruct actual storage: {reason}"))?;
+        .map_err(|error| {
+            format!(
+                "handle replay cannot reconstruct actual storage: {}",
+                error.in_module(module)
+            )
+        })?;
         progress.note(format_args!("borrowed-storage graph prepared"));
         let (origins, machines) = {
             let mut reader = HandleValueReader::new(context, &calls, &storage, module)?;

@@ -1088,12 +1088,13 @@ fn copied_parts(
     program: &TypedTrees,
     symbol: SymbolHandle,
 ) -> Served<(Machine, State, Vec<TypeReferenceHandle>)> {
-    let unserved = Err(Stop::Unserved(None));
     let Some(machine) = program.machine_by_symbol(symbol) else {
-        return unserved;
+        return Err(Stop::Unserved(Some("a copied declaration has no machine")));
     };
     let [state] = program.machine_states(machine) else {
-        return unserved;
+        return Err(Stop::Unserved(Some(
+            "a copied declaration needs exactly one entry",
+        )));
     };
     let plan = &machine.termination_plan;
     let plain = machine.body_is_present
@@ -1111,13 +1112,7 @@ fn copied_parts(
         && machine.spelling.is_none()
         && !machine.structural_type_equations_pending
         && !machine.service_reach_is_installation_bound
-        && matches!(
-            plan.interface,
-            language_semantics::TerminationInterface::InternalDerived
-        )
         && plan.checked_summary == language_semantics::TerminationGuarantee::NoGuarantee
-        && plan.implementation_witness.is_none()
-        && program.ranking_expression_custody_for(symbol).is_none()
         && program.authored_service_reach_rows_for(symbol).all(|row| {
             !row.installation_bound
                 && row
@@ -1134,7 +1129,9 @@ fn copied_parts(
             .iter()
             .any(|forwarding| forwarding.machine_symbol == symbol);
     if !plain {
-        return unserved;
+        return Err(Stop::Unserved(Some(
+            "the declaration copier does not yet retain this machine's complete interface",
+        )));
     }
     let facts = program
         .machine_contracts(machine)
@@ -1142,9 +1139,31 @@ fn copied_parts(
         .chain(program.state_contracts(state))
         .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts));
     let mut roots = Vec::new();
+    match (
+        &plan.implementation_witness,
+        program.ranking_expression_custody_for(symbol),
+    ) {
+        (None, None) => {}
+        (Some(witness), Some(custody))
+            if witness.subjects.len() == custody.subjects.len()
+                && witness.view_arguments.len() == custody.view_arguments.len()
+                && witness.rank_range.is_some() == custody.rank_range.is_some() =>
+        {
+            roots.extend(custody.subjects.iter().copied());
+            roots.extend(custody.view_arguments.iter().copied());
+            roots.extend(custody.rank_range);
+        }
+        _ => {
+            return Err(Stop::Unserved(Some(
+                "a copied termination witness needs its original expression custody",
+            )));
+        }
+    }
     for fact in facts {
         let ProofFact::Expression(expression) = fact else {
-            return unserved;
+            return Err(Stop::Unserved(Some(
+                "a copied contract needs an expression fact",
+            )));
         };
         roots.push(*expression);
     }
@@ -1166,7 +1185,9 @@ fn copied_parts(
             | StatementNode::Transition(_) => true,
         };
         if !copied {
-            return unserved;
+            return Err(Stop::Unserved(Some(
+                "a copied statement has unserved retained metadata",
+            )));
         }
         roots.extend(
             program
@@ -1210,7 +1231,9 @@ fn copied_parts(
         });
     }
     if !copied {
-        return unserved;
+        return Err(Stop::Unserved(Some(
+            "a copied expression has unserved retained metadata",
+        )));
     }
     Ok((machine.clone(), state.clone(), types))
 }
@@ -1281,6 +1304,46 @@ struct CopiedDeclarations {
     state: SymbolHandle,
     symbols: PreparedSymbolRebinding,
     originals: Vec<(Machine, State)>,
+}
+
+/// A copied body must prove the same progress promise using its own formals.
+/// Copy the original witness expressions with the body; rendered witness names
+/// cannot identify the fresh parameters, and no checked summary is inherited.
+fn copy_progress(
+    program: &mut TypedTrees,
+    source: &Machine,
+    machine: &mut Machine,
+    symbols: SymbolRebinding<'_>,
+) -> Served<()> {
+    if let language_semantics::TerminationInterface::Published(
+        language_semantics::TerminationGuarantee::Terminates { premises },
+    ) = &mut machine.termination_plan.interface
+    {
+        for premise in premises {
+            premise.subject.root = symbols.lookup(premise.subject.root).ok_or(Stop::Defect(
+                "a copied progress premise lost its original parameter",
+            ))?;
+            for field in &mut premise.subject.projections {
+                *field = symbols.lookup(*field).unwrap_or(*field);
+            }
+        }
+    }
+    if let Some(mut custody) = program
+        .ranking_expression_custody_for(source.symbol)
+        .cloned()
+    {
+        custody.machine = machine.symbol;
+        for expression in custody
+            .subjects
+            .iter_mut()
+            .chain(&mut custody.view_arguments)
+            .chain(custody.rank_range.iter_mut())
+        {
+            *expression = copy_expression(program, *expression, symbols);
+        }
+        program.ranking_expression_custody.push(custody);
+    }
+    Ok(())
 }
 
 /// Copies one validated declaration tree at the supplied static bindings.
@@ -1436,6 +1499,7 @@ fn copy_declarations(
             machine.name = Identifier::generated(root_name.clone());
         }
         machine.is_public = false;
+        copy_progress(program, source, &mut machine, symbols)?;
         // A written empty ceiling differs from an omitted one. Retain each
         // authored row on its actual copied owner; never turn it into inference.
         let reach_rows = program

@@ -354,3 +354,44 @@ machine entry() crashes Trap {{
         ))
     );
 }
+
+/// An exclusive reference held by a local is weakened into a shared field:
+/// a shared reborrow through it. The record then observes the cell the
+/// local was lent, and the twin that asks a shared reference for an
+/// exclusive field is rejected for the access it lacks.
+#[test]
+fn an_exclusive_reference_is_weakened_into_a_shared_field() {
+    let status = run(&format!(
+        r#"{CARRIER}
+machine entry() crashes Trap {{
+    let mut cell: Cell = Cell {{ before: 11, value: 5, after: 17 }};
+    let exclusive: &mut Cell = &mut cell;
+    let view: View = View {{ cell: exclusive }};
+    transition view.cell.value == 5 && view.cell.before == 11 && view.cell.after == 17 {{
+        true -> done()
+        false -> bad()
+    }}
+    machine done() {{}}
+    machine bad() {{ crash Trap; }}
+}}
+"#
+    ));
+    assert_eq!(
+        status,
+        Ok(terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Unit
+        ))
+    );
+    let strengthened = verdict(&format!(
+        r#"{CARRIER}
+machine build_entry(cell: &Cell) {{
+    let shared: &Cell = cell;
+    let carrier: Carrier = Carrier {{ cell: shared }};
+}}
+"#
+    ));
+    assert!(
+        strengthened.contains("requires mutable source access"),
+        "{strengthened}"
+    );
+}

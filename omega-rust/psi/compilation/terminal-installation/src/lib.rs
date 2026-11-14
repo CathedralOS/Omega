@@ -22,8 +22,13 @@ the Psi interpreter, compile-time evaluation, and Omega native realization.
 #![forbid(unsafe_code)]
 
 mod evaluation_and_synchronous_calls;
+mod producer_trust;
 mod provider_and_target_installation;
 mod scalar_applications;
+
+pub use producer_trust::{
+    ArtifactTrustError, AuthorizedTerminalArtifact, HostProducerTrust, authorize_terminal_artifact,
+};
 
 pub(crate) use evaluation_and_synchronous_calls::{compiler_evaluation, synchronous_calls};
 pub(crate) use provider_and_target_installation::{
