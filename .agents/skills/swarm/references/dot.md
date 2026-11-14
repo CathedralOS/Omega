@@ -5,7 +5,7 @@ workstation. Their presence does not identify the product as Dot, provision a
 cloud machine, or require a remote-artifact recovery workflow.
 
 Execution and publication follow [advance](../../advance/SKILL.md),
-[AGENTS.md](../../../../AGENTS.md), and [landing](../../../../tools/landing.md).
+[AGENTS.md](../../../../AGENTS.md), and [landing](../../../../tools/docs/landing.md).
 
 ## Tools and capacity
 

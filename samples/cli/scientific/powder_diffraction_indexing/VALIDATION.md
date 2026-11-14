@@ -79,5 +79,5 @@ builtin operands. This sample uses f64/f64 and explicit integer conversions;
 that diagnostic channel adds no evaluation, proof fact or realization change.
 Independent review permits reuse of the recorded numerical producer after
 final sample admission, owned controls and exact-SHA checking, under
-[main-change validation](../../../../tools/testing.md#main-change-validation).
+[main-change validation](../../../../tools/docs/testing.md#main-change-validation).
 The evidence identifies the executed producer explicitly.

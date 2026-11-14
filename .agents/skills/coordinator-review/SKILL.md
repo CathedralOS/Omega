@@ -9,7 +9,7 @@ Read the actual diff before landing so a passing check does not hide a broken
 language guarantee or a weakened test. Authors use this checklist on their own
 changes; coordinators can use it when reviewing a change that needs attention.
 Ownership follows [AGENTS.md](../../../AGENTS.md#sessions-and-subagents), and
-publication follows [landing](../../../tools/landing.md).
+publication follows [landing](../../../tools/docs/landing.md).
 
 ## 1. Who Lands
 

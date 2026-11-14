@@ -16,14 +16,14 @@ use std::process::{Command, Stdio};
 use crate::repo_root;
 
 const RUST_ROOT: &str = "omega-rust";
-const READS_BASELINE: &str = "tools/source_text_reads.txt";
-const STATUS_BASELINE: &str = "tools/contract_status_phrases.txt";
+const READS_BASELINE: &str = "tools/ratchets/source_text_reads.txt";
+const STATUS_BASELINE: &str = "tools/ratchets/contract_status_phrases.txt";
 const SEMANTIC_IDS: &str = "omega-rust/psi/foundation/semantic-vocabulary/src/identity.rs";
-const DENSE_MAP_BASELINE: &str = "tools/dense_id_maps.txt";
-const CACHE_STATE_BASELINE: &str = "tools/cache_state.txt";
-const PLACE_TRANSPORT_BASELINE: &str = "tools/place_transport.txt";
+const DENSE_MAP_BASELINE: &str = "tools/ratchets/dense_id_maps.txt";
+const CACHE_STATE_BASELINE: &str = "tools/ratchets/cache_state.txt";
+const PLACE_TRANSPORT_BASELINE: &str = "tools/ratchets/place_transport.txt";
 const PSI_COMPILATION_ROOT: &str = "omega-rust/psi/compilation";
-const DANGLING_BASELINE: &str = "tools/dangling_task_ids.txt";
+const DANGLING_BASELINE: &str = "tools/ratchets/dangling_task_ids.txt";
 const TASK_BOARDS: &[&str] = &[
     "TASKS.md",
     "TASKS_OPTIMIZER.md",

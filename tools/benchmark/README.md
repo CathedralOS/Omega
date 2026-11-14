@@ -8,7 +8,7 @@ one (`compare`, `suite`), does a retained run still hold up (`validate`, `show`,
 commit on this host (`progress`), and does compiling one more machine cost more
 in a bigger program (`scaling`).
 
-Build it with `mbx`, under the [host build budget](../build_slot.md) when the
+Build it with `mbx`, under the [host build budget](../docs/build_slot.md) when the
 machine is shared, and run the retained executable from the checkout root:
 
 ```text
