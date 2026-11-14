@@ -17,14 +17,14 @@ machine opaque() -> u64 { 4u64 }
 data Main { hits: i32 in Wrapping; }
 
 machine Main::main(main: &mut Main) crashes Trap {
-    main.hits = 0;
+    main.hits = 0i32 as +Wrapping;
 
     let r: u64 = echo(SCALE);
     transition r == 4 {
         true -> pass(main)
         _ -> fail(main)
     }
-    machine pass(main: &mut Main) { main.hits = 1; }
+    machine pass(main: &mut Main) { main.hits = 1i32 as +Wrapping; }
     machine fail(main: &mut Main) { crash Trap; }
 }
 
