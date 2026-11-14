@@ -548,11 +548,30 @@ fn elaborate_witness_call(
                 .parameters
                 .iter()
                 .enumerate()
-                .map(|(slot, value_type)| Expression {
-                    call_context: None,
-                    kind: ExpressionKind::Slot(slot),
-                    result: Some(*value_type),
-                    source,
+                .map(|(slot, value_type)| {
+                    let place = Expression {
+                        call_context: None,
+                        kind: ExpressionKind::Slot(slot),
+                        result: Some(*value_type),
+                        source,
+                    };
+                    // The witness forwards each formal's original passing
+                    // mode. A borrowed formal denotes incoming storage;
+                    // forwarding its value alone would read a scalar or move
+                    // its carrier instead of reborrowing that storage.
+                    match required.borrowed(slot) {
+                        Some(borrowed) => Expression {
+                            call_context: None,
+                            kind: ExpressionKind::Borrow {
+                                access: borrowed.access,
+                                place: Box::new(place),
+                                home: borrowed.home.clone(),
+                            },
+                            result: Some(*value_type),
+                            source,
+                        },
+                        None => place,
+                    }
                 })
                 .collect(),
             designated: None,
