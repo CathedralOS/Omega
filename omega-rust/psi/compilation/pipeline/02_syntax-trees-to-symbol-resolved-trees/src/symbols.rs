@@ -633,8 +633,9 @@ mod domain_facts {
 
     use super::expressions::assign_membership_symbol;
     use super::expressions::assign_struct_literal_symbols;
+    use super::lookup::MembershipSelection;
     use super::lookup::diagnostic_path_source_span;
-    use super::lookup::domain_name_reaches;
+    use super::lookup::membership_selection;
     use super::targets::resolve_free_call_target_symbol;
     use language_semantics::declaration_selection::CollectionMeasure;
     use std::iter::once;
@@ -768,17 +769,6 @@ mod domain_facts {
         program: &mut SymbolResolvedTrees,
         symbols: &SymbolTable,
     ) {
-        let domain_symbols = program
-            .domain_definitions
-            .iter()
-            .map(|domain| {
-                (
-                    domain.name.as_str().to_owned(),
-                    domain.symbol,
-                    domain.semantic_id,
-                )
-            })
-            .collect::<Vec<_>>();
         let alias_symbols = program
             .domain_definitions
             .iter()
@@ -795,7 +785,6 @@ mod domain_facts {
                                 let name = members.joined_path();
                                 resolve_domain_symbol(
                                     symbols,
-                                    &domain_symbols,
                                     &name,
                                     diagnostic_path_source_span(members),
                                 )
@@ -943,7 +932,6 @@ mod domain_facts {
                         }
                         assign_proof_expression_symbols(
                             symbols,
-                            &domain_symbols,
                             child_type_references,
                             type_constraints,
                             local_type_parameters,
@@ -954,9 +942,8 @@ mod domain_facts {
                         );
                         let members = domain_path_members.span_or_empty(membership.domain);
                         let name = members.joined_path();
-                        membership.domain_symbol = resolve_domain_symbol(
+                        membership.domain_symbol = proof_fact_membership_domain(
                             symbols,
-                            &domain_symbols,
                             &name,
                             diagnostic_path_source_span(members),
                         );
@@ -964,7 +951,6 @@ mod domain_facts {
                     ProofFact::Expression(expression) => {
                         assign_proof_expression_symbols(
                             symbols,
-                            &domain_symbols,
                             child_type_references,
                             type_constraints,
                             local_type_parameters,
@@ -1150,14 +1136,12 @@ mod domain_facts {
 
     /*
         One proof-surface expression walk: declaration predicates (membership
-        values and `requires` facts) carry their declaration's generic scope, its
-        lexical subjects, and the domain roster through every child visit. The
-        walk carries that context instead of re-threading it through each
-        recursive call.
+        values and `requires` facts) carry their declaration's generic scope and
+        its lexical subjects through every child visit. Domain spellings are
+        read from the membership lookup at the node, not from a second roster.
     */
     struct ProofExpressionContext<'visit> {
         symbols: &'visit SymbolTable,
-        domain_symbols: &'visit [(String, SymbolHandle, language_semantics::SemanticDomainId)],
         child_type_references: &'visit mut arena::Arena<TypeReference>,
         type_constraints: &'visit arena::Arena<TypeConstraint>,
         local_type_parameters: Option<&'visit [TypeParameter]>,
@@ -1169,7 +1153,6 @@ mod domain_facts {
 
     fn assign_proof_expression_symbols(
         symbols: &SymbolTable,
-        domain_symbols: &[(String, SymbolHandle, language_semantics::SemanticDomainId)],
         child_type_references: &mut arena::Arena<TypeReference>,
         type_constraints: &arena::Arena<TypeConstraint>,
         local_type_parameters: Option<&[TypeParameter]>,
@@ -1180,7 +1163,6 @@ mod domain_facts {
     ) {
         ProofExpressionContext {
             symbols,
-            domain_symbols,
             child_type_references,
             type_constraints,
             local_type_parameters,
@@ -1420,12 +1402,8 @@ mod domain_facts {
                         membership.domain,
                         expression,
                     );
-                    let domain_symbol = resolve_domain_symbol(
-                        self.symbols,
-                        self.domain_symbols,
-                        &name,
-                        reference_span,
-                    );
+                    let domain_symbol =
+                        proof_fact_membership_domain(self.symbols, &name, reference_span);
                     if let ExpressionNode::Membership(membership) =
                         self.expression_table.expression_mut(expression)
                     {
@@ -1587,77 +1565,44 @@ mod domain_facts {
         }
     }
 
+    /*
+        The domain an alias or other non-membership spelling names. This is the
+        membership pool: module-local owners outrank other tiers, and equal
+        display paths are one candidate. A signature-free unique hit does not
+        get its own answer.
+    */
     fn resolve_domain_symbol(
         symbols: &SymbolTable,
-        domain_symbols: &[(String, SymbolHandle, language_semantics::SemanticDomainId)],
         name: &str,
         reference: source::SourceSpan,
     ) -> SymbolHandle {
-        let selected = symbols
-            .find_top_level_by_name_and_kinds_from_source(name, &[SymbolKind::Domain], reference)
-            .unwrap_or_else(SymbolHandle::invalid);
-        let matches = domain_symbols
-            .iter()
-            .filter(|(candidate, symbol, _)| {
-                symbols.source_reference_can_see_symbol(reference, *symbol)
-                    && (*symbol == selected
-                        || (!(name.contains("::") && symbols.display_path(*symbol, "::") == name)
-                            && domain_name_reaches(symbols, *symbol, candidate, name, reference)))
-            })
-            .map(|(name, symbol, semantic_id)| (name.as_str(), *symbol, *semantic_id))
-            .collect::<Vec<_>>();
-        let reference_module = if reference.span.start == reference.span.end {
-            SymbolHandle::invalid()
-        } else {
-            symbols.source_module(reference.source_id)
-        };
-        let local = matches
-            .iter()
-            .copied()
-            .filter(|(_, symbol, _)| {
-                reference_module.is_valid() && symbols.symbol_module(*symbol) == reference_module
-            })
-            .collect::<Vec<_>>();
-        let pool = if !local.is_empty() {
-            local
-        } else if reference.span.start != reference.span.end {
-            let own_package = matches
-                .iter()
-                .copied()
-                .filter(|(_, symbol, _)| {
-                    symbols
-                        .symbol_provenance_source_span(*symbol)
-                        .is_some_and(|declaration| {
-                            symbols.same_source_package(reference, declaration)
-                        })
-                })
-                .collect::<Vec<_>>();
-            if own_package.is_empty() {
-                matches
-            } else {
-                own_package
-            }
-        } else {
-            matches
-        };
-        if let Some((first_name, symbol, first_semantic_id)) = pool.first() {
-            if pool.iter().any(|(candidate, _, semantic_id)| {
-                candidate != first_name || semantic_id != first_semantic_id
-            }) {
+        match super::lookup::membership_domain_lookup(symbols, name, reference) {
+            super::lookup::DomainMembership::Unique(symbol) => symbol,
+            super::lookup::DomainMembership::NotFound
+            | super::lookup::DomainMembership::Ambiguous { .. }
+            | super::lookup::DomainMembership::Contested => SymbolHandle::invalid(),
+        }
+    }
+
+    /*
+        A proof-fact membership uses that same domain, then still rejects a
+        competing case. Binding the domain and erasing the case would accept a
+        spelling expression membership refuses.
+    */
+    fn proof_fact_membership_domain(
+        symbols: &SymbolTable,
+        name: &str,
+        reference: source::SourceSpan,
+    ) -> SymbolHandle {
+        let domain = resolve_domain_symbol(symbols, name, reference);
+        if !domain.is_valid() {
+            return SymbolHandle::invalid();
+        }
+        match membership_selection(symbols, name, reference) {
+            Ok(Some(MembershipSelection::Domain(symbol))) => symbol,
+            Ok(Some(MembershipSelection::Case { .. })) | Ok(None) | Err(_) => {
                 SymbolHandle::invalid()
-            } else {
-                *symbol
             }
-        } else if name.contains("::") {
-            symbols
-                .find_top_level_by_name_and_kinds_from_source(
-                    name,
-                    &[SymbolKind::Domain],
-                    reference,
-                )
-                .unwrap_or_else(SymbolHandle::invalid)
-        } else {
-            SymbolHandle::invalid()
         }
     }
 }
@@ -2087,7 +2032,7 @@ mod lookup {
     }
 
     /* The domain side of a membership selection. */
-    enum DomainMembership {
+    pub(crate) enum DomainMembership {
         NotFound,
         Unique(SymbolHandle),
         /*
@@ -2100,10 +2045,9 @@ mod lookup {
         },
         /*
             The attached-domain exposure pool claims the spelling under more than
-            one distinct owner. Like the proof-fact resolver's pooled decline,
-            this retains the membership as a checked obligation rather than
-            reporting ambiguity here: downstream validation owns the diagnostic,
-            and no other meaning may claim the contested spelling.
+            one distinct owner. The shared membership lookup declines that pool
+            here rather than reporting ambiguity: downstream validation owns the
+            diagnostic, and no other meaning may claim the contested spelling.
         */
         Contested,
     }
@@ -2113,10 +2057,12 @@ mod lookup {
         ordinary qualified/import path lookup unioned with the attached-domain
         exposure law (`domain_name_reaches`), which admits a carrier-qualified or
         leaf spelling through a declaring-module or exact-domain import.
-        Module-local owners outrank every other tier, and declarations sharing one
-        complete logical path are one semantic candidate.
+        Module-local owners outrank every other tier. The same symbol found by
+        both routes is one candidate. Two different symbols stay contested even
+        when their display paths match. Expression membership, proof-fact
+        membership, and token homes all read this pool.
     */
-    fn membership_domain_lookup(
+    pub(crate) fn membership_domain_lookup(
         symbols: &SymbolTable,
         name: &str,
         reference: source::SourceSpan,
@@ -2146,19 +2092,15 @@ mod lookup {
             }
         }
         let candidates = prefer_module_local_domain(symbols, candidates, reference);
-        let mut unique: Vec<(String, SymbolHandle)> = Vec::new();
-        'next: for candidate in candidates {
-            let path = symbols.display_path(candidate, "::");
-            for (existing, _) in &unique {
-                if *existing == path {
-                    continue 'next;
-                }
+        let mut distinct = Vec::new();
+        for candidate in candidates {
+            if !distinct.contains(&candidate) {
+                distinct.push(candidate);
             }
-            unique.push((path, candidate));
         }
-        match unique.as_slice() {
+        match distinct.as_slice() {
             [] => DomainMembership::NotFound,
-            [(_, symbol)] => DomainMembership::Unique(*symbol),
+            [symbol] => DomainMembership::Unique(*symbol),
             _ => DomainMembership::Contested,
         }
     }
@@ -5748,9 +5690,9 @@ pub(crate) fn assign_constant_expression_symbols(
 
 pub(crate) use expressions::reject_unqualified_case_values;
 pub(crate) use lookup::{
-    MembershipSelection, builtin_type_atom_by_symbol_name, constructor_prefix_is_value,
-    constructor_type, domain_name_reaches, membership_selection, prefer_module_local_domain,
-    qualified_payload_free_case_type,
+    DomainMembership, MembershipSelection, builtin_type_atom_by_symbol_name,
+    constructor_prefix_is_value, constructor_type, domain_name_reaches, membership_domain_lookup,
+    membership_selection, prefer_module_local_domain, qualified_payload_free_case_type,
 };
 
 /*
