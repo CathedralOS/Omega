@@ -200,6 +200,7 @@ pub(super) fn publish(
             report_fingerprint: 0,
             commitment: Default::default(),
         };
+        let mut source_schemas = Vec::with_capacity(selected.rows.len());
         for row in &selected.rows {
             let (declaring, required) = typed
                 .trait_machine_signature(row.requirement)
@@ -259,7 +260,21 @@ pub(super) fn publish(
                     realization_callable_identity: None,
                 });
             }
+            source_schemas.push((
+                row.declaring_trait,
+                row.requirement,
+                schema.declaring_trait_identity,
+                schema.public_requirement_identity,
+            ));
             application.schemas.push(schema);
+        }
+        source_schemas
+            .sort_unstable_by_key(|(declaring, requirement, _, _)| (*declaring, *requirement));
+        if source_schemas
+            .windows(2)
+            .any(|pair| (pair[0].0, pair[0].1) == (pair[1].0, pair[1].1))
+        {
+            return Err("selected map repeats an original requirement row");
         }
         application.schemas.sort_unstable_by(|left, right| {
             (
@@ -288,28 +303,30 @@ pub(super) fn publish(
                 .get(*original)
                 .and_then(Option::as_ref)
                 .ok_or("selected header lost its source dispatch")?;
-            let schemas = application
+            let source_schema = source_schemas
+                .binary_search_by_key(
+                    &(dispatch.declaring_trait, dispatch.requirement),
+                    |(declaring, requirement, _, _)| (*declaring, *requirement),
+                )
+                .ok()
+                .and_then(|position| source_schemas.get(position))
+                .ok_or("selected call has no exact original requirement row")?;
+            let schema_key = (
+                identities.text(source_schema.2),
+                identities.text(source_schema.3),
+            );
+            let schema = application
                 .schemas
-                .iter()
-                .filter(|schema| {
-                    selected.rows.iter().any(|row| {
-                        row.requirement == dispatch.requirement
-                            && row.declaring_trait == dispatch.declaring_trait
-                            && identities.text(schema.public_requirement_identity)
-                                == typed
-                                    .trait_machine_signature(row.requirement)
-                                    .map(|(owner, required)| {
-                                        typed.trait_requirement_callable_identity_text(
-                                            owner, required,
-                                        )
-                                    })
-                                    .as_deref()
-                    })
+                .binary_search_by(|schema| {
+                    (
+                        identities.text(schema.declaring_trait_identity),
+                        identities.text(schema.public_requirement_identity),
+                    )
+                        .cmp(&schema_key)
                 })
-                .collect::<Vec<_>>();
-            let [schema] = schemas.as_slice() else {
-                return Err("selected call has no unique original requirement schema");
-            };
+                .ok()
+                .and_then(|position| application.schemas.get(position))
+                .ok_or("selected call lost its prepared requirement schema")?;
             let machine = module
                 .machine(*body)
                 .ok_or("selected map has no emitted implementation")?;
@@ -333,14 +350,15 @@ pub(super) fn publish(
                 .declaration_sources
                 .get(*original)
                 .ok_or("selected header lost its applied source signature")?;
-            let arguments = typed
-                .closed_requirement_application(source.symbol)
-                .map(|closed| {
-                    requirement_application(typed, sources, &closed, identities)
-                        .map(|(_, arguments)| arguments)
-                })
-                .transpose()?
-                .unwrap_or_default();
+            let arguments = match typed.closed_requirement_application(source.symbol) {
+                Some(closed) => requirement_application(typed, sources, &closed, identities)?.1,
+                None if schema.parameter_kinds.is_empty()
+                    && schema.lifetime_parameter_count == 0 =>
+                {
+                    Vec::new()
+                }
+                None => return Err("selected generic member lost its actual closed application"),
+            };
             let result = match &machine.result {
                 TerminalMachineResult::Unit => ClosedConformanceCallableResult::Unit,
                 TerminalMachineResult::Scalar(result) => {
