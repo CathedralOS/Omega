@@ -1565,16 +1565,10 @@ impl<'t> Program<'t> {
         };
         let exit = ClauseScope {
             result: match result {
-                // A policy-qualified result is named as its stored value.
-                Some(ValueType::Scalar(scalar_type, qualification))
-                    if qualification.domains.is_empty() =>
-                {
-                    ResultTerm::Named(result_value, scalar_type, qualification.policy)
-                }
-                // domains.md, "Operands": a builtin operator or comparison
-                // takes unqualified operands, in `ensures` too.
-                Some(ValueType::Scalar(..)) => {
-                    ResultTerm::Absent("result that carries a declared domain")
+                // Keep the result's qualification until an operator or cast
+                // consumes it, just as for an input or a field.
+                Some(ValueType::Scalar(scalar_type, qualification)) => {
+                    ResultTerm::Named(result_value, scalar_type, qualification)
                 }
                 // A returned field belongs to the declared result root,
                 // allocated after the structural formals by lowering.

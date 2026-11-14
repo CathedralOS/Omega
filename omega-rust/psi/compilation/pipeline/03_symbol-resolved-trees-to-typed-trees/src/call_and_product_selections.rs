@@ -3037,22 +3037,18 @@ pub(crate) mod qualification_casts {
             };
             let authored = *authored;
             if let Some(entry) = authored.form.entry() {
-                /*
-                    Accounting fixed this entry's target and result. Only an
-                    added domain stays on the node, as the membership the cast
-                    establishes; a kept or removed one was named for the
-                    accounting and its selection is recorded above.
-                */
+                // Accounting fixed this entry's target and result. Every
+                // named entry retains the selected declaration and arguments:
+                // the checker must distinguish keeping/removing that domain
+                // from a different qualification with the same carrier.
                 let ExpressionNode::Cast(cast) = program.expression_table.expression_mut(handle)
                 else {
                     continue;
                 };
-                if entry.kind == language_core::cast_form::CastEntryKind::Add {
-                    cast.semantic_domain_symbol = domain;
-                    cast.semantic_domain_id = semantic_id;
-                } else {
+                cast.semantic_domain_symbol = domain;
+                cast.semantic_domain_id = semantic_id;
+                if entry.kind != language_core::cast_form::CastEntryKind::Add {
                     cast.semantic_domain = arena::HandleSpan::empty();
-                    cast.semantic_domain_arguments = arena::HandleSpan::empty();
                 }
                 continue;
             }

@@ -463,10 +463,34 @@ impl Program<'_> {
         base_type: TypeReferenceHandle,
         constraints: arena::HandleSpan<typed_trees::types::TypeConstraintNode>,
     ) -> Checked<ValueType> {
+        let carrier = self.value_type(id, base_type)?;
+        let qualification = self.type_qualification(id, carrier, constraints)?;
+        for domain in qualification.domains.members() {
+            if !carrier.qualification().domains.contains(domain) {
+                self.declared_domain(id, domain, carrier)?;
+            }
+        }
+        carrier.qualified(qualification).ok_or_else(|| {
+            refuse(
+                id,
+                Construct::Machine,
+                Unserved::Type("domain on a type parameter"),
+            )
+        })
+    }
+
+    /// Read the qualification once for both type formation and casts. Type
+    /// formation admits new domains; a clause cast can only retain domains
+    /// already checked on its operand.
+    fn type_qualification(
+        &self,
+        id: MachineId,
+        carrier: ValueType,
+        constraints: arena::HandleSpan<typed_trees::types::TypeConstraintNode>,
+    ) -> Checked<Qualification> {
         use numerics::arithmetic::ArithmeticDomain;
         use typed_trees::types::{DomainConstraintSubject, TypeConstraintNode};
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Type(what)));
-        let carrier = self.value_type(id, base_type)?;
         let mut qualification = carrier.qualification();
         let typed = self.typed;
         for constraint in typed.type_reference_table.constraints(constraints) {
@@ -495,7 +519,6 @@ impl Program<'_> {
                     if !domain.arguments.is_empty() {
                         return unserved("constrained by a domain applied at arguments");
                     }
-                    self.declared_domain(id, domain.symbol, carrier)?;
                     let Some(domains) = qualification.domains.with(domain.symbol) else {
                         return unserved(
                             "constrained by one domain twice or by more than four declared domains",
@@ -511,10 +534,72 @@ impl Program<'_> {
                 }
             }
         }
-        match carrier.qualified(qualification) {
-            Some(qualified) => Ok(qualified),
-            None => unserved("domain on a type parameter"),
+        Ok(qualification)
+    }
+
+    /// Read a scalar domain cast's result without forming a new domain or
+    /// storage representation. Its carrier and retained domains must come
+    /// from the already checked operand; additions need establishment proof.
+    pub(super) fn scalar_domain_cast_type(
+        &self,
+        id: MachineId,
+        handle: TypeReferenceHandle,
+        before: ValueType,
+    ) -> Checked<ValueType> {
+        let after = self.qualified_scalar_type(id, handle)?;
+        if before.qualified(Qualification::NONE) != after.qualified(Qualification::NONE) {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("domain cast entry that changes the carrier"),
+            ));
         }
+        if !after
+            .qualification()
+            .domains
+            .is_subset_of(&before.qualification().domains)
+        {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("domain establishment in a clause term"),
+            ));
+        }
+        Ok(after)
+    }
+
+    fn qualified_scalar_type(
+        &self,
+        id: MachineId,
+        handle: TypeReferenceHandle,
+    ) -> Checked<ValueType> {
+        if handle.is_valid() {
+            match self.typed.type_reference_table.type_reference(handle) {
+                TypeReferenceNode::Constrained {
+                    base_type,
+                    constraints,
+                } => {
+                    let carrier = self.qualified_scalar_type(id, *base_type)?;
+                    let qualification = self.type_qualification(id, carrier, *constraints)?;
+                    return carrier.qualified(qualification).ok_or_else(|| {
+                        refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Type("domain on a type parameter"),
+                        )
+                    });
+                }
+                TypeReferenceNode::Named { symbol, .. } => {
+                    if let Some((_, bound @ ValueType::Scalar(..))) =
+                        self.scope.iter().find(|(binder, _)| binder == symbol)
+                    {
+                        return Ok(*bound);
+                    }
+                }
+                _ => {}
+            }
+        }
+        self.scalar_type(id, handle).map(ValueType::plain)
     }
 
     /// Whether the checker reads the declared domain `domain` on `carrier`:
