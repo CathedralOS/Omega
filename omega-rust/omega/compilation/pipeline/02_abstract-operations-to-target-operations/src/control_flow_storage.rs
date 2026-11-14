@@ -612,8 +612,11 @@ pub(crate) mod atomic_access {
             terminal_semantics::atomic_cell_type(types.values().copied(), root, &location.path)
                 .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
         let scalar_type = cell.scalar_type();
+        let logical = types
+            .closed_scalar(scalar_type)
+            .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
         let integer =
-            target_operations::operations::atomic_storage_integer_type(access, scalar_type)
+            target_operations::operations::atomic_storage_integer_type_closed(access, logical)
                 .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
         let regions = reference_projection_regions(root, &location.path, types)
             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
@@ -666,7 +669,9 @@ pub(crate) mod atomic_access {
                 let layout = types
                     .get(outcome.structural_type)
                     .and_then(|row| {
-                        target_operations::conventional_atomic_once_layout(row, integer, *custody)
+                        target_operations::conventional_atomic_once_layout_closed(
+                            row, integer, *custody,
+                        )
                     })
                     .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
                 let home = target_operations::TargetStructuralHomeRequirement {
@@ -694,7 +699,7 @@ pub(crate) mod atomic_access {
                 access: root_access,
                 path: location.path.clone(),
             },
-            scalar_type: integer,
+            scalar_type: integer.as_checking(),
             field_byte_offset,
             event: access,
             operands,
