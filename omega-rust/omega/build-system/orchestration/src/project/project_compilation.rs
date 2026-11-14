@@ -47,24 +47,23 @@ pub(crate) fn compile_returned(
             execution_profile,
         ) {
             Ok(completed) => completed,
-            Err(crate::ProjectSourceResolutionError::Compilation(error)) => {
-                let mut reason = error
-                    .into_diagnostics()
-                    .iter()
-                    .map(|diagnostic| diagnostic.message.as_str())
-                    .collect::<Vec<_>>()
-                    .join("; ");
-                if let Err(error) = session.close() {
-                    reason.push_str(&format!("; session disposal: {error}"));
-                }
-                return request.refuse(reason);
-            }
             Err(error) => {
-                let mut reason = error.to_string();
-                if let Err(error) = session.close() {
-                    reason.push_str(&format!("; session disposal: {error}"));
-                }
-                return request.refuse(reason);
+                let accounting = error
+                    .source_completion_accounting()
+                    .cloned()
+                    .unwrap_or_default();
+                session
+                    .packages
+                    .record_source_completion(accounting.clone());
+                let failure = match error {
+                    crate::ProjectSourceResolutionError::Compilation(failure) => failure,
+                    other => compiler::CompileFailure::source_completion(
+                        vec![diagnostics::Diagnostic::error(other.to_string())],
+                        accounting,
+                    ),
+                };
+                let _cleanup = session.close();
+                return request.refuse_compilation(failure);
             }
         };
     let admitted = package_manager::operations::admit_project_products(
@@ -73,7 +72,7 @@ pub(crate) fn compile_returned(
         execution_profile,
     );
     let products = crate::package::package_compilation::compile_packages(
-        &mut session.compiler,
+        &mut session,
         admitted.requests,
         &mut completed,
     );

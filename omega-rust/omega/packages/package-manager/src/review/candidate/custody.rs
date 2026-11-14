@@ -38,20 +38,26 @@ pub(super) fn verify_selected_source_custody(
                 custody.materialization().content(),
                 custody.source_limits(),
             )
-            .map_err(|error| CompileResolvedPackageReviewsError::SourceCustody {
-                compiling_package: compiling_package.clone(),
-                source_package: source_package.clone(),
-                phase,
-                error,
+            .map_err(|error| {
+                CompileResolvedPackageReviewsError::new(
+                    crate::review::CompileResolvedPackageReviewCause::SourceCustody {
+                        compiling_package: compiling_package.clone(),
+                        source_package: source_package.clone(),
+                        phase,
+                        error,
+                    },
+                )
             })?;
         }
         custody.selection_evidence().revalidate().map_err(|error| {
-            CompileResolvedPackageReviewsError::SourceSelectionCustody {
-                compiling_package: compiling_package.clone(),
-                source_package: source_package.clone(),
-                phase,
-                error,
-            }
+            CompileResolvedPackageReviewsError::new(
+                crate::review::CompileResolvedPackageReviewCause::SourceSelectionCustody {
+                    compiling_package: compiling_package.clone(),
+                    source_package: source_package.clone(),
+                    phase,
+                    error,
+                },
+            )
         })?;
     }
     Ok(())

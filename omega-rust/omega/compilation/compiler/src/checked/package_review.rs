@@ -21,7 +21,10 @@ pub struct PackageReviewProduct {
 #[derive(Debug)]
 pub enum PackageReviewFailure {
     Compilation(CompileFailure),
-    Projection(PackageReviewProjectionError),
+    Projection {
+        failure: PackageReviewProjectionError,
+        accounting: build_time_evaluation::SourceCompletionAccounting,
+    },
 }
 
 impl From<Vec<Diagnostic>> for PackageReviewFailure {
@@ -43,6 +46,12 @@ struct RetainedReviewSource {
 }
 
 impl PackageReviewSource {
+    pub fn source_completion_accounting(
+        &self,
+    ) -> &build_time_evaluation::SourceCompletionAccounting {
+        self.retained.checked.source_completion_accounting()
+    }
+
     pub fn facts(&self) -> &PackageReviewSourceFacts {
         &self.retained.facts
     }
@@ -87,7 +96,10 @@ impl CompilationSession {
                 target,
                 maximum_policy_canonical_bytes,
             )
-            .map_err(PackageReviewFailure::Projection)?;
+            .map_err(|failure| PackageReviewFailure::Projection {
+                failure,
+                accounting: checked.source_completion_accounting().clone(),
+            })?;
             let facts = PackageReviewSourceFacts {
                 consumed_units: checked
                     .sources()

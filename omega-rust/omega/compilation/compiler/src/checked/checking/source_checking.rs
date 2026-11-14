@@ -17,9 +17,11 @@ pub(crate) fn check_product_source(
     rollback: &crate::OptimizationRollback,
     frontier: Option<&mut Option<super::typed_frontier::TypedFrontier>>,
 ) -> Result<CheckedProductSource, CompileFailure> {
+    let build_accounting = source.build_accounting.clone();
     let mut accounting = source.source_completion_accounting.clone();
     let result = (|| -> Result<CheckedProductSource, Vec<Diagnostic>> {
         let PreparedProductSource {
+            build_accounting: _,
             source_completion_accounting: _,
             typed,
             computed_build_config,
@@ -148,7 +150,11 @@ pub(crate) fn check_product_source(
                 return Err(failure.diagnostics);
             }
         };
-        let source_completion_accounting = accounting.clone();
+        // Build invocations belong to another checked context. Join their
+        // costs only after Product's own materialization receipts have been
+        // authenticated against this source; they prove no Product value.
+        let mut source_completion_accounting = build_accounting.clone();
+        source_completion_accounting.append(accounting.clone());
         if let Some(frontier) = frontier {
             *frontier = Some(super::typed_frontier::TypedFrontier {
                 typed: program.as_ref().clone(),
@@ -226,7 +232,9 @@ pub(crate) fn check_product_source(
             timings,
         })
     })();
-    result.map_err(|diagnostics| CompileFailure::source_completion(diagnostics, accounting))
+    let mut spent = build_accounting;
+    spent.append(accounting);
+    result.map_err(|diagnostics| CompileFailure::source_completion(diagnostics, spent))
 }
 
 pub(super) fn layout_target_scopes(
