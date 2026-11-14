@@ -60,6 +60,24 @@ impl Prover<'_> {
     }
 
     fn any_beyond_rules(&self, mut pending: Vec<ValueId>, unreached: &[ValueId]) -> bool {
+        // A block predicate retains its independently available conjuncts.
+        // Read their defining equalities too, without treating an alternative
+        // inside a disjunction as an unconditional definition.
+        let mut propositions: Vec<_> = self
+            .facts
+            .iter()
+            .map(|fact| (&fact.proposition, fact.axiom))
+            .collect();
+        let mut definitions = Vec::new();
+        while let Some((proposition, axiom)) = propositions.pop() {
+            match proposition {
+                Proposition::Conjunction(parts) => {
+                    propositions.extend(parts.iter().map(|part| (part, axiom)))
+                }
+                Proposition::Equal(left, right) => definitions.push((left, right, axiom)),
+                _ => {}
+            }
+        }
         let mut seen = vec![false; self.values.len()];
         while let Some(value) = pending.pop() {
             let Some(seen) = seen.get_mut(value_index(value)) else {
@@ -71,10 +89,7 @@ impl Prover<'_> {
             if unreached.contains(&value) {
                 return true;
             }
-            for fact in &self.facts {
-                let Proposition::Equal(left, right) = &fact.proposition else {
-                    continue;
-                };
+            for &(left, right, axiom) in &definitions {
                 for (subject, definition) in [(left, right), (right, left)] {
                     if !matches!(subject, ScalarTerm::Value { id, .. } if *id == value) {
                         continue;
@@ -86,7 +101,7 @@ impl Prover<'_> {
                     if !within_rules(definition) {
                         return true;
                     }
-                    if let Some(axiom) = fact.axiom
+                    if let Some(axiom) = axiom
                         && !self.reaches(axiom, definition)
                     {
                         return true;
