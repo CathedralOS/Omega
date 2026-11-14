@@ -7,7 +7,6 @@ use crate::encoding::encode::values::crashes::encode_boolean_expression;
 use crate::encoding::encode::values::crashes::encode_primitive_type;
 use crate::encoding::encode::values::crashes::encode_structural_path;
 use crate::encoding::encode::values::crashes::integer_binary_row;
-use crate::encoding::encode::values::crashes::primitive_type_name;
 use crate::record::PackageReviewScalarExpression;
 
 pub(crate) fn encode_scalar_expression(
@@ -61,8 +60,7 @@ fn encode_scalar_node(
             encoder.string_field("canonical_text", &literal.canonical_text)?;
             encoder.field("landing", |encoder| {
                 encoder.option(literal.landing.as_ref(), |encoder, landing| {
-                    encoder
-                        .string_field("landed_type", primitive_type_name(landing.landed_type)?)?;
+                    encoder.field_by("landed_type", landing.landed_type, encode_primitive_type)?;
                     encoder.string_field(
                         "arithmetic_domain",
                         arithmetic_domain_name(landing.arithmetic_domain),
