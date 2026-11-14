@@ -90,7 +90,7 @@ fn a_closed_core_borrow_cannot_invent_a_different_view_interpretation() {
 
 #[test]
 fn a_prepared_bodyless_contract_cannot_follow_changed_application_bindings() {
-    let (mut source, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+    let (source, _) = typed_trees_to_typed_trees::prepare_typed_trees(
         typed(SOURCE),
         &typed_trees_to_typed_trees::PreparationRequest::settled(),
     )
@@ -140,6 +140,9 @@ fn a_prepared_bodyless_contract_cannot_follow_changed_application_bindings() {
     assert_eq!(other_bindings.len(), 2);
     let mut changed = bindings;
     changed[1].value = other_bindings[1].value.clone();
+    // Query the genuine frozen result above, then reopen only this corrupted
+    // input copy. The prepared header must not authorize its changed binding.
+    let mut source = source.into_inner();
     source
         .expression_table
         .set_static_machine_application_bindings(application, &changed);
