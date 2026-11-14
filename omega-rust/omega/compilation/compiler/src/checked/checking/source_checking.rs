@@ -50,14 +50,20 @@ pub(crate) fn check_product_source(
         for scope in &layout_scopes {
             selected.extend(scope.entry_declarations.iter().flatten().copied());
         }
-        // Every admitted native supply needs its exact boundary and signature for
-        // calling-policy validation and trust disclosure, even when its target or
-        // requirement is unused. Claim these source declarations alongside each
-        // ordinary provider selection in the structural judgment.
+        // A library is judged where it is demanded, not wholesale. Every native
+        // supply this package's own Build declares needs its exact boundary and
+        // signature for calling-policy validation and trust disclosure, even
+        // when its target or requirement is unused, so those declarations are
+        // claimed here. A dependency's bindings are not: like its provider
+        // defaults, they are reached only through the supplies a target chooses
+        // for this package's entries (`judge_supplied_product`), where the
+        // provider's own calls read each requirement it uses.
+        let root = package_inputs.map(PackageCompilationInputs::root);
         selected.extend(
             build
                 .native_bindings
                 .iter()
+                .filter(|supply| root.is_none_or(|root| supply.selection.supplier_package == root))
                 .flat_map(|supply| [supply.selection.subject, supply.selection.requirement]),
         );
         // Representation declarations are claimed source dependencies; preparation
@@ -69,6 +75,7 @@ pub(crate) fn check_product_source(
                 .flat_map(|selection| [selection.opaque(), selection.application().declaration]),
         );
         let source_admission = psi_compiler::SourceAdmission {
+        invocation_sources: None,
         // Roots belong to structural judgment below, rather than to a deleted
         // source-checking admission or projection.
         external_roots: &[],

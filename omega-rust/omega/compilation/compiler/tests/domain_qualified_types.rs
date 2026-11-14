@@ -300,13 +300,16 @@ fn a_plain_machine_does_not_add_a_domain_routed_through_a_requirement() {
     );
 }
 
-/// A value its route issued travels on, and the domain is not cast off it.
+/// Issuance restricts adding a domain. Removing one keeps the carrier and
+/// does not grant permission to add the domain again.
 #[test]
-fn removing_a_routed_domain_is_refused_by_name() {
-    refused_with(
-        "routed_removal",
-        "machine wrong(ticket: Ticket in Stamped) -> Ticket {\n    ticket as -Stamped\n}\n",
-        "removal of a domain with restricted issuance",
+fn removing_a_routed_domain_keeps_the_carrier() {
+    assert_eq!(
+        verdicts(
+            "routed_removal",
+            "machine unstamp(ticket: Ticket in Stamped) -> Ticket {\n    ticket as -Stamped\n}\n",
+        ),
+        ACCEPTED_PARTS,
     );
 }
 
@@ -567,7 +570,7 @@ fn removing_a_governed_domain_is_refused_by_name() {
     refused_with(
         "governed_removal",
         "machine wrong(seal: Seal in Issued) -> Seal {\n    seal as -Issued\n}\n",
-        "removal of a domain with restricted issuance",
+        "removal of a domain governed by an access policy",
     );
 }
 

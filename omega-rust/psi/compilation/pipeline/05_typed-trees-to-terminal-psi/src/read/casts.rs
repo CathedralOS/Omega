@@ -1,17 +1,13 @@
 /*
-The cast family of the reader: `operand as T` between two integer carriers
-with no domain on either side, and the cast that adds or removes the
-`Wrapping` or `Saturating` policy of an integer while keeping its carrier
-(`x as u32 in Wrapping`, `w as u32`). A cast from a plain integer of another
-carrier into a policy is the exact carrier conversion, then the policy.
+Keep carrier conversion separate from changes to a value's qualification.
+Domain-only casts preserve the same value and carrier, with shared accounting
+for executable expressions and contract terms. Adding a domain owes its issuer
+and predicate checks. Removal keeps ownership and cannot erase access, cleanup
+or borrowed restoration obligations.
 
-`wiki/spec/language/domains.md`, "Carrier casts": "The operand of a carrier
-cast must carry no domain." A cast that names a declared domain, lands in
-`Trapping`, changes the carrier of an integer that already carries a policy,
-re-views
-storage (`recast`) or converts an anonymous expression is refused here by
-what the typed trees record, never by its spelling: the domain symbol, the
-arithmetic domain, the cast form and the target's type node.
+Carrier casts start with an unqualified operand and perform the exact integer
+conversion before adding a policy. Trapping conversions, storage recasts and
+unserved anonymous operands refuse explicitly.
 */
 
 use semantic_vocabulary::{MachineId, ScalarType};
@@ -195,38 +191,9 @@ impl Program<'_> {
         let Some(operand_type) = operand.result else {
             return unserved("domain cast of a Unit value");
         };
-        let (before, after) = (operand_type.qualification(), result.qualification());
-        if operand_type.qualified(Qualification::NONE) != result.qualified(Qualification::NONE)
-            || operand_type.qualified(Qualification::NONE).is_none()
-        {
-            return mistyped("domain cast entry that changes the carrier");
-        }
-        // The one member the entry names: what the two sets differ by.
-        let policy_differs = before.policy != after.policy;
-        let (wider, narrower) = match entry.kind {
-            CastEntryKind::Keep => {
-                if before != after {
-                    return mistyped("kept domain that changes the type");
-                }
-                return Ok(operand);
-            }
-            CastEntryKind::Remove => (before, after),
-            CastEntryKind::Add => (after, before),
-        };
-        let mut named = wider
-            .domains
-            .members()
-            .filter(|domain| !narrower.domains.contains(*domain));
-        let domain = named.next();
-        let one_member = named.next().is_none()
-            && narrower.domains.is_subset_of(&wider.domains)
-            && match (policy_differs, domain) {
-                (true, None) => wider.policy.is_some() && narrower.policy.is_none(),
-                (false, Some(_)) => true,
-                _ => false,
-            };
-        if !one_member {
-            return mistyped("domain cast entry that does not change exactly the domain it names");
+        let domain = self.domain_entry_change(id, operand_type, result, cast, entry)?;
+        if entry.kind == CastEntryKind::Keep {
+            return Ok(operand);
         }
         if let Some(domain) = domain {
             match entry.kind {
@@ -299,13 +266,6 @@ impl Program<'_> {
                         });
                     }
                 }
-                // "Removal also never increases authority. Owned claims
-                // must be consumed or transferred, not cast away ... Access
-                // policies survive whenever they are needed to prevent
-                // authority amplification, and a view that cannot retain
-                // them rejects." What a restricted domain's removal must
-                // leave behind is not kept on the plain value here, so only
-                // a domain anyone may add again is removed.
                 _ => {
                     // `("text" as +Utf8) as -Utf8`: the predicate a literal
                     // was given is judged only where a field stores it
@@ -322,16 +282,7 @@ impl Program<'_> {
                             "removal of a byte predicate a quoted literal was just given",
                         );
                     }
-                    let free = self
-                        .typed
-                        .domain_definition(domain)
-                        .is_some_and(|definition| {
-                            definition.issuance()
-                                == typed_trees::domain::DomainIssuance::Unrestricted
-                        });
-                    if !free {
-                        return unserved("removal of a domain with restricted issuance");
-                    }
+                    self.domain_removal(id, domain, operand_type)?;
                 }
             }
         }
@@ -340,6 +291,111 @@ impl Program<'_> {
             result: Some(result),
             source,
         })
+    }
+
+    /// Check the same domain accounting in executable and logical casts.
+    /// Changing qualification keeps the complete carrier, including regions
+    /// and ownership. An entry changes exactly its selected domain or policy.
+    pub(super) fn domain_entry_change(
+        &self,
+        id: MachineId,
+        operand: ValueType,
+        result: ValueType,
+        cast: &TableCastExpression,
+        entry: language_core::cast_form::CastEntry,
+    ) -> Checked<Option<symbols::SymbolHandle>> {
+        use language_core::cast_form::CastEntryKind;
+        let mistyped = |what| refuse(id, Construct::Machine, Unserved::Typing(what));
+        if operand.qualified(Qualification::NONE) != result.qualified(Qualification::NONE)
+            || operand.qualified(Qualification::NONE).is_none()
+        {
+            return Err(mistyped("domain cast entry that changes the carrier"));
+        }
+        let (before, after) = (operand.qualification(), result.qualification());
+        if entry.kind == CastEntryKind::Keep {
+            if before != after {
+                return Err(mistyped("kept domain that changes the type"));
+            }
+            if self
+                .typed
+                .domain_definition(cast.semantic_domain_symbol)
+                .is_some()
+                && !before.domains.contains(cast.semantic_domain_symbol)
+            {
+                return Err(mistyped("kept domain that the operand does not carry"));
+            }
+            return Ok(None);
+        }
+        let (wider, narrower) = match entry.kind {
+            CastEntryKind::Remove => (before, after),
+            CastEntryKind::Add => (after, before),
+            CastEntryKind::Keep => return Err(mistyped("kept domain without an unchanged type")),
+        };
+        let mut named = wider
+            .domains
+            .members()
+            .filter(|domain| !narrower.domains.contains(*domain));
+        let domain = named.next();
+        let one_member = named.next().is_none()
+            && narrower.domains.is_subset_of(&wider.domains)
+            && match (before.policy != after.policy, domain) {
+                (true, None) => wider.policy.is_some() && narrower.policy.is_none(),
+                (false, Some(_)) => true,
+                _ => false,
+            };
+        if !one_member {
+            return Err(mistyped(
+                "domain cast entry that does not change exactly the domain it names",
+            ));
+        }
+        if let Some(domain) = domain
+            && cast.semantic_domain_symbol != domain
+        {
+            return Err(mistyped(
+                "domain cast entry that changes a different domain than it selects",
+            ));
+        }
+        Ok(domain)
+    }
+
+    /// Issuance restricts adding a domain, not forgetting its displayed
+    /// qualification. Removal keeps value facts and the carrier's custody;
+    /// access, cleanup and borrowed restoration obligations cannot disappear.
+    pub(super) fn domain_removal(
+        &self,
+        id: MachineId,
+        domain: symbols::SymbolHandle,
+        operand: ValueType,
+    ) -> Checked<()> {
+        let unavailable = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
+        let definition = self
+            .typed
+            .domain_definition(domain)
+            .ok_or_else(|| unavailable("removal of a domain with no declaration"))?;
+        if definition.access_policy.is_some() {
+            return Err(unavailable(
+                "removal of a domain governed by an access policy",
+            ));
+        }
+        if definition.cleanup_selection.is_some() {
+            return Err(unavailable("removal of a domain with cleanup obligations"));
+        }
+        if definition.issuance() != typed_trees::domain::DomainIssuance::Unrestricted
+            && let ValueType::Record(row, _, _) = operand
+            && matches!(
+                self.data_type(id, row)?.shape,
+                crate::StorageShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: Some(terminal_psi::StructuralAccess::MutableBorrow)
+                    }
+                )
+            )
+        {
+            return Err(unavailable(
+                "domain removal from an exclusive view needs restoration proof",
+            ));
+        }
+        Ok(())
     }
 
     /// Whether the machine being read may write `as +D` for the declared

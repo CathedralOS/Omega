@@ -40,7 +40,7 @@ scalar comparison repair is published; the modern nested-machine witness and
 closed saved-subject production are being qualified. Other flag-producing catalog families, AArch64 countdown parity,
 privileged effect settlement, supplied-environment interpretation, and the
 integration canaries remain requirements of the full parent task. Completed,
-reviewed repairs may be published through the normal PR and merge queue.
+reviewed repairs may be published through a normal squash-merged PR.
 
 
 The `saved_subject/` production in each of these same nine places preserves the
