@@ -192,13 +192,6 @@ framework or a list of features that remain unimplemented.
 - Cost: an embedding caller can reach native optimization with asserted obligations but no explicit authorization of their producer; repair the ingress trust boundary under `PSI-CLAIM-ADMISSION`, not by replaying proofs on every trusted internal stage handoff.
 - Reported: 2026-11-12, Claude Code; narrowed against the ratified execution-admission contract by Codex on 2026-11-13 while auditing accepted facts
 
-### A default compile seals the native artifact without running the replay, and a failed replay under `--both` is reported as declined
-- Category: a verdict with nothing behind it
-- Where: `omega-rust/omega/compilation/backend/artifacts/native-artifact/src/native_artifact.rs:479-486`, `:529`, `:629-632`; `omega-rust/omega/interpreter/terminal-runtime/src/execution/native_code_layouts.rs:35-37`; `omega-rust/omega/interpreter/terminal-runtime/src/execution.rs:113-115`; `omega-rust/omega/application/cli/src/execution/mod.rs:549-550`; `omega-rust/omega/application/cli/src/commands/run.rs:113-116`
-- Saw: `from_emitted_parts` seals with no call to `validate`; outside tests and one example, `validate` is reached only through `inspect_native_code_layouts`, whose single caller runs when the Terminal runtime is handed a native image; the three machine-emission and object-file stage validators are called only from each other and from `function_fragments.rs:24444` inside that replay; a validation error becomes a missing provision, which makes the comparison `Declined` and the command exit with the native code
-- Cost: the build-then-replay design reads as if every emitted program was replayed, but an ordinary `omega <root>` never runs it, and when it does run a failure looks like an unavailable comparison
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
 ### Stage 05 of the Omega pipeline hands out "Validated" homes and "validation receipts" with no replay behind them
 - Category: a verdict with nothing behind it
 - Where: `omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/home_assignment.rs:1-6` and `:2628-2640`, `.../src/fixed_view_copy_recovery.rs:1-6` and `:1095-1116`, `.../src/runtime_spill_and_split.rs:530`, `:3224`, `:5460`
