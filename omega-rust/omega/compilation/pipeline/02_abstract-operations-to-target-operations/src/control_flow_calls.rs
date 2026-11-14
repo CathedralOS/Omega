@@ -18,7 +18,6 @@ pub(crate) mod borrowed_calls {
     use crate::structural_type_lookup::StructuralTypeLookup;
     use abstract_operations::{AbstractFunction, AbstractOperation};
     use calling_conventions::ValueShape;
-    use semantic_vocabulary::MachineId;
     use target_operations::{
         TargetStructuralArgument, TargetStructuralArgumentSource, TargetStructuralParameter,
     };

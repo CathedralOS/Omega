@@ -501,7 +501,6 @@ mod tests {
                     .insert(TypeReferenceNode::Reference {
                         referee: qualified,
                         access: language_core::ReferenceAccess::Shared,
-                        referent: crate::body::BorrowedReferent::Value,
                         lifetime: Some("a".into()),
                     }),
             );
