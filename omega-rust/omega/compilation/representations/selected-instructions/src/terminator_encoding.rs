@@ -3,17 +3,18 @@
 
   Both the plan identity and the fixed-view-copy recovery artifact write the
   same ten terminator arms, tags, and field order, while supplying their own
-  `encode_instruction` and `encode_successor` callbacks.
+  `encode_instruction` and `encode_successor` callbacks. A successor failure
+  returns immediately; callers keep the original error and discard partial bytes.
 */
 
 use crate::{SelectedInstruction, SelectedSuccessor, SelectedTerminator};
 
-pub fn encode_terminator(
+pub fn encode_terminator<E>(
     bytes: &mut Vec<u8>,
     terminator: &SelectedTerminator,
     encode_instruction: impl Fn(&mut Vec<u8>, &SelectedInstruction),
-    encode_successor: impl Fn(&mut Vec<u8>, &SelectedSuccessor),
-) {
+    mut encode_successor: impl FnMut(&mut Vec<u8>, &SelectedSuccessor) -> Result<(), E>,
+) -> Result<(), E> {
     match terminator {
         SelectedTerminator::OperationInvokeNoNormal {
             instruction,
@@ -80,7 +81,7 @@ pub fn encode_terminator(
         } => {
             bytes.push(4);
             encode_instruction(bytes, instruction);
-            encode_successor(bytes, successor);
+            encode_successor(bytes, successor)?;
         }
         SelectedTerminator::ConditionalBranch {
             instruction,
@@ -89,8 +90,8 @@ pub fn encode_terminator(
         } => {
             bytes.push(0);
             encode_instruction(bytes, instruction);
-            encode_successor(bytes, when_nonzero);
-            encode_successor(bytes, when_zero);
+            encode_successor(bytes, when_nonzero)?;
+            encode_successor(bytes, when_zero)?;
         }
         SelectedTerminator::Return {
             instruction,
@@ -107,8 +108,8 @@ pub fn encode_terminator(
         } => {
             bytes.push(2);
             encode_instruction(bytes, instruction);
-            encode_successor(bytes, when_less);
-            encode_successor(bytes, when_not_less);
+            encode_successor(bytes, when_less)?;
+            encode_successor(bytes, when_not_less)?;
         }
         SelectedTerminator::ConditionalBranchI64LessThan {
             instruction,
@@ -117,8 +118,9 @@ pub fn encode_terminator(
         } => {
             bytes.push(3);
             encode_instruction(bytes, instruction);
-            encode_successor(bytes, when_less);
-            encode_successor(bytes, when_not_less);
+            encode_successor(bytes, when_less)?;
+            encode_successor(bytes, when_not_less)?;
         }
     }
+    Ok(())
 }
