@@ -303,6 +303,32 @@ fn an_implementation_keeps_its_own_bound_and_owes_the_requirement_bound() {
                 .all(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
         "{allowed:?}"
     );
+    let check_form = allowed
+        .iter()
+        .filter_map(|verdict| match verdict {
+            Ok(RouteVerdict::Accepted(accepted)) => Some(accepted),
+            _ => None,
+        })
+        .find(|accepted| !accepted.elaboration.check_form_envelopes.is_empty())
+        .expect("the conformance proof retains its generated checking frame");
+    assert!(matches!(
+        check_form.publish(),
+        Err(crate::PublicationError::GenericCheckForm)
+    ));
+    assert!(matches!(
+        check_form.publish_invocation(),
+        Err(crate::PublicationError::GenericCheckForm)
+    ));
+    assert!(crate::ceilings::judge(&check_form.elaboration).is_ok());
+    let mut duplicate = check_form.elaboration.clone();
+    let frame = duplicate.check_form_envelopes[0].clone();
+    duplicate.check_form_envelopes.insert(0, frame);
+    let refused = crate::ceilings::judge(&duplicate).unwrap_err();
+    assert_eq!(
+        refused.reason,
+        RefusalReason::ForeignIdentity,
+        "{refused:?}"
+    );
     for refused in [
         witness("", "blocks", "7"),
         witness("blocks", "blocks false", "block helper()"),

@@ -178,6 +178,7 @@ enum Frame<'tokens, 'source> {
     /// Postfix calls, indexes, members and casts after a primary operand.
     Suffixes {
         context: ExpressionContext,
+        source_start: SourceSpan,
     },
     Arguments(Box<ArgumentsFrame>),
     IndexStart(IndexSite),
@@ -197,12 +198,14 @@ enum Frame<'tokens, 'source> {
 /// The collection an index applies to, its `[` and the suffix context.
 #[derive(Clone, Copy)]
 struct IndexSite {
+    source_start: SourceSpan,
     collection: ExpressionHandle,
     operator_span: SourceSpan,
     context: ExpressionContext,
 }
 
 struct ArgumentsFrame {
+    source_start: SourceSpan,
     context: ExpressionContext,
     arguments: Vec<ExpressionHandle>,
     purpose: ArgumentsPurpose,
@@ -224,6 +227,7 @@ enum ArgumentsPurpose {
 }
 
 struct LoadOrderingFrame<'tokens, 'source> {
+    source_start: SourceSpan,
     receiver: ExpressionHandle,
     after_open: Input<'tokens, 'source>,
     context: ExpressionContext,
@@ -332,7 +336,13 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                 Ok(Step::Descend(Descent::Postfix(context), input))
             }
             Descent::Postfix(context) => {
-                self.frames.push(Frame::Suffixes { context });
+                let Some(first) = input.tokens.first() else {
+                    return self.primary(syntax_trees, input, context);
+                };
+                self.frames.push(Frame::Suffixes {
+                    context,
+                    source_start: input.source_span(first),
+                });
                 self.primary(syntax_trees, input, context)
             }
             Descent::DestructureFields => {
@@ -382,7 +392,10 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                 }
                 Ok(Step::Value(expression, input))
             }
-            Frame::Suffixes { context } => self.suffixes(syntax_trees, context, value, input),
+            Frame::Suffixes {
+                context,
+                source_start,
+            } => self.suffixes(syntax_trees, context, value, input, source_start),
             Frame::Arguments(mut frame) => {
                 frame.arguments.push(value);
                 let mut input = input;
@@ -417,6 +430,7 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
             }
             Frame::LoadOrdering(frame) => {
                 let LoadOrderingFrame {
+                    source_start,
                     receiver,
                     after_open,
                     context,
@@ -442,7 +456,7 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                             language_core::atomic::AtomicExpressionResultCustody::Scalar,
                     },
                 ));
-                self.suffixes(syntax_trees, context, expression, input)
+                self.suffixes(syntax_trees, context, expression, input, source_start)
             }
             Frame::Group => {
                 let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
@@ -593,6 +607,7 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
         context: ExpressionContext,
         mut expression: ExpressionHandle,
         mut input: Input<'tokens, 'source>,
+        source_start: SourceSpan,
     ) -> StepResult<'tokens, 'source> {
         loop {
             if input.at_punctuation(PunctuationKind::Less)
@@ -609,6 +624,7 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                         context,
                     },
                     after_open,
+                    source_start,
                 );
             }
 
@@ -623,6 +639,7 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                         context,
                     },
                     after_open,
+                    source_start,
                 );
             }
 
@@ -634,6 +651,7 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                     .expect("recognized index punctuation has a source token");
                 let input = input.take_punctuation(PunctuationKind::LeftBracket, "[")?;
                 let site = IndexSite {
+                    source_start,
                     collection: expression,
                     operator_span,
                     context,
@@ -664,6 +682,7 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                         }
                         self.frames
                             .push(Frame::LoadOrdering(Box::new(LoadOrderingFrame {
+                                source_start,
                                 receiver: expression,
                                 after_open,
                                 context,
@@ -735,7 +754,13 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                 index,
             }));
         exprs(syntax_trees).set_source_span(expression, site.operator_span);
-        self.suffixes(syntax_trees, site.context, expression, input)
+        self.suffixes(
+            syntax_trees,
+            site.context,
+            expression,
+            input,
+            site.source_start,
+        )
     }
 
     /// Starts a call's argument list just after its `(`.
@@ -745,8 +770,10 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
         context: ExpressionContext,
         purpose: ArgumentsPurpose,
         input: Input<'tokens, 'source>,
+        source_start: SourceSpan,
     ) -> StepResult<'tokens, 'source> {
         let frame = ArgumentsFrame {
+            source_start,
             context,
             arguments: Vec::new(),
             purpose,
@@ -766,8 +793,13 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
         frame: ArgumentsFrame,
         input: Input<'tokens, 'source>,
     ) -> StepResult<'tokens, 'source> {
-        let ((arguments, evidence_arguments), input) =
+        let ((arguments, evidence_arguments, closing), input) =
             finish_argument_lanes(syntax_trees, frame.arguments, input)?;
+        debug_assert_eq!(frame.source_start.source_id, closing.source_id);
+        let source = SourceSpan::new(
+            frame.source_start.source_id,
+            Span::new(frame.source_start.span.start, closing.span.end),
+        );
         match frame.purpose {
             ArgumentsPurpose::Call {
                 callee,
@@ -780,15 +812,15 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                     machine_arguments,
                     arguments,
                     evidence_arguments,
+                    source,
                 )?;
-                self.suffixes(syntax_trees, context, expression, input)
+                self.suffixes(syntax_trees, context, expression, input, frame.source_start)
             }
             ArgumentsPurpose::AppliedRequirement {
                 receiver,
                 target,
                 machine_arguments,
             } => {
-                let source = target.source_span();
                 let call = exprs(syntax_trees).insert(ExpressionNode::Call(TableCallExpression {
                     callee: ExpressionHandle::invalid(),
                     receiver,
@@ -1032,6 +1064,7 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                         machine_arguments,
                     },
                     rest,
+                    start.current_source_span(),
                 );
             }
             let (path, input) = parse_path_handle_span(input, |member| {

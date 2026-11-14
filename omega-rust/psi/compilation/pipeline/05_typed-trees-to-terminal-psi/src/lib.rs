@@ -716,33 +716,54 @@ fn finish_reading(
     source.selection_questions = Some(source_selection_questions);
     crate::reach::publish(diagnostic, &services, &mut elaboration)?;
     calling_abis.publish(&mut elaboration.module)?;
+    let declaration_error = |reason| {
+        refuse(
+            diagnostic,
+            Construct::Machine,
+            Unserved::Declaration(reason),
+        )
+    };
+    // Real typed bodies retain their actual declarations in check forms too.
+    // A synthetic frame has no such declaration and is recorded as undeclared.
+    declare::declare(
+        program.typed,
+        &program.symbols,
+        &program.signatures,
+        &program.declaration_symbols,
+        &program.declaration_signatures,
+        &mut elaboration,
+    )
+    .map_err(declaration_error)?;
     if let Some(typed) = declared {
-        declare::declare(
+        elaboration.provider_candidate_intents = declare::provider_candidates(
             typed,
             &program.symbols,
-            &program.signatures,
-            &program.declaration_symbols,
-            &program.declaration_signatures,
-            &mut elaboration,
+            &elaboration.boundaries,
+            &program.supplied,
+            &elaboration.static_conformances,
+            &mut elaboration.module,
         )
-        .and_then(|()| {
-            elaboration.provider_candidate_intents = declare::provider_candidates(
-                typed,
-                &program.symbols,
-                &elaboration.boundaries,
-                &program.supplied,
-                &elaboration.static_conformances,
-                &mut elaboration.module,
-            )?;
-            Ok(())
-        })
-        .map_err(|reason| {
-            refuse(
-                diagnostic,
-                Construct::Machine,
-                Unserved::Declaration(reason),
-            )
-        })?;
+        .map_err(declaration_error)?;
+    } else {
+        if !elaboration.check_form_envelopes.is_empty() {
+            return Err(declaration_error(
+                "check-form envelopes were already retained",
+            ));
+        }
+        elaboration
+            .undeclared
+            .sort_unstable_by_key(|(machine, _)| *machine);
+        for slot in &mut elaboration.module.callables.machine_envelopes {
+            if slot.as_ref().is_some_and(|row| {
+                elaboration
+                    .undeclared
+                    .binary_search_by_key(&row.machine, |(machine, _)| *machine)
+                    .is_ok()
+            }) && let Some(row) = slot.take()
+            {
+                elaboration.check_form_envelopes.push(row);
+            }
+        }
     }
     source.records = program.source_record_correspondence(diagnostic)?;
     reference_results::publish(&mut elaboration, &program.selections)?;
@@ -1224,6 +1245,7 @@ fn lower_program(
             supplied: Vec::new(),
             provider_candidate_intents: Vec::new(),
             undeclared: Vec::new(),
+            check_form_envelopes: Vec::new(),
             reach: ServiceReach::default(),
             external_provider_candidates,
             static_schemas,

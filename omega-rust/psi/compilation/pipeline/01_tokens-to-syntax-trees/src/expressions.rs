@@ -659,7 +659,15 @@ pub(crate) mod parse_postfix {
         syntax_trees: &mut SyntaxTrees,
         arguments: Vec<ExpressionHandle>,
         mut input: Input<'tokens, 'source>,
-    ) -> ParseResult<'tokens, 'source, (HandleSpan<ExpressionHandle>, Box<[Identifier]>)> {
+    ) -> ParseResult<
+        'tokens,
+        'source,
+        (
+            HandleSpan<ExpressionHandle>,
+            Box<[Identifier]>,
+            source::SourceSpan,
+        ),
+    > {
         let mut evidence_arguments = Vec::new();
         if input.at_punctuation(PunctuationKind::Semicolon) {
             input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
@@ -683,11 +691,16 @@ pub(crate) mod parse_postfix {
             }
         }
 
+        let closing = input;
         input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
+        let closing = closing.current_source_span();
         let arguments = syntax_trees
             .expressions
             .insert_expression_handles(arguments);
-        Ok(((arguments, evidence_arguments.into_boxed_slice()), input))
+        Ok((
+            (arguments, evidence_arguments.into_boxed_slice(), closing),
+            input,
+        ))
     }
 
     /// A `.member` projection after the operand parsed so far, or the
@@ -981,6 +994,7 @@ pub(crate) mod parse_postfix {
         machine_arguments: Box<[StaticMachineArgument]>,
         arguments: HandleSpan<ExpressionHandle>,
         evidence_arguments: Box<[Identifier]>,
+        source: source::SourceSpan,
     ) -> Result<ExpressionHandle, ParseError> {
         let callee = expression;
         let expression = exprs_of(syntax_trees).expression(expression);
@@ -1038,7 +1052,6 @@ pub(crate) mod parse_postfix {
             }),
         }?;
         let call = spell_test_group_facet(syntax_trees, call);
-        let source = call.target.source_span();
         let expression = exprs(syntax_trees).insert(ExpressionNode::Call(call));
         exprs(syntax_trees).set_source_span(expression, source);
         Ok(expression)
@@ -1858,6 +1871,25 @@ pub(crate) mod static_targets_tests {
     #[test]
     fn call_roots_retain_distinct_target_occurrences_through_syntax_copy() {
         let text = "const FIRST: u64 = outer(inner()); const SECOND: u64 = library::read(); const THIRD: u64 = receiver.read();";
+        check_call_extents(
+            text,
+            &[
+                ("outer(inner())", "outer", "outer"),
+                ("inner()", "inner", "inner"),
+                ("library::read()", "read", "read"),
+                ("receiver.read()", "read", "read"),
+            ],
+        );
+        check_call_extents(
+            "const COMPUTED: u64 = (factory())(9);",
+            &[
+                ("(factory())(9)", "factory()", "$callable"),
+                ("factory()", "factory", "factory"),
+            ],
+        );
+    }
+
+    fn check_call_extents(text: &str, expected: &[(&str, &str, &str)]) {
         let tokens = Lexer::new(text).tokenize().expect("tokens");
         let syntax = crate::parse_syntax_trees(&tokens).expect("syntax");
         let mut copied = SyntaxTrees::new(source::SourceId::default());
@@ -1871,30 +1903,64 @@ pub(crate) mod static_targets_tests {
                 })
                 .collect::<Vec<_>>();
             let mut spans = Vec::new();
+            let mut target_spans = Vec::new();
+            let mut calls = Vec::new();
             while let Some(expression) = pending.pop() {
                 let ExpressionNode::Call(call) = program.expressions.expression(expression) else {
                     panic!("call");
                 };
                 let span = program.expressions.source_span(expression);
-                assert_eq!(span, call.target.source_span());
+                let target_span = call.target.source_span();
+                let full = &text[span.span.start..span.span.end];
+                let (_, target_text, target_name) = expected
+                    .iter()
+                    .find(|(expected, _, _)| *expected == full)
+                    .unwrap_or_else(|| panic!("unexpected call extent {full:?}"));
                 assert_eq!(
-                    &text[span.span.start..span.span.end],
-                    call.target.as_str(program)
+                    &text[target_span.span.start..target_span.span.end],
+                    *target_text
+                );
+                assert_eq!(call.target.as_str(program), *target_name);
+                assert_eq!(span.source_id, target_span.source_id);
+                assert!(
+                    span.span.start <= target_span.span.start
+                        && target_span.span.end <= span.span.end
                 );
                 assert!(
                     !spans.contains(&span),
-                    "nested and sibling calls have distinct occurrences"
+                    "nested and sibling calls have distinct full occurrences"
+                );
+                assert!(
+                    !target_spans.contains(&target_span),
+                    "nested and sibling targets keep their distinct token occurrences"
                 );
                 spans.push(span);
+                target_spans.push(target_span);
+                calls.push(full);
                 pending.extend(
                     program
                         .expressions
                         .expression_handles(call.arguments)
                         .iter()
-                        .copied(),
+                        .copied()
+                        .filter(|argument| {
+                            matches!(
+                                program.expressions.expression(*argument),
+                                ExpressionNode::Call(_)
+                            )
+                        }),
                 );
+                if call.callee.is_valid()
+                    && matches!(
+                        program.expressions.expression(call.callee),
+                        ExpressionNode::Call(_)
+                    )
+                {
+                    pending.push(call.callee);
+                }
             }
-            assert_eq!(spans.len(), 4);
+            assert_eq!(spans.len(), expected.len());
+            assert!(expected.iter().all(|(full, _, _)| calls.contains(full)));
         }
     }
 

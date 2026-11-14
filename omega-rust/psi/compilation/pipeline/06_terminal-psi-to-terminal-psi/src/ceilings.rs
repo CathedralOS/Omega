@@ -180,7 +180,19 @@ fn machine_envelope<'a>(
     elaboration: &'a terminal_check_tables::program::Elaboration,
     machine: MachineId,
 ) -> Checked<Envelope<'a>> {
-    if let Some(envelope) = elaboration.module.callables.machine_envelope(machine) {
+    let runtime = elaboration.module.callables.machine_envelope(machine);
+    if let Ok(position) = elaboration
+        .check_form_envelopes
+        .binary_search_by_key(&machine, |row| row.machine)
+    {
+        if runtime.is_some() {
+            return Err(fault(machine, "check-form and runtime envelopes overlap"));
+        }
+        return Ok(Envelope::Runtime(
+            &elaboration.check_form_envelopes[position].envelope,
+        ));
+    }
+    if let Some(envelope) = runtime {
         return Ok(Envelope::Runtime(envelope));
     }
     if !elaboration.requirements.is_empty()
@@ -529,11 +541,80 @@ impl Calls<'_> {
     }
 }
 
+fn validate_check_form_envelopes(
+    elaboration: &terminal_check_tables::program::Elaboration,
+) -> Checked<()> {
+    let rows = &elaboration.check_form_envelopes;
+    let Some(first) = rows.first() else {
+        return Ok(());
+    };
+    if rows
+        .windows(2)
+        .any(|pair| pair[0].machine >= pair[1].machine)
+    {
+        return Err(fault(
+            first.machine,
+            "check-form envelopes repeat or disorder a machine identity",
+        ));
+    }
+    let mut undeclared = elaboration
+        .undeclared
+        .iter()
+        .map(|(machine, _)| *machine)
+        .collect::<Vec<_>>();
+    undeclared.sort_unstable();
+    let module = &elaboration.module;
+    for row in rows {
+        let machine = module
+            .machine(row.machine)
+            .ok_or_else(|| fault(row.machine, "check-form envelope names an unknown machine"))?;
+        if machine.declaration.is_some() || module.callables.machine_envelope(row.machine).is_some()
+        {
+            return Err(fault(
+                row.machine,
+                "check-form envelope overlaps a named runtime declaration",
+            ));
+        }
+        if undeclared.binary_search(&row.machine).is_err() {
+            return Err(fault(
+                row.machine,
+                "check-form envelope has no explicitly undeclared source frame",
+            ));
+        }
+        if elaboration.requirements.contains(&row.machine) || machine.blocks.is_empty() {
+            return Err(fault(
+                row.machine,
+                "check-form envelope names a bodyless requirement",
+            ));
+        }
+        terminal_semantics::callable_envelopes::validate_callable_envelope(
+            module,
+            &row.envelope,
+            &machine.parameter_order,
+            &machine.parameters,
+            &machine.structural_parameters,
+        )
+        .map_err(|reason| fault(row.machine, reason))?;
+        if row.envelope.service_reach != machine.published_service_ceiling
+            || services(&row.envelope) != machine.published_synchronous_entries
+            || row.envelope.suspends != machine.published_may_suspend
+            || row.envelope.blocks != machine.published_may_block
+        {
+            return Err(fault(
+                row.machine,
+                "check-form envelope differs from its complete published projections",
+            ));
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn judge(
     elaboration: &terminal_check_tables::program::Elaboration,
 ) -> Checked<Vec<Excess>> {
     let module = &elaboration.module;
     let tables = &elaboration.tables;
+    validate_check_form_envelopes(elaboration)?;
     let Some(first) = module.machines.first().map(|machine| machine.id) else {
         return Ok(Vec::new());
     };
@@ -658,6 +739,11 @@ pub(crate) fn judge(
             .invocations
             .values()
             .any(|call| matches!(call.callee, Callee::Selected { .. }))
+    }) || elaboration.check_form_envelopes.iter().any(|row| {
+        row.envelope
+            .invocations
+            .iter()
+            .any(|entry| matches!(entry, Entry::Parameter(_)))
     }) || module
         .callables
         .machine_envelopes

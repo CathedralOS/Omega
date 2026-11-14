@@ -245,6 +245,10 @@ pub struct Elaboration {
     /// judged like any other and is never published. Empty outside
     /// `elaborate`, whose forms are not programs.
     pub undeclared: Vec<(MachineId, &'static str)>,
+    /// Complete operational questions for explicitly undeclared source check
+    /// frames, ordered strictly by machine identity. These are checking inputs,
+    /// never named runtime publication or executable declaration authority.
+    pub check_form_envelopes: Vec<terminal_psi::TerminalMachineEnvelope>,
     /// Complete normalized questions formed before Terminal judgment. Their
     /// source coordinates are opaque association/diagnostic custody only.
     pub reach: crate::contracts::ServiceReach,
