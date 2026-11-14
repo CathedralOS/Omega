@@ -61,6 +61,7 @@ mod provider_supplies;
 mod published_no_return;
 mod qualified_terms;
 mod ranges;
+mod rankings;
 mod reach;
 mod references;
 mod result_fields;
@@ -225,6 +226,7 @@ fn lower(machines: Vec<Machine>) -> Checked<typed_trees_to_terminal_psi::Elabora
             invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
+            ranking: None,
         });
     }
     typed_trees_to_terminal_psi::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
@@ -1926,6 +1928,7 @@ fn elaborate_over(
             invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
+            ranking: None,
         });
     }
     typed_trees_to_terminal_psi::lower_bodies(id(1), &bodies, &signatures, records).unwrap()
@@ -6252,6 +6255,7 @@ mod generic_bodies {
                 invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
                 crashes: CrashCeiling::DeclaredNone,
                 termination: typed_trees_to_terminal_psi::Termination::Silent,
+                ranking: None,
             });
         }
         typed_trees_to_terminal_psi::lower_generic(
@@ -6849,6 +6853,7 @@ fn crashing_below_ten(
         invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
         crashes: CrashCeiling::Authored(routes),
         termination: typed_trees_to_terminal_psi::Termination::Silent,
+        ranking: None,
     });
     let mut elaboration =
         typed_trees_to_terminal_psi::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
@@ -6941,6 +6946,7 @@ fn crashing_at_zero(
         invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
         crashes: CrashCeiling::DeclaredNone,
         termination: typed_trees_to_terminal_psi::Termination::Silent,
+        ranking: None,
     });
     let mut elaboration =
         typed_trees_to_terminal_psi::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
@@ -6996,6 +7002,7 @@ fn calling_a_zero_route(
         invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
         crashes: CrashCeiling::DeclaredNone,
         termination: typed_trees_to_terminal_psi::Termination::Silent,
+        ranking: None,
     });
     bodies.push(Body {
         slots: vec![u32_type().into()],
@@ -7025,6 +7032,7 @@ fn calling_a_zero_route(
             )),
         )])),
         termination: typed_trees_to_terminal_psi::Termination::Silent,
+        ranking: None,
     });
     let mut elaboration =
         typed_trees_to_terminal_psi::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
@@ -7122,6 +7130,7 @@ fn a_call_that_may_crash_is_covered_by_its_callers_route() {
             invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(caller_routes),
             termination: typed_trees_to_terminal_psi::Termination::Silent,
+            ranking: None,
         });
         bodies.push(Body {
             slots: vec![u32_type().into()],
@@ -7146,6 +7155,7 @@ fn a_call_that_may_crash_is_covered_by_its_callers_route() {
             invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(trap_when(vec![terminal_psi::CrashRouteGuard::Truth])),
             termination: typed_trees_to_terminal_psi::Termination::Silent,
+            ranking: None,
         });
         let mut elaboration = typed_trees_to_terminal_psi::lower_bodies(
             id(1),

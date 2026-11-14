@@ -79,7 +79,7 @@ fn a_measure_that_decreases_on_the_recursive_call_is_accepted() {
 }
 
 #[test]
-fn every_rank_obligation_of_an_accepted_loop_has_a_kernel_checked_certificate() {
+fn every_rank_obligation_of_an_accepted_loop_has_checked_evidence() {
     // machine countdown(remaining: u32) -> u32 terminates by remaining
     //   { remaining > 0 -> countdown(remaining - 1); 0 }
     let mut elaboration = lower_ranked(less_one(), witnessed(0));
@@ -89,7 +89,26 @@ fn every_rank_obligation_of_an_accepted_loop_has_a_kernel_checked_certificate() 
     // the cycle's two edges: the edge beneath the head and the jump back.
     assert_eq!(rows.len(), 3);
     for (obligation, verdict) in rows {
-        assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
+        match verdict {
+            Ok(Discharged::FiniteIntegerRanking(relation)) => {
+                assert_eq!(
+                    relation.carriers,
+                    vec![
+                        semantic_vocabulary::IntegerType::new(
+                            semantic_vocabulary::IntegerSign::Unsigned,
+                            32,
+                        )
+                        .unwrap()
+                    ]
+                );
+                assert!(matches!(elaboration.tables.machines.get(id(1)).unwrap()
+                    .obligations.get(obligation).unwrap().kind,
+                    ObligationKind::WellFoundedness { component } if component == relation.component));
+            }
+            _ => {
+                assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
+            }
+        }
     }
     assert!(matches!(
         judge(Ok(lower_ranked(less_one(), witnessed(0)))).unwrap(),
@@ -97,8 +116,8 @@ fn every_rank_obligation_of_an_accepted_loop_has_a_kernel_checked_certificate() 
     ));
 }
 
-fn witnessed(subject: u32) -> Termination {
-    Termination::Witnessed(typed_trees_to_terminal_psi::Ranking { subject })
+fn witnessed(subject: u32) -> Option<Vec<Expression>> {
+    Some(vec![slot(subject as usize, u32_type())])
 }
 
 fn less_one() -> Expression {
@@ -109,7 +128,7 @@ fn less_one() -> Expression {
 ///  { remaining > 0 -> countdown(<next>, spare); 0 }`
 fn lower_ranked(
     next: Expression,
-    termination: Termination,
+    ranking: Option<Vec<Expression>>,
 ) -> typed_trees_to_terminal_psi::Elaboration {
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
@@ -145,7 +164,12 @@ fn lower_ranked(
         reaches: typed_trees_to_terminal_psi::Ceiling::Inferred,
         invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
         crashes: CrashCeiling::Authored(Vec::new()),
-        termination,
+        termination: if ranking.is_some() {
+            Termination::Promised
+        } else {
+            Termination::Silent
+        },
+        ranking,
     });
     typed_trees_to_terminal_psi::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
         .unwrap()
@@ -337,8 +361,8 @@ fn a_terminating_machine_with_an_unranked_cycle_is_refused() {
     // The loop lowered with no clause is a productive cycle that owes no
     // rank. The same graph under a contract that publishes `Terminates`
     // has nothing that shows it ends.
-    assert!(discharge(&mut lower_ranked(less_one(), Termination::Silent)).is_ok());
-    let mut elaboration = lower_ranked(less_one(), Termination::Silent);
+    assert!(discharge(&mut lower_ranked(less_one(), None)).is_ok());
+    let mut elaboration = lower_ranked(less_one(), None);
     elaboration.module.machines[0].contract.termination =
         semantic_vocabulary::Termination::Terminates;
     let refusal = discharge(&mut elaboration).unwrap_err();

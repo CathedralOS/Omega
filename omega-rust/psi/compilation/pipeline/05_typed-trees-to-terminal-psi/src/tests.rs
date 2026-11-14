@@ -106,6 +106,7 @@ fn signature(parameters: Vec<ScalarType>, result: Option<ScalarType>) -> Signatu
         invokes: crate::Ceiling::Inferred,
         crashes: CrashCeiling::Authored(Vec::new()),
         termination: Termination::Silent,
+        ranking: None,
     }
 }
 
@@ -1890,6 +1891,7 @@ fn a_skipped_operand_cannot_end_the_machine() {
         invokes: crate::Ceiling::Inferred,
         crashes: CrashCeiling::Inferred,
         termination: Termination::Silent,
+        ranking: None,
         ..signature(vec![ScalarType::Boolean], Some(ScalarType::Boolean))
     });
     signatures.push(Signature {
@@ -1897,6 +1899,7 @@ fn a_skipped_operand_cannot_end_the_machine() {
         invokes: crate::Ceiling::Inferred,
         crashes: CrashCeiling::Inferred,
         termination: Termination::Silent,
+        ranking: None,
         ..signature(Vec::new(), Some(ScalarType::Boolean))
     });
     let table = outcomes(

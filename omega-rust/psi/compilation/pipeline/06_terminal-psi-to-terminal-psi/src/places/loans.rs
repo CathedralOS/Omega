@@ -193,10 +193,7 @@ impl Storage<'_> {
     /// The access a root's storage is held with here, when it is a borrowed
     /// formal: the declared access of its structural parameter.
     fn incoming(&self, root: semantic_vocabulary::PlaceId) -> Option<StructuralAccess> {
-        self.lowered
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.place == root)
+        terminal_semantics::structural_argument_source(self.lowered, root, 0)
             .filter(|parameter| parameter.access != StructuralAccess::Owned)
             .map(|parameter| parameter.access)
     }
@@ -278,7 +275,9 @@ impl Storage<'_> {
             ));
         }
         match self.root_kind(raw.root, concerns)? {
-            StructuralPlaceKind::Parameter { .. } | StructuralPlaceKind::OperationResult { .. } => {
+            StructuralPlaceKind::Parameter { .. }
+            | StructuralPlaceKind::BlockParameter { .. }
+            | StructuralPlaceKind::OperationResult { .. } => {
                 Ok((Some(Lender::Owner), None, None, permitted))
             }
             StructuralPlaceKind::ByteSequenceLiteral {

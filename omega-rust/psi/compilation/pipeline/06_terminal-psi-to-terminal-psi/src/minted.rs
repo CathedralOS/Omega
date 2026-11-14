@@ -714,7 +714,7 @@ pub(crate) fn follow_the_lowered_form(
     // comparison on each of its edges (control_flow.md: "a shared
     // well-foundedness question and comparison obligations for every
     // internal edge").
-    for (kind, point, concerns) in crate::ranking::owed(lowered) {
+    for (kind, point, concerns) in crate::rankings::owed(lowered) {
         minted.owed(kind, point, concerns)?;
     }
 

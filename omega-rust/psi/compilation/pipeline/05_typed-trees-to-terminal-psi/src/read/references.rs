@@ -712,6 +712,7 @@ mod tests {
             invokes: crate::Ceiling::Inferred,
             crashes: crate::CrashCeiling::DeclaredNone,
             termination: crate::Termination::Silent,
+            ranking: None,
         };
         let required = signature(&required_regions);
         let supplied = signature(&supplied_regions);

@@ -577,6 +577,15 @@ fn declared_verdicts(text: &str) -> Vec<RouteVerdict> {
 }
 
 fn compilation_verdicts_of(typed: &typed_trees::TypedTrees) -> Vec<RouteVerdict> {
+    compilation_results_of(typed)
+        .into_iter()
+        .map(Result::unwrap)
+        .collect()
+}
+
+pub(super) fn compilation_results_of(
+    typed: &typed_trees::TypedTrees,
+) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
     let entry = entry(typed);
     let prepared = typed_trees_to_terminal_psi::prepare_compilation(
         typed,
@@ -603,7 +612,7 @@ fn compilation_verdicts_of(typed: &typed_trees::TypedTrees) -> Vec<RouteVerdict>
     };
     let verdicts = crate::judge_compilation(prepared);
     assert_eq!(verdicts.len(), expected_verdicts);
-    verdicts.into_iter().map(Result::unwrap).collect()
+    verdicts
 }
 
 #[test]

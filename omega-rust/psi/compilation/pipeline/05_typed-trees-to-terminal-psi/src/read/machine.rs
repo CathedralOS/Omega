@@ -1404,7 +1404,7 @@ impl<'t> Program<'t> {
             ),
         };
 
-        signature.termination = self.termination(id, machine, &signature)?;
+        signature.termination = self.termination(id, machine)?;
         self.inherit_requirement_contract(id, machine, &mut signature, &mut names)?;
         // A machine's header clauses belong to the machine declaration; its
         // formals belong to its one state, which `contract` was given.
@@ -2308,6 +2308,7 @@ impl<'t> Program<'t> {
                 // A requirement's termination is its selected member's to
                 // keep; a machine's is read from its plan by its caller.
                 termination: Termination::Silent,
+                ranking: None,
             },
             names,
         ))
@@ -2334,15 +2335,9 @@ impl<'t> Program<'t> {
         }
     }
 
-    /// What the header says about ending, from the plan stage 02 fills once
-    /// (`MachineTerminationPlan`), and the witness's subject from the typed
-    /// expressions stage 03 keeps beside it (`ranking`).
-    fn termination(
-        &self,
-        id: MachineId,
-        machine: &Machine,
-        signature: &Signature,
-    ) -> Checked<Termination> {
+    /// Read only the published promise here. The body reader retains the
+    /// separately resolved private witness after its formal slots exist.
+    fn termination(&self, id: MachineId, machine: &Machine) -> Checked<Termination> {
         let plan = &machine.termination_plan;
         let promised = match &plan.interface {
             TerminationInterface::InternalDerived
@@ -2360,99 +2355,65 @@ impl<'t> Program<'t> {
                 true
             }
         };
-        Ok(match (&plan.implementation_witness, promised) {
-            (Some(witness), _) => {
-                Termination::Witnessed(self.ranking(id, machine, witness, signature)?)
-            }
-            (None, true) => Termination::Promised,
-            (None, false) => Termination::Silent,
+        Ok(if promised {
+            Termination::Promised
+        } else {
+            Termination::Silent
         })
     }
 
-    /// The ranking a `terminates by` witness supplies, when it is the one
-    /// form lowering ranks: one subject that is a formal of an unsigned
-    /// fixed-width integer type, under `Nat::Descending`.
-    ///
-    /// The subject is read from the typed expression stage 03 keeps for it
-    /// (`RankingExpressionCustody`), never from the plan's rendered text, and
-    /// the view from the identity stage 03 settled: termination.md,
-    /// "Ranking": "Short form without `-> View` requires a carrier-declared
-    /// stable canonical default, immediately elaborated to an explicit
-    /// view." `source/library/core/nat.omg` declares that default for
-    /// "unsigned natural values" only, so a signed subject is not ranked
-    /// here. Every form the page allows beyond this one is refused by name:
-    /// accepting a witness nobody compares would publish its guarantee
-    /// unproved.
+    /// Keep the resolved measure with this body. Reading its expressions uses
+    /// the same formal bindings as the body, so no later stage reparses names.
     fn ranking(
-        &self,
+        &mut self,
         id: MachineId,
         machine: &Machine,
-        witness: &language_semantics::RankingWitness,
-        signature: &Signature,
-    ) -> Checked<crate::body::Ranking> {
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
-        let Some(custody) = self.typed.ranking_expression_custody_for(machine.symbol) else {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Spelling("ranking subject kept only as text"),
-            ));
+        slots: &[Slot],
+    ) -> Checked<Option<Vec<Expression>>> {
+        let Some(witness) = &machine.termination_plan.implementation_witness else {
+            return Ok(None);
         };
-        if witness.ranking_view != language_semantics::RankingViewId::NAT_DESCENDING
-            || !custody.view_arguments.is_empty()
-        {
-            return unserved("ranking view other than Nat::Descending");
+        let unsupported = |detail| refuse(id, Construct::Machine, Unserved::Contract(detail));
+        if witness.rank_range.is_some() || !witness.view_arguments.is_empty() {
+            return Err(unsupported("ranking view arguments and bounded ranges"));
         }
-        if custody.rank_range.is_some() {
-            return unserved("rank range on a ranking witness");
-        }
-        let [subject] = custody.subjects[..] else {
-            return unserved("ranking over several subjects");
-        };
-        let formals = self
-            .typed
-            .machine_states(machine)
-            .first()
-            .map(|state| self.typed.state_parameters(state))
-            .unwrap_or_default();
-        let position = match self.typed.expression_table.expression(subject) {
-            typed_trees::expression::ExpressionNode::Name(path)
-                if path.symbol.is_valid() && path.head_symbol == path.symbol =>
+        let subjects = typed_trees::ranking::resolve_machine_witness_subjects(self.typed, machine)
+            .filter(|subjects| !subjects.is_empty())
+            .ok_or_else(|| unsupported("ranking subjects have no resolved expressions"))?;
+        let mut ranks = Vec::with_capacity(subjects.len());
+        for subject in subjects {
+            let value = self.expression(id, slots, subject, None)?;
+            let rank = match witness.ranking_view {
+                language_semantics::RankingViewId::NAT_DESCENDING => value,
+                language_semantics::RankingViewId::SLICE_LENGTH => Expression {
+                    call_context: None,
+                    source: value.source,
+                    result: Some(ValueType::plain(semantic_vocabulary::ScalarType::Integer(
+                        semantic_vocabulary::IntegerType::new(
+                            semantic_vocabulary::IntegerSign::Unsigned,
+                            64,
+                        )
+                        .expect("u64 is a valid carrier"),
+                    ))),
+                    kind: ExpressionKind::CollectionMeasure {
+                        base: Box::new(value),
+                        measure: typed_trees::expression::CollectionMeasure::Length,
+                    },
+                },
+                _ => {
+                    return Err(unsupported(
+                        "ranking view has no normalized integer relation",
+                    ));
+                }
+            };
+            if !matches!(rank.result, Some(ValueType::Scalar(semantic_vocabulary::ScalarType::Integer(integer), _))
+                if !integer.is_address() && integer.bits().is_some())
             {
-                formals
-                    .iter()
-                    .position(|formal| formal.symbol == path.symbol)
+                return Err(unsupported("ranking needs a closed finite integer carrier"));
             }
-            _ => None,
-        };
-        let Some(position) = position else {
-            return unserved("ranking subject that is not a formal");
-        };
-        let ranked = matches!(
-            signature.parameters.get(position),
-            Some(ValueType::Scalar(semantic_vocabulary::ScalarType::Integer(integer), _))
-                if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
-                    && !integer.is_address()
-                    && matches!(integer.width(), semantic_vocabulary::IntegerWidth::Bits(_))
-        );
-        if !ranked
-            || signature.erased.contains(&position)
-            || signature
-                .borrowed
-                .iter()
-                .any(|borrowed| borrowed.position == position)
-        {
-            return unserved("ranking subject that is not an unsigned fixed-width integer formal");
+            ranks.push(rank);
         }
-        Ok(crate::body::Ranking {
-            subject: u32::try_from(position).map_err(|_| {
-                refuse(
-                    id,
-                    Construct::Machine,
-                    Unserved::Contract("ranking subject position"),
-                )
-            })?,
-        })
+        Ok(Some(ranks))
     }
 
     /// Whether the type parameter `rigid` of `machine` is declared `[copy]`.
@@ -2856,6 +2817,17 @@ impl<'t> Program<'t> {
                 }
             })
             .collect();
+        let ranking = self.ranking(id, machine, &slots)?;
+        self.signatures
+            .get_mut(id)
+            .ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Machine("missing signature"),
+                )
+            })?
+            .ranking = ranking;
         let statements = typed.statement_table.statements(state.statement_nodes);
         if let Some(names) = self.names.get_mut(id) {
             for (position, statement) in statements.iter().enumerate() {

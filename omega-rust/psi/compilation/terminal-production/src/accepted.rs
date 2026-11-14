@@ -639,6 +639,7 @@ mod tests {
             invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
+            ranking: None,
         });
         typed_trees_to_terminal_psi::lower_bodies(
             MachineId::new(1).unwrap(),

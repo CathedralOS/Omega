@@ -3327,6 +3327,7 @@ mod tests {
             invokes: crate::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
+            ranking: None,
         });
         let mut bodies = IdTable::default();
         bodies.push(Body {

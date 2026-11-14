@@ -75,8 +75,8 @@ fn named_captures(typed: &TypedTrees) -> NamedCaptures {
 
 pub use body::{
     Axis, Body, Borrowed, BorrowedReferent, CaseType, Ceiling, CrashCeiling, DomainSet, Expression,
-    ExpressionKind, Policy, Qualification, Ranking, RecordField, RecordType, Selector, Signature,
-    Statement, StorageShape, Strict, Target, Termination, ValueType, self_place,
+    ExpressionKind, Policy, Qualification, RecordField, RecordType, Selector, Signature, Statement,
+    StorageShape, Strict, Target, Termination, ValueType, self_place,
 };
 pub use callable_formations::check_bound_callable_shapes;
 pub use compilation::{PreparedSource, prepare_compilation};
@@ -1220,6 +1220,7 @@ mod publication_scope_tests {
             invokes: crate::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
+            ranking: None,
         });
         let lower = |publication| {
             lower_generic_for(

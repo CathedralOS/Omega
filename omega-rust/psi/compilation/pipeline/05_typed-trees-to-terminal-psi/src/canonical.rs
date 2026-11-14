@@ -179,9 +179,24 @@ pub(crate) fn substitute(
     actuals: &[ValueId],
     id: MachineId,
 ) -> Checked<Proposition> {
+    substitute_parameters(proposition, actuals, &[], id)
+}
+
+/// A loop header restates a source contract over its own parameter identities.
+/// Storage terms remain observations of that header's live parameters; they
+/// introduce no facts until every incoming edge proves the predicate.
+pub(crate) fn substitute_parameters(
+    proposition: &Proposition,
+    actuals: &[ValueId],
+    places: &[semantic_vocabulary::PlaceId],
+    id: MachineId,
+) -> Checked<Proposition> {
     let substituted = terminal_semantics::substitution::clauses::substitute_clause(
         proposition,
-        &mut ScalarFormals(actuals),
+        &mut ScalarFormals {
+            values: actuals,
+            places,
+        },
     )
     .map_err(|detail| refuse(id, Construct::Machine, Unserved::Contract(detail)))?;
     canonical_clause(substituted, id)
@@ -218,7 +233,24 @@ fn canonical_clause(proposition: Proposition, id: MachineId) -> Checked<Proposit
     }
 }
 
-struct ScalarFormals<'a>(&'a [ValueId]);
+struct ScalarFormals<'a> {
+    values: &'a [ValueId],
+    places: &'a [semantic_vocabulary::PlaceId],
+}
+
+impl ScalarFormals<'_> {
+    fn place(
+        &self,
+        formal: semantic_vocabulary::PlaceId,
+    ) -> Result<semantic_vocabulary::PlaceId, &'static str> {
+        usize::try_from(formal.get())
+            .ok()
+            .and_then(|position| position.checked_sub(1))
+            .and_then(|position| self.places.get(position))
+            .copied()
+            .ok_or("clause names storage that is not a structural formal")
+    }
+}
 
 impl terminal_semantics::substitution::clauses::ClauseBindings for ScalarFormals<'_> {
     type Error = &'static str;
@@ -231,19 +263,55 @@ impl terminal_semantics::substitution::clauses::ClauseBindings for ScalarFormals
         let actual = usize::try_from(formal.get())
             .ok()
             .and_then(|position| position.checked_sub(1))
-            .and_then(|position| self.0.get(position))
+            .and_then(|position| self.values.get(position))
             .ok_or("clause names a value that is not a formal")?;
         Ok(ScalarTerm::value(*actual, scalar_type))
     }
 
     fn field(
         &mut self,
-        _: semantic_vocabulary::ContentPlaceVersion,
-        _: semantic_vocabulary::PlaceId,
-        _: &[semantic_vocabulary::CanonicalStructuralPathSegment],
-        _: semantic_vocabulary::ScalarType,
+        version: semantic_vocabulary::ContentPlaceVersion,
+        root: semantic_vocabulary::PlaceId,
+        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        scalar_type: semantic_vocabulary::ScalarType,
     ) -> Result<ScalarTerm, Self::Error> {
-        Err("clause restatement has no captured structural entry value")
+        if version != semantic_vocabulary::ContentPlaceVersion::Current {
+            return Err("a loop header cannot restate a prior invocation's storage snapshot");
+        }
+        let root = self.place(root)?;
+        let path = path.to_vec();
+        Ok(match scalar_type {
+            semantic_vocabulary::ScalarType::Integer(scalar_type) => ScalarTerm::IntegerField {
+                version,
+                root,
+                path,
+                scalar_type,
+            },
+            semantic_vocabulary::ScalarType::Boolean => ScalarTerm::BooleanField {
+                version,
+                root,
+                path,
+            },
+            semantic_vocabulary::ScalarType::IeeeFloat(format) => ScalarTerm::IeeeFloatField {
+                version,
+                root,
+                path,
+                format,
+            },
+        })
+    }
+
+    fn extent(
+        &mut self,
+        root: semantic_vocabulary::PlaceId,
+        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        scalar_type: semantic_vocabulary::IntegerType,
+    ) -> Result<ScalarTerm, Self::Error> {
+        Ok(ScalarTerm::ViewExtent {
+            root: self.place(root)?,
+            path: path.to_vec(),
+            scalar_type,
+        })
     }
 
     fn case(

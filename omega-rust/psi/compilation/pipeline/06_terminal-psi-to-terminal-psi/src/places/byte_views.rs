@@ -360,6 +360,51 @@ impl Storage<'_> {
         Ok(())
     }
 
+    /// A rank observes one descriptor binding at a specified block cut.
+    /// Payload-only calls may keep that binding; replacement and unresolved
+    /// overlapping writes may not reuse its earlier observation.
+    pub(crate) fn rank_descriptor_kept(
+        &self,
+        source: &StructuralArgument,
+        block: semantic_vocabulary::BlockId,
+        from: usize,
+        until: usize,
+    ) -> Checked<bool> {
+        let concerns = Construct::Block(block);
+        let raw = self.argument(source, concerns)?;
+        let descriptor = self.backing(&raw, block, from, concerns)?;
+        // Every pointer binding crossed on the way to the descriptor must
+        // remain frozen too; a stable old destination cannot authenticate a
+        // later observation through a rebound reference.
+        let mut prefixes = Vec::new();
+        for (position, segment) in raw.segments.iter().enumerate() {
+            if *segment == terminal_check_tables::bindings::Segment::Referent {
+                let prefix = super::Lineage {
+                    root: raw.root,
+                    segments: raw.segments[..position].to_vec(),
+                };
+                prefixes.push(self.backing(&prefix, block, from, concerns)?);
+            }
+        }
+        let mut leaf = descriptor.clone();
+        leaf.segments
+            .push(terminal_check_tables::bindings::Segment::Extent);
+        for row in &self.log {
+            if row.block != block || row.position <= from || row.position > until {
+                continue;
+            }
+            if prefixes
+                .iter()
+                .any(|prefix| super::overlap(&row.lineage, prefix))
+                || super::overlap(&row.lineage, &descriptor)
+                    && !self.call_preserves_extent(super::Asked::Contents(&leaf), row, concerns)?
+            {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
     pub(super) fn readable_byte_view(&self, operation: &Operation, root: PlaceId) -> Checked<()> {
         let concerns = Construct::Operation(operation.id);
         let shape = self.byte_shape(root, &[], concerns)?;

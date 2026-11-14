@@ -368,29 +368,6 @@ fn what_the_lane_does_not_serve_yet_on_a_cycle_is_refused_by_name() {
         refused(vec![countdown(promised)]),
         "contract termination promise over a call cycle"
     );
-    // A witness ranks the loop of the one machine that writes it. On a
-    // cycle of two machines it is refused by name.
-    let mut witnessed = plain();
-    witnessed.termination = Termination::Witnessed(crate::Ranking { subject: 0 });
-    let through = |callee: u64, header: &Signature| {
-        (
-            Body {
-                slots: scalars(vec![u32_type()]),
-                statements: vec![
-                    guarded(
-                        positive(0),
-                        call(callee, vec![less_one(0)], Some(u32_type())),
-                    ),
-                    returns(integer(0)),
-                ],
-            },
-            header.clone(),
-        )
-    };
-    assert_eq!(
-        refused(vec![through(2, &witnessed), through(1, &witnessed)]),
-        "contract ranking witness on a call cycle of several machines"
-    );
     let mut guarded_route = plain();
     guarded_route.crashes = CrashCeiling::Authored(vec![CrashRouteBucket {
         cause: CrashCause::Trap,
@@ -425,7 +402,8 @@ fn what_the_lane_does_not_serve_yet_on_a_cycle_is_refused_by_name() {
 ///  { remaining > 0 -> countdown(remaining - 1); 0 }`
 fn ranked_countdown() -> (Body, Signature) {
     let mut witnessed = signature(vec![u32_type()], Some(u32_type()));
-    witnessed.termination = Termination::Witnessed(crate::Ranking { subject: 0 });
+    witnessed.termination = Termination::Promised;
+    witnessed.ranking = Some(vec![slot(0, u32_type())]);
     countdown(witnessed)
 }
 
@@ -571,7 +549,8 @@ fn a_promise_over_a_ranked_loop_is_served_and_over_an_unranked_one_refused() {
         looping
     };
     let mut witnessed = signature(vec![u32_type()], Some(u32_type()));
-    witnessed.termination = Termination::Witnessed(crate::Ranking { subject: 0 });
+    witnessed.termination = Termination::Promised;
+    witnessed.ranking = Some(vec![slot(0, u32_type())]);
     assert!(elaborate(vec![outer(), looping(witnessed)]).is_ok());
     let Err(refusal) = elaborate(vec![
         outer(),
@@ -594,4 +573,17 @@ fn a_promise_on_a_machine_that_reaches_no_cycle_is_served() {
         statements: vec![returns(integer(7))],
     };
     assert!(elaborate(vec![(body, promised)]).is_ok());
+}
+
+#[test]
+fn a_private_countdown_measure_survives_loop_lowering() {
+    let mut declared = signature(vec![u32_type()], Some(u32_type()));
+    declared.ranking = Some(vec![slot(0, u32_type())]);
+    let lowered = elaborate(vec![countdown(declared)]).expect("countdown lowers with its measure");
+    let machine = &lowered.module.machines[0];
+    assert!(machine.ranked_scc.is_some());
+    assert_eq!(
+        machine.contract.termination,
+        semantic_vocabulary::Termination::NoGuarantee
+    );
 }
