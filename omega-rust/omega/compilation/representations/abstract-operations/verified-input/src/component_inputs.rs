@@ -11,6 +11,7 @@ pub struct ComponentExportInput<'input> {
 }
 
 pub struct ComponentNativeInputs<'input> {
+    authorization: &'input terminal_installation::AuthorizedTerminalArtifact,
     component: &'input VerifiedComponent,
     evidence: Option<&'input Arc<terminal_codec::EvidenceSeals>>,
     proposal: &'input TerminalNativeRealizationProposal,
@@ -61,6 +62,10 @@ impl<'input> AdmittedNativeComponentCall<'input> {
 }
 
 impl<'input> ComponentNativeInputs<'input> {
+    pub const fn authorization(&self) -> &'input terminal_installation::AuthorizedTerminalArtifact {
+        self.authorization
+    }
+
     pub const fn evidence(&self) -> Option<&'input Arc<terminal_codec::EvidenceSeals>> {
         self.evidence
     }
@@ -195,6 +200,7 @@ impl RetainedComponentNativeInputs {
             })
             .collect::<Result<Vec<_>, String>>()?;
         Ok(ComponentNativeInputs {
+            authorization: self.retained.authorization(),
             component: &self.component,
             evidence: self.retained.evidence(),
             proposal,

@@ -6,7 +6,7 @@
 // another package's data rejects at the owner. Two machines binding one
 // token at one home with the same parameters are duplicate participating
 // shapes and reject at the later one. Typing selects among a home's machines
-// by their operands (typing/operators.omg).
+// by their operands (pipeline/03_symbol-resolved-trees-to-typed-trees/operators.omg).
 public machine bind_operator_homes(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
 crashes Trap
 {

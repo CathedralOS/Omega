@@ -27,11 +27,11 @@ pub(crate) mod native_admission {
     }
 
     pub fn admit_native_realization<'execution>(
-        artifact: &CanonicalTerminalArtifact,
+        authorization: &terminal_installation::AuthorizedTerminalArtifact,
         request: &NativeAdmissionRequest<'_, 'execution>,
     ) -> Result<AdmittedNativeRealization<'execution>, Vec<Diagnostic>> {
         let input = VerifiedNativeArtifactInput::prepare_with_private_entry_ram(
-            artifact,
+            authorization,
             request.providers.profile,
             request.entry,
             request.private_entry_ram,
@@ -45,6 +45,7 @@ pub(crate) mod native_admission {
             },
         )
         .map_err(artifact_lowering_error)?;
+        let artifact = authorization.artifact();
         let input = input
             .bind_selected_provider_coordinates(artifact, request.providers.selected_provider_plans)
             .map_err(|error| realization_error("selected provider coordinates", error))?;
@@ -56,6 +57,11 @@ pub(crate) mod native_admission {
         artifact: &CanonicalTerminalArtifact,
         request: &NativeAdmissionRequest<'_, 'execution>,
     ) -> Result<AdmittedNativeRealization<'execution>, Vec<Diagnostic>> {
+        input
+            .context()
+            .authorization()
+            .require_artifact(artifact)
+            .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
         let executed_boundaries: BTreeSet<BoundaryMachineId> = input
             .plan()
             .boundary_machines
@@ -258,8 +264,8 @@ pub(crate) mod native_admission {
 
     pub fn artifact_lowering_error(error: ArtifactLoweringError) -> Vec<Diagnostic> {
         match error {
-            ArtifactLoweringError::SemanticDecode(error) => {
-                realization_error("semantic section", error)
+            ArtifactLoweringError::HostAuthorization(error) => {
+                realization_error("host producer authorization", error)
             }
             error => realization_error("native artifact lowering", error),
         }

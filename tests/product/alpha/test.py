@@ -67,7 +67,7 @@ def refused(name, source, status, entry=0):
 def source_unit_customer():
     # Pack the actual source declarations unchanged. The wrapper supplies a
     # canonical caller; Python implements no part of their behavior.
-    owned = (ROOT / 'source/psi/source/source.omg').read_bytes()
+    owned = (ROOT / 'source/psi/foundation/source.omg').read_bytes()
     source_id = owned[owned.index(b'public data SourceId [copy]'):
                       owned.index(b'public data Span [copy]')]
     source_unit = owned[owned.index(b'public data SourceUnit'):

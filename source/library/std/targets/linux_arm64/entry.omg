@@ -19,14 +19,13 @@ boundary trait LinuxArm64PhysicalEntry {
     machine enter(argc: u64) -> i32 reaches none crashes Trap crashes Abort;
 }
 
-data LinuxArm64 {}
 LinuxArm64CallingPolicy satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
-        LinuxArm64::plan(signature)
+        linux_arm64_entry_plan(signature)
     }
 }
 
-machine LinuxArm64::plan(signature: BoundarySignature) -> BoundaryPlanResult
+machine linux_arm64_entry_plan(signature: BoundarySignature) -> BoundaryPlanResult
     satisfies CallingPolicy::plan
 {
     transition signature.parameter_count {
@@ -58,8 +57,8 @@ machine LinuxArm64::plan(signature: BoundarySignature) -> BoundaryPlanResult
     machine physical_shapes(argc: ValueShape, result: ValueShape)
         -> BoundaryPlanResult
     {
-        transition HostedEntryShapes::integer_shape(&argc, 8)
-            && HostedEntryShapes::integer_shape(&result, 4)
+        transition hosted_entry_integer_shape(&argc, 8)
+            && hosted_entry_integer_shape(&result, 4)
         {
             true -> build_physical()
             _ -> reject()
@@ -74,10 +73,10 @@ machine LinuxArm64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         // writable argument object. The image's base arrives in the machine
         // stack pointer, which the register vocabulary cannot name as a value
         // location; the generated bridge observes it before switching stacks.
-        output.call.parameters[0] = LinuxArm64::stack_word(8);
+        output.call.parameters[0] = linux_arm64_entry_stack_word(8);
         output.call.has_result = true;
         // Process completion status leaves in w0 under exit_group.
-        output.call.result = LinuxArm64::named_word(4, 0);
+        output.call.result = linux_arm64_entry_named_word(4, 0);
         transition { _ -> finish(output, true) }
     }
 
@@ -104,8 +103,8 @@ machine LinuxArm64::plan(signature: BoundarySignature) -> BoundaryPlanResult
     machine semantic_shapes(image: ValueShape, storage: ValueShape,
         signature: BoundarySignature) -> BoundaryPlanResult
     {
-        transition HostedEntryShapes::extent_shape(image, &signature)
-            && HostedEntryShapes::extent_shape(storage, &signature)
+        transition hosted_entry_extent_shape(image, &signature)
+            && hosted_entry_extent_shape(storage, &signature)
         {
             true -> build_semantic()
             _ -> reject()
@@ -117,8 +116,8 @@ machine LinuxArm64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         output.call.parameter_count = 2;
         // The generated bridge passes the image and initial-storage roots in
         // the first four AAPCS64 integer registers.
-        output.call.parameters[0] = HostedEntryShapes::arm_extent_value(0, 1);
-        output.call.parameters[1] = HostedEntryShapes::arm_extent_value(2, 3);
+        output.call.parameters[0] = hosted_entry_arm_extent_value(0, 1);
+        output.call.parameters[1] = hosted_entry_arm_extent_value(2, 3);
         transition { _ -> finish(output, false) }
     }
 
@@ -224,7 +223,7 @@ machine LinuxArm64::plan(signature: BoundarySignature) -> BoundaryPlanResult
     }
 }
 
-machine LinuxArm64::named_word(bytes: u64, register: u64) -> ValuePlacement {
+machine linux_arm64_entry_named_word(bytes: u64, register: u64) -> ValuePlacement {
     let mut value: ValuePlacement;
     value.shape.class = AbiValueClass::Integer;
     value.shape.byte_size = bytes;
@@ -237,7 +236,7 @@ machine LinuxArm64::named_word(bytes: u64, register: u64) -> ValuePlacement {
     value
 }
 
-machine LinuxArm64::stack_word(bytes: u64) -> ValuePlacement {
+machine linux_arm64_entry_stack_word(bytes: u64) -> ValuePlacement {
     // The kernel places the argument count at the base of the incoming
     // process-stack image; a stack location names that delivery without a
     // stack-pointer register the value vocabulary does not carry.

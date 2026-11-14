@@ -6694,14 +6694,14 @@ pub(crate) mod substitution {
             }
             let value = CanonicalConstValue::from_atom(spelling)?;
             return match value.identity().decode_encoding()? {
-                DecodedCanonicalConstValue::Integer { value, .. } => Some(value),
+                DecodedCanonicalConstValue::Integer { value, .. } => value.to_i128(),
                 _ => None,
             };
         }
         let declaration = program.const_declaration_by_symbol(symbol)?;
         let encoding = declaration.evaluated_value.as_ref()?.encoding()?;
         match CanonicalConstValue::new("", encoding.to_owned(), "").decode_encoding()? {
-            DecodedCanonicalConstValue::Integer { value, .. } => Some(value),
+            DecodedCanonicalConstValue::Integer { value, .. } => value.to_i128(),
             _ => None,
         }
     }

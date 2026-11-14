@@ -1,6 +1,6 @@
 // Conditional toolchain `<build-prelude>` selection (`prepare_build_prelude`).
 //
-// Injects `build_declarations::build_prelude_source()` only when the selected `build`
+// Injects `build_declarations::build_prelude()` only when the selected `build`
 // entry source declares a `build` machine without declaring its own `Build` data type.
 // When another file in the program declares a product-local `Build` data type, we
 // also emit a `SourceScopedTopLevelBinding` alias (`alias_for`) so `build.omg` binds
@@ -10,7 +10,7 @@
 use super::SourceStorage;
 
 pub(crate) struct BuildPrelude {
-    pub source: String,                      // Toolchain build-prelude source text.
+    pub source: build_declarations::BuildPrelude,
     pub alias_for: Option<source::SourceId>, // Optional `build.omg` `SourceId` requiring a scoped `Build` alias.
 }
 
@@ -50,7 +50,7 @@ pub(crate) fn prepare_build_prelude(
     }
 
     Some(BuildPrelude {
-        source: build_declarations::build_prelude_source(),
+        source: build_declarations::build_prelude(),
         alias_for: build_source_id.filter(|_| program_declares_build_data),
     })
 }

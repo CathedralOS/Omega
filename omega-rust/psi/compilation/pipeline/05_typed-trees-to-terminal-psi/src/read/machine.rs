@@ -840,6 +840,25 @@ impl<'t> Program<'t> {
                 Unserved::Call("target is not a machine declaration"),
             )
         })?;
+        // A data declaration is not a code namespace, even when all
+        // arguments are explicit (machines.md, "Static declarations and
+        // explicit state"). Test retained attachment, not name spelling:
+        // module, trait and lexical qualification remain independent.
+        if machine.attached_data_symbol.is_valid()
+            || machine.attached_data_application.is_valid()
+            || machine.generic_data_template.is_valid()
+        {
+            return Err(crate::reject(
+                id,
+                SourceOrigin::of(
+                    self.typed
+                        .symbols
+                        .symbol_provenance_source_span(machine.symbol)
+                        .unwrap_or_default(),
+                ),
+                "a data declaration cannot own a machine; declare an ordinary static machine",
+            ));
+        }
         let states = span(&typed.machine_states, machine.states, id, "state span")?;
         let [state] = states else {
             return Err(refuse(
@@ -883,43 +902,6 @@ impl<'t> Program<'t> {
             != language_core::inline_assembly::AsmTargetApplicability::Any
         {
             return unserved("assembly target");
-        }
-        // A machine declared under a data type's name, `machine
-        // Counter::clear(counter: &mut Counter)`, is an ordinary static
-        // machine whose name has two parts. machines.md, "Static
-        // declarations and explicit state": "All machines are static
-        // declarations independent of data", and qualification "never binds
-        // code to a data type". So the data type gives the machine no
-        // parameter, no storage and no `self`: its formals and body are read
-        // like any other machine's, and a caller passes every argument
-        // (`calls`, `names_carrier`). That page also retires the spelling;
-        // the typed trees still hold it. It was served while a refusal here
-        // sent the program to the deleted checker, which accepted it; no
-        // one has ruled since whether this reader should refuse it.
-        //
-        // What stays refused is a data type that could give the machine
-        // something after all: one applied at type arguments, or a generic
-        // one, whose parameters the body would be read under. Lifetime
-        // parameters of the data type give it nothing either: the machine
-        // is read under its own lifetime binders, and a call gives a region
-        // only to those (`calls`, `view_regions`).
-        if machine.attached_data_application.is_valid() {
-            return unserved("attached data applied at type arguments");
-        }
-        if machine.attached_data_symbol.is_valid() {
-            let plain = self
-                .data_declaration(machine.attached_data_symbol)
-                .is_some_and(|data| {
-                    data.type_parameters.is_empty()
-                        && data.generic_instance.is_none()
-                        && data.conformance_bounds.is_empty()
-                });
-            if !plain {
-                return unserved("attached generic data");
-            }
-        }
-        if machine.generic_data_template.is_valid() {
-            return unserved("generic data template");
         }
         // A token spelling associates this ordinary declaration with a source
         // operator occurrence. Typing prepares its unique closed selection as

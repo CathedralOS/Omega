@@ -47,7 +47,7 @@ pub(crate) fn prepare_components<'input>(
             .map(|export| {
                 terminal_psi_to_abstract_operations::prepare_native_callable_execution(
                     proposal,
-                    artifact,
+                    input.authorization(),
                     terminal_psi::TargetMachineCallable::Machine(export.candidate.candidate),
                 )?
                 .with_evidence(input.evidence().cloned())

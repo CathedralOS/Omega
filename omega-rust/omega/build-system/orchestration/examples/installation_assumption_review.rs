@@ -21,7 +21,12 @@ fn main() -> Result<()> {
         }
         [mode, root, target, output] if mode == "inspect" => inspect(root, target, output),
         [mode, root, target, output] if mode == "prepare" => saved_project::prepare(root, target, output),
-        [mode, prepared, output, records @ ..] if mode == "finish" => saved_project::finish(prepared, output, records),
+        [mode, trust, prepared, output, records @ ..] if mode == "finish" && trust == "--trust-producer" => {
+            // This example's operator makes a separate producer-trust decision;
+            // saved hashes and environment assumptions cannot make it for them.
+            let producer = terminal_installation::HostProducerTrust::accept("operator-accepted saved-project producer");
+            saved_project::finish(prepared, output, records, &producer)
+        }
         [mode, artifact, target, entry, installation, environment, caller, output] if mode == "accept-bootstrap" || mode == "accept-interrupt-delivery" => {
             accept(mode, artifact, target, entry, installation, environment, caller, output)
         }
@@ -31,7 +36,7 @@ fn main() -> Result<()> {
             }
             Ok(())
         }
-        _ => Err("usage: installation_assumption_review inspect|prepare ROOT TARGET NEW_DIRECTORY | accept-bootstrap|accept-interrupt-delivery TERMINAL TARGET ENTRY_ID INSTALLATION_ID ENVIRONMENT_DESCRIPTION CALLER NEW_RECORD | finish PREPARED_DIRECTORY NEW_DIRECTORY [REVIEW_RECORD...] | show RECORD".into()),
+        _ => Err("usage: installation_assumption_review inspect|prepare ROOT TARGET NEW_DIRECTORY | accept-bootstrap|accept-interrupt-delivery TERMINAL TARGET ENTRY_ID INSTALLATION_ID ENVIRONMENT_DESCRIPTION CALLER NEW_RECORD | finish --trust-producer PREPARED_DIRECTORY NEW_DIRECTORY [REVIEW_RECORD...] | show RECORD".into()),
     }
 }
 

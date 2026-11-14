@@ -340,24 +340,11 @@ impl Discharge {
 /// `knowledge` table. A refusal here concerns the module itself (an identity
 /// that does not resolve, knowledge already present); a refusal of one
 /// obligation is its verdict.
+/// Branch conditions, dispatch bindings and value relations are ordinary
+/// premises, not selectable comparison modes. Explicit proof replay uses
+/// the same preparation rules without changing source acceptance.
 pub fn discharge(elaboration: &mut Elaboration) -> Checked<Discharge> {
-    discharge_with(elaboration, Knowledge::All)
-}
-
-/// Which reasoning `discharge_with` uses. The checker uses `All`; the other
-/// two exist only so a measurement can count what branch facts and relations
-/// between values each turn from `Unproved` to discharged.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Knowledge {
-    All,
-    WithoutBranchConditions,
-    /// No branch facts and no relations between values: literal intervals.
-    LiteralIntervals,
-}
-
-/// `discharge`, with the knowledge set chosen.
-pub fn discharge_with(elaboration: &mut Elaboration, knowledge: Knowledge) -> Checked<Discharge> {
-    discharge_inner(elaboration, knowledge, &[])
+    discharge_inner(elaboration, &[])
 }
 
 /// `discharge`, where each machine of `carried` is one stage 04 generated
@@ -374,14 +361,10 @@ pub fn discharge_carrying(
     elaboration: &mut Elaboration,
     carried: &[Carried<'_>],
 ) -> Checked<Discharge> {
-    discharge_inner(elaboration, Knowledge::All, carried)
+    discharge_inner(elaboration, carried)
 }
 
-fn discharge_inner(
-    elaboration: &mut Elaboration,
-    knowledge: Knowledge,
-    carried: &[Carried<'_>],
-) -> Checked<Discharge> {
+fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Checked<Discharge> {
     minted::width_questions_are_minted(elaboration)?;
     operational::judge(elaboration)?;
     // A caller may retain old contents only outside the callee's actual
@@ -411,9 +394,9 @@ fn discharge_inner(
     // its callers establish is a further clause. A summary already in the
     // contract is not added twice.
     let mut unreached = Unreached::new(elaboration);
-    result_summaries::infer(elaboration, knowledge, &mut unreached)?;
-    entry_inputs::infer(elaboration, knowledge, &mut unreached)?;
-    result_summaries::infer(elaboration, knowledge, &mut unreached)?;
+    result_summaries::infer(elaboration, &mut unreached)?;
+    entry_inputs::infer(elaboration, &mut unreached)?;
+    result_summaries::infer(elaboration, &mut unreached)?;
     let branches: Vec<(MachineId, terminal_check_tables::program::Branch)> =
         elaboration.authored_branches().collect();
     let module = &elaboration.module;
@@ -455,7 +438,6 @@ fn discharge_inner(
             &elaboration.domains,
             id,
             tables,
-            knowledge,
             &beyond,
             carried.iter().find(|carried| carried.specialization == id),
             &branches
@@ -562,7 +544,6 @@ fn machine(
     domains: &IdTable<StructuralTypeId, Vec<Proposition>>,
     id: MachineId,
     tables: &mut MachineTables,
-    knowledge: Knowledge,
     unreached: &[ValueId],
     carried: Option<&Carried<'_>>,
     branches: &[terminal_check_tables::program::Branch],
@@ -583,7 +564,7 @@ fn machine(
         graph,
         context,
         reference_graph,
-    } = prepare(module, domains, id, tables, knowledge)?;
+    } = prepare(module, domains, id, tables)?;
     let references = std::cell::RefCell::new(
         terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
             &module.structural_types,
@@ -625,15 +606,7 @@ fn machine(
     // downstream obligations."). A declared one holds because every arrival
     // proves it, and the closure is accepted only when every obligation is
     // discharged (`judge`).
-    let declared = joins::prepare(
-        lowered,
-        id,
-        tables,
-        &graph,
-        &context,
-        invariants,
-        knowledge == Knowledge::All,
-    )?;
+    let declared = joins::prepare(lowered, id, tables, &graph, &context, invariants)?;
     let weakened_joins = joins::check(
         &joins::Machine {
             module,
@@ -643,7 +616,6 @@ fn machine(
             types: &types,
             graph: &graph,
             context: &context,
-            relations: knowledge != Knowledge::LiteralIntervals,
             declared: &declared,
             unreached,
         },
@@ -685,7 +657,6 @@ fn machine(
                 obligation,
                 row.created_at,
                 goal,
-                knowledge != Knowledge::LiteralIntervals,
                 unreached,
             )
             .map(Discharged::Certificate)
@@ -811,7 +782,6 @@ fn machine(
                 window.obligation,
                 consumption.point,
                 goal,
-                knowledge != Knowledge::LiteralIntervals,
                 unreached,
             )
         });
@@ -856,15 +826,7 @@ fn machine(
             verdict,
         });
     }
-    let impossible = impossible_arms(
-        &context,
-        &graph,
-        tables,
-        lowered,
-        id,
-        branches,
-        knowledge != Knowledge::LiteralIntervals,
-    );
+    let impossible = impossible_arms(&context, &graph, tables, lowered, id, branches);
     Ok(MachineDischarge {
         verdicts: settled,
         uses,
@@ -893,7 +855,6 @@ fn impossible_arms(
     lowered: &TerminalMachine,
     id: MachineId,
     branches: &[terminal_check_tables::program::Branch],
-    relations: bool,
 ) -> Vec<ImpossibleArm> {
     let mut impossible = Vec::new();
     for branch in branches {
@@ -910,7 +871,7 @@ fn impossible_arms(
             .map_or(ProgramPoint::BlockEntry(decided.id), |operation| {
                 ProgramPoint::AfterOperation(operation.id)
             });
-        if refuted(context, graph, tables, id, before, relations).is_some() {
+        if refuted(context, graph, tables, id, before).is_some() {
             continue;
         }
         let Some(rows) = refuted(
@@ -919,7 +880,6 @@ fn impossible_arms(
             tables,
             id,
             ProgramPoint::BlockEntry(branch.block),
-            relations,
         ) else {
             continue;
         };
@@ -956,18 +916,11 @@ fn refuted(
     tables: &MachineTables,
     id: MachineId,
     point: ProgramPoint,
-    relations: bool,
 ) -> Option<Vec<KnowledgeId>> {
     let probe = ObligationId::new(1)?;
     let known = hypotheses(graph, tables, id, probe, point).ok()?;
     let refutes = |assumptions: &[Proposition]| {
-        let mut prover = prove::Prover::new(
-            context,
-            assumptions,
-            &known.axioms,
-            &tables.values,
-            relations,
-        );
+        let mut prover = prove::Prover::new(context, assumptions, &known.axioms, &tables.values);
         let Ok(proof) = prover.prove(&Proposition::Falsehood) else {
             return false;
         };
@@ -1024,7 +977,6 @@ fn fill_knowledge(
     id: MachineId,
     lowered: &TerminalMachine,
     tables: &mut MachineTables,
-    knowledge: Knowledge,
     types: &IdTable<ValueId, ScalarType>,
     storage: &places::Storage<'_>,
 ) -> Checked<()> {
@@ -1088,7 +1040,6 @@ fn fill_knowledge(
             when_true,
             when_false,
         } = &block.terminator
-            && knowledge == Knowledge::All
         {
             for (edge, holds) in [(when_true.edge, true), (when_false.edge, false)] {
                 push_knowledge(
@@ -1107,22 +1058,20 @@ fn fill_knowledge(
     // equal to what the payload leaf holds, and each under the clauses the
     // type of that storage states of it, as a payload read would be. The
     // rows hold because that edge was taken and are available on it.
-    if knowledge == Knowledge::All {
-        for block in &lowered.blocks {
-            let equations = storage.payload_equations(tables, block)?;
-            let premises = storage.payload_premises(tables, block)?;
-            for (edge, proposition) in equations.into_iter().chain(
-                premises
-                    .into_iter()
-                    .map(|(edge, _, premise)| (edge, premise)),
-            ) {
-                push_knowledge(
-                    tables,
-                    proposition,
-                    ProgramPoint::Edge(edge),
-                    Justification::DispatchBinding { edge },
-                );
-            }
+    for block in &lowered.blocks {
+        let equations = storage.payload_equations(tables, block)?;
+        let premises = storage.payload_premises(tables, block)?;
+        for (edge, proposition) in equations.into_iter().chain(
+            premises
+                .into_iter()
+                .map(|(edge, _, premise)| (edge, premise)),
+        ) {
+            push_knowledge(
+                tables,
+                proposition,
+                ProgramPoint::Edge(edge),
+                Justification::DispatchBinding { edge },
+            );
         }
     }
     for invocation in tables.invocations.keys().collect::<Vec<_>>() {
@@ -1248,7 +1197,6 @@ pub(crate) fn prepare(
     domains: &IdTable<StructuralTypeId, Vec<Proposition>>,
     id: MachineId,
     tables: &mut MachineTables,
-    knowledge: Knowledge,
 ) -> Checked<Prepared> {
     let machines = &module.machines;
     let structural_types = &module.structural_types;
@@ -1281,7 +1229,7 @@ pub(crate) fn prepare(
             &references,
         )?;
         storage.owed_are_minted(tables)?;
-        fill_knowledge(module, id, lowered, tables, knowledge, &types, &storage)?;
+        fill_knowledge(module, id, lowered, tables, &types, &storage)?;
     }
     // A value of a type parameter has no type the kernel could hold it at,
     // so the context does not list it (`concrete`).
@@ -2012,7 +1960,6 @@ fn decide(
     obligation: ObligationId,
     point: ProgramPoint,
     goal: Proposition,
-    relations: bool,
     unreached: &[ValueId],
 ) -> Checked<Evidence> {
     let hypotheses = hypotheses(graph, tables, id, obligation, point)?;
@@ -2021,7 +1968,6 @@ fn decide(
         &hypotheses.assumptions,
         &hypotheses.axioms,
         &tables.values,
-        relations,
     );
     let proof = prover.prove(&goal).map_err(|reason| {
         // Classified by the goal's form, not by which search path failed

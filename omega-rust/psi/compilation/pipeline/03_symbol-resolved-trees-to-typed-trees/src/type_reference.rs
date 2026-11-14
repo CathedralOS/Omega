@@ -1361,7 +1361,7 @@ pub(crate) mod const_arguments {
                         evaluated_value: Some(
                             language_core::constant_value::EvaluatedConstant::Encoded(
                                 language_semantics::const_value::CanonicalConstIdentity::integer(
-                                    "u64", 0,
+                                    LandedIntegerType::U64, 0,
                                 )
                                 .encoding,
                             ),

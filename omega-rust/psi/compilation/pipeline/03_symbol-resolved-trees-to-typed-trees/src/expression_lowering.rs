@@ -1372,9 +1372,8 @@ pub(crate) mod expression {
                                 if let Some(operation) =
                                     crate::expressions::product_queries::operation(
                                         program,
-                                        namespace,
                                         call.target_symbol,
-                                        call.target.as_str(),
+                                        call.receiver.is_valid().then_some(namespace),
                                     )
                                 {
                                     if !call.machine_arguments.is_empty()

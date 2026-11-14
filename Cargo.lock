@@ -28,6 +28,7 @@ dependencies = [
  "psi-work",
  "semantic-vocabulary",
  "terminal-codec",
+ "terminal-installation",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
  "terminal-psi-to-terminal-psi",
@@ -1428,6 +1429,7 @@ dependencies = [
  "sha2",
  "target",
  "terminal-codec",
+ "terminal-installation",
  "terminal-psi-to-abstract-operations",
  "terminal-runtime",
 ]
@@ -2481,7 +2483,6 @@ dependencies = [
  "layout-plans",
  "numerics",
  "optimization-core",
- "optimization-unit",
  "optimization-unit-semantics",
  "program-entry-plan",
  "proof-admission",

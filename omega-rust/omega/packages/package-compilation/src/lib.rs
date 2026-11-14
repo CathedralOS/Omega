@@ -56,10 +56,10 @@ mod target_profile_tags;
 
 pub use build_declarations::BuildDeclarationKind;
 pub use package_compilation::{
-    CompilerProductRetention, IndependentComponentDescription, PackageBuildHandoff,
-    PackageCompilationInputError, PackageCompilationInputs, PackageCompilationSourceInputs,
-    PackageCompilationTargetInputs, PackageDependencyAcquisition, PackageDependencyBinding,
-    PackageDependencyClosure, PackageSourceBinding,
+    IndependentComponentDescription, PackageBuildHandoff, PackageCompilationInputError,
+    PackageCompilationInputs, PackageCompilationSourceInputs, PackageCompilationTargetInputs,
+    PackageDependencyAcquisition, PackageDependencyBinding, PackageDependencyClosure,
+    PackageSourceBinding,
 };
 #[doc(hidden)]
 pub use package_compilation::{native_output_codec, provider_selection_codec};
