@@ -793,149 +793,6 @@ pub mod expression {
             }
         }
     }
-    pub(crate) mod index_authority {
-        use super::{ExpressionHandle, ExpressionNode, ExpressionTable, source_span_index};
-        use crate::types::TypeReferenceHandle;
-        use arena::Handle;
-        use symbols::SymbolHandle;
-
-        #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
-        pub struct IndexExpressionAuthority {
-            pub normalization: Option<OpenIndexNormalization>,
-            pub operation: Option<OpenIndexOperationSelection>,
-        }
-
-        #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
-        pub struct OpenIndexNormalization {
-            pub index_type: TypeReferenceHandle,
-            pub normalizer_version: u32,
-        }
-
-        #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
-        pub struct OpenIndexOperationSelection {
-            pub expression: ExpressionHandle,
-            pub spelling: language_core::operator_spelling::OperatorSpelling,
-            pub operator: SymbolHandle,
-            pub operand_type: TypeReferenceHandle,
-            pub provider: SymbolHandle,
-            pub application: Option<super::StaticMachineArgument>,
-            pub algebra_trait: SymbolHandle,
-            pub algebra_requirement: String,
-            pub algebra_alias: Option<String>,
-            pub commutativity_licensed: bool,
-            pub associativity_licensed: bool,
-            pub distributes_over: Vec<String>,
-            pub left_identity_literal: String,
-            pub right_identity_literal: String,
-        }
-
-        impl OpenIndexOperationSelection {
-            pub fn apply_provider(&mut self, selected: &super::StaticMachineArgument, alias: &str) {
-                self.provider = selected.symbol;
-                self.application = selected.application.as_ref().map(|_| selected.clone());
-                self.algebra_alias = Some(alias.to_owned());
-            }
-
-            pub fn operation_contract_identity(&self, program: &crate::TypedTrees) -> String {
-                let subject = program.normalized_type_identity_text(self.operand_type);
-                format!(
-                    "trait::{}::{}({subject},{subject})->{subject}",
-                    program.symbols.display_path(self.algebra_trait, "::"),
-                    self.algebra_requirement,
-                )
-            }
-        }
-
-        impl ExpressionTable {
-            pub fn index_expression_authority(
-                &self,
-                expression: ExpressionHandle,
-            ) -> Option<&IndexExpressionAuthority> {
-                if !self.expressions.is_valid(expression) {
-                    return None;
-                }
-                let handle = *self
-                    .index_expression_authority_handles
-                    .get(source_span_index(expression))?;
-                handle
-                    .is_valid()
-                    .then(|| self.index_expression_authorities.get(handle))
-            }
-
-            pub fn index_expression_authority_mut(
-                &mut self,
-                expression: ExpressionHandle,
-            ) -> &mut IndexExpressionAuthority {
-                assert!(
-                    self.expressions.is_valid(expression),
-                    "index authority requires a live expression"
-                );
-                let position = source_span_index(expression);
-                if self.index_expression_authority_handles.len() <= position {
-                    self.index_expression_authority_handles
-                        .resize(position + 1, Handle::invalid());
-                }
-                let handle = &mut self.index_expression_authority_handles[position];
-                if !handle.is_valid() {
-                    *handle = self
-                        .index_expression_authorities
-                        .insert(IndexExpressionAuthority::default());
-                }
-                self.index_expression_authorities.get_mut(*handle)
-            }
-
-            pub fn open_index_operation(
-                &self,
-                expression: ExpressionHandle,
-            ) -> Option<&OpenIndexOperationSelection> {
-                self.binary_node(expression)?;
-                self.index_expression_authority(expression)?
-                    .operation
-                    .as_ref()
-            }
-
-            pub fn open_index_operations(
-                &self,
-                root: ExpressionHandle,
-            ) -> impl Iterator<Item = &OpenIndexOperationSelection> {
-                let mut pending = vec![root];
-                std::iter::from_fn(move || {
-                    while let Some(expression) = pending.pop() {
-                        match self.expression(expression) {
-                            ExpressionNode::Binary(binary) => {
-                                pending.push(binary.right);
-                                pending.push(binary.left);
-                            }
-                            ExpressionNode::Unary(unary) => pending.push(unary.operand),
-                            _ => {}
-                        }
-                        if let Some(operation) = self.open_index_operation(expression) {
-                            return Some(operation);
-                        }
-                    }
-                    None
-                })
-            }
-
-            pub fn selected_index_operations(
-                &self,
-            ) -> impl Iterator<Item = &OpenIndexOperationSelection> {
-                self.index_expression_authorities
-                    .iter()
-                    .filter_map(|(_, authority)| {
-                        let operation = authority.operation.as_ref()?;
-                        self.open_index_operation(operation.expression)
-                    })
-            }
-
-            pub fn open_index_normalization_count(&self) -> usize {
-                self.index_expression_authorities
-                    .iter()
-                    .filter(|(_, authority)| authority.normalization.is_some())
-                    .count()
-            }
-        }
-    }
     pub(crate) mod shape {
         use crate::expression::TableCallExpression;
 
@@ -1522,7 +1379,6 @@ pub mod expression {
                     language_core::PatternComponent::Fields
                 };
                 let node = self.expression(source).clone();
-                let authority = self.index_expression_authority(source).cloned();
                 let source_index = super::source_span_index(source);
                 let destination_index = super::source_span_index(destination);
                 let occurrences = self.authored_selection_occurrences[source_index];
@@ -1549,17 +1405,6 @@ pub mod expression {
                 }
                 if let Some(previous) = self
                     .construction_required_type_handles
-                    .get_mut(destination_index)
-                {
-                    *previous = Default::default();
-                }
-                if let Some(mut authority) = authority {
-                    if let Some(operation) = &mut authority.operation {
-                        operation.expression = destination;
-                    }
-                    *self.index_expression_authority_mut(destination) = authority;
-                } else if let Some(previous) = self
-                    .index_expression_authority_handles
                     .get_mut(destination_index)
                 {
                     *previous = Default::default();
@@ -1607,26 +1452,6 @@ pub mod expression {
                 }
                 if !tests.is_empty() {
                     self.replace_executable_domain_tests(root, tests);
-                }
-
-                if let Some(mut authority) = self.index_expression_authority(root).cloned() {
-                    if let Some(operation) = &mut authority.operation {
-                        if let Some(application) = &mut operation.application {
-                            self.remap_static_argument_symbols(application, symbols.execution());
-                        }
-                        for symbol in [
-                            &mut operation.provider,
-                            &mut operation.operator,
-                            &mut operation.algebra_trait,
-                        ] {
-                            if let Some((_, replacement)) =
-                                symbols.iter().find(|(original, _)| original == symbol)
-                            {
-                                *symbol = *replacement;
-                            }
-                        }
-                    }
-                    *self.index_expression_authority_mut(root) = authority;
                 }
 
                 let node = self.expression(root).clone();
@@ -1903,7 +1728,6 @@ pub mod expression {
                     .direct_pattern_component(expression)
                     .expect("copied expression retains its component row");
                 let materialization_source = origin.materialization_source(expression);
-                let authority = origin.index_expression_authority(expression).cloned();
                 let domain_tests = origin.executable_domain_tests(expression).to_vec();
                 let query_carrier =
                     matches!(origin.expression(expression), ExpressionNode::Call(call)
@@ -2211,20 +2035,6 @@ pub mod expression {
                     self.set_constructed_value_type_reference(copied, carrier);
                 }
                 self.attach_authored_selection_occurrences(copied, occurrences);
-                if let Some(mut authority) = authority {
-                    if let Some(operation) = &mut authority.operation {
-                        operation.expression = copied;
-                        if let Some(argument) = &mut operation.application {
-                            *argument = match source {
-                                CopySource::Own => self.copy_static_argument_from_self(argument),
-                                CopySource::Table(table) => {
-                                    self.copy_static_argument_from(table, argument)
-                                }
-                            };
-                        }
-                    }
-                    *self.index_expression_authority_mut(copied) = authority;
-                }
                 self.set_pattern_component(copied, component);
                 copies.expressions.push((expression, copied));
                 if materialization_source.is_valid() {
@@ -3121,10 +2931,6 @@ pub mod expression {
     pub use table_copies::ExpressionCopy;
 
     pub use display::{display_call_label, display_match_pattern, display_name_path};
-    pub use index_authority::{
-        IndexExpressionAuthority, OpenIndexNormalization, OpenIndexOperationSelection,
-    };
-
     pub type ExpressionHandle = Handle<ExpressionNode>;
 
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
@@ -3200,8 +3006,6 @@ pub mod expression {
         constructed_value_type_handles: Vec<Handle<crate::types::TypeReferenceHandle>>,
         construction_required_types: Arena<crate::types::TypeReferenceHandle>,
         construction_required_type_handles: Vec<Handle<crate::types::TypeReferenceHandle>>,
-        index_expression_authorities: Arena<IndexExpressionAuthority>,
-        index_expression_authority_handles: Vec<Handle<IndexExpressionAuthority>>,
         authored_selection_occurrences: Vec<HandleSpan<StoredAuthoredSelectionOccurrenceId>>,
         authored_selection_occurrence_ids: Arena<StoredAuthoredSelectionOccurrenceId>,
         executable_domain_tests: Vec<HandleSpan<ExecutableDomainTest>>,
@@ -3464,7 +3268,6 @@ pub mod expression {
                 .revision()
                 .wrapping_add(self.build_selection_requests.revision())
                 .wrapping_add(self.expression_roots.revision())
-                .wrapping_add(self.index_expression_authorities.revision())
                 .wrapping_add(self.authored_selection_occurrence_ids.revision())
                 .wrapping_add(self.executable_domain_test_rows.revision())
                 .wrapping_add(self.expression_handles.revision())
@@ -3513,8 +3316,6 @@ pub mod expression {
                 constructed_value_type_handles: Vec::new(),
                 construction_required_types: Arena::default(),
                 construction_required_type_handles: Vec::new(),
-                index_expression_authorities: Arena::default(),
-                index_expression_authority_handles: Vec::new(),
                 authored_selection_occurrences: Vec::with_capacity(capacity.expressions),
                 authored_selection_occurrence_ids: Arena::with_capacity(
                     capacity.authored_selection_occurrences,
@@ -3546,8 +3347,6 @@ pub mod expression {
             self.constructed_value_type_handles.clear();
             self.construction_required_types.reset_retain_capacity();
             self.construction_required_type_handles.clear();
-            self.index_expression_authorities.reset_retain_capacity();
-            self.index_expression_authority_handles.clear();
             self.authored_selection_occurrences.clear();
             self.authored_selection_occurrence_ids
                 .reset_retain_capacity();
