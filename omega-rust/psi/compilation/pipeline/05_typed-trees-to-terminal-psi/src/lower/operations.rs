@@ -291,7 +291,14 @@ impl Lowering<'_> {
                 callee,
                 arguments,
                 designated,
-            } => self.call(*callee, arguments, *designated, expression.result, source),
+            } => self.call(
+                *callee,
+                arguments,
+                *designated,
+                expression.result,
+                source,
+                expression.call_context.unwrap_or_default(),
+            ),
         }
     }
 

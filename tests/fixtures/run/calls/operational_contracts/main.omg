@@ -1,0 +1,20 @@
+// Expected exit: 0
+// Blocking permission remains visible through wrappers and frame-reusing loops.
+public machine may_wait(value: u32) -> u32 blocks { value }
+public machine wrapped(value: u32) -> u32 blocks { block may_wait(value) }
+public machine countdown(remaining: u32) -> u32 blocks {
+    transition remaining > 0 {
+        true -> block countdown(remaining - 1)
+        _ -> block wrapped(19)
+    }
+}
+machine main() crashes Trap {
+    let answer: u32 = block wrapped(block may_wait(7));
+    let counted: u32 = block countdown(2);
+    transition answer == 7 && counted == 19 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

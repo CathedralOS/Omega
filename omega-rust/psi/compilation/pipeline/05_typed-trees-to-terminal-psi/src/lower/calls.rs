@@ -446,6 +446,7 @@ impl Lowering<'_> {
         callee: semantic_vocabulary::TargetMachineCallable,
         arguments: &[Expression],
         source: SourceOrigin,
+        acknowledgement: terminal_psi::CallAcknowledgement,
     ) -> Evaluation<()> {
         let signature = self.signatures.get(callee, self.id)?;
         let arguments = continuing!(self.arguments(callee, arguments));
@@ -480,6 +481,11 @@ impl Lowering<'_> {
             });
         }
         let edge = self.no_successor_edge(carried, source)?;
+        self.call_formations.push(terminal_psi::CallFormation {
+            site: terminal_psi::CallSite::Edge(edge),
+            acknowledgement,
+            tail_callee: None,
+        });
         let invocation_site = match callee {
             semantic_vocabulary::TargetMachineCallable::Machine(_) => {
                 InvocationSite::InvokeNoNormal(edge)
@@ -606,6 +612,7 @@ impl Lowering<'_> {
         designated: Option<crate::body::DesignatedOperands>,
         result: Option<ValueType>,
         source: SourceOrigin,
+        acknowledgement: terminal_psi::CallAcknowledgement,
     ) -> Evaluation<Value> {
         // A call with no normal completion is a terminator
         // (`invoke_no_normal`) and has no value: the path it lies on ends at
@@ -615,7 +622,7 @@ impl Lowering<'_> {
             if designated.is_some() {
                 return Err(self.internal("designated operands on a call that never returns"));
             }
-            continuing!(self.invoke_no_normal(callable, arguments, source));
+            continuing!(self.invoke_no_normal(callable, arguments, source, acknowledgement));
             return Ok(Reached::Ended(source));
         }
         if matches!(
@@ -658,6 +665,11 @@ impl Lowering<'_> {
             canonical::substituted_routes(routes, &arguments.scalars, self.id)?;
         let before = self.here()?;
         let operation = self.operation_identity(source);
+        self.call_formations.push(terminal_psi::CallFormation {
+            site: terminal_psi::CallSite::Operation(operation),
+            acknowledgement,
+            tail_callee: None,
+        });
         let requirements = self.invocation(
             InvocationSite::Operation(operation),
             callable,

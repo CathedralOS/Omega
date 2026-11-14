@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 262`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 263`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -654,6 +654,10 @@ pub(crate) mod canonical_order {
         }
         r!(module.machines.iter().map(|machine| machine.id) => "machines by MachineId")?;
         for machine in &module.machines {
+            require_increasing(
+                machine.call_formations.iter().map(|row| row.site),
+                "call acknowledgements by canonical call site",
+            )?;
             for block in &machine.blocks {
                 if let Some(invocation) = block.terminator.module_invocation() {
                     require_increasing(
@@ -1798,7 +1802,30 @@ pub(crate) mod machine_wire {
     };
     use crate::sections::semantic_module::wire::decode_counted;
 
+    use super::wire_fields::Flag;
+    use terminal_psi::{CallAcknowledgement, CallFormation, CallOrigin, CallSite};
+    wire_enum! {
+        CallSiteRow: CallSite, "CallSite" {
+            0 => Operation(operation: Id),
+            1 => Edge(edge: Id),
+        }
+        CallOriginRow: CallOrigin, "CallOrigin" {
+            0 => Authored,
+            1 => CompilerGenerated,
+        }
+    }
     wire_record! {
+        CallAcknowledgementRow: CallAcknowledgement {
+            origin: CallOriginRow,
+            acknowledges_suspend: Flag,
+            acknowledges_block: Flag,
+            suspension_position: Flag,
+        }
+        CallFormationRow: CallFormation {
+            site: CallSiteRow,
+            acknowledgement: CallAcknowledgementRow,
+            tail_callee: OptionalId,
+        }
         Machine: TerminalMachine {
             id: Id,
             assembly_target_requirement: AssemblyTarget,
@@ -1807,6 +1834,7 @@ pub(crate) mod machine_wire {
             ranked_scc: RankedScc,
             structural_places: List<Place>,
             block_entry_claims: List<Claim>,
+            call_formations: List<CallFormationRow>,
             loan_completions: List<LoanCompletionRow>,
             content_identity_reshuffles: List<super::content_wire::Reshuffle>,
             content_partition_compositions: List<super::content_wire::PartitionComposition>,
@@ -4522,6 +4550,7 @@ pub(crate) mod target_family_tests {
             nominal_cleanup_subject: None,
             ranked_scc: None,
             structural_places: Vec::new(),
+            call_formations: Vec::new(),
             block_entry_claims: Vec::new(),
             loan_completions: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -4728,7 +4757,8 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Marker 262 distinguishes an opaque supplied value from an empty record.
 // Earlier decoders cannot interpret that shape. The complete write frames,
 // numeric meanings and finite families published in 261/260/259 remain intact.
-pub(crate) const FORMAT_MARKER: u16 = 262;
+// Marker 263 retains independent operational ceilings and call acknowledgements.
+pub(crate) const FORMAT_MARKER: u16 = 263;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

@@ -131,6 +131,10 @@ pub(crate) fn declare(
                         Published {
                             reach: &reach,
                             entries: &entries,
+                            operational: [
+                                machine.published_may_suspend,
+                                machine.published_may_block,
+                            ],
                         },
                         &mut identities,
                     )
@@ -172,6 +176,7 @@ pub(crate) fn declare(
                 Published {
                     reach: &reach,
                     entries: &entries,
+                    operational: signature.operational.published([false; 2]),
                 },
                 &mut identities,
             )?;
@@ -376,11 +381,8 @@ fn declaration(
         callable: identities.intern(&callable),
         result_type: identities.intern(&result_type),
         contract,
-        // The reader refuses a machine that declares `suspends` or `blocks`
-        // (`read/machine.rs`, `machine_shape`), so every machine here
-        // publishes neither.
-        published_may_suspend: false,
-        published_may_block: false,
+        published_may_suspend: machine.published_may_suspend,
+        published_may_block: machine.published_may_block,
         specialization,
     })
 }
@@ -779,6 +781,7 @@ fn declaration_contract_commitment<'a>(
     if !published.entries.is_empty() {
         ("synchronous entries", published.entries).hash(&mut commitment);
     }
+    published.operational.hash(&mut commitment);
     commitment.0.finish()
 }
 
@@ -788,6 +791,7 @@ fn declaration_contract_commitment<'a>(
 pub(crate) struct Published<'a> {
     pub reach: &'a [&'a str],
     pub entries: &'a [&'a str],
+    pub operational: [bool; 2],
 }
 
 /// Reuse the declaration owner's existing scoped identity for application

@@ -297,6 +297,10 @@ fn contract_header(
             crate::Ceiling::Inferred => None,
         },
         declared_crash_routes: signature.declared_crash_routes().map(<[_]>::to_vec),
+        declared_suspension: signature.operational.suspension,
+        declared_blocking: signature.operational.blocking,
+        published_may_suspend: outcome.operational[0],
+        published_may_block: outcome.operational[1],
         published_service_ceiling: outcome.service_reach.clone(),
         published_synchronous_entries: outcome.synchronous_entries.clone(),
         termination: match signature.termination {
@@ -325,6 +329,7 @@ pub(crate) fn declaration_contract(
     records: &Records<'_>,
 ) -> Checked<MachineContract> {
     let outcome = Outcome {
+        operational: signature.operational.published([false; 2]),
         completes_normally: true,
         crash_routes: signature
             .declared_crash_routes()
@@ -390,6 +395,7 @@ impl<'a> Lowering<'a> {
             tables: MachineTables::default(),
             sources: MachineSources::default(),
             designated: Vec::new(),
+            call_formations: Vec::new(),
             blocks: IdTable::default(),
             current: None,
             point: None,
@@ -602,6 +608,7 @@ struct Lowering<'a> {
     tables: MachineTables,
     sources: MachineSources,
     designated: Vec<(OperationId, crate::DesignatedOperands)>,
+    call_formations: Vec<terminal_psi::CallFormation>,
     blocks: IdTable<BlockId, Draft>,
     /// The open block, `None` once it is terminated and no block is entered.
     current: Option<BlockId>,
@@ -814,6 +821,7 @@ impl<'a> Lowering<'a> {
             id,
             entered,
             SourceOrigin::Unpositioned(Unpositioned::MachineEntry),
+            None,
         )?;
         for position in 0..self.heads.len() {
             let (member, block) = (self.heads[position].member, self.heads[position].block);
@@ -1020,6 +1028,7 @@ impl<'a> Lowering<'a> {
             .iter()
             .map(|(id, (kind, _))| StructuralPlaceDeclaration { id, kind: *kind })
             .collect();
+        self.call_formations.sort_unstable_by_key(|row| row.site);
         let machine = TerminalMachine {
             assembly_target_requirement: RegisterTargetApplicability::Any,
             id: self.id,
@@ -1027,6 +1036,7 @@ impl<'a> Lowering<'a> {
             nominal_cleanup_subject: None,
             ranked_scc: None,
             structural_places,
+            call_formations: self.call_formations,
             block_entry_claims: Vec::new(),
             loan_completions: Vec::new(),
             content_identity_reshuffles: Vec::new(),

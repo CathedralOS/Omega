@@ -361,6 +361,7 @@ impl Program<'_> {
             values.push((
                 position,
                 Expression {
+                    call_context: None,
                     kind,
                     result: Some(field.value_type),
                     source,
@@ -369,6 +370,7 @@ impl Program<'_> {
         }
         values.sort_by_key(|(position, _)| *position);
         Ok(Expression {
+            call_context: None,
             kind: ExpressionKind::Record { fields: values },
             result: Some(ValueType::Record(
                 record,
@@ -495,6 +497,7 @@ impl Program<'_> {
         let bytes = graph.runtime_image();
         let value = self.byte_literal(machine, &bytes, Some(value_type), source)?;
         Ok(Expression {
+            call_context: None,
             kind: ExpressionKind::Record {
                 fields: vec![(0, value)],
             },
@@ -669,6 +672,7 @@ impl Program<'_> {
             return Err(fail("callable description result has an unexpected field"));
         }
         Ok(Some(Expression {
+            call_context: None,
             kind: ExpressionKind::Case {
                 case: case_index,
                 fields,
