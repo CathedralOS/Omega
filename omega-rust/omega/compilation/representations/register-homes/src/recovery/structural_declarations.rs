@@ -90,7 +90,7 @@ pub(super) fn encode_type(
             } else {
                 6
             });
-            encode_scalar(bytes, *scalar);
+            encode_scalar(bytes, *scalar)?;
             if let Some(restriction) = &declaration.scalar_restriction {
                 encode_scalar_restriction(bytes, restriction)?;
             }
@@ -540,7 +540,10 @@ pub(super) fn decode_semantic_argument(
     })
 }
 
-pub(super) fn encode_target_argument(bytes: &mut Vec<u8>, argument: &TargetStructuralArgument) {
+pub(super) fn encode_target_argument(
+    bytes: &mut Vec<u8>,
+    argument: &TargetStructuralArgument,
+) -> Result<(), terminal_codec::CodecError> {
     crate::codec_bytes::push_encoded(bytes, argument.place.get().to_le_bytes());
     encode_access(bytes, argument.access);
     encode_path(bytes, &argument.path);
@@ -556,11 +559,12 @@ pub(super) fn encode_target_argument(bytes: &mut Vec<u8>, argument: &TargetStruc
             .to_le_bytes(),
     );
     for index in &argument.indices {
-        encode_scalar_source(bytes, index.operand);
+        encode_scalar_source(bytes, index.operand)?;
         crate::codec_bytes::push_encoded(bytes, index.stride.to_le_bytes());
     }
     encode_argument_source(bytes, &argument.source);
     encode_placement(bytes, &argument.destination);
+    Ok(())
 }
 
 pub(super) fn decode_target_argument(
@@ -840,10 +844,14 @@ pub(super) fn decode_projected(
     })
 }
 
-fn encode_bounded_integer(bytes: &mut Vec<u8>, bounds: BoundedIntegerType) {
-    encode_scalar(bytes, ScalarType::Integer(bounds.integer_type()));
+fn encode_bounded_integer(
+    bytes: &mut Vec<u8>,
+    bounds: BoundedIntegerType,
+) -> Result<(), terminal_codec::CodecError> {
+    encode_scalar(bytes, ScalarType::Integer(bounds.integer_type()))?;
     encode_integer(bytes, bounds.minimum());
     encode_integer(bytes, bounds.maximum());
+    Ok(())
 }
 
 fn decode_bounded_integer(
@@ -865,7 +873,7 @@ fn encode_scalar_restriction(
     match field_type {
         StructuralFieldType::RefinedScalar(refinement) => {
             bytes.push(9);
-            encode_scalar(bytes, refinement.carrier());
+            encode_scalar(bytes, refinement.carrier())?;
             let predicate =
                 terminal_codec::canonical_proposition_order_key(refinement.predicate())?;
             length(bytes, predicate.len());
@@ -873,19 +881,19 @@ fn encode_scalar_restriction(
         }
         StructuralFieldType::AtomicBoundedInteger(bounds) => {
             bytes.push(10);
-            encode_bounded_integer(bytes, *bounds);
+            encode_bounded_integer(bytes, *bounds)?;
         }
         StructuralFieldType::Atomic(scalar) => {
             bytes.push(8);
-            encode_scalar(bytes, *scalar);
+            encode_scalar(bytes, *scalar)?;
         }
         StructuralFieldType::BoundedInteger(bounds) => {
             bytes.push(6);
-            encode_bounded_integer(bytes, *bounds);
+            encode_bounded_integer(bytes, *bounds)?;
         }
         StructuralFieldType::Scalar(scalar) => {
             bytes.push(1);
-            encode_scalar(bytes, *scalar);
+            encode_scalar(bytes, *scalar)?;
         }
         StructuralFieldType::IeeeFloat(format) => {
             bytes.push(2);
