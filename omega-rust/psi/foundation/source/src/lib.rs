@@ -127,6 +127,19 @@ pub enum DependencyScope {
     Build,
 }
 
+/// Permit private source selections within one captured Build invocation.
+/// This consent assigns no declaration owner, package edge or execution effect.
+/// The receiving execution admission still checks the emitted program.
+pub trait InvocationSourceConsent: Send + Sync {
+    fn allows_selection(
+        &self,
+        sources: &Arc<SourceMap>,
+        requester: SourceSpan,
+        declaration: SourceSpan,
+        purpose: DependencyScope,
+    ) -> bool;
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct SourceFile {
     pub source_id: SourceId,

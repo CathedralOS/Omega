@@ -6,6 +6,7 @@ use std::fmt::Write as _;
 
 use compiler_storage::Record;
 use diagnostics::Diagnostic;
+use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
 use semantic_vocabulary::source_selections::{
     BuildCallSite, SelectionBindingKind, SelectionDeclaration, SelectionForm, SelectionJoin,
     SelectionNode, SelectionOccurrence, SelectionProductDesignation, SelectionPurpose,
@@ -40,7 +41,8 @@ fn selection_context(mut diagnostic: Diagnostic, context: impl std::fmt::Display
 pub(crate) fn prepare(
     source: &AcceptedTerminalSource,
     module: &TerminalModule,
-) -> Result<SelectionQuestions, Diagnostic> {
+    consent: Option<&dyn source::InvocationSourceConsent>,
+) -> Result<PreparedSelections, Diagnostic> {
     let mut prepared = Questions {
         source,
         module,
@@ -68,7 +70,16 @@ pub(crate) fn prepare(
     prepared
         .retain_physical_joins()
         .map_err(|error| selection_context(error, "joining emitted declarations to source"))?;
-    Ok(prepared.output)
+    let invocation_consent = prepared.invocation_consent(consent)?;
+    Ok(PreparedSelections {
+        questions: prepared.output,
+        invocation_consent,
+    })
+}
+
+pub(crate) struct PreparedSelections {
+    pub(crate) questions: SelectionQuestions,
+    pub(crate) invocation_consent: Vec<SelectionQuestionId>,
 }
 
 struct Questions<'source> {
@@ -84,6 +95,84 @@ struct Questions<'source> {
 }
 
 impl Questions<'_> {
+    fn invocation_consent(
+        &self,
+        consent: Option<&dyn source::InvocationSourceConsent>,
+    ) -> Result<Vec<SelectionQuestionId>, Diagnostic> {
+        let Some(consent) = consent else {
+            return Ok(Vec::new());
+        };
+        if self.module.identities.invocation_scope().is_none() {
+            return Err(refused("captured source consent requires an invocation"));
+        }
+        let sources = self
+            .source
+            .source()
+            .symbols
+            .source_map()
+            .ok_or_else(|| refused("captured source consent lost its actual source map"))?;
+        let mut questions = Vec::new();
+        for (id, row) in self.output.questions.iter() {
+            let requester = self
+                .output
+                .declarations
+                .get(row.occurrence.lexical_owner)
+                .ok_or_else(|| refused("captured selection lost its lexical declaration"))?;
+            if requester.custody != DeclarationCustody::UnownedUser
+                || requester.purpose != SelectionPurpose::Build
+            {
+                continue;
+            }
+            let requester_span = self
+                .declarations
+                .source_span(row.occurrence.lexical_owner)?;
+            let selected_span = match &row.selected {
+                SelectionReference::Declaration(selected)
+                    if row.purpose == SelectionPurpose::Build =>
+                {
+                    let selected_row =
+                        self.output.declarations.get(*selected).ok_or_else(|| {
+                            refused("captured selection lost its selected declaration")
+                        })?;
+                    match selected_row.custody {
+                        DeclarationCustody::UnownedUser
+                            if selected_row.purpose == SelectionPurpose::Build =>
+                        {
+                            self.declarations.source_span(*selected)?
+                        }
+                        DeclarationCustody::Toolchain => requester_span,
+                        _ => continue,
+                    }
+                }
+                SelectionReference::Intrinsic { .. }
+                | SelectionReference::LocalBinding { .. }
+                | SelectionReference::RuntimeContract { .. }
+                    if row.purpose == SelectionPurpose::Build =>
+                {
+                    requester_span
+                }
+                SelectionReference::ProductInput { .. }
+                    if row.purpose == SelectionPurpose::Product
+                        && matches!(row.role, SelectionRole::ProductDesignation(_)) =>
+                {
+                    // Retain the Build author's inert request. No Product
+                    // declaration or package edge is admitted by this consent.
+                    requester_span
+                }
+                _ => continue,
+            };
+            if consent.allows_selection(
+                &sources,
+                requester_span,
+                selected_span,
+                source::DependencyScope::Build,
+            ) {
+                questions.push(id);
+            }
+        }
+        Ok(questions)
+    }
+
     fn typed_origin(
         &self,
         machine: MachineId,
@@ -774,6 +863,7 @@ struct Declarations<'source> {
     ids: SymbolMap<SelectionDeclarationId>,
     identities: SymbolMap<String>,
     contracts: SymbolMap<Vec<RuntimeCallableContractHandle>>,
+    sources: Vec<(SelectionDeclarationId, source::SourceSpan)>,
 }
 
 impl<'source> Declarations<'source> {
@@ -824,7 +914,19 @@ impl<'source> Declarations<'source> {
             ids: SymbolMap::default(),
             identities,
             contracts,
+            sources: Vec::new(),
         })
+    }
+
+    fn source_span(
+        &self,
+        declaration: SelectionDeclarationId,
+    ) -> Result<source::SourceSpan, Diagnostic> {
+        self.sources
+            .binary_search_by_key(&declaration, |(id, _)| *id)
+            .ok()
+            .map(|index| self.sources[index].1)
+            .ok_or_else(|| refused("captured selection lost its source declaration"))
     }
 
     fn valid(&self, symbol: SymbolHandle, role: &str) -> Result<(), Diagnostic> {
@@ -908,6 +1010,11 @@ impl<'source> Declarations<'source> {
         )
         .map_err(refused)?;
         let purpose = self.purpose(symbol)?;
+        let span = self
+            .typed
+            .symbols
+            .symbol_provenance_source_span(symbol)
+            .ok_or_else(|| refused("selected declaration has no retained source span"))?;
         let id = output.declarations.push(SelectionDeclaration {
             identity,
             name: self.typed.symbols.display_path(symbol, "::"),
@@ -915,6 +1022,7 @@ impl<'source> Declarations<'source> {
             purpose,
             callable_identity,
         });
+        self.sources.push((id, span));
         self.ids.insert(symbol, id);
         Ok(id)
     }

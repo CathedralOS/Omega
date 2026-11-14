@@ -6,14 +6,77 @@ use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionLateBinding as Binding,
     AuthoredDeclarationSelectionTarget as Target,
 };
-use semantic_vocabulary::MachineId;
-use symbols::SymbolHandle;
+use semantic_vocabulary::{MachineId, ScalarType};
+use symbols::{BuiltinTypeAtom, SymbolHandle};
 use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::types::TypeReferenceHandle;
 
 use super::Program;
+use crate::body::{Policy, ValueType};
 
 impl Program<'_> {
+    /// Reuse the retained source type of a successfully read operand. No type
+    /// or declaration is manufactured when its source reference is absent.
+    pub(super) fn operator_operand_reference(
+        &self,
+        operand: ValueType,
+    ) -> Option<TypeReferenceHandle> {
+        let ValueType::Scalar(scalar, qualification) = operand else {
+            return None;
+        };
+        if !qualification.domains.is_empty() {
+            return None;
+        }
+        let atom = match scalar {
+            ScalarType::Boolean => BuiltinTypeAtom::Bool,
+            ScalarType::Integer(integer) if integer.is_address() => BuiltinTypeAtom::Address,
+            ScalarType::Integer(integer) => {
+                BuiltinTypeAtom::Integer(numerics::integer_carrier::FixedInteger::new(
+                    integer.sign(),
+                    integer.bits().into(),
+                )?)
+            }
+            ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => {
+                BuiltinTypeAtom::F32
+            }
+            ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => {
+                BuiltinTypeAtom::F64
+            }
+            ScalarType::Callable(_) => return None,
+        };
+        let symbol = self.typed.symbols.builtin_atom_symbol(atom)?;
+        let reference = self
+            .typed
+            .type_reference_table
+            .find_named_type_reference(symbol)?;
+        match qualification.policy {
+            None => Some(reference),
+            Some(policy) => self
+                .typed
+                .type_reference_table
+                .find_policy_qualified_type_reference(
+                    reference,
+                    match policy {
+                        Policy::Wrapping => numerics::arithmetic::ArithmeticDomain::Wrapping,
+                        Policy::Saturating => numerics::arithmetic::ArithmeticDomain::Saturating,
+                    },
+                ),
+        }
+    }
+
+    pub(super) fn mathematical_operator_operands(&self) -> [Option<TypeReferenceHandle>; 2] {
+        let reference = self
+            .typed
+            .symbols
+            .builtin_atom_symbol(BuiltinTypeAtom::Int)
+            .and_then(|symbol| {
+                self.typed
+                    .type_reference_table
+                    .find_named_type_reference(symbol)
+            });
+        [reference; 2]
+    }
     /// The reader has successfully formed a primitive operation. Complete only
     /// its attached source question, retaining any other demanded selection.
     pub(super) fn complete_builtin_operator(
@@ -21,6 +84,7 @@ impl Program<'_> {
         machine: MachineId,
         source_owner: SymbolHandle,
         expression: ExpressionHandle,
+        operands: [Option<TypeReferenceHandle>; 2],
     ) -> Checked<()> {
         let typed = self.typed;
         let refuse = |detail: String| Refusal {
@@ -92,13 +156,14 @@ impl Program<'_> {
                 "completed operator {expression:?} has no exact source owner {source_owner:?}"
             )));
         }
-        if let Some(spelling) = spelling
+        // Suffixed operations have compiler-owned meaning and cannot bind a
+        // declaration. Bare operations still check their actual operand types.
+        let suffixed = matches!(node, ExpressionNode::Binary(binary)
+            if binary.policy != numerics::arithmetic::ArithmeticDomain::Exact);
+        if !suffixed
+            && let Some(spelling) = spelling
             && !typed_trees::operator::has_builtin_spelled_expression_meaning(
-                typed,
-                owner,
-                expression,
-                spelling,
-                &[None, None],
+                typed, owner, expression, spelling, &operands,
             )
         {
             // A declaration or abstract operator requirement still needs its

@@ -172,7 +172,15 @@ impl<'t> Program<'t> {
     ) -> Checked<Expression> {
         let value = self.read_expression(id, slots, handle, expected)?;
         let owner = self.symbols.get(id).copied().unwrap_or_default();
-        self.complete_builtin_operator(id, owner, handle)?;
+        let operands = match &value.kind {
+            ExpressionKind::Strict { left, right, .. }
+            | ExpressionKind::ShortCircuit { left, right, .. } => [left.result, right.result],
+            ExpressionKind::Index { base, index } => [base.result, index.result],
+            _ => [None, None],
+        };
+        let operands = operands
+            .map(|operand| operand.and_then(|operand| self.operator_operand_reference(operand)));
+        self.complete_builtin_operator(id, owner, handle, operands)?;
         Ok(value)
     }
 

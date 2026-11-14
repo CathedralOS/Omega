@@ -177,24 +177,44 @@ pub(crate) fn prepare_named_value(
         .to_vec();
     let (selected, conformance, requirement) = match named_value_source(program, &path) {
         Some(NamedValueSource::Implementation(conformance)) => {
-            let machine = program
-                .machine_by_own_or_state_symbol(path.symbol)
-                .map(|machine| machine.symbol);
-            let mut rows = conformance.rows.iter().filter(|row| {
-                row.requirement == path.symbol || machine == Some(row.realization_machine)
-            });
-            let Some(row) = rows.next() else {
-                return Err(Diagnostic::error(
-                    "named machine value lost its exact implementation requirement row",
-                )
-                .with_source_span(program.expression_table.source_span(value)));
+            let row = if let Some(machine) = program.machine_by_own_or_state_symbol(path.symbol) {
+                let mut rows = conformance
+                    .rows
+                    .iter()
+                    .filter(|row| row.realization_machine == machine.symbol);
+                let row = rows.next().ok_or_else(|| {
+                    Diagnostic::error(
+                        "named machine value lost its exact implementation requirement row",
+                    )
+                    .with_source_span(program.expression_table.source_span(value))
+                })?;
+                if rows.next().is_some() {
+                    return Err(Diagnostic::error(
+                        "named machine value has ambiguous implementation requirement rows",
+                    )
+                    .with_source_span(program.expression_table.source_span(value)));
+                }
+                row
+            } else {
+                // The selected public member may be a closed requirement of
+                // this map's applied trait. Its symbol is not the authored
+                // requirement stored on the row. Reuse the ordinary named
+                // call owner to authenticate the complete application before
+                // retaining that row's separate executable realization.
+                program
+                    .named_conformance_member(conformance.symbol, path.symbol)
+                    .map_err(|reason| {
+                        Diagnostic::error(format!(
+                            "named machine value has no exact implementation requirement: {reason}"
+                        ))
+                        .with_source_span(program.expression_table.source_span(value))
+                    })?
+                    .ok_or_else(|| {
+                        Diagnostic::error("named machine value lost its selected implementation")
+                            .with_source_span(program.expression_table.source_span(value))
+                    })?
+                    .1
             };
-            if rows.next().is_some() {
-                return Err(Diagnostic::error(
-                    "named machine value has ambiguous implementation requirement rows",
-                )
-                .with_source_span(program.expression_table.source_span(value)));
-            }
             (row.realization_machine, conformance.symbol, row.requirement)
         }
         Some(NamedValueSource::Machine(symbol)) => (
@@ -1241,4 +1261,112 @@ pub(crate) fn validate_pending_token_shapes(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod named_value_tests {
+    use super::*;
+    use typed::expression::{ExpressionNode, TableNamePath};
+
+    #[test]
+    fn named_values_keep_the_applied_requirement_and_refuse_stale_members() {
+        const TEXT: &str = r#"
+trait Shrink<T> {
+    machine shrink(scale: &T, value: u64) -> u64;
+}
+data Scale { unit: u8; }
+TrimOne satisfies Shrink<Scale> {
+    machine shrink(scale: &Scale, value: u64) -> u64 { value }
+}
+machine entry(scale: &Scale) -> u64 {
+    let one: machine(scale: &Scale, value: u64) -> u64 reaches none crashes none = TrimOne::shrink;
+    one(scale, 7)
+}
+"#;
+        let mut sources = source::SourceMap::default();
+        let source = sources
+            .add("runtime_callables/named_value.omg".into(), TEXT.into())
+            .source_id;
+        let tokens = source_files_to_tokens::Lexer::new(TEXT).tokenize().unwrap();
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap();
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                syntax,
+                sources: Some(std::sync::Arc::new(sources)),
+                top_level_bindings: Vec::new(),
+                retained_base: None,
+            },
+        )
+        .unwrap();
+        let mut program = crate::lower_symbol_resolved_trees(&resolved).unwrap();
+        let constructed = program
+            .expression_table
+            .iter_expressions()
+            .filter_map(|(_, expression)| match expression {
+                ExpressionNode::MachineValue(value) => Some(value.clone()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let [constructed] = constructed.as_slice() else {
+            panic!("the one named operand must construct its callable value");
+        };
+        let (_, row, signature) = program
+            .named_conformance_member(constructed.conformance, constructed.requirement)
+            .unwrap()
+            .unwrap();
+        assert_eq!(constructed.requirement, row.requirement);
+        assert_eq!(constructed.selected.symbol, row.realization_state);
+        let machine = program.machine_by_symbol(row.realization_machine).unwrap();
+        let [entry] = program.machine_states(machine) else {
+            panic!("the selected implementation must retain its exact entry");
+        };
+        assert_eq!(entry.symbol, constructed.selected.symbol);
+        let actual = program.state_parameters(entry);
+        let required = program.state_signature_parameters(signature);
+        assert_eq!(actual.len(), required.len());
+        for (actual, required) in actual.iter().zip(required) {
+            let actual = program.normalized_type_identity_text(actual.type_reference);
+            let required = program.normalized_type_identity_text(required.type_reference);
+            assert!(!actual.is_empty() && !required.is_empty());
+            assert_eq!(
+                actual, required,
+                "the requirement must retain Shrink<Scale>'s applied carrier",
+            );
+        }
+        let lexical_owner = machine.symbol;
+        let stale = symbols::SymbolHandle::from_parts(
+            row.requirement.arena_index(),
+            row.requirement.generation().checked_add(1).unwrap(),
+        );
+        let mut members = Default::default();
+        program
+            .expression_table
+            .push_name_path_member(&mut members, "TrimOne".into());
+        program
+            .expression_table
+            .push_name_path_member(&mut members, "shrink".into());
+        let value = program
+            .expression_table
+            .insert(ExpressionNode::Name(TableNamePath {
+                members,
+                head_symbol: constructed.conformance,
+                symbol: stale,
+                ..Default::default()
+            }));
+        let error = prepare_named_value(
+            &mut program,
+            value,
+            constructed.type_reference,
+            lexical_owner,
+        )
+        .unwrap_err();
+        assert!(
+            error.message.contains("exact implementation requirement"),
+            "{error:?}"
+        );
+        assert!(matches!(
+            program.expression_table.expression(value),
+            ExpressionNode::Name(_)
+        ));
+    }
 }

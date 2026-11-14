@@ -49,6 +49,7 @@ pub(crate) fn admit_build_program(
     artifact_only: bool,
     source: package_compilation::BuildSourceSelection,
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
+    anonymous_source: Option<&package_compilation::AnonymousSourceCapture>,
 ) -> Result<AdmittedBuildProgram, Vec<Diagnostic>> {
     let typed = prepared.source();
     if !typed
@@ -65,7 +66,14 @@ pub(crate) fn admit_build_program(
     // Produce one invocation. Its companion and the code later passed to the
     // host retain the same execution identity; preparing again would issue a
     // different invocation rather than replay this admission.
-    let produced = prepared.produce(Default::default(), &mut psi_compiler::UnmeasuredProduction)?;
+    let produced = prepared.produce(
+        psi_compiler::TerminalProductionCustody {
+            invocation_sources: anonymous_source
+                .map(|capture| capture as &dyn source::InvocationSourceConsent),
+            ..Default::default()
+        },
+        &mut psi_compiler::UnmeasuredProduction,
+    )?;
     let build_authority = package_inputs
         .map(|inputs| inputs.declaration_selection_authority(DependencyPurpose::Build));
     let product_authority = package_inputs

@@ -150,6 +150,212 @@ fn deferred_product_inputs_are_inert_and_cannot_be_ordinary_reads() {
     );
 }
 
+#[test]
+fn invocation_consent_is_exact_and_confined_to_build_source_questions() {
+    struct CapturedQuestion {
+        artifact: terminal_codec::TerminalExecutionIdentity,
+        question: SelectionQuestionId,
+    }
+    impl InvocationSelectionConsent for CapturedQuestion {
+        fn allows_question(
+            &self,
+            artifact: terminal_codec::TerminalExecutionView<'_>,
+            question: SelectionQuestionId,
+        ) -> bool {
+            self.artifact == artifact.custody_identity() && self.question == question
+        }
+    }
+    let invocation = || {
+        let mut module = TerminalModule::declarations();
+        module.identities = TerminalIdentityTableBuilder::for_invocation().build();
+        terminal_codec::InvocationTerminalCode::new(module).unwrap()
+    };
+    let code = invocation();
+    let other = invocation();
+    assert_eq!(code.view().identity(), other.view().identity());
+    let authorities = SelectionAuthorities {
+        build: None,
+        product: None,
+    };
+    let mut packet = SelectionQuestions::default();
+    let caller = packet.declarations.push(declaration_row(
+        "canonical-build-requester",
+        DeclarationCustody::UnownedUser,
+        SelectionPurpose::Build,
+    ));
+    packet.declarations.get_mut(caller).unwrap().name = "authored Build root".into();
+    let target = packet.declarations.push(declaration_row(
+        "canonical-build-helper",
+        DeclarationCustody::UnownedUser,
+        SelectionPurpose::Build,
+    ));
+    let id = packet.questions.push(source_question(
+        caller,
+        SelectionReference::Declaration(target),
+        SelectionPurpose::Build,
+    ));
+    let consent = CapturedQuestion {
+        artifact: code.view().custody_identity(),
+        question: id,
+    };
+    let admit = |packet: &SelectionQuestions| {
+        admit_selection_questions_with_consent(code.view(), packet, &authorities, Some(&consent))
+    };
+    let refused =
+        admit_selection_questions(code.view().module(), &packet, &authorities).unwrap_err();
+    for context in [
+        "canonical-build-requester",
+        "authored Build root",
+        "Build",
+        "Expression",
+        "Type",
+        "user source without reconciled package custody",
+    ] {
+        assert!(refused.contains(context), "{refused}");
+    }
+    assert!(refused.contains(&format!("question {id}")), "{refused}");
+    assert!(admit(&packet).is_ok());
+    assert!(
+        admit_selection_questions_with_consent(code.view(), &packet, &authorities, None).is_err()
+    );
+    let wrong_question = CapturedQuestion {
+        artifact: code.view().custody_identity(),
+        question: SelectionQuestionId::new(id.get() + 1).unwrap(),
+    };
+    assert!(
+        admit_selection_questions_with_consent(
+            code.view(),
+            &packet,
+            &authorities,
+            Some(&wrong_question),
+        )
+        .is_err()
+    );
+    assert!(
+        admit_selection_questions_with_consent(
+            other.view(),
+            &packet,
+            &authorities,
+            Some(&consent),
+        )
+        .is_err()
+    );
+    let module = TerminalModule::declarations();
+    let optimization =
+        terminal_codec::build_identity_optimization_execution_record(&module).unwrap();
+    let portable =
+        terminal_codec::CanonicalTerminalArtifact::from_parts(module, optimization, None).unwrap();
+    let portable_view: terminal_codec::TerminalExecutionView<'_> = portable.view().into();
+    let portable_consent = CapturedQuestion {
+        artifact: portable_view.custody_identity(),
+        question: id,
+    };
+    assert!(
+        admit_selection_questions_with_consent(
+            portable_view,
+            &packet,
+            &authorities,
+            Some(&portable_consent),
+        )
+        .is_err()
+    );
+
+    for (custody, purpose, allowed) in [
+        (
+            DeclarationCustody::UnownedUser,
+            SelectionPurpose::Build,
+            true,
+        ),
+        (
+            DeclarationCustody::Toolchain,
+            SelectionPurpose::Product,
+            true,
+        ),
+        (
+            DeclarationCustody::UnownedUser,
+            SelectionPurpose::Product,
+            false,
+        ),
+        (package(1), SelectionPurpose::Product, false),
+        (DeclarationCustody::Missing, SelectionPurpose::Build, false),
+        (
+            DeclarationCustody::ToolchainContract,
+            SelectionPurpose::Build,
+            false,
+        ),
+    ] {
+        let selected = packet.declarations.get_mut(target).unwrap();
+        selected.custody = custody;
+        selected.purpose = purpose;
+        assert_eq!(admit(&packet).is_ok(), allowed, "{custody:?} {purpose:?}");
+        if custody == DeclarationCustody::Toolchain {
+            assert!(
+                admit_selection_questions_with_consent(code.view(), &packet, &authorities, None)
+                    .is_err()
+            );
+        }
+    }
+    packet.declarations.get_mut(target).unwrap().custody = DeclarationCustody::UnownedUser;
+    packet.declarations.get_mut(target).unwrap().purpose = SelectionPurpose::Build;
+    for custody in [
+        DeclarationCustody::Missing,
+        DeclarationCustody::ToolchainContract,
+        DeclarationCustody::Toolchain,
+        package(1),
+    ] {
+        packet.declarations.get_mut(caller).unwrap().custody = custody;
+        assert!(admit(&packet).is_err(), "{custody:?}");
+    }
+    packet.declarations.get_mut(caller).unwrap().custody = DeclarationCustody::UnownedUser;
+    packet.declarations.get_mut(caller).unwrap().purpose = SelectionPurpose::Product;
+    assert!(
+        admit(&packet)
+            .unwrap_err()
+            .contains("changes its lexical source purpose")
+    );
+    packet.questions.get_mut(id).unwrap().purpose = SelectionPurpose::Product;
+    packet.declarations.get_mut(target).unwrap().purpose = SelectionPurpose::Product;
+    assert!(admit(&packet).is_err());
+    packet.declarations.get_mut(caller).unwrap().purpose = SelectionPurpose::Build;
+    assert!(admit(&packet).is_err());
+
+    let input = [7; 32];
+    let question = packet.questions.get_mut(id).unwrap();
+    question.role = SelectionRole::ProductDesignation(SelectionProductDesignation {
+        site: BuildCallSite {
+            machine: MachineId::new(1).unwrap(),
+            operation: OperationId::new(1).unwrap(),
+            boundary: semantic_vocabulary::BoundaryMachineId::new(1).unwrap(),
+        },
+        operand: 2,
+        input_selection: input,
+        static_application: None,
+    });
+    // Even a designated row cannot select an unowned Product declaration.
+    assert!(admit(&packet).is_err());
+    packet.questions.get_mut(id).unwrap().selected = SelectionReference::ProductInput {
+        input_selection: input,
+    };
+    assert!(admit(&packet).is_ok());
+    assert!(admit_selection_questions(code.view().module(), &packet, &authorities).is_err());
+    packet.questions.get_mut(id).unwrap().role = SelectionRole::Type;
+    assert!(
+        admit(&packet)
+            .unwrap_err()
+            .contains("outside its designated operand")
+    );
+
+    // Owned requests still use ordinary package policy, even with consent.
+    packet.questions.get_mut(id).unwrap().purpose = SelectionPurpose::Build;
+    packet.questions.get_mut(id).unwrap().selected = SelectionReference::Declaration(target);
+    packet.declarations.get_mut(caller).unwrap().custody = package(1);
+    packet.declarations.get_mut(target).unwrap().custody = package(2);
+    assert!(admit(&packet).is_err());
+    packet.declarations.get_mut(target).unwrap().custody = package(1);
+    packet.declarations.get_mut(target).unwrap().purpose = SelectionPurpose::Build;
+    assert!(admit_selection_questions(code.view().module(), &packet, &authorities).is_ok());
+}
+
 fn machine(id: MachineId, identity: terminal_psi::TerminalIdentityIndex) -> TerminalMachine {
     let block = BlockId::new(1).unwrap();
     TerminalMachine {

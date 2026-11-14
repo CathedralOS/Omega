@@ -58,6 +58,7 @@ mod result_summaries;
 mod rule_violations;
 mod runtime_indexed_elements;
 mod sequence_regions;
+mod source_operators;
 mod stored_views;
 mod type_parameters;
 mod value_parameters;

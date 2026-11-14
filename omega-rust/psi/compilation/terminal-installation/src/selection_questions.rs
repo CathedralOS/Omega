@@ -13,6 +13,16 @@ use terminal_psi::{OperationKind, TerminalModule};
 #[cfg(test)]
 mod tests;
 
+/// Consent captured for exact questions by the source-issued companion of one
+/// Build invocation. This grants no package edge or selected declaration custody.
+pub trait InvocationSelectionConsent {
+    fn allows_question(
+        &self,
+        artifact: terminal_codec::TerminalExecutionView<'_>,
+        question: SelectionQuestionId,
+    ) -> bool;
+}
+
 pub struct SelectionAuthorities<'a> {
     pub build: Option<&'a dyn DeclarationSelectionAuthority>,
     pub product: Option<&'a dyn DeclarationSelectionAuthority>,
@@ -45,6 +55,33 @@ fn question(
         .questions
         .get(id)
         .ok_or_else(|| format!("source selection join names absent question {id}"))
+}
+
+fn question_failure(
+    packet: &SelectionQuestions,
+    id: SelectionQuestionId,
+    row: &SelectionQuestion,
+    reason: impl std::fmt::Display,
+) -> String {
+    let describe = |owner| match packet.declarations.get(owner) {
+        Some(declaration) => format!(
+            "declaration {owner}, identity {:?}, name {:?}, source purpose {:?}, custody {:?}",
+            declaration.identity, declaration.name, declaration.purpose, declaration.custody
+        ),
+        None => format!("absent declaration {owner}"),
+    };
+    let selected = match &row.selected {
+        SelectionReference::Declaration(owner) => describe(*owner),
+        selected => format!("{selected:?}"),
+    };
+    format!(
+        "source selection question {id}: requester [{}], purpose {:?}, node {:?}, role {:?}, selected [{}]: {reason}",
+        describe(row.occurrence.lexical_owner),
+        row.purpose,
+        row.occurrence.node,
+        row.role,
+        selected
+    )
 }
 
 fn published_question(
@@ -167,78 +204,82 @@ pub fn validate_selection_questions(
         return Err("source selection dictionary repeats a declaration in one purpose".into());
     }
     for (id, row) in packet.questions.iter() {
-        declaration(packet, row.occurrence.lexical_owner)?;
-        match &row.selected {
-            SelectionReference::Declaration(selected) => {
-                declaration(packet, *selected)?;
-            }
-            SelectionReference::RuntimeContract { identity } => {
-                if identity.is_empty()
-                    || !matches!(
-                        row.role,
-                        SelectionRole::Contract | SelectionRole::Executable
-                    )
-                {
+        (|| -> Result<(), String> {
+            declaration(packet, row.occurrence.lexical_owner)?;
+            match &row.selected {
+                SelectionReference::Declaration(selected) => {
+                    declaration(packet, *selected)?;
+                }
+                SelectionReference::RuntimeContract { identity } => {
+                    if identity.is_empty()
+                        || !matches!(
+                            row.role,
+                            SelectionRole::Contract | SelectionRole::Executable
+                        )
+                    {
+                        return Err(format!(
+                            "selection question {id} has no actual runtime callable contract"
+                        ));
+                    }
+                }
+                SelectionReference::ProductInput { input_selection } => {
+                    if !matches!(&row.role, SelectionRole::ProductDesignation(designation)
+                        if designation.input_selection == *input_selection)
+                    {
+                        return Err(format!(
+                            "selection question {id} has a deferred Product input outside its designated operand"
+                        ));
+                    }
+                }
+                SelectionReference::Intrinsic { identity } if identity.is_empty() => {
                     return Err(format!(
-                        "selection question {id} has no actual runtime callable contract"
+                        "selection question {id} has no exact intrinsic identity"
                     ));
                 }
-            }
-            SelectionReference::ProductInput { input_selection } => {
-                if !matches!(&row.role, SelectionRole::ProductDesignation(designation)
-                    if designation.input_selection == *input_selection)
-                {
-                    return Err(format!(
-                        "selection question {id} has a deferred Product input outside its designated operand"
-                    ));
+                SelectionReference::Intrinsic { .. } => (),
+                SelectionReference::LocalBinding {
+                    owner,
+                    index,
+                    generation,
+                    ..
+                } => {
+                    declaration(packet, *owner)?;
+                    if *owner != row.occurrence.lexical_owner || *index == 0 || *generation == 0 {
+                        return Err(format!(
+                            "selection question {id} has no authenticated local binding context"
+                        ));
+                    }
                 }
             }
-            SelectionReference::Intrinsic { identity } if identity.is_empty() => {
+            let coordinate = match row.occurrence.node {
+                SelectionNode::AuthoredSelection { .. } => None,
+                SelectionNode::Declaration { index, generation }
+                | SelectionNode::Expression { index, generation }
+                | SelectionNode::Statement { index, generation }
+                | SelectionNode::TypeReference { index, generation } => Some((index, generation)),
+            };
+            if coordinate.is_some_and(|(index, generation)| index == 0 || generation == 0) {
                 return Err(format!(
-                    "selection question {id} has no exact intrinsic identity"
+                    "selection question {id} has an invalid source node"
                 ));
             }
-            SelectionReference::Intrinsic { .. } => (),
-            SelectionReference::LocalBinding {
-                owner,
-                index,
-                generation,
-                ..
-            } => {
-                declaration(packet, *owner)?;
-                if *owner != row.occurrence.lexical_owner || *index == 0 || *generation == 0 {
+            if let SelectionRole::ProductDesignation(designation) = &row.role {
+                if row.purpose != SelectionPurpose::Product
+                    || designation.input_selection == [0; 32]
+                    || designation.static_application == Some([0; 32])
+                {
                     return Err(format!(
-                        "selection question {id} has no authenticated local binding context"
+                        "selection question {id} has no authenticated Product input association"
                     ));
                 }
-            }
-        }
-        let coordinate = match row.occurrence.node {
-            SelectionNode::AuthoredSelection { .. } => None,
-            SelectionNode::Declaration { index, generation }
-            | SelectionNode::Expression { index, generation }
-            | SelectionNode::Statement { index, generation }
-            | SelectionNode::TypeReference { index, generation } => Some((index, generation)),
-        };
-        if coordinate.is_some_and(|(index, generation)| index == 0 || generation == 0) {
-            return Err(format!(
-                "selection question {id} has an invalid source node"
-            ));
-        }
-        if let SelectionRole::ProductDesignation(designation) = &row.role {
-            if row.purpose != SelectionPurpose::Product
-                || designation.input_selection == [0; 32]
-                || designation.static_application == Some([0; 32])
-            {
+            } else if declaration(packet, row.occurrence.lexical_owner)?.purpose != row.purpose {
                 return Err(format!(
-                    "selection question {id} has no authenticated Product input association"
+                    "selection question {id} changes its lexical source purpose"
                 ));
             }
-        } else if declaration(packet, row.occurrence.lexical_owner)?.purpose != row.purpose {
-            return Err(format!(
-                "selection question {id} changes its lexical source purpose"
-            ));
-        }
+            Ok(())
+        })()
+        .map_err(|reason| question_failure(packet, id, row, reason))?;
     }
     let calls = actual_calls(module)?;
     let mut origins = Vec::new();
@@ -543,54 +584,116 @@ pub fn admit_selection_questions(
     packet: &SelectionQuestions,
     authorities: &SelectionAuthorities<'_>,
 ) -> Result<(), String> {
+    admit_questions(module, packet, authorities, None)
+}
+
+/// Admit the source-issued companion with exact invocation consent. Package
+/// dependency policy remains independently owed for every owned declaration.
+pub fn admit_selection_questions_with_consent(
+    artifact: terminal_codec::TerminalExecutionView<'_>,
+    packet: &SelectionQuestions,
+    authorities: &SelectionAuthorities<'_>,
+    consent: Option<&dyn InvocationSelectionConsent>,
+) -> Result<(), String> {
+    admit_questions(
+        artifact.module(),
+        packet,
+        authorities,
+        consent.map(|consent| (artifact, consent)),
+    )
+}
+
+fn admit_questions(
+    module: &TerminalModule,
+    packet: &SelectionQuestions,
+    authorities: &SelectionAuthorities<'_>,
+    consent: Option<(
+        terminal_codec::TerminalExecutionView<'_>,
+        &dyn InvocationSelectionConsent,
+    )>,
+) -> Result<(), String> {
     validate_selection_questions(module, packet)?;
     for (id, row) in packet.questions.iter() {
-        let requester = declaration(packet, row.occurrence.lexical_owner)?;
-        // A local binder or deferred operand still belongs to an actual source
-        // owner; neither can supply missing package custody.
-        crate::declaration_selection::require_declaration_selection(
-            requester.custody,
-            requester.custody,
-            None,
-        )?;
-        match &row.selected {
-            // Product admission resolves this exact retained request later.
-            // Build admission cannot grant permission to its unknown owner.
-            SelectionReference::ProductInput { .. } => (),
-            // The holder's declaration/type reads carry their own package
-            // checks. Structural callable meaning selects no source owner.
-            SelectionReference::RuntimeContract { .. } => (),
-            SelectionReference::LocalBinding { .. } => (),
-            SelectionReference::Intrinsic { .. } => {
+        (|| -> Result<(), String> {
+            let requester = declaration(packet, row.occurrence.lexical_owner)?;
+            let build_question = row.purpose == SelectionPurpose::Build
+                && !matches!(row.role, SelectionRole::ProductDesignation(_));
+            // An inert designated Product input asks only to retain its exact
+            // request. It selects no declaration before Product admission.
+            let deferred_product_input = row.purpose == SelectionPurpose::Product
+                && matches!(
+                    (&row.role, &row.selected),
+                    (
+                        SelectionRole::ProductDesignation(_),
+                        SelectionReference::ProductInput { .. }
+                    )
+                );
+            let requester_consented = requester.custody == DeclarationCustody::UnownedUser
+                && requester.purpose == SelectionPurpose::Build
+                && module.identities.invocation_scope().is_some()
+                && (build_question || deferred_product_input)
+                && consent.is_some_and(|(artifact, consent)| consent.allows_question(artifact, id));
+            // A local binder or deferred input still needs its exact Build
+            // requester's consent; neither creates missing package custody.
+            if !requester_consented {
                 crate::declaration_selection::require_declaration_selection(
                     requester.custody,
-                    DeclarationCustody::Toolchain,
-                    authorities.for_purpose(row.purpose),
-                )?
-            }
-            SelectionReference::Declaration(selected) => {
-                let owner = declaration(packet, *selected)?;
-                let same_package = matches!((requester.custody, owner.custody),
-                    (DeclarationCustody::Package(a), DeclarationCustody::Package(b)) if a == b);
-                let required_purpose = if same_package {
-                    row.purpose
-                } else {
-                    SelectionPurpose::Product
-                };
-                if matches!(owner.custody, DeclarationCustody::Package(_))
-                    && owner.purpose != required_purpose
-                {
-                    return Err(format!(
-                        "selection question {id} selects a declaration from the wrong Build/Product source context"
-                    ));
-                }
-                crate::declaration_selection::require_declaration_selection(
                     requester.custody,
-                    owner.custody,
-                    authorities.for_purpose(row.purpose),
+                    None,
                 )?;
             }
-        }
+            match &row.selected {
+                SelectionReference::ProductInput { .. }
+                | SelectionReference::RuntimeContract { .. }
+                | SelectionReference::LocalBinding { .. } => (),
+                SelectionReference::Intrinsic { .. } => {
+                    if !requester_consented {
+                        crate::declaration_selection::require_declaration_selection(
+                            requester.custody,
+                            DeclarationCustody::Toolchain,
+                            authorities.for_purpose(row.purpose),
+                        )?;
+                    }
+                }
+                SelectionReference::Declaration(selected) => {
+                    let owner = declaration(packet, *selected)?;
+                    let same_package = matches!((requester.custody, owner.custody),
+                        (DeclarationCustody::Package(a), DeclarationCustody::Package(b)) if a == b);
+                    let required_purpose = if same_package {
+                        row.purpose
+                    } else {
+                        SelectionPurpose::Product
+                    };
+                    if matches!(owner.custody, DeclarationCustody::Package(_))
+                        && owner.purpose != required_purpose
+                    {
+                        return Err(format!(
+                            "selection question {id} selects a declaration from the wrong Build/Product source context"
+                        ));
+                    }
+                    let selected_consented = requester_consented
+                        && build_question
+                        && match owner.custody {
+                            DeclarationCustody::UnownedUser => {
+                                owner.purpose == SelectionPurpose::Build
+                            }
+                            DeclarationCustody::Toolchain => true,
+                            DeclarationCustody::Package(_)
+                            | DeclarationCustody::Missing
+                            | DeclarationCustody::ToolchainContract => false,
+                        };
+                    if !selected_consented {
+                        crate::declaration_selection::require_declaration_selection(
+                            requester.custody,
+                            owner.custody,
+                            authorities.for_purpose(row.purpose),
+                        )?;
+                    }
+                }
+            }
+            Ok(())
+        })()
+        .map_err(|reason| question_failure(packet, id, row, reason))?;
     }
     Ok(())
 }

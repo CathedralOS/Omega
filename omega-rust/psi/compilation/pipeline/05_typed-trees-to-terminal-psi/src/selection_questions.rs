@@ -821,9 +821,14 @@ impl TypedReferences for Capture<'_> {
                         )
                     } else {
                         let Some(input) = designation else {
+                            let expression = self.expressions.last().map(|scope| {
+                                self.typed.expression_table.display_name(scope.expression)
+                            });
                             self.fail(format!(
-                                "admitted source selection {:?} remains unresolved as {binding:?}",
-                                row.kind()
+                                "admitted source selection {:?} remains unresolved as {binding:?} in `{}` at {}",
+                                row.kind(),
+                                self.typed.symbols.display_path(self.owner, "::"),
+                                expression.as_deref().unwrap_or("a declaration"),
                             ));
                             return;
                         };

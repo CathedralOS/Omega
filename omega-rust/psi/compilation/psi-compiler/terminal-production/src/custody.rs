@@ -329,4 +329,6 @@ impl PortableTerminalProgram {
 #[derive(Clone, Copy, Default)]
 pub struct TerminalProductionCustody<'a> {
     pub applications: &'a [crate::TerminalApplicationCustody<'a>],
+    /// Captured anonymous Build source may be used only in this invocation.
+    pub invocation_sources: Option<&'a dyn source::InvocationSourceConsent>,
 }

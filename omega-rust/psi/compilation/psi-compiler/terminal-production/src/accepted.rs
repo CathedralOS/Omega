@@ -121,11 +121,17 @@ impl AcceptedTerminalSource {
                 })
             })?;
         let elaboration = &self.closure.elaboration;
-        let selection_questions =
-            crate::source_selection_publication::prepare(self, program.view().module())
-                .map_err(|diagnostic| vec![diagnostic])?;
-        let source_selections =
-            crate::TerminalSourceSelections::new(program.view(), selection_questions);
+        let selections = crate::source_selection_publication::prepare(
+            self,
+            program.view().module(),
+            custody.invocation_sources,
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
+        let source_selections = crate::TerminalSourceSelections::new(
+            program.view(),
+            selections.questions,
+            selections.invocation_consent,
+        );
         let mut provenance = terminal_psi::TerminalMachineProvenance::default();
         for (machine, symbol) in elaboration.machines.iter() {
             let name = elaboration.names.get(machine).ok_or_else(|| {

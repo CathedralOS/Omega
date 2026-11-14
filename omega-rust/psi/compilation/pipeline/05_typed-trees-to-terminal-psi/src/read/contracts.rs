@@ -15,6 +15,7 @@ use terminal_check_tables::{Checked, Construct};
 use typed_trees::closed_numeric;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use typed_trees::types::TypeReferenceHandle;
 
 use super::authority::Access;
 use super::places::Member;
@@ -166,6 +167,7 @@ impl Program<'_> {
         id: MachineId,
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
+        operands: [Option<TypeReferenceHandle>; 2],
     ) -> Checked<()> {
         if self
             .typed
@@ -191,7 +193,7 @@ impl Program<'_> {
         } else {
             scope.owner
         };
-        self.complete_builtin_operator(id, owner, expression)
+        self.complete_builtin_operator(id, owner, expression, operands)
     }
 
     /// A contract fact that is an expression; memberships and named
@@ -232,8 +234,9 @@ impl Program<'_> {
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
     ) -> Checked<Proposition> {
-        let read = self.read_clause(id, scope, expression)?;
-        self.complete_contract_operator(id, scope, expression)?;
+        let mut operands = [None, None];
+        let read = self.read_clause(id, scope, expression, &mut operands)?;
+        self.complete_contract_operator(id, scope, expression, operands)?;
         Ok(read)
     }
 
@@ -242,6 +245,7 @@ impl Program<'_> {
         id: MachineId,
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
+        operands: &mut [Option<TypeReferenceHandle>; 2],
     ) -> Checked<Proposition> {
         let typed = self.typed;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
@@ -252,6 +256,9 @@ impl Program<'_> {
             return unserved("clause that is not a comparison or conjunction");
         };
         let operator = binary.operator;
+        if matches!(operator, BinaryOperator::And | BinaryOperator::Or) {
+            *operands = [self.operator_operand_reference(ValueType::plain(ScalarType::Boolean)); 2];
+        }
         // A machine clause over a type equation the machine being read
         // decides: a conjunct decided true states nothing and the rest is
         // the clause, and a disjunct decided false contributes nothing and
@@ -360,6 +367,7 @@ impl Program<'_> {
         // A comparison with an `embed` on either side is between
         // mathematical integers, which no carrier bounds.
         if self.mathematical(binary.left) || self.mathematical(binary.right) {
+            *operands = self.mathematical_operator_operands();
             return self.mathematical_comparison(id, scope, comparison, binary.left, binary.right);
         }
         // A wholly anonymous operand lands in its partner's type.
@@ -371,6 +379,7 @@ impl Program<'_> {
             let right = self.term(id, scope, binary.right, left.1.scalar())?;
             (left, right)
         };
+        *operands = [left_type, right_type].map(|operand| self.operator_operand_reference(operand));
         let left_type = self.clause_operand_type(id, left_type)?;
         let right_type = self.clause_operand_type(id, right_type)?;
         if left_type != right_type {
@@ -495,7 +504,7 @@ impl Program<'_> {
         expected: Option<ScalarType>,
     ) -> Checked<(ScalarTerm, ValueType)> {
         let read = self.read_term(id, scope, expression, expected)?;
-        self.complete_contract_operator(id, scope, expression)?;
+        self.complete_contract_operator(id, scope, expression, [None, None])?;
         Ok(read)
     }
 
@@ -946,7 +955,12 @@ impl Program<'_> {
         expression: ExpressionHandle,
     ) -> Checked<IntegerMathTerm> {
         let read = self.read_mathematical_term(id, scope, expression)?;
-        self.complete_contract_operator(id, scope, expression)?;
+        self.complete_contract_operator(
+            id,
+            scope,
+            expression,
+            self.mathematical_operator_operands(),
+        )?;
         Ok(read)
     }
 
