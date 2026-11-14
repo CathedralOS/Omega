@@ -215,8 +215,18 @@ impl<'t> Program<'t> {
                     }
                 }
             }
-            // A condition closed type equations decide is that Boolean.
-            ExpressionNode::Binary(_) if self.static_truth(handle).is_some() => {
+            // A condition static type propositions decide is that Boolean:
+            // closed type equations, and the fields of the integer carrier
+            // query (`carriers`), whose own body is never run.
+            ExpressionNode::Binary(_) | ExpressionNode::Member(_)
+                if self.type_truth(super::carriers::Scope::Own, handle, super::types::Reading::Value)
+                    == Some(super::types::TypeTruth::Open) =>
+            {
+                return unserved(super::types::OPEN_CARRIER_FAMILY);
+            }
+            ExpressionNode::Binary(_) | ExpressionNode::Member(_)
+                if self.static_truth(handle).is_some() =>
+            {
                 let truth = self.static_truth(handle).unwrap_or_default();
                 (ExpressionKind::Boolean(truth), ScalarType::Boolean)
             }

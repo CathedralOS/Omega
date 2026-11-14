@@ -1371,3 +1371,154 @@ fn an_owned_sum_is_dispatched_and_disposed_of_once() {
         ["rejected"]
     );
 }
+
+/// The rule each rejected part of `source` breaks, by part, and `None` for
+/// a part that is not rejected for one rule the reader found.
+fn violations(name: &str, source: &str) -> Vec<Option<String>> {
+    judged(name, source)
+        .iter()
+        .map(|part| match part {
+            Ok(RouteVerdict::Rejected { violations, .. }) => match &violations[..] {
+                [violation] => Some(violation.statement.clone()),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect()
+}
+
+/// The integer carrier families (`wiki/spec/language/numeric_values.md`,
+/// "Integer carrier families"): `core::integer`'s four total queries are
+/// ordinary checked machines, and a generic machine requiring one admits
+/// exactly that family (generics.md, "Integer carrier constraints").
+///
+/// Each program holds the entry closure and, after it, each generic machine
+/// checked once as written with its type parameter rigid. Applications at a
+/// signed, an unsigned and a 13-bit carrier are judged. The generic bodies
+/// are judged from their requirements alone: `is_signed_integer<T>()` says
+/// `T` is an integer, so `relay` may call `needs_integer` at it.
+#[test]
+fn an_integer_family_requirement_admits_its_carriers() {
+    let program = "use omega::language::core::integer;
+         machine needs_integer<T>(value: T) -> T requires integer::is_integer<T>() { value }
+         machine relay<T>(value: T) -> T requires integer::is_signed_integer<T>() {
+             needs_integer<T>(value)
+         }
+         machine main() {
+             let narrow: i8 = relay<i8>(3i8);
+             let wide: u16 = needs_integer<u16>(4u16);
+             let odd: i13 = relay<i13>(5i13);
+         }
+";
+    assert_eq!(
+        verdicts("integer_family_admitted", program),
+        ["accepted", "accepted", "accepted"]
+    );
+    // The answers are values too: at a closed type each query's body is
+    // the answer its contract states. Each query is also checked once as
+    // written, where nothing yet reads a body once per carrier family:
+    // refused by name.
+    // `expect_unsigned` relies on the query's contract, not its spelling.
+    let answered = |carrier: &str| {
+        format!(
+            "use omega::language::core::integer;
+             machine expect_unsigned(signed: bool) requires signed == false {{ }}
+             machine main() {{
+                 let signed: bool = integer::is_signed_integer<{carrier}>();
+                 expect_unsigned(signed)
+             }}
+"
+        )
+    };
+    assert_eq!(
+        verdicts("integer_family_answer", &answered("u8")),
+        ["accepted", "not-supported"]
+    );
+    assert_eq!(
+        verdicts("integer_family_wrong_answer", &answered("i8")),
+        ["rejected", "not-supported"]
+    );
+}
+
+/// An application outside a family is rejected for that requirement,
+/// whatever value it passes: a signed carrier for an unsigned-only machine,
+/// `bool`, and nominal data whose only field is an integer. The twin applies
+/// it at `u8`.
+#[test]
+fn an_application_outside_an_integer_family_is_rejected() {
+    let program = |carrier: &str, argument: &str| {
+        format!(
+            "use omega::language::core::integer;
+             data Meters [copy] {{ value: u32; }}
+             machine count<T>(value: T) -> T requires integer::is_unsigned_integer<T>() {{ value }}
+             machine main() {{ let kept: {carrier} = count<{carrier}>({argument}); }}
+"
+        )
+    };
+    assert_eq!(
+        verdicts("unsigned_family_admitted", &program("u8", "3u8")),
+        ["accepted", "accepted"]
+    );
+    for (name, carrier, argument) in [
+        ("signed_to_unsigned_family", "i8", "3i8"),
+        ("bool_to_unsigned_family", "bool", "true"),
+        ("nominal_data_to_unsigned_family", "Meters", "Meters { value: 3 }"),
+    ] {
+        // The reader rejects the whole program at that requirement.
+        let found = violations(name, &program(carrier, argument));
+        let [Some(rule)] = &found[..] else {
+            panic!("{name}: one rejected part: {found:?}");
+        };
+        assert!(
+            rule.contains("do not meet its requirement")
+                && rule.contains("is_unsigned_integer"),
+            "{name}: {found:?}"
+        );
+    }
+}
+
+/// A generic body may use only the family its own requirements state. With
+/// `is_integer<T>()` alone, calling a machine that requires
+/// `is_fixed_width_integer<T>()` is rejected as written, though every
+/// application in the program is fixed-width: the premise is missing. The
+/// twin states the fixed-width premise. A local `is_integer` whose contract
+/// says it returns `true` establishes no family either: a function
+/// returning true supplies no carrier fact.
+#[test]
+fn a_generic_body_relies_only_on_the_families_it_requires() {
+    let program = |premise: &str| {
+        format!(
+            "use omega::language::core::integer;
+             machine is_integer<T>() -> bool ensures result == true {{ true }}
+             machine fixed<T>(value: T) -> T requires integer::is_fixed_width_integer<T>() {{
+                 value
+             }}
+             machine any<T>(value: T) -> T requires {premise} {{ fixed<T>(value) }}
+             machine main() {{ let kept: u8 = any<u8>(1u8); }}
+"
+        )
+    };
+    for premise in [
+        "integer::is_fixed_width_integer<T>()",
+        "integer::is_unsigned_integer<T>() && integer::is_fixed_width_integer<T>()",
+    ] {
+        assert_eq!(
+            verdicts("fixed_width_premise", &program(premise)),
+            ["accepted", "accepted", "accepted", "accepted"],
+            "{premise}"
+        );
+    }
+    for (name, premise) in [
+        ("missing_fixed_width_premise", "integer::is_integer<T>()"),
+        ("fake_classifier_premise", "is_integer<T>()"),
+    ] {
+        let found = violations(name, &program(premise));
+        assert_eq!(found.len(), 4, "{name}: {found:?}");
+        assert_eq!(found[..3], [None, None, None], "{name}: {found:?}");
+        let rule = found[3].as_deref().unwrap_or_default();
+        assert!(
+            rule.contains("does not establish") && rule.contains("is_fixed_width_integer"),
+            "{name}: {found:?}"
+        );
+    }
+}
