@@ -358,7 +358,7 @@ impl ReferenceResultShape for SelectedReferenceResult<'_> {
         Cow::Owned(match &self.contract.result {
             TerminalMachineResult::Unit => BoundaryMachineResult::Unit,
             TerminalMachineResult::Scalar(result) => {
-                BoundaryMachineResult::Scalar(result.scalar_type)
+                BoundaryMachineResult::Scalar(result.value_type())
             }
             TerminalMachineResult::Structural(result) => {
                 BoundaryMachineResult::Structural(BoundaryStructuralResultDeclaration {
