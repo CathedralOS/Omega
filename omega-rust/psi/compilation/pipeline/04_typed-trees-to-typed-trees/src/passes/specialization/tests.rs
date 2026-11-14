@@ -1589,7 +1589,10 @@ fn the_application_index_finds_each_generated_machine_by_its_complete_key() {
     // Same payload, different template, generation or argument kind: unseen.
     let unseen = [
         (SymbolHandle::from_parts(4, 1), arguments(0)),
-        (templates[0], vec![Identity::Declaration(SymbolHandle::from_parts(100, 2))]),
+        (
+            templates[0],
+            vec![Identity::Declaration(SymbolHandle::from_parts(100, 2))],
+        ),
         (templates[0], vec![Identity::Scalar("0".into())]),
         (templates[0], Vec::new()),
     ];
