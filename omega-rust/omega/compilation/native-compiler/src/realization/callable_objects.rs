@@ -16,6 +16,8 @@ pub(super) struct CallableObjectProduct {
 }
 
 pub(super) struct CallableTargetProduct {
+    pub code: terminal_codec::RetainedTerminalCode,
+    pub coverage: boundary_applications::TerminalBoundaryApplicationCoverage,
     pub target: abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
     pub runtime: native_artifact::TerminalCallableRuntimeProvisions,
     pub authority:
@@ -84,6 +86,16 @@ pub(super) fn prepare_callable_object(
     let runtime =
         runtime.with_borrowed_storage_layouts(optimized_target.borrowed_storage_layouts().to_vec());
     Ok(CallableTargetProduct {
+        code: artifact.retain_code(),
+        coverage: admission
+            .boundary_application_coverage
+            .ok_or_else(|| {
+                realization_error(
+                    "callable physical evidence",
+                    "callable has no semantic occurrence coverage",
+                )
+            })?
+            .clone(),
         target: optimized_target,
         runtime,
         authority,
@@ -95,6 +107,8 @@ pub(super) fn emit_prepared_callable_object(
     prepared: CallableTargetProduct,
 ) -> Result<CallableObjectProduct, Vec<Diagnostic>> {
     let CallableTargetProduct {
+        code,
+        coverage,
         target: optimized_target,
         runtime,
         authority,
@@ -107,6 +121,9 @@ pub(super) fn emit_prepared_callable_object(
             }
             BodyEmissionError::Object(diagnostics) => diagnostics,
         })?;
+    let projection = projection
+        .with_semantic_source(code, coverage)
+        .map_err(|reason| realization_error("callable physical evidence", reason))?;
     observation.complete();
     Ok(CallableObjectProduct {
         projection,

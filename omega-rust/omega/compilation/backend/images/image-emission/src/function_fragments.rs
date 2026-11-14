@@ -3886,6 +3886,7 @@ mod production {
             requires_graph_storage_replay,
             fragment_replay: Some(super::replay::FragmentReplay(Arc::clone(&replay))),
             composition_source: None,
+            semantic_source: None,
             psi: text.psi,
             target: text.target,
             profile,

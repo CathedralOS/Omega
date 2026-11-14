@@ -643,7 +643,29 @@ impl NativePhysicalChild {
 pub struct NativePhysicalEvidence {
     projection: NativeOptimizationProjection,
     children: Vec<NativePhysicalChild>,
+    private_functions: Vec<PrivatePhysicalEvidence>,
     identity: [u8; 32],
+}
+
+/// A separately emitted namespace linked into this image. Machine and object
+/// spans name that body's storage; final-image spans name the containing image.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PrivatePhysicalEvidence {
+    function: function_identity::MachineFunctionIdentity,
+    text_offset: usize,
+    evidence: NativePhysicalEvidence,
+}
+
+impl PrivatePhysicalEvidence {
+    pub const fn function(&self) -> function_identity::MachineFunctionIdentity {
+        self.function
+    }
+    pub const fn text_offset(&self) -> usize {
+        self.text_offset
+    }
+    pub const fn evidence(&self) -> &NativePhysicalEvidence {
+        &self.evidence
+    }
 }
 
 impl NativePhysicalEvidence {
@@ -655,6 +677,10 @@ impl NativePhysicalEvidence {
         &self.children
     }
 
+    pub fn private_functions(&self) -> &[PrivatePhysicalEvidence] {
+        &self.private_functions
+    }
+
     pub const fn identity(&self) -> &[u8; 32] {
         &self.identity
     }
@@ -663,6 +689,7 @@ impl NativePhysicalEvidence {
         NativePhysicalEvidenceParts {
             projection: self.projection,
             children: self.children,
+            private_functions: self.private_functions,
             identity: self.identity,
         }
     }
@@ -671,6 +698,7 @@ impl NativePhysicalEvidence {
         Self {
             projection: parts.projection,
             children: parts.children,
+            private_functions: parts.private_functions,
             identity: parts.identity,
         }
     }
@@ -718,6 +746,7 @@ pub struct NativePhysicalChildParts {
 pub struct NativePhysicalEvidenceParts {
     pub projection: NativeOptimizationProjection,
     pub children: Vec<NativePhysicalChild>,
+    pub private_functions: Vec<PrivatePhysicalEvidence>,
     pub identity: [u8; 32],
 }
 
@@ -1064,6 +1093,7 @@ fn native_physical_evidence(
     NativePhysicalEvidence {
         projection,
         children,
+        private_functions: Vec::new(),
         identity,
     }
 }
