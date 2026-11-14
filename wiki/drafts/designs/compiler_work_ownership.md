@@ -27,18 +27,19 @@ not to remove every synchronization point or imitate memory-scanner SIMD.
 
 ## Observed implementation and proposed boundaries
 
-The observations below were checked at `a8f13149a1ecf9f43012a8ca169627884f2c5043`.
-Links name stage owners; the proposed splits are not already served APIs.
+The observations below were checked at `a8f13149a1ecf9f43012a8ca169627884f2c5043`
+and reconciled at `2e5ca2da570`. Links name stage owners; the proposed splits
+are not already served APIs.
 
 | Stage | Observed ownership or dependency | Proposed work boundary |
 | --- | --- | --- |
-| Psi 00–01 | [Source groups](../../../omega-rust/psi/compilation/psi-compiler/src/lib.rs) lex then parse each file with reusable scratch; groups run concurrently. Discovery also has separate syntax work that admission repeats. | Retain syntax pages and their source-relative index within the invocation. Keep semantic source authority separate. |
+| Psi 00–01 | [Source groups](../../../omega-rust/psi/compilation/psi-compiler/src/lib.rs) lex then parse each file with reusable scratch; groups run concurrently on a process-global Rayon pool. Discovery also has separate syntax work that admission repeats. | Retain syntax pages and their source-relative index within the invocation. Keep semantic source authority separate. |
 | Psi 02 | [Resolution](../../../omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs#L2496) orders normalization, identities, constants and selections through a mutable owner. A later phase needs facts established earlier. | Prepare declaration/scope/selection inputs, then resolve independent body uses into owned tables. Preserve each phase's preconditions; do not declare all resolution independent. |
 | Psi 03 | [Typing](../../../omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L1596) loops through declaration families with one mutable lowerer and then closes the cohort. Shared-snapshot completion can clone owned arenas. | Share immutable declaration/type/signature tables; produce body-local tables and explicit closure inputs. Retain necessary cohort closure before consumers use its results. |
-| Psi 04 | [Specialization](../../../omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs#L87) appends generated machines and visits them in turn. [Record-pattern preparation](../../../omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/record_patterns.rs) follows it. | Deduplicate canonical instance requests, reserve identities, and generate independent bodies through a bounded work queue. New requests return to the same registry. Keep pass ordering and stop/refusal behavior. |
-| Psi 05 | [Structural lowering](../../../omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lib.rs) prepares shared signatures, outcomes, components and records; machine lowering returns owned results. | Batch independent lowering jobs; assemble deterministically. Preserve recursive-component relationships and source correspondence. |
-| Psi 06 | [Discharge](../../../omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/lib.rs#L380) runs result inference, private-input inference, then result inference again, before its machine loop. | First expose independent final machine checks over settled inputs. Later, if costly, schedule independent ready summary branches with the same budget. Preserve cycle policy and proof admission. |
-| Omega 00–09 | Native jobs traverse the [numbered representation pipeline](../../../omega-rust/pipeline.md#connected-program-route); native completion already has its own admission queue. | Share the invocation budget with source work. Keep the stage sequence inside a native job; no pool per native stage. |
+| Psi 04 | [Specialization](../../../omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs#L83) appends generated machines and scans prior instances linearly. [Record-pattern preparation](../../../omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/record_patterns.rs) follows it. | Deduplicate canonical instance requests through an exact key index, reserve identities, and generate independent bodies through a bounded work queue once `LOWERED-FORM-CHECKER` stabilizes Psi 04. Keep pass ordering and stop/refusal behavior. |
+| Psi 05 | [Structural lowering](../../../omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lib.rs#L882) prepares shared signatures, outcomes, compact SCC call components (#3201) and records; `lower::machine` returns owned results and `plain_affine::plan` runs per machine. `outcome.rs` still iterates whole-program fixed-point rounds. | Repair `outcome.rs` propagation first; if lowering cost warrants it, dynamically schedule independent lowering jobs and assemble in `MachineId` order. Preserve recursive-component relationships and source correspondence. |
+| Psi 06 | [Discharge](../../../omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/lib.rs#L380) runs result inference, private-input inference, then result inference again, prepares indexed per-machine branch and carried-proof inputs (#3212), and discharges disjoint `MachineTables`. Per-machine `graph.rs` dominance is still quadratic. | Repair per-machine dominance and proof-origin cloning first, then expose independent final machine checks over settled inputs. Later, if costly, schedule independent ready summary branches under the same budget. Preserve cycle policy and proof admission. |
+| Omega 00–09 | Native jobs traverse the [numbered representation pipeline](../../../omega-rust/pipeline.md#connected-program-route); native completion spawns up to four 256 MiB-stack scoped workers. | Share an explicit foundation-owned invocation budget with Psi work. Keep the stage sequence inside a native job; no pool per native stage. |
 
 ## Full proposed flow
 
@@ -103,7 +104,13 @@ boundary follows the dependencies of the particular operation:
 
 Two mutually dependent summaries may need group treatment without forcing every
 later pass over those bodies to be serial. Conversely, distinct bodies are not
-independent while one still needs facts inferred from the other.
+independent while one still needs facts inferred from the other. Unlike Squalr's
+uniform captured byte spans, compiler body cost is heavy-tailed: one state
+machine with deep branching, borrows or proof obligations can take orders of
+magnitude longer than dozens of small helpers. Body parallelism must therefore
+work-steal individual large machines dynamically (batching only genuinely tiny
+bodies), rather than slicing `1..=N` into static equal-count chunks like
+`par_chunks_mut`.
 
 Semantic identity is separate from storage coordinates. Canonical declarations
 and exact specialization applications need stable identity; local nodes can use
@@ -116,13 +123,23 @@ reusable syntax where it avoids work, then release unneeded syntax when ownershi
 permits. Invocation-scoped reuse does not mean retaining every discovered file's
 full tree until the invocation ends.
 
-**One execution budget.** Invocation-wide admission covers source groups,
-product/target jobs and machine batches. Prefer existing coarse independent work
-when it fills the budget; expose ready body batches when it does not. Nested
-operations reuse admission or stay inline. Never hold every permit while waiting
-for child jobs that require those permits. Body walks and obligation loops remain
-sequential inside a job; small jobs are batched. No universal query engine is
-required to start.
+**One execution budget across the Psi/Omega firewall.** Invocation-wide admission
+covers source groups, product/target jobs and machine batches. Because `psi/`
+cannot import `omega/` crates, the shared execution-admission handle and worker
+pool belong in a target-neutral foundation crate and enter Psi through explicit
+invocation parameters. That replaces `01_tokens-to-syntax-trees`'s
+process-global `OnceLock<rayon::ThreadPool>`, which currently defaults to all
+logical cores without consulting shared-host build budgets. Both parser workers
+(`PARSE_STACK_SIZE`) and compile workers (`COMPILE_STACK_SIZE`) also reserve
+256 MiB stacks today for recursive syntax and type walks; scaling active workers
+under one shared pool therefore pairs with moving recursive walks onto flat
+tables (`PIPELINE-ARCHITECTURE-ENFORCEMENT`) so stack reservations do not
+multiply across workers. Prefer existing coarse independent work when it fills
+the budget; expose ready body jobs when it does not. Nested operations reuse
+admission or stay inline. Never hold every permit while waiting for child jobs
+that require those permits. Body walks and obligation loops remain sequential
+inside a job; small jobs are batched. No universal query engine is required to
+start.
 
 Bound active workers, queued payloads and in-flight intermediate bytes. Final
 retained program storage necessarily grows with input size; the bounded quantity
@@ -138,8 +155,13 @@ any missing enforcement rather than claiming estimates guarantee containment.
 **Deterministic ownership joins.** Reserve or derive canonical identities from
 stable inputs, never task completion order. Merge diagnostics in defined source
 or machine order, and publish only the exact module/evidence accepted by checking.
-Cancellation or rejection must release reservations and scratch without exposing
-partial output as accepted.
+Where sequential loops currently short-circuit via `?` in `1..=N` `MachineId`
+order (both `lower::machine` in Psi 05 and `machine` in Psi 06), parallel
+execution must still select the lowest failing `MachineId` rather than whichever
+worker errs first—for example, by tracking an atomic `first_failed_machine_id`
+watermark so workers skip only strictly higher `MachineId`s and join results in
+`MachineId` order. Cancellation or rejection must release reservations and
+scratch without exposing partial output as accepted.
 Thread scheduling must not decide which proof receives its logical work allowance:
 a shared race-consumed proof-fuel counter can change acceptance with worker count.
 Allocate logical allowances independently of completion order. Likewise, the first
@@ -206,43 +228,69 @@ walks all bodies is a candidate repair, not automatically an unavoidable join.
 
 ### Implementation order
 
-1. Remove demonstrated repeated work first: compact call components instead of
-   all-pairs reachability, and indexed per-machine branch/carried-proof inputs
-   instead of repeated global scans. Validate each as a useful sequential repair;
-   neither depends on a scheduler or a frontend representation rewrite.
-2. Re-measure the cheaper compiler. Compare Psi 05 lowering with Psi 06
-   post-inference checking and choose one boundary with enough independent
-   expensive work. Psi 06 already has shared module inputs, one machine's mutable
-   tables and an owned discharge result; Psi 05 similarly returns owned lowering
-   results. This shape makes both credible, not measured hotspots.
-3. Run a bounded parallel batch, collect in defined order and continue the
-   existing pipeline. Compare against the same candidate at one worker. A failed
-   threading hypothesis is revised or dropped; the earlier work-removal gains
-   remain independently reviewable.
+1. Remove demonstrated repeated sequential work first. Compact SCC call
+   components in Psi 05 (#3201) and indexed per-machine branch/carried-proof
+   inputs in Psi 06 (#3212) have already landed. Continue with the remaining
+   high-leverage sequential repairs in [OWNER_CODE_CONCERNS.md](../../../OWNER_CODE_CONCERNS.md#entries):
+   per-machine immediate-dominator trees instead of quadratic dominance matrices
+   (`06/src/graph.rs`), compact proof origins instead of upfront derivation
+   cloning (`06/src/known.rs`), reverse-dependency outcome propagation instead
+   of whole-program fixed-point sweeps (`05/src/outcome.rs`), indexed
+   specialization instance lookup (`04/src/passes/specialization.rs`), and
+   invocation-scoped syntax reuse across logical-module discovery. Validate each
+   as a standalone sequential repair without a scheduler rewrite.
+2. Re-measure the cheaper compiler on the surviving lowered-form route. Note
+   that historical ~3,200-second Psi 05 measurements (#2788) belonged to the
+   deleted checked-tree producer; on the surviving route, Psi 05 is linear
+   structural lowering while post-inference Psi 06 runs obligation
+   reconstruction and proof discharge over disjoint `MachineTables`. Compare
+   post-inference Psi 06 against Psi 05 on current workloads and choose one
+   boundary only when measured compile time justifies threading.
+3. Unify execution admission in a target-neutral foundation crate (respecting
+   shared-host budgets and 256 MiB stack constraints), run a dynamically
+   work-stolen batch over the chosen boundary, preserve lowest-`MachineId`
+   refusal order and deterministic assembly, and compare against the same
+   candidate at one worker. A failed threading hypothesis is revised or dropped;
+   the sequential work-removal gains remain independently valuable.
 
-Extend the pattern to Psi 02–04 or summary inference only when their measured
-cost warrants it. Their dependencies remain explicit in this proposal, but
-implementing all candidate boundaries is not a prerequisite for the first useful
-repair. Initially leave specialization discovery and summary inference scheduling
-unchanged. Cross-stage streaming must earn its complexity through a measured
-critical-path bottleneck.
+Keep sequencing aligned with `LOWERED-FORM-CHECKER` ([TASKS.md](../../../TASKS.md)):
+while Psi 02–04 are under heavy daily churn to finish language coverage on the
+lowered route, avoid invasive frontend storage splits (`TypedTrees` / `Lowerer`
+body paging, parallel specialization queues, or parallel summary inference)
+unless a measured critical-path bottleneck demands one. Cross-stage streaming
+must likewise earn its complexity through a measured critical-path bottleneck.
 
 ## Actionable repair references
 
-- **Execution admission:** unify parser/native budgets; evaluate Psi 05 and
-  post-inference Psi 06 as candidate body boundaries under the same limits.
+Open entries in [OWNER_CODE_CONCERNS.md](../../../OWNER_CODE_CONCERNS.md#entries)
+directly tied to this ownership direction:
+
+- **Execution admission:** replace the unconstrained global parser pool and
+  separate native executor cap with one foundation-owned invocation budget;
+  account for 256 MiB stacks (`PIPELINE-ARCHITECTURE-ENFORCEMENT`), heavy-tailed
+  body stealing and lowest-`MachineId` refusal order before trialing
+  post-inference Psi 06 or Psi 05.
 - **Syntax retention:** parse unchanged captured bytes once where safely reusable;
   preserve separate semantic source identity and bound retained discovery storage.
-- **Call graph:** replace all-pairs reachability and duplicated component lists
-  with one compact component graph; preserve cycle restrictions and refusal order.
 - **Body ownership:** remove whole-program cloning for selected body completion;
-  preserve unchanged pages and explicit signature/summary dependencies.
-- **Checking inputs:** group branches and carried-proof associations once, so each
-  machine borrows only its own prepared inputs.
+  preserve unchanged pages and explicit signature/summary dependencies once
+  `LOWERED-FORM-CHECKER` frontend churn settles.
+- **Stage-local quadratic prerequisites:** linear dominance trees (`graph.rs`),
+  compact proof origins (`known.rs`), reverse-dependency outcome propagation
+  (`outcome.rs`) and indexed specialization lookup (`specialization.rs`).
 
-These are the five queue entries. Resolution scheduling, specialization queues
-and summary scheduling are design hypotheses here, not extra reports that imply
-parallelism is itself a missing language feature.
+Already landed sequential prerequisites from the initial queue:
+
+- **Call graph (#3201):** replaced all-pairs reachability and duplicated
+  component lists in `05_typed-trees-to-terminal-psi/src/components.rs` with one
+  compact SCC graph.
+- **Checking inputs (#3212):** grouped branches and carried-proof associations
+  once in `06_terminal-psi-to-terminal-psi/src/lib.rs` so each machine borrows
+  only its own prepared inputs.
+
+Resolution scheduling, specialization queues and summary scheduling remain
+design hypotheses here, not extra queue entries implying that parallelism is
+itself a missing language feature.
 
 The governing contracts remain [compiler storage](../../spec/build/compiler_storage.md),
 [validation subjects](../../spec/build/validation_subjects.md),

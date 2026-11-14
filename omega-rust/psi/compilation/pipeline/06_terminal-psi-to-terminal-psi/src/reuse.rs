@@ -527,6 +527,9 @@ impl Transport<'_> {
                     relation: child(relation)?,
                 }
             }
+            ProofRule::IntegerPowerOfTwoOrder { order } => ProofRule::IntegerPowerOfTwoOrder {
+                order: child(order)?,
+            },
             ProofRule::IntegerMathOrderTranslation { relation, addend } => {
                 ProofRule::IntegerMathOrderTranslation {
                     relation: child(relation)?,

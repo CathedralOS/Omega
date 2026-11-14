@@ -81,7 +81,7 @@ impl Program<'_> {
             )?;
             for fact in facts {
                 let expression = self.fact(id, fact)?;
-                if !self.states_nothing(id, expression)? {
+                if !self.states_nothing(id, expression, false)? {
                     predicates.push(Predicate {
                         subject: definition.subject_symbol,
                         expression,

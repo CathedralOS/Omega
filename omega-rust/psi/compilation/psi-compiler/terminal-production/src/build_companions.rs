@@ -75,7 +75,13 @@ pub(crate) fn produce(
     // Calls of no Build protocol, by boundary, until every readiness
     // request has been read.
     let mut outside = Vec::new();
+    let activated = activated_machines(source, elaboration);
     for machine in &elaboration.module.machines {
+        // Every machine's protocol calls get their rows. Only a machine an
+        // activation can run counts against the Build's authority.
+        let counted = activated
+            .as_ref()
+            .is_none_or(|activated| activated.binary_search(&machine.id).is_ok());
         for operation in machine.operations() {
             let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = &operation.kind else {
                 continue;
@@ -88,7 +94,7 @@ pub(crate) fn produce(
                 .get(*boundary)
                 .and_then(|requirement| source.trait_machine_signature(*requirement))
             else {
-                companions.unowned += 1;
+                companions.unowned += usize::from(counted);
                 continue;
             };
             let call = ProtocolCall {
@@ -165,7 +171,7 @@ pub(crate) fn produce(
                     action: query_operation(call.name)?,
                     occurrence,
                 });
-            } else {
+            } else if counted {
                 outside.push(*boundary);
             }
         }
@@ -200,6 +206,56 @@ pub(crate) fn produce(
         ));
     }
     Ok(companions)
+}
+
+/// The machines of the module an activation of its entry can run, sorted,
+/// or `None` when that set cannot be read and every machine must count.
+///
+/// scoped_execution.md, "Two checked contexts", bounds what the "Build entry
+/// and transitive helpers" may select. A Build is checked as a whole package,
+/// so its module also holds helpers the entry never calls (a machine a test
+/// selects as its own entry, for one). Such a helper is checked like every
+/// other declaration, but no activation of this entry runs it, so a boundary
+/// it calls is nothing this Build asks of its host.
+///
+/// The set is what the entry's calls reach (`Elaboration::call_closure`),
+/// started from the entry and from every machine that is not an ordinary
+/// helper. A machine that realizes a requirement, or has a body per target,
+/// can be entered through the slot it fills with no call in the module naming
+/// it, and a machine whose declaration cannot be read is not known to be a
+/// helper; each of those counts whether or not the entry calls it.
+fn activated_machines(
+    source: &TypedTrees,
+    elaboration: &Elaboration,
+) -> Option<Vec<semantic_vocabulary::MachineId>> {
+    let module = &elaboration.module;
+    let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = module.entry else {
+        return None;
+    };
+    let ordinary_helper = |id| {
+        elaboration
+            .machines
+            .get(id)
+            .and_then(|symbol| source.machine_by_symbol(*symbol))
+            .is_some_and(|machine| {
+                machine.target.is_none()
+                    && typed_trees::provider_declarations::satisfaction_provider_declaration(
+                        source, machine,
+                    )
+                    .is_none()
+                    && source.machine_trait_conformances(machine).is_empty()
+                    && source
+                        .owned_conformance_realization(machine.symbol)
+                        .is_none()
+            })
+    };
+    elaboration.call_closure(
+        module
+            .machines
+            .iter()
+            .map(|machine| machine.id)
+            .filter(|id| *id == entry || !ordinary_helper(*id)),
+    )
 }
 
 fn binding(

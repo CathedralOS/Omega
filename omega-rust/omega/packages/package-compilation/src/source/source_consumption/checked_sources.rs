@@ -33,6 +33,10 @@ pub struct CheckedSourceCustody {
     package_purpose: Option<build_declarations::DependencyPurpose>,
     package_subject: Option<PackageCompilationSubject>,
     exact_toolchain_sources: Vec<(source::SourceId, [u8; 32])>,
+    // These are the consumer-scoped decisions supplied to this compilation,
+    // not nominations reconstructed from names after checking. Retaining them
+    // with their source owner lets review describe the exact input decisions.
+    accepted_semantic_bindings: Vec<crate::AcceptedSemanticBinding>,
 }
 
 impl BuildSourceCustody {
@@ -125,6 +129,11 @@ impl BuildSourceCustody {
             package_purpose: package_inputs.map(PackageCompilationInputs::compilation_purpose),
             package_subject,
             exact_toolchain_sources,
+            accepted_semantic_bindings: package_inputs
+                .into_iter()
+                .flat_map(PackageCompilationInputs::accepted_semantic_bindings)
+                .cloned()
+                .collect(),
         })
     }
 }
@@ -184,6 +193,10 @@ impl CheckedSourceCustody {
 
     pub fn exact_toolchain_sources(&self) -> &[(source::SourceId, [u8; 32])] {
         &self.exact_toolchain_sources
+    }
+
+    pub fn accepted_semantic_bindings(&self) -> &[crate::AcceptedSemanticBinding] {
+        &self.accepted_semantic_bindings
     }
 
     pub fn package_build_handoff(

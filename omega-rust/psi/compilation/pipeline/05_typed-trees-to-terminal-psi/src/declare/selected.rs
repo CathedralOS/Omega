@@ -371,6 +371,15 @@ pub(super) fn publish(
                 None if schema.parameter_kinds.is_empty() => Vec::new(),
                 None => return Err("selected generic member lost its actual closed application"),
             };
+            let public_signature = program
+                .declaration_signatures
+                .get(*original)
+                .ok_or("selected header lost its prepared public signature")?;
+            let result_lifetimes = program.declared_result_lifetimes(
+                *body,
+                public_signature,
+                &module.structural_types,
+            )?;
             let result = match &machine.result {
                 TerminalMachineResult::Unit => ClosedConformanceCallableResult::Unit,
                 TerminalMachineResult::Scalar(result) => {
@@ -399,6 +408,7 @@ pub(super) fn publish(
                         .as_ref()
                         .map(|specialization| specialization.commitment),
                     method_arguments: arguments,
+                    result_lifetimes,
                 });
             links.push((
                 *required,

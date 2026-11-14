@@ -2537,6 +2537,15 @@ pub mod types {
                                     Some((_, argument)) => match self.type_reference(*argument) {
                                         TypeReferenceNode::Named { symbol, name } if symbol.is_valid() =>
                                             FixedArrayLength::ConstParameter { symbol: *symbol, name: name.clone() },
+                                        // `Buffer<capacity()>`: the argument
+                                        // is still written as an expression
+                                        // to evaluate, so the length is that
+                                        // argument, not yet a number. The
+                                        // evaluator that gives the argument
+                                        // its value gives this length the
+                                        // same one (`settle_const_argument`).
+                                        TypeReferenceNode::ConstExpression(_) =>
+                                            FixedArrayLength::Expression(*argument),
                                         _ => FixedArrayLength::Literal(
                                             self.anonymous_numeric_literal_value(*argument).ok_or(
                                                 "an applied array length is not a closed nonnegative integer",

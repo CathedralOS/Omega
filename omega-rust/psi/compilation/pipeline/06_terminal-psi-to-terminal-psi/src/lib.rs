@@ -52,6 +52,7 @@ on (`arrivals`). Kinds outside those five are refused as `Unsupported`.
 */
 
 mod arrivals;
+mod branch_warnings;
 mod callable_arrivals;
 mod ceilings;
 mod crashes;
@@ -60,6 +61,7 @@ mod entry_inputs;
 mod graph;
 mod joins;
 mod known;
+mod machine_inputs;
 mod minted;
 mod operational;
 mod places;
@@ -236,7 +238,7 @@ pub struct MachineDischarge {
     /// Each loan that may not be formed, with what it conflicts with. Its
     /// row's verdict is the `Conflict` refusal.
     pub conflicts: Vec<places::ConflictingLoan>,
-    /// The authored arms no arrival can take (`impossible_arms`), for the
+    /// The authored arms no arrival can take (`branch_warnings`), for the
     /// advisory warning about them. Nothing is decided by them.
     pub impossible: Vec<ImpossibleArm>,
 }
@@ -247,9 +249,9 @@ pub struct MachineDischarge {
 /// checked contradiction between valid premises can establish that a
 /// particular arrival is impossible", and "issue an unreachable-branch
 /// warning when an authored branch contradicts its machine's entry contract
-/// or established source facts". `premises` is a minimal set of the facts
-/// before the branch that the condition contradicts, the condition itself
-/// left out.
+/// or established source facts". `premises` names the facts cited by the
+/// accepted refutation, in authored order with the incoming condition itself
+/// left out. It need not be a minimal explanation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImpossibleArm {
     pub block: BlockId,
@@ -404,8 +406,13 @@ fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Ch
     result_summaries::infer(elaboration, &mut unreached, &inhabitation)?;
     entry_inputs::infer(elaboration, &mut unreached, &inhabitation)?;
     result_summaries::infer(elaboration, &mut unreached, &inhabitation)?;
-    let branches: Vec<(MachineId, terminal_check_tables::program::Branch)> =
-        elaboration.authored_branches().collect();
+    let inputs = machine_inputs::PreparedMachineInputs::new(
+        &elaboration.module,
+        &elaboration.sources,
+        &elaboration.tables.machines,
+        &elaboration.requirements,
+        carried,
+    );
     let module = &elaboration.module;
     let mut machines = IdTable::default();
     let identities: Vec<MachineId> = elaboration.tables.machines.keys().collect();
@@ -421,7 +428,8 @@ fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Ch
         // A requirement has a contract and no body, so nothing about it is
         // decided here. Its guarantees are each selected implementation's to
         // prove; leaving them without a verdict would read as vacuously held.
-        if elaboration.requirements.contains(&id) {
+        let inputs = inputs.for_machine(id)?;
+        if inputs.requirement {
             machines.push(MachineDischarge {
                 verdicts: tables.obligations.map(|obligation, _| {
                     Err(refusal(
@@ -447,12 +455,8 @@ fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Ch
             id,
             tables,
             &beyond,
-            carried.iter().find(|carried| carried.specialization == id),
-            &branches
-                .iter()
-                .filter(|(machine, _)| *machine == id)
-                .map(|(_, branch)| *branch)
-                .collect::<Vec<_>>(),
+            inputs.carried.map(|position| &carried[position]),
+            inputs.branches,
         )?);
     }
     Ok(Discharge { machines })
@@ -672,20 +676,16 @@ fn machine(
         });
         decided[index] = Some(verdict);
     }
-    let mut verdicts: IdTable<ObligationId, Checked<Discharged>> = IdTable::default();
-    for ((obligation, row), verdict) in tables.obligations.iter().zip(&decided) {
-        verdicts.push(match (verdict, row.kind) {
-            (Some(verdict), _) => verdict.clone(),
-            (None, ObligationKind::PublishedGuarantee { clause }) => {
-                published(tables, id, obligation, clause, &decided)
-            }
-            (None, _) => Err(refusal(
-                RefusalReason::Unsupported,
-                id,
-                Construct::Obligation(obligation),
-                "obligation left undecided",
-            )),
-        });
+    // Published guarantees read normal-return verdicts, so finish that last
+    // dependency pass before moving any certificate out of this table. Once
+    // it is complete, settlement owns each result; no duplicate proof tree
+    // or intermediate verdict table is needed.
+    for (index, (obligation, row)) in tables.obligations.iter().enumerate() {
+        if decided[index].is_none()
+            && let ObligationKind::PublishedGuarantee { clause } = row.kind
+        {
+            decided[index] = Some(published(tables, id, obligation, clause, &decided));
+        }
     }
     // A store or a zero establishment that was not shown to keep a clause
     // does not fail: it opens an invariant window, and the clause is owed
@@ -695,9 +695,17 @@ fn machine(
     let mut windows: Vec<places::Window> = Vec::new();
     let mut restoring: Vec<(places::Owner, OperationId)> = Vec::new();
     let mut settled = IdTable::default();
-    for ((obligation, row), (_, verdict)) in tables.obligations.iter().zip(verdicts.iter()) {
+    for ((obligation, row), verdict) in tables.obligations.iter().zip(decided) {
+        let verdict = verdict.unwrap_or_else(|| {
+            Err(refusal(
+                RefusalReason::Unsupported,
+                id,
+                Construct::Obligation(obligation),
+                "obligation left undecided",
+            ))
+        });
         let ObligationKind::DataDomain { operation, clause } = row.kind else {
-            settled.push(verdict.clone());
+            settled.push(verdict);
             continue;
         };
         let concerns = Construct::Obligation(obligation);
@@ -706,9 +714,9 @@ fn machine(
         settled.push(match verdict {
             // data_and_literals.md: "Construction and every restoring write
             // prove the owning default-domain clauses."
-            Ok(Discharged::Certificate(_)) if stores => {
+            Ok(Discharged::Certificate(evidence)) if stores => {
                 restoring.push((storage.owner(operation, clause, concerns)?, operation));
-                verdict.clone()
+                Ok(Discharged::Certificate(evidence))
             }
             Err(unproved)
                 if matches!(unproved.reason, RefusalReason::Unproved(_)) && (stores || zeroes) =>
@@ -724,10 +732,10 @@ fn machine(
                         initial: zeroes,
                         restored: Vec::new(),
                     });
-                    Ok(Discharged::Window(Box::new(unproved.clone())))
+                    Ok(Discharged::Window(Box::new(unproved)))
                 }
             }
-            verdict => verdict.clone(),
+            verdict => verdict,
         });
     }
     for window in &mut windows {
@@ -835,7 +843,8 @@ fn machine(
             verdict,
         });
     }
-    let impossible = impossible_arms(&context, &graph, tables, lowered, id, branches);
+    let impossible =
+        branch_warnings::Analysis::new(&context, &graph, tables, lowered, id).run(branches);
     Ok(MachineDischarge {
         verdicts: settled,
         uses,
@@ -844,138 +853,6 @@ fn machine(
         conflicts,
         impossible,
     })
-}
-
-/// The authored arms of `branches` that no arrival can take. An arm is
-/// impossible when the facts at its entry, those before its branch with its
-/// condition added, prove `Falsehood` and the facts before the branch do
-/// not: a contradiction already in force before the branch is the earlier
-/// branch's to report. Each refutation is a certificate the kernel accepts
-/// under those facts ("A checked contradiction between valid premises"), and
-/// failure to find one is no evidence either way ("Failure to prove an
-/// obligation is not evidence that its arrival is impossible"), so an arm
-/// that cannot be judged here is simply not reported. The answer is
-/// advisory: no obligation's verdict reads it ("Proof soundness does not
-/// depend on pruning or on warning emission").
-fn impossible_arms(
-    context: &PropositionContext,
-    graph: &Graph,
-    tables: &MachineTables,
-    lowered: &TerminalMachine,
-    id: MachineId,
-    branches: &[terminal_check_tables::program::Branch],
-) -> Vec<ImpossibleArm> {
-    let mut impossible = Vec::new();
-    for branch in branches {
-        let Some(decided) = lowered
-            .blocks
-            .iter()
-            .find(|block| block.id == branch.decided_in)
-        else {
-            continue;
-        };
-        let before = decided
-            .operations
-            .last()
-            .map_or(ProgramPoint::BlockEntry(decided.id), |operation| {
-                ProgramPoint::AfterOperation(operation.id)
-            });
-        if refuted(context, graph, tables, id, before).is_some() {
-            continue;
-        }
-        let Some(rows) = refuted(
-            context,
-            graph,
-            tables,
-            id,
-            ProgramPoint::BlockEntry(branch.block),
-        ) else {
-            continue;
-        };
-        let entering = |edge: semantic_vocabulary::EdgeId| {
-            tables
-                .edges
-                .get(edge)
-                .is_some_and(|row| row.destination == Destination::Block(branch.block))
-        };
-        let premises = rows
-            .into_iter()
-            .filter_map(|row| tables.knowledge.get(row))
-            .map(|row| row.justification)
-            .filter(|justification| match justification {
-                Justification::BranchCondition { edge, .. } => !entering(*edge),
-                _ => true,
-            })
-            .collect();
-        impossible.push(ImpossibleArm {
-            block: branch.block,
-            premises,
-        });
-    }
-    impossible
-}
-
-/// The knowledge rows of a minimal set of the assumptions known at `point`
-/// that the kernel accepts a refutation from, or `None` when the prover
-/// finds none. The operation equations stay: they define values, and a
-/// premise is what the program knows of them.
-fn refuted(
-    context: &PropositionContext,
-    graph: &Graph,
-    tables: &MachineTables,
-    id: MachineId,
-    point: ProgramPoint,
-) -> Option<Vec<KnowledgeId>> {
-    let probe = ObligationId::new(1)?;
-    let known = hypotheses(graph, tables, id, probe, point).ok()?;
-    let refutes = |assumptions: &[Proposition]| {
-        let mut prover = prove::Prover::new(context, assumptions, &known.axioms, &tables.values);
-        let Ok(proof) = prover.prove(&Proposition::Falsehood) else {
-            return false;
-        };
-        let Some(identity) = EvidenceIdentity::new(probe.get()) else {
-            return false;
-        };
-        verify_obligation(
-            context,
-            &Obligation {
-                id: probe,
-                proposition: Proposition::Falsehood,
-                class: ObligationClass::Derivable,
-            },
-            assumptions,
-            &known.axioms,
-            EvidenceRoute::CertificateDerived(CertificateEnvelope {
-                identity,
-                proof_system_marker: ProofSystemMarker::CURRENT,
-                proof,
-            }),
-        )
-        .is_ok()
-    };
-    if !refutes(&known.assumptions) {
-        return None;
-    }
-    let mut kept: Vec<usize> = (0..known.assumptions.len()).collect();
-    let mut position = 0;
-    while position < kept.len() {
-        let without: Vec<Proposition> = kept
-            .iter()
-            .enumerate()
-            .filter(|(at, _)| *at != position)
-            .map(|(_, index)| known.assumptions[*index].clone())
-            .collect();
-        if refutes(&without) {
-            kept.remove(position);
-        } else {
-            position += 1;
-        }
-    }
-    Some(
-        kept.into_iter()
-            .map(|index| known.assumption_rows[index])
-            .collect(),
-    )
 }
 
 /// Fills one machine's knowledge table from its lowered form: entry

@@ -647,6 +647,15 @@ impl<'t> Program<'t> {
         // Taken before anything nested is read, so no argument sees it.
         let expected = self.expected.take();
         self.bound_target(id, call.target_symbol)?;
+        // The integer carrier query is answered only through its fields in a
+        // static condition (`carriers`); its own body is no answer to run.
+        if self.is_carrier_query(call) {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Call("integer carrier query read as a runtime value"),
+            ));
+        }
         if let Some(description) = self.declaration_query(id, call, source)? {
             return Ok(description);
         }
@@ -1729,9 +1738,12 @@ impl<'t> Program<'t> {
     /// "Visibility" makes independently nameable machines private unless
     /// public, regardless of their qualifier or argument types.
     pub(super) fn visible_to(&self, id: MachineId, callee: SymbolHandle) -> Checked<()> {
+        // A machine stage 04 generated is called as its authored template,
+        // whose visibility it has.
+        let declared = crate::template_of(self.typed, callee).unwrap_or(callee);
         let is_public = self
             .typed
-            .machine_by_symbol(callee)
+            .machine_by_symbol(declared)
             .map(|declaration| declaration.is_public)
             .or_else(|| {
                 self.typed

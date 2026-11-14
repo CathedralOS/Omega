@@ -426,6 +426,7 @@ impl<'a> Lowering<'a> {
             heads: Vec::new(),
             invariants: Vec::new(),
             borrowed_roots: Vec::new(),
+            exclusive_roots: Vec::new(),
             joining: 0,
             fallthrough: None,
         }
@@ -479,6 +480,9 @@ impl Lowering<'_> {
                 });
                 formals.order.push(BoundaryParameterKind::Structural);
                 self.borrowed_roots.push(place);
+                if borrowed.access == language_core::ReferenceAccess::Mutable {
+                    self.exclusive_roots.push(place);
+                }
                 *self.slot_mut(position)? = Some(if scalar {
                     Bound::Home(place)
                 } else {
@@ -666,6 +670,9 @@ struct Lowering<'a> {
     /// A loan of a place beneath one reborrows the incoming loan
     /// (`Lender::Incoming`) rather than lending owned storage.
     borrowed_roots: Vec<PlaceId>,
+    /// Those of `borrowed_roots` lent with `&mut`: the only borrowed storage
+    /// an owned value may be moved out of (`places::record`).
+    exclusive_roots: Vec<PlaceId>,
     /// How many operands that only some paths evaluate and that rejoin
     /// (the right of `&&` and `||`, an arm of a value `match`) enclose what
     /// is being lowered. A home made there would hold the local on those

@@ -6,10 +6,12 @@ use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
 mod build_activation;
+mod const_argument_jobs;
 mod constant_jobs;
 mod invocation;
 mod source_selection;
 
+pub use const_argument_jobs::evaluate as evaluate_const_arguments;
 pub use constant_jobs::{
     evaluate as evaluate_constant_initializers,
     evaluate_with_source_consent as evaluate_constant_initializers_with_source_consent,

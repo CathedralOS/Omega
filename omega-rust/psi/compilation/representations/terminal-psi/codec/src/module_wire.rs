@@ -2436,15 +2436,15 @@ pub(crate) mod access_view_wire {
 pub(crate) mod closed_conformance_wire {
 
     use super::super::wire_fields::{
-        Bytes, Commitment, Digest, Id, Index, List, Nominal, Optional, ReachArgument, Scalar,
-        Strings, Text, U32, U64, wire_enum, wire_record,
+        Bytes, Commitment, Digest, Id, Index, LifetimeDependency, List, Nominal, Optional, Path,
+        ReachArgument, Scalar, Strings, Text, U32, U64, wire_enum, wire_record,
     };
     use super::target_family_wire::Callable;
     use terminal_psi::{
         ClosedConformanceApplication, ClosedConformanceCallableResult,
         ClosedConformanceParameterBinding, ClosedConformanceParameterKind,
         ClosedConformanceRealizationCallable, ClosedConformanceRow, ClosedConformanceSchema,
-        ClosedConformanceSchemaKind, ClosedConformanceStaticApplication,
+        ClosedConformanceSchemaKind, ClosedConformanceStaticApplication, DeclaredResultLifetime,
     };
 
     wire_record! {
@@ -2487,6 +2487,11 @@ pub(crate) mod closed_conformance_wire {
             callable: Callable,
             application_commitment: Optional<Digest>,
             method_arguments: List<ReachArgument>,
+            result_lifetimes: Optional<List<ResultLifetime>>,
+        }
+        ResultLifetime: DeclaredResultLifetime {
+            inputs: List<LifetimeDependency>,
+            results: List<Path>,
         }
         Row: ClosedConformanceRow {
             requirement_declaration: Nominal,

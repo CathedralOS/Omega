@@ -149,10 +149,12 @@ fn issuing_a_seal_is_refused_by_name() {
 /// the `Build` that owns it.
 #[test]
 fn taking_the_seal_out_of_the_lent_build_is_not_accepted() {
-    refused_with(
+    // Through `&mut` the move opens a window the script cannot close: the
+    // only value that fits the vacant place is another issued seal.
+    rejected_with(
         "moved_out",
         "machine wrong(builder: &mut Build) -> BuildSeal in Issued {\n    builder.seal\n}\n",
-        "owned extraction from borrowed storage",
+        "the place does not hold a value again where the machine returns the borrow",
     );
     refused_with(
         "copied_out",

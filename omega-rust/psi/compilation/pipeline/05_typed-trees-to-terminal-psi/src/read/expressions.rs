@@ -6,7 +6,7 @@ are the same computation. Record literals and member paths are read in
 */
 
 use crate::body::Qualification;
-use semantic_vocabulary::{MachineId, ScalarType};
+use semantic_vocabulary::{IntegerType, MachineId, ScalarType};
 use terminal_check_tables::{Checked, Construct};
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableNamePath, UnaryOperator,
@@ -190,6 +190,38 @@ impl<'t> Program<'t> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
         let expected_scalar = expected.and_then(ValueType::scalar);
         let (kind, result) = match node {
+            // At a parameter width no literal is a value of the carrier
+            // until the checker proves it lands: the literal is formed in
+            // the closed carrier of its sign and converted exactly, which
+            // owes `literal <= 2^N - 1` (`2^(N-1) - 1` signed). "A generic
+            // body admitting `i1` cannot assume that positive one inhabits
+            // its carrier" (`numeric_values.md`, "Width-indexed integers").
+            ExpressionNode::Integer(literal)
+                if expected_scalar
+                    .and_then(|scalar| scalar.as_integer())
+                    .is_some_and(|integer| integer.bits().is_none()) =>
+            {
+                let Some(ScalarType::Integer(integer)) = expected_scalar else {
+                    unreachable!("matched a parameter-width integer");
+                };
+                let formed = IntegerType::new(integer.sign(), 64)
+                    .map_err(|_| refuse(id, Construct::Machine, Unserved::Typing("literal")))?;
+                let (value, formed) =
+                    self.literal(id, literal, Some(ScalarType::Integer(formed)))?;
+                let operand = Expression {
+                    call_context: None,
+                    kind: ExpressionKind::Integer(value),
+                    result: Some(ValueType::Scalar(
+                        ScalarType::Integer(formed),
+                        Qualification::NONE,
+                    )),
+                    source,
+                };
+                (
+                    ExpressionKind::Cast(Box::new(operand)),
+                    ScalarType::Integer(integer),
+                )
+            }
             ExpressionNode::Integer(literal) => {
                 let (value, integer) = self.literal(id, literal, expected_scalar)?;
                 (ExpressionKind::Integer(value), ScalarType::Integer(integer))
@@ -249,8 +281,21 @@ impl<'t> Program<'t> {
                     }
                 }
             }
-            // A condition closed type equations decide is that Boolean.
-            ExpressionNode::Binary(_) if self.static_truth(handle).is_some() => {
+            // A condition static type propositions decide is that Boolean:
+            // closed type equations, and the fields of the integer carrier
+            // query (`carriers`), whose own body is never run.
+            ExpressionNode::Binary(_) | ExpressionNode::Member(_)
+                if self.type_truth(
+                    super::carriers::Scope::Own,
+                    handle,
+                    super::types::Reading::Value,
+                ) == Some(super::types::TypeTruth::Open) =>
+            {
+                return unserved(super::types::OPEN_CARRIER_FAMILY);
+            }
+            ExpressionNode::Binary(_) | ExpressionNode::Member(_)
+                if self.static_truth(handle).is_some() =>
+            {
                 let truth = self.static_truth(handle).unwrap_or_default();
                 (ExpressionKind::Boolean(truth), ScalarType::Boolean)
             }

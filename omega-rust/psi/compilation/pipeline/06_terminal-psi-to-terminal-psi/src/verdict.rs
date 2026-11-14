@@ -953,8 +953,14 @@ fn examine(
                 machine: machine.id,
                 at,
                 site: Some(source_of(sources, machine.id, at).map_err(Err)?),
-                detail: "owned storage is used after its value was transferred or consumed"
-                    .to_owned(),
+                detail: if unavailable.unrestored {
+                    "an owned value was moved out of borrowed storage, and the place does not \
+                     hold a value again where the machine returns the borrow: a replacement \
+                     must be stored into the vacant place on every path that leaves the machine"
+                } else {
+                    "owned storage is used after its value was transferred or consumed"
+                }
+                .to_owned(),
                 declared: None,
             });
         }
@@ -1179,9 +1185,16 @@ fn conclude(examined: Examined, applied: AppliedContracts) -> Checked<RouteVerdi
     if let Err(refused) = accept_proof_callables(&mut elaboration, &discharged) {
         return fall_back_or_defect(refused);
     }
-    let seals = match discharged.operation_seals(&elaboration) {
-        Ok(seals) => seals,
-        Err(refused) => return fall_back_or_defect(refused),
+    // A generic check form is never published (`validate_publication`), so
+    // its evidence needs no seal, and a seal cannot encode a parameter
+    // width: its closed applications carry their own.
+    let seals = if elaboration.generic_binders.is_empty() {
+        match discharged.operation_seals(&elaboration) {
+            Ok(seals) => seals,
+            Err(refused) => return fall_back_or_defect(refused),
+        }
+    } else {
+        Vec::new()
     };
     Ok(RouteVerdict::Accepted(Box::new(AcceptedClosure {
         elaboration,

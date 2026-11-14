@@ -912,40 +912,18 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
             module.identities.text(declaration.owner.identity()),
             module.identities.text(declaration.identity),
         ));
-        for (label, plans) in [
-            (
-                "selected",
-                proposal
-                    .providers()
-                    .selection
-                    .plans()
-                    .iter()
-                    .collect::<Vec<_>>(),
-            ),
-            (
-                "declarations",
-                proposal
-                    .providers()
-                    .declarations
-                    .iter()
-                    .map(|row| &row.plan)
-                    .collect(),
-            ),
-        ] {
-            for plan in plans {
-                for row in plan.rows.iter().filter(|row| {
-                    plan.identities.text(row.declared_requirement_identity)
-                        == abi.requirement_identity
-                }) {
-                    binding_context.push_str(&format!(
-                        "{label} target={} root={:?} selected={:?} declared={:?} abi={:?}\n",
-                        plan.target,
-                        plan.schema.root_application_identity(),
-                        plan.identities.text(row.requirement_identity),
-                        plan.identities.text(row.declared_requirement_identity),
-                        row.calling_signature,
-                    ));
-                }
+        for plan in proposal.providers().selection.plans() {
+            for row in plan.rows.iter().filter(|row| {
+                plan.identities.text(row.declared_requirement_identity) == abi.requirement_identity
+            }) {
+                binding_context.push_str(&format!(
+                    "selected target={} root={:?} selected={:?} declared={:?} abi={:?}\n",
+                    plan.target,
+                    plan.schema.root_application_identity(),
+                    plan.identities.text(row.requirement_identity),
+                    plan.identities.text(row.declared_requirement_identity),
+                    row.calling_signature,
+                ));
             }
         }
     }
@@ -958,15 +936,12 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
                     selection.plans.len()
                 ));
                 for selected in &selection.plans {
-                    for row in &selected.plan.rows {
+                    for row in &selected.rows {
                         if row.calling_signature.is_some() {
                             binding_context.push_str(&format!(
                                 "publication selected={:?} declared={:?} abi={:?}\n",
-                                selected.plan.identities.text(row.requirement_identity),
-                                selected
-                                    .plan
-                                    .identities
-                                    .text(row.declared_requirement_identity),
+                                selected.identities.text(row.requirement_identity),
+                                selected.identities.text(row.declared_requirement_identity),
                                 row.calling_signature,
                             ));
                         }
@@ -1422,5 +1397,268 @@ fn build_constant_captured_invalid_twin_rejects_its_original_call_obligation() {
     let message = failure.to_string();
     assert!(message.contains("bounded"), "{message}");
     assert!(message.contains("9 <= 5"), "{message}");
+    session.close().unwrap();
+}
+
+const REVIEW_BUILD_SOURCE: &str = r#"
+machine build(builder: &mut Build) {
+    Build::application(builder, "accepted_package_review");
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+}
+"#;
+
+fn captured_review_compilation(
+    main_source: &str,
+    build_source: &str,
+) -> (
+    platform_custody::temporary_directory::TemporaryDirectory,
+    orchestration::BuildSession,
+    Result<compilation_products::CheckedCompilation, Vec<diagnostics::Diagnostic>>,
+) {
+    let workspace = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "accepted-package-review",
+        false,
+    )
+    .unwrap();
+    let project = workspace.path().join("project");
+    std::fs::create_dir(&project).unwrap();
+    std::fs::write(project.join("main.omg"), main_source).unwrap();
+    std::fs::write(project.join("build.omg"), build_source).unwrap();
+    let target = target::TargetProfile::host_if_supported().expect("host Product target");
+    let preparation = package_manager::operations::begin_local_project_preparation(
+        &project.join("main.omg"),
+        &[target],
+        true,
+    )
+    .unwrap()
+    .expect("ordinary captured project");
+    let mut session =
+        orchestration::BuildSession::create(&workspace.path().join("session")).unwrap();
+    let resolved = orchestration::resolve_project_sources(
+        &mut session,
+        orchestration::ProjectSourceRequest {
+            preparation,
+            execution: package_compilation::BuildExecutionInputs {
+                profile: Some(target),
+                ..Default::default()
+            },
+            collect_timings: false,
+        },
+    )
+    .unwrap_or_else(|error| panic!("captured package Build: {error}"));
+    let package = resolved.prepared.root_package();
+    let build = resolved
+        .builds
+        .into_iter()
+        .find(|build| build.package_inputs().root() == package)
+        .expect("the root package's actual Build");
+    let inputs = build.package_inputs().clone();
+    let build = build
+        .complete(session.compiler(), target, inputs.clone())
+        .unwrap_or_else(|failure| panic!("Product preparation: {:?}", failure.into_diagnostics()));
+    let checked = session
+        .compiler()
+        .check_package_build(build)
+        .map_err(|failure| failure.into_diagnostics());
+    if let Ok(checked) = &checked {
+        assert_eq!(
+            checked.sources().accepted_semantic_bindings(),
+            inputs
+                .accepted_semantic_bindings()
+                .cloned()
+                .collect::<Vec<_>>()
+        );
+    }
+    (workspace, session, checked)
+}
+
+#[test]
+fn accepted_package_review_keeps_declarations_and_refuses_detached_source() {
+    use package_evidence::record::PackagePolicyBaseline;
+    use package_evidence::{
+        PackageReviewInput, project_checked_package_policy, project_package_review,
+    };
+
+    // These are the original public Pair/Delivered declarations from the
+    // fixed-layout customer. This control isolates review from its still
+    // independently developed layout/native realization. Build and checking
+    // use the ordinary captured package route, with no fixture consent.
+    const SOURCE: &str = r#"
+public domain u64::Delivered requires self >= 42u64 && self <= 42u64;
+public data Pair [copy] { lo: u64 in Delivered; hi: u64; }
+machine main() {}
+"#;
+    let (workspace, mut session, checked) =
+        captured_review_compilation(SOURCE, REVIEW_BUILD_SOURCE);
+    let checked = checked.unwrap_or_else(|diagnostics| panic!("Product judgment: {diagnostics:?}"));
+    let project = workspace.path().join("project");
+    let package = checked.sources().package_identity().unwrap();
+    let target = checked.execution().target_profile().unwrap();
+    let input = PackageReviewInput::supplied(&checked, &checked).unwrap();
+    assert!(std::ptr::eq(
+        input.module().unwrap(),
+        checked.terminal_publication().accepted().unwrap().module()
+    ));
+    let detached: typed_trees::TypedTrees = checked
+        .source_inspection()
+        .program()
+        .as_ref()
+        .as_ref()
+        .clone();
+    let errors = match PackageReviewInput::supplied(&detached, &checked) {
+        Ok(_) => panic!("equal declarations cannot replace the judged source owner"),
+        Err(errors) => errors,
+    };
+    assert!(diagnostics::join_messages(&errors).contains("differs from the accepted source owner"));
+
+    // Review consumes retained source and judgment, even after the original
+    // live files disappear. It must not parse the filesystem a second time.
+    std::fs::remove_file(project.join("main.omg")).unwrap();
+    std::fs::remove_file(project.join("build.omg")).unwrap();
+    let reviewed = project_package_review(&checked, package, target, usize::MAX)
+        .unwrap_or_else(|error| panic!("accepted package review: {error:?}"));
+    assert_eq!(reviewed.policy.public_data().len(), 1);
+    assert_eq!(reviewed.policy.public_domains().len(), 1);
+    assert!(
+        !reviewed.policy.public_domains()[0]
+            .predicate_facts()
+            .is_empty()
+    );
+    let [build] = reviewed.policy.callables().callables() else {
+        panic!("the selected Build must retain its own checked contract");
+    };
+    assert_eq!(
+        build.identity().path(),
+        checked
+            .symbols
+            .display_path(checked.build().selected_build_machine_symbol.unwrap(), "::",)
+    );
+    assert_eq!(
+        build.identity().owner(),
+        package_evidence::record::PackageReviewNominalOwner::Package(package)
+    );
+    // The authored Build calls `application`, whose public contract reaches
+    // and enters BuildRequestOperations. Review must retain that nonempty
+    // contribution while preserving omission of Build's own written ceilings.
+    let realized = build.checked_service_reach().realized().unwrap();
+    let request = realized
+        .iter()
+        .find(|service| service.path() == "BuildRequestOperations")
+        .expect("the actual Build request protocol must remain visible");
+    assert!(matches!(
+        request.owner(),
+        package_evidence::record::PackageReviewNominalOwner::ToolchainSource(_)
+    ));
+    assert_eq!(build.checked_service_reach().concrete(), Some(realized));
+    assert_eq!(build.service_reach_dependency().concrete(), realized);
+    assert!(build.declared_service_reach().is_none());
+    assert!(build.declared_synchronous_invocations().is_none());
+    assert!(
+        build
+            .realized_synchronous_invocations()
+            .iter()
+            .any(|entry| entry.service() == Some(request))
+    );
+    assert_eq!(build.parameters().len(), 1);
+    // A real Product judgment cannot stand in for the independently judged
+    // Build invocation, and dropping Build custody cannot publish its rows.
+    let source = std::sync::Arc::clone(checked.source_inspection().program());
+    let roster = checked.terminal_publication().roster().unwrap().clone();
+    let other_judgment = roster.judge(std::sync::Arc::clone(&source)).unwrap();
+    let publication = std::sync::Arc::new(
+        compilation_products::ProductTerminalPublication::judge(
+            source,
+            roster,
+            checked.terminal_publication().optimizations().clone(),
+        )
+        .unwrap(),
+    );
+    let inspection = std::sync::Arc::new(compilation_products::SelectedProviderSource::new(
+        std::sync::Arc::clone(checked.source_inspection().inventory()),
+        std::sync::Arc::clone(checked.execution().shared_plans()),
+    ));
+    let rewrap = |build| {
+        compilation_products::CheckedCompilation::from_settled_execution(
+            compilation_products::CheckedCompilationInputs {
+                settled: checked.execution().clone(),
+                source_inspection: std::sync::Arc::clone(&inspection),
+                build: std::sync::Arc::new(build),
+                build_admission: checked.build_admission().clone(),
+                provider_defaults: checked.provider_defaults().to_vec().into(),
+            },
+            std::sync::Arc::new(checked.sources().clone()),
+            Default::default(),
+            std::sync::Arc::clone(&publication),
+        )
+        .unwrap()
+    };
+    let mut missing = checked.build().clone();
+    missing.accepted_build = None;
+    let missing = rewrap(missing);
+    let refusal = project_checked_package_policy(&missing, target, package).unwrap_err();
+    assert!(diagnostics::join_messages(&refusal).contains("selected Build's accepted judgment"));
+    let mut swapped = checked.build().clone();
+    swapped.accepted_build = Some(other_judgment);
+    let swapped = rewrap(swapped);
+    let refusal = project_checked_package_policy(&swapped, target, package).unwrap_err();
+    assert!(diagnostics::join_messages(&refusal).contains("Build's own invocation judgment"));
+    assert_eq!(
+        reviewed.semantic_bindings,
+        checked.sources().accepted_semantic_bindings()
+    );
+    let bytes = reviewed.policy.canonical_bytes().unwrap();
+    let recovered = PackagePolicyBaseline::recover_canonical(&bytes, Default::default()).unwrap();
+    assert_eq!(recovered, reviewed.policy);
+    assert_eq!(reviewed.policy_canonical_bytes, bytes.len());
+    assert!(matches!(
+        project_package_review(&checked, package, target, bytes.len() - 1),
+        Err(PackageReviewProjectionError::PolicyBudget)
+    ));
+    assert!(project_package_review(&checked, package, target, bytes.len()).is_ok());
+    let other = semantic_vocabulary::PackageKeyIdentity::from_digest([99; 32]).unwrap();
+    assert!(project_checked_package_policy(&checked, target, other).is_err());
+    let wrong_target = if target == target::TargetProfile::WindowsX64 {
+        target::TargetProfile::UefiX64
+    } else {
+        target::TargetProfile::WindowsX64
+    };
+    assert!(project_checked_package_policy(&checked, wrong_target, package).is_err());
+    session.close().unwrap();
+
+    // An unused private local claim is still part of the reviewed subject.
+    // Loaded but unrelated core claims must not erase this distinction.
+    let claimed_source = format!(
+        "{SOURCE}\nboundary machine unproved(value: u64) -> u64 ensures result == value;\n"
+    );
+    let (_workspace, mut session, claimed) =
+        captured_review_compilation(&claimed_source, REVIEW_BUILD_SOURCE);
+    let refusal = match claimed {
+        Ok(_) => panic!("the ordinary checker must refuse the unchecked bodyless claim"),
+        Err(diagnostics) => diagnostics,
+    };
+    assert!(
+        diagnostics::join_messages(&refusal)
+            .contains("machine supply mode other than a checked body"),
+        "{refusal:?}"
+    );
+    session.close().unwrap();
+
+    // Another genuine Build judgment has the right phase but a different
+    // supplying source; it cannot describe this package's execution.
+    let foreign_source = format!("{REVIEW_BUILD_SOURCE}\n// Another retained Build source.\n");
+    let (_workspace, mut session, other) = captured_review_compilation(SOURCE, &foreign_source);
+    let other = other.unwrap_or_else(|diagnostics| panic!("valid foreign Build: {diagnostics:?}"));
+    let mut foreign = checked.build().clone();
+    foreign.accepted_build = other.build().accepted_build.clone();
+    let foreign = rewrap(foreign);
+    let refusal = project_checked_package_policy(&foreign, target, package).unwrap_err();
+    assert!(
+        diagnostics::join_messages(&refusal)
+            .contains("retained declaration is absent or changed in the admitted source context"),
+        "{refusal:?}"
+    );
     session.close().unwrap();
 }
