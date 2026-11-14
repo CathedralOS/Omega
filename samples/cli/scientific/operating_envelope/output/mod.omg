@@ -1,6 +1,7 @@
 module output;
 use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega::language::core::F64::from_i32;
+use omega::language::core::I32::from_f64;
 use geometry;
 
 // Integer text emission uses the existing byte provider; decimal coordinates

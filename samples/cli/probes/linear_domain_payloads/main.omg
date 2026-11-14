@@ -12,7 +12,6 @@
 // Compile-checked only: declaration surface, no standard-library
 // dependency.
 
-use omega::language::core::drop;
 
 public data Receipt [linear] dropped by drop_receipt {
     code: i32;

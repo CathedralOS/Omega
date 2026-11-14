@@ -7,8 +7,7 @@
 // record.
 //
 // Expected exit: 0
-use omega::language::core::float_operations;
-use omega::language::core::numeric_conversion;
+use omega::language::core::I32::from_f64;
 
 data Held<'samples> { values: &'samples mut [f64]; }
 data Holder { which: i64; samples: [f64; 4]; }

@@ -13,7 +13,7 @@
 // Expected exit: 24.
 
 use omega_language_std::console;
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_u32_to_i32_trapping;
 
 data Main { }
 machine Main::main(main: &mut Main) reaches Console {

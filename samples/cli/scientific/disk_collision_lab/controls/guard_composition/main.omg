@@ -1,7 +1,6 @@
-use omega::language::core::math;
+use omega::language::core::abs_f64;
 
 // Complete reduced source for a checked call composed with IEEE comparisons.
-use omega::language::core::float_operations;
 data Probe { reading:f64; selected:i32; observed:i32; }
 machine accepted(probe:&Probe,choice:i32)->bool {
  transition choice {0 -> test(probe) _ -> rejected()}

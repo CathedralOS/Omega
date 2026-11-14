@@ -1,7 +1,7 @@
 // Expected exit: 0. Numeric custody only, not physical storage or an allocator.
-use omega::language::core::content;
-use omega::language::core::drop;
-use omega::language::core::nat;
+use omega::language::core::Content;
+use omega::language::core::IntervalSet;
+use omega::language::core::Nat;
 data Region [linear] dropped by drop_region { base: u64; length: u64; }
 domain Region::Owned established by issue;
 machine Owned::content(region: &Region) -> IntervalSet<Nat>

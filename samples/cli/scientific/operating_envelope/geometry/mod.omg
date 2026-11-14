@@ -1,5 +1,5 @@
 module geometry;
-use omega::language::core::float_operations;
+use omega::language::core::F64::from_i32;
 use input;
 
 // Sutherland-Hodgman clipping keeps counterclockwise order. Two fixed buffers

@@ -1,6 +1,5 @@
 // Inclusive f64 0.0 <= value <= 0.25 entails admit's 0.0 <= value <= 0.5.
 // Expected exit: 0
-use omega::language::core::float_operations;
 const LOWER: f64 = 0.0;
 const NARROW_UPPER: f64 = 0.25;
 machine admit(value: f64) -> f64

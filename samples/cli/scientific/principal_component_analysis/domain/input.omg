@@ -1,6 +1,6 @@
 use omega_language_std::console;
-use omega::language::core::float_operations;
-use omega::language::core::numeric_conversion;
+use omega::language::core::F64::from_i32;
+use omega::language::core::narrow_u64_to_i32_saturating;
 public data Input {
  values: [f64; 67]; count: u64 in Wrapping; bytes: u64 in Wrapping; length: u64 in Wrapping;
  token: [i32 in Wrapping; 64]; valid: bool;

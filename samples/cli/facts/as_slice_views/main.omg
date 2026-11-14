@@ -2,7 +2,6 @@
 // core range requirement. Reading its extent preserves the original length.
 // Expected exit: 0
 
-use omega::language::core::slice;
 
 data Entry {
     value: i32;

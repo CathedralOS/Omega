@@ -1,5 +1,6 @@
-use omega::language::core::math;
-use omega::language::core::float_operations;
+use omega::language::core::abs_f64;
+use omega::language::core::max_f64;
+use omega::language::core::F64::square_root;
 use omega_language_std::console;
 
 // Expected exit: 0

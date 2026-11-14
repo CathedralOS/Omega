@@ -3,9 +3,7 @@
 use io::protocol;
 use model::planck;
 use omega_language_std::console;
-use omega::language::core::math;
-use omega::language::core::float_operations;
-use omega::language::core::slice;
+use omega::language::core::is_finite;
 
 // The scanner borrows the parsed fields through a shared descriptor.
 data RadiometryInput<'fields> [copy] { values: &'fields [f64]; }

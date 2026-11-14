@@ -2,7 +2,7 @@
 // copying the elements or fixing the input extent.
 // Expected exit: 0.
 
-use omega::language::core::option;
+use omega::language::core::Optional;
 
 machine find<'input, T, Context, machine Predicate>(values: &'input [T], context: &Context) -> Optional<&'input T>
 requires machine Predicate(value: &T, context: &Context) -> bool;

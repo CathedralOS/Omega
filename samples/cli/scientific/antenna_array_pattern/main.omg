@@ -1,11 +1,12 @@
-use omega::language::core::math;
+use omega::language::core::abs_f64;
+use omega::language::core::max_f64;
 
 // Expected exit: 0.
 // Selector and phase-reduction ladders use explicit exhaustive dispatches.
 // Expected output contains: antenna_array_pattern complete
 use omega_language_std::console;
-use omega::language::core::float_operations;
-use omega::language::core::numeric_conversion;
+use omega::language::core::F64::from_i32;
+use omega::language::core::I32::from_f64;
 use domain::array;
 use data::fixtures;
 use data::expected;

@@ -1,6 +1,6 @@
 use domain::model;
-use omega::language::core::float_operations;
-use omega::language::core::numeric_conversion;
+use omega::language::core::F64::from_i32;
+use omega::language::core::narrow_i32_to_u64_wrapping;
 
 // Rescan all records at each distinct time. The risk set includes every tied
 // censor until all tied events are accounted for. No sort order affects counts.

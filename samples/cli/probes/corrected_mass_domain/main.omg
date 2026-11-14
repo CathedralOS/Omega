@@ -5,7 +5,7 @@
 // Expected exit: 0
 // Expected output contains: MASS 2
 use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega::language::core::F64::is_finite;
 
 domain f64::NonnegativeMass
 requires self >= 0.0;

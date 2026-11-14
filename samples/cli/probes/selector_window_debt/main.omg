@@ -7,7 +7,6 @@
 //   * `reset(&mut unrelated)` + `at = 2` mutation mid-window.
 //   * `tokens[1] = first` store at the literal coordinate.
 //
-use omega::language::core::drop;
 
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.

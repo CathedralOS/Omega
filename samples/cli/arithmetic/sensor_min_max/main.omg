@@ -1,4 +1,6 @@
-use omega::language::core::math;
+use omega::language::core::clamp_f64;
+use omega::language::core::max_f64;
+use omega::language::core::min_f64;
 
 // Running min/max/range over a stream of float readings -- the everyday shape
 // of sensor telemetry (thermostat, ADC, gauge). It exercises the numeric
@@ -18,7 +20,7 @@ use omega::language::core::math;
 // float clamp changes it: range + banded = 8 + 25 = 33.
 // Expected exit: 33.
 
-use omega::language::core::float_operations;
+use omega::language::core::I32::from_f64;
 use omega_language_std::console;
 
 data Main

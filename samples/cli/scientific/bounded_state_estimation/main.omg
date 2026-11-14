@@ -1,7 +1,7 @@
 // Expected exit: 64 (empty stdin is a missing configuration).
 // A complete stream application; fixtures/validate.py supplies valid trajectories.
 use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega::language::core::F64::is_finite;
 use domain::matrix;
 use domain::filter;
 use io::input;

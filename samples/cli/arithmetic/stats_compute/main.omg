@@ -18,7 +18,6 @@
 // Expected exit: 70.
 // Expected output contains: PASS: mean=5.0, variance=4.0, weighted sum=82.5 all in tolerance (exit 70)
 
-use omega::language::core::float_operations;
 use omega_language_std::console;
 
 data Stats [copy]

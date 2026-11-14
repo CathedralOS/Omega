@@ -2,7 +2,7 @@
 // Checks offset and overlapping candidates, missing/empty patterns, truncated
 // tails and embedded zero bytes. No encoding qualification is assumed.
 // Expected exit: 0.
-use omega::language::core::option;
+use omega::language::core::Optional;
 
 machine starts_with(bytes: &[u8], pattern: &[u8]) -> bool {
     transition pattern.len == 0 {

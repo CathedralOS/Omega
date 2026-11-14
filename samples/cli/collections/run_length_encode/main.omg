@@ -15,7 +15,7 @@ domain [u8; 20]::Utf8
 requires
     valid_utf8(self);
 use omega_language_std::console;
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_u32_to_i32_trapping;
 
 data Main {
     data: [u8; 20] in Utf8;

@@ -1,5 +1,5 @@
 use omega_language_std::console;
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_i64_to_i32_trapping;
 use clock::model;
 
 // Runtime recursive call cycles must be tail-position calls. Decimal suffix

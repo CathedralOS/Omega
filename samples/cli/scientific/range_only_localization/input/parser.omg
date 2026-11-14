@@ -1,5 +1,4 @@
 use geometry::model;
-use omega::language::core::numeric_conversion;
 
 // Exactly 17 small signed decimal fields. No partial record is admitted. The
 // parser bounds magnitude before accumulation, rejects extra fields and any

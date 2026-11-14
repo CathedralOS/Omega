@@ -15,7 +15,7 @@
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
 
-use omega::language::core::option;
+use omega::language::core::Optional;
 
 data First { value: i32; }
 data Second { padding: u64; value: i32; }

@@ -1,4 +1,4 @@
-use omega::language::core::float_operations;
+use omega::language::core::F64::from_u64;
 use domain::input;
 public data Vector [copy] { a: f64; b: f64; c: f64; }
 public data Reaction [copy] { a: u64; b: u64; c: u64; p: u64; q: u64; r: u64; rate: f64; }

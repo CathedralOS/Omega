@@ -2,7 +2,6 @@
 // Place: const name (invalid twin). Named constant INDEX is 3, which exceeds the guarded length bound of 3 elements.
 // Expected diagnostic: slice index out of bounds
 
-use omega::language::core::slice;
 
 const INDEX: u64 = 3;
 const SUBTRAHEND: u64 = 3;

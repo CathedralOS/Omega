@@ -1,4 +1,5 @@
-use omega::language::core::math;
+use omega::language::core::max_i32;
+use omega::language::core::min_i32;
 
 // A visual binary search: each step prints one row of a 31-cell strip, so the search's
 // history builds downward as a scrolling trace. A row shows the active `[lo, hi]` range

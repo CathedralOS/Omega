@@ -1,6 +1,9 @@
 // Fact: Selected buffered conversions preserve caller output custody and establish a destination only with sufficient capacity.
 // Expected exit: 0
-use omega::language::core::conversion;
+use omega::language::core::Result;
+use omega::language::core::TryFrom;
+use omega::language::core::compose;
+use omega::language::core::convert;
 
 data Pair [copy] { first: u8; last: u8; }
 data Request<'buffer, Value> { value: Value; output: &'buffer mut [u8]; }

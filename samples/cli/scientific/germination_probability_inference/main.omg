@@ -2,7 +2,7 @@
 // Expected exit: 0.
 // Expected output contains: status=ok
 use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega::language::core::F64::from_i32;
 use domain::input;
 use domain::inference;
 use domain::report;

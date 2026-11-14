@@ -1,6 +1,5 @@
 // EOF-terminated signed integers, |token| <= 1000000; at most 4095 bytes.
 use omega_language_std::console;
-use omega::language::core::float_operations;
 
 
 public data Input { tokens: [i32; 98]; count: u64; valid: bool; negative: bool; }

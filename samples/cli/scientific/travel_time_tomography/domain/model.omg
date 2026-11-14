@@ -1,6 +1,5 @@
 // Synthetic two-cell straight-ray model. All lengths and times come from stdin.
 // No geophysical claims: uniform cells, no refraction, equal observation weights.
-use omega::language::core::float_operations;
 
 public data Ray [copy] { first: f64; second: f64; time: f64; }
 public data Problem [copy] {

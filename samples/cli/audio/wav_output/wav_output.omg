@@ -5,8 +5,12 @@ module wav_output;
 // exact satisfaction edges. The same POSIX body serves all POSIX targets;
 // target defaults choose the implementation and its raw closure, not a source
 // routing value or a different portable reach row.
-use omega::language::core::filesystem_authority;
-use omega::language::core::numeric_conversion;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::FilesystemNamespaceMutation;
+use omega::language::core::widen_i32_to_i64;
+use omega::language::core::widen_u32_to_i64;
 use omega_language_std::filesystem_host;
 use omega_language_std::posix_filesystem_host;
 use omega_language_std::windows_filesystem_host;
