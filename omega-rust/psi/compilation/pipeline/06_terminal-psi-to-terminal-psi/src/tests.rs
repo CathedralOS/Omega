@@ -36,6 +36,7 @@ mod empty_records;
 mod entry_inputs;
 mod entryless;
 mod guard_contradiction;
+mod handoffs;
 mod inferred_bounds;
 mod lifetime_elision;
 mod lifetime_generics;

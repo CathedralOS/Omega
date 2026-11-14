@@ -182,24 +182,26 @@ fn source_applications_prepare_substituted_cases_before_checked_construction() {
         .unwrap()
         .symbol;
     let prepared = typed_trees_to_terminal_psi::prepare_compilation(
-            &typed,
-            typed_trees_to_terminal_psi::Compilation {
-                entries: &[entry],
-                subjects: &[None],
-                purpose: source::DependencyScope::Product,
-                selected: &[],
-                bindings: &[],
-                supplies: &[],
-            },
-            terminal_codec::TerminalPublication::Invocation,
-        );
+        &typed,
+        typed_trees_to_terminal_psi::Compilation {
+            entries: &[entry],
+            subjects: &[None],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        },
+        terminal_codec::TerminalPublication::Invocation,
+    );
     let mut verdicts = crate::judge_compilation(prepared.program);
     assert_eq!(verdicts.len(), 1);
     let verdict = verdicts.remove(0).unwrap();
     let RouteVerdict::Accepted(_) = verdict else {
         panic!("{verdict:?}")
     };
-    let records: Vec<_> = prepared.source.records
+    let records: Vec<_> = prepared
+        .source
+        .records
         .iter()
         .filter(|record| record.declaration == optional.symbol)
         .collect();

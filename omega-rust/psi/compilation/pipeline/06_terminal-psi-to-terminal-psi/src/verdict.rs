@@ -699,7 +699,7 @@ pub(crate) enum AppliedContracts {
     /// there the same way, as its contract with no body. What makes its
     /// `ensures` true is each implementation's refinement witness, and the
     /// same compilation judges the witness of every row its subject declares
-    /// and of every row its closure selects (`judge_compilation_for`), so
+    /// and of every row its closure selects (`judge_compilation`), so
     /// the requirement's rows are left to them.
     OwnCheckForms,
 }

@@ -8,6 +8,13 @@ path string to find a fact. The crate is types only: no elaboration, no
 checking, no prover. The decision it serves is
 [check on the lowered form](../../../../../../wiki/drafts/designs/check_on_lowered_form.md).
 
+[`program`](src/program.rs) owns the complete unsealed module and its checking
+rows. [`compilation`](src/compilation.rs) groups that root with every demanded
+generic form and conformance witness, using retained identities rather than
+callbacks to source preparation. [`names`](src/names.rs) and source spans are
+diagnostic correspondence only. Typed source records and Build operands stay
+with the producer/driver publication envelope, outside this source-free crate.
+
 ## What each table holds
 
 All tables are `IdTable`s: flat `Vec`s indexed by identity. Elaboration mints

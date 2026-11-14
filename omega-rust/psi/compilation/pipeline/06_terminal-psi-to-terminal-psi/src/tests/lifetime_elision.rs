@@ -133,7 +133,11 @@ fn record_rows(build: &str) -> Vec<(String, bool)> {
     let entry = super::build_purpose::symbol(&typed, "build_entry");
     let prepared = typed_trees_to_terminal_psi::prepare_compilation(
         &typed,
-        super::build_purpose::roster(&[entry], &[Some(super::build_purpose::package())], source::DependencyScope::Build),
+        super::build_purpose::roster(
+            &[entry],
+            &[Some(super::build_purpose::package())],
+            source::DependencyScope::Build,
+        ),
         terminal_codec::TerminalPublication::Invocation,
     );
     let mut verdicts = crate::judge_compilation(prepared.program);
@@ -142,7 +146,9 @@ fn record_rows(build: &str) -> Vec<(String, bool)> {
     let RouteVerdict::Accepted(accepted) = verdict else {
         panic!("{verdict:?}")
     };
-    let rows = prepared.source.records
+    let rows = prepared
+        .source
+        .records
         .iter()
         .map(|row| {
             let data = typed.data_definition_by_symbol(row.declaration).unwrap();

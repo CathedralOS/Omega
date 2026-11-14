@@ -51,8 +51,9 @@ mod operations;
 pub(crate) mod places;
 
 use semantic_vocabulary::{
-    BlockId, ContractId, EdgeId, IdTable, MachineId, ObligationId, PlaceId, Proposition,
-    ScalarQualificationSetId, ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId,
+    BlockId, ContractId, EdgeId, IdTable, MachineId, ObligationId, OperationId, PlaceId,
+    Proposition, ScalarQualificationSetId, ScalarType, StructuralPlaceKind, StructuralTypeId,
+    ValueId,
 };
 use terminal_check_tables::obligations::{ObligationKind, ObligationRow};
 use terminal_check_tables::values::{RigidType, ValueOrigin, ValueRow};

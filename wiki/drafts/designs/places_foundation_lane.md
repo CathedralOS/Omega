@@ -163,7 +163,7 @@ scalar. Each read, whole copy, call argument or return of such a root must be
 dominated, on every path, by a whole write to the place, or to every leaf
 beneath it. This is a
 structural judgment over the write log and the dominance graph
-(`terminal-psi-to-terminal-psi/src/graph.rs`). It is not a proposition, so it makes no
+(`06_terminal-psi-to-terminal-psi/src/graph.rs`). It is not a proposition, so it makes no
 certificate. A failure is a refusal with a new closed reason,
 `RefusalReason::Unestablished`, reported as a compile error. The reason is
 new because this is neither unsupported nor unproved. The lane reports this

@@ -184,10 +184,13 @@ over the typed trees and freezes the result without establishing a judgment.
 A pass does its work or refuses its own request by name; requested deferred
 layout, opaque-selection and wire work has no pass and refuses.
 
-The served checking route is `typed-trees-to-terminal-psi` → `terminal-psi-to-terminal-psi` → the
-accepted-source factory. That is the default path, and it is the empty Psi
-selection: the factory retains the exact frozen typed owner before judgment
-and publishes the same module and evidence afterward, with no passes and no
+The served checking route is Psi 05 (`typed-trees-to-terminal-psi`) → Psi 06
+(`terminal-psi-to-terminal-psi`) → publication. Stage 05 prepares every demanded
+generic form and conformance witness in a shared Terminal packet; stage 06 has no
+production dependency on stage 05 or typed trees. The accepted-source factory
+sequences them, retaining the exact frozen typed owner and source-only publication
+correspondence outside the checking input, then publishes the same module and
+evidence afterward. That is the default, empty Psi selection: no passes and no
 second check. A nonempty selection is specified as structural elaboration, the
 lowered-form check of the unoptimized program, the selected Psi passes in one
 canonical order, the same check of the optimized program, then publication of

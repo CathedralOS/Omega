@@ -42,10 +42,6 @@ artifacts = { path = "../../foundation/artifacts" }
 build-time-evaluation = { path = "../../../psi/compilation/build-time-evaluation" }
 target = { path = "../backend/target" }
 typed-trees = { path = "../../../psi/compilation/representations/typed-trees" }
-# The checker on the lowered form, which governs a compilation's verdict where
-# the owner's split gives it (src/checked/checking/lowered_route.rs).
-typed-trees-to-terminal-psi = { path = "../../../psi/compilation/pipeline/05_typed-trees-to-terminal-psi" }
-terminal-psi-to-terminal-psi = { path = "../../../psi/compilation/pipeline/06_terminal-psi-to-terminal-psi" }
 terminal-check-tables = { path = "../../../psi/compilation/representations/terminal-psi/check-tables" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
@@ -59,6 +55,8 @@ native-artifact = { path = "../backend/artifacts/native-artifact" }
 optimization-core = { path = "../../foundation/optimization-core" }
 
 [dev-dependencies]
+typed-trees-to-terminal-psi = { path = "../../../psi/compilation/pipeline/05_typed-trees-to-terminal-psi" }
+terminal-psi-to-terminal-psi = { path = "../../../psi/compilation/pipeline/06_terminal-psi-to-terminal-psi" }
 abstract-operations = { path = "../representations/abstract-operations" }
 image = { path = "../backend/images/image" }
 isa-aarch64 = { path = "../backend/instruction-set-architectures/isa-aarch64" }

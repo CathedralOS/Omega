@@ -67,7 +67,7 @@ the five checks below fail:
   `CallFrameResolver`, `FactPayload`) rather than matching the surface AST shape
   of one fixture (e.g., handling only a bare `ExpressionNode::Name` when an
   operand may be a projection, cast, or call result).
-- **Full stage carry-through (lowered-form checker `-> 08 -> Native`):** Verify
+- **Full stage carry-through (`Psi 05 -> 06 -> publication -> Native`):** Verify
   that a construct, carrier, or cleanup disposition admitted by the lowered-form
   checker is carried through Terminal Psi execution and native codegen
   (`omega run --both`), rather than stopping at `--check`.
@@ -117,7 +117,8 @@ the five checks below fail:
   accidental $O(N^2)$ linear scans (`Vec::iter().find(...)` inside a statement
   or state walk instead of dense handle-indexed lookup) or uncollapsed branch
   multiplication.
-- **Frozen-checker deletion boundary:** Psi 05/06 and the other retired crates
+- **Frozen-checker deletion boundary:** The retired checked-tree stages
+  (`typed-trees-to-checked-trees`, `checked-trees-to-lowered-psi`) and other crates
   named in [AGENTS.md](../../../AGENTS.md#law-of-completion) take only deletions
   or moves of still-needed code into surviving owners. Reject repairs or
   fallback routes through them; verify the lowered-form checker retains the

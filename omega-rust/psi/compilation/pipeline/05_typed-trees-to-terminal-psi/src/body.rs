@@ -15,9 +15,8 @@ fields and no case, a sum has cases and no field.
 */
 
 use semantic_vocabulary::{
-    BoundaryMachineId, CrashCause, IdTable, IntegerValue, MachineId, PlaceId, Proposition,
-    ScalarType, StructuralCaseId, StructuralFieldId, StructuralTypeId, TargetMachineCallable,
-    ValueId,
+    BoundaryMachineId, CrashCause, IdTable, IntegerValue, MachineId, Proposition, ScalarType,
+    StructuralCaseId, StructuralFieldId, StructuralTypeId, TargetMachineCallable, ValueId,
 };
 use terminal_check_tables::values::RigidType;
 use terminal_psi::CrashRouteBucket;

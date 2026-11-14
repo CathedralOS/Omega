@@ -1219,7 +1219,8 @@ each do one part, and the fact travels in the module:
   with its axis), with no certificate, like a loan conflict; a row that is
   not canonical, a reach row that omits a boundary parent or disagrees with
   the written ceiling or the root reach, is a table fault. The same
-  containment guards `prove_callable_refinement` on both axes.
+  containment judges the ordinary call in each prepared conformance witness
+  on both axes; there is no separate callable-refinement checker.
 
 A call of a boundary requirement is "not itself an entry", and the route
 reads no operation that originates one (a call of a callable argument, of a

@@ -56,6 +56,7 @@ const SOURCE_STAGES: &[&str] = &[
     "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees",
     "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees",
     "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees",
+    "omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi",
 ];
 
 const PARSER_STAGES: &[&str] = &[
@@ -283,8 +284,10 @@ pub fn forbidden_rules() -> Vec<Rule> {
             allowed: FIREWALL_ALLOWANCES.to_vec(),
         },
     ];
-    for stages in [PSI_STAGES, OMEGA_STAGES] {
-        for &owner in stages {
+    // The new Terminal stages have representation-owned handoffs. Earlier Psi
+    // stages still have a separately tracked 03 -> 02 deferred-frontier edge.
+    for (owners, stages) in [(&PSI_STAGES[5..], PSI_STAGES), (OMEGA_STAGES, OMEGA_STAGES)] {
+        for &owner in owners {
             rules.push(Rule {
             owners: vec![owner],
             forbidden: stages

@@ -85,8 +85,7 @@ pub struct Elaboration {
     /// compilation's module (`elaborate`) each machine also states the
     /// declaration identity of the typed-tree machine it lowers (`declare`).
     pub module: TerminalModule,
-    /// One `MachineTables` per machine. `summaries` stays empty; see the
-    /// README, "Findings".
+    /// One checking-table group per machine, in the module's identity order.
     pub tables: CheckTables,
     pub sources: IdTable<MachineId, MachineSources>,
     /// The boundary requirement each `BoundaryMachineId` of the module
