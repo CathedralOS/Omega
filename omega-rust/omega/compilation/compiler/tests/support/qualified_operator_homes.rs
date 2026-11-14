@@ -132,8 +132,12 @@ fn domain_operators_cross_package_boundaries_without_importing_their_module() {
             let diagnostics = failure;
             assert!(
                 diagnostics.iter().any(|diagnostic| {
-                    diagnostic.message.contains("operator")
-                        || diagnostic.message.contains("private")
+                    // The package name also contains "operator": it must not
+                    // make a setup/refusal elsewhere count as this oracle.
+                    diagnostic.message.contains(
+                        "operator on an operand that is not a plain or policy-qualified scalar",
+                    ) || diagnostic.message.contains("no visible operator")
+                        || diagnostic.message.contains("private operator")
                 }),
                 "{diagnostics:#?}"
             );
