@@ -893,7 +893,7 @@ fn impossible_arms(
         ) else {
             continue;
         };
-        let entering = |edge: EdgeId| {
+        let entering = |edge: semantic_vocabulary::EdgeId| {
             tables
                 .edges
                 .get(edge)
