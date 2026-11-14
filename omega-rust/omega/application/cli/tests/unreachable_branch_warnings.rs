@@ -91,9 +91,9 @@ fn a_match_arm_contradicting_the_entry_requirement_warns() {
 }
 
 /// The arm ruled out here feeds a join, and the subtraction after the join
-/// needs `chosen >= 100` from the live arm's `count + 100u64`. The checker
-/// does not yet carry an arithmetic arm value through a value-`match` join,
-/// so the program is rejected before any warning is printed.
+/// needs `chosen >= 100` from the live arm's `count + 100u64`. Each actual
+/// arrival proves the inferred relation; the impossible arm closes by
+/// contradiction without lending its facts to the reachable arm.
 #[test]
 fn a_match_arm_ruled_out_before_a_join_warns() {
     assert_one_warning(
