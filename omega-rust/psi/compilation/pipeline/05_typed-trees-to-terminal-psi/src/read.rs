@@ -1494,7 +1494,7 @@ mod tests {
     /// the rows are spelled.
     #[test]
     fn a_record_pattern_is_covered_by_field_symbols_never_by_spellings() {
-        use semantic_vocabulary::StructuralTypeId;
+        use semantic_vocabulary::StructuralFieldId;
         use typed_trees::expression::{MatchFieldAction, TableMatchField};
         use typed_trees::name::Identifier;
         use typed_trees::statement::TableLocalData;
@@ -1558,16 +1558,36 @@ mod tests {
             row(b, "b", true),
             row(other, "c", false),
         ]);
+        let mut program = Program::new(&typed, false);
+        // A place's type and source symbols occupy separate rosters. This
+        // hand-built input must provide both, as the source reader does.
+        let record = program.records.push(crate::RecordType {
+            owns_linear_claim: false,
+            copyable: false,
+            identity: "Point".into(),
+            shape: crate::StorageShape::Record(
+                ["a", "b"]
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, name)| crate::RecordField {
+                        id: StructuralFieldId::new(index as u64 + 1).unwrap(),
+                        identity: name.into(),
+                        value_type: ValueType::plain(ScalarType::Bool),
+                        byte_predicates: Default::default(),
+                    })
+                    .collect(),
+            ),
+            requires: Vec::new(),
+        });
         let slots = [Slot {
             symbol: local,
-            value_type: ValueType::record(StructuralTypeId::new(1).unwrap()),
+            value_type: ValueType::record(record),
             assignable: false,
             homed: false,
             erased: false,
             borrowed: None,
             borrowed_regions: crate::body::Regions::NONE,
         }];
-        let mut program = Program::new(&typed, false);
         program.record_sources.push(places::RecordSource {
             declaration: point,
             application: None,
