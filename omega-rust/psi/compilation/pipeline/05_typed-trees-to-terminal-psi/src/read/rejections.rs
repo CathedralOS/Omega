@@ -189,7 +189,7 @@ impl Program<'_> {
 }
 
 /// The resolved scalar carrier, without domains or physical storage choices.
-fn scalar_named(scalar: ScalarType) -> String {
+pub(super) fn scalar_named(scalar: ScalarType) -> String {
     match scalar {
         ScalarType::Boolean => "bool".to_owned(),
         ScalarType::Integer(integer) if integer.is_address() => "addr".to_owned(),
