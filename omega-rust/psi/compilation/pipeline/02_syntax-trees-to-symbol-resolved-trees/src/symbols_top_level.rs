@@ -304,6 +304,7 @@ mod machines {
                 .unwrap_or_else(SymbolHandle::invalid);
         });
         let attached_machines = crate::symbols::scope::attached_machines(program);
+        let binder_roles = crate::symbols::scope::BinderRoles::of(program);
         {
             let parameters = &mut program.tables.declarations.data_type_parameters;
             program.roots.machines.for_each_mut(|machine| {
@@ -448,6 +449,7 @@ trait_machine_identity_slots: &trait_machine_identity_slots,
 
         let expression_scope = MachineScope {
             attached_machines: &attached_machines,
+            binder_roles: &binder_roles,
             resolution_indexes: &program.resolution_indexes,
             symbol: machine_symbol,
             lexical_requirements: LexicalRequirements::none(),

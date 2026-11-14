@@ -1471,6 +1471,94 @@ fn an_owned_sum_is_dispatched_and_disposed_of_once() {
     );
 }
 
+/// A generic argument takes its role from the binder it fills
+/// (`wiki/spec/language/modules.md`, "Builtin type names"): with
+/// `const u16: u64` in scope, `identity<u16>` hands the type binder the
+/// builtin type, where it used to hand it the constant. In the same program,
+/// `count<u16>` supplies that constant to a value binder. A
+/// type equality whose operand is a parameter spelled `i32` names both
+/// meanings, and an array extent inside a generic argument reads the
+/// parameter that hides a same-spelled constant, in a signature, a local's
+/// type and a call's static argument.
+#[test]
+fn a_static_argument_is_read_by_its_binder_role() {
+    let outcomes = judged(
+        "type_binder_reads_the_builtin_type",
+        "const u16: u64 = 3;\n\
+             const bool: bool = true;\n\
+             machine identity<T>(value: T) -> T { value }\n\
+             machine count<const N: u64>() -> u64 { N }\n\
+             machine choose<const Condition: bool>() -> bool { Condition }\n\
+             machine main() {\n\
+                 let number: u16 = identity<u16>(7u16);\n\
+                 let quantity: u64 = count<u16>();\n\
+                 let truth: bool = identity<bool>(true);\n\
+                 let decision: bool = choose<bool>();\n\
+             }\n",
+    );
+    assert_eq!(outcomes.len(), 4, "{outcomes:?}");
+    for outcome in outcomes {
+        assert!(
+            matches!(outcome, Ok(RouteVerdict::Accepted(_))),
+            "{outcome:?}"
+        );
+    }
+    let extent = "is a runtime value: `count` is a parameter or local here";
+    for (name, source, reason) in [
+        (
+            "type_equality_with_a_builtin_spelled_parameter",
+            "machine pick<T>(i32: u32, value: T) -> u32 requires T == i32 { i32 }\n\
+             machine main() { }\n",
+            "`i32` here is the parameter `i32`, a value, not the builtin type `i32`",
+        ),
+        (
+            "generic_argument_extent_in_a_signature",
+            "data Buffer<T> { item: T; }\n\
+             const count: u64 = 4;\n\
+             machine f(count: u64, buffer: Buffer<[u8; count]>) -> u64 { count }\n\
+             machine main() { }\n",
+            extent,
+        ),
+        (
+            "generic_argument_extent_in_a_local",
+            "data Buffer<T> { item: T; }\n\
+             const count: u64 = 2;\n\
+             machine f(count: u64) -> u64 {\n\
+                 let buffer: Buffer<[u8; count]> = Buffer { item: [1, 2] };\n\
+                 count\n\
+             }\n\
+             machine main() { let n: u64 = f(2); }\n",
+            extent,
+        ),
+        (
+            "generic_argument_extent_in_a_call",
+            "machine identity<T>(value: T) -> T { value }\n\
+             const count: u64 = 2;\n\
+             machine f(count: u64) -> u64 {\n\
+                 let bytes: [u8; 2] = identity<[u8; count]>([1, 2]);\n\
+                 count\n\
+             }\n\
+             machine main() { let n: u64 = f(2); }\n",
+            extent,
+        ),
+    ] {
+        let stopped = {
+            let _compilation = COMPILATIONS
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            unbuilt_frontier::staged(name, source)
+        };
+        let messages = match stopped {
+            Ok(_) => panic!("{name}: must stop before the checker"),
+            Err(messages) => messages,
+        };
+        assert!(
+            messages.iter().any(|message| message.contains(reason)),
+            "{name}: {messages:?}"
+        );
+    }
+}
+
 /// A builtin type name such as `u32` or `i1` exists only in the type role
 /// (`wiki/spec/language/modules.md`, "Builtin type names"): a value may share
 /// its spelling, a declaration introducing a type or namespace may not, and
