@@ -207,13 +207,6 @@ framework or a list of features that remain unimplemented.
 - Cost: a reader of the headers or the type names believes register homes are checked twice, and a wrong home assignment has nothing between it and encoding
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### Stage 03 skips the exhaustiveness check for any dispatch run that has a continuation
-- Category: a verdict with nothing behind it
-- Where: `omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs:932-934` (flag set at `:858`)
-- Saw: `check_dispatch_run` returns `Ok(())` as soon as one transition in the run has a valid `continuation`, before any arm is examined; no comment gives the reason; whether stage 05 catches a missing arm in such a run was not traced
-- Cost: a reader takes stage 03 as the owner of "every case is covered" when for these runs it decides nothing, and the question of who does is left to whoever next breaks it
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
 ### Unchecked arena lookups still conflate stale handles with the zero sentinel
 - Category: a verdict with nothing behind it
 - Where: `omega-rust/psi/foundation/arena/src/arena.rs` (`get`, `get_mut`, `span_or_empty`); `paged.rs` (corresponding paged lookups)
