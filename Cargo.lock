@@ -2231,8 +2231,11 @@ dependencies = [
  "language-semantics",
  "numerics",
  "source",
+ "source-files-to-tokens",
  "symbol-resolved-trees",
  "symbols",
+ "syntax-trees-to-symbol-resolved-trees",
+ "tokens-to-syntax-trees",
  "typed-trees",
 ]
 
