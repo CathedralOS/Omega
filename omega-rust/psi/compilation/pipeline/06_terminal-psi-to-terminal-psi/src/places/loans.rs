@@ -507,12 +507,6 @@ impl Storage<'_> {
             return Ok(());
         };
         let concerns = Construct::Operation(operation.id);
-        if storage.is_some() {
-            return Err(self.unsupported(
-                concerns,
-                "a reference representation view without its checked storage correspondence",
-            ));
-        }
         let result = operation.result.as_structural().ok_or_else(|| {
             self.foreign(concerns, "reference formation has no descriptor result")
         })?;
@@ -533,12 +527,72 @@ impl Storage<'_> {
         }
         let raw = self.argument(source, concerns)?;
         let expected = self.declaration(referent, concerns)?;
-        let compatible = match self.shape(&raw, concerns)? {
-            super::Shape::Scalar(scalar) => {
-                expected.shape == StructuralTypeShape::PrimitiveScalar(scalar)
+        let compatible = if let Some(storage) = storage {
+            if access != ReferenceAccess::Shared {
+                return Err(self.unsupported(
+                    concerns,
+                    "exclusive representation view without establishment and handback evidence",
+                ));
             }
-            super::Shape::Typed(actual) => actual == referent,
-            super::Shape::View | super::Shape::Payload(_) => false,
+            let offset = tables
+                .values
+                .get(storage.byte_offset)
+                .ok_or_else(|| self.foreign(concerns, "reference view lost its offset value"))?;
+            let terminal_check_tables::values::ValueOrigin::Operation(producer) = offset.origin
+            else {
+                return Err(self.unsupported(
+                    concerns,
+                    "reference view offset without captured geometry evidence",
+                ));
+            };
+            let (block, after) = self.graph.locate(ProgramPoint::AfterOperation(producer))?;
+            let producer = after
+                .checked_sub(1)
+                .and_then(|position| {
+                    self.lowered
+                        .blocks
+                        .get(index(block.get()))?
+                        .operations
+                        .get(position)
+                })
+                .ok_or_else(|| self.foreign(concerns, "reference view offset has no producer"))?;
+            let u64_type = semantic_vocabulary::ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    64,
+                )
+                .expect("u64 is valid"),
+            );
+            if offset.scalar_type != u64_type
+                || !matches!(
+                    producer.kind,
+                    OperationKind::IntegerConstant {
+                        value: semantic_vocabulary::IntegerValue::Unsigned(0)
+                    }
+                )
+                || producer.result.as_scalar().map(|row| row.id) != Some(storage.byte_offset)
+            {
+                return Err(self.unsupported(
+                    concerns,
+                    "reference view offset without captured geometry evidence",
+                ));
+            }
+            terminal_semantics::reference_view_compatible(
+                self.module,
+                self.root_type(source.place, concerns)?,
+                &source.path,
+                result.structural_type,
+                storage.stored_scalar,
+            )
+            .map_err(|reason| self.unsupported(concerns, reason))?
+        } else {
+            match self.shape(&raw, concerns)? {
+                super::Shape::Scalar(scalar) => {
+                    expected.shape == StructuralTypeShape::PrimitiveScalar(scalar)
+                }
+                super::Shape::Typed(actual) => actual == referent,
+                super::Shape::View | super::Shape::Payload(_) => false,
+            }
         };
         if !compatible {
             return Err(self.foreign(

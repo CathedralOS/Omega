@@ -30,8 +30,8 @@ impl Program<'_> {
         if let Some(entry) = cast.form.entry() {
             return self.domain_entry(id, slots, cast, entry, source);
         }
-        if cast.form != language_core::CastForm::Value {
-            return unserved("recast");
+        if let Some(access) = cast.form.recast_access() {
+            return self.reference_recast(id, slots, cast, access, source);
         }
         if cast.semantic_domain_symbol.is_valid() || !cast.semantic_domain.is_empty() {
             return unserved("cast naming a domain");
@@ -143,6 +143,57 @@ impl Program<'_> {
             result: Some(target),
             source,
         })
+    }
+}
+
+impl Program<'_> {
+    fn reference_recast(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        cast: &TableCastExpression,
+        access: language_core::ReferenceAccess,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
+        if access != language_core::ReferenceAccess::Shared {
+            return Err(unserved(
+                "exclusive recast without establishment and handback evidence",
+            ));
+        }
+        if cast.semantic_domain_symbol.is_valid()
+            || !cast.semantic_domain.is_empty()
+            || cast.domain != numerics::arithmetic::ArithmeticDomain::Exact
+        {
+            return Err(unserved("storage recast that also changes a domain"));
+        }
+        let expected = self.value_type(id, cast.target_type)?;
+        let Some((referent, terminal_psi::StructuralAccess::SharedBorrow)) =
+            self.reference_referent(id, expected)?
+        else {
+            return Err(unserved(
+                "storage recast without a shared reference destination",
+            ));
+        };
+        if !cast.result_type.is_valid() || self.value_type(id, cast.result_type)? != expected {
+            return Err(unserved(
+                "storage recast without its exact retained result type",
+            ));
+        }
+        let formal = crate::Borrowed {
+            position: 0,
+            access,
+            regions: expected.regions(),
+            home: None,
+        };
+        let (value, _) = self.lent(id, slots, cast.value, &formal, referent)?;
+        let ExpressionKind::Borrow { place, .. } = &value.kind else {
+            unreachable!()
+        };
+        // Exposing representation bytes is an observation of every stored
+        // field. Retain the source's read restrictions before changing its view.
+        self.representation_read_authorized(id, place)?;
+        self.finish_reference_value(id, slots, value, expected, source)
     }
 }
 
@@ -571,16 +622,16 @@ mod tests {
         refusal.detail
     }
 
-    /// Each cast outside the carrier family is refused by what the typed
-    /// trees record about it, before its operand or target is read.
+    /// Missing retained types and unserved domain combinations refuse before
+    /// reading the operand; a recast needs its exact reference destination.
     #[test]
-    fn a_cast_that_is_not_a_plain_carrier_cast_is_refused_by_name() {
+    fn casts_refuse_missing_types_and_unserved_domain_combinations_before_the_operand() {
         assert_eq!(
             refused(TableCastExpression {
                 form: CastForm::Recast(ReferenceAccess::Shared),
                 ..plain()
             }),
-            "expression recast"
+            "type missing type"
         );
         assert_eq!(
             refused(TableCastExpression {

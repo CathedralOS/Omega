@@ -1908,8 +1908,8 @@ impl<'t> Program<'t> {
             self.written_through(id, &place)?;
         }
         // A scalar local that is an SSA value here gets a home for the loan;
-        // its type's identity is the formal's referent identity, the same
-        // scalar type.
+        // its type identity comes from the actual lender. A representation
+        // view must not give the backing the destination's different type.
         // A reference formal's referent is never policy-qualified
         // (`formal`), and the place a loan lends has the referent's type.
         if place.result.and_then(ValueType::policy).is_some() {
@@ -1920,13 +1920,59 @@ impl<'t> Program<'t> {
                 if matches!(lender.value_type, ValueType::Scalar(_, Qualification::NONE))
                     && !lender.homed =>
             {
-                Some(formal.home.clone().ok_or_else(|| {
+                let scalar = lender.value_type.scalar().ok_or_else(|| {
                     refuse(
                         id,
                         Construct::Machine,
-                        Unserved::Spelling("scalar referent without a type identity"),
+                        Unserved::Typing("scalar lender without its carrier"),
                     )
-                })?)
+                })?;
+                let atom = match scalar {
+                    semantic_vocabulary::ScalarType::Boolean => symbols::BuiltinTypeAtom::Bool,
+                    semantic_vocabulary::ScalarType::Integer(integer) if !integer.is_address() => {
+                        symbols::BuiltinTypeAtom::Integer(
+                            numerics::integer_carrier::FixedInteger::new(
+                                integer.sign(),
+                                u64::from(integer.bits()),
+                            )
+                            .ok_or_else(|| {
+                                refuse(
+                                    id,
+                                    Construct::Machine,
+                                    Unserved::Type("scalar lender has no fixed integer carrier"),
+                                )
+                            })?,
+                        )
+                    }
+                    _ => return unserved("scalar lender without a retained builtin carrier"),
+                };
+                let symbol = self
+                    .typed
+                    .symbols
+                    .builtin_atom_symbol(atom)
+                    .ok_or_else(|| {
+                        refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Type("scalar lender has no registered builtin"),
+                        )
+                    })?;
+                let reference = self
+                    .typed
+                    .type_reference_table
+                    .find_arithmetic_result_type_reference(
+                        symbol,
+                        numerics::arithmetic::ArithmeticDomain::Exact,
+                    )
+                    .ok_or_else(|| {
+                        refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Type("scalar lender has no registered type occurrence"),
+                        )
+                    })?;
+                let storage = self.storage_type(id, reference, lender.value_type)?;
+                Some(self.data_type(id, storage)?.identity.clone())
             }
             _ => None,
         };
