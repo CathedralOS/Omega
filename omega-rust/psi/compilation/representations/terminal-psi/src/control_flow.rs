@@ -2346,6 +2346,14 @@ pub(crate) mod termination {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum Terminator {
+        /// Observe an actual empty value domain. This is neither a return nor
+        /// a crash, and transfers no custody. Admission reconstructs emptiness
+        /// at the exact live source path, including a final case namespace.
+        EliminateEmpty {
+            edge: EdgeId,
+            source: PlaceId,
+            path: Vec<crate::StructuralPathSegment>,
+        },
         InvokeNoNormal {
             edge: EdgeId,
             static_reach_binding: Option<u32>,
@@ -2445,7 +2453,8 @@ pub(crate) mod termination {
                         projections.extend(edge.structural_arguments.iter().map(argument));
                     }
                 }
-                Self::StructuralCase { source, path, .. } => {
+                Self::StructuralCase { source, path, .. }
+                | Self::EliminateEmpty { source, path, .. } => {
                     projections.push(crate::OperationProjection {
                         root: *source,
                         path,
@@ -2507,7 +2516,9 @@ pub(crate) mod termination {
                         }
                     }
                 }
-                Self::ReturnStructural { source, .. } => *source = map(*source),
+                Self::ReturnStructural { source, .. } | Self::EliminateEmpty { source, .. } => {
+                    *source = map(*source);
+                }
                 Self::Return { .. } | Self::ReturnUnit { .. } | Self::Crash { .. } => {}
             }
         }
@@ -2546,6 +2557,7 @@ pub(crate) mod termination {
                 ),
                 Self::StructuralCase { cases, .. } => (None, None, cases),
                 Self::Crash { .. }
+                | Self::EliminateEmpty { .. }
                 | Self::ExternalCompletion { .. }
                 | Self::InvokeNoNormal { .. } => (None, None, &[]),
             };
@@ -2559,6 +2571,7 @@ pub(crate) mod termination {
         pub const fn edge(&self) -> EdgeId {
             match self {
                 Self::InvokeNoNormal { edge, .. }
+                | Self::EliminateEmpty { edge, .. }
                 | Self::Jump { edge, .. }
                 | Self::Return { edge, .. }
                 | Self::ReturnUnit { edge, .. }
@@ -2574,6 +2587,7 @@ pub(crate) mod termination {
         pub fn edges(&self) -> impl Iterator<Item = EdgeId> + '_ {
             let edges = match self {
                 Self::InvokeNoNormal { edge, .. }
+                | Self::EliminateEmpty { edge, .. }
                 | Self::Jump { edge, .. }
                 | Self::Return { edge, .. }
                 | Self::ReturnUnit { edge, .. }
@@ -2614,7 +2628,7 @@ pub(crate) mod termination {
                 Self::Return { value, .. } => {
                     *value = map(*value);
                 }
-                Self::StructuralCase { path, .. } => {
+                Self::StructuralCase { path, .. } | Self::EliminateEmpty { path, .. } => {
                     for segment in path {
                         if let crate::StructuralPathSegment::RuntimeIndex { index, .. } = segment {
                             *index = map(*index);
@@ -2661,7 +2675,8 @@ pub(crate) mod termination {
                     .iter()
                     .map(|successor| (successor.edge, successor.target))
                     .collect(),
-                Self::Return { .. }
+                Self::EliminateEmpty { .. }
+                | Self::Return { .. }
                 | Self::ReturnUnit { .. }
                 | Self::ReturnStructural { .. }
                 | Self::Crash { .. }
