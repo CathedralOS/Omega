@@ -2,9 +2,6 @@
 
 use std::path::{Path, PathBuf};
 
-#[path = "fixture_package_inputs.rs"]
-mod fixture_package_inputs;
-
 const FILES: &[&str] = &[
     "app/main.omg",
     "app/build.omg",
@@ -19,7 +16,7 @@ struct Project(PathBuf);
 impl Project {
     fn copy_fixture(label: &str) -> Self {
         let projects =
-            fixture_package_inputs::repo_root().join("build/qualified-operator-home/test-projects");
+            super::unbuilt_frontier::repository("build/qualified-operator-home/test-projects");
         std::fs::create_dir_all(&projects).unwrap();
         let root = (0u64..)
             .find_map(|sequence| {
@@ -56,18 +53,45 @@ impl Drop for Project {
     }
 }
 
-fn check(main: &Path) -> Result<compiler::CheckedCompilation, Vec<diagnostics::Diagnostic>> {
-    // Dependencies belong to the same executed discovery and Product admission
-    // used by package-aware fixtures, before checking the retained target plan.
-    let mut prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
-        main,
-        Some("linux_x86_64"),
-    )?;
-    fixture_package_inputs::check_fixture(
-        &mut prepared,
-        "linux_x86_64",
-        compiler::OptimizationRollback::default(),
-    )
+fn terminal_product(
+    main: &Path,
+) -> Result<
+    terminal_psi_to_abstract_operations::RetainedTerminalArtifact,
+    Vec<diagnostics::Diagnostic>,
+> {
+    // The public application owner settles the authored graph, admits its real
+    // Product and services, and publishes the selected entry. Fixture-specific
+    // semantic-role discovery supplies no alternative acceptance here.
+    let mut outcomes = orchestration::build(orchestration::BuildRequest {
+        root_path: main.to_path_buf(),
+        build_directory: Some(main.parent().unwrap().join("build/terminal")),
+        targets: orchestration::BuildTargets::Single(
+            target::TargetProfile::from_canonical_target_name("linux_x86_64")
+                .map_err(|error| vec![error])?,
+        ),
+        product: orchestration::ProjectProduct::Terminal,
+        timings: false,
+        offline: true,
+        verify: false,
+        require_package_project: true,
+        optimization_rollback: Default::default(),
+        build_snapshot: None,
+    })
+    .map_err(orchestration::BuildError::into_diagnostics)?;
+    assert_eq!(outcomes.len(), 1, "one actual target");
+    outcomes
+        .pop()
+        .unwrap()
+        .result
+        .and_then(orchestration::BuildOutcome::into_report)
+        .map_err(orchestration::BuildError::into_diagnostics)?
+        .report
+        .into_retained_terminal_artifact()
+        .ok_or_else(|| {
+            vec![diagnostics::Diagnostic::error(
+                "ordinary Terminal Product retained no artifact",
+            )]
+        })
 }
 
 #[test]
@@ -76,19 +100,19 @@ fn domain_operators_cross_package_boundaries_without_importing_their_module() {
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
             let positive = Project::copy_fixture("public");
-            let checked = check(&positive.main())
+            let product = terminal_product(&positive.main())
                 .unwrap_or_else(|diagnostics| panic!("public operator source: {diagnostics:?}"));
-            let accepted = checked.terminal_publication().accepted().unwrap();
-            let publication = accepted.closure().publish().unwrap();
-            assert_eq!(publication.artifact.semantic_module(), accepted.module());
-            let (_, application) = compiler::prepare_program_entry(&checked).unwrap();
+            let artifact = product.artifact();
+            let evidence = product.evidence().expect("actual accepted operation seals");
+            assert_eq!(evidence.module, artifact.view().identity());
+            assert!(!evidence.seals.is_empty());
+            let entry = product
+                .native_realization_proposal()
+                .unwrap()
+                .program_entry();
             assert_eq!(
-                application
-                    .receipt
-                    .unwrap()
-                    .unwrap()
-                    .terminal_psi_identity(),
-                publication.artifact.manifest().semantic()
+                entry.checked_entry().terminal_psi_identity(),
+                artifact.manifest().semantic()
             );
 
             let private = Project::copy_fixture("private");
@@ -101,7 +125,7 @@ fn domain_operators_cross_package_boundaries_without_importing_their_module() {
             );
             assert_ne!(changed, original);
             std::fs::write(declaration, changed).unwrap();
-            let failure = check(&private.main())
+            let failure = terminal_product(&private.main())
                 .expect_err("a public domain must not publish its private operator");
             let diagnostics = failure;
             assert!(
@@ -133,7 +157,7 @@ fn a_selected_operator_keeps_its_authored_call_requirement() {
             );
             assert_ne!(changed, original);
             std::fs::write(declaration, changed).unwrap();
-            let diagnostics = check(&restricted.main())
+            let diagnostics = terminal_product(&restricted.main())
                 .expect_err("the unchanged left operand 2 cannot satisfy the selected requirement");
             assert!(
                 diagnostics.iter().any(|diagnostic| {
