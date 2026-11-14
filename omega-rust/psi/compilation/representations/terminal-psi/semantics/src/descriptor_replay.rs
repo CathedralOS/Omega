@@ -8,6 +8,9 @@ use crate::descriptors::descriptor_lifetimes::{DescriptorPathSegment, descriptor
 use crate::descriptors::descriptor_results::*;
 use crate::exactly_one::exactly_one;
 
+mod location_map;
+use location_map::LocationMap;
+
 pub(crate) mod analysis {
     use super::engine::Origin;
     use super::*;
@@ -1799,7 +1802,7 @@ pub(crate) mod case_flow {
 
     #[derive(Clone, Default, PartialEq, Eq)]
     pub(crate) struct CurrentCases {
-        facts: BTreeMap<DescriptorLocation, BTreeSet<StructuralCaseId>>,
+        facts: LocationMap<BTreeSet<StructuralCaseId>>,
         copies: values::Copies,
     }
 
@@ -2875,7 +2878,7 @@ pub(crate) mod engine {
         Storage(DescriptorLocation),
     }
     pub(crate) type Value = Option<BTreeSet<Origin>>;
-    pub(crate) type Slots = BTreeMap<DescriptorLocation, Value>;
+    pub(crate) type Slots = LocationMap<Value>;
     #[derive(Clone, Default, PartialEq, Eq)]
     pub(crate) struct State {
         pub(crate) cases: Arc<super::case_flow::CurrentCases>,
