@@ -415,6 +415,59 @@ mod tests {
     }
 
     #[test]
+    fn selected_custody_binds_numeric_declarations_in_canonical_row_order() {
+        let mut plan = selected_plan();
+        plan.provider_declaration = Some("SelectedMap".into());
+        plan.rows[0].binding = ProviderBinding::CompilerIntrinsic {
+            machine: "Catalog::consume".into(),
+        };
+        let declaration = std::sync::Arc::make_mut(&mut plan.schema.declaration);
+        let requirement = declaration.identities.intern("Boundary::produce(opaque)");
+        let mut method = declaration.methods[0].clone();
+        method.name = "produce".into();
+        method.requirement_identity = requirement;
+        declaration.methods.push(method);
+        declaration.receiver_applications[0]
+            .requirement_identities
+            .push(requirement);
+        let mut row = plan.rows[0].clone();
+        row.method = "produce".into();
+        row.requirement_identity = plan.identities.intern("Boundary::produce(opaque)");
+        row.declared_requirement_identity = row.requirement_identity;
+        row.binding = ProviderBinding::CompilerIntrinsic {
+            machine: "Catalog::produce".into(),
+        };
+        plan.rows.push(row);
+        plan.row_numeric_realizations = vec![
+            Some("ConsumeDeclaration".into()),
+            Some("ProduceDeclaration".into()),
+        ];
+        let facts =
+            |plan| crate::SelectedProviderPlanFacts::from_selected_plans(vec![plan]).unwrap();
+        let selected = facts(plan.clone());
+        let mut reordered = plan.clone();
+        reordered.rows.reverse();
+        reordered.row_numeric_realizations.reverse();
+        assert_eq!(
+            selected.identity_digest(),
+            facts(reordered).identity_digest()
+        );
+        let mut substituted = plan.clone();
+        substituted.row_numeric_realizations.swap(0, 1);
+        assert_eq!(plan.identity_digest(), substituted.identity_digest());
+        assert_ne!(
+            selected.identity_digest(),
+            facts(substituted).identity_digest()
+        );
+        plan.row_numeric_realizations.pop();
+        assert!(
+            crate::SelectedProviderPlanFacts::from_selected_plans(vec![plan])
+                .unwrap_err()
+                .contains("incomplete external row declarations")
+        );
+    }
+
+    #[test]
     fn table_field_correspondence_is_committed_and_received_in_full() {
         use crate::provider_plan::TableFieldStorage;
         let storage = TableFieldStorage {

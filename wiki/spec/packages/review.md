@@ -313,8 +313,9 @@ neither package review, lock, conflict, cache, nor admission identity.
 The accepted compiler input identity instead combines a build-produced digest
 embedded in the compiler with the exact selected toolchain library content.
 Review retains that identity across checking and verifies it again before lock
-proposal. Compiled-review cache keys use the same identity; inability to identify
-these inputs is a cache miss, not a weaker developer-version key. This identity
+proposal. Review results are not kept for later invocations under
+[compiler storage](../build/compiler_storage.md); what persists is lock
+acceptance and any pending review transaction. This identity
 invalidates stale inputs and makes no compiler or audit attestation.
 
 ## Target-dependent public identity

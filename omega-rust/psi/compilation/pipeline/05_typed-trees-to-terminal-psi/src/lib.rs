@@ -424,20 +424,10 @@ pub(crate) fn is_generic_template(
 /// The declaration a machine was generated from, when stage 04 generated it
 /// to close a static application: the generic machine it specializes.
 pub fn template_of(typed: &TypedTrees, machine: SymbolHandle) -> Option<SymbolHandle> {
-    let states = typed
-        .machine_states
-        .span(typed.machine_by_symbol(machine)?.states)?;
-    let [state] = states else {
-        return None;
-    };
-    let declared = typed.symbols.get(state.symbol).generated_from;
-    if !declared.is_valid() {
-        return None;
-    }
-    Some(match typed.symbols.get(declared).kind {
-        symbols::SymbolKind::State => typed.symbols.get(declared).parent,
-        _ => declared,
-    })
+    typed
+        .executable_application_template(machine)
+        .ok()
+        .flatten()
 }
 
 /// Elaborates the conformance witness of `implementation` for `requirement`:
@@ -549,11 +539,30 @@ fn elaborate_witness_call(
                 .parameters
                 .iter()
                 .enumerate()
-                .map(|(slot, value_type)| Expression {
-                    call_context: None,
-                    kind: ExpressionKind::Slot(slot),
-                    result: Some(*value_type),
-                    source,
+                .map(|(slot, value_type)| {
+                    let place = Expression {
+                        call_context: None,
+                        kind: ExpressionKind::Slot(slot),
+                        result: Some(*value_type),
+                        source,
+                    };
+                    // The witness forwards each formal's original passing
+                    // mode. A borrowed formal denotes incoming storage;
+                    // forwarding its value alone would read a scalar or move
+                    // its carrier instead of reborrowing that storage.
+                    match required.borrowed(slot) {
+                        Some(borrowed) => Expression {
+                            call_context: None,
+                            kind: ExpressionKind::Borrow {
+                                access: borrowed.access,
+                                place: Box::new(place),
+                                home: borrowed.home.clone(),
+                            },
+                            result: Some(*value_type),
+                            source,
+                        },
+                        None => place,
+                    }
                 })
                 .collect(),
             designated: None,

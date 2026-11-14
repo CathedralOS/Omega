@@ -148,7 +148,6 @@ impl TerminalNativeRealizationProposal {
     > {
         static NON_INTRINSIC_EXECUTION: [Option<effects::CompilerIntrinsicExecutionIdentity>; 1] =
             [None];
-        static NON_AUTHORED_REALIZATION: [Option<String>; 1] = [None];
         selection
             .plans()
             .iter()
@@ -169,21 +168,11 @@ impl TerminalNativeRealizationProposal {
                                 "native execution lost original intrinsic row custody",
                             )]
                         })?;
-                    let row_numeric_realizations = self
-                        .providers()
-                        .numeric_realizations
-                        .get(position)
-                        .ok_or_else(|| {
-                            vec![Diagnostic::error(
-                                "native execution lost selected external declaration custody",
-                            )]
-                        })?;
                     return Ok(
                         provider_admission::provider_admission::CompilerIntrinsicPlanProvenance {
                             plan,
                             semantic_schema: &plan.schema,
                             row_executions,
-                            row_numeric_realizations,
                         },
                     );
                 }
@@ -211,7 +200,6 @@ impl TerminalNativeRealizationProposal {
                         plan,
                         semantic_schema: &leaf.satisfied_schema,
                         row_executions,
-                        row_numeric_realizations: &NON_AUTHORED_REALIZATION,
                     },
                 )
             })

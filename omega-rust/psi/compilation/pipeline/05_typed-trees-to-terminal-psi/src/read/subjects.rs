@@ -14,9 +14,10 @@ follow as they do from an entry, whichever package declares them. A data
 declaration is resolved as a record. A plain trait has each requirement's
 contract read, and a plain implementation has each row set aside as the
 statement that its machine refines the requirement
-(`Elaboration::conformance_witnesses`). Every other kind of declaration is
-refused as `Unsupported`, because this route judges none of them yet and a
-declaration left out would be accepted without a row or a refusal.
+(`Elaboration::conformance_witnesses`). A transparent mathematical predicate
+is formed under its own inputs, independently of any application. Every other
+kind of declaration is refused as `Unsupported`, because leaving an unjudged
+declaration out would accept it without a row or a refusal.
 
 Whether a declaration belongs to the subject is decided from the source file
 its symbol was declared in, never from a path or a name:
@@ -328,6 +329,11 @@ impl Program<'_> {
                 self.subject_constant(entry, constant)?;
             }
         }
+        for definition in typed.mathematical_definitions() {
+            if self.owner(entry, definition.symbol, subjects, purpose)? == Owner::Subject {
+                self.mathematical_predicate_definition(entry, definition, None, &[])?;
+            }
+        }
         // One row per remaining declaration table of the typed trees' roots.
         // A subject declaration in any of them is outside what the route
         // judges.
@@ -345,10 +351,6 @@ impl Program<'_> {
             (
                 symbols_of(typed.propositions(), |row| row.symbol),
                 "proposition",
-            ),
-            (
-                symbols_of(typed.mathematical_definitions(), |row| row.symbol),
-                "mathematical definition",
             ),
             (
                 symbols_of(typed.wire_schemas(), |row| row.symbol),

@@ -473,12 +473,40 @@ pub fn check_predicate_denotations_with_value_equalities<'input>(
     )
 }
 
+/// Substitute exact scalar definitions without normalizing Boolean structure.
+/// A join may retain that structure as a reusable predicate; its arrivals
+/// still require proofs. This query supplies no evidence for its equations.
+pub fn check_value_equality_substitution<'input>(
+    context: &PropositionContext,
+    goal: &Proposition,
+    equations: impl IntoIterator<Item = &'input Proposition>,
+) -> Result<Proposition, PredicateDenotationError> {
+    let mut budget = Budget::new();
+    let equalities = checked_value_equalities(context, goal, equations, &mut budget)?;
+    let substituted = equalities.proposition(goal, &mut budget, 0)?;
+    context
+        .validate(&substituted)
+        .map_err(PredicateDenotationError::Malformed)?;
+    budget.proposition(&substituted, 0)?;
+    Ok(substituted)
+}
+
 pub fn check_value_equality_denotation<'input>(
     context: &PropositionContext,
     goal: &Proposition,
     equations: impl IntoIterator<Item = &'input Proposition>,
 ) -> Result<Proposition, PredicateDenotationError> {
     let mut budget = Budget::new();
+    let equalities = checked_value_equalities(context, goal, equations, &mut budget)?;
+    transport_denotation(context, goal, &equalities, &mut budget)
+}
+
+fn checked_value_equalities<'input>(
+    context: &PropositionContext,
+    goal: &Proposition,
+    equations: impl IntoIterator<Item = &'input Proposition>,
+    budget: &mut Budget,
+) -> Result<value_equalities::ValueEqualities<'input>, PredicateDenotationError> {
     budget.proposition(goal, 0)?;
     context
         .validate(goal)
@@ -498,8 +526,9 @@ pub fn check_value_equality_denotation<'input>(
     if checked_equations.is_empty() {
         return Err(PredicateDenotationError::InvalidValueEquality);
     }
-    let equalities = value_equalities::ValueEqualities::from_semantic_axioms(checked_equations);
-    transport_denotation(context, goal, &equalities, &mut budget)
+    Ok(value_equalities::ValueEqualities::from_semantic_axioms(
+        checked_equations,
+    ))
 }
 
 fn transport_denotation(
@@ -818,9 +847,60 @@ mod value_equality_tests {
     use super::{
         CheckedPredicateDenotations, PredicateDenotationError,
         check_predicate_denotations_with_value_equalities, check_value_equality_denotation,
+        check_value_equality_substitution,
     };
     use crate::proof::{assumption_proof, semantic_axiom_proof};
     use crate::{PrimitiveJudgment, ProofNode, ProofRule, proof_node, value_context};
+
+    #[test]
+    fn value_substitution_preserves_boolean_structure_for_reusable_join_predicates() {
+        let context = PropositionContext::from_value_types([
+            (ValueId::new(1).unwrap(), ScalarType::Boolean),
+            (ValueId::new(2).unwrap(), ScalarType::Boolean),
+        ])
+        .unwrap();
+        let first = ScalarTerm::value(ValueId::new(1).unwrap(), ScalarType::Boolean);
+        let second = ScalarTerm::value(ValueId::new(2).unwrap(), ScalarType::Boolean);
+        let definition = ScalarTerm::BooleanNot {
+            operand: Box::new(second),
+        };
+        let equation = Proposition::Equal(first.clone(), definition.clone());
+        let original = Proposition::Equal(first, ScalarTerm::Boolean(true));
+        let substituted =
+            check_value_equality_substitution(&context, &original, [&equation]).unwrap();
+        assert_eq!(
+            substituted,
+            Proposition::Equal(definition, ScalarTerm::Boolean(true))
+        );
+        assert_ne!(
+            substituted,
+            check_value_equality_denotation(&context, &original, [&equation]).unwrap()
+        );
+    }
+
+    #[test]
+    fn value_substitution_bounds_repeated_arithmetic_definitions() {
+        let context = PropositionContext::from_value_types((1..=16).map(|raw| {
+            (
+                ValueId::new(raw).unwrap(),
+                ScalarType::Integer(integer_type()),
+            )
+        }))
+        .unwrap();
+        let mut equations = vec![Proposition::Equal(value(1), literal(1))];
+        for raw in 2..=15 {
+            equations.push(Proposition::Equal(
+                value(raw),
+                ScalarTerm::exact_integer_add(integer_type(), value(raw - 1), value(raw - 1))
+                    .unwrap(),
+            ));
+        }
+        let goal = Proposition::Equal(value(16), value(15));
+        assert_eq!(
+            check_value_equality_substitution(&context, &goal, &equations),
+            Err(PredicateDenotationError::ResourceLimitExceeded)
+        );
+    }
 
     fn integer_type() -> IntegerType {
         IntegerType::new(IntegerSign::Signed, 32).unwrap()

@@ -43,7 +43,7 @@ use selected_instructions_to_register_homes::{
 use target::{NativeTarget, TargetWireIdentityError};
 
 use crate::exit_contract::{
-    ValidatedWholeFunctionExitContract, WholeFunctionExitContractError,
+    StagedWholeFunctionExitContract, WholeFunctionExitContractError,
     stage_whole_function_exit_contract_for_layout, validate_exit_record_for_replayed_layout,
 };
 use crate::frame_layout::{
@@ -169,7 +169,7 @@ pub struct StagedFixedFrameFunctionRelativeRealization {
     baseline_layout: StagedOptimizedResolvedSelectedFormLayout,
     layout_optimization: ResolvedLayoutOptimization,
     frame: FunctionRelativeFrame,
-    exit_contract: ValidatedWholeFunctionExitContract,
+    exit_contract: StagedWholeFunctionExitContract,
     manifest: ValidatedFunctionRelativeOptimizationRealizationManifest,
     custody: StagedFixedFrameFunctionRelativeRealizationCustodyReceipt,
 }
@@ -182,7 +182,7 @@ optimization_core::record_views! {
         machine: StagedOptimizedPostAllocationMachinePlan,
         encoding: StagedOptimizedSelectedFormEncoding,
         baseline_layout: StagedOptimizedResolvedSelectedFormLayout,
-        exit_contract: ValidatedWholeFunctionExitContract,
+        exit_contract: StagedWholeFunctionExitContract,
         manifest: ValidatedFunctionRelativeOptimizationRealizationManifest,
         custody: StagedFixedFrameFunctionRelativeRealizationCustodyReceipt,
     }
@@ -390,7 +390,6 @@ pub fn assemble_fixed_frame_realization(
         &machine,
         physical,
         &encoding,
-        &baseline_layout,
         &layout_optimization,
         Some((frame.layout(), frame.protocol())),
     )
@@ -523,7 +522,7 @@ fn expected_fixed_frame_manifest(
     layout_optimization: &ResolvedLayoutOptimization,
     frame: &ValidatedTargetFrameLayout,
     protocol: &ValidatedTargetFrameProtocolEncoding,
-    exit_contract: &ValidatedWholeFunctionExitContract,
+    exit_contract: &StagedWholeFunctionExitContract,
 ) -> Result<
     ValidatedFunctionRelativeOptimizationRealizationManifest,
     FunctionRelativeOptimizationRealizationError,
@@ -668,7 +667,7 @@ fn fixed_frame_custody(
     storage: &ValidatedNonAuthoritativeCalleeSaveStorage,
     frame: &ValidatedTargetFrameLayout,
     protocol: &ValidatedTargetFrameProtocolEncoding,
-    exit_contract: &ValidatedWholeFunctionExitContract,
+    exit_contract: &StagedWholeFunctionExitContract,
     manifest: &ValidatedFunctionRelativeOptimizationRealizationManifest,
 ) -> StagedFixedFrameFunctionRelativeRealizationCustodyReceipt {
     StagedFixedFrameFunctionRelativeRealizationCustodyReceipt {

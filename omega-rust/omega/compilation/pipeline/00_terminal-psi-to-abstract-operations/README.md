@@ -10,8 +10,9 @@ unavailable target operations through the selected route.
 
 The execution contract requires host-authorized producer trust, not just
 canonical decoding. Public ingress still needs that enforcement under
-`PSI-CLAIM-ADMISSION`; the cache configuration's authorization meaning is the
-open [native-cache-producer-authorization decision](../../../../../OWNER_QUESTIONS.md#native-cache-producer-authorization).
+`PSI-CLAIM-ADMISSION`. No native cache needs authorizing:
+[compiler storage](../../../../../wiki/spec/build/compiler_storage.md) retires
+it (`NO-IMPLICIT-COMPILER-STORAGE`).
 
 The build's starting function, implementations and callbacks are joined before
 lowering. The [shared input owner](../../representations/abstract-operations/verified-input/src/lib.rs)

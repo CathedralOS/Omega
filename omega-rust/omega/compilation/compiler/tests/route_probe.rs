@@ -154,10 +154,9 @@ fn an_operator_suffix_chooses_the_policy_of_one_operation() {
 /// computes, so a goal over one that has no derivation is `incomplete`, as a
 /// goal over a value a body computes by one already is.
 ///
-/// Refused by name: `+!`, which "can transfer control" and "cannot form a
-/// proof term"; `/%`, which still owes its divisor before it is total; and
-/// an operand whose type carries a policy, since both operands of a suffixed
-/// operator are unqualified.
+/// Invalid trapping proof terms and qualified suffix operands are rejected.
+/// A valid `/%` contract still reports the missing divisor-formation support,
+/// rather than presenting that implementation gap as a source error.
 #[test]
 fn a_suffixed_operator_in_a_contract_is_the_operation_a_body_computes() {
     let pair = |contract: &str, body: &str| {
@@ -227,7 +226,7 @@ machine main() { }",
              machine main() { }
 "
             .to_string(),
-            "contract policy operator on an operand that is not an unqualified integer",
+            "rejected",
         ),
     ] {
         // A refusal is compared with the reason it names.

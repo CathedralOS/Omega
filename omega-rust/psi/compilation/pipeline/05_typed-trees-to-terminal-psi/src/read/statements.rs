@@ -127,15 +127,10 @@ impl Program<'_> {
                 let root = super::storage_path::walk(
                     &place,
                     |_| Err(unserved("store into a value that is not a local")),
-                    |projection, _| {
-                        // A payload is stored into through its case's
-                        // dispatch binding or a directly authored member
-                        // (`s.at = x`); neither store is lowered yet.
-                        if matches!(projection.kind, ExpressionKind::Payload { .. }) {
-                            return Err(unserved("store into a case payload"));
-                        }
-                        Ok(())
-                    },
+                    // The captured path retains a payload's exact case and
+                    // field. Storage checking proves that case at the store;
+                    // ancestry itself grants no membership or write authority.
+                    |_, _| Ok(()),
                 )?;
                 let ExpressionKind::Slot(slot) = root.kind else {
                     return Err(unserved("store into a value that is not a local"));

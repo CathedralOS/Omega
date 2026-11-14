@@ -841,10 +841,15 @@ mod tests {
     /// a result in an entry clause are refused, and a body cannot name it.
     #[test]
     fn result_is_taken_by_its_owner_identity_never_by_its_spelling() {
+        use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
         use typed_trees::name::Identifier;
-        let mut typed = TypedTrees::default();
-        let owner = SymbolHandle::from_arena_index(3);
-        let other = SymbolHandle::from_arena_index(4);
+        let mut symbols = SymbolTableBuilder::default();
+        let owner = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("owner"));
+        let other = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("other"));
+        let mut typed = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
         let mut members = arena::HandleSpan::empty();
         typed
             .expression_table
@@ -1220,6 +1225,16 @@ mod tests {
                 .unwrap_err()
                 .detail
         };
+        let invalid_policy_operand = |scope: &ClauseScope<'_>, expression| {
+            let refusal = program
+                .term(machine(), scope, expression, None)
+                .unwrap_err();
+            assert!(matches!(
+                refusal.reason,
+                terminal_check_tables::RefusalReason::Violation(_)
+            ));
+            assert_eq!(refusal.detail, crate::policy::QUALIFIED_OPERAND);
+        };
         let no_input = "contract old of a subject without an admitted invocation input";
         assert_eq!(
             program
@@ -1390,10 +1405,7 @@ mod tests {
             Ok((ScalarTerm::value(value, scalar_type), domain[0].value_type))
         );
         for expression in [using_old, computed] {
-            assert_eq!(
-                detail(&domain_scope, expression),
-                "contract builtin operator on a value with a declared domain in a clause"
-            );
+            invalid_policy_operand(&domain_scope, expression);
         }
         let erased_qualification = [(foreign, ScalarTerm::value(value, scalar_type))];
         assert_eq!(
@@ -1415,14 +1427,9 @@ mod tests {
             ..scope
         };
         assert!(program.term(machine(), &qualified_scope, old, None).is_ok());
-        assert_eq!(
-            detail(&qualified_scope, using_old),
-            format!("contract {}", crate::policy::QUALIFIED_OPERAND)
-        );
-        assert_eq!(
-            detail(&qualified_scope, computed),
-            format!("contract {}", crate::policy::QUALIFIED_OPERAND)
-        );
+        for expression in [using_old, computed] {
+            invalid_policy_operand(&qualified_scope, expression);
+        }
         assert!(
             program.expression(machine(), &slots, old, None).is_err(),
             "old has no executable implementation"

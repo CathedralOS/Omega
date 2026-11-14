@@ -14,7 +14,7 @@ without constructing a replacement fragment plan, and verifies the manifest
 statistics and custody receipt.
 */
 
-use crate::exit_contract::ValidatedWholeFunctionExitContract;
+use crate::exit_contract::StagedWholeFunctionExitContract;
 use crate::function_realization::{
     FunctionRelativeOptimizationRealizationError, FunctionRelativeOptimizationRealizationManifest,
     StagedFixedFrameFunctionRelativeRealization,
@@ -254,7 +254,7 @@ impl FunctionFragmentReplayInputs {
         self.allocation().current().register_environment()
     }
 
-    pub const fn exit_contract(&self) -> &ValidatedWholeFunctionExitContract {
+    pub const fn exit_contract(&self) -> &StagedWholeFunctionExitContract {
         self.realization.exit_contract()
     }
 
@@ -297,7 +297,7 @@ struct CurrentFunctionFragmentInput {
     machine: register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan,
     homes: selected_instructions_to_register_homes::ValidatedRegisterHomes,
     environment: register_environment::ValidatedTargetRegisterEnvironment,
-    exit: ValidatedWholeFunctionExitContract,
+    exit: StagedWholeFunctionExitContract,
     manifest: ValidatedFunctionRelativeOptimizationRealizationManifest,
     post_allocation_manifest:
         selected_instructions_to_register_homes::ValidatedPostAllocationOptimizationManifest,
@@ -427,7 +427,7 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
         &self.current.program.frame
     }
 
-    pub const fn exit_contract(&self) -> &ValidatedWholeFunctionExitContract {
+    pub const fn exit_contract(&self) -> &StagedWholeFunctionExitContract {
         &self.current.exit
     }
 
