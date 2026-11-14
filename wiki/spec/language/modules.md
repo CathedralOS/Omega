@@ -136,13 +136,15 @@ integer family, exist only in the type role. The integer family is open-ended:
 `i`, `u`, and every `i` or `u` followed by decimal digits, whether or not the
 digits form a valid width. `u0` is a family spelling and an invalid type. A
 value binding with the same spelling never hides one, and no declaration may
-redefine one. What is decided is the kind of name being introduced, not its
-letters:
+redefine one. What is decided is the role of the name being introduced, not its
+letters. A declaration introducing a type or namespace name may not use a
+builtin type spelling; a declaration introducing a value may:
 
 | Introduced name | May use a builtin type spelling |
 | --- | --- |
-| Local, machine or state parameter, field, pattern binding, value constant, generic value binder, value import alias | Yes. It introduces a value or field name and does not affect type lookup. |
-| Data declaration, type alias, generic type binder, type or namespace import alias | No. It would compete with the builtin type, and rejects where it is introduced. |
+| A value: local, machine or state parameter, field, pattern binding, value constant, generic value binder, machine, named implementation, value import alias | Yes. It does not affect type lookup. |
+| A type: data declaration, trait schema, type alias, generic type binder, type import alias | No. It would compete with the builtin type, and rejects where it is introduced. |
+| A namespace: module declaration, namespace import alias | No, for the same reason. |
 
 Each use resolves by its role, determined before any operation is chosen:
 
@@ -157,8 +159,14 @@ Each use resolves by its role, determined before any operation is chosen:
   takes the value role and a type/value mixture rejects. With a parameter
   named `i32` in scope, `requires T == i32` rejects; the diagnostic names both
   meanings and suggests renaming the parameter or using a type alias.
-- A `::` prefix that could name both a builtin type and a same-spelled static
-  value rejects as ambiguous, without searching both for the member.
+- Where syntax already requires a type or domain qualifier, as in
+  `domain u32::NonZero`, the prefix resolves in that role. Otherwise a `::`
+  prefix is ambiguous only when several visible roots are eligible for that
+  form of static qualification, such as a builtin type and a same-spelled
+  operation-record value. Constness alone does not make a scalar value
+  eligible, so `const u32: u64 = 3;` leaves `u32::NonZero` unaffected. When
+  several eligible roots remain, the prefix rejects without searching their
+  members to choose one.
 
 ```omega
 machine scaled(i: u32, u8: u16) -> u32 {
@@ -168,6 +176,8 @@ machine scaled(i: u32, u8: u16) -> u32 {
 }
 
 data u7 { value: u32; }        // Rejected: redefines a builtin type.
+trait u32 { }                  // Rejected: introduces a competing type name.
+machine i(value: u32) -> u32 { value } // Accepted: a callable value.
 ```
 
 ## Visibility

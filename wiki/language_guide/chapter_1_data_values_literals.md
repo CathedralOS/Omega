@@ -198,10 +198,11 @@ Bare `u` and `i` are unbounded instead. Arithmetic keeps the selected width
 and its normal overflow policy; physical storage is decided by layout.
 See [integer widths](../spec/language/numeric_values.md#width-indexed-integers).
 
-Type names and variable names don't compete. `let i: u32 = 0;` declares a
-variable `i` without touching the type `i`, and a loop index `i1` doesn't stop
-`i1` from meaning the one-bit type in an annotation. What you can't do is
-declare a new type with a builtin's name, such as `data u7 { ... }`. See
+A variable does not hide a builtin name in a type position. `let i: u32 = 0;`
+declares a variable `i` without touching the type `i`, and a loop index `i1`
+doesn't stop `i1` from meaning the one-bit type in an annotation. What you
+can't do is declare a new type or module with a builtin's name, such as
+`data u7 { ... }`. See
 [builtin type names](../spec/language/modules.md#builtin-type-names).
 
 ## Constants
