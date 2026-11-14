@@ -91,7 +91,7 @@ use proof_admission::{
     ProofSystemMarker, verify_obligation,
 };
 use semantic_vocabulary::{
-    BlockId, CanonicalStructuralPathSegment, EdgeId, EvidenceIdentity, IdTable, IntegerMathTerm,
+    BlockId, CanonicalStructuralPathSegment, EvidenceIdentity, IdTable, IntegerMathTerm,
     InvocationSite, MachineId, ObligationId, OperationId, PlaceId, Proposition, PropositionContext,
     ScalarTerm, ScalarType, StructuralCaseId, StructuralTypeId, ValueId,
 };
@@ -938,36 +938,48 @@ fn fill_knowledge(
                 "callee has no canonical guarantee contract",
             )
         })?;
-        for (clause, ensures) in ensures.enumerate() {
-            let proposition = substitute(
-                ensures,
-                &mut ErasedTerms {
-                    terms: &erased,
-                    runtime: &mut storage.after_call(
-                        tables,
-                        &row.actuals,
-                        module
-                            .callable_structural_parameters(callee)
-                            .ok_or_else(|| {
-                                refusal(
-                                    RefusalReason::ForeignIdentity,
-                                    id,
-                                    Construct::Invocation(invocation),
-                                    "callee has no canonical structural formals",
-                                )
-                            })?,
-                        match callee {
-                            semantic_vocabulary::TargetMachineCallable::Machine(machine) => {
-                                module.machine(machine).map(|machine| &machine.result)
-                            }
-                            semantic_vocabulary::TargetMachineCallable::Boundary(_) => None,
-                        },
-                        operation,
+        let mut ensures = ensures.peekable();
+        if ensures.peek().is_none() {
+            continue;
+        }
+        let mut returned = storage.after_call(
+            tables,
+            &row.actuals,
+            module
+                .callable_structural_parameters(callee)
+                .ok_or_else(|| {
+                    refusal(
+                        RefusalReason::ForeignIdentity,
+                        id,
                         Construct::Invocation(invocation),
-                    )?,
-                },
-            )
-            .map_err(|unbound| unbound.refusal(id, Construct::Invocation(invocation)))?;
+                        "callee has no canonical structural formals",
+                    )
+                })?,
+            match callee {
+                semantic_vocabulary::TargetMachineCallable::Machine(machine) => {
+                    module.machine(machine).map(|machine| &machine.result)
+                }
+                semantic_vocabulary::TargetMachineCallable::Boundary(_) => None,
+            },
+            operation,
+            Construct::Invocation(invocation),
+        )?;
+        // Resolve this invocation's guarantees before publishing knowledge:
+        // every clause reads the same retained inputs and actual result,
+        // without holding a table borrow across its output mutation.
+        let propositions = ensures
+            .map(|ensures| {
+                substitute(
+                    ensures,
+                    &mut ErasedTerms {
+                        terms: &erased,
+                        runtime: &mut returned,
+                    },
+                )
+                .map_err(|unbound| unbound.refusal(id, Construct::Invocation(invocation)))
+            })
+            .collect::<Checked<Vec<_>>>()?;
+        for (clause, proposition) in propositions.into_iter().enumerate() {
             push_knowledge(
                 tables,
                 proposition,

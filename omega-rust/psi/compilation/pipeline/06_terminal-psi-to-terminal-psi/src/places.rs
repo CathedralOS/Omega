@@ -932,16 +932,13 @@ impl<'a> Storage<'a> {
                 TerminalMachineResult::Scalar(declared),
                 Terminator::Return {
                     edge,
-                    value: Some(actual),
+                    value: actual,
                     ..
                 },
             ) if *edge == exit => (None, Some((declared.id, *actual))),
-            (
-                TerminalMachineResult::Unit,
-                Terminator::Return {
-                    edge, value: None, ..
-                },
-            ) if *edge == exit => (None, None),
+            (TerminalMachineResult::Unit, Terminator::ReturnUnit { edge, .. }) if *edge == exit => {
+                (None, None)
+            }
             _ => {
                 return Err(self.foreign(
                     concerns,
