@@ -1,6 +1,6 @@
 # Compiler integration CI
 
-The owner authorized production rollout after the [isolated queue experiment](pilot-observations.md).
+The owner authorized production rollout after the [isolated queue experiment](https://github.com/CathedralOS/Omega/blob/5ccde07d45af24d039931579f64a85bc1242501b/tools/ci/pilot-observations.md).
 The canonical author procedure is [landing](../landing.md). GitHub owns integration;
 authors do not rebuild or repeat review just because main advances.
 
