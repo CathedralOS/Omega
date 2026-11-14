@@ -213,8 +213,8 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
                 executable.source()
             ));
             assert_eq!(
-                accepted.boundary_requirements_reached().unwrap(),
-                executable.boundary_requirements_reached().unwrap()
+                accepted.boundary_requirements_declared().unwrap(),
+                executable.boundary_requirements_declared().unwrap()
             );
             assert!(module.calling_abi_signatures.is_empty());
             let native_code = executable

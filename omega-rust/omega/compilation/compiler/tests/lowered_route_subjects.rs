@@ -491,8 +491,10 @@ fn the_uncalled_machine_is_judged_because_it_belongs_to_the_subject() {
 /// it. The same program is checked as a dependency again, so only the entry
 /// would be judged, and each selection is then added by hand. Selecting the
 /// defective machine brings it in and the program is rejected. Selecting a
-/// trait, which the route cannot judge a provider against, hands the
-/// compilation back instead of leaving the selection unjudged.
+/// boundary requirement and its trait, as a native binding does, declares
+/// that boundary. Selecting a trait that is no boundary, which the route
+/// cannot judge a provider against, hands the compilation back instead of
+/// leaving the selection unjudged.
 #[test]
 fn a_declaration_the_build_selects_is_judged_or_handed_back() {
     let _compilation = FIXTURE_COMPILATIONS
@@ -541,17 +543,55 @@ fn a_declaration_the_build_selects_is_judged_or_handed_back() {
         "a selected machine is judged: {selected_machine:?}"
     );
 
+    // What a native binding claims: a requirement of a boundary trait, and
+    // that trait. Neither has a body; each is read as the boundary it is,
+    // and the requirement is declared in the accepted module though nothing
+    // calls it.
+    let exit = typed
+        .traits()
+        .iter()
+        .find(|definition| definition.is_boundary && definition.name.as_str() == "ProcessExit")
+        .expect("the bundled library declares `ProcessExit`");
+    let exit_process = typed
+        .trait_machine_signatures(exit)
+        .first()
+        .expect("`ProcessExit` declares a requirement")
+        .symbol;
+    let bound = judge(elaborate(
+        typed,
+        Compilation {
+            declaration_metadata: &[],
+            entries: &frontier.entries,
+            subjects: &[Some(another)],
+            purpose: source::DependencyScope::Product,
+            selected: &[exit.symbol, exit_process],
+            bindings: &frontier.bindings,
+            supplies: &[],
+        },
+    ));
+    let Ok(RouteVerdict::Accepted(accepted)) = bound else {
+        panic!("a selected boundary requirement is read as a boundary: {bound:?}");
+    };
+    assert!(
+        accepted
+            .elaboration
+            .boundaries
+            .iter()
+            .any(|(_, symbol)| *symbol == exit_process)
+    );
+
     let a_trait = typed
         .traits()
-        .first()
-        .expect("the bundled library declares traits")
+        .iter()
+        .find(|definition| !definition.is_boundary)
+        .expect("the bundled library declares a trait that is no boundary")
         .symbol;
     let Ok(RouteVerdict::FallBack(refusal)) = verdict_selecting(a_trait) else {
         panic!("a selection the route cannot judge hands the compilation back");
     };
     assert_eq!(
         refusal.detail,
-        "declaration Build selection that is not a machine or a data type"
+        "declaration Build selection that is not a machine, a data type or a boundary"
     );
 }
 

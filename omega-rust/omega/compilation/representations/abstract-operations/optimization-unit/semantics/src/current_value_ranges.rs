@@ -1,24 +1,13 @@
-/*
-We independently reconstruct and validate optimizer-produced `ValueRangeFact`
-claims against the current optimization unit. Rather than calling the optimizer
-analysis that proposed a range, we re-derive scalar facts, verifier proposition
-custody, interval arithmetic bounds, and CFG dominance from the unit's current
-operations and verify that the fact's authority reaches the requested operation
-entry.
-*/
-
+//! Independently reconstructs constant-backed range claims from current scalar operations.
+use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 use optimization_unit::{PsiOptimizationUnit, ValueRangeFact};
 use semantic_vocabulary::{BlockId, MachineId};
-
-use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
-
 mod availability {
     use crate::candidates::global_value_numbering::independent_reachable_dominators;
     use crate::candidates::sparse_conditional_constant_propagation::scalar_value_definition;
     use crate::{OperationSite, OptimizationUnitValidationError};
     use optimization_unit::{
         PsiOptimizationFunction, PsiOptimizationUnit, ValueDefinitionSite, ValueRangeFact,
-        ValueRangeScope,
     };
     use semantic_vocabulary::{BlockId, MachineId, ValueId};
 
@@ -44,12 +33,6 @@ mod availability {
             .is_none_or(|node| node >= query_block.nodes.len())
             || fact.valid_in.machine != machine
             || !value_available_at(function, fact.value, block, node)
-            || !scope_applies_at(
-                fact.valid_in.scope,
-                &fact.valid_in.dominated_blocks,
-                block,
-                node,
-            )
         {
             return Err(
                 OptimizationUnitValidationError::CurrentValueRangeFactNotApplicable(
@@ -58,28 +41,6 @@ mod availability {
             );
         }
         Ok(())
-    }
-
-    pub(super) fn scope_applies_at(
-        scope: ValueRangeScope,
-        dominated_blocks: &[BlockId],
-        block: BlockId,
-        node: u32,
-    ) -> bool {
-        match scope {
-            ValueRangeScope::EntireValue => true,
-            ValueRangeScope::DominatedOperationEntry {
-                block: anchor,
-                node: anchor_node,
-                ..
-            } => {
-                if block == anchor {
-                    node >= anchor_node
-                } else {
-                    dominated_blocks.binary_search(&block).is_ok()
-                }
-            }
-        }
     }
 
     pub(super) fn value_available_at(
@@ -118,169 +79,62 @@ mod availability {
     }
 }
 mod reconstruction {
-    use crate::candidates::global_value_numbering::independent_reachable_dominators;
     use crate::candidates::sparse_conditional_constant_propagation::{
         scalar_value_definition, validator_scalar_constant_facts,
     };
     use optimization_core::ValueRangeFactIdentity;
     use optimization_unit::{
-        OptimizationFact, ProofQuestionOwner, PsiOptimizationFunction, PsiOptimizationUnit,
-        ScalarConstantValue, ValueRangeFact, ValueRangeRegion, ValueRangeScope, ValueRangeSupport,
-        value_range_fact_identity,
+        PsiOptimizationUnit, ScalarConstantValue, ValueRangeFact, ValueRangeRegion,
+        ValueRangeSupport, value_range_fact_identity,
     };
-    use semantic_vocabulary::{
-        BlockId, IntegerType, IntegerValue, MachineId, ObligationId, OperationId, ScalarType,
-        ValueId,
-    };
+    use semantic_vocabulary::{BlockId, MachineId, ValueId};
 
-    use super::availability::{scope_applies_at, value_available_at};
-    use optimization_unit::{IntervalExtraction, extract_integer_intervals, proof_range_goal};
+    fn constant_range(
+        unit: &PsiOptimizationUnit,
+        machine: MachineId,
+        value: ValueId,
+    ) -> Option<ValueRangeFact> {
+        let function = unit.function(machine)?;
+        let scalar_type = scalar_value_definition(function, value)?
+            .scalar_type
+            .as_integer()?;
+        let (_, constant, identity) = validator_scalar_constant_facts(unit.identity, function)
+            .into_iter()
+            .find(|(candidate, constant, _)| {
+                *candidate == value && matches!(constant, ScalarConstantValue::Integer(_))
+            })?;
+        let ScalarConstantValue::Integer(constant) = constant else {
+            return None;
+        };
+        let support = ValueRangeSupport::ScalarConstant(identity);
+        let valid_in = ValueRangeRegion {
+            revision: unit.identity,
+            machine,
+            value,
+        };
+        Some(ValueRangeFact {
+            identity: value_range_fact_identity(
+                value,
+                scalar_type,
+                constant,
+                constant,
+                &support,
+                &valid_in,
+            )?,
+            value,
+            scalar_type,
+            minimum: constant,
+            maximum: constant,
+            support,
+            valid_in,
+        })
+    }
 
     pub(super) fn reconstruct_value_range_fact(
         unit: &PsiOptimizationUnit,
         supplied: &ValueRangeFact,
     ) -> Option<ValueRangeFact> {
-        if supplied.valid_in.revision != unit.identity || supplied.valid_in.value != supplied.value
-        {
-            return None;
-        }
-        let function = unit.function(supplied.valid_in.machine)?;
-        match supplied.support {
-            ValueRangeSupport::ScalarConstant(identity) => {
-                if supplied.valid_in.scope != ValueRangeScope::EntireValue
-                    || !supplied.valid_in.dominated_blocks.is_empty()
-                {
-                    return None;
-                }
-                let definition = scalar_value_definition(function, supplied.value)?;
-                let scalar_type = definition.scalar_type.as_integer()?;
-                let (_, constant, _) = validator_scalar_constant_facts(unit.identity, function)
-                    .into_iter()
-                    .find(|(value, constant, candidate)| {
-                        *value == supplied.value
-                            && *candidate == identity
-                            && matches!(constant, ScalarConstantValue::Integer(_))
-                    })?;
-                let ScalarConstantValue::Integer(value) = constant else {
-                    return None;
-                };
-                new_fact(
-                    supplied.value,
-                    scalar_type,
-                    value,
-                    value,
-                    ValueRangeSupport::ScalarConstant(identity),
-                    supplied.valid_in.clone(),
-                )
-            }
-            ValueRangeSupport::AcceptedOperationProof {
-                accepted,
-                question,
-                operation,
-            } => {
-                let ValueRangeScope::DominatedOperationEntry {
-                    block,
-                    node,
-                    operation: scope_operation,
-                } = supplied.valid_in.scope
-                else {
-                    return None;
-                };
-                if operation != scope_operation {
-                    return None;
-                }
-                let anchor = function
-                    .block(block)?
-                    .nodes
-                    .get(usize::try_from(node).ok()?)?;
-                let (current_operation, obligation, goal) = proof_range_goal(&anchor.operation)?;
-                if current_operation != operation
-                    || !is_unique_proof_anchor(function, operation, obligation)
-                {
-                    return None;
-                }
-                let proposition = goal.kernel_proposition().ok()?;
-                let canonical =
-                    terminal_codec::canonical_proposition_order_key(&proposition).ok()?;
-                let accepted_fact = unit
-                    .accepted_obligation_fact(
-                        function.machine,
-                        optimization_unit::PsiProvenance::Operation(operation),
-                        Some(obligation),
-                    )
-                    .filter(|candidate| {
-                        candidate.identity == accepted && candidate.proposition == canonical
-                    })?;
-                let proof_question = unit
-                    .proof_questions
-                    .iter()
-                    .filter(|candidate| {
-                        candidate.identity == question
-                            && candidate.owner
-                                == ProofQuestionOwner::Operation {
-                                    machine: function.machine,
-                                    operation,
-                                }
-                            && candidate.obligation == obligation
-                            && candidate.proposition == canonical
-                            && candidate.canonical_certificate
-                            && candidate.terminal_psi == unit.psi
-                            && candidate.proof_bundle_fingerprint
-                                == accepted_fact.proof_bundle_fingerprint
-                            && candidate.has_canonical_identity()
-                    })
-                    .exactly_one()?;
-                let _ = proof_question;
-                let IntervalExtraction::Bounds(bounds) = extract_integer_intervals(&proposition)
-                else {
-                    return None;
-                };
-                let definition = scalar_value_definition(function, supplied.value)?;
-                if definition.scalar_type != ScalarType::Integer(supplied.scalar_type) {
-                    return None;
-                }
-                let partial = bounds.get(&(supplied.value, supplied.scalar_type))?;
-                let minimum = partial
-                    .lower
-                    .unwrap_or_else(|| supplied.scalar_type.minimum_value());
-                let maximum = partial
-                    .upper
-                    .unwrap_or_else(|| supplied.scalar_type.maximum_value());
-                if minimum == supplied.scalar_type.minimum_value()
-                    && maximum == supplied.scalar_type.maximum_value()
-                {
-                    return None;
-                }
-                let dominators = independent_reachable_dominators(function);
-                let dominated_blocks = dominators
-                    .iter()
-                    .filter_map(|(candidate, values)| values.contains(&block).then_some(*candidate))
-                    .collect::<Vec<_>>();
-                let valid_in = ValueRangeRegion {
-                    revision: unit.identity,
-                    machine: function.machine,
-                    value: supplied.value,
-                    scope: ValueRangeScope::DominatedOperationEntry {
-                        block,
-                        node,
-                        operation,
-                    },
-                    dominated_blocks,
-                };
-                new_fact(
-                    supplied.value,
-                    supplied.scalar_type,
-                    minimum,
-                    maximum,
-                    ValueRangeSupport::AcceptedOperationProof {
-                        accepted,
-                        question,
-                        operation,
-                    },
-                    valid_in,
-                )
-            }
-        }
+        constant_range(unit, supplied.valid_in.machine, supplied.value)
     }
 
     pub(crate) fn independently_reconstruct_value_range_fact_at(
@@ -288,193 +142,16 @@ mod reconstruction {
         identity: ValueRangeFactIdentity,
         machine: MachineId,
         value: ValueId,
-        query_block: BlockId,
-        query_node: u32,
+        block: BlockId,
+        node: u32,
     ) -> Option<ValueRangeFact> {
-        let function = unit.function(machine)?;
-        let dominators = independent_reachable_dominators(function);
-        for block in &function.blocks {
-            if !dominators.contains_key(&block.id) {
-                continue;
-            }
-            for (node_index, node) in block.nodes.iter().enumerate() {
-                let Some((operation, obligation, goal)) = proof_range_goal(&node.operation) else {
-                    continue;
-                };
-                if !is_unique_proof_anchor(function, operation, obligation) {
-                    continue;
-                }
-                let Ok(proposition) = goal.kernel_proposition() else {
-                    continue;
-                };
-                let Ok(canonical) = terminal_codec::canonical_proposition_order_key(&proposition)
-                else {
-                    continue;
-                };
-                let Some(accepted) = unit
-                    .accepted_obligation_fact(
-                        machine,
-                        optimization_unit::PsiProvenance::Operation(operation),
-                        Some(obligation),
-                    )
-                    .filter(|candidate| candidate.proposition == canonical)
-                else {
-                    continue;
-                };
-                let Some(question) = unit
-                    .proof_questions
-                    .iter()
-                    .filter(|candidate| {
-                        candidate.owner == ProofQuestionOwner::Operation { machine, operation }
-                            && candidate.obligation == obligation
-                            && candidate.proposition == canonical
-                            && candidate.canonical_certificate
-                            && candidate.terminal_psi == unit.psi
-                            && candidate.proof_bundle_fingerprint
-                                == accepted.proof_bundle_fingerprint
-                            && candidate.has_canonical_identity()
-                    })
-                    .exactly_one()
-                else {
-                    continue;
-                };
-                let IntervalExtraction::Bounds(bounds) = extract_integer_intervals(&proposition)
-                else {
-                    continue;
-                };
-                let Some((scalar_type, partial)) =
-                    bounds
-                        .iter()
-                        .find_map(|((candidate, scalar_type), partial)| {
-                            (*candidate == value).then_some((*scalar_type, *partial))
-                        })
-                else {
-                    continue;
-                };
-                if scalar_value_definition(function, value).is_none_or(|definition| {
-                    definition.scalar_type != ScalarType::Integer(scalar_type)
-                }) {
-                    continue;
-                }
-                let minimum = partial.lower.unwrap_or_else(|| scalar_type.minimum_value());
-                let maximum = partial.upper.unwrap_or_else(|| scalar_type.maximum_value());
-                if minimum == scalar_type.minimum_value() && maximum == scalar_type.maximum_value()
-                {
-                    continue;
-                }
-                let node_index =
-                    u32::try_from(node_index).expect("optimization-unit node position fits u32");
-                let valid_in = ValueRangeRegion {
-                    revision: unit.identity,
-                    machine,
-                    value,
-                    scope: ValueRangeScope::DominatedOperationEntry {
-                        block: block.id,
-                        node: node_index,
-                        operation,
-                    },
-                    dominated_blocks: dominators
-                        .iter()
-                        .filter_map(|(candidate, values)| {
-                            values.contains(&block.id).then_some(*candidate)
-                        })
-                        .collect(),
-                };
-                let Some(fact) = new_fact(
-                    value,
-                    scalar_type,
-                    minimum,
-                    maximum,
-                    ValueRangeSupport::AcceptedOperationProof {
-                        accepted: accepted.identity,
-                        question: question.identity,
-                        operation,
-                    },
-                    valid_in,
-                ) else {
-                    continue;
-                };
-                if fact.identity == identity
-                    && value_available_at(function, value, query_block, query_node)
-                    && scope_applies_at(
-                        fact.valid_in.scope,
-                        &fact.valid_in.dominated_blocks,
-                        query_block,
-                        query_node,
-                    )
-                {
-                    return Some(fact);
-                }
-            }
-        }
-        None
+        let fact = constant_range(unit, machine, value)?;
+        (fact.identity == identity
+            && super::availability::value_available_at(unit.function(machine)?, value, block, node))
+        .then_some(fact)
     }
-
-    fn is_unique_proof_anchor(
-        function: &PsiOptimizationFunction,
-        operation: OperationId,
-        obligation: ObligationId,
-    ) -> bool {
-        let goals = function
-            .blocks
-            .iter()
-            .flat_map(|block| &block.nodes)
-            .filter(|node| {
-                proof_range_goal(&node.operation)
-                    .is_some_and(|(candidate, _, _)| candidate == operation)
-            })
-            .count();
-        let references = function
-            .facts
-            .iter()
-            .filter(|fact| {
-                matches!(fact,
-                OptimizationFact::OperationObligationReference {
-                    obligation: candidate_obligation,
-                    support,
-                } if *candidate_obligation == obligation && *support == operation)
-            })
-            .count();
-        goals == 1 && references == 1
-    }
-
-    fn new_fact(
-        value: ValueId,
-        scalar_type: IntegerType,
-        minimum: IntegerValue,
-        maximum: IntegerValue,
-        support: ValueRangeSupport,
-        valid_in: ValueRangeRegion,
-    ) -> Option<ValueRangeFact> {
-        Some(ValueRangeFact {
-            identity: value_range_fact_identity(
-                value,
-                scalar_type,
-                minimum,
-                maximum,
-                &support,
-                &valid_in,
-            )?,
-            value,
-            scalar_type,
-            minimum,
-            maximum,
-            support,
-            valid_in,
-        })
-    }
-
-    trait ExactlyOne: Iterator + Sized {
-        fn exactly_one(mut self) -> Option<Self::Item> {
-            let first = self.next()?;
-            self.next().is_none().then_some(first)
-        }
-    }
-
-    impl<I: Iterator> ExactlyOne for I {}
 }
 pub(super) use reconstruction::independently_reconstruct_value_range_fact_at;
-
 pub(crate) fn validate_current_value_range_fact(
     unit: &PsiOptimizationUnit,
     fact: &ValueRangeFact,

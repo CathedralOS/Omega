@@ -2,7 +2,9 @@
 //! Targets and composition come from execution; source supplies the exact slot,
 //! provider, and lexical author. Nothing here executes or accepts a provider body.
 
-use super::provider_declarations::{ProviderPlanningContext, ProviderSelection, form, identity};
+use super::provider_declarations::{
+    ProviderForm, ProviderPlanningContext, ProviderSelection, form, identity,
+};
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     BuildOperation, BuildSelectionOrigin, ExecutedProductSelection, ProductDeclarationRequest,
@@ -110,8 +112,16 @@ fn formation(
         .rejoin_product_occurrence(request.source_span);
     let origin = BuildSelectionOrigin::capture(&context.typed.symbols, author, author, span, None)
         .map_err(|reason| refusal(request, reason))?;
-    form(context, slot, provider, origin, None, Default::default())
-        .map_err(|diagnostic| vec![diagnostic.with_source_span(request.source_span)])
+    form(
+        context,
+        slot,
+        provider,
+        origin,
+        None,
+        Default::default(),
+        ProviderForm::StaticRecord,
+    )
+    .map_err(|diagnostic| vec![diagnostic.with_source_span(request.source_span)])
 }
 
 pub(super) fn collect(

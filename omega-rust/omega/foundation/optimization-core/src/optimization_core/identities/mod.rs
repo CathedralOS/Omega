@@ -109,7 +109,7 @@ pub(crate) use error::IdentityDecodeError;
 pub use rules_and_facts::{
     AcceptedObligationFactIdentity, OptimizationCandidateIdentity, OptimizationPassIdentity,
     OptimizationRuleIdentity, OptimizationRuleSetIdentity, OwnershipFrontierFactIdentity,
-    ProofQuestionIdentity, ScalarConstantFactIdentity, ValueRangeFactIdentity,
+    ScalarConstantFactIdentity, ValueRangeFactIdentity,
 };
 pub use stages::{
     FunctionRelativeOptimizationRealizationManifestIdentity, NativeOptimizationProjectionIdentity,

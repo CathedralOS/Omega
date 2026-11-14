@@ -40,15 +40,18 @@ pub(crate) fn prepare_entry_metadata(
     )?;
     let replacement = publication.with_declaration_metadata(&[declaration])?;
     let accepted = replacement.accepted()?;
+    // Storage metadata cannot admit another body. Keep the same boundary
+    // declarations for the settled execution; per-target reach remains owned
+    // by the shared demand walk.
     if original
-        .boundary_requirements_reached()
+        .boundary_requirements_declared()
         .map_err(|error| vec![error])?
         != accepted
-            .boundary_requirements_reached()
+            .boundary_requirements_declared()
             .map_err(|error| vec![error])?
     {
         return Err(vec![Diagnostic::error(
-            "declaration metadata changed the product's settled boundary demand",
+            "declaration metadata changed the product's boundary declarations",
         )]);
     }
     custody.terminal_publication = std::sync::Arc::new(replacement);

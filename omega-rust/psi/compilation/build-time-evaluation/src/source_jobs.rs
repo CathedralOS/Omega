@@ -700,7 +700,7 @@ pub(crate) mod tests {
         assert!(
             entry
                 .accepted
-                .boundary_requirements_reached()
+                .boundary_requirements_declared()
                 .unwrap()
                 .is_empty()
         );
