@@ -3862,6 +3862,12 @@ impl SymbolTable {
             .filter(|symbol| self.get(*symbol).kind == SymbolKind::BuiltinType)
     }
 
+    /// Scalar meaning is derived from the selected builtin, never its display name.
+    pub fn primitive_type(&self, symbol: SymbolHandle) -> Option<crate::PrimitiveType> {
+        self.builtin_type_atom(symbol)
+            .and_then(crate::PrimitiveType::from_builtin_atom)
+    }
+
     /*
         Classify only a compiler-installed root builtin type. A package
         declaration with the same spelling has a declaration kind, and a

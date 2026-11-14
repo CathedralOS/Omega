@@ -10,9 +10,7 @@ pub mod operator {
         use symbols::{SymbolHandle, SymbolKind};
 
         use crate::TypedTrees;
-        use crate::types::{
-            FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
-        };
+        use crate::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
         use super::{OperatorConstBinding, OperatorDefinition};
         use crate::declarations::operator::operand_signatures::normalized_operand_parameters;
@@ -454,8 +452,7 @@ pub mod operator {
             symbol: SymbolHandle,
             name: &str,
         ) -> bool {
-            if PrimitiveType::from_name(name).is_some()
-                || language_semantics::const_value::CanonicalConstValue::from_atom(name).is_some()
+            if language_semantics::const_value::CanonicalConstValue::from_atom(name).is_some()
                 || name.parse::<i128>().is_ok()
             {
                 return true;
@@ -2076,8 +2073,7 @@ pub mod operator {
                         OperandType::Unknown => return true,
                         OperandType::Primitive(primitive) => {
                             return program
-                                .type_reference_table
-                                .primitive_type(expected.type_reference)
+                                .primitive_type_reference(expected.type_reference)
                                 .is_none_or(|expected| expected == primitive);
                         }
                         OperandType::Reference(actual) => actual,
@@ -2175,20 +2171,15 @@ pub mod operator {
                 TypeReferenceNode::FixedArray { .. } | TypeReferenceNode::ConstExpression(_) => {
                     false
                 }
-                TypeReferenceNode::Named { symbol, name } => {
+                TypeReferenceNode::Named { symbol, .. } => {
                     if program.data_type_parameter_by_symbol(*symbol).is_some() {
                         return false;
                     }
                     if !symbol.is_valid() {
-                        return crate::types::PrimitiveType::from_name(name.as_str()).is_some();
+                        return false;
                     }
                     if let Some(atom) = program.symbols.builtin_type_atom(*symbol) {
-                        return crate::types::PrimitiveType::from_name(&atom.symbol_name())
-                            .is_some()
-                            && atom.symbol_name() == name.as_str();
-                    }
-                    if crate::types::PrimitiveType::from_name(name.as_str()).is_some() {
-                        return false;
+                        return symbols::PrimitiveType::from_builtin_atom(atom).is_some();
                     }
                     let Some(definition) = program.unique_data_definition_by_symbol(*symbol) else {
                         return false;
@@ -3789,8 +3780,7 @@ pub mod operator {
             let Ok(value) = i128::try_from(*value) else {
                 return false;
             };
-            let Some(primitive) = program.type_reference_table.primitive_type(type_reference)
-            else {
+            let Some(primitive) = program.primitive_type_reference(type_reference) else {
                 return false;
             };
             bind_operator_const(
@@ -3814,9 +3804,7 @@ pub mod operator {
                 return Some(value.identity());
             }
             let value = name.as_str().parse::<i128>().ok()?;
-            let primitive = program
-                .type_reference_table
-                .primitive_type(declared_carrier)?;
+            let primitive = program.primitive_type_reference(declared_carrier)?;
             Some(CanonicalConstIdentity::integer(primitive.name(), value))
         }
 
@@ -3848,13 +3836,7 @@ pub mod operator {
                     && expected_symbol.is_valid()
                     && actual_symbol == expected_symbol;
             }
-            matches!(
-                (
-                    crate::types::PrimitiveType::from_name(actual_name),
-                    crate::types::PrimitiveType::from_name(expected_name),
-                ),
-                (Some(actual), Some(expected)) if actual == expected
-            )
+            false
         }
 
         fn expected_bindable_symbol(
