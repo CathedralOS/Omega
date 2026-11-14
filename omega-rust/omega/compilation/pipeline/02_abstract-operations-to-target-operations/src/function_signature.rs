@@ -772,12 +772,16 @@ pub(crate) mod structural_type_lookup {
 
     use abstract_operations::StructuralTypeCatalog;
     use calling_conventions::terminal_layout::StructuralLayouts;
-    use semantic_vocabulary::{NonDenseIdentities, StructuralTypeId};
+    use semantic_vocabulary::{
+        ClosedIntegerType, ClosedScalarType, IntegerType, NonDenseIdentities, ScalarType,
+        StructuralTypeId,
+    };
     use terminal_psi::StructuralPathSegment;
 
     pub(crate) struct StructuralTypeLookup<'a> {
         layouts: StructuralLayouts<'a>,
         catalog: &'a StructuralTypeCatalog,
+        verified: Option<&'a verified_optimization_input::AdmittedLoweringFacts>,
     }
 
     impl<'a> StructuralTypeLookup<'a> {
@@ -785,7 +789,36 @@ pub(crate) mod structural_type_lookup {
             Ok(Self {
                 layouts: StructuralLayouts::new(source.iter())?,
                 catalog: source,
+                verified: None,
             })
+        }
+
+        /// Artifact-backed lowering always retains its original publication owner.
+        pub(crate) fn for_verified(
+            source: &'a StructuralTypeCatalog,
+            input: &'a verified_optimization_input::AdmittedLoweringFacts,
+        ) -> Result<Self, NonDenseIdentities> {
+            let mut lookup = Self::new(source)?;
+            lookup.verified = Some(input);
+            Ok(lookup)
+        }
+
+        pub(crate) fn closed_scalar(&self, scalar: ScalarType) -> Option<ClosedScalarType> {
+            match self.verified {
+                Some(input) => input.closed_module().closed_types().scalar(scalar).ok(),
+                // Public independent raw-plan metadata has no artifact owner.
+                // This central adapter only classifies concrete descriptors.
+                None => ClosedScalarType::try_from(scalar).ok(),
+            }
+        }
+
+        pub(crate) fn closed_integer(&self, integer: IntegerType) -> Option<ClosedIntegerType> {
+            let ClosedScalarType::Integer(integer) =
+                self.closed_scalar(ScalarType::Integer(integer))?
+            else {
+                return None;
+            };
+            Some(integer)
         }
 
         pub(crate) fn catalog(&self) -> &StructuralTypeCatalog {
