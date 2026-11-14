@@ -275,58 +275,10 @@ pub(crate) mod compiler_evaluation {
             proposition: &Proposition,
             integers: &mut ClosedIntegerEvaluator,
         ) -> Result<Option<bool>, String> {
-            Ok(match proposition {
-                Proposition::Truth => Some(true),
-                Proposition::Falsehood => Some(false),
-                Proposition::Equal(left, right) if left.scalar_type() == ScalarType::Boolean => {
-                    left.boolean_value()
-                        .zip(right.boolean_value())
-                        .map(|(left, right)| left == right)
-                }
-                semantic_vocabulary::ordered_comparison_operands!(left, right) => left
-                    .integer_value()
-                    .zip(right.integer_value())
-                    .and_then(|((left_type, left), (right_type, right))| {
-                        (left_type == right_type)
-                            .then(|| left_type.compare(left, right))
-                            .flatten()
-                    })
-                    .map(|ordering| match proposition {
-                        Proposition::Equal(..) => ordering.is_eq(),
-                        Proposition::LessThan(..) => ordering.is_lt(),
-                        _ => !ordering.is_gt(),
-                    }),
-                semantic_vocabulary::integer_math_comparison_operands!(left, right) => integers
-                    .compare(left, right)
-                    .map_err(|reason| {
-                        format!("the checked crash guard could not be evaluated: {reason}")
-                    })?
-                    .map(|ordering| match proposition {
-                        Proposition::IntegerMathEqual(..) => ordering.is_eq(),
-                        Proposition::IntegerMathLessThan(..) => ordering.is_lt(),
-                        _ => !ordering.is_gt(),
-                    }),
-                Proposition::Conjunction(children) | Proposition::Disjunction(children) => {
-                    let identity = matches!(proposition, Proposition::Conjunction(_));
-                    let mut unknown = false;
-                    for child in children {
-                        match closed_guard(child, integers)? {
-                            Some(value) if value != identity => return Ok(Some(value)),
-                            Some(_) => (),
-                            None => unknown = true,
-                        }
-                    }
-                    (!unknown).then_some(identity)
-                }
-                Proposition::Implication {
-                    premise,
-                    conclusion,
-                } => match closed_guard(premise, integers)? {
-                    Some(false) => Some(true),
-                    Some(true) => closed_guard(conclusion, integers)?,
-                    None => closed_guard(conclusion, integers)?.filter(|value| *value),
-                },
-                _ => None,
+            // The shared walk decides the guard. This only keeps the admission
+            // message for a closed-integer resource limit.
+            proof_admission::closed_guard(proposition, integers).map_err(|reason| {
+                format!("the checked crash guard could not be evaluated: {reason}")
             })
         }
 
@@ -473,6 +425,39 @@ pub(crate) mod compiler_evaluation {
                         Proposition::Disjunction(vec![open, Proposition::Falsehood]),
                     )]))
                     .is_err()
+                );
+            }
+
+            #[test]
+            fn float_guard_decides_literal_ieee_comparison() {
+                // The same Binary32 guards the interpreter decides: 1.0 < 2.0,
+                // and a NaN is not equal to itself.
+                use proof_admission::ClosedIntegerEvaluator;
+                use semantic_vocabulary::{
+                    IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatValue,
+                };
+                let guard = |kind, left, right| Proposition::ScalarIeeeFloatComparison {
+                    kind,
+                    format: IeeeFloatFormat::Binary32,
+                    left: ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary32(left)),
+                    right: ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary32(right)),
+                };
+                let mut integers = ClosedIntegerEvaluator::default();
+                assert_eq!(
+                    super::closed_guard(
+                        &guard(IeeeFloatComparisonKind::LessThan, 0x3f80_0000, 0x4000_0000),
+                        &mut integers,
+                    )
+                    .unwrap(),
+                    Some(true)
+                );
+                assert_eq!(
+                    super::closed_guard(
+                        &guard(IeeeFloatComparisonKind::Equal, 0x7fc0_0000, 0x7fc0_0000),
+                        &mut integers,
+                    )
+                    .unwrap(),
+                    Some(false)
                 );
             }
 
