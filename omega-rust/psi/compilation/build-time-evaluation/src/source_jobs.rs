@@ -2388,9 +2388,10 @@ pub(crate) mod tests {
                 BuildTimeValue::Int(expected),
             );
         }
-        let negated = program(
-            "machine answer(value: bool) -> bool { let inverted: bool = !value; inverted }",
-        );
+        let negation_source = "machine answer(value: bool) -> u64 {
+            transition !value { true -> 41u64 _ -> 0u64 }
+        }";
+        let negated = program(negation_source);
         for value in [false, true] {
             assert_eq!(
                 run(
@@ -2398,15 +2399,11 @@ pub(crate) mod tests {
                     &[BuildTimeValue::Bool(value)],
                     &mut psi_work::WorkMeter::unbounded(),
                 )
-                .expect("an inferred Boolean local keeps its actual value"),
-                BuildTimeValue::Bool(!value),
+                .expect("the captured negation chooses its actual arm"),
+                BuildTimeValue::Int(if value { 0 } else { 41 }),
             );
         }
-        let invalid = program(
-            "machine answer(value: u64) -> u64 {
-                 transition !value { true -> 41u64 _ -> 0u64 }
-             }",
-        );
+        let invalid = program(&negation_source.replacen("value: bool", "value: u64", 1));
         let mut refused = psi_work::WorkMeter::unbounded();
         let error = run(&invalid, &[BuildTimeValue::Int(0)], &mut refused)
             .expect_err("a Boolean result does not turn an integer operand into Bool");
