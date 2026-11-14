@@ -698,7 +698,7 @@ pub(crate) mod fixed_view_copy {
                 source_legality: legality.receipt().identity(),
                 register_environment,
                 allocator_availability: legality.receipt().allocator_availability(),
-                source_evidence: FixedViewCopySourceEvidence::FixedPrecoloredSegmentHomesV1 {
+                source_evidence: FixedViewCopySourceEvidence {
                     fixed_intervals: fixed.receipt().identity(),
                     split_requirements: requirements.receipt().identity(),
                     segment_homes: homes.receipt().identity(),
