@@ -530,6 +530,15 @@ fn finish_reading(
             &program.declaration_signatures,
             &mut elaboration,
         )
+        .and_then(|()| {
+            declare::provider_candidates(
+                typed,
+                &program.symbols,
+                &program.boundary_symbols,
+                &program.supplied,
+                &mut elaboration.module,
+            )
+        })
         .map_err(|reason| {
             refuse(
                 diagnostic,

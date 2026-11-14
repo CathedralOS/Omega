@@ -17,6 +17,9 @@ use std::sync::Arc;
 pub struct SelectedExecution {
     target_profile: Option<target::TargetProfile>,
     plans: Arc<effects::SelectedProviderPlanFacts>,
+    /// The same plans, each with the provider declaration its checked
+    /// adapters are joined to the artifact's candidates by.
+    declared: Arc<[backend_plan::TerminalTargetProviderPlan]>,
 }
 
 impl SelectedExecution {
@@ -26,22 +29,27 @@ impl SelectedExecution {
     pub fn settle(
         target_profile: Option<target::TargetProfile>,
         supply: &provider_planning::target_supply::SettledTargetSupply,
+        planning: provider_planning::target_supply::SupplyPlanning<'_>,
     ) -> Result<Self, Vec<Diagnostic>> {
         if target_profile.map(|profile| profile.target_name()) != supply.target() {
             return Err(vec![Diagnostic::error(
                 "selected execution and settled provider supply name different deployments",
             )]);
         }
-        let plans = effects::SelectedProviderPlanFacts::from_selected_plans(supply.plans()?)
-            .map_err(|reason| {
-                vec![Diagnostic::error(format!(
-                    "provider settlement for `{}`: {reason}",
-                    supply.target().unwrap_or("<unscoped>")
-                ))]
-            })?;
+        let declared = supply.plans(planning)?;
+        let plans = effects::SelectedProviderPlanFacts::from_selected_plans(
+            declared.iter().map(|declared| declared.plan.clone()).collect(),
+        )
+        .map_err(|reason| {
+            vec![Diagnostic::error(format!(
+                "provider settlement for `{}`: {reason}",
+                supply.target().unwrap_or("<unscoped>")
+            ))]
+        })?;
         Ok(Self {
             target_profile,
             plans: Arc::new(plans),
+            declared: declared.into(),
         })
     }
 
@@ -67,38 +75,29 @@ impl SelectedExecution {
     /// The provider proposal this target's conditions are checked against:
     /// its settled plans joined to one produced Terminal artifact.
     ///
-    /// A settled plan becomes a Terminal provider plan only with the
-    /// declaration and numeric realizations of its rows. Nothing on the
-    /// lowered route produces those yet, so each plan is refused by name and
-    /// the refusal travels in the proposal like any other; a target with no
-    /// plan proposes the empty selection of that artifact.
+    /// Each plan's checked adapter rows are joined to the provider
+    /// candidates the artifact states for the plan's provider declaration
+    /// (`TerminalTargetProviderSelection::from_plans`); a row the artifact
+    /// states no candidate for refuses the selection, and the refusal
+    /// travels in the proposal like any other. A target with no plan
+    /// proposes the empty selection of that artifact.
     pub fn provider_proposal(
         &self,
         artifact: terminal_codec::TerminalArtifactView<'_>,
         optimization_selection: optimization_core::OptimizationSelectionIdentity,
     ) -> Option<backend_plan::TerminalTargetProviderProposal> {
         let target = self.target_profile?.target_name();
-        let refusals = self
-            .plans
-            .plans()
-            .iter()
-            .map(|plan| {
-                format!(
-                    "no product route yet: provider proposal for `{target}`: provider plan `{}` has no Terminal declaration or numeric realization on this route",
-                    plan.name
-                )
-            })
-            .collect::<Vec<_>>();
-        let selection = if refusals.is_empty() {
-            backend_plan::TerminalTargetProviderSelection::from_plans(Vec::new(), artifact)
+        let selection =
+            backend_plan::TerminalTargetProviderSelection::from_plans(self.declared.to_vec(), artifact)
                 .map(|mut selection| {
                     selection.assumed_bindings = self.plans.assumed_bindings().to_vec();
                     selection
                 })
-                .map_err(|reason| vec![reason])
-        } else {
-            Err(refusals)
-        };
+                .map_err(|reason| {
+                    vec![format!(
+                        "provider proposal for `{target}`: {reason}"
+                    )]
+                });
         Some(backend_plan::TerminalTargetProviderProposal {
             target: target.to_owned(),
             terminal_psi: artifact.identity(),
