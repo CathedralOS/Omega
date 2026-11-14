@@ -107,6 +107,16 @@ impl Spelled for Tag {
     }
 }
 
+// Complete signatures must not silently lose a malformed retained roster.
+// Arena::span validates nonempty ownership; only the canonical empty handle
+// represents a genuinely absent roster here.
+fn schema_span<T: Default>(arena: &arena::Arena<T>, span: arena::HandleSpan<T>) -> Option<&[T]> {
+    if span.is_empty() && span != arena::HandleSpan::empty() {
+        return None;
+    }
+    arena.span(span)
+}
+
 fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<NormalizedTypeIdentity> {
     // Exhaust the header so a new Machine field requires a deliberate schema
     // decision. Source coordinates and body storage do not change a signature.
@@ -158,11 +168,11 @@ fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<Normaliz
         || authored_target.is_some()
         || *target_family_interface
         || *structural_type_equations_pending
-        || !declared_type_equations.is_empty()
-        || !owned_data.is_empty()
-        || !satisfies.is_empty()
+        || *declared_type_equations != arena::HandleSpan::empty()
+        || *owned_data != arena::HandleSpan::empty()
+        || *satisfies != arena::HandleSpan::empty()
         || !conformance_bounds.is_empty()
-        || !invokes.is_empty()
+        || *invokes != arena::HandleSpan::empty()
         || *service_reach_is_installation_bound
         || !symbol.is_valid()
         || termination_plan.implementation_witness.is_some()
@@ -186,14 +196,14 @@ fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<Normaliz
         ) => "no-guarantee",
         _ => return None,
     };
-    let [entry] = program.machine_states(machine) else {
+    let [entry] = schema_span(&program.machine_states, machine.states)? else {
         return None;
     };
     if !entry.symbol.is_valid() {
         return None;
     }
-    let types = program.machine_type_parameters(machine);
-    let parameters = program.state_parameters(entry);
+    let types = schema_span(&program.data_type_parameters, machine.type_parameters)?;
+    let parameters = schema_span(&program.state_parameters, entry.parameters)?;
     let binders = types
         .iter()
         .enumerate()
@@ -275,10 +285,9 @@ fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<Normaliz
         .collect::<Option<Vec<_>>>()?;
     let contracts = contracts(
         program,
-        program
-            .machine_contracts(machine)
+        schema_span(&program.signature_contracts, machine.contracts)?
             .iter()
-            .chain(program.state_contracts(entry)),
+            .chain(schema_span(&program.signature_contracts, entry.contracts)?),
         &context,
     )?;
     let identity = compound(
@@ -318,9 +327,7 @@ fn contracts<'a>(
                 SignatureContractKind::Crashes { cause } => atom(Tag::Crash, &format!("{cause:?}")),
                 SignatureContractKind::EnsuresForResultCase { .. } => return None,
             };
-            let facts = program
-                .proof_facts
-                .span_or_empty(contract.facts)
+            let facts = schema_span(&program.proof_facts, contract.facts)?
                 .iter()
                 .map(|fact| {
                     let ProofFact::Expression(expression) = fact else {
@@ -691,6 +698,62 @@ mod tests {
             .get_mut(binder.extent)
             .kind = TypeParameterKind::Implementation;
         assert!(binder.text().is_none());
+    }
+
+    fn broken_span<T>(count: u32) -> arena::HandleSpan<T> {
+        arena::HandleSpan::from_parts(arena::Handle::from_parts(u32::MAX, 1), count)
+    }
+
+    #[test]
+    fn a_broken_retained_fact_span_cannot_become_an_empty_contract() {
+        let mut broken = Fixture::ordinary();
+        let entry = broken.program.machines()[0].states.start();
+        let contract = broken.program.machine_states.get(entry).contracts.start();
+        broken.program.signature_contracts.get_mut(contract).facts = broken_span(1);
+        assert!(broken.text().is_none());
+
+        // A genuinely empty fact roster is still a representable contract.
+        broken.program.signature_contracts.get_mut(contract).facts = arena::HandleSpan::empty();
+        assert!(broken.text().is_some());
+        broken.program.signature_contracts.get_mut(contract).facts = broken_span(0);
+        assert!(broken.text().is_none());
+    }
+
+    #[test]
+    fn malformed_signature_rosters_are_unavailable_instead_of_disappearing() {
+        for count in [0, 1] {
+            let mut states = Fixture::ordinary();
+            states.program.machines_mut()[0].states = broken_span(count);
+            assert!(states.text().is_none(), "states, count={count}");
+
+            let mut types = Fixture::ordinary();
+            types.program.machines_mut()[0].type_parameters = broken_span(count);
+            assert!(types.text().is_none(), "type parameters, count={count}");
+
+            let mut parameters = Fixture::ordinary();
+            let entry = parameters.program.machines()[0].states.start();
+            parameters.program.machine_states.get_mut(entry).parameters = broken_span(count);
+            assert!(parameters.text().is_none(), "parameters, count={count}");
+
+            let mut machine_contracts = Fixture::ordinary();
+            machine_contracts.program.machines_mut()[0].contracts = broken_span(count);
+            assert!(
+                machine_contracts.text().is_none(),
+                "machine contracts, count={count}"
+            );
+
+            let mut entry_contracts = Fixture::ordinary();
+            let entry = entry_contracts.program.machines()[0].states.start();
+            entry_contracts
+                .program
+                .machine_states
+                .get_mut(entry)
+                .contracts = broken_span(count);
+            assert!(
+                entry_contracts.text().is_none(),
+                "entry contracts, count={count}"
+            );
+        }
     }
 
     #[test]
