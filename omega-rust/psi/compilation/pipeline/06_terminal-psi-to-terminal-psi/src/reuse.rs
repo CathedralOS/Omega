@@ -183,6 +183,7 @@ pub fn reverify_at_call(
     // cites keep their positions, because the assumptions given to the
     // kernel below are the callee's `requires` in clause order.
     let proof = Transport {
+        scalar_type: &Some,
         value: &|value, scalar_type| {
             formal_actual(&actuals, tables, value, scalar_type).map(Moved::Value)
         },
@@ -264,6 +265,7 @@ enum Cited {
 /// term or rule form this does not list, makes the whole move fail: a
 /// partial rename would leave the certificate naming the source's values.
 struct Transport<'a> {
+    scalar_type: &'a dyn Fn(ScalarType) -> Option<ScalarType>,
     value: &'a dyn Fn(ValueId, ScalarType) -> Option<Moved>,
     /// A cited assumption's position at the source, with what it concludes
     /// once moved.
@@ -284,6 +286,17 @@ impl Transport<'_> {
         (self.value)(value, scalar_type)
     }
 
+    fn scalar_type(&self, scalar: ScalarType) -> Option<ScalarType> {
+        (self.scalar_type)(scalar)
+    }
+
+    fn integer_type(
+        &self,
+        integer: semantic_vocabulary::IntegerType,
+    ) -> Option<semantic_vocabulary::IntegerType> {
+        self.scalar_type(ScalarType::Integer(integer))?.as_integer()
+    }
+
     fn cited_axiom(&self, index: usize) -> Option<usize> {
         match (self.axiom)(index) {
             Ok(index) => Some(index),
@@ -297,19 +310,22 @@ impl Transport<'_> {
     fn term(&self, term: &ScalarTerm) -> Option<ScalarTerm> {
         Some(match term {
             ScalarTerm::Value { id, scalar_type } => match self.value(*id, *scalar_type)? {
-                Moved::Value(value) => ScalarTerm::value(value, *scalar_type),
+                Moved::Value(value) => ScalarTerm::value(value, self.scalar_type(*scalar_type)?),
                 Moved::Literal(value) => ScalarTerm::Integer {
-                    scalar_type: scalar_type.as_integer()?,
+                    scalar_type: self.scalar_type(*scalar_type)?.as_integer()?,
                     value,
                 },
             },
-            ScalarTerm::Integer { .. } | ScalarTerm::Boolean(_) => term.clone(),
+            ScalarTerm::Integer { scalar_type, value } => {
+                ScalarTerm::integer(self.integer_type(*scalar_type)?, *value).ok()?
+            }
+            ScalarTerm::Boolean(_) => term.clone(),
             ScalarTerm::ExactIntegerAdd {
                 scalar_type,
                 left,
                 right,
             } => ScalarTerm::ExactIntegerAdd {
-                scalar_type: *scalar_type,
+                scalar_type: self.integer_type(*scalar_type)?,
                 left: Box::new(self.term(left)?),
                 right: Box::new(self.term(right)?),
             },
@@ -318,7 +334,7 @@ impl Transport<'_> {
                 left,
                 right,
             } => ScalarTerm::ExactIntegerSubtract {
-                scalar_type: *scalar_type,
+                scalar_type: self.integer_type(*scalar_type)?,
                 left: Box::new(self.term(left)?),
                 right: Box::new(self.term(right)?),
             },
@@ -327,7 +343,7 @@ impl Transport<'_> {
                 left,
                 right,
             } => ScalarTerm::ExactIntegerMultiply {
-                scalar_type: *scalar_type,
+                scalar_type: self.integer_type(*scalar_type)?,
                 left: Box::new(self.term(left)?),
                 right: Box::new(self.term(right)?),
             },
@@ -341,13 +357,13 @@ impl Transport<'_> {
             IntegerMathTerm::MathValue { source_type, value } => {
                 match self.value(*value, ScalarType::Integer(*source_type))? {
                     Moved::Value(value) => IntegerMathTerm::MathValue {
-                        source_type: *source_type,
+                        source_type: self.integer_type(*source_type)?,
                         value,
                     },
                     // The mathematical integer a literal embeds as, which is
                     // how the kernel denotes a literal operand.
                     Moved::Literal(value) => IntegerMathTerm::embed(ScalarTerm::Integer {
-                        scalar_type: *source_type,
+                        scalar_type: self.integer_type(*source_type)?,
                         value,
                     })?,
                 }
@@ -785,6 +801,7 @@ pub fn reverify_specialization(
 /// (`authored` of them), then its value parameters; every value after those
 /// is the specialization's value that many places earlier.
 struct Instantiation {
+    owner: MachineId,
     /// The concrete type the specialization has for each type parameter the
     /// generic body leaves rigid, read off the two machines' formals and
     /// result: each formal of a rigid type there is a formal of this type
@@ -826,6 +843,7 @@ impl Instantiation {
             return refuse("the specialization's formals are not the generic body's");
         }
         let mut found = Self {
+            owner: generic.id,
             types: Vec::new(),
             authored,
             bound: vec![None; rigid],
@@ -852,6 +870,61 @@ impl Instantiation {
                 }
             }
         }
+        // A width can be absent from the textual guarantees. Bind it from
+        // the paired value carriers first, then check every whole clause and
+        // row under that same argument. This describes the already prepared
+        // specialization; it never chooses a width for publication.
+        for (value, theirs) in generic_tables.values.iter() {
+            let Some(integer) = theirs.scalar_type.as_integer() else {
+                continue;
+            };
+            let semantic_vocabulary::IntegerWidth::Parameter(parameter) = integer.width() else {
+                continue;
+            };
+            if parameter.owner != generic.id {
+                return refuse("a width belongs to another generic machine");
+            }
+            let Some(binder) = generic_tables.values.get(parameter.value) else {
+                return refuse("a width has no binder in its generic machine");
+            };
+            let u64_type = semantic_vocabulary::IntegerType::new(
+                semantic_vocabulary::IntegerSign::Unsigned,
+                64,
+            )
+            .expect("u64 is a supported carrier");
+            if binder.scalar_type != ScalarType::Integer(u64_type)
+                || !matches!(
+                    binder.origin,
+                    terminal_check_tables::values::ValueOrigin::MachineParameter { .. }
+                )
+            {
+                return refuse("a width binder is not the generic machine's u64 parameter");
+            }
+            let Some(Moved::Value(mine)) = found.moved(value) else {
+                return refuse("a width-dependent value has no specialized value");
+            };
+            let Some(actual) = tables
+                .values
+                .get(mine)
+                .and_then(|row| row.scalar_type.as_integer())
+            else {
+                return refuse("a width-dependent integer specializes to another carrier");
+            };
+            if integer.sign() != actual.sign() || integer.carrier() != actual.carrier() {
+                return refuse("a width application changes the integer carrier or sign");
+            }
+            let Some(bits) = actual.bits() else {
+                return refuse("a width application is not closed before judgment");
+            };
+            let literal = ScalarTerm::integer(
+                u64_type,
+                semantic_vocabulary::IntegerValue::Unsigned(u128::from(bits)),
+            )
+            .expect("a supported width fits u64");
+            if !found.bind(parameter.value, literal) {
+                return refuse("a width argument is absent or disagrees across the specialization");
+            }
+        }
         if rigid == 0 {
             return Ok(found);
         }
@@ -876,6 +949,46 @@ impl Instantiation {
             return refuse("the requirements of the specialization are not the generic body's");
         }
         Ok(found)
+    }
+
+    fn bind(&mut self, value: ValueId, literal: ScalarTerm) -> bool {
+        let Some(position) = usize::try_from(value.get() - 1)
+            .ok()
+            .and_then(|position| position.checked_sub(self.authored))
+        else {
+            return false;
+        };
+        let Some(bound) = self.bound.get_mut(position) else {
+            return false;
+        };
+        match bound {
+            Some(previous) => *previous == literal,
+            None => {
+                *bound = Some(literal);
+                true
+            }
+        }
+    }
+
+    fn scalar_type(&self, scalar: ScalarType) -> Option<ScalarType> {
+        let ScalarType::Integer(integer) = scalar else {
+            return Some(scalar);
+        };
+        let semantic_vocabulary::IntegerWidth::Parameter(parameter) = integer.width() else {
+            return Some(scalar);
+        };
+        if parameter.owner != self.owner {
+            return None;
+        }
+        let Moved::Literal(semantic_vocabulary::IntegerValue::Unsigned(bits)) =
+            self.moved(parameter.value)?
+        else {
+            return None;
+        };
+        let bits = u16::try_from(bits).ok()?;
+        semantic_vocabulary::IntegerType::new(integer.sign(), bits)
+            .ok()
+            .map(ScalarType::Integer)
     }
 
     /// Pairs each of `theirs` with a distinct clause of `mine` it is under
@@ -946,6 +1059,7 @@ impl Instantiation {
         // The leaves only propose the literals. That the whole clause is the
         // specialization's is decided by moving it.
         let moved = Transport {
+            scalar_type: &|scalar| self.scalar_type(scalar),
             value: &|value, scalar_type| self.moved_as(tables, value, scalar_type),
             assumption: &|index, _| Ok(Cited::Index(index)),
             axiom: &|index| Ok(index),
@@ -975,6 +1089,7 @@ impl Instantiation {
         value: ValueId,
         scalar_type: ScalarType,
     ) -> Option<Moved> {
+        let scalar_type = self.scalar_type(scalar_type)?;
         match self.moved(value)? {
             Moved::Value(mine) => {
                 (tables.values.get(mine)?.scalar_type == scalar_type).then_some(Moved::Value(mine))
@@ -1150,7 +1265,11 @@ impl Carry<'_> {
         mine: &terminal_check_tables::values::ValueRow,
     ) -> bool {
         match theirs.rigid {
-            None => theirs == mine,
+            None => {
+                mine.rigid.is_none()
+                    && mine.origin == theirs.origin
+                    && self.instantiation.scalar_type(theirs.scalar_type) == Some(mine.scalar_type)
+            }
             Some(rigid) => {
                 mine.rigid.is_none()
                     && mine.origin == theirs.origin
@@ -1401,6 +1520,7 @@ impl Carry<'_> {
             })
         };
         Transport {
+            scalar_type: &|scalar| self.instantiation.scalar_type(scalar),
             value: &|value, scalar_type| {
                 self.instantiation.moved_as(self.tables, value, scalar_type)
             },
@@ -1696,6 +1816,7 @@ impl Carry<'_> {
         let (actuals, result) = self.call(invocation)?;
         let unsupported = |detail| self.refuse(RefusalReason::Unsupported, concerns, detail);
         Transport {
+            scalar_type: &Some,
             value: &|value, scalar_type| {
                 let position = usize::try_from(value.get() - 1).ok()?;
                 let mine = if position < witness.formals {
@@ -1769,5 +1890,111 @@ impl Carry<'_> {
                 unsupported("the refinement proof names a value that is not a formal or the result")
             })
         })
+    }
+}
+
+#[cfg(test)]
+mod width_transport_tests {
+    use super::*;
+    use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, WidthParameter};
+    use terminal_check_tables::values::{ValueOrigin, ValueRow};
+
+    fn instance() -> Instantiation {
+        Instantiation {
+            owner: MachineId::new(7).unwrap(),
+            types: Vec::new(),
+            authored: 1,
+            bound: vec![Some(
+                ScalarTerm::integer(
+                    IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                    IntegerValue::Unsigned(8),
+                )
+                .unwrap(),
+            )],
+        }
+    }
+
+    fn width(owner: u64) -> ScalarType {
+        ScalarType::Integer(IntegerType::parameterized(
+            IntegerSign::Unsigned,
+            WidthParameter {
+                owner: MachineId::new(owner).unwrap(),
+                value: ValueId::new(2).unwrap(),
+            },
+        ))
+    }
+
+    #[test]
+    fn a_width_argument_substitutes_only_its_own_machine_carriers() {
+        let applied = instance();
+        let byte = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+        assert_eq!(applied.scalar_type(width(7)), Some(byte));
+        assert_eq!(applied.scalar_type(width(8)), None);
+        let mut zero = instance();
+        zero.bound[0] = Some(
+            ScalarTerm::integer(
+                IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                IntegerValue::Unsigned(0),
+            )
+            .unwrap(),
+        );
+        assert_eq!(zero.scalar_type(width(7)), None);
+    }
+
+    #[test]
+    fn a_carried_clause_changes_value_ids_and_integer_width_together() {
+        let instance = instance();
+        let byte = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+        let mut tables = MachineTables::default();
+        tables.values.push(ValueRow {
+            scalar_type: byte,
+            origin: ValueOrigin::MachineParameter { position: 0 },
+            rigid: None,
+        });
+        tables.values.push(ValueRow {
+            scalar_type: byte,
+            origin: ValueOrigin::MachineResult,
+            rigid: None,
+        });
+        let transport = Transport {
+            scalar_type: &|scalar| instance.scalar_type(scalar),
+            value: &|value, scalar| instance.moved_as(&tables, value, scalar),
+            assumption: &|index, _| Ok(Cited::Index(index)),
+            axiom: &Ok,
+            refused: std::cell::RefCell::new(None),
+        };
+        let generic = Proposition::Equal(
+            ScalarTerm::value(ValueId::new(3).unwrap(), width(7)),
+            ScalarTerm::value(ValueId::new(1).unwrap(), width(7)),
+        );
+        let expected = Proposition::Equal(
+            ScalarTerm::value(ValueId::new(2).unwrap(), byte),
+            ScalarTerm::value(ValueId::new(1).unwrap(), byte),
+        );
+        assert_eq!(transport.proposition(&generic), Some(expected.clone()));
+        expected.validate().unwrap();
+        assert!(
+            transport
+                .term(&ScalarTerm::value(ValueId::new(1).unwrap(), width(8)))
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn one_width_binder_cannot_be_two_specialization_arguments() {
+        let mut instance = instance();
+        let u64_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+        assert!(instance.bind(
+            ValueId::new(2).unwrap(),
+            ScalarTerm::integer(u64_type, IntegerValue::Unsigned(8)).unwrap()
+        ));
+        assert!(!instance.bind(
+            ValueId::new(2).unwrap(),
+            ScalarTerm::integer(u64_type, IntegerValue::Unsigned(32)).unwrap()
+        ));
+        assert!(!instance.bind(
+            ValueId::new(1).unwrap(),
+            ScalarTerm::integer(u64_type, IntegerValue::Unsigned(8)).unwrap()
+        ));
     }
 }
