@@ -3070,6 +3070,22 @@ pub fn visit_expression(
     if !expression.is_valid() || !retained.expression(expression) {
         return;
     }
+    if retained.derived_declaration_references() {
+        visit_type_reference(
+            program,
+            retained,
+            program
+                .expression_table
+                .constructed_value_type_reference(expression),
+        );
+        visit_type_reference(
+            program,
+            retained,
+            program
+                .expression_table
+                .construction_required_type_reference(expression),
+        );
+    }
     let authored = program.expression_table.materialization_source(expression);
     if authored.is_valid() && retained.type_expression(authored) {
         visit_expression(program, retained, authored);
@@ -3554,20 +3570,6 @@ fn visit_machine_with_sidecars(
             visit_symbol(retained, specialization.template);
             visit_type_parameters(program, retained, specialization.template_parameters);
             visit_static_machine_bindings(program, retained, specialization.binding_application);
-            for realization in &specialization.operator_realizations {
-                for argument in &realization.arguments {
-                    use crate::operator::ClosedOperatorApplicationArgument;
-                    let reference = match argument {
-                        ClosedOperatorApplicationArgument::Type { type_reference, .. } => {
-                            *type_reference
-                        }
-                        ClosedOperatorApplicationArgument::Const {
-                            declared_carrier, ..
-                        } => *declared_carrier,
-                    };
-                    visit_type_reference(program, retained, reference);
-                }
-            }
             for application in &specialization.conformance_applications {
                 visit_closed_conformance(program, retained, application);
             }

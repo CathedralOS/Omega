@@ -233,6 +233,12 @@ impl<'t> Program<'t> {
                     ) => (ExpressionKind::Not(Box::new(operand)), ScalarType::Boolean),
                     (
                         UnaryOperator::BitwiseNot,
+                        Some(ValueType::Scalar(ScalarType::Integer(address), Qualification::NONE)),
+                    ) if address.is_address() => {
+                        return unserved("arithmetic on an address");
+                    }
+                    (
+                        UnaryOperator::BitwiseNot,
                         Some(ValueType::Scalar(
                             integer @ ScalarType::Integer(_),
                             Qualification::NONE,
@@ -334,6 +340,28 @@ impl<'t> Program<'t> {
                     self.wholly_anonymous(binary.left),
                     self.wholly_anonymous(binary.right),
                 );
+                // An address is compared, never computed with here: address
+                // arithmetic relates counts to addresses under a fit proof
+                // (counts_and_addresses.md), which this reader does not form.
+                let address = |operand: &Expression| {
+                    matches!(
+                        operand.result.and_then(ValueType::scalar),
+                        Some(ScalarType::Integer(integer)) if integer.is_address()
+                    )
+                };
+                if (address(&left) || address(&right))
+                    && !matches!(
+                        binary.operator,
+                        BinaryOperator::Equal
+                            | BinaryOperator::NotEqual
+                            | BinaryOperator::Less
+                            | BinaryOperator::LessOrEqual
+                            | BinaryOperator::Greater
+                            | BinaryOperator::GreaterOrEqual
+                    )
+                {
+                    return unserved("arithmetic on an address");
+                }
                 return match suffix {
                     None => binary_expression(id, binary.operator, left, right, anonymous, source),
                     Some(policy) => suffixed_expression(
@@ -1026,7 +1054,7 @@ fn suffixed_expression(
     let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
     let shift = crate::policy::shifts(crate::policy::suffixed(operator).map_err(unserved)?);
     if anonymous == (true, true) {
-        return Err(unserved(crate::policy::WHOLLY_ANONYMOUS));
+        return Err(crate::reject(id, source, crate::policy::WHOLLY_ANONYMOUS));
     }
     let under_policy = |operand: Expression| match operand.result {
         Some(ValueType::Scalar(carrier @ ScalarType::Integer(_), Qualification::NONE)) => {
@@ -1037,7 +1065,12 @@ fn suffixed_expression(
                 source,
             })
         }
-        _ => Err(unserved(crate::policy::QUALIFIED_OPERAND)),
+        Some(ValueType::Scalar(..) | ValueType::Record(..)) => {
+            Err(crate::reject(id, source, crate::policy::QUALIFIED_OPERAND))
+        }
+        // An unresolved carrier is not evidence that the source violates
+        // the integer-only rule. Keep that implementation gap distinct.
+        Some(ValueType::Rigid(_)) | None => Err(unserved(crate::policy::QUALIFIED_OPERAND)),
     };
     let left = if anonymous.0 {
         left
@@ -1139,6 +1172,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
             }
             (ExpressionKind::Index { base: a, index: ai }, ExpressionKind::Index { base: b, index: bi }) => both(a, b) && both(ai, bi),
             (ExpressionKind::ByteElement { base: a, index: ai }, ExpressionKind::ByteElement { base: b, index: bi }) => both(a, b) && both(ai, bi),
+            (ExpressionKind::ArrayView { base: a, access: aa, element: ae }, ExpressionKind::ArrayView { base: b, access: ba, element: be }) => aa == ba && ae == be && both(a, b),
             (ExpressionKind::ByteSubslice { base: a, start: ast, end: ae }, ExpressionKind::ByteSubslice { base: b, start: bst, end: be }) => both(a,b) && match (ast,bst) { (Some(a),Some(b)) => both(a,b), (None,None) => true, _ => false } && match (ae,be) { (Some(a),Some(b)) => both(a,b), (None,None) => true, _ => false },
             (ExpressionKind::Record { fields: a }, ExpressionKind::Record { fields: b }) => {
                 a.len() == b.len()
@@ -1234,6 +1268,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
             | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::CollectionMeasure { .. }
                 | ExpressionKind::ByteElement { .. }
+            | ExpressionKind::ArrayView { .. }
             | ExpressionKind::ByteSubslice { .. }
                 | ExpressionKind::Boolean(_)
                 | ExpressionKind::Slot(_)

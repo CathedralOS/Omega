@@ -73,9 +73,6 @@ pub use compile::source_compilation::{
 };
 pub use project::publication;
 
-#[cfg(test)]
-mod build_boundary;
-
 pub use build::build;
 pub use build_session::BuildSession;
 pub use compile::build_execution::source_resolution::{

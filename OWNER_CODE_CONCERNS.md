@@ -73,13 +73,6 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
-### MSVC refuses an existing 266-character managed dependency path
-- Category: verifying costs more than writing
-- Where: mbx 1.29.2 managed targets (`target.views` / `target.lanes`), [tools/docs/testing.md:537](tools/docs/testing.md#L537)
-- Saw: worker-18's focused `mbx test -p machine-emission --lib` compiled its source, then failed linking with LNK1104 on the stage-07 dependency rlib. The file exists and opens through .NET. MSVC's own `/dump /headers` fails on its 266-character managed path (1104) and succeeds on the same file's 209-character checkout alias (0). A command-local `MBX_TARGET_VIEWS=false` retry still supplied the retained long dependency path; no target cleanup or global settings change was requested.
-- Cost: a compiled focused test never executes, and a plain retry repeats the same infrastructure failure. Repair or isolate the long-path publication route without cleaning shared caches or changing settings of live peer builds.
-- Reported: 2026-11-14, Codex, while removing default native stage-output replay
-
 ### The standard library declares two public things named `DarwinClock`
 - Category: one idea, several implementations
 - Where: [source/library/std/macos_gui.omg:586](source/library/std/macos_gui.omg#L586) (`public boundary trait DarwinClock`) and [source/library/std/targets/macos_arm64/clock_impl.omg:26](source/library/std/targets/macos_arm64/clock_impl.omg#L26) (`public DarwinClock satisfies Clock`)
@@ -93,13 +86,6 @@ framework or a list of features that remain unimplemented.
 - Saw: `form` refuses a data type in a Build's choice but accepts one in a `provider_defaults` machine. provider_selection.md, "Declaration and choice", says a target package "supplies ordinary named default provider implementations" and "A data type or runtime provider descriptor is not such a value", with no exception for defaults. `std`'s ProcessExit defaults, its only user, now select the named `NativeProcessExit`; the last user anywhere is `samples/cli/probes/device_extent_access` (`LoopbackDeviceLoanProvider`), which is written in other retired forms too (`via`, target-prefixed machines)
 - Cost: a second, looser reading of the Provider position stays served for no library; delete `DefaultClosure` and the `ProviderForm` parameter, turn the test into the refusal twin, and give the probe a named implementation
 - Reported: 2026-11-14, worker-15 (Claude Code), while moving std's ProcessExit defaults to a named implementation
-
-### A selected provider plan travels in two carriers, and only one knows its provider declaration
-- Category: 1. One idea, several implementations.
-- Where: `omega-rust/omega/compilation/realization/selected-dispatch/src/selected_execution.rs` (`SelectedExecution`), `backend-plan/src/target_providers.rs:30` (`TerminalTargetProviderPlan`), `effects/src/provider_evidence.rs:200` (`SelectedProviderPlanFacts`)
-- Saw: the checked-adapter join needs each plan's selecting declaration, which `ProviderPlan` does not hold; `TerminalTargetProviderPlan` wraps the plan with it, `SelectedProviderPlanFacts` sorts and validates bare plans, so `SelectedExecution` keeps both and `require_selected_provider_declarations` rejoins them by equality.
-- Cost: every consumer of selected plans must be handed both carriers and trust they agree; the declaration belongs in the plan.
-- Reported: 2026-11-14, Claude Code worker-10, while forming provider plans from settled supplies.
 
 ### Compiler operations are recognized by their bare spelling, and no declaration answers them
 - Category: one idea, several implementations
@@ -149,13 +135,6 @@ framework or a list of features that remain unimplemented.
 - Saw: about fifty comments said "the current checker" does this or that; they now say "the deleted checker" did, which is true but leaves the reasoning hollow where the old checker was the reason: a retired spelling is served because refusing it "would only send the same program" to a checker that accepted it, and message wording is pinned to that checker's sentences. The `Knowledge` knob is threaded through discharge only for the comparison example this change deleted
 - Cost: a reader cannot tell which behaviours are the specification's and which were kept for agreement with a checker that no longer exists, and the knob is dead weight in every discharge signature
 - Reported: 2026-11-13, Claude Code, while removing the two-checker names
-
-### A clause the specification rejects can only be reported as not supported yet
-- Category: a verdict with nothing behind it
-- Where: `omega-rust/psi/compilation/representations/terminal-psi/check-tables/src/lib.rs` (`RefusalReason`); `05_typed-trees-to-terminal-psi/src/read/contracts.rs` (`term`, the `Trapping` arm)
-- Saw: `ensures result == left +! right` is an error of the program (`wiki/spec/proofs/contracts.md`, "Total arithmetic": an operation that can transfer control "cannot form a proof term"), but the reader's only negative result that is not a storage or ownership judgment is `Unsupported`, so the clause is refused with the same outcome as a construct nobody has built yet. A wholly anonymous `7 +% 1` and a suffix on a qualified operand are reported the same way
-- Cost: the author is told the compiler cannot judge a program that the language forbids, and a test cannot tell a rule of the language from a gap in the checker
-- Reported: 2026-11-13, Claude Code, while reading suffixed operators in contracts
 
 ### `Console::exit_process` ends the process without publishing `reaches ProcessExit`
 - Category: a verdict with nothing behind it
@@ -227,13 +206,6 @@ framework or a list of features that remain unimplemented.
 - Cost: an overflow or zero divisor that native code would trap on shows up as "the verified artifact is malformed" with no reason, so a native and Psi disagreement reads as an interpreter failure and the cause must be found by hand
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### Architecture rules are enforced by searching source text for substrings
-- Category: tests that pin the bug
-- Where: `omega-rust/omega/compilation/compiler/src/product_boundary.rs`, `omega-rust/omega/build-system/orchestration/src/build_boundary.rs`, `omega-rust/omega/compilation/native-compiler/src/pipeline_boundary.rs`, `omega-rust/omega/compilation/realization/provider-planning/src/source_guards.rs`, `omega-rust/omega/compilation/backend/plans/program-entry-plan/src/source_guards.rs`, `omega-rust/psi/foundation/access-plans/src/tests.rs`, `omega-rust/psi/interpreter/terminal-interpreter/src/embedding.rs`
-- Saw: these tests assert that source strings are present, absent or ordered, rather than exercise the owned operation or dependency boundary. The compiler guards pinned fields of the deleted custody and had to lose those assertions when it was removed; they never established that custody had a producer. The stage-05 guards themselves are gone.
-- Cost: harmless renaming breaks tests while equivalent forbidden behavior can pass under another spelling. Move actual dependency rules to the boundary checker and use behavior tests for custody and execution claims; do not mechanically preserve old strings or test totals.
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
 ### Typing refuses its own questions as if they waited for the checker
 - Category: a stage reaching across a boundary
 - Where: `03_symbol-resolved-trees-to-typed-trees/src/lib.rs` (`unavailable_judgment`) and its 26 callers, such as `typing_queries.rs` ("constructor field type", "call entry parameter types") and `type_reference.rs` ("closed const argument declaration custody")
@@ -248,19 +220,19 @@ framework or a list of features that remain unimplemented.
 - Cost: each remaining gate must be served for the entire library before any program compiles, or be moved onto the same carrier one by one as a program meets it
 - Reported: 2026-11-13, Claude Code, while getting the route probe through typing
 
-### A generated machine is identified three ways and copied by a hand-kept list
-- Category: one idea, several implementations
-- Where: `typed-trees` (`MachineSpecialization` rows, `Symbol::generated_from`, `executable_application_template`); `05_typed-trees-to-terminal-psi/src/lib.rs` (`template_of`), `read/calls.rs` (`applies_nothing`), `declare.rs`; `04_typed-trees-to-typed-trees/src/passes/specialization.rs` (`template`, `held_types`)
-- Saw: "this machine was generated from that generic machine" is read from the state symbol's `generated_from` in three places and from the `machine_specializations` row in a fourth, and nothing ties the two; the row also keeps eight string and commitment fields that only the deleted checker filled. Separately, an expression copy shares the types its nodes hold, so the pass lists by hand which node kinds hold a type (`held_types`) and which body constructs it cannot copy
-- Cost: a pass that sets one marker and not the other produces a machine the reader accepts and the declaration step refuses, or the reverse; a new expression node that holds a type is silently left pointing at the generic machine's type until someone adds it to the list
-- Reported: 2026-11-13, Claude Code, while rebuilding specialization as a typed preparation pass
-
 ### A typing unit test is red on `main` and nothing runs it before merge
 - Category: a test that pins nothing while it is red
 - Where: `03_symbol-resolved-trees-to-typed-trees/src/call_and_product_selections.rs`, `construction_destinations::tests::an_assigned_literal_lands_on_its_binding_or_refuses_its_own_machine`
 - Saw: at `6f829063b3ed7` the test fails with no local change: `owned = Record {}` is asserted to be built at the type handle written on `owned` and gets a different handle (index 3, not 1), so either landing now inserts an equal copy of the type or the assertion compares identity where it means equality
 - Cost: `mbx test -p symbol-resolved-trees-to-typed-trees --lib` cannot be clean for anyone changing typing, so a second regression in the same crate hides behind the first
 - Reported: 2026-11-13, Claude Code, while accounting for domain casts in typing
+
+### Two type-table tests expect an array-index refusal the table no longer makes
+- Category: a test that pins nothing while it is red
+- Where: `typed-trees/src/type_system.rs`, `instantiation_refuses_a_binder_spelling_an_array_length` and `instantiation_applies_the_substitution_to_domain_arguments`
+- Saw: at fixed base `44ed2132219fb20261abeab4ef3e61b4ab0f845a`, `mbx test -p typed-trees --lib type_system::types::tests::instantiation_` passes the unchanged-row case and fails these two tests. They expect a bound array extent to refuse; `TypeReferenceTable::instantiate` explicitly forwards a valid named argument as an extent binder instead. The table has no symbol table with which to distinguish that forwarded value binder from the tests' named data type
+- Cost: the crate's unit suite is red independently of generated-machine ownership changes; the tests and the substitution owner's contract need to agree without weakening source-level value-index eligibility
+- Reported: 2026-11-14, Codex, while attributing the focused generated-application validation failures against its unchanged base
 
 ### The parser still accepts a boundary requirement with no `crashes` clause
 - Category: a verdict with nothing behind it

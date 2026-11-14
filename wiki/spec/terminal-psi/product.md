@@ -239,7 +239,7 @@ including [content-identified anonymous roots](../build/declarations.md#default-
 Dependency references preserve those identities across separate consumption;
 importing a product does not re-own its declarations. This provenance is distinct
 from the exact product's semantic digest and its later native realization.
-Reloading or moving a product, or clearing a compiler cache, cannot rename its
+Reloading or moving a product cannot rename its
 declarations. No global catalog of previous compilations establishes identity
 or acceptance. Products missing required provenance must reject the affected
 nominal import rather than guess it from a path or same-spelled declaration.

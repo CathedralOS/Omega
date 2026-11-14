@@ -409,6 +409,15 @@ fn a_call_through_an_implementation_parameter_enters_the_selected_operation() {
     assert_eq!(bound.symbol, hold);
 
     let generated = program.symbols.get(at_hold.target_symbol).parent;
+    let receipt = program.machine_specialization(generated).unwrap();
+    let key = program.specialization_source_identity(receipt).unwrap();
+    let mut alias = receipt.clone();
+    alias.binding_application = at_held.authored_machine_application;
+    assert_eq!(
+        key,
+        program.specialization_source_identity(&alias).unwrap(),
+        "two names of the same implementation value have one source application key"
+    );
     assert_eq!(
         program
             .executable_application_template(generated)

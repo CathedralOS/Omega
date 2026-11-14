@@ -1442,9 +1442,7 @@ pub use commitments::{
     CapturedMachineApplication, CapturedMachineState, ClosedConformanceApplication,
     ClosedConformanceApplicationCommitment, ClosedConformanceApplicationSite,
     ClosedConformanceConstArgument, ClosedConformanceRowIdentity, DataImplementationApplication,
-    MachineSpecialization, MachineSpecializationCommitment, MachineTemplateCommitment,
-    StaticRequirementDispatch, TraitImplementationApplication,
-    machine_specialization_matches_template_identity,
+    MachineSpecialization, StaticRequirementDispatch, TraitImplementationApplication,
 };
 
 use arena::{Arena, Handle, HandleSpan, OwnedIndex, OwnedInterner};
@@ -1699,9 +1697,12 @@ impl TypedTrees {
         &self,
         instance: symbols::SymbolHandle,
     ) -> Option<&MachineSpecialization> {
-        self.machine_specializations
-            .iter()
-            .find(|specialization| specialization.instance == instance)
+        match self.machine_instantiation(instance).ok()?? {
+            callable_applications::MachineInstantiation::Specialization(application) => {
+                Some(application)
+            }
+            callable_applications::MachineInstantiation::Capture(_) => None,
+        }
     }
 
     /*

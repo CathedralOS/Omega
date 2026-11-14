@@ -541,6 +541,7 @@ fn expression_homes<'b>(
         | ExpressionKind::Establish { operand, .. }
         | ExpressionKind::Referent(operand)
         | ExpressionKind::Field { base: operand, .. }
+        | ExpressionKind::ArrayView { base: operand, .. }
         | ExpressionKind::CollectionMeasure { base: operand, .. }
         | ExpressionKind::Payload { base: operand, .. }
         | ExpressionKind::IsCase {
@@ -1251,6 +1252,80 @@ impl<'a> Lowering<'a> {
                     fresh: true,
                 }))
             }
+            ExpressionKind::ArrayView {
+                base,
+                access,
+                element,
+            } => {
+                let captured = continuing!(self.capture_place(base, None));
+                let lent = self.captured_loan(base, *access, captured, None)?;
+                let operation = self.operation_identity(expression.source);
+                let before = self.here()?;
+                self.obligation(
+                    ObligationKind::Loan {
+                        captured: lent.place,
+                        access: *access,
+                        lender: lent.lender,
+                    },
+                    before,
+                    expression.source,
+                );
+                let source = StructuralArgument {
+                    place: lent.argument.0,
+                    path: self.storage_path(
+                        &lent.argument.1,
+                        ExecutionSite::Operation(operation),
+                        expression.source,
+                    )?,
+                    access: lent.argument.2,
+                };
+                let (root, place) = self.root(
+                    StructuralPlaceKind::OperationResult {
+                        producer: operation,
+                        structural_type: record,
+                    },
+                    record,
+                )?;
+                let region = terminal_psi::ElementViewRegion::WholeCollection;
+                let kind = match access {
+                    language_core::ReferenceAccess::Shared => OperationKind::EstablishElementView {
+                        destination: root,
+                        source,
+                        element: *element,
+                        region,
+                    },
+                    language_core::ReferenceAccess::Mutable => {
+                        OperationKind::EstablishMutableElementView {
+                            destination: root,
+                            source,
+                            element: *element,
+                            region,
+                        }
+                    }
+                    language_core::ReferenceAccess::WriteOnly => {
+                        return Err(self.internal("write-only array view"));
+                    }
+                };
+                let multiplicity = self.records.multiplicity(record, self.id)?;
+                self.draft()?.operations.push(Operation::unsuspended(
+                    operation,
+                    OperationResult::Structural(owned_result(root, record, multiplicity)),
+                    kind,
+                ));
+                self.point = Some(ProgramPoint::AfterOperation(operation));
+                self.write(
+                    place,
+                    ProgramPoint::AfterOperation(operation),
+                    Content::Overwritten,
+                )?;
+                Ok(Reached::Value(Located {
+                    root,
+                    place,
+                    path: Vec::new(),
+                    record,
+                    fresh: true,
+                }))
+            }
             ExpressionKind::ByteSubslice { base, start, end } => {
                 // Capture the descriptor before evaluating either endpoint.
                 // A later call may replace the original descriptor home.
@@ -1674,6 +1749,13 @@ impl<'a> Lowering<'a> {
                 ValueType::record(record),
                 Some(root),
             )
+        } else if matches!(value_type, ValueType::Record(..)) {
+            // Structural values already have a canonical location. Borrow
+            // that location without copying affine permission; a fresh
+            // operation result is temporary for this call.
+            let at = continuing!(self.located(place));
+            let temporary = at.fresh.then_some(at.root);
+            (at.root, at.path, at.place, value_type, temporary)
         } else {
             let (root, steps, exact, actual) =
                 continuing!(self.capture_place(place, home_identity));
@@ -2637,6 +2719,9 @@ impl<'a> Lowering<'a> {
         value: &Expression,
         source: SourceOrigin,
     ) -> Evaluation<()> {
+        if let ExpressionKind::ByteElement { base, index } = &destination.kind {
+            return self.store_byte_element(base, index, value, source);
+        }
         // Capturing visits the destination before the right-hand side and
         // retains each selector's exact SSA value in the existing Step roster.
         let (root, steps, place, expected) = continuing!(self.capture_place(destination, None));
@@ -2743,6 +2828,77 @@ impl<'a> Lowering<'a> {
                 .map(Reached::Value)
             }
         }
+    }
+
+    /// Capture the destination before evaluating its index and replacement.
+    /// The view lends backing storage; writing a byte never replaces its descriptor.
+    fn store_byte_element(
+        &mut self,
+        base: &Expression,
+        index: &Expression,
+        value: &Expression,
+        source: SourceOrigin,
+    ) -> Evaluation<()> {
+        let (root, path, exact, actual) = continuing!(self.capture_place(base, None));
+        let ValueType::Record(record, _, _) = actual else {
+            return Err(self.internal("a byte store has no descriptor type"));
+        };
+        if !path.is_empty() {
+            return Err(refuse(
+                self.id,
+                Construct::Machine,
+                Unserved::Statement("byte store through a descriptor stored in a field"),
+            ));
+        }
+        if !matches!(
+            self.record_type(record)?.shape,
+            StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: Some(StructuralAccess::MutableBorrow)
+            })
+        ) {
+            return Err(self.internal("a byte store lost mutable descriptor access"));
+        }
+        self.name_contents(exact, actual)?;
+        let selector = continuing!(self.scalar(index));
+        let replacement = continuing!(self.scalar(value));
+        let count = ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .expect("u64 is valid"),
+        );
+        let measurement = self.operation_identity(source);
+        let Value::Scalar(length) = self.emit(
+            measurement,
+            Some(count),
+            OperationKind::ByteSequenceLength {
+                source: StructuralArgument::whole(root, StructuralAccess::SharedBorrow),
+            },
+        )?
+        else {
+            return Err(self.internal("a byte extent produced no scalar"));
+        };
+        let operation = self.operation_identity(source);
+        let before = self.here()?;
+        let obligation = self.obligation(
+            ObligationKind::OperationSafety {
+                site: ExecutionSite::Operation(operation),
+            },
+            before,
+            source,
+        );
+        self.emit(
+            operation,
+            None,
+            OperationKind::ByteSequenceWrite {
+                destination: root,
+                index: selector,
+                value: replacement,
+                length,
+                obligation,
+            },
+        )?;
+        // The payload changed; the descriptor and its extent did not. There
+        // is no structural descriptor-store row to publish for this operation.
+        Ok(Reached::Value(()))
     }
 
     /// A constant zero of a scalar type.

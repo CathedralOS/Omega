@@ -31,7 +31,7 @@ impl Program<'_> {
             .find(|definition| definition.symbol == symbol)
     }
 
-    fn address_bound(&self, expression: ExpressionHandle) -> bool {
+    pub(super) fn address_bound(&self, expression: ExpressionHandle) -> bool {
         let symbol = match self.typed.expression_table.expression(expression) {
             ExpressionNode::Name(name) => name.symbol,
             ExpressionNode::Member(member) => member.selection.field_symbol(),

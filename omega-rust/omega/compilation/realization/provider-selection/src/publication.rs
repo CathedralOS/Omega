@@ -43,8 +43,6 @@ pub enum CanonicalProviderDeclaration {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreparedProviderRealizations<Owner = ()> {
-    pub provider_declaration: Option<String>,
-    pub row_numeric_realizations: Vec<Option<String>>,
     pub declarations:
         Result<language_semantics::provider_declarations::ProviderDeclarations, Diagnostic>,
     pub owner: Owner,
@@ -191,8 +189,6 @@ impl<Owner, Origin> PreparedTargetChoices<Owner, Origin> {
                 let owner = choice
                     .owner
                     .map(|realizations| PreparedProviderRealizations {
-                        provider_declaration: realizations.provider_declaration,
-                        row_numeric_realizations: realizations.row_numeric_realizations,
                         declarations: realizations.declarations,
                         owner: map(&choice.plan, realizations.owner),
                     });
@@ -580,11 +576,9 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
                 roots.push(body);
             }
         }
-        let plans = effects::SelectedProviderPlanFacts::from_selected_plans(
-            selected.plans.iter().map(|row| row.plan.clone()).collect(),
-        )
-        .map_err(|reason| vec![Diagnostic::error(reason)])?
-        .with_assumed_bindings(selected.assumed_bindings.clone());
+        let plans = effects::SelectedProviderPlanFacts::from_selected_plans(selected.plans.clone())
+            .map_err(|reason| vec![Diagnostic::error(reason)])?
+            .with_assumed_bindings(selected.assumed_bindings.clone());
         for (required, supplied) in plans
             .assumed_binding_coordinates(module)
             .map_err(|reason| vec![Diagnostic::error(reason)])?
@@ -623,7 +617,6 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
                         let providers = crate::CallbackProviderDeclarations::prepare(
                             &enriched,
                             &metadata.declarations,
-                            &selected.plans,
                             module,
                         )?;
                         let mut uses = crate::select_callback_declarations(
@@ -780,12 +773,8 @@ fn describe_selection<Owner, Origin>(
 ) -> Result<backend_plan::TerminalTargetProviderSelection, Vec<Diagnostic>> {
     let mut plans = Vec::with_capacity(selected.len());
     for selected in selected {
-        let realizations = selected.candidate.owner.as_ref().map_err(Clone::clone)?;
-        plans.push(backend_plan::TerminalTargetProviderPlan {
-            plan: selected.candidate.plan.clone(),
-            provider_declaration: realizations.provider_declaration.clone(),
-            row_numeric_realizations: realizations.row_numeric_realizations.clone(),
-        });
+        selected.candidate.owner.as_ref().map_err(Clone::clone)?;
+        plans.push(selected.candidate.plan.clone());
     }
     let mut selection = backend_plan::TerminalTargetProviderSelection::from_plans(plans, artifact)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;

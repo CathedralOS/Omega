@@ -124,31 +124,53 @@ impl Program<'_> {
                 let Some(stored) = place.result else {
                     return Err(typing());
                 };
+                // A byte assignment writes through the view, not over its
+                // descriptor. Keep the read expression out of the place walk.
+                let storage = if let ExpressionKind::ByteElement { base, .. } = &place.kind {
+                    let Some(value_type @ ValueType::Record(record, _, _)) = base.result else {
+                        return Err(typing());
+                    };
+                    if !matches!(
+                        self.data_type(id, record)?.shape,
+                        crate::StorageShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                access: Some(terminal_psi::StructuralAccess::MutableBorrow)
+                            }
+                        )
+                    ) {
+                        return Err(unserved("store through a byte view without mutable access"));
+                    }
+                    self.authorized(id, value_type, Access::Write)?;
+                    base.as_ref()
+                } else {
+                    &place
+                };
+                let byte_store = matches!(place.kind, ExpressionKind::ByteElement { .. });
                 let root = super::storage_path::walk(
-                    &place,
+                    storage,
                     |_| Err(unserved("store into a value that is not a local")),
-                    |projection, _| {
-                        // A payload is stored into through its case's
-                        // dispatch binding or a directly authored member
-                        // (`s.at = x`); neither store is lowered yet.
-                        if matches!(projection.kind, ExpressionKind::Payload { .. }) {
-                            return Err(unserved("store into a case payload"));
-                        }
-                        Ok(())
-                    },
+                    // The captured path retains a payload's exact case and
+                    // field. Storage checking proves that case at the store;
+                    // ancestry itself grants no membership or write authority.
+                    |_, _| Ok(()),
                 )?;
                 let ExpressionKind::Slot(slot) = root.kind else {
                     return Err(unserved("store into a value that is not a local"));
                 };
                 let crossed = self.reference_place_access(
                     id,
-                    &place,
+                    storage,
                     language_core::ReferenceAccess::Mutable,
                 )?;
-                if !crossed && !slots[slot].assignable {
+                if !crossed && !byte_store && !slots[slot].assignable {
                     return Err(unserved("store into an immutable binding"));
                 }
-                self.written_through(id, &place)?;
+                if byte_store
+                    && slots[slot].borrowed == Some(language_core::ReferenceAccess::Shared)
+                {
+                    return Err(unserved("store through shared descriptor storage"));
+                }
+                self.written_through(id, storage)?;
                 let value = self.expression(id, slots, assignment.value, Some(stored))?;
                 if !self.agrees(value.result, stored) {
                     return Err(assigned(self, &value, stored));

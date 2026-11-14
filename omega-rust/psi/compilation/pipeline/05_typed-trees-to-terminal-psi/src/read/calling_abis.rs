@@ -560,9 +560,14 @@ mod descriptor_storage_tests {
         let entry = MachineId::new(1).unwrap();
         let original = typed.type_reference_table.type_reference(qualified).clone();
         let mut executable = Program::new(&typed, false);
+        // An address is a plain scalar in a body, carried and compared
+        // (`atom_type`). The record that holds its custody is still not
+        // admitted there.
         assert_eq!(
-            executable.value_type(entry, address).unwrap_err().detail,
-            "type addr"
+            executable.value_type(entry, address).unwrap().scalar(),
+            Some(ScalarType::Integer(
+                IntegerType::supported_address_representation()
+            ))
         );
         assert_eq!(
             executable.value_type(entry, record).unwrap_err().detail,
