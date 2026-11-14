@@ -233,7 +233,7 @@ impl NativeLocatorValue for ValueRef<'_> {
             return Err(format!("{label} has no owned fixed-byte array carrier"));
         };
         if *length != width
-            || !matches!(element.as_ref(), TerminalBuildValueShape::Scalar(semantic_vocabulary::ScalarType::Integer(carrier)) if carrier.bits() == 8 && carrier.sign() == IntegerSign::Unsigned && !carrier.is_address())
+            || !matches!(element.as_ref(), TerminalBuildValueShape::Scalar(semantic_vocabulary::ScalarType::Integer(carrier)) if carrier.bits() == Some(8) && carrier.sign() == IntegerSign::Unsigned && !carrier.is_address())
         {
             return Err(format!(
                 "{label} width or element carrier differs from its checked native coordinate"
