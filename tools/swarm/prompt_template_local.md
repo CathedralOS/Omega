@@ -61,8 +61,8 @@ compiler work; never edit the coordinator's main checkout.
 ## Host
 
 {host_block} Use `{build_tool}` in place of `cargo` for compile and test
-commands (`{build_tool} check`, `{build_tool} nextest run`); `cargo fmt` and
-`cargo clean` stay direct Cargo invocations.
+commands (`{build_tool} check`, `{build_tool} nextest run`). Format with
+`mbx xtask fmt`.
 
 Read `.agents/skills/swarm/references/host-setup.md`. All slots share this machine's
 CPU, memory, disks and MBX storage; your worktree is source isolation, not an
@@ -81,7 +81,7 @@ actual architecture, not every OS supported by the repository.
 From the repository root (`{repository}`):
 
     mbx xtask claims status
-    {claim_command}
+    mbx xtask claims claim --item <item> [--board <file>] [--owner <name>] [--path <paths>]
 
 The claim records what you are doing so other sessions can see it; it grants
 nothing and blocks nothing. Another claim on the same customer or on overlapping

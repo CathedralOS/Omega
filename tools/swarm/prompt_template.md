@@ -45,17 +45,16 @@ adjacent journeys will reveal their own needs when undertaken.
 ## Host
 
 You are on Linux x86-64. `mbx` is installed when your snapshot carries the
-blueprint step (run `mbx --version` once; if absent use `cargo` everywhere
-AGENTS.md says `mbx`, per its documented fallback). `cargo nextest` is
-installed. Windows, macOS, and QEMU acceptance is unavailable on this host
-and must be reported as unavailable, never as passing.
+blueprint step (run `mbx --version` once). Windows, macOS, and QEMU
+acceptance is unavailable on this host and must be reported as unavailable,
+never as passing.
 
 ## Coordination
 
 Register your assignment before editing so other machines, waves, and local
 sessions see it:
 
-`{claim_command}`
+`mbx xtask claims claim --item <item> [--board <file>] [--owner <name>] [--path <paths>]`
 
 The claim records what you are doing so other sessions can see it; it grants
 nothing and blocks nothing. Another claim on the same customer or on overlapping
