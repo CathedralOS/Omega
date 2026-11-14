@@ -2170,7 +2170,7 @@ pub(crate) mod resource_profile {
                 let valid = if boolean {
                     scalar == ScalarType::Boolean && self.width == 1
                 } else {
-                    matches!(scalar, ScalarType::Integer(integer) if integer.sign() == IntegerSign::Unsigned && integer.bits() == 64)
+                    matches!(scalar, ScalarType::Integer(integer) if integer.sign() == IntegerSign::Unsigned && integer.bits() == Some(64))
                         && self.width == 8
                 };
                 if !valid {
