@@ -244,6 +244,7 @@ fn selected_native_declarations_preserve_each_operational_flag() {
         let elaboration = crate::elaborate(
             &fixture.typed,
             crate::Compilation {
+                declaration_metadata: &[],
                 entries: &[],
                 subjects: &[],
                 purpose: DependencyScope::Product,
