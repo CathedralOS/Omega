@@ -58,6 +58,21 @@ struct BindingState {
     installed_providers: Vec<InstalledBuildProvider>,
     query: Option<product_queries::PendingQuery>,
     descriptions: Vec<product_queries::IssuedDescription>,
+    /// The selections and native formations the modules of earlier stages
+    /// of this activation declared (`admission/build_stages.rs`).
+    carried_declarations: Vec<Arc<ProductDeclarationRequest>>,
+    carried_formations: Vec<NativeBindingFormation>,
+}
+
+/// What the binding host of a returned stage hands to the host of the next
+/// stage of the same activation: the selections executed so far, and what
+/// the earlier modules declared. Tickets and issued descriptions stay
+/// behind. Both name one module, and every ticket was committed.
+pub(crate) struct CarriedBindings {
+    executed: Vec<ExecutedBuildSelection>,
+    native_storage: Vec<evaluation_accounting::EvaluationStorageLease>,
+    declarations: Vec<Arc<ProductDeclarationRequest>>,
+    native_formations: Vec<NativeBindingFormation>,
 }
 
 struct InstalledBuildProvider {
@@ -147,12 +162,58 @@ impl TerminalBuildBindingHost {
         }))
     }
 
-    pub(crate) fn native_formations(&self) -> &[NativeBindingFormation] {
-        &self.native_formations
+    /// The native formations of every stage of this activation, earliest
+    /// first.
+    pub(crate) fn native_formations(&self) -> Result<Vec<NativeBindingFormation>, String> {
+        let mut formations = lock_state(&self.state)?.carried_formations.clone();
+        for formation in self.native_formations.iter() {
+            if !formations.contains(formation) {
+                formations.push(formation.clone());
+            }
+        }
+        Ok(formations)
     }
 
-    pub(crate) fn declared(&self) -> &[std::sync::Arc<ProductDeclarationRequest>] {
-        &self.declarations
+    /// The selections the modules of every stage of this activation
+    /// declare, earliest first.
+    pub(crate) fn declared(&self) -> Result<Vec<Arc<ProductDeclarationRequest>>, String> {
+        let mut declarations = lock_state(&self.state)?.carried_declarations.clone();
+        for declaration in self.declarations.iter() {
+            if !declarations.contains(declaration) {
+                declarations.push(Arc::clone(declaration));
+            }
+        }
+        Ok(declarations)
+    }
+
+    pub(crate) fn carry(&self) -> Result<CarriedBindings, String> {
+        let declarations = self.declared()?;
+        let native_formations = self.native_formations()?;
+        let mut state = lock_state(&self.state)?;
+        if state.pending.iter().any(Option::is_some)
+            || state.query.is_some()
+            || state.awaiting_provider.is_some()
+        {
+            return Err("a Build stage ended with an uncommitted request".to_owned());
+        }
+        Ok(CarriedBindings {
+            executed: std::mem::take(&mut state.executed),
+            native_storage: std::mem::take(&mut state.native_storage),
+            declarations,
+            native_formations,
+        })
+    }
+
+    pub(crate) fn adopt(&self, carried: CarriedBindings) -> Result<(), String> {
+        let mut state = lock_state(&self.state)?;
+        if !state.executed.is_empty() || !state.pending.is_empty() {
+            return Err("a Build stage adopts earlier selections before it runs".to_owned());
+        }
+        state.executed = carried.executed;
+        state.native_storage = carried.native_storage;
+        state.carried_declarations = carried.declarations;
+        state.carried_formations = carried.native_formations;
+        Ok(())
     }
 
     pub(crate) fn awaiting_provider(&self) -> Result<Option<BuildProviderRequest>, String> {

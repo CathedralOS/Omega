@@ -47,6 +47,12 @@ struct FilesystemActivation {
     markers: Vec<Marker>,
 }
 
+/// The filesystem runtime of a returned stage, handed to the host of the
+/// next stage of the same activation (`admission/build_stages.rs`): what the
+/// Build has read, staged and completed so far. Its markers name types of
+/// the earlier stage's module, so no later value equals one.
+pub(crate) struct CarriedFilesystem(FilesystemActivation);
+
 struct FilesystemFacets {
     source: TerminalStructuralValue,
     inputs: TerminalStructuralValue,
@@ -69,19 +75,22 @@ impl TerminalBuildFilesystemHost {
         account: &EvaluationInvocationAccount,
         scope: &BuildMachineFilesystemScope,
         machine_name: &str,
+        carried: Option<CarriedFilesystem>,
     ) -> Result<Arc<Self>, String> {
         let artifact = produced.view();
         let calls = produced
             .build_filesystem()
             .calls_for(artifact)
             .ok_or("Build filesystem calls lost their invocation custody")?;
-        let activation = if calls.is_empty() {
-            None
-        } else {
-            Some(FilesystemActivation {
+        // One runtime serves the whole activation. A later stage continues
+        // the runtime an earlier one began and begins one only when none did.
+        let activation = match carried {
+            Some(CarriedFilesystem(activation)) => Some(activation),
+            None if calls.is_empty() => None,
+            None => Some(FilesystemActivation {
                 runtime: scope.begin_filesystem_runtime(account.clone())?,
                 markers: Vec::new(),
-            })
+            }),
         };
         Ok(Arc::new(Self {
             artifact: artifact.custody_identity(),
@@ -109,6 +118,15 @@ impl TerminalBuildFilesystemHost {
             host: Arc::clone(self),
             signature,
         }
+    }
+
+    pub(crate) fn carry(&self) -> Result<Option<CarriedFilesystem>, String> {
+        Ok(self
+            .activation
+            .lock()
+            .map_err(|_| "Build filesystem lock was poisoned")?
+            .take()
+            .map(CarriedFilesystem))
     }
 
     pub(crate) fn take_effects(&self) -> Result<Option<BuildFilesystemEffects>, String> {

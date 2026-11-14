@@ -177,6 +177,7 @@ fn prepare_typed_frontier(
         build_execution_profile,
         package_inputs,
         &mut timings,
+        Some(0),
     )
     .map_err(|mut diagnostics| {
         attribute_diagnostics(&mut diagnostics, &base_sources, package_inputs);
@@ -290,6 +291,17 @@ impl PreparedPackageInvocation {
 
     pub(super) fn execution(&mut self) -> Option<&mut build_settings::PreparedBuildExecution> {
         self.source.execution()
+    }
+
+    pub(super) fn has_later_stage(&self) -> bool {
+        self.source.has_later_stage()
+    }
+
+    pub(super) fn prepare_next_stage(
+        &mut self,
+        prepared: Vec<package_compilation::source_imports::ProductQueryDependency>,
+    ) -> Result<(), CompileFailure> {
+        self.source.prepare_next_stage(prepared)
     }
 
     pub(super) fn source_completion_accounting(

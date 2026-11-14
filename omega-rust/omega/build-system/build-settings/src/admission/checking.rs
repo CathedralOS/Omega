@@ -147,6 +147,9 @@ fn compare_rejoined_constants(
             values.push(((symbol.arena_index(), symbol.generation()), value));
         }
         values.sort_unstable_by_key(|row| row.0);
+        // A staged Build names a constant once in every stage that reads
+        // it, and the Build retyped whole names it once.
+        values.dedup();
         Ok::<_, Vec<Diagnostic>>(values)
     };
     if resolve(&original.read)? != resolve(&current.read)? {

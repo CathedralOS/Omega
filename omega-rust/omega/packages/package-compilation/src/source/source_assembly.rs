@@ -181,6 +181,128 @@ impl DeferredProductSources {
         })
     }
 
+    /// The Build sources of one stage of a staged Build after its first
+    /// (`wiki/spec/build/scoped_execution.md`, "Checked Build stages"), with
+    /// the build dependencies earlier stages prepared mounted under their
+    /// aliases. A Build is checked before it runs, so its first assembly
+    /// knows no dependency; this is that assembly made again once a
+    /// preparation completed, and it is the only thing a preparation changes
+    /// about how the Build's sources are read.
+    ///
+    /// The Build's own sources are selected afresh, as a Product query
+    /// selects them, so the names this stage resolves cannot reach back into
+    /// the frontier an earlier stage was checked on. Product roots stay
+    /// closed. The returned syntax carries the deferred Product continuation
+    /// rejoined to this stage's sources: the Product that follows the Build,
+    /// and any Product query this stage makes, continue from the stage that
+    /// ran last.
+    pub fn assemble_build_stage(
+        &self,
+        inputs: &crate::source::source_imports::ProductQueryInputs,
+        timings: &mut CompileTimings,
+        catalogue: &mut source::SourceCatalogue,
+    ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
+        let checkpoint = &self.checkpoint;
+        checkpoint.validate_child(inputs.original())?;
+        let mut storage = checkpoint.source_storage.as_ref().clone();
+        let loaded = storage.reselect_current_sources(catalogue)?;
+        inputs.mount(&mut storage)?;
+        let build_source = checkpoint
+            .build_source
+            .map(|original| {
+                storage
+                    .sources
+                    .get(original.source_id())
+                    .and_then(|file| storage.sources.rejoined_source_id(file))
+                    .map(|source_id| original.rejoined(source_id))
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "Build stage lost its authored Build correspondence",
+                        )]
+                    })
+            })
+            .transpose()?;
+        let parsed = SourceInput(loaded.into_iter().collect())
+            .append(&mut storage.syntax_trees, &mut ParsingTimings(timings))?;
+        let discovered = inputs.discover(&parsed, &mut storage)?;
+        storage.attach_parsed(parsed);
+        let mut imports = ImportQueue::default();
+        for source in storage.sources.selected_files() {
+            imports.mark_loaded(&source.path, source.dependency_scope);
+        }
+        imports.enqueue(discovered)?;
+        let generated_source_custody =
+            append_stage_generated_sources(&mut storage, &mut imports, inputs, timings, catalogue)?;
+        load_source_frontiers(
+            &mut storage,
+            &mut imports,
+            SourceRouting::Query(inputs),
+            timings,
+            catalogue,
+        )?;
+        let core_root = crate::source::source_imports::bundled_core_root()?;
+        seed_core_vocabulary(&mut imports, &core_root, source::DependencyScope::Build);
+        if sources_mention_floats(&storage, source::DependencyScope::Build) {
+            imports.seed(
+                core_root.join("float_operations.omg"),
+                source::DependencyScope::Build,
+            );
+        }
+        load_source_frontiers(
+            &mut storage,
+            &mut imports,
+            SourceRouting::Query(inputs),
+            timings,
+            catalogue,
+        )?;
+        let mut deferred = checkpoint.clone_shared();
+        deferred.rejoin_sources(&storage.sources, inputs.original(), timings, catalogue)?;
+        let mut bindings = append_build_prelude(
+            &mut storage,
+            &mut imports,
+            SourceRouting::Query(inputs),
+            build_source,
+            timings,
+            catalogue,
+        )?;
+        bindings.extend(crate::source::source_imports::retain_module_import_bindings(&storage)?);
+        let root_sources = storage.root_sources();
+        let source_file_count = storage.file_count();
+        let source_items = storage
+            .source_roots
+            .iter()
+            .map(|(_, roots)| (roots.source_id, roots.root_items.clone()))
+            .collect();
+        let build_scope_sources = storage
+            .sources
+            .selected_files()
+            .filter(|file| file.dependency_scope == source::DependencyScope::Build)
+            .map(|file| file.source_id)
+            .collect();
+        let capture = storage.retain_anonymous_owner(&generated_source_custody)?;
+        let (sources, anonymous_owner) = match capture {
+            Some(capture) => (capture.sources().clone(), Some(capture)),
+            None => (Arc::new(storage.sources), None),
+        };
+        Ok((
+            source_file_count,
+            AssembledSyntax {
+                root_sources,
+                source_items,
+                syntax_trees: storage.syntax_trees,
+                sources,
+                anonymous_owner,
+                product_sources: Some(DeferredProductSources {
+                    checkpoint: deferred,
+                }),
+                build_source,
+                source_scoped_top_level_bindings: bindings,
+                generated_source_custody,
+                build_scope_sources,
+            },
+        ))
+    }
+
     pub fn admit_inputs(
         &self,
         package_inputs: Option<&PackageCompilationInputs>,
@@ -869,6 +991,100 @@ fn append_dependency_build_handoffs_to_storage(
         imports.enqueue(entry_base)?;
         source_storage.attach_parsed(parsed);
         retained.push((source_id, source.clone()));
+    }
+    Ok(retained)
+}
+
+/// Admits, into the Build scope of a stage, the source each prepared build
+/// dependency's own Build generated. The generated units are part of the
+/// package the stage may call, in the stratum a dependency's generated
+/// source always has: visible to other packages, and not to the dependency's
+/// own authored source. The package's authored units are enqueued with them,
+/// because generated code selects its package's authored declarations.
+fn append_stage_generated_sources(
+    storage: &mut SourceStorage,
+    imports: &mut ImportQueue,
+    inputs: &crate::source::source_imports::ProductQueryInputs,
+    timings: &mut CompileTimings,
+    catalogue: &mut source::SourceCatalogue,
+) -> Result<Vec<(source::SourceId, build_output::PackageGeneratedSource)>, Vec<Diagnostic>> {
+    use crate::source::source_imports::LogicalSourceDiscovery as _;
+    let mut retained = Vec::new();
+    // Two aliases may name one package. Its generated source is admitted once.
+    let mut admitted = Vec::new();
+    for dependency in inputs.build_dependencies() {
+        let Some(handoff) = &dependency.generated else {
+            continue;
+        };
+        let package = dependency.inputs.root();
+        if handoff.sources().is_empty() || admitted.contains(&package) {
+            continue;
+        }
+        admitted.push(package);
+        let package_root = dependency
+            .inputs
+            .package_root(package)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "prepared build dependency lost its source root",
+                )]
+            })?
+            .to_path_buf();
+        for generated in handoff.sources() {
+            let logical_path =
+                crate::source::source_imports::dependency_generated_source_logical_path(
+                    &package_root,
+                    generated,
+                )?;
+            if storage.filesystem.exists(&logical_path) {
+                return Err(vec![Diagnostic::error(format!(
+                    "generated dependency source logical path `{}` collides with another source",
+                    logical_path.display(),
+                ))]);
+            }
+            let text = std::str::from_utf8(generated.bytes()).map_err(|_| {
+                vec![Diagnostic::error(format!(
+                    "included generated source `{}` is not UTF-8 Omega source",
+                    logical_path.display(),
+                ))]
+            })?;
+            imports.mark_loaded(&logical_path, source::DependencyScope::Build);
+            let unit = storage.admit_source(
+                SourceContents {
+                    path: logical_path,
+                    source: Arc::from(text),
+                    scope: source::DependencyScope::Build,
+                },
+                Some(SourceOrigin::User),
+                SourceResolutionStratum::DependencyActivationExtension,
+                catalogue,
+            )?;
+            let source_id = unit.source_id;
+            let parsed = SourceInput([unit].into_iter().collect())
+                .append(&mut storage.syntax_trees, &mut ParsingTimings(timings))?;
+            let discovered = inputs.discover(&parsed, storage)?;
+            imports.enqueue(discovered)?;
+            storage.attach_parsed(parsed);
+            retained.push((source_id, generated.clone()));
+        }
+        let excluded = dependency
+            .inputs
+            .packages()
+            .filter(|(owner, root)| *owner != package && root.starts_with(&package_root))
+            .map(|(_, root)| root.to_path_buf())
+            .collect();
+        let authored = storage.package_roots.select_owned(
+            &package_root,
+            &[],
+            &storage.filesystem,
+            excluded,
+        )?;
+        imports.enqueue(
+            authored
+                .into_iter()
+                .map(|path| (path, source::DependencyScope::Build))
+                .collect(),
+        )?;
     }
     Ok(retained)
 }
