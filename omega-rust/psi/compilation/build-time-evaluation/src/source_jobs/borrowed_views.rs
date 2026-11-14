@@ -264,6 +264,23 @@ machine run() -> i64 crashes none {
         refusal.contains("storage is changed while a conflicting reference remains live"),
         "{refusal}"
     );
+    // Asking for another declared result lifetime cannot extend either input.
+    // The same two real sources remain, with a result relation that neither
+    // input supplies; no alias or whole-record parent can mask that refusal.
+    let different_result = source.replace(
+        "let child: &mut i64 = First::take(&mut left, &mut right);",
+        "let child: &mut i64 = leak(&mut left, &mut right);",
+    ).replace(
+        "machine use_both<'owner>",
+        "machine leak<'input, 'chosen>(left: &'input mut i64, right: &'input mut i64) -> &'chosen mut i64 crashes none {\n    First::take(&mut left, &mut right)\n}\nmachine use_both<'owner>",
+    );
+    assert_ne!(different_result, source);
+    let refusal = run(&different_result)
+        .expect_err("the caller's requested lifetime cannot replace the inputs' actual bounds");
+    assert!(
+        refusal.contains("typing call that gives one lifetime two regions"),
+        "{refusal}"
+    );
 }
 
 #[test]
