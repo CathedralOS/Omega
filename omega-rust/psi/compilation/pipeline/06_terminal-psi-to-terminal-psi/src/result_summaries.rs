@@ -429,6 +429,14 @@ fn summarize(
     }
     let entry = lowered.entry;
     let clause = crate::position(lowered.contract.ensures.len(), id)?;
+    // Later callers consume this guarantee during the same inference pass.
+    // Proving its truth does not excuse an unformed term in the guarantee.
+    let mut proposed = lowered.contract.clone();
+    proposed.ensures.push(ContractClause {
+        obligation: ObligationId::new(1).expect("nonzero diagnostic identity"),
+        proposition: summary.clone(),
+    });
+    crate::formation::contract(&elaboration.module, id, &proposed)?;
     let tables = elaboration
         .tables
         .machines

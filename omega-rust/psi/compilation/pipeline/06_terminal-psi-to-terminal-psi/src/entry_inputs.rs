@@ -681,6 +681,13 @@ fn require(
     predicate: Proposition,
     sites: &CallSites,
 ) -> Checked<()> {
+    // An inferred condition becomes a premise for later callers in this
+    // pass. Its arithmetic must form before publishing that new contract.
+    let mut proposed = terminal_machine(&elaboration.module.machines, callee, callee)?
+        .contract
+        .clone();
+    proposed.requires.push(predicate.clone());
+    crate::formation::contract(&elaboration.module, callee, &proposed)?;
     let machine = usize::try_from(callee.get() - 1).map_err(|_| {
         refusal(
             RefusalReason::ForeignIdentity,

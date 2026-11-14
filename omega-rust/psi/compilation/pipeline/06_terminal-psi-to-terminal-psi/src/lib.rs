@@ -57,6 +57,7 @@ mod ceilings;
 mod crashes;
 mod describe;
 mod entry_inputs;
+mod formation;
 mod graph;
 mod joins;
 mod known;
@@ -69,6 +70,7 @@ mod reuse;
 mod verdict;
 
 pub use ceilings::Axis as CeilingAxis;
+pub use formation::{ReplayScope, prepare_replay};
 pub use places::{ConflictingLoan, LoanConflict};
 pub use reuse::{
     Carried, CarriedForm, Selection, reverify, reverify_at_call, reverify_specialization,
@@ -382,6 +384,7 @@ fn discharge_inner(
     knowledge: Knowledge,
     carried: &[Carried<'_>],
 ) -> Checked<Discharge> {
+    formation::module(&elaboration.module)?;
     minted::width_questions_are_minted(elaboration)?;
     operational::judge(elaboration)?;
     // A caller may retain old contents only outside the callee's actual

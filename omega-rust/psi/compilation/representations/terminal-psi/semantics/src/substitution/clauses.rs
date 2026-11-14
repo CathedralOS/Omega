@@ -45,6 +45,13 @@ pub trait ClauseBindings {
         case: StructuralCaseId,
     ) -> Result<bool, Self::Error>;
 
+    /// Declaration formation cannot skip a partial term because another
+    /// branch already decides its enclosing condition. Ordinary substitution
+    /// keeps its existing case-directed projection behavior.
+    fn requires_complete_terms(&self) -> bool {
+        false
+    }
+
     /// Resolve one computation after its operands have been resolved. Ordinary
     /// call substitution retains the selected computation. Declaration
     /// formation can instead register it as a pending logical computation.
@@ -248,9 +255,15 @@ fn connective<Error: From<&'static str>>(
     };
     let mut kept = Vec::with_capacity(parts.len());
     let mut unstated = None;
+    let mut decided = false;
     for part in parts {
         match substitute_clause(part, bindings) {
-            Ok(part) if part == deciding => return Ok(deciding),
+            Ok(part) if part == deciding => {
+                if !bindings.requires_complete_terms() {
+                    return Ok(deciding);
+                }
+                decided = true;
+            }
             Ok(part) if part == unit => {}
             Ok(part) => kept.push(part),
             Err(unbound) => unstated = unstated.or(Some(unbound)),
@@ -258,6 +271,9 @@ fn connective<Error: From<&'static str>>(
     }
     if let Some(unbound) = unstated {
         return Err(unbound);
+    }
+    if decided {
+        return Ok(deciding);
     }
     Ok(match kept.len() {
         0 => unit,
