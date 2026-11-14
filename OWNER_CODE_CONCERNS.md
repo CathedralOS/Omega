@@ -129,13 +129,6 @@ framework or a list of features that remain unimplemented.
 - Cost: Tests can keep an obsolete representation bypass looking supported and ready for reuse. Prefer porting those layout tests to the production terminal recipe route and deleting the unused typed builder/substitution helper. Preserve live `BoundaryTypeBinding`/signature records and coverage of padding, float classification, distinct occurrences and unsupported shapes. If a concrete supported consumer requires retaining the builder, first make substitution exact-binder-only and test distinct valid binders with identical names, including nested types. Do not rehabilitate the spelling fallback or classify it as a demonstrated executable bug without a production path.
 - Reported: 2026-11-14, Codex, while reconciling the peer audit against `3b0ad89c1fd47`; the peer's top identity warning is narrowed by caller tracing
 
-### `Build::bind` accepts a shared `&Build`, where `Build::application` needs `&mut Build`
-- Category: a verdict with nothing behind it
-- Where: `samples/cli/facts/build_activation_borrow/invalid_*`; Build protocol `BuildBindingOperations::prepare(builder: &Build)` in [omega-rust/omega/packages/build-declarations/src/prelude.rs:116](omega-rust/omega/packages/build-declarations/src/prelude.rs#L116)
-- Saw: `machine poke(builder: &Build) { Build::bind(builder, linux_x86_64::ProgramEntry, main); }` is accepted, while `Build::application` through `&Build` is rejected for its mutable receiver. The shared-reference controls of `build_activation_borrow` (`invalid_field`, `invalid_parameter`, `invalid_call_result`, `invalid_other_state`, `invalid_other_machine`, `invalid_target_body`) therefore run their Builds, binding through a stored `&Build`, and stop only in their products. The sample README expects binding to need `&mut Build`; no spec page states which access `Build::bind` needs
-- Cost: those six controls cannot show their intended rejection; `Build::bind`'s receiver access needs a spec sentence and then the matching protocol signature
-- Reported: 2026-11-14, Claude Code (worker-14), while making the Build hold its lent reference in a record
-
 ### Typing and Psi 05 classify unresolved names by global leaf spelling
 - Category: knowledge crossing a boundary
 - Where: [typing's unbound-value classification](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/typing_queries.rs#L808), [domain reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/types.rs#L715), [invocation reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/services.rs#L149), [global spelling query](omega-rust/psi/compilation/representations/typed-trees/src/deferred_refusals.rs#L260)
