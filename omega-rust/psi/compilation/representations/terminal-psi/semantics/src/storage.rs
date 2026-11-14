@@ -1709,6 +1709,43 @@ pub(crate) mod arrival_storage {
         }
     }
 
+    /// Read the existing root's type, access and qualifications for argument
+    /// presentation. This grants no loan: resource claims and result
+    /// qualification establishments still require the consumer's own checks.
+    /// A result has no parameter position, so its caller supplies that label.
+    pub fn structural_argument_source(
+        machine: &TerminalMachine,
+        place: PlaceId,
+        result_position: u32,
+    ) -> Option<std::borrow::Cow<'_, StructuralParameterDeclaration>> {
+        if let Some(parameter) = arrival_parameter(machine, place) {
+            return Some(std::borrow::Cow::Borrowed(parameter));
+        }
+        let root = exactly_one(machine.structural_places.iter(), |root| root.id == place)?;
+        let StructuralPlaceKind::OperationResult {
+            producer,
+            structural_type,
+        } = root.kind
+        else {
+            return None;
+        };
+        let operation = exactly_one(machine.operations(), |operation| operation.id == producer)?;
+        let result = operation
+            .result
+            .as_structural()
+            .filter(|result| result.place == place && result.structural_type == structural_type)?;
+        Some(std::borrow::Cow::Owned(StructuralParameterDeclaration {
+            place,
+            position: result_position,
+            structural_type,
+            multiplicity: result.multiplicity,
+            access: terminal_psi::StructuralAccess::Owned,
+            qualifications: result.qualifications.clone(),
+            projected_qualifications: result.projected_qualifications.clone(),
+            additional_input_qualifications: result.additional_input_qualifications.clone(),
+        }))
+    }
+
     pub fn root_before_edge(
         machine: &TerminalMachine,
         block: BlockId,

@@ -2950,6 +2950,7 @@ mod tests {
             borrowed: vec![Borrowed {
                 position: 0,
                 access: language_core::ReferenceAccess::Shared,
+                referent: crate::body::BorrowedReferent::Value,
                 regions: crate::body::Regions::NONE,
                 home: Some("plain-u32".into()),
             }],

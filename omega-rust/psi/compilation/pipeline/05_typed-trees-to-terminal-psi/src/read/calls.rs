@@ -1688,9 +1688,14 @@ impl<'t> Program<'t> {
                 Unserved::Typing("argument types"),
             ));
         }
-        for ((declared, _, _), actual) in formals.iter().zip(&read) {
+        for ((declared, _, borrowed), actual) in formals.iter().zip(&read) {
             let formal = self.substitute(*declared, &bound);
-            if !self.agrees(actual.result, formal) {
+            let array_view = borrowed
+                .as_ref()
+                .is_some_and(|borrowed| borrowed.referent == crate::body::BorrowedReferent::Slice)
+                && matches!(actual.kind, ExpressionKind::Borrow { .. })
+                && self.borrowed_byte_array_matches(actual.result, formal);
+            if !self.agrees(actual.result, formal) && !array_view {
                 // The typed trees give a borrow no span of its own; the
                 // place it lends is the authored argument.
                 let at = match (&actual.kind, actual.source) {
@@ -1810,15 +1815,36 @@ impl<'t> Program<'t> {
         if matches!(node, ExpressionNode::String(_)) && formal.access != ReferenceAccess::Shared {
             return unserved("byte literal cannot lend mutable storage");
         }
-        // A shared view already carries its immutable backing. Read every
-        // expression of that type through the same descriptor operation,
-        // including constructors and returned views; the call's region check
-        // still authenticates the actual type and its result relation.
+        // Evaluate the supplied value once. A reference descriptor carries
+        // the permission to cross into its backing, whether it came from a
+        // binding, a field or another helper call. An ordinary owned value
+        // still needs an explicit borrow of its place.
+        let (mut place, access, explicit) = match node {
+            ExpressionNode::Borrow(borrow) => (
+                self.expression(id, slots, borrow.target, None)?,
+                borrow.access,
+                true,
+            ),
+            _ => (
+                self.expression(
+                    id,
+                    slots,
+                    argument,
+                    (formal.access == ReferenceAccess::Shared && self.is_borrowed_view(expected))
+                        .then_some(expected),
+                )?,
+                formal.access,
+                false,
+            ),
+        };
+        // An existing view already carries its backing; an owned array still
+        // needs an explicit loan. Test the actual value, not the expected view.
         if formal.access == ReferenceAccess::Shared
-            && self.is_borrowed_view(expected)
-            && !matches!(node, ExpressionNode::Borrow(_))
+            && !explicit
+            && place
+                .result
+                .is_some_and(|actual| self.is_borrowed_view(actual))
         {
-            let place = self.expression(id, slots, argument, Some(expected))?;
             return Ok((
                 Expression {
                     call_context: None,
@@ -1833,22 +1859,6 @@ impl<'t> Program<'t> {
                 self.typed.expression_table.display_name(argument),
             ));
         }
-        // Evaluate the supplied value once. A reference descriptor carries
-        // the permission to cross into its backing, whether it came from a
-        // binding, a field or another helper call. An ordinary owned value
-        // still needs an explicit borrow of its place.
-        let (mut place, access, explicit) = match node {
-            ExpressionNode::Borrow(borrow) => (
-                self.expression(id, slots, borrow.target, None)?,
-                borrow.access,
-                true,
-            ),
-            _ => (
-                self.expression(id, slots, argument, None)?,
-                formal.access,
-                false,
-            ),
-        };
         // ownership.md, "Borrows and aliases": `&T` grants "Shared
         // observation under its loan contract", and "A callee cannot grant
         // writable access that the caller's place lacks." So an argument

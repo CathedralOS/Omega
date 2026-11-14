@@ -529,6 +529,14 @@ impl<'a> Signatures<'a> {
     }
 }
 
+/// A slice reference can borrow array backing; a reference to a stored value
+/// borrows that value itself, even when it happens to contain a descriptor.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BorrowedReferent {
+    Value,
+    Slice,
+}
+
 /// One formal passed by reference.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Borrowed {
@@ -537,6 +545,8 @@ pub struct Borrowed {
     /// `Shared` for `&T`, `Mutable` for `&mut T`. `&write T` is refused by
     /// the reader.
     pub access: language_core::ReferenceAccess,
+    /// The authored referent, before slice references become descriptor types.
+    pub referent: BorrowedReferent,
     /// The outer loan region, kept apart from any regions inside the
     /// referent. Returning a reference must preserve this actual input.
     pub regions: Regions,

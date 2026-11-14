@@ -385,6 +385,7 @@ impl Storage<'_> {
                     "an invocation row's place is not the place the call lends",
                 ));
             }
+            self.byte_array_presentation(argument, parameter, concerns)?;
             let (expected_lender, parent, from, permitted) =
                 self.source_lender(&lent, access, concerns)?;
             let (obligation, row) = tables

@@ -64,7 +64,10 @@ impl Storage<'_> {
                 ));
             }
             let matches_type = match self.shape(&captured, concerns)? {
-                Shape::Typed(actual) => actual == formal.structural_type,
+                Shape::Typed(actual_type) => {
+                    actual_type == formal.structural_type
+                        || self.byte_array_presentation(actual, formal, concerns)?
+                }
                 Shape::Scalar(actual) => {
                     matches!(self.declaration(formal.structural_type, concerns)?.shape,
                     StructuralTypeShape::PrimitiveScalar(declared) if declared == actual)

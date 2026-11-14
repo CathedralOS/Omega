@@ -77,6 +77,7 @@ pub(super) fn lower_lending(
             .borrowed
             .iter()
             .map(|(position, access)| Borrowed {
+                referent: typed_trees_to_terminal_psi::BorrowedReferent::Value,
                 position: *position,
                 access: *access,
                 regions: Default::default(),

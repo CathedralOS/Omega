@@ -593,7 +593,7 @@ pub use semantic_rows::{
 pub use storage::arrival_storage::{
     StorageNames, arrival_parameter, borrowed_storage_parameter,
     borrowed_storage_reference_ceiling, descriptor_parameter_access, projection_before_edge,
-    root_before_edge, storage_names, view_descriptor_parameter,
+    root_before_edge, storage_names, structural_argument_source, view_descriptor_parameter,
     view_descriptor_projected_qualifications,
 };
 pub use storage::collection_backing::{
