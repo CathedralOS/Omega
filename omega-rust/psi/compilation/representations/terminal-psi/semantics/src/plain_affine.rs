@@ -704,6 +704,8 @@ fn analyze(
             exclusive,
         }));
     }
+    // Copy permission does not erase an explicitly destructive window. Even
+    // an untracked carrier's window must reach its governing check or refusal.
     if roots.iter().all(Option::is_none) && !has_borrowed_windows {
         return Ok(Plan {
             copyable_owned_roots,
@@ -1224,9 +1226,9 @@ impl Analysis<'_> {
                 path,
                 field,
             } => {
-                // A window owns the extracted value, while its original
-                // exclusive parameter continues to own the storage and loan.
-                // Its empty path is a vacancy, not an ended owned home.
+                // The extracted value transfers its own custody. Its original
+                // exclusive loan retains the same storage for handback, so an
+                // empty path is a vacancy, not an ended owned home.
                 let root = self.root(*source)?.ok_or(Error::unsupported(
                     "a borrowed move requires tracked storage contents",
                 ))?;
