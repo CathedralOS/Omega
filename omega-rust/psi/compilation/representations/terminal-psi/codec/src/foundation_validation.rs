@@ -11506,19 +11506,12 @@ fn validate_structural_arguments(
                 );
             }
         }
-        let result_backing = result.map(|result| StructuralParameterDeclaration {
-            place: argument.place,
-            position: expected.position,
-            structural_type: actual_type,
-            multiplicity: result.multiplicity,
-            access: StructuralAccess::Owned,
-            qualifications: result.qualifications.clone(),
-            projected_qualifications: result.projected_qualifications.clone(),
-            additional_input_qualifications: result.additional_input_qualifications.clone(),
-        });
-        let backing = parameter
-            .or_else(|| block_parameter(machine, argument.place))
-            .or(result_backing.as_ref());
+        let source = terminal_semantics::structural_argument_source(
+            machine,
+            argument.place,
+            expected.position,
+        );
+        let backing = source.as_deref();
         if backing.is_some_and(|actual| {
             (fixed_byte_array_loan(
                 module.structural_types.iter(),

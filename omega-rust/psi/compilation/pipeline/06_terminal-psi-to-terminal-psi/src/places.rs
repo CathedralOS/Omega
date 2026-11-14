@@ -1510,6 +1510,14 @@ impl<'a> Storage<'a> {
             | StructuralTypeShape::Reference { .. } => {
                 found.push(at.clone());
             }
+            // Availability concerns the descriptor, not ownership of its
+            // backing. An exclusive descriptor is readable too; copying it
+            // still requires the separate unrestricted-copy judgment.
+            StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(terminal_psi::StructuralAccess::MutableBorrow),
+                },
+            ) => found.push(at.clone()),
             shape if is_shared_view(shape) => {
                 found.push(at.clone());
             }
@@ -1831,6 +1839,16 @@ impl<'a> Storage<'a> {
         types: &IdTable<ValueId, ScalarType>,
     ) -> Checked<Proposition> {
         let concerns = Construct::Operation(operation.id);
+        self.readable_byte_view(operation, source)?;
+        let byte = ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8)
+                .expect("u8 is valid"),
+        );
+        if operation.result.scalar_ref().is_none_or(|result| {
+            result.scalar_type != byte || result.qualifications != Default::default()
+        }) {
+            return Err(self.foreign(concerns, "a byte read must produce a plain u8"));
+        }
         let (block, after) = self
             .graph
             .locate(ProgramPoint::AfterOperation(operation.id))?;

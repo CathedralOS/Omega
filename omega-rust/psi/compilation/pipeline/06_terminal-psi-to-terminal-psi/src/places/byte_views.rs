@@ -90,6 +90,25 @@ impl Storage<'_> {
             })
     }
 
+    pub(super) fn readable_byte_view(&self, operation: &Operation, root: PlaceId) -> Checked<()> {
+        let concerns = Construct::Operation(operation.id);
+        let shape = self.byte_shape(root, &[], concerns)?;
+        let readable = matches!(
+            shape,
+            StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: None
+                    | Some(StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
+            })
+        );
+        if !readable || !self.readable_descriptor(root, &[], concerns)? {
+            return Err(self.unsupported(
+                concerns,
+                "a byte read without a readable descriptor occurrence",
+            ));
+        }
+        Ok(())
+    }
+
     pub(super) fn shared_subslice(&self, operation: &Operation) -> Checked<()> {
         use terminal_semantics::descriptor_results::DescriptorCallOrigin;
         let OperationKind::ByteSequenceSubslice { source, .. } = &operation.kind else {

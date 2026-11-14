@@ -1,0 +1,32 @@
+// Expected exit: 0
+// A byte-view argument keeps the fixed array's extent and original storage.
+machine count(bytes: &mut [u8]) -> u64 { bytes.len }
+data Packet { before: u8; bytes: [u8; 3]; after: u8; }
+machine middle(bytes: &mut [u8]) -> u8 {
+    transition bytes.len > 1 { true -> bytes[1] false -> 0 }
+}
+machine shared_middle(bytes: &[u8]) -> u8 {
+    transition bytes.len > 1 { true -> bytes[1] false -> 0 }
+}
+machine main() crashes Trap {
+    let mut bytes: [u8; 3] = [17, 42, 99];
+    let extent: u64 = count(&mut bytes);
+    let selected: u8 = middle(&mut bytes);
+    let shared: u8 = shared_middle(&bytes);
+    let mut short: [u8; 1] = [53];
+    let fallback: u8 = middle(&mut short);
+    let shared_fallback: u8 = shared_middle(&short);
+    let mut packet: Packet = Packet { before: 61, bytes: [31, 73, 89], after: 97 };
+    let field_extent: u64 = count(&mut packet.bytes);
+    let field_selected: u8 = middle(&mut packet.bytes);
+    transition extent == 3 && bytes[0] == 17 && bytes[1] == 42 && bytes[2] == 99
+        && selected == 42 && shared == 42 && field_extent == 3 && field_selected == 73
+        && fallback == 0 && shared_fallback == 0 && short[0] == 53
+        && packet.before == 61 && packet.after == 97
+        && packet.bytes[0] == 31 && packet.bytes[1] == 73 && packet.bytes[2] == 89 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

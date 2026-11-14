@@ -1609,45 +1609,17 @@ pub(crate) mod byte_arrays {
                 return Ok(None);
             };
             let machine = self.program.machine(self.current_machine)?;
-            let source = machine
-                .structural_parameters
-                .iter()
-                .chain(machine.block_structural_parameters())
-                .find(|source| source.place == argument.place)
-                .cloned()
-                .or_else(|| {
-                    let place = machine.structural_place(argument.place)?;
-                    let semantic_vocabulary::StructuralPlaceKind::OperationResult {
-                        producer,
-                        structural_type,
-                    } = place.kind
-                    else {
-                        return None;
-                    };
-                    let result = machine.operation(producer)?.result.structural()?;
-                    if result.place != argument.place
-                        || result.structural_type != structural_type
-                        || !matches!(
-                            result.multiplicity,
-                            terminal_psi::nonlinear_multiplicity_pair_pattern!()
-                        )
-                        || !result.claims.is_empty()
-                    {
-                        return None;
-                    }
-                    Some(StructuralParameterDeclaration {
-                        place: result.place,
-                        position: 0,
-                        structural_type,
-                        multiplicity: result.multiplicity,
-                        access: StructuralAccess::Owned,
-                        qualifications: result.qualifications.clone(),
-                        projected_qualifications: result.projected_qualifications.clone(),
-                        additional_input_qualifications: result
-                            .additional_input_qualifications
-                            .clone(),
-                    })
+            if let Some((operation, _)) = machine.producing_operation(argument.place)
+                && operation.result.structural().is_some_and(|result| {
+                    !matches!(
+                        result.multiplicity,
+                        terminal_psi::nonlinear_multiplicity_pair_pattern!()
+                    ) || !result.claims.is_empty()
                 })
+            {
+                return Err(malformed());
+            }
+            let source = terminal_semantics::structural_argument_source(machine, argument.place, 0)
                 .ok_or_else(malformed)?;
             if source.structural_type != root_type {
                 return Err(malformed());

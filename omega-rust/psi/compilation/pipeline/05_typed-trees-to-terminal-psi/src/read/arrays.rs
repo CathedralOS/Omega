@@ -102,6 +102,50 @@ pub(super) fn source_sequence_view(
 }
 
 impl Program<'_> {
+    /// A byte-view parameter can borrow a fixed array's backing. Keep the
+    /// array's real type on the argument; canonical loan checking supplies
+    /// the descriptor's extent and checks its access at the call.
+    pub(super) fn borrowed_byte_array_matches(
+        &self,
+        actual: Option<ValueType>,
+        expected: ValueType,
+    ) -> bool {
+        let (
+            Some(ValueType::Record(actual, Qualification::NONE, _)),
+            ValueType::Record(expected, Qualification::NONE, _),
+        ) = (actual, expected)
+        else {
+            return false;
+        };
+        if !self.records.get(expected).is_some_and(|row| {
+            matches!(
+                row.shape,
+                StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(
+                        terminal_psi::StructuralAccess::SharedBorrow
+                            | terminal_psi::StructuralAccess::MutableBorrow
+                    ),
+                })
+            )
+        }) {
+            return false;
+        }
+        let Some(actual) = self.records.get(actual) else {
+            return false;
+        };
+        let StorageShape::FixedArray {
+            element,
+            length: ArrayExtent::Literal(length),
+        } = actual.shape
+        else {
+            return false;
+        };
+        length > 0 && actual.requires.is_empty() && self.records.get(element).is_some_and(|element|
+            element.requires.is_empty() && matches!(element.shape,
+                StorageShape::PrimitiveScalar { scalar_type: ScalarType::Integer(integer), policy: None }
+                    if integer.bits() == 8 && integer.sign() == IntegerSign::Unsigned && !integer.is_address()))
+    }
+
     pub(super) fn array_literal(
         &mut self,
         machine: MachineId,
