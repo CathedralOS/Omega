@@ -583,7 +583,7 @@ fn machine(
         reference_graph,
     } = prepare(module, domains, id, tables, knowledge)?;
     let references = std::cell::RefCell::new(
-        terminal_semantics::descriptor_results::DescriptorAnalysis::with_reference_slots(
+        terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
             &module.structural_types,
             &reference_graph,
         ),
@@ -1221,7 +1221,7 @@ impl Prepared {
         types: &'a [terminal_psi::StructuralTypeDeclaration],
     ) -> std::cell::RefCell<terminal_semantics::descriptor_results::DescriptorAnalysis<'a>> {
         std::cell::RefCell::new(
-            terminal_semantics::descriptor_results::DescriptorAnalysis::with_reference_slots(
+            terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
                 types,
                 &self.reference_graph,
             ),
@@ -1253,7 +1253,7 @@ pub(crate) fn prepare(
     let reference_graph = places::reference_graph(module, id)?;
     if fill {
         let references = std::cell::RefCell::new(
-            terminal_semantics::descriptor_results::DescriptorAnalysis::with_reference_slots(
+            terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
                 &module.structural_types,
                 &reference_graph,
             ),

@@ -161,6 +161,7 @@ impl Program<'_> {
         machine: MachineId,
         slots: &[Slot],
         indexed: &TableIndexedExpression,
+        handle: ExpressionHandle,
         source: SourceOrigin,
     ) -> Checked<Expression> {
         let base = self.expression(machine, slots, indexed.collection, None)?;
@@ -172,6 +173,11 @@ impl Program<'_> {
             ));
         };
         if self.is_readable_byte_view(machine, array)? {
+            if let typed_trees::expression::ExpressionNode::Range(range) =
+                self.node(machine, indexed.index)?
+            {
+                return self.byte_subslice(machine, slots, base, range, handle, source);
+            }
             return self.byte_element(machine, slots, base, indexed.index, source);
         }
         let (element, extent) = self.array_element(machine, array)?;

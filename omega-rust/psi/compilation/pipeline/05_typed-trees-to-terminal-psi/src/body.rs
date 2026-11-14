@@ -832,6 +832,13 @@ pub enum ExpressionKind {
         base: Box<Expression>,
         index: Box<Expression>,
     },
+    /// A new descriptor over the same shared backing. Missing endpoints
+    /// mean zero and the captured descriptor's own length, respectively.
+    ByteSubslice {
+        base: Box<Expression>,
+        start: Option<Box<Expression>>,
+        end: Option<Box<Expression>>,
+    },
     Array {
         elements: Vec<Expression>,
     },

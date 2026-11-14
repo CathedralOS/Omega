@@ -1788,6 +1788,17 @@ fn mentions<'a>(
             }
             Ok(false)
         }
+        ExpressionKind::ByteSubslice { base, start, end } => {
+            for operand in std::iter::once(base.as_ref())
+                .chain(start.as_deref())
+                .chain(end.as_deref())
+            {
+                if mentions(id, operand, slots, captures)? {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
+        }
         ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index } => {
             Ok(mentions(id, base, slots, captures)? || mentions(id, index, slots, captures)?)
         }

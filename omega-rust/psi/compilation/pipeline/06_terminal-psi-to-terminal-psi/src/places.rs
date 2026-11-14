@@ -94,6 +94,7 @@ use terminal_psi::{
 use crate::graph::Graph;
 use crate::{StorageUse, refusal};
 
+mod byte_views;
 mod contents;
 mod loans;
 mod log;
@@ -343,6 +344,8 @@ pub(crate) fn input_content(
 enum Reached {
     /// The one value every path supplies.
     Value(ValueId),
+    /// An extent defined by this exact reaching descriptor producer.
+    Extent(OperationId),
     /// Asked of a sum: the one case every path establishes it as.
     Case(StructuralCaseId),
     /// Every path supplies what a call returned: contents with no value
@@ -1719,6 +1722,17 @@ impl<'a> Storage<'a> {
                         .kernel_proposition()
                         .map_err(crate::semantics_refusal(self.machine, id));
                 }
+                if let OperationKind::ByteSequenceSubslice {
+                    obligation: owned, ..
+                } = &operation.kind
+                {
+                    if *owned != obligation {
+                        return Err(
+                            self.foreign(concerns, "a byte subslice owns another obligation")
+                        );
+                    }
+                    return self.byte_subslice_goal(operation, types);
+                }
                 if let OperationKind::ByteSequenceRead {
                     source,
                     index,
@@ -1935,6 +1949,16 @@ impl<'a> Storage<'a> {
                     .zero_case(row.lineage.root, beneath, concerns)?
                     .map_or(Reached::Unknown, Reached::Case),
                 (Stored::Zeroed, Asked::Contents(_)) => Reached::Unknown,
+                (Stored::Established, Asked::Contents(_))
+                    if beneath == [Segment::Extent]
+                        && matches!(
+                            self.operation(row.operation, concerns)?.kind,
+                            OperationKind::ByteSequenceSubslice { .. }
+                                | OperationKind::EstablishByteSequenceLiteral { .. }
+                        ) =>
+                {
+                    Reached::Extent(row.operation)
+                }
                 (Stored::Established, Asked::Contents(leaf)) => self
                     .interned(tables, leaf, concerns)?
                     .and_then(|place| {
@@ -2086,6 +2110,9 @@ impl<'a> Storage<'a> {
                 (Some(Reached::Value(known)), Reached::Value(value)) if known == value => {
                     Reached::Value(known)
                 }
+                (Some(Reached::Extent(known)), Reached::Extent(value)) if known == value => {
+                    Reached::Extent(known)
+                }
                 (Some(Reached::Case(known)), Reached::Case(case)) if known == case => {
                     Reached::Case(known)
                 }
@@ -2093,12 +2120,14 @@ impl<'a> Storage<'a> {
                 (
                     Some(
                         Reached::Value(_)
+                        | Reached::Extent(_)
                         | Reached::Case(_)
                         | Reached::Returned
                         | Reached::Unknown
                         | Reached::Closed,
                     ),
                     Reached::Value(_)
+                    | Reached::Extent(_)
                     | Reached::Case(_)
                     | Reached::Returned
                     | Reached::Unknown
@@ -2313,15 +2342,18 @@ impl<'a> Storage<'a> {
             .checked_sub(1)
             .ok_or_else(|| self.foreign(concerns, "a read has no point before it"))?;
         let mut budget = self.budget();
-        let Reached::Value(held) = self.reaching(
+        let reached = self.reaching(
             tables,
             Asked::Contents(&leaf),
             block,
             before,
             &mut budget,
             concerns,
-        )?
-        else {
+        )?;
+        if let Reached::Extent(producer) = reached {
+            return self.extent_equation(operation, producer);
+        }
+        let Reached::Value(held) = reached else {
             return Ok(None);
         };
         let held_type =
@@ -2464,6 +2496,7 @@ impl<'a> Storage<'a> {
                 }
             }
             Reached::Case(_)
+            | Reached::Extent(_)
             | Reached::Unknown
             | Reached::Unestablished
             | Reached::Open
@@ -3842,7 +3875,7 @@ impl AtCall<'_, '_> {
             ));
         }
         let mut budget = storage.budget();
-        let Reached::Value(held) = storage
+        let reached = storage
             .reaching(
                 self.tables,
                 Asked::Contents(&leaf),
@@ -3851,8 +3884,23 @@ impl AtCall<'_, '_> {
                 &mut budget,
                 self.concerns,
             )
-            .map_err(crate::Unbound::Refused)?
-        else {
+            .map_err(crate::Unbound::Refused)?;
+        if let Reached::Extent(producer) = reached {
+            let point = if self.up_to == 0 {
+                ProgramPoint::BlockEntry(self.block)
+            } else {
+                let block = storage.block(self.block).map_err(crate::Unbound::Refused)?;
+                let previous = self.up_to.min(block.operations.len()) - 1;
+                ProgramPoint::AfterOperation(block.operations[previous].id)
+            };
+            return storage
+                .extent_contents(producer, point, scalar_type)
+                .map_err(crate::Unbound::Refused)?
+                .ok_or(crate::Unbound::Unproved(
+                    "the actual's extent has no current endpoint correspondence",
+                ));
+        }
+        let Reached::Value(held) = reached else {
             return Err(crate::Unbound::Unproved(
                 "the actual's observation has no reaching value identity at the call",
             ));
@@ -3986,6 +4034,7 @@ impl crate::Bindings for Held<'_, '_> {
         {
             Reached::Case(held) => Ok(held == case),
             Reached::Value(_)
+            | Reached::Extent(_)
             | Reached::Returned
             | Reached::Unknown
             | Reached::Unestablished
