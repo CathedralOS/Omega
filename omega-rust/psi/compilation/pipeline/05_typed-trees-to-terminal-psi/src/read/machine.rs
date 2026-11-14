@@ -2003,7 +2003,9 @@ impl<'t> Program<'t> {
                         if self.fact_restates_formal_domain(formals, fact) {
                             continue;
                         }
-                        if let Some((clause, text)) = self.contract_clause(id, &required, fact, true)? {
+                        if let Some((clause, text)) =
+                            self.contract_clause(id, &required, fact, true)?
+                        {
                             requires.push(clause);
                             requires_text.push(text);
                         }
@@ -2011,7 +2013,9 @@ impl<'t> Program<'t> {
                 }
                 SignatureContractKind::Ensures => {
                     for fact in facts {
-                        if let Some((clause, text)) = self.contract_clause(id, &exit, fact, false)? {
+                        if let Some((clause, text)) =
+                            self.contract_clause(id, &exit, fact, false)?
+                        {
                             ensures.push(clause);
                             ensures_text.push(text);
                         }
