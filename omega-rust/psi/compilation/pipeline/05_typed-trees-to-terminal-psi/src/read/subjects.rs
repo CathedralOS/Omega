@@ -31,7 +31,8 @@ its symbol was declared in, never from a path or a name:
   which checks it before it runs, and that activation's compilation claims
   the subject's Build declarations and none of its Product declarations.
 - A user file is a subject only when its package identity is requested.
-  An explicit `None` subject selects standalone user source. An empty request
+  An explicit `None` subject selects standalone user source: every user file,
+  whatever identity its completed Build derived for it. An empty request
   selects no full-package or standalone subject.
 - A declaration with no source file cannot be placed, so it is refused.
 */
