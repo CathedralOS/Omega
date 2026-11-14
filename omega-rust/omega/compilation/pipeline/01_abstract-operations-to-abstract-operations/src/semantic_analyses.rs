@@ -358,6 +358,7 @@ pub(crate) mod effect_summaries {
             | O::ReadSegmentSelector { .. }
             | O::RegisterAccess { .. }
             | O::GlobalDescriptorTable { .. } => (EffectClass::Service, Yes, May, No, No),
+            O::EliminateEmpty { .. } => (EffectClass::Control, No, Yes, No, No),
             O::Crash { .. } => (EffectClass::Control, Yes, No, Yes, No),
             O::TrappingInteger { .. } => (EffectClass::Control, May, No, May, No),
             O::FloatResultPolicy { policy, .. } => {
@@ -936,7 +937,7 @@ pub(crate) mod place_access_summaries {
             O::StructuralCaseMembership { source, path, .. } => {
                 pending.attribute(context, *source, runtime_prefix(path), AccessKind::Read);
             }
-            O::StructuralCase { source, path, .. } => {
+            O::StructuralCase { source, path, .. } | O::EliminateEmpty { source, path, .. } => {
                 pending.attribute(context, *source, runtime_prefix(path), AccessKind::Read);
             }
             O::StructuralLeafCopy { source, path, .. } => {

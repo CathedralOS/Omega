@@ -60,6 +60,7 @@ mod attribution {
                     abstract_operations::return_or_return_unit_pattern!(psi_edge, ..)
                     | AbstractOperation::InvokeNoNormal { psi_edge, .. }
                     | AbstractOperation::ExternalCompletion { psi_edge, .. }
+                    | AbstractOperation::EliminateEmpty { psi_edge, .. }
                     | AbstractOperation::Crash { psi_edge, .. }
                     | AbstractOperation::ReturnStructural { psi_edge, .. }
                     | AbstractOperation::Jump { psi_edge, .. } => {
@@ -116,6 +117,7 @@ mod attribution {
                         abstract_operations::return_or_return_unit_pattern!(psi_edge, ..)
                         | AbstractOperation::InvokeNoNormal { psi_edge, .. }
                         | AbstractOperation::ExternalCompletion { psi_edge, .. }
+                        | AbstractOperation::EliminateEmpty { psi_edge, .. }
                         | AbstractOperation::Crash { psi_edge, .. }
                         | AbstractOperation::ReturnStructural { psi_edge, .. }
                         | AbstractOperation::Jump { psi_edge, .. } => {
@@ -9747,20 +9749,22 @@ mod source {
                         ));
                     }
                     let terminal = selected_instructions::terminator_instruction(&block.terminator);
-                    let crash = matches!(
+                    let trap = matches!(
                         block.terminator,
-                        SelectedTerminator::Crash { .. } | SelectedTerminator::OperationTrap { .. }
+                        SelectedTerminator::EliminateEmpty { .. }
+                            | SelectedTerminator::Crash { .. }
+                            | SelectedTerminator::OperationTrap { .. }
                     );
                     let expected = if execution.is_some() {
                         Kind::PrivilegedCrash
                     } else {
                         Kind::Crash
                     };
-                    if crash && terminal.kind != expected
-                        || !crash && terminal.kind == Kind::PrivilegedCrash
+                    if trap && terminal.kind != expected
+                        || !trap && terminal.kind == Kind::PrivilegedCrash
                     {
                         return Err(Error::Mismatch(
-                            "crash realization differs from its admitted execution domain",
+                            "trap realization differs from its admitted execution domain",
                         ));
                     }
                 }

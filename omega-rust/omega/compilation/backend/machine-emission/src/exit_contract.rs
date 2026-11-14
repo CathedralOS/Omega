@@ -450,7 +450,8 @@ fn compute_inner<S: ValidatedSelectedAnalysis>(
                     encoded,
                 )?;
                 if matches!(&block.terminator,
-                    SelectedTerminator::Crash { instruction: terminal, .. }
+                    SelectedTerminator::EliminateEmpty { instruction: terminal, .. }
+                    | SelectedTerminator::Crash { instruction: terminal, .. }
                     | SelectedTerminator::OperationTrap { instruction: terminal, .. }
                     if terminal.id == instruction.id)
                 {
@@ -938,7 +939,9 @@ fn check_ordinary_exit_roster(
                 if is_terminal
                     && matches!(
                         &block.terminator,
-                        SelectedTerminator::Crash { .. } | SelectedTerminator::OperationTrap { .. }
+                        SelectedTerminator::EliminateEmpty { .. }
+                            | SelectedTerminator::Crash { .. }
+                            | SelectedTerminator::OperationTrap { .. }
                     )
                 {
                     let end = resolved_block
