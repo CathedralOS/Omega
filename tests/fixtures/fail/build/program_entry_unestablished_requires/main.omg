@@ -1,5 +1,5 @@
 // Expected checking rejection: launch has an unestablished precondition.
-// The arrival establishes each bound continuation's written precondition before invocation.
+// The arrival establishes each bound continuation's published precondition before invocation.
 machine launch() requires false { }
 trait EntryCondition {
     machine enter() requires 0u32 == 0u32;

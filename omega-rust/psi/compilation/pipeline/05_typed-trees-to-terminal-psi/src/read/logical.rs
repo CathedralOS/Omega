@@ -1107,8 +1107,8 @@ pub(crate) fn projected_arrival(
             Unserved::Machine("logical callee without an entry"),
         )
     })?;
-    let parameters = typed.state_parameters(state);
-    if parameters.len() != state.parameters.len()
+    let actual_parameters = typed.state_parameters(state);
+    if actual_parameters.len() != state.parameters.len()
         || typed.machine_contracts(machine).len() != machine.contracts.len()
         || typed.state_contracts(state).len() != state.contracts.len()
         || typed.state_signature_contracts(required).len() != required.contracts.len()
@@ -1119,6 +1119,53 @@ pub(crate) fn projected_arrival(
             Unserved::Contract("incomplete logical callable inventory"),
         ));
     }
+    let program = Program::with_captures(typed, false, captures);
+    // A declared conformer has one routed entry, even when its body writes a
+    // different precondition. Use the ordinary caller-facing interface owner;
+    // the executable closure still owes its independent member refinement.
+    let interface = program.conformer_requirement(callee, machine)?;
+    let (parameters, supplied_contracts, callee_requirement) = match interface {
+        Some((_, signature)) => {
+            let parameters = typed.state_signature_parameters(signature);
+            let contracts = typed.state_signature_contracts(signature);
+            if parameters.len() != signature.parameters.len()
+                || contracts.len() != signature.contracts.len()
+            {
+                return Err(identity(
+                    callee,
+                    "logical interface lost its source inventory",
+                ));
+            }
+            if !signature.type_parameters.is_empty()
+                || !signature.lifetime_parameters.is_empty()
+                || !signature.conformance_bounds.is_empty()
+                || !signature.native_callback_parameters.is_empty()
+            {
+                return Err(refuse(
+                    callee,
+                    Construct::Machine,
+                    Unserved::Contract("logical interface needs its complete invocation telescope"),
+                ));
+            }
+            (
+                parameters,
+                contracts.iter().collect::<Vec<_>>(),
+                Some(
+                    RetainedDeclaration::capture(&typed.symbols, signature.symbol)
+                        .map_err(|detail| identity(callee, detail))?,
+                ),
+            )
+        }
+        None => (
+            actual_parameters,
+            typed
+                .machine_contracts(machine)
+                .iter()
+                .chain(typed.state_contracts(state))
+                .collect(),
+            None,
+        ),
+    };
     if parameters.iter().any(|parameter| {
         typed
             .access_view_plan_for_input_type_reference(parameter.type_reference)
@@ -1183,7 +1230,6 @@ pub(crate) fn projected_arrival(
             domain,
         });
     }
-    let program = Program::with_captures(typed, false, captures);
     let required_contracts: Vec<_> = typed.state_signature_contracts(required).iter().collect();
     if required_contracts.iter().any(|contract| {
         matches!(
@@ -1199,11 +1245,6 @@ pub(crate) fn projected_arrival(
             ),
         ));
     }
-    let supplied_contracts: Vec<_> = typed
-        .machine_contracts(machine)
-        .iter()
-        .chain(typed.state_contracts(state))
-        .collect();
     let (entry_signature, mut entry_names) = Inputs::signature(
         &program,
         LogicalScope {
@@ -1308,6 +1349,7 @@ pub(crate) fn projected_arrival(
             .map_err(|detail| identity(entry, detail))?,
         implementation: RetainedDeclaration::capture(&typed.symbols, supplied)
             .map_err(|detail| identity(entry, detail))?,
+        callee_requirement,
         elaboration,
         required_inputs: required_inputs.origins,
         supplied_inputs: supplied_inputs.origins,

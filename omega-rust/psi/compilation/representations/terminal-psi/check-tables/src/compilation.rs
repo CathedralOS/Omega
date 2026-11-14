@@ -101,6 +101,9 @@ pub struct CallableArrivalWitness {
     pub semantic_schema: symbols::RetainedDeclaration,
     pub requirement: symbols::RetainedDeclaration,
     pub implementation: symbols::RetainedDeclaration,
+    /// The authenticated applied interface through which a declared conformer
+    /// is called. Its member body remains a separate executable check.
+    pub callee_requirement: Option<symbols::RetainedDeclaration>,
     pub elaboration: Elaboration,
     pub required_inputs: Vec<CallableInputOrigin>,
     pub supplied_inputs: Vec<CallableInputOrigin>,

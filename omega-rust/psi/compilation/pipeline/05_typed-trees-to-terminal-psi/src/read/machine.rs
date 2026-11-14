@@ -1201,7 +1201,7 @@ impl<'t> Program<'t> {
     /// The one requirement that owns this body. A reference row owns no
     /// body and supplies no context here. Both source spellings therefore
     /// share the same advertised entry and the same root-only body check.
-    fn conformer_requirement(
+    pub(super) fn conformer_requirement(
         &self,
         id: MachineId,
         machine: &'t Machine,
