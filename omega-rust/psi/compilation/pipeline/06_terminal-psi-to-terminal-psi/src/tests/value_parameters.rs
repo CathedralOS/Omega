@@ -15,14 +15,11 @@ use super::*;
 use crate::prove::SEARCHES;
 use crate::reverify_specialization;
 
-#[test]
-fn an_authored_value_parameter_application_retains_its_requirement_binders() {
-    // The declaration identity of Units matters: the source deliberately also
-    // declares a data type with that name. Keep its complete application through
-    // ordinary source preparation before asking the checker for every part.
-    let source = include_str!(
-        "../../../../../../../tests/fixtures/pass/facts/lexical_generic_bound_through_local_exit/main.omg"
-    );
+const AUTHORED_VALUE_SOURCE: &str = include_str!(
+    "../../../../../../../tests/fixtures/pass/facts/lexical_generic_bound_through_local_exit/main.omg"
+);
+
+fn prepared_value_source(source: &str) -> terminal_check_tables::compilation::PreparedCompilation {
     let typed = super::build_purpose::frontier_of(source, "machine build_entry() {}");
     let entry = super::build_purpose::symbol(&typed, "main");
     let (frozen, _) = typed_trees_to_typed_trees::prepare_typed_trees(
@@ -40,11 +37,110 @@ fn an_authored_value_parameter_application_retains_its_requirement_binders() {
         terminal_codec::TerminalPublication::Invocation,
     )
     .program;
-    let verdicts = crate::judge_compilation(program);
+    let terminal_check_tables::compilation::TerminalCompilation::Prepared(prepared) = program
+    else {
+        panic!("{program:?}");
+    };
+    prepared
+}
+
+#[test]
+fn an_authored_value_parameter_application_retains_its_requirement_binders() {
+    // The declaration identity of Units matters: the unchanged source also
+    // declares a data type with that name. Check every subject and every part.
+    let verdicts = crate::judge_compilation(
+        terminal_check_tables::compilation::TerminalCompilation::Prepared(prepared_value_source(
+            AUTHORED_VALUE_SOURCE,
+        )),
+    );
     assert!(!verdicts.is_empty());
     for verdict in verdicts {
         let verdict = verdict.unwrap();
         assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+    }
+}
+
+fn assert_refinement_refused(verdict: &RouteVerdict) {
+    let RouteVerdict::Rejected { unproved, .. } = verdict else {
+        panic!("{verdict:?}");
+    };
+    assert!(
+        unproved
+            .iter()
+            .any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. })),
+        "{unproved:?}"
+    );
+}
+
+#[test]
+fn an_authored_value_parameter_member_still_owes_its_public_precondition() {
+    let source = include_str!(
+        "../../../../../../../tests/fixtures/fail/facts/lexical_generic_bound_through_local_rejected/main.omg"
+    );
+    let verdicts = crate::judge_compilation(
+        terminal_check_tables::compilation::TerminalCompilation::Prepared(prepared_value_source(
+            source,
+        )),
+    );
+    let mut rejected = 0;
+    for verdict in verdicts {
+        match verdict.unwrap() {
+            RouteVerdict::Accepted(_) => {}
+            verdict => {
+                assert_refinement_refused(&verdict);
+                rejected += 1;
+            }
+        }
+    }
+    assert!(rejected > 0);
+}
+
+#[test]
+fn one_valid_literal_does_not_discharge_the_members_universal_refinement() {
+    // At the existing call's Units=7 this extra precondition follows. It
+    // does not follow for every Units: the generic body remains valid under
+    // its own inputs, but its independent refinement witness must fail.
+    let source = AUTHORED_VALUE_SOURCE.replace(
+        "requires input <= Units\n    ensures result <= Units\n    { input }",
+        "requires input <= Units && input <= 7\n    ensures result <= Units\n    { input }",
+    );
+    assert_ne!(source, AUTHORED_VALUE_SOURCE);
+    let prepared = prepared_value_source(&source);
+    let form_count: usize = prepared
+        .forms
+        .iter()
+        .map(|row| row.forms.as_ref().unwrap().len())
+        .sum();
+    let rigid: Vec<_> = prepared
+        .witnesses
+        .iter()
+        .map(|row| {
+            row.as_ref()
+                .unwrap()
+                .value_parameters
+                .values()
+                .any(|count| *count != 0)
+        })
+        .collect();
+    assert!(rigid.iter().any(|rigid| *rigid));
+    assert!(rigid.iter().any(|rigid| !*rigid));
+    let verdicts = crate::judge_compilation(
+        terminal_check_tables::compilation::TerminalCompilation::Prepared(prepared),
+    );
+    assert_eq!(verdicts.len(), 1 + form_count + rigid.len());
+    for verdict in &verdicts[..1 + form_count] {
+        assert!(
+            matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+            "{verdict:?}"
+        );
+    }
+    for (verdict, rigid) in verdicts[1 + form_count..].iter().zip(rigid) {
+        let verdict = verdict.as_ref().unwrap();
+        if rigid {
+            assert_refinement_refused(verdict);
+        } else {
+            assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+        }
     }
 }
 

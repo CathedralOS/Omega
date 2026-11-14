@@ -972,7 +972,9 @@ impl<'t> Program<'t> {
         // (`value_binders`). A type parameter would put a value of a rigid
         // type into the lowered form, which has no row for one.
         let own_parameters = self.typed.machine_type_parameters(machine);
-        let parameters = if matches!(reading, Reading::GenericEntry) {
+        let parameters = if matches!(reading, Reading::GenericEntry)
+            || (self.rigid && matches!(reading, Reading::Implementation))
+        {
             self.generic_parameters(id, machine)?
         } else {
             own_parameters
@@ -987,14 +989,17 @@ impl<'t> Program<'t> {
         match reading {
             Reading::Closed | Reading::Implementation | Reading::Provider
                 if parameters.is_empty() => {}
-            Reading::Closed | Reading::Implementation | Reading::Provider => {
+            Reading::Closed | Reading::Provider => {
+                return unserved_parameters("generic machine read without arguments");
+            }
+            Reading::Implementation if !self.rigid => {
                 return unserved_parameters("generic machine read without arguments");
             }
             // A type parameter is opaque here: a value of it can be named,
             // passed and returned, and nothing selects on it. One declared
             // `[linear]` must be used exactly once, which this route does
             // not judge, so only the default and `[copy]` are read.
-            Reading::GenericEntry => {
+            Reading::GenericEntry | Reading::Implementation => {
                 for parameter in parameters {
                     match parameter.kind {
                         typed_trees::data::TypeParameterKind::Implementation
@@ -1290,7 +1295,9 @@ impl<'t> Program<'t> {
         // either its formal or result type can be read. Shape preparation
         // emits no storage, regions or types; the one ordinary read below
         // must reproduce this exact allocation.
-        let prepared = if matches!(reading, Reading::GenericEntry) {
+        let prepared = if matches!(reading, Reading::GenericEntry)
+            || (self.rigid && matches!(reading, Reading::Implementation))
+        {
             Some(self.prepare_width_scope(id, machine, state)?)
         } else {
             None
@@ -1504,7 +1511,14 @@ impl<'t> Program<'t> {
         let typed = self.typed;
         let application = typed
             .machine_instantiation(machine.symbol)
-            .map_err(unserved)?
+            .map_err(unserved)?;
+        // An independent generic body/witness is checked for every value,
+        // not at a made-up literal. The requirement reader gives its own
+        // binders the corresponding rigid formal positions in that proof form.
+        if application.is_none() && self.rigid && self.is_generic_template(machine) {
+            return Ok(Vec::new());
+        }
+        let application = application
             .ok_or_else(|| unserved("conformer value parameters need their exact application"))?;
         let template = typed
             .machine_by_symbol(application.template())
@@ -1840,11 +1854,15 @@ impl<'t> Program<'t> {
             ));
         }
         let binders = self.requirement_binders(id, requirement)?;
-        if binders.len() != arguments.len()
-            || binders
-                .iter()
-                .zip(arguments)
-                .any(|((_, scalar_type), literal)| literal.scalar_type() != *scalar_type)
+        // Only a generic check form may leave these values rigid. Every
+        // executable call still supplies and validates its complete tuple.
+        let rigid = self.rigid && arguments.is_empty();
+        if !rigid
+            && (binders.len() != arguments.len()
+                || binders
+                    .iter()
+                    .zip(arguments)
+                    .any(|((_, scalar_type), literal)| literal.scalar_type() != *scalar_type))
         {
             return unserved("value arguments that are not the requirement's parameters");
         }
@@ -1853,6 +1871,20 @@ impl<'t> Program<'t> {
             .map(|(symbol, _)| *symbol)
             .zip(arguments.iter().cloned())
             .collect();
+        let rigid_binders = if rigid {
+            self.typed
+                .state_signature_type_parameters(requirement)
+                .iter()
+                .zip(&binders)
+                .map(|(parameter, (symbol, scalar_type))| ValueBinder {
+                    symbol: *symbol,
+                    name: parameter.name.as_str().to_owned(),
+                    scalar_type: *scalar_type,
+                })
+                .collect::<Vec<_>>()
+        } else {
+            Vec::new()
+        };
         if requirement.is_default || !requirement.native_callback_parameters.is_empty() {
             return unserved("default or native-callback requirement");
         }
@@ -1873,7 +1905,7 @@ impl<'t> Program<'t> {
             Declarer::Requirement {
                 declares_no_crash_route: requirement.declares_no_crash_route,
             },
-            &[],
+            &rigid_binders,
             &bound,
         )?;
         signature.invokes =
