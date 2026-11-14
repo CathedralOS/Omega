@@ -4144,17 +4144,20 @@ pub mod types {
 
             let mut builder = SymbolTableBuilder::new();
             let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
-            builder.insert_children(root, builtin_type_symbols());
-            let impostors = builder.insert_children(
+            let children = builder.insert_children(
                 root,
-                [
+                builtin_type_symbols().into_iter().chain([
                     (SymbolKind::Data, SymbolNameRef::Static("u32")),
                     (
                         SymbolKind::Data,
                         SymbolNameRef::Static("AtomicU32#AccessField<forged>"),
                     ),
-                ],
+                ]),
             );
+            let impostors = children
+                .handles()
+                .skip(symbols::BUILTIN_TYPE_COUNT)
+                .collect::<Vec<_>>();
             let mut symbols = builder.finish();
             symbols.install_integer_types([FixedInteger::unsigned(13), FixedInteger::signed(257)]);
             let mut table = TypeReferenceTable::new();
@@ -4205,7 +4208,7 @@ pub mod types {
                 assert_eq!(table.primitive_type(reference, &symbols), None);
                 assert_eq!(table.type_symbol(reference), symbol);
             }
-            for symbol in impostors.handles().chain([SymbolHandle::invalid()]) {
+            for symbol in impostors.iter().copied().chain([SymbolHandle::invalid()]) {
                 for name in ["u32", "AtomicU32", "AtomicU32#AccessField<u32>"] {
                     let reference = table.insert(TypeReferenceNode::Named {
                         symbol,
@@ -4220,7 +4223,7 @@ pub mod types {
                 ..Default::default()
             };
             program.type_reference_table = table;
-            for symbol in impostors.handles() {
+            for symbol in impostors {
                 let reference = program
                     .type_reference_table
                     .insert(TypeReferenceNode::Named {

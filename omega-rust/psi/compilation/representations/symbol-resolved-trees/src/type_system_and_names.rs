@@ -889,10 +889,16 @@ pub mod type_system {
             fn resolved_scalar_identity_ignores_diagnostic_spelling() {
                 let mut builder = SymbolTableBuilder::new();
                 let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
-                builder.insert_children(root, builtin_type_symbols());
                 let nominal = builder
-                    .insert_children(root, [(SymbolKind::Data, SymbolNameRef::Static("u32"))])
-                    .start();
+                    .insert_children(
+                        root,
+                        builtin_type_symbols()
+                            .into_iter()
+                            .chain([(SymbolKind::Data, SymbolNameRef::Static("u32"))]),
+                    )
+                    .handles()
+                    .nth(symbols::BUILTIN_TYPE_COUNT)
+                    .unwrap();
                 let symbols = builder.finish();
                 let named = |symbol, name: &str| TypeReference::Named {
                     symbol,
