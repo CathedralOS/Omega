@@ -156,7 +156,7 @@ pub fn derive_selected_intrinsic_settlement_proposals<'a>(
     for (plan_index, (plan, retained)) in plans.iter().zip(provenance).enumerate() {
         if retained.plan != plan
             || retained.row_executions.len() != plan.rows.len()
-            || retained.row_numeric_realizations.len() != plan.rows.len()
+            || plan.row_numeric_realizations.len() != plan.rows.len()
         {
             return Err(vec![Diagnostic::error(format!(
                 "selected compiler-intrinsic plan `{}` has misaligned retained settlement provenance",
@@ -170,7 +170,7 @@ pub fn derive_selected_intrinsic_settlement_proposals<'a>(
             .rows
             .iter()
             .zip(retained.row_executions)
-            .zip(retained.row_numeric_realizations)
+            .zip(&plan.row_numeric_realizations)
         {
             if matches!(
                 row.binding,
@@ -287,7 +287,7 @@ pub fn derive_selected_intrinsic_settlement_proposals<'a>(
 pub fn validate_external_provider_owners(
     external_providers: &[terminal_psi::ExternalProviderConformance],
     identities: &terminal_psi::TerminalIdentityTable,
-    declarations: &[backend_plan::TerminalTargetProviderPlan],
+    declarations: &[effects::provider_plan::ProviderPlan],
 ) -> Result<(), String> {
     validate_provider_owners(external_providers, identities, declarations, |_, _| true)
 }
@@ -295,9 +295,7 @@ pub fn validate_external_provider_owners(
 fn validate_retained_external_provider_owners(
     module: &terminal_psi::TerminalModule,
     selected: &effects::SelectedProviderPlanFacts,
-    declarations: &[backend_plan::TerminalTargetProviderPlan],
 ) -> Result<(), String> {
-    backend_plan::require_selected_provider_declarations(selected, declarations)?;
     let mut retained = module
         .boundary_machines
         .iter()
@@ -324,7 +322,7 @@ fn validate_retained_external_provider_owners(
     validate_provider_owners(
         &module.external_providers,
         &module.identities,
-        declarations,
+        selected.plans(),
         |plan, row| {
             retained.iter().any(|requirement| {
                 selected.selected_row_matches_requirement(
@@ -340,22 +338,17 @@ fn validate_retained_external_provider_owners(
 fn validate_provider_owners(
     external_providers: &[terminal_psi::ExternalProviderConformance],
     identities: &terminal_psi::TerminalIdentityTable,
-    declarations: &[backend_plan::TerminalTargetProviderPlan],
+    declarations: &[effects::provider_plan::ProviderPlan],
     requires_declaration: impl Fn(
         &effects::provider_plan::ProviderPlan,
         &effects::provider_plan::ProviderPlanRow,
     ) -> bool,
 ) -> Result<(), String> {
     for selected in declarations {
-        if selected.row_numeric_realizations.len() != selected.plan.rows.len() {
+        if selected.row_numeric_realizations.len() != selected.rows.len() {
             return Err("selected external declarations have incomplete row custody".into());
         }
-        for (row, realization) in selected
-            .plan
-            .rows
-            .iter()
-            .zip(&selected.row_numeric_realizations)
-        {
+        for (row, realization) in selected.rows.iter().zip(&selected.row_numeric_realizations) {
             let effects::provider_plan::ProviderBinding::CompilerIntrinsic { machine } =
                 &row.binding
             else {
@@ -369,7 +362,7 @@ fn validate_provider_owners(
             }
             let mut found = false;
             for candidate in external_providers.iter().filter(|candidate| {
-                matches_external_selection(candidate, identities, &selected.plan, row, machine)
+                matches_external_selection(candidate, identities, selected, row, machine)
                     && realization.as_ref().is_none_or(|realization| {
                         identities.text(candidate.realization.machine.identity())
                             == Some(realization.as_str())
@@ -386,11 +379,11 @@ fn validate_provider_owners(
                     );
                 }
             }
-            if realization.is_some() && !found && requires_declaration(&selected.plan, row) {
+            if realization.is_some() && !found && requires_declaration(selected, row) {
                 return Err(format!(
                     "selected provider `{}` has no retained external implementation for `{}` (implementation `{}`)",
-                    selected.plan.provider_type,
-                    selected.plan.identities.text(row.requirement_identity),
+                    selected.provider_type,
+                    selected.identities.text(row.requirement_identity),
                     realization.as_deref().unwrap_or_default(),
                 ));
             }
@@ -426,12 +419,11 @@ impl AdmittedTerminalIntrinsics {
 pub fn admit_terminal_intrinsics<'selection>(
     artifact: terminal_codec::TerminalExecutionView<'_>,
     selected: &'selection effects::SelectedProviderPlanFacts,
-    declarations: &[backend_plan::TerminalTargetProviderPlan],
     provenance: impl ExactSizeIterator<Item = CompilerIntrinsicPlanProvenance<'selection>>,
     demanded: &std::collections::BTreeSet<String>,
 ) -> Result<AdmittedTerminalIntrinsics, Vec<Diagnostic>> {
     let module = artifact.module();
-    validate_retained_external_provider_owners(module, selected, declarations)
+    validate_retained_external_provider_owners(module, selected)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let proposals = derive_selected_intrinsic_settlement_proposals(
         selected,

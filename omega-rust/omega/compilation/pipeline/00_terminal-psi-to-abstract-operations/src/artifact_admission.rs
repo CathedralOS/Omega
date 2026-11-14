@@ -1023,7 +1023,6 @@ mod scalar_applications {
 
     pub struct NativeScalarApplications<'request> {
         pub completed: &'request AdmittedScalarApplications,
-        pub provider_declarations: &'request [backend_plan::TerminalTargetProviderPlan],
     }
 
     impl<'request> NativeScalarApplications<'request> {
@@ -1096,7 +1095,6 @@ mod scalar_applications {
                 artifact.view(),
                 profile.target_name(),
                 selection.plans,
-                self.provider_declarations,
             )?;
             if primary.providers() != &providers {
                 return Err(
@@ -1106,7 +1104,6 @@ mod scalar_applications {
             let full_adapters =
                 crate::providers::provider_admission::retain_selected_provider_adapters(
                     selection.plans,
-                    self.provider_declarations,
                 )?;
             if selection
                 .providers
