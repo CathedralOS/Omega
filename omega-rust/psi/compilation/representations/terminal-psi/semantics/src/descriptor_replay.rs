@@ -66,6 +66,9 @@ pub(crate) mod analysis {
                     .replay
                     .cached_invocation_summary(call)
                     .ok_or("callee descriptor summary could not be reconstructed")?;
+                if !summary.unknown_results.is_empty() {
+                    return Err("callee descriptor result has no established origin");
+                }
                 let mut origins = BTreeSet::new();
                 for slot in summary
                     .result
@@ -1123,6 +1126,36 @@ pub(crate) mod analysis {
                         let mut destination = result.clone();
                         destination.path.extend_from_slice(&slot.path);
                         outputs.push((destination, slot.origins.as_slice(), true));
+                    }
+                    // A result slot of unknown origin may be any descriptor
+                    // the call was given, or reach through one: everything
+                    // passed in stays live for as long as that slot is used.
+                    // lifetimes.md, "Carried-loan transport": an unresolved
+                    // selection "conservatively retains all possible sources".
+                    for path in &summary.unknown_results {
+                        let mut destination = result.clone();
+                        destination.path.extend_from_slice(path);
+                        let destination =
+                            self.replay
+                                .canonical_storage(machine, before, &destination, None)?;
+                        if !step.definitions.contains(&destination) {
+                            step.definitions.push(destination.clone());
+                        }
+                        for (argument, contents) in
+                            call.arguments.iter().zip(&call.argument_contents)
+                        {
+                            match argument {
+                                Some(source) => step.derivations.push((
+                                    self.replay
+                                        .canonical_storage(machine, before, source, None)?,
+                                    destination.clone(),
+                                )),
+                                None => {
+                                    step.inputs.push(contents.as_ref()?.observation());
+                                    step.may_escape = true;
+                                }
+                            }
+                        }
                     }
                 }
                 for (destination, origins, strong) in outputs {
@@ -3168,6 +3201,14 @@ pub(crate) mod dispatch {
 
     pub(crate) fn join(mut joined: Summary, summaries: &[Summary]) -> Summary {
         joined.invalidates_contents |= summaries.iter().any(|summary| summary.invalidates_contents);
+        for path in summaries
+            .iter()
+            .flat_map(|summary| &summary.unknown_results)
+        {
+            if !joined.unknown_results.contains(path) {
+                joined.unknown_results.push(path.clone());
+            }
+        }
         for summary in summaries {
             for effect in &summary.effects {
                 if !joined
@@ -3240,6 +3281,12 @@ pub(crate) mod engine {
     #[derive(Clone)]
     pub(crate) struct Summary {
         pub(crate) result: Option<Vec<DescriptorResultSlot>>,
+        /// The result slots whose origin this body does not establish: it
+        /// returns a view a boundary handed it, and no declaration says what
+        /// backs that view. Such a slot has no row in `result`, so a consumer
+        /// that needs its origins finds none. The flow of a caller treats it
+        /// as possibly backed by anything the call was given.
+        pub(crate) unknown_results: Vec<Vec<DescriptorPathSegment>>,
         pub(crate) result_cases: super::case_flow::ResultCases,
         pub(crate) effects: Vec<DescriptorStoredEffect>,
         pub(crate) invalidates_contents: bool,
@@ -3259,6 +3306,7 @@ pub(crate) mod engine {
                 invalidates_contents,
             } => Some(Summary {
                 result: Some(results.clone()),
+                unknown_results: Vec::new(),
                 result_cases: Default::default(),
                 effects: effects.clone(),
                 invalidates_contents: *invalidates_contents,
@@ -3270,6 +3318,7 @@ pub(crate) mod engine {
                 ..
             } => Some(Summary {
                 result: Some(results.clone()),
+                unknown_results: Vec::new(),
                 result_cases: Default::default(),
                 effects: Vec::new(),
                 invalidates_contents: *invalidates_contents,
@@ -4573,6 +4622,12 @@ pub(crate) mod engine {
                                     known.then_some(origins),
                                 );
                             }
+                            for path in &summary.unknown_results {
+                                let mut destination = result.clone();
+                                destination.path.extend_from_slice(path);
+                                replacements
+                                    .insert(DescriptorPayloadTarget::current(destination), None);
+                            }
                         }
                         Self::install_contents(&mut after, replacements);
                         if let Some(result) = &call.result {
@@ -4975,6 +5030,7 @@ pub(crate) mod engine {
             self.summaries.insert(identity, None);
             let states = self.states(identity, depth)?;
             let mut result_cases: Option<super::case_flow::ResultCases> = None;
+            let mut unknown_results: Vec<Vec<DescriptorPathSegment>> = Vec::new();
             let result = if let Some(returns) = &machine.returns {
                 let mut slots: Option<Vec<DescriptorResultSlot>> = None;
                 let mut result_type = None;
@@ -5016,7 +5072,17 @@ pub(crate) mod engine {
                         if slot.path != location.path {
                             return None;
                         }
-                        let origins = self.read(machine, state, &location)?;
+                        // `read` has no answer where this body does not
+                        // establish what the slot holds, as for a view a
+                        // boundary returned. That is not a failed analysis
+                        // of the body: its effects are known, and only what
+                        // backs this one slot is not.
+                        let Some(origins) = self.read(machine, state, &location) else {
+                            if !unknown_results.contains(&slot.path) {
+                                unknown_results.push(slot.path.clone());
+                            }
+                            continue;
+                        };
                         if origins.is_empty() {
                             return None;
                         }
@@ -5025,7 +5091,9 @@ pub(crate) mod engine {
                         }
                     }
                 }
-                Some(slots?)
+                let mut slots = slots?;
+                slots.retain(|slot| !unknown_results.contains(&slot.path));
+                Some(slots)
             } else {
                 None
             };
@@ -5132,6 +5200,7 @@ pub(crate) mod engine {
             });
             let summary = Summary {
                 result,
+                unknown_results,
                 result_cases: result_cases.unwrap_or_default(),
                 effects,
                 invalidates_contents,
@@ -6330,6 +6399,7 @@ pub(crate) mod summary_interface {
             }
             Some(Summary {
                 result: None,
+                unknown_results: Vec::new(),
                 result_cases: Default::default(),
                 effects: Vec::new(),
                 invalidates_contents,

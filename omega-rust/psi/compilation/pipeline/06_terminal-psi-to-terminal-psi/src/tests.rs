@@ -64,6 +64,7 @@ mod reach;
 mod references;
 mod result_fields;
 mod result_summaries;
+mod returned_views;
 mod rule_violations;
 mod runtime_indexed_elements;
 mod scalar_joins;
