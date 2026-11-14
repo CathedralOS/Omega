@@ -2680,9 +2680,9 @@ pub(crate) mod program {
         ) -> Result<Self, TerminalArtifactInterpretError> {
             let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(artifact_bytes)
                 .map_err(TerminalArtifactInterpretError::ArtifactDecode)?;
-            let (module, identity) = artifact.into_semantics();
+            let module = artifact.into_semantics();
             Ok(Self::from_admitted(AdmittedTerminalProgram {
-                identity: terminal_codec::TerminalExecutionIdentity::portable(identity),
+                identity: terminal_codec::TerminalExecutionIdentity::portable(module.identity()),
                 catalogs: std::sync::Arc::new(ProgramStorage::Owned(module)),
                 target_layouts: None,
                 scalar_geometry: None,

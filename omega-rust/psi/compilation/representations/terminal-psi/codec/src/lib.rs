@@ -10,19 +10,21 @@ We implement the canonical binary wire codec (`PSITERM\0`), cryptographic domain
 
 /*
 Why enforce a single canonical byte encoding and run structural-foundation validation inside the
-decoder rather than trusting deserialized tables? In Omega's separate-compilation and
-proof-carrying architecture, a `SemanticFingerprint` must uniquely identify the exact semantic
+decoder rather than trusting deserialized tables? In Omega's separate-compilation
+architecture, a `SemanticFingerprint` must identify the exact semantic
 program across hosts, caches, and package boundaries. Re-encoding every decoded module and
 rejecting any byte stream that deviates from canonical table order, violates structural-foundation
-closure, or carries trailing bytes guarantees that two artifacts have the same fingerprint if and
-only if their canonical wire bytes are identical.
+closure, or carries trailing bytes gives a single byte representation of portable
+semantics. The digest commits to those bytes; it does not establish their truth
+or authorize execution.
 */
 
 /*
-Consumed by `08_lowered-psi-to-terminal-psi` to publish canonical Terminal Psi artifacts and
-compute module fingerprints, by `terminal-verification` and `00_terminal-psi-to-abstract-operations`
-to admit foreign or cached artifacts across trust boundaries, and by `omega` build orchestration
-and package review tools to inspect manifests, traces, and proof certificates.
+The lowered-form checker's accepted closure publishes canonical Psi artifacts
+through this codec. The interpreter, native lowering and inspection paths borrow
+the same immutable closed module or decode external bytes at ingress. Receiving
+host authorization of an exact producer and artifact remains separate from
+decoding, structural validation and carried proof data.
 */
 
 mod block_wire;
