@@ -185,7 +185,16 @@ impl Questions<'_> {
             .iter()
             .filter(|call| call.machine == machine && call.site == site);
         let call = calls.next().ok_or_else(|| {
-            refused("source invocation lost its typed occurrence or original lexical owner")
+            let declaration = self
+                .source
+                .closure()
+                .elaboration
+                .machines
+                .get(machine)
+                .map(|symbol| self.source.source().symbols.display_path(*symbol, "::"));
+            refused(format_args!(
+                "source invocation lost its typed occurrence or original lexical owner: machine {machine:?}, site {site:?}, declaration {declaration:?}"
+            ))
         })?;
         if calls.next().is_some() {
             return Err(refused(
