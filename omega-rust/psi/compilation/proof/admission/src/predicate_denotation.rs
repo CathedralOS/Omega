@@ -207,6 +207,7 @@ mod value_equalities {
         ) -> Result<Proposition, PredicateDenotationError> {
             budget.proposition(original, depth)?;
             let mut transported = original.clone();
+            let mathematical_equality = matches!(original, Proposition::IntegerMathEqual(..));
             match &mut transported {
                 semantic_vocabulary::ordered_comparison_operands!(left, right) => {
                     *left = self.scalar(left, budget, depth + 1, &mut Vec::new())?;
@@ -236,6 +237,12 @@ mod value_equalities {
                 semantic_vocabulary::integer_math_comparison_operands!(left, right) => {
                     *left = self.mathematical(left, budget, depth + 1)?;
                     *right = self.mathematical(right, budget, depth + 1)?;
+                    // Expanding a value into its exact expression can reverse
+                    // equality's canonical operand order. Restore that order
+                    // before validating the substituted proposition.
+                    if mathematical_equality && left > right {
+                        std::mem::swap(left, right);
+                    }
                 }
                 Proposition::IeeeFloatComparison { .. }
                 | Proposition::ByteSequenceEqual { .. }
@@ -1223,6 +1230,71 @@ mod value_equality_tests {
         assert_eq!(
             *left,
             IntegerMathTerm::embed(sum(value(3), literal(1))).unwrap(),
+        );
+    }
+
+    #[test]
+    fn mathematical_equality_keeps_canonical_order_after_exact_value_substitution() {
+        use semantic_vocabulary::IntegerMathTerm;
+        let (context, _, _) = fixture();
+        let embedded = |identity| IntegerMathTerm::MathValue {
+            source_type: integer_type(),
+            value: ValueId::new(identity).unwrap(),
+        };
+        let original = Proposition::IntegerMathEqual(embedded(1), embedded(4));
+        let expected = Proposition::IntegerMathEqual(
+            embedded(4),
+            IntegerMathTerm::Add(Box::new(embedded(2)), Box::new(embedded(3))),
+        );
+        let exact = Proposition::Equal(
+            value(1),
+            ScalarTerm::exact_integer_add(integer_type(), value(2), value(3)).unwrap(),
+        );
+        assert_eq!(
+            check_value_equality_denotation(&context, &original, [&exact]).unwrap(),
+            expected,
+        );
+        let transport = |equation: &Proposition| ProofNode {
+            conclusion: expected.clone(),
+            rule: ProofRule::ValueEqualityTransport {
+                premise: Box::new(assumption_proof(original.clone(), 0)),
+                equalities: vec![semantic_axiom_proof(equation.clone(), 0)],
+            },
+        };
+        crate::accept_certificate(
+            &context,
+            &expected,
+            std::slice::from_ref(&original),
+            std::slice::from_ref(&exact),
+            &transport(&exact),
+        )
+        .expect("canonical equality transport retains its exact input equation");
+        for changed in [
+            Proposition::Equal(value(1), literal(7)),
+            Proposition::Equal(
+                value(1),
+                ScalarTerm::wrapping_integer_add(integer_type(), value(2), value(3)).unwrap(),
+            ),
+        ] {
+            assert!(
+                crate::accept_certificate(
+                    &context,
+                    &expected,
+                    std::slice::from_ref(&original),
+                    std::slice::from_ref(&changed),
+                    &transport(&changed)
+                )
+                .is_err()
+            );
+        }
+        assert_ne!(
+            check_value_equality_denotation(
+                &context,
+                &original,
+                [&Proposition::Equal(value(2), literal(0))]
+            )
+            .unwrap(),
+            expected
         );
     }
 

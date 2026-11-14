@@ -15,8 +15,8 @@ pub(crate) mod copied_call_operand {
         use register_environment::ValidatedTargetRegisterEnvironment;
         use register_model::RegisterOperandAccess;
         use selected_instructions::{
-            MachineSemanticKind, SelectedFunction, SelectedInstruction, SelectedInstructionId,
-            SelectedInstructionKind, ValidatedMachineEffectCatalog, VirtualRegisterId,
+            MachineSemanticKind, PreparedMachineEffectCatalog, SelectedFunction,
+            SelectedInstruction, SelectedInstructionId, SelectedInstructionKind, VirtualRegisterId,
         };
 
         use super::CopiedCallOperandError;
@@ -41,7 +41,7 @@ pub(crate) mod copied_call_operand {
             producer: SelectedInstructionId,
             call: SelectedInstructionId,
             environment: &'source ValidatedTargetRegisterEnvironment,
-            effect_catalog: &ValidatedMachineEffectCatalog,
+            effect_catalog: &PreparedMachineEffectCatalog,
             budget: OptimizationWorkBudget,
         ) -> Result<AdmittedPair<'source>, CopiedCallOperandError> {
             let plan = source.selected_plan();
@@ -618,7 +618,7 @@ pub(crate) mod copied_call_operand {
     pub(crate) mod rewrite {
         use optimization_core::OptimizationWorkBudget;
         use register_environment::ValidatedTargetRegisterEnvironment;
-        use selected_instructions::{SelectedInstructionId, ValidatedMachineEffectCatalog};
+        use selected_instructions::{PreparedMachineEffectCatalog, SelectedInstructionId};
 
         use super::{CopiedCallOperandError, ValidatedCopiedCallOperand, admission};
         use crate::ValidatedSelectedAnalysis;
@@ -629,7 +629,7 @@ pub(crate) mod copied_call_operand {
             producer: SelectedInstructionId,
             call: SelectedInstructionId,
             environment: &ValidatedTargetRegisterEnvironment,
-            effect_catalog: &ValidatedMachineEffectCatalog,
+            effect_catalog: &PreparedMachineEffectCatalog,
             budget: OptimizationWorkBudget,
         ) -> Result<ValidatedCopiedCallOperand, CopiedCallOperandError> {
             let admitted = admission::admit(

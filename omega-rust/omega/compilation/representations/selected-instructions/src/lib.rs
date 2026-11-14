@@ -119,7 +119,7 @@ pub use effects::{
     MachineIdentityBytes, MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind,
     MachineSizeKnowledge, MachineTrapBehavior, PreAllocationMachineEffectDecodeError,
     PreAllocationMachineEffectIdentity, PreAllocationMachineEffectPlan,
-    ValidatedMachineEffectCatalog, alternative_family_tag, canonical_machine_effect_catalog,
+    PreparedMachineEffectCatalog, alternative_family_tag, canonical_machine_effect_catalog,
     encode_machine_alternative_identity, encode_machine_alternative_key_identity,
     encode_machine_encoded_effects_identity, machine_effect_catalog_identity,
     pre_allocation_machine_effect_identity, saturating_family_tag, trapping_family_tag,

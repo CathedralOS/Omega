@@ -1,7 +1,7 @@
 /*
   Pre-allocation machine-effect analysis and catalog admission
   (`analyze_machine_effects`, `analyze_pre_allocation_machine_effects`,
-  `validated_machine_effect_catalog`, `ValidatedPreAllocationMachineEffects`).
+  `prepared_machine_effect_catalog`, `ValidatedPreAllocationMachineEffects`).
 
   Derives per-instruction register-unit uses/defs/clobbers, memory footprints,
   trap behaviors, barriers, call effects, cleanup actions, and ISA encoding
@@ -15,14 +15,13 @@ mod analysis {
     use register_environment::ValidatedTargetRegisterEnvironment;
 
     use super::MachineEffectStageError;
-    use super::catalog::validated_catalog;
+    use super::catalog::prepared_catalog;
 
     pub(super) fn analyze<S: crate::SelectedProgramView>(
         selected: &S,
         environment: &ValidatedTargetRegisterEnvironment,
     ) -> Result<ValidatedPreAllocationMachineEffects, MachineEffectStageError> {
-        let catalog =
-            validated_catalog(selected.selected_plan().target, environment.constraints())?;
+        let catalog = prepared_catalog(selected.selected_plan().target, environment.constraints())?;
         analyze_pre_allocation_machine_effects(
             selected,
             environment.identity(),
@@ -36,69 +35,33 @@ mod analysis {
     }
 }
 mod catalog {
-    use std::sync::{Arc, Mutex, OnceLock};
+    use std::sync::Arc;
 
-    use isa_aarch64::{aarch64_machine_effect_catalog, validate_aarch64_machine_effect_catalog};
-    use isa_x86_64::{validate_x86_64_machine_effect_catalog, x86_64_machine_effect_catalog};
-
-    use register_model::{
-        PhysicalRegisterModelIdentity, RegisterConstraintCatalogIdentity,
-        ValidatedRegisterConstraintCatalog,
-    };
-    use selected_instructions::ValidatedMachineEffectCatalog;
+    use isa_aarch64::aarch64_machine_effect_catalog;
+    use isa_x86_64::x86_64_machine_effect_catalog;
+    use register_model::ValidatedRegisterConstraintCatalog;
+    use selected_instructions::{PreparedMachineEffectCatalog, canonical_machine_effect_catalog};
     use target::NativeTarget;
 
     use super::MachineEffectStageError;
 
-    type CatalogKey = (
-        NativeTarget,
-        RegisterConstraintCatalogIdentity,
-        PhysicalRegisterModelIdentity,
-    );
-
-    pub(super) fn validated_catalog(
+    pub(super) fn prepared_catalog(
         target: NativeTarget,
         constraints: &ValidatedRegisterConstraintCatalog,
-    ) -> Result<Arc<ValidatedMachineEffectCatalog>, MachineEffectStageError> {
-        static CATALOGS: OnceLock<Mutex<Vec<(CatalogKey, Arc<ValidatedMachineEffectCatalog>)>>> =
-            OnceLock::new();
-        let catalogs = CATALOGS.get_or_init(Mutex::default);
-        let key = (
-            target,
-            constraints.identity(),
-            constraints.physical_identity(),
-        );
-        if let Ok(catalogs) = catalogs.lock()
-            && let Some((_, catalog)) = catalogs.iter().find(|(candidate, _)| *candidate == key)
-        {
-            return Ok(catalog.clone());
-        }
-        let catalog = Arc::new(build_validated_catalog(target, constraints)?);
-        if let Ok(mut catalogs) = catalogs.lock()
-            && !catalogs.iter().any(|(candidate, _)| *candidate == key)
-        {
-            catalogs.push((key, catalog.clone()));
-        }
-        Ok(catalog)
-    }
-
-    fn build_validated_catalog(
-        target: NativeTarget,
-        constraints: &ValidatedRegisterConstraintCatalog,
-    ) -> Result<ValidatedMachineEffectCatalog, MachineEffectStageError> {
+    ) -> Result<Arc<PreparedMachineEffectCatalog>, MachineEffectStageError> {
+        // The ISA owner establishes its own output. Foreign-catalog validation is
+        // a separate boundary, not a second construction during ordinary compilation.
         match target.architecture {
             target::Architecture::X86_64 => {
-                let catalog = x86_64_machine_effect_catalog(target, constraints)
-                    .map_err(MachineEffectStageError::X86_64Catalog)?;
-                validate_x86_64_machine_effect_catalog(target, constraints, catalog)
+                canonical_machine_effect_catalog(target, constraints, x86_64_machine_effect_catalog)
                     .map_err(MachineEffectStageError::X86_64Catalog)
             }
-            target::Architecture::Aarch64 => {
-                let catalog = aarch64_machine_effect_catalog(target, constraints)
-                    .map_err(MachineEffectStageError::Aarch64Catalog)?;
-                validate_aarch64_machine_effect_catalog(target, constraints, catalog)
-                    .map_err(MachineEffectStageError::Aarch64Catalog)
-            }
+            target::Architecture::Aarch64 => canonical_machine_effect_catalog(
+                target,
+                constraints,
+                aarch64_machine_effect_catalog,
+            )
+            .map_err(MachineEffectStageError::Aarch64Catalog),
         }
     }
 }
@@ -128,8 +91,8 @@ mod facts {
         use selected_instructions::{
             MachineAlternative, MachineEffectDeclaration, MachineEncodedControlEffect,
             MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
-            MachineSemanticKind, SelectedConstraintKeys, SelectedFunction, SelectedInstruction,
-            SelectedInstructionKind, ValidatedMachineEffectCatalog,
+            MachineSemanticKind, PreparedMachineEffectCatalog, SelectedConstraintKeys,
+            SelectedFunction, SelectedInstruction, SelectedInstructionKind,
         };
 
         use crate::MachineEffectError;
@@ -146,7 +109,7 @@ mod facts {
             constraints: &ValidatedRegisterConstraintCatalog,
             reservations: &ValidatedRegisterReservationProfile,
             selected_keys: &TargetRegisterEnvironmentConstraintKeys,
-            catalog: &ValidatedMachineEffectCatalog,
+            catalog: &PreparedMachineEffectCatalog,
         ) -> Result<PreAllocationMachineEffectPlan, MachineEffectError> {
             let source = selected.selected_plan();
             if source.work_schedule != selected.work_schedule_identity() {
@@ -229,7 +192,7 @@ mod facts {
             target: target::NativeTarget,
             constraints: &ValidatedRegisterConstraintCatalog,
             selected_keys: &TargetRegisterEnvironmentConstraintKeys,
-            catalog: &ValidatedMachineEffectCatalog,
+            catalog: &PreparedMachineEffectCatalog,
         ) -> Result<(), MachineEffectError> {
             if catalog.catalog().target != target {
                 return Err(MachineEffectError::CatalogTargetMismatch);
@@ -893,7 +856,7 @@ mod facts {
         ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
         ValidatedRegisterReservationProfile,
     };
-    use selected_instructions::ValidatedMachineEffectCatalog;
+    use selected_instructions::PreparedMachineEffectCatalog;
     use selected_instructions::{
         MachineEffectCatalogIdentity, SelectedInstructionId, SelectedInstructionPlanIdentity,
     };
@@ -907,7 +870,7 @@ mod facts {
         constraints: &ValidatedRegisterConstraintCatalog,
         reservations: &ValidatedRegisterReservationProfile,
         selected_keys: &TargetRegisterEnvironmentConstraintKeys,
-        catalog: &ValidatedMachineEffectCatalog,
+        catalog: &PreparedMachineEffectCatalog,
     ) -> Result<ValidatedPreAllocationMachineEffects, MachineEffectError> {
         let plan = compute::compute_terminal_pre_allocation_machine_effects(
             selected,
@@ -1017,14 +980,14 @@ pub use facts::{
 use crate::SelectedProgramView;
 use register_environment::ValidatedTargetRegisterEnvironment;
 
-pub fn validated_machine_effect_catalog(
+pub fn prepared_machine_effect_catalog(
     target: target::NativeTarget,
     constraints: &register_model::ValidatedRegisterConstraintCatalog,
 ) -> Result<
-    std::sync::Arc<selected_instructions::ValidatedMachineEffectCatalog>,
+    std::sync::Arc<selected_instructions::PreparedMachineEffectCatalog>,
     MachineEffectStageError,
 > {
-    catalog::validated_catalog(target, constraints)
+    catalog::prepared_catalog(target, constraints)
 }
 
 pub fn analyze_machine_effects<S: SelectedProgramView>(
@@ -1032,4 +995,85 @@ pub fn analyze_machine_effects<S: SelectedProgramView>(
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Result<ValidatedPreAllocationMachineEffects, MachineEffectStageError> {
     analysis::analyze(selected, environment)
+}
+
+#[cfg(test)]
+mod catalog_handoff_tests {
+    use super::{MachineEffectStageError, prepared_machine_effect_catalog};
+    use register_environment::baseline_target_register_environment;
+    use selected_instructions::{
+        MachineSemanticKind, MachineSizeKnowledge, canonical_machine_effect_catalog,
+        machine_effect_catalog_identity,
+    };
+    use target::{Architecture, NativeTarget};
+
+    fn hosted_targets() -> [NativeTarget; 4] {
+        [
+            NativeTarget::linux_x64(),
+            NativeTarget::windows_x64(),
+            NativeTarget::linux_arm64(),
+            NativeTarget::macos_arm64(),
+        ]
+    }
+
+    #[test]
+    fn catalog_handoff_reuses_the_producers_catalog_and_identity() {
+        for target in hosted_targets() {
+            let environment = baseline_target_register_environment(target).unwrap();
+            let prepared =
+                prepared_machine_effect_catalog(target, environment.constraints()).unwrap();
+            // Default preparation must populate the canonical owner, not wrap a
+            // separately reconstructed/validated copy in another cache.
+            let canonical = canonical_machine_effect_catalog::<&str>(
+                target,
+                environment.constraints(),
+                |_, _| Err("the prepared catalog must already be retained"),
+            )
+            .unwrap();
+            assert!(std::sync::Arc::ptr_eq(&prepared, &canonical));
+            assert_eq!(
+                prepared.identity(),
+                machine_effect_catalog_identity(prepared.catalog())
+            );
+        }
+    }
+
+    #[test]
+    fn catalog_handoff_keeps_supplied_catalogs_on_the_validation_path() {
+        for target in hosted_targets() {
+            let environment = baseline_target_register_environment(target).unwrap();
+            let prepared =
+                prepared_machine_effect_catalog(target, environment.constraints()).unwrap();
+            let mut changed = prepared.catalog().clone();
+            changed
+                .declaration_by_semantic_mut(MachineSemanticKind::MaterializeI64)
+                .unwrap()
+                .alternatives[0]
+                .size = MachineSizeKnowledge::ExactBytes(1);
+            match target.architecture {
+                Architecture::X86_64 => assert!(matches!(
+                    isa_x86_64::validate_x86_64_machine_effect_catalog(target, environment.constraints(), changed),
+                    Err(isa_x86_64::X86_64MachineEffectCatalogValidationError::TargetSemanticMismatch)
+                )),
+                Architecture::Aarch64 => assert!(matches!(
+                    isa_aarch64::validate_aarch64_machine_effect_catalog(target, environment.constraints(), changed),
+                    Err(isa_aarch64::Aarch64MachineEffectCatalogValidationError::TargetSemanticMismatch)
+                )),
+            }
+        }
+    }
+
+    #[test]
+    fn catalog_handoff_propagates_an_unsupported_isa_target() {
+        let environment =
+            baseline_target_register_environment(NativeTarget::linux_arm64()).unwrap();
+        let mut target = NativeTarget::windows_x64();
+        target.architecture = Architecture::Aarch64;
+        assert!(matches!(
+            prepared_machine_effect_catalog(target, environment.constraints()),
+            Err(MachineEffectStageError::Aarch64Catalog(
+                isa_aarch64::Aarch64MachineEffectCatalogValidationError::UnsupportedTargetAbi
+            ))
+        ));
+    }
 }

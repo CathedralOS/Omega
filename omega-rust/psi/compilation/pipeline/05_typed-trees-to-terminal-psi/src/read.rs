@@ -762,14 +762,12 @@ mod tests {
         assert_eq!(program.named_case(a_field), None);
     }
 
-    /// A `mut` formal that holds its own value may be named by an entry
-    /// `requires`, where it can only mean the argument. A guarantee or a
-    /// crash route guard that names it is refused: by then the name also
-    /// stands for whatever the body last assigned, and which of the two
-    /// the clause means is not settled. The same clause over a formal that
-    /// is not `mut` names its value.
+    /// Every clause names the scalar input's immutable identity. The body's
+    /// mutable working binding does not change the meaning of a guarantee
+    /// or crash guard. Borrowed observations still need their own storage
+    /// correspondence, and missing input metadata supplies no identity.
     #[test]
-    fn a_mut_formal_is_named_by_an_entry_requires_and_by_no_other_clause() {
+    fn a_mutable_scalar_formal_keeps_its_input_identity_in_every_clause() {
         use typed_trees::name::Identifier;
         let mut typed = TypedTrees::default();
         let formal = SymbolHandle::from_arena_index(3);
@@ -816,10 +814,23 @@ mod tests {
         ));
         let read = |scope: &ClauseScope<'_>| program.term(machine(), scope, named, None);
         assert_eq!(read(&scope(&mutable, true)), term);
+        assert_eq!(read(&scope(&mutable, false)), term);
         assert_eq!(read(&scope(&immutable, false)), term);
+        let missing = ClauseScope {
+            values: &[],
+            ..scope(&mutable, false)
+        };
         assert_eq!(
-            read(&scope(&mutable, false)).unwrap_err().detail,
-            "contract clause that names a mutable parameter outside requires"
+            read(&missing).unwrap_err().detail,
+            "contract formal identity"
+        );
+        let borrowed = [Slot {
+            borrowed: Some(language_core::ReferenceAccess::Mutable),
+            ..slot(true)
+        }];
+        assert_eq!(
+            read(&scope(&borrowed, false)).unwrap_err().detail,
+            "contract clause that names a borrowed formal outside requires"
         );
     }
 

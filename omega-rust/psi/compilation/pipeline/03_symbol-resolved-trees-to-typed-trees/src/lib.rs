@@ -45,6 +45,9 @@ mod statement_lowering;
 mod type_reference;
 mod typing_queries;
 
+#[cfg(test)]
+mod ranking_defaults_tests;
+
 pub(crate) use contracts_and_signatures::{contracts, signatures};
 
 pub(crate) mod expressions {
