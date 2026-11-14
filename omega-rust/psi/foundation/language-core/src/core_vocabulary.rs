@@ -52,6 +52,19 @@ pub enum CoreVocabulary {
     AssemblyEffect(AssemblyEffect),
     /// A native-binding vocabulary type in core `external_binding.omg`.
     ExternalBinding(ExternalBindingVocabulary),
+    /// Core `integer.omg`'s carrier metadata query or its result type.
+    IntegerCarrier(IntegerCarrierDeclaration),
+}
+
+/// The `integer.omg` declarations the carrier-family classification is read
+/// through (`wiki/spec/language/numeric_values.md`, "Integer carrier
+/// families"). The four family queries are ordinary machines over `Query`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum IntegerCarrierDeclaration {
+    /// `carrier<T>()`, answered from the type argument's carrier identity.
+    Query,
+    /// `Carrier`, the record `carrier<T>()` describes a type with.
+    Carrier,
 }
 
 /// The primitive propositions `assembly_model.omg` declares for instruction effects.
@@ -188,6 +201,7 @@ const EXTENT: &[u8] = core_source!("extent.omg");
 const FIXED_VEC: &[u8] = core_source!("fixed_vec.omg");
 const ASSEMBLY_MODEL: &[u8] = core_source!("assembly_model.omg");
 const EXTERNAL_BINDING: &[u8] = core_source!("external_binding.omg");
+const INTEGER: &[u8] = core_source!("integer.omg");
 
 const fn row(
     file: &'static str,
@@ -325,6 +339,18 @@ const ROWS: &[CoreVocabularyRow] = &[
         "reflect::schema",
         REFLECT,
         CoreVocabulary::Reflection(ReflectionDeclaration::Schema),
+    ),
+    row(
+        "integer.omg",
+        "integer::carrier",
+        INTEGER,
+        CoreVocabulary::IntegerCarrier(IntegerCarrierDeclaration::Query),
+    ),
+    row(
+        "integer.omg",
+        "integer::Carrier",
+        INTEGER,
+        CoreVocabulary::IntegerCarrier(IntegerCarrierDeclaration::Carrier),
     ),
     row(
         "reflect.omg",
@@ -631,6 +657,25 @@ mod tests {
         );
         assert_eq!(
             CoreVocabularyCatalog::classify(site("reflect.omg", "inspect_record_fields", REFLECT)),
+            None
+        );
+        // The integer carrier query is one exact declaration of `integer.omg`;
+        // the family queries built on it are ordinary machines with no row.
+        assert_eq!(
+            CoreVocabularyCatalog::classify(site("integer.omg", "integer::carrier", INTEGER)),
+            Some(CoreVocabulary::IntegerCarrier(
+                IntegerCarrierDeclaration::Query
+            ))
+        );
+        for unrecognized in ["carrier", "integer::is_integer", "integer::is_signed"] {
+            assert_eq!(
+                CoreVocabularyCatalog::classify(site("integer.omg", unrecognized, INTEGER)),
+                None,
+                "{unrecognized}"
+            );
+        }
+        assert_eq!(
+            CoreVocabularyCatalog::classify(site("integer.omg", "integer::carrier", b"edited")),
             None
         );
         assert_eq!(

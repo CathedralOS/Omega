@@ -28,6 +28,7 @@ mod authority;
 mod bytes;
 mod calling_abis;
 mod calls;
+mod carriers;
 #[cfg(test)]
 mod calls_visibility_tests;
 mod casts;
@@ -161,6 +162,13 @@ pub(crate) struct Program<'t> {
     /// The locals of the body being read whose value is decided statically
     /// by closed type equations (`static_truth`), by the local's symbol.
     static_truths: Vec<(SymbolHandle, bool)>,
+    /// What the premises of the generic check form being read say about
+    /// each rigid type parameter's integer carrier family
+    /// (`carriers::assume_premises`). Empty for every other reading.
+    rigid_carriers: Vec<(terminal_check_tables::values::RigidType, carriers::CarrierFacts)>,
+    /// Whether the signature being read is a generic check form's entry,
+    /// whose requirements are premises rather than obligations.
+    premise_reading: bool,
     /// `Elaboration::value_parameters` and `Elaboration::value_arguments`,
     /// pushed with each machine's signature.
     pub value_parameters: IdTable<MachineId, usize>,
@@ -323,6 +331,8 @@ impl<'t> Program<'t> {
             applied: Vec::new(),
             alternative: None,
             static_truths: Vec::new(),
+            rigid_carriers: Vec::new(),
+            premise_reading: false,
             value_parameters: IdTable::default(),
             generic_binders: Vec::new(),
             value_arguments: IdTable::default(),

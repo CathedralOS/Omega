@@ -1285,6 +1285,28 @@ impl<'t> Program<'t> {
                 Unserved::Spelling("type parameter without a symbol"),
             ));
         }
+        // A generic check form's requirements are what its body may assume
+        // of its rigid type parameters' carrier families; every other
+        // machine's requirements over them are obligations.
+        self.premise_reading = matches!(reading, Reading::GenericEntry);
+        if self.premise_reading {
+            let mut requirements = Vec::new();
+            for contract in span(
+                &self.typed.signature_contracts,
+                machine.contracts,
+                id,
+                "contract span",
+            )? {
+                if contract.kind == SignatureContractKind::Requires {
+                    for fact in span(&self.typed.proof_facts, contract.facts, id, "fact span")? {
+                        if let typed_trees::domain::ProofFact::Expression(expression) = fact {
+                            requirements.push(*expression);
+                        }
+                    }
+                }
+            }
+            self.assume_premises(id, &requirements)?;
+        }
         // A dependent carrier needs its width's real input identity before
         // either its formal or result type can be read. Shape preparation
         // emits no storage, regions or types; the one ordinary read below
@@ -1977,7 +1999,7 @@ impl<'t> Program<'t> {
                             continue;
                         }
                         let expression = self.fact(id, fact)?;
-                        if self.states_nothing(id, expression)? {
+                        if self.states_nothing(id, expression, true)? {
                             continue;
                         }
                         requires.push(self.clause(id, &required, expression)?);
@@ -1987,7 +2009,7 @@ impl<'t> Program<'t> {
                 SignatureContractKind::Ensures => {
                     for fact in facts {
                         let expression = self.fact(id, fact)?;
-                        if self.states_nothing(id, expression)? {
+                        if self.states_nothing(id, expression, false)? {
                             continue;
                         }
                         ensures.push(self.clause(id, &exit, expression)?);
@@ -2200,31 +2222,97 @@ impl<'t> Program<'t> {
     }
 
     /// Whether a clause states nothing: it is the Boolean literal `true`,
-    /// or closed type equations decide it as true. One they decide as false
-    /// is refused: the application is outside the family its declaration
-    /// admits, and nothing about its body would mean anything.
+    /// or static type propositions decide it as true (`clause_truth`).
+    ///
+    /// A `requires` conjunct they decide as false is rejected: the type
+    /// arguments are outside what the declaration admits (generics.md,
+    /// "Integer carrier constraints": "Failure rejects the domain
+    /// application"), whatever value is given. A generic check form's own
+    /// premise decided false, and a guarantee decided false, are refused:
+    /// the machine could never be entered or return, and nothing about its
+    /// body would mean anything.
+    ///
+    /// A conjunct left open by a rigid type parameter is an obligation the
+    /// generic body calling with it does not establish: its own premises
+    /// (`assume_premises`) do not say it. It is rejected, a distinct
+    /// obligation from any value predicate beside it. A generic check form's
+    /// own premise left open is one `assume_premises` could not take, and is
+    /// refused by name.
     pub(super) fn states_nothing(
         &self,
         id: MachineId,
         expression: typed_trees::expression::ExpressionHandle,
+        requirement: bool,
     ) -> Checked<bool> {
-        if expression.is_valid()
-            && matches!(
-                self.typed.expression_table.expression(expression),
-                typed_trees::expression::ExpressionNode::Boolean(true)
-            )
+        use super::types::TypeTruth;
+        use typed_trees::expression::{BinaryOperator, ExpressionNode};
+        let table = &self.typed.expression_table;
+        if expression.is_valid() && matches!(table.expression(expression), ExpressionNode::Boolean(true))
         {
             return Ok(true);
         }
-        match self.static_truth(expression) {
-            Some(true) => Ok(true),
-            Some(false) => Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Contract("type equation that is false for this application"),
-            )),
-            None => Ok(false),
+        let mut conjuncts = vec![expression];
+        let mut stated = Vec::new();
+        while let Some(conjunct) = conjuncts.pop() {
+            if conjunct.is_valid()
+                && let ExpressionNode::Binary(binary) = table.expression(conjunct)
+                && binary.operator == BinaryOperator::And
+                && self.clause_truth(conjunct).is_none()
+            {
+                conjuncts.push(binary.right);
+                conjuncts.push(binary.left);
+                continue;
+            }
+            stated.push(conjunct);
         }
+        let mut nothing = true;
+        for conjunct in stated {
+            let text = || table.display_name(conjunct);
+            let at = || crate::SourceOrigin::of(table.source_span(conjunct));
+            match self.clause_truth(conjunct) {
+                Some(TypeTruth::Known(true)) => {}
+                Some(TypeTruth::Known(false)) if requirement && !self.premise_reading => {
+                    return Err(crate::reject(
+                        id,
+                        at(),
+                        format!(
+                            "the type arguments of this application do not meet its \
+                             requirement `{}`: an application outside what its declaration \
+                             admits is rejected, whatever value it is given",
+                            text()
+                        ),
+                    ));
+                }
+                Some(TypeTruth::Known(false)) => {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Contract("type equation that is false for this application"),
+                    ));
+                }
+                Some(TypeTruth::Open) if requirement && !self.premise_reading => {
+                    return Err(crate::reject(
+                        id,
+                        at(),
+                        format!(
+                            "the generic body does not establish the requirement `{}` for its \
+                             type parameter: its own requirements do not state that integer \
+                             carrier family",
+                            text()
+                        ),
+                    ));
+                }
+                Some(TypeTruth::Open) => {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Contract("integer carrier premise that is not a conjunction"),
+                    ));
+                }
+                None => nothing = false,
+            }
+        }
+        Ok(nothing)
     }
 
     /// A formal's type, whether it is `[erased]`, and the reference it is

@@ -105,3 +105,50 @@ ensures
         _ -> (true)
     }
 }
+
+// What kind of computational integer a type is, read from the compiler's one
+// integer identity: its sign, and whether its width is fixed (closed, or a
+// generic width parameter) or unbounded (`i`, `u`). Every other type is no
+// integer: `bool`, addresses, floats, proof-only `Int`/`Nat` and nominal data
+// with an integer representation. An alias is its underlying carrier, and a
+// qualified carrier is classified by its carrier without losing its domains.
+public data Carrier [copy] {
+    integer: bool;
+    signed: bool;
+    fixed_width: bool;
+}
+
+// Only this exact toolchain declaration is elaborated by Psi, from the type
+// argument's carrier identity, and only through its fields in a static
+// condition. This body is never its answer.
+public machine carrier<T>() -> Carrier {
+    Carrier { integer: false, signed: false, fixed_width: false }
+}
+
+// The total carrier-family queries (numeric_values.md, "Integer carrier
+// families"). Each is an ordinary checked machine: its contract states the
+// answer from `carrier<T>()`, and only that contract gives a caller a fact.
+// A machine that merely returns `true` establishes no carrier family.
+public machine is_integer<T>() -> bool
+ensures result == carrier<T>().integer
+{
+    carrier<T>().integer
+}
+
+public machine is_signed_integer<T>() -> bool
+ensures result == (carrier<T>().integer && carrier<T>().signed)
+{
+    carrier<T>().integer && carrier<T>().signed
+}
+
+public machine is_unsigned_integer<T>() -> bool
+ensures result == (carrier<T>().integer && !carrier<T>().signed)
+{
+    carrier<T>().integer && !carrier<T>().signed
+}
+
+public machine is_fixed_width_integer<T>() -> bool
+ensures result == (carrier<T>().integer && carrier<T>().fixed_width)
+{
+    carrier<T>().integer && carrier<T>().fixed_width
+}
