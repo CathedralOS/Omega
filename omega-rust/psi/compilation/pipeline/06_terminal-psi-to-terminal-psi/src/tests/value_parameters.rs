@@ -216,3 +216,97 @@ fn a_body_that_reads_the_parameter_as_an_operand_is_not_carried() {
     assert_eq!(started, 0);
     assert_eq!(verdicts.unwrap_err().reason, RefusalReason::Unsupported);
 }
+
+fn width_identity() -> Machine {
+    let width = ScalarType::Integer(IntegerType::parameterized(
+        IntegerSign::Unsigned,
+        semantic_vocabulary::WidthParameter {
+            owner: id(1),
+            value: id(2),
+        },
+    ));
+    let count = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    Machine {
+        result: width,
+        requires: vec![Proposition::LessThan(
+            bound(count, IntegerValue::Unsigned(0)),
+            formal(2, count),
+        )],
+        ensures: vec![Proposition::Equal(formal(3, width), formal(1, width))],
+        ..machine(vec![width, count], vec![returns(slot(0, width))])
+    }
+}
+
+fn width_identity_at(bits: u16) -> Machine {
+    let width = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, bits).unwrap());
+    let count = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    Machine {
+        result: width,
+        requires: vec![Proposition::LessThan(
+            bound(count, IntegerValue::Unsigned(0)),
+            bound(count, IntegerValue::Unsigned(u128::from(bits))),
+        )],
+        ensures: vec![Proposition::Equal(formal(2, width), formal(1, width))],
+        ..machine(vec![width], vec![returns(slot(0, width))])
+    }
+}
+
+#[test]
+fn an_integer_width_body_carries_its_own_proof_to_two_closed_widths() {
+    let (form, found) = checked_once(width_identity(), 1);
+    let proved = verdicts(&form, &found, 1, guarantee);
+    assert_eq!(proved.len(), 1);
+    assert_kernel_checked(&form, 1, proved[0].0, certificate(proved[0].1));
+    for bits in [8, 32] {
+        let (consumer, moved, started) = carried(&form, &found, width_identity_at(bits));
+        assert_eq!(started, 0, "width carry started a prover");
+        let moved = moved.unwrap();
+        assert_eq!(moved.len(), 1);
+        assert_kernel_checked(&consumer, 1, moved[0].0, moved[0].1.as_ref().unwrap());
+    }
+}
+
+#[test]
+fn actual_width_carry_refuses_a_foreign_owner_or_disagreeing_value_carriers() {
+    let (form, found) = checked_once(width_identity(), 1);
+    let mut foreign = form.clone();
+    foreign
+        .tables
+        .machines
+        .get_mut(id(1))
+        .unwrap()
+        .values
+        .get_mut(id(1))
+        .unwrap()
+        .scalar_type = ScalarType::Integer(IntegerType::parameterized(
+        IntegerSign::Unsigned,
+        semantic_vocabulary::WidthParameter {
+            owner: id(2),
+            value: id(2),
+        },
+    ));
+    let (_, moved, started) = carried(&foreign, &found, width_identity_at(8));
+    assert_eq!(started, 0);
+    assert!(
+        moved.is_err(),
+        "another machine's same-numbered width was accepted"
+    );
+
+    let mut consumer = lower(vec![width_identity_at(8)]).unwrap();
+    consumer
+        .tables
+        .machines
+        .get_mut(id(1))
+        .unwrap()
+        .values
+        .get_mut(id(2))
+        .unwrap()
+        .scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
+    let before = searches();
+    let moved = reverify_specialization(&form, &found, id(1), &mut consumer, id(1), &[]);
+    assert_eq!(searches(), before);
+    assert!(
+        moved.is_err(),
+        "one width binder was accepted at two widths"
+    );
+}

@@ -528,13 +528,19 @@ impl<'a> Prover<'a> {
         else {
             return (None, None);
         };
+        // A rigid width has no concrete endpoint. Reporting bounds here
+        // must not turn an unknown carrier into a literal interval.
+        let (Some(minimum), Some(maximum)) = (integer.minimum_value(), integer.maximum_value())
+        else {
+            return (None, None);
+        };
         let narrower = |bound: Option<Bound>, carrier: IntegerValue| {
             bound
                 .map(|bound| bound.literal)
                 .filter(|literal| integer.compare(*literal, carrier) != Some(Ordering::Equal))
         };
-        let mut lower = narrower(self.bound(value, Direction::Lower), integer.minimum_value());
-        let mut upper = narrower(self.bound(value, Direction::Upper), integer.maximum_value());
+        let mut lower = narrower(self.bound(value, Direction::Lower), minimum);
+        let mut upper = narrower(self.bound(value, Direction::Upper), maximum);
         // A bound that holds only by cases is no bound of the value's own:
         // under `c == true` with `c` the join of `20 <= v && v <= 60`, the
         // limits are inside a disjunctive fact. Each literal such a fact
@@ -573,7 +579,7 @@ impl<'a> Prover<'a> {
             };
             if try_lower
                 && narrows(candidate, lower, Ordering::Greater)
-                && integer.compare(candidate, integer.minimum_value()) != Some(Ordering::Equal)
+                && integer.compare(candidate, minimum) != Some(Ordering::Equal)
                 && self
                     .prove(&Proposition::LessOrEqual(literal.clone(), subject.clone()))
                     .is_ok()
@@ -582,7 +588,7 @@ impl<'a> Prover<'a> {
             }
             if try_upper
                 && narrows(candidate, upper, Ordering::Less)
-                && integer.compare(candidate, integer.maximum_value()) != Some(Ordering::Equal)
+                && integer.compare(candidate, maximum) != Some(Ordering::Equal)
                 && self
                     .prove(&Proposition::LessOrEqual(subject.clone(), literal))
                     .is_ok()
@@ -1319,8 +1325,8 @@ impl<'a> Prover<'a> {
         direction: Direction,
     ) -> Option<Bound> {
         let literal = match direction {
-            Direction::Upper => integer.maximum_value(),
-            Direction::Lower => integer.minimum_value(),
+            Direction::Upper => integer.maximum_value()?,
+            Direction::Lower => integer.minimum_value()?,
         };
         let conclusion = Self::oriented(
             subject,
