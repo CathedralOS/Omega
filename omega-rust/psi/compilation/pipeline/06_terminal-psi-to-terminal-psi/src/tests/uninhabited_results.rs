@@ -76,6 +76,12 @@ fn check_no_normal(accepted: &crate::verdict::AcceptedClosure) -> MachineId {
     accepted
         .publish_invocation()
         .expect("actual accepted publication");
+    let bytes = terminal_codec::encode_module(module).expect("the exact accepted module encodes");
+    assert_eq!(
+        terminal_codec::decode_module(&bytes)
+            .expect("receiving admission retains the empty-result proof"),
+        *module,
+    );
     *callee
 }
 
