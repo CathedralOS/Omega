@@ -171,6 +171,7 @@ pub(crate) mod borrowed_calls {
                     runs,
                     function,
                     &super::scalar_sources::ScalarSources::from(live),
+                    types,
                 )?,
                 source,
                 destination: destination.placement.clone(),
@@ -284,6 +285,7 @@ pub(crate) mod borrowed_calls {
             runs,
             function,
             &super::scalar_sources::ScalarSources::from(live),
+            types,
         )?;
         Ok(TargetStructuralArgument {
             place: argument.place,
@@ -412,6 +414,7 @@ pub(crate) mod borrowed_calls {
             runs,
             function,
             &super::scalar_sources::ScalarSources::from(live),
+            types,
         )?;
         Ok(TargetStructuralArgument {
             place: argument.place,
@@ -526,8 +529,11 @@ pub(crate) mod borrowed_calls {
         } else if let Some((producer, structural_type)) = live.views.get(&argument.place) {
             let source =
                 if crate::scalar::element_views::is_element_view_parameter(declaration, types) {
-                    let values =
-                        super::observations::scalar_values(live, &prepared.scalar_parameters)?;
+                    let values = super::observations::scalar_values(
+                        live,
+                        &prepared.scalar_parameters,
+                        types,
+                    )?;
                     let (_, identity, access) = crate::scalar::element_views::resolve_element_view(
                         function,
                         types,
@@ -548,8 +554,11 @@ pub(crate) mod borrowed_calls {
                         psi_operation: *producer,
                     }
                 } else {
-                    let values =
-                        super::observations::scalar_values(live, &prepared.scalar_parameters)?;
+                    let values = super::observations::scalar_values(
+                        live,
+                        &prepared.scalar_parameters,
+                        types,
+                    )?;
                     let (_, access) = crate::scalar::byte_views::resolve_byte_view(
                         function,
                         types,
@@ -795,6 +804,7 @@ pub(crate) mod byte_arguments {
                 runs,
                 function,
                 &super::scalar_sources::ScalarSources::from(live),
+                types,
             )?,
             source,
             destination: destination.placement.clone(),
@@ -1170,7 +1180,7 @@ pub(crate) mod calls {
                     .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
                 let operand = super::scalar_sources::source(selector, function, live)?;
                 if !matches!(operand.scalar_type(), semantic_vocabulary::ScalarType::Integer(integer)
-                if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 64)
+                if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == Some(64))
                 {
                     return Err(LoweringError::ValueTypeMismatch(selector));
                 }
@@ -2001,6 +2011,7 @@ pub(crate) mod owned_arguments {
                 index_runs,
                 function,
                 &super::scalar_sources::ScalarSources::from(live),
+                types,
             )?,
             source,
             destination: destination.placement.clone(),
