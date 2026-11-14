@@ -217,13 +217,31 @@ impl<'t> Program<'t> {
     /// The member's body contract is an independent obligation of the
     /// refinement witness. Its identity is excluded from named-call lookup,
     /// so a recursive call cannot discover an unadvertised direct entry.
-    pub fn implementation(&mut self, symbol: SymbolHandle) -> Checked<MachineId> {
-        if self
+    pub fn implementation(
+        &mut self,
+        symbol: SymbolHandle,
+        declaring_trait: SymbolHandle,
+        requirement: SymbolHandle,
+    ) -> Checked<MachineId> {
+        let id = self.next_identity()?;
+        let (machine, _) = self.declaration(id, symbol)?;
+        let declared = self
+            .declared_conformer_requirement(id, machine)?
+            .map(|(owner, required)| (owner, required.symbol));
+        let owned = self
             .typed
-            .machine_by_symbol(symbol)
-            .is_some_and(|machine| !machine.satisfies.is_empty())
+            .owned_conformance_realization(symbol)
+            .map(|(_, row)| (row.declaring_trait, row.requirement));
+        if let Some(bound) = declared.or(owned)
+            && bound != (declaring_trait, requirement)
         {
-            let id = self.next_identity()?;
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Machine("conformance witness cannot rebind a declared requirement"),
+            ));
+        }
+        if declared.is_some() {
             self.read_machine(id, symbol, Reading::Implementation)?;
             self.implementation_body = Some(id);
             Ok(id)

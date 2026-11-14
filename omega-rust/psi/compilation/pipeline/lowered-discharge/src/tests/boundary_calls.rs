@@ -574,6 +574,33 @@ Rebound satisfies Other { Other::apply = previous; }
         if refusal.detail.contains("selection row cannot rebind a declared conformer")),
         "the existing bound entry must not acquire another route"
     );
+    // Reached dependency obligations use the same witness admission even
+    // when this compilation does not claim that declaration as a subject.
+    let other = typed
+        .traits()
+        .iter()
+        .find(|declared| declared.name.as_str() == "Other")
+        .unwrap();
+    let requirement = &typed.trait_machine_signatures(other)[0];
+    let member = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "previous")
+        .unwrap();
+    let Err(refusal) = structure_elaboration::elaborate_witness(
+        &typed,
+        other.symbol,
+        requirement.symbol,
+        &[],
+        member.symbol,
+    ) else {
+        panic!("matching text cannot rebind an existing nominal route");
+    };
+    assert!(
+        refusal
+            .detail
+            .contains("conformance witness cannot rebind a declared requirement")
+    );
 }
 
 #[test]
