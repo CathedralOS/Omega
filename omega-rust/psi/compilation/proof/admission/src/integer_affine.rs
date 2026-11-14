@@ -484,9 +484,9 @@ mod bound_mapping {
             mapped = match step {
                 CheckedIntegerEndpointStep::Add(value) => mapped.checked_add(*value),
                 CheckedIntegerEndpointStep::SaturatingAdd(value) => {
-                    let minimum = integer_value_as_i128(form.integer_type().minimum_value())
+                    let minimum = form.integer_type().minimum_value().and_then(integer_value_as_i128)
                         .ok_or(IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
-                    let maximum = integer_value_as_i128(form.integer_type().maximum_value())
+                    let maximum = form.integer_type().maximum_value().and_then(integer_value_as_i128)
                         .ok_or(IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
                     mapped
                         .checked_add(*value)
@@ -765,7 +765,10 @@ mod bound_mapping {
         operand: &ScalarTerm,
         literal: i128,
     ) -> Result<(), IntegerAffineBoundConversionError> {
-        let evidence = match integer_type.maximum_value() {
+        let maximum = integer_type
+            .maximum_value()
+            .ok_or(IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
+        let evidence = match maximum {
             IntegerValue::Unsigned(_) if literal < 0 => {
                 let floor = ScalarTerm::integer(
                     integer_type,
@@ -783,7 +786,7 @@ mod bound_mapping {
                 Proposition::LessOrEqual(operand.clone(), bound)
             }
             IntegerValue::Signed(maximum) => {
-                let IntegerValue::Signed(minimum) = integer_type.minimum_value() else {
+                let Some(IntegerValue::Signed(minimum)) = integer_type.minimum_value() else {
                     return Err(IntegerAffineBoundConversionError::MappedBoundOutsideCarrier);
                 };
                 let signed_bound = |value: Option<i128>| {
@@ -838,7 +841,7 @@ mod bound_mapping {
             IntegerAffineBoundConversionError::DirectAddEvidenceMismatch,
             |left, right| IntegerMathTerm::Add(Box::new(left), Box::new(right)),
         )?;
-        Ok(carrier_endpoint_image(form, sum, lower))
+        carrier_endpoint_image(form, sum, lower)
     }
 
     fn map_correlated_subtract_bound(
@@ -874,7 +877,7 @@ mod bound_mapping {
             IntegerAffineBoundConversionError::DirectSubtractEvidenceMismatch,
             |left, right| IntegerMathTerm::Subtract(Box::new(left), Box::new(right)),
         )?;
-        Ok(carrier_endpoint_image(form, difference, lower))
+        carrier_endpoint_image(form, difference, lower)
     }
 
     fn map_correlated_multiply_bound(
@@ -923,7 +926,7 @@ mod bound_mapping {
             IntegerAffineBoundConversionError::DirectMultiplyEvidenceMismatch,
             |left, right| IntegerMathTerm::Multiply(Box::new(left), Box::new(right)),
         )?;
-        Ok(carrier_endpoint_image(form, product, lower))
+        carrier_endpoint_image(form, product, lower)
     }
 
     fn map_direct_add_bound(
@@ -958,8 +961,8 @@ mod bound_mapping {
             }
             _ => return Err(IntegerAffineBoundConversionError::DirectAddEvidenceMismatch),
         };
-        let left_bound = left_endpoint.literal(form.integer_type(), lower);
-        let right_bound = right_endpoint.literal(form.integer_type(), lower);
+        let left_bound = left_endpoint.literal(form.integer_type(), lower)?;
+        let right_bound = right_endpoint.literal(form.integer_type(), lower)?;
         let bound = add_math_literals(left_bound, right_bound)?;
         let sum = directed_op_term(
             form,
@@ -1003,7 +1006,8 @@ mod bound_mapping {
                     (&left_endpoint, &right_endpoint),
                     (DirectAddEndpoint::Exact(left), DirectAddEndpoint::Carrier)
                         if left.as_integer_value(form.integer_type())
-                            == Some(form.integer_type().maximum_value())
+                            == form.integer_type().maximum_value()
+                            && form.integer_type().maximum_value().is_some()
                 ) =>
             {
                 true
@@ -1013,7 +1017,8 @@ mod bound_mapping {
                     (&left_endpoint, &right_endpoint),
                     (DirectAddEndpoint::Exact(left), DirectAddEndpoint::Carrier)
                         if left.as_integer_value(form.integer_type())
-                            == Some(form.integer_type().minimum_value())
+                            == form.integer_type().minimum_value()
+                            && form.integer_type().minimum_value().is_some()
                 ) =>
             {
                 false
@@ -1023,8 +1028,8 @@ mod bound_mapping {
             }
             _ => return Err(IntegerAffineBoundConversionError::DirectSubtractEvidenceMismatch),
         };
-        let left_bound = left_endpoint.literal(form.integer_type(), lower);
-        let right_bound = right_endpoint.literal(form.integer_type(), !lower);
+        let left_bound = left_endpoint.literal(form.integer_type(), lower)?;
+        let right_bound = right_endpoint.literal(form.integer_type(), !lower)?;
         let bound = subtract_math_literals(left_bound, right_bound)?;
         let difference = directed_op_term(
             form,
@@ -1101,17 +1106,17 @@ mod bound_mapping {
         };
         let (left_lower, left_upper, right_lower, right_upper) = if lower {
             (
-                left_first.literal(form.integer_type(), true),
-                left_second.literal(form.integer_type(), false),
-                right_first.literal(form.integer_type(), true),
-                right_second.literal(form.integer_type(), false),
+                left_first.literal(form.integer_type(), true)?,
+                left_second.literal(form.integer_type(), false)?,
+                right_first.literal(form.integer_type(), true)?,
+                right_second.literal(form.integer_type(), false)?,
             )
         } else {
             (
-                left_second.literal(form.integer_type(), true),
-                left_first.literal(form.integer_type(), false),
-                right_second.literal(form.integer_type(), true),
-                right_first.literal(form.integer_type(), false),
+                left_second.literal(form.integer_type(), true)?,
+                left_first.literal(form.integer_type(), false)?,
+                right_second.literal(form.integer_type(), true)?,
+                right_first.literal(form.integer_type(), false)?,
             )
         };
         let products = [
@@ -1179,14 +1184,21 @@ mod bound_mapping {
             }
         }
 
-        fn literal(&self, integer_type: IntegerType, lower: bool) -> IntegerMathLiteral {
+        /// A carrier endpoint exists only at a closed width.
+        fn literal(
+            &self,
+            integer_type: IntegerType,
+            lower: bool,
+        ) -> Result<IntegerMathLiteral, IntegerAffineBoundConversionError> {
             match self {
-                Self::Exact(literal) | Self::Oriented { literal, .. } => *literal,
-                Self::Carrier => IntegerMathLiteral::from_integer_value(if lower {
+                Self::Exact(literal) | Self::Oriented { literal, .. } => Ok(*literal),
+                Self::Carrier => if lower {
                     integer_type.minimum_value()
                 } else {
                     integer_type.maximum_value()
-                }),
+                }
+                .map(IntegerMathLiteral::from_integer_value)
+                .ok_or(IntegerAffineBoundConversionError::MappedBoundOutsideCarrier),
             }
         }
     }
@@ -1361,19 +1373,19 @@ mod bound_mapping {
         form: &CheckedIntegerAffineForm,
         term: IntegerMathTerm,
         lower: bool,
-    ) -> Proposition {
+    ) -> Result<Proposition, IntegerAffineBoundConversionError> {
         let integer_type = form.integer_type();
-        if lower {
-            Proposition::IntegerMathLessOrEqual(
-                IntegerMathTerm::literal(integer_type.minimum_value()),
-                term,
-            )
+        let endpoint = if lower {
+            integer_type.minimum_value()
         } else {
-            Proposition::IntegerMathLessOrEqual(
-                term,
-                IntegerMathTerm::literal(integer_type.maximum_value()),
-            )
+            integer_type.maximum_value()
         }
+        .ok_or(IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
+        Ok(if lower {
+            Proposition::IntegerMathLessOrEqual(IntegerMathTerm::literal(endpoint), term)
+        } else {
+            Proposition::IntegerMathLessOrEqual(term, IntegerMathTerm::literal(endpoint))
+        })
     }
 
     fn literal_endpoint_image(
@@ -1481,15 +1493,28 @@ mod bound_mapping {
             if !count_lower {
                 return Err(IntegerAffineBoundConversionError::DirectShiftCountLowerMissing);
             }
-            (count_type.zero(), count_type.maximum_value())
+            (
+                count_type.zero(),
+                count_type
+                    .maximum_value()
+                    .ok_or(IntegerAffineBoundConversionError::DirectShiftCountOutsideValueWidth)?,
+            )
         };
         let minimum_count = integer_value_to_u128(minimum_count)
             .and_then(|count| u32::try_from(count).ok())
-            .filter(|count| *count < u32::from(form.integer_type().bits()))
+            .filter(|count| {
+                form.integer_type()
+                    .bits()
+                    .is_some_and(|bits| *count < u32::from(bits))
+            })
             .ok_or(IntegerAffineBoundConversionError::DirectShiftCountOutsideValueWidth)?;
         let maximum_count = integer_value_to_u128(maximum_count)
             .and_then(|count| u32::try_from(count).ok())
-            .filter(|count| *count < u32::from(form.integer_type().bits()))
+            .filter(|count| {
+                form.integer_type()
+                    .bits()
+                    .is_some_and(|bits| *count < u32::from(bits))
+            })
             .ok_or(IntegerAffineBoundConversionError::DirectShiftCountOutsideValueWidth)?;
         if minimum_count > maximum_count {
             return Err(IntegerAffineBoundConversionError::DirectShiftCountEvidenceMismatch);
@@ -1965,7 +1990,7 @@ mod remainder {
                 let carrier = IntegerType::new(IntegerSign::Unsigned, bits).unwrap();
                 let context = context(carrier);
                 let divisor = value(2, carrier);
-                let maximum = ScalarTerm::integer(carrier, carrier.maximum_value()).unwrap();
+                let maximum = ScalarTerm::integer(carrier, carrier.maximum_value().unwrap()).unwrap();
                 for dividend in [value(1, carrier), maximum] {
                     for expression in [
                         ScalarTerm::exact_integer_remainder(
@@ -2192,9 +2217,9 @@ mod truth_bounds {
     pub fn integer_affine_truth_bounds(
         form: &CheckedIntegerAffineForm,
     ) -> Result<Vec<Proposition>, IntegerAffineBoundConversionError> {
-        let mut minimum = integer_value_as_i128(form.integer_type().minimum_value())
+        let mut minimum = form.integer_type().minimum_value().and_then(integer_value_as_i128)
             .ok_or(IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
-        let mut maximum = integer_value_as_i128(form.integer_type().maximum_value())
+        let mut maximum = form.integer_type().maximum_value().and_then(integer_value_as_i128)
             .ok_or(IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
         let carrier_minimum = minimum;
         let carrier_maximum = maximum;
@@ -2405,8 +2430,8 @@ mod witness_checking {
                 _ => return Ok(None),
             };
             let endpoint_step = match endpoint_value {
-                Some(value) if value == scalar_type.minimum_value() => minimum_step,
-                Some(value) if value == scalar_type.maximum_value() => maximum_step,
+                Some(value) if Some(value) == scalar_type.minimum_value() => minimum_step,
+                Some(value) if Some(value) == scalar_type.maximum_value() => maximum_step,
                 _ => return Ok(None),
             };
             Ok(Some(CheckedIntegerAffineForm {
@@ -2776,7 +2801,7 @@ mod witness_checking {
         > {
             if !matches!(target, ScalarTerm::Value { .. })
                 || target.scalar_type() != ScalarType::Integer(integer_type)
-                || !matches!(integer_type.bits(), 8 | 16 | 32 | 64)
+                || !matches!(integer_type.bits(), Some(8 | 16 | 32 | 64))
             {
                 return None;
             }
@@ -2809,7 +2834,7 @@ mod witness_checking {
                     definition_index,
                 )));
             };
-            if count >= u32::from(integer_type.bits()) {
+            if integer_type.bits().is_none_or(|bits| count >= u32::from(bits)) {
                 return Some(Err(IntegerAffineWitnessError::ShiftCountOutsideValueWidth(
                     definition_index,
                 )));
