@@ -471,10 +471,10 @@ impl Program<'_> {
         if !expression.is_valid() {
             return unserved("missing term");
         }
-        if let Some(logical) = &scope.logical {
-            if let Some((term, scalar)) = logical.term(typed, expression)? {
-                return Ok((term, ValueType::Scalar(scalar, Qualification::NONE)));
-            }
+        if let Some(logical) = &scope.logical
+            && let Some((term, scalar)) = logical.term(typed, expression)?
+        {
+            return Ok((term, ValueType::Scalar(scalar, Qualification::NONE)));
         }
         match typed.expression_table.expression(expression) {
             ExpressionNode::Name(path) if path.static_application.is_valid() => {

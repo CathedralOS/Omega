@@ -1297,11 +1297,11 @@ pub(crate) fn projected_arrival(
     Ok(CallableArrivalWitness {
         slot: String::new(),
         semantic_schema: RetainedDeclaration::capture(&typed.symbols, schema.symbol)
-            .map_err(|detail| identity(entry, &detail))?,
+            .map_err(|detail| identity(entry, detail))?,
         requirement: RetainedDeclaration::capture(&typed.symbols, required.symbol)
-            .map_err(|detail| identity(entry, &detail))?,
+            .map_err(|detail| identity(entry, detail))?,
         implementation: RetainedDeclaration::capture(&typed.symbols, supplied)
-            .map_err(|detail| identity(entry, &detail))?,
+            .map_err(|detail| identity(entry, detail))?,
         elaboration,
         required_inputs: required_inputs.origins,
         supplied_inputs: supplied_inputs.origins,
