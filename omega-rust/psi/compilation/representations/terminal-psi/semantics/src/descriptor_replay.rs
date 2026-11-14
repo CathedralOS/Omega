@@ -2320,19 +2320,19 @@ pub(crate) mod contents_queries {
         ) -> Option<()> {
             let root = *machine.place_types.get(&query.root)?;
             query.validate_using(self.types, root, |carrier, path, original| {
+                use crate::descriptors::descriptor_lifetimes::{
+                    descriptor_location_type, descriptor_path,
+                };
                 if original {
-                    machine.location_type(
-                        self.types,
-                        &DescriptorLocation {
-                            root: query.root,
-                            path: path.to_vec(),
-                        },
-                        completed,
-                    )
+                    let location = DescriptorLocation {
+                        root: query.root,
+                        path: path.to_vec(),
+                    };
+                    machine.location_path(self.types, &location, completed)?;
+                    Some(machine.location_type(self.types, &location, completed))
                 } else {
-                    crate::descriptors::descriptor_lifetimes::descriptor_location_type(
-                        self.types, carrier, path,
-                    )
+                    descriptor_path(self.types, carrier, path)?;
+                    Some(descriptor_location_type(self.types, carrier, path))
                 }
             })
         }
