@@ -218,7 +218,7 @@ impl<'t> Program<'t> {
                     result: Some(slots[slot].value_type),
                     source,
                 };
-                return self.observed(id, value, expected);
+                return self.held(id, slots, handle, value, expected, source);
             }
             ExpressionNode::Unary(unary) => {
                 let operand = self.expression(id, slots, unary.operand, expected)?;
@@ -461,7 +461,7 @@ impl<'t> Program<'t> {
             }
             ExpressionNode::Member(member) => {
                 let value = self.member(id, slots, member, source)?;
-                return self.observed(id, value, expected);
+                return self.held(id, slots, handle, value, expected, source);
             }
             ExpressionNode::Borrow(_) => {
                 let Some(expected) = expected else {
@@ -483,6 +483,34 @@ impl<'t> Program<'t> {
             result: Some(ValueType::Scalar(result, Qualification::NONE)),
             source,
         })
+    }
+
+    /// A named place where a value is expected. A place that holds a
+    /// reference of another access than the reference expected lends its
+    /// referent on with the expected access: an exclusive reference stored
+    /// into a shared field is a shared reborrow through it, which freezes
+    /// it (loans.md, "Reborrow lineage and access"), and the reverse asks a
+    /// shared reference for access it does not hold and is rejected there.
+    /// Every other place is seen as `observed` says.
+    fn held(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        handle: ExpressionHandle,
+        value: Expression,
+        expected: Option<ValueType>,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        if let (Some(wanted @ ValueType::Record(wanted_row, _, _)), Some(carried)) =
+            (expected, value.result)
+            && let ValueType::Record(carried_row, _, _) = carried
+            && wanted_row != carried_row
+            && self.reference_referent(id, wanted)?.is_some()
+            && self.reference_referent(id, carried)?.is_some()
+        {
+            return self.borrow_value(id, slots, handle, wanted, source);
+        }
+        self.observed(id, value, expected)
     }
 
     /// A place that holds a reference, as the context that names it sees it.
