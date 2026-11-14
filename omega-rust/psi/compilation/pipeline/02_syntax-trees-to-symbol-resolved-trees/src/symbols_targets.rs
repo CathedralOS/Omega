@@ -909,6 +909,18 @@ mod static_namespaces {
         if !namespace.is_some_and(|symbol| symbols.get(symbol).kind == SymbolKind::Module)
             && !symbols.is_source_package_qualifier(reference, receiver_name)
         {
+            // A source-free qualified operation has a declaration too. Only an
+            // unbound namespace may reach that default; visible authored owners
+            // retain their ordinary selection and never acquire builtin custody.
+            if !lexical_head.is_valid()
+                && symbols::BuiltinFunction::from_name(name)
+                    .is_some_and(symbols::BuiltinFunction::is_source_special_form)
+            {
+                return Some(super::calls::resolve_free_call_target_symbol(
+                    symbols,
+                    &DiagnosticName::from_str(name, reference),
+                ));
+            }
             return None;
         }
         Some(
@@ -1245,6 +1257,42 @@ mod tests {
     use symbols::SymbolKind;
 
     #[test]
+    fn compiler_queries_resolve_to_declarations_without_stealing_authored_calls() {
+        let text = "machine chosen() -> u32 { 1 }\n\
+                    machine expose(value: &u32) -> addr { address_of(value) }\n\
+                    machine describe() { let layout: CodeLayout = code_layout<chosen>(); }";
+        for query in ["address_of", "code_layout"] {
+            let call = resolved_call(text, query);
+            assert!(call.target_symbol.is_valid(), "{query} has no declaration");
+            assert_eq!(call.symbols_kind, SymbolKind::BuiltinFunction);
+        }
+        for query in ["address_of", "code_layout"] {
+            let text = format!(
+                "machine {query}() -> u32 {{ 7 }}\n\
+                 machine caller() -> u32 {{ {query}() }}"
+            );
+            let authored = resolved_call(&text, query);
+            assert_eq!(authored.symbols_kind, SymbolKind::State);
+            assert_eq!(authored.machine_name, query);
+        }
+        for operation in ["Quotient::lift", "Quotient::define"] {
+            // Resolution answers the declaration even when its owning operation
+            // must later reject the deliberately missing theorem arguments.
+            let query = resolved_call(&format!("machine caller() {{ {operation}(); }}"), operation);
+            assert_eq!(query.symbols_kind, SymbolKind::BuiltinFunction);
+            let authored = resolved_call(
+                &format!(
+                    "module Quotient; machine {operation}() -> u32 {{ 7 }} \
+                     machine caller() -> u32 {{ {operation}() }}"
+                ),
+                operation,
+            );
+            assert_eq!(authored.symbols_kind, SymbolKind::State);
+            assert_eq!(authored.machine_name, operation);
+        }
+    }
+
+    #[test]
     fn static_module_call_keeps_the_state_named_the_call_target() {
         let text = r#"
             module kit;
@@ -1522,17 +1570,38 @@ mod tests {
             retained_base: None,
         })
         .expect("resolve");
-        let call = program
+        let target_symbol = program
             .tables
             .bodies
             .expressions
             .iter_expressions()
             .find_map(|(_, expression)| match expression {
-                ExpressionNode::Call(call) if call.target.as_str() == target => Some(call.clone()),
+                ExpressionNode::Call(call) if call.target.as_str() == target => {
+                    Some(call.target_symbol)
+                }
                 _ => None,
             })
-            .expect("the call");
-        let target_symbol = call.target_symbol;
+            .or_else(|| {
+                program.machines.iter().find_map(|machine| {
+                    program
+                        .machine_state_handles(machine.states)
+                        .iter()
+                        .find_map(|state| {
+                            program
+                                .state_statements(program.machine_state(*state).statements)
+                                .iter()
+                                .find_map(|statement| match statement {
+                                    symbol_resolved_trees::statement::Statement::Call(call)
+                                        if call.target.as_str() == target =>
+                                    {
+                                        Some(call.target_symbol)
+                                    }
+                                    _ => None,
+                                })
+                        })
+                })
+            })
+            .unwrap_or_else(|| panic!("the call `{target}`"));
         ResolvedCall {
             symbols_kind: program.symbols.get(target_symbol).kind,
             state_name: program.symbols.name(target_symbol).to_owned(),

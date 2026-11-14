@@ -460,6 +460,10 @@ pub enum BuiltinFunction {
     IntegerEmbed,
     AsmStoreGdtr,
     AsmLoadGdtr,
+    AddressOf,
+    CodeLayout,
+    QuotientLift,
+    QuotientDefine,
 }
 
 macro_rules! roster {
@@ -469,7 +473,7 @@ macro_rules! roster {
 }
 
 impl BuiltinFunction {
-    pub const COUNT: usize = 105;
+    pub const COUNT: usize = 109;
 
     /*
         The closed inventory in slot order: every compiler-installed builtin
@@ -602,6 +606,10 @@ impl BuiltinFunction {
         (Self::AsmAarch64FullFence, "asm#dmb_sy"),
         (Self::AsmStoreGdtr, "asm#sgdt"),
         (Self::AsmLoadGdtr, "asm#lgdt"),
+        (Self::AddressOf, "address_of"),
+        (Self::CodeLayout, "code_layout"),
+        (Self::QuotientLift, "Quotient::lift"),
+        (Self::QuotientDefine, "Quotient::define"),
     ];
 
     pub fn from_ordinal(ordinal: usize) -> Option<Self> {
@@ -618,6 +626,16 @@ impl BuiltinFunction {
             .into_iter()
             .find(|(_, spelling)| *spelling == name)
             .map(|(function, _)| function)
+    }
+
+    /// These source forms validate their operands at their operation owner, not
+    /// against an ordinary callable signature. Their names still resolve normally,
+    /// so an authored declaration can shadow them without receiving this identity.
+    pub const fn is_source_special_form(self) -> bool {
+        matches!(
+            self,
+            Self::AddressOf | Self::CodeLayout | Self::QuotientLift | Self::QuotientDefine
+        )
     }
 
     /*

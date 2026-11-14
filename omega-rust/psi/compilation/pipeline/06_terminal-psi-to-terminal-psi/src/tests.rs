@@ -63,8 +63,10 @@ mod rule_violations;
 mod runtime_indexed_elements;
 mod scalar_joins;
 mod sequence_regions;
+mod stored_references;
 mod stored_views;
 mod type_parameters;
+mod uninhabited_results;
 mod value_parameters;
 mod width_parameters;
 

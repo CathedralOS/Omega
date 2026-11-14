@@ -297,6 +297,69 @@ impl Storage<'_> {
         Ok(window.length)
     }
 
+    /// `left == right` over two byte views, a `ByteSequenceEqual`.
+    ///
+    /// structural_predicates.md: "Byte-sequence equality compares live
+    /// lengths and live byte prefixes." byte_views.md, of an evaluated
+    /// content predicate: "The operand retains its own dominating length
+    /// observation, readable access, and establishment." So each operand is
+    /// a whole view this machine may read, and the length it names is that
+    /// same view's measurement: the lowered form measures the left view,
+    /// then the right one, then compares, with nothing else between, so no
+    /// operation can have changed either extent. The result is a plain
+    /// `bool` and the comparison stores nothing.
+    pub(super) fn compared_byte_views(&self, operation: &Operation) -> Checked<()> {
+        use terminal_psi::control_flow::ByteSequenceOperand;
+        let concerns = Construct::Operation(operation.id);
+        let OperationKind::ByteSequenceEqual { left, right } = &operation.kind else {
+            return Err(self.foreign(
+                concerns,
+                "a byte comparison requested for another operation",
+            ));
+        };
+        if operation.result.scalar_ref().is_none_or(|result| {
+            result.scalar_type != ScalarType::Boolean || result.qualifications != Default::default()
+        }) {
+            return Err(self.foreign(concerns, "a byte comparison must produce a plain bool"));
+        }
+        let (block, after) = self
+            .graph
+            .locate(ProgramPoint::AfterOperation(operation.id))?;
+        let operations = &self.block(block)?.operations;
+        // `after` counts the comparison itself: the right view's
+        // measurement is two back, the left view's three back.
+        for (operand, back) in [(left, 3), (right, 2)] {
+            let ByteSequenceOperand::Whole { source, length } = operand else {
+                return Err(self.unsupported(concerns, "a comparison of a view stored in a field"));
+            };
+            if !source.path.is_empty() || source.access != StructuralAccess::SharedBorrow {
+                return Err(self.unsupported(
+                    concerns,
+                    "a byte comparison of a view that is not read whole and shared",
+                ));
+            }
+            self.readable_byte_view(operation, source.place)?;
+            let measured = after
+                .checked_sub(back)
+                .and_then(|position| operations.get(position))
+                .is_some_and(|measurement| {
+                    matches!(&measurement.kind, OperationKind::ByteSequenceLength { source: measured }
+                        if measured.place == source.place && measured.path.is_empty())
+                        && measurement
+                            .result
+                            .scalar_ref()
+                            .is_some_and(|result| result.id == *length)
+                });
+            if !measured {
+                return Err(self.unsupported(
+                    concerns,
+                    "a byte comparison whose length is not its view's measurement directly before it",
+                ));
+            }
+        }
+        Ok(())
+    }
+
     pub(super) fn readable_byte_view(&self, operation: &Operation, root: PlaceId) -> Checked<()> {
         let concerns = Construct::Operation(operation.id);
         let shape = self.byte_shape(root, &[], concerns)?;
