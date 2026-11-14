@@ -1216,6 +1216,16 @@ mod tests {
                 .unwrap_err()
                 .detail
         };
+        let invalid_policy_operand = |scope: &ClauseScope<'_>, expression| {
+            let refusal = program
+                .term(machine(), scope, expression, None)
+                .unwrap_err();
+            assert!(matches!(
+                refusal.reason,
+                terminal_check_tables::RefusalReason::Violation(_)
+            ));
+            assert_eq!(refusal.detail, crate::policy::QUALIFIED_OPERAND);
+        };
         let no_input = "contract old of a subject without an admitted invocation input";
         assert_eq!(
             program
@@ -1386,10 +1396,7 @@ mod tests {
             Ok((ScalarTerm::value(value, scalar_type), domain[0].value_type))
         );
         for expression in [using_old, computed] {
-            assert_eq!(
-                detail(&domain_scope, expression),
-                "contract builtin operator on a value with a declared domain in a clause"
-            );
+            invalid_policy_operand(&domain_scope, expression);
         }
         let erased_qualification = [(foreign, ScalarTerm::value(value, scalar_type))];
         assert_eq!(
@@ -1411,14 +1418,9 @@ mod tests {
             ..scope
         };
         assert!(program.term(machine(), &qualified_scope, old, None).is_ok());
-        assert_eq!(
-            detail(&qualified_scope, using_old),
-            format!("contract {}", crate::policy::QUALIFIED_OPERAND)
-        );
-        assert_eq!(
-            detail(&qualified_scope, computed),
-            format!("contract {}", crate::policy::QUALIFIED_OPERAND)
-        );
+        for expression in [using_old, computed] {
+            invalid_policy_operand(&qualified_scope, expression);
+        }
         assert!(
             program.expression(machine(), &slots, old, None).is_err(),
             "old has no executable implementation"

@@ -836,13 +836,20 @@ impl Program<'_> {
         expected: Option<ScalarType>,
     ) -> Checked<(ScalarTerm, ValueType)> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        let reject = |operand, rule| {
+            crate::reject(
+                id,
+                crate::SourceOrigin::of(self.typed.expression_table.source_span(operand)),
+                rule,
+            )
+        };
         let operation = crate::policy::suffixed(binary.operator).map_err(unserved)?;
         let anonymous = (
             self.wholly_anonymous(binary.left),
             self.wholly_anonymous(binary.right),
         );
         if anonymous == (true, true) {
-            return Err(unserved(crate::policy::WHOLLY_ANONYMOUS));
+            return Err(reject(binary.left, crate::policy::WHOLLY_ANONYMOUS));
         }
         // The operand that has a type is read first; the anonymous one lands
         // in it, as the literal in `total +% 1` does.
@@ -854,21 +861,18 @@ impl Program<'_> {
             let right = self.term(id, scope, binary.right, left.1.scalar())?;
             (left, right)
         };
-        if left_type.qualification().policy.is_some() || right_type.qualification().policy.is_some()
-        {
-            return Err(unserved(crate::policy::QUALIFIED_OPERAND));
+        for (operand, value_type) in [(binary.left, left_type), (binary.right, right_type)] {
+            if value_type.qualification() != Qualification::NONE {
+                return Err(reject(operand, crate::policy::QUALIFIED_OPERAND));
+            }
         }
         let left_type = self.clause_operand_type(id, left_type)?;
         let right_type = self.clause_operand_type(id, right_type)?;
         let (ScalarType::Integer(carrier), ScalarType::Integer(_)) = (left_type, right_type) else {
-            return Err(unserved(crate::policy::QUALIFIED_OPERAND));
+            return Err(reject(binary.left, crate::policy::QUALIFIED_OPERAND));
         };
         if !crate::policy::shifts(operation) && left_type != right_type {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Typing("policy operator operand types differ"),
-            ));
+            return Err(reject(binary.right, "policy operator operand types differ"));
         }
         match crate::policy::term(operation, policy, carrier, left, right) {
             Some(term) => Ok((term, ValueType::plain(left_type))),
