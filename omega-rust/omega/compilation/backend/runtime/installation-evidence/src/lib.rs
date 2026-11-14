@@ -12,7 +12,7 @@ the exact identities and byte demands needed to preserve those decisions.
 
 /*
 Why keep installation evidence in a tiny dependency-light crate separate from
-`executable-installation` and lowering? If instruction selection or object
+provider admission and lowering? If instruction selection or object
 emission imported the full installation state machine or provider-selection
 arenas, every backend lowerer would couple to source-derived planning and
 mutable installation registries. By projecting admitted provider calls, object

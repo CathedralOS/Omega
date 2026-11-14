@@ -61,20 +61,16 @@ pub(crate) mod dynamic_elf {
 
     /// Exact admitted dynamic ELF bytes after production-emitter reconciliation.
     ///
-    /// This is intentionally not [`crate::ExecutableImage`], so existing
-    /// installation and installed-artifact APIs cannot mistake final-byte custody
-    /// for publication or execution authority.
+    /// This is intentionally not [`crate::ExecutableImage`]. Dynamic ELF byte
+    /// custody cannot substitute for direct-image custody; neither grants
+    /// receiver-side installation or execution authority.
     ///
     /// ```compile_fail
-    /// use image_emission::{
-    ///     DynamicElfImageEmission, /// };
-    /// use semantic_vocabulary::ProfileDecisionId;
+    /// use image_emission::{RequestedDynamicElfImage, ExecutableImage};
     ///
-    /// fn cannot_install(
-    ///     emission: &DynamicElfImageEmission,
-    ///     profile: ProfileDecisionId,
-    /// ) {
-    ///     let _ = build_installation_record(emission, profile);
+    /// fn requires_direct_image(_: &ExecutableImage) {}
+    /// fn cannot_substitute(image: &RequestedDynamicElfImage) {
+    ///     requires_direct_image(image.emission());
     /// }
     /// ```
     #[derive(Debug)]
