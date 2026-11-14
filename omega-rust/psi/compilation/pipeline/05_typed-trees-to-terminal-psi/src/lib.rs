@@ -63,6 +63,7 @@ mod policy;
 mod proof_scope;
 mod read;
 mod reference_results;
+mod suspension;
 
 // One compilation's forms read the same frozen owner and its immutable
 // capture index. Sharing this scratch never transfers source or proof authority.
@@ -659,6 +660,8 @@ fn finish_reading<'source>(
                 &mut elaboration.module,
             )
         })
+        // Last, over the finished operations and published contracts.
+        .and_then(|()| suspension::publish_crossings(&mut elaboration.module))
         .map_err(|reason| {
             refuse(
                 diagnostic,
