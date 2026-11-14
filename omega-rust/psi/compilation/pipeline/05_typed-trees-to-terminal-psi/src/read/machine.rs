@@ -854,6 +854,25 @@ impl<'t> Program<'t> {
 
     fn machine_shape(&self, id: MachineId, machine: &Machine, reading: &Reading) -> Checked<()> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Machine(what)));
+        if self
+            .typed
+            .executable_application_template(machine.symbol)
+            .map_err(|what| refuse(id, Construct::Machine, Unserved::Machine(what)))?
+            .is_some()
+        {
+            for state in self.typed.machine_states(machine) {
+                self.typed
+                    .executable_callable_template(state.symbol)
+                    .map_err(|what| refuse(id, Construct::Machine, Unserved::Machine(what)))?
+                    .ok_or_else(|| {
+                        refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Machine("generated entry has no retained application"),
+                        )
+                    })?;
+            }
+        }
         // The entry of a generic check form keeps its parameters, each
         // rigid; a generic machine it calls is read at the call's type
         // arguments; every other machine is closed.
@@ -1206,7 +1225,8 @@ impl<'t> Program<'t> {
     /// binders and const requirements": a `const Count: u32` binds a value
     /// that "must be statically known within the compiled specialization",
     /// so the unspecialized body knows only its carrier and what the
-    /// `requires` say of it. Only an integer carrier is served.
+    /// `requires` say of it. An integer carrier and `bool` are served: each
+    /// is an ordinary scalar formal of that type with no definition.
     fn value_binders(&self, id: MachineId, machine: &Machine) -> Checked<Vec<ValueBinder>> {
         let mut binders = Vec::new();
         for parameter in self.typed.machine_type_parameters(machine) {
@@ -1222,11 +1242,15 @@ impl<'t> Program<'t> {
                 ));
             }
             let scalar_type = self.scalar_type(id, type_reference)?;
-            if !matches!(scalar_type, semantic_vocabulary::ScalarType::Integer(_)) {
+            if !matches!(
+                scalar_type,
+                semantic_vocabulary::ScalarType::Integer(_)
+                    | semantic_vocabulary::ScalarType::Boolean
+            ) {
                 return Err(refuse(
                     id,
                     Construct::Machine,
-                    Unserved::Parameter("value parameter that is not an integer"),
+                    Unserved::Parameter("value parameter that is not an integer or a Boolean"),
                 ));
             }
             binders.push(ValueBinder {
@@ -1692,7 +1716,9 @@ impl<'t> Program<'t> {
             &mut self.elision,
             super::regions::Elision::Inputs(requirement.symbol),
         );
+        let owner = std::mem::replace(&mut self.lifetime_owner, requirement.symbol);
         let read = self.read_requirement_signature(id, requirement, arguments);
+        self.lifetime_owner = owner;
         self.elision = elision;
         if let Some((_, count)) = self
             .elided_lifetimes
@@ -1737,13 +1763,10 @@ impl<'t> Program<'t> {
         if requirement.spelling.is_some() {
             return unserved("operator spelling");
         }
-        if !requirement.lifetime_parameters.is_empty() {
-            return Err(refuse_parameters(
-                id,
-                "requirement with lifetime parameters",
-                requirement.name.as_str(),
-            ));
-        }
+        // Named lifetimes belong to this declaration just as elided inputs
+        // do. The shared contract reader retains their regions; each call
+        // instantiates them and signature refinement checks their relations.
+        // Reading that relation supplies neither backing nor a result loan.
         if !requirement.conformance_bounds.is_empty() {
             return Err(refuse_parameters(
                 id,
@@ -2573,7 +2596,10 @@ impl<'t> Program<'t> {
                 }
                 StatementNode::Expression(expression) => {
                     let expected = if last { signature.result } else { None };
-                    let expression = self.expression(id, &slots, *expression, expected)?;
+                    let mut expression = self.expression(id, &slots, *expression, expected)?;
+                    // The expression is the whole statement, or the machine's
+                    // terminal expression: both are suspension positions.
+                    crate::operational::boundary(&mut expression);
                     match (last, signature.result) {
                         (true, Some(result)) => {
                             if !self.agrees(expression.result, result) {
@@ -2953,6 +2979,7 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         }
         ExpressionKind::Field { base, .. }
         | ExpressionKind::Payload { base, .. }
+        | ExpressionKind::ArrayView { base, .. }
         | ExpressionKind::CollectionMeasure { base, .. } => {
             spans(base, binder, out);
         }
@@ -3137,6 +3164,7 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
         }
         ExpressionKind::Field { base, .. }
         | ExpressionKind::Payload { base, .. }
+        | ExpressionKind::ArrayView { base, .. }
         | ExpressionKind::CollectionMeasure { base, .. } => {
             expression_slot_uses(base, uses);
         }

@@ -36,8 +36,8 @@ runtime behavior.
 Captured inputs remain immutable for the activation. Input identity binds their
 exact bytes and admitted metadata, not a host pathname that can later change.
 The [scoped execution contract](scoped_execution.md) defines input isolation,
-delegation, and output-cache eligibility. Retaining completed output bytes for
-publication or cache use does not rerun the build.
+delegation, and output reuse within a build. Retaining completed output bytes for
+publication or reuse does not rerun the build.
 
 ## Complete output custody
 

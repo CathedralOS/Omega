@@ -87,20 +87,6 @@ framework or a list of features that remain unimplemented.
 - Cost: a second, looser reading of the Provider position stays served for no library; delete `DefaultClosure` and the `ProviderForm` parameter, turn the test into the refusal twin, and give the probe a named implementation
 - Reported: 2026-11-14, worker-15 (Claude Code), while moving std's ProcessExit defaults to a named implementation
 
-### A selected provider plan travels in two carriers, and only one knows its provider declaration
-- Category: 1. One idea, several implementations.
-- Where: `omega-rust/omega/compilation/realization/selected-dispatch/src/selected_execution.rs` (`SelectedExecution`), `backend-plan/src/target_providers.rs:30` (`TerminalTargetProviderPlan`), `effects/src/provider_evidence.rs:200` (`SelectedProviderPlanFacts`)
-- Saw: the checked-adapter join needs each plan's selecting declaration, which `ProviderPlan` does not hold; `TerminalTargetProviderPlan` wraps the plan with it, `SelectedProviderPlanFacts` sorts and validates bare plans, so `SelectedExecution` keeps both and `require_selected_provider_declarations` rejoins them by equality.
-- Cost: every consumer of selected plans must be handed both carriers and trust they agree; the declaration belongs in the plan.
-- Reported: 2026-11-14, Claude Code worker-10, while forming provider plans from settled supplies.
-
-### Compiler operations are recognized by their bare spelling, and no declaration answers them
-- Category: one idea, several implementations
-- Where: `"code_layout"` in stage 02 `constant.rs:2063,2362`, `selection_authored.rs:392,1265` and stage 03 `statement_lowering.rs:1336`, `expression_lowering.rs:1445`; `"address_of"` in `expression_lowering.rs:1076`; `Quotient::lift`/`define` and `LayoutPlan::place_private` by namespace spelling in `expression_lowering.rs`
-- Saw: each stage compares the written name to a string literal, and resolution leaves the call with no target symbol, so the call is unbound in the same way a misspelled name is; telling "unknown name" from "compiler operation" needs a third copy of the list (stage 03 `typing_queries.rs` `COMPILER_CALL_SPELLINGS`)
-- Cost: a new compiler operation added in one place and missed in the list would be rejected as an unknown name; one declaration per operation (as `BuiltinFunction` symbols are) would let resolution answer it once
-- Reported: 2026-11-14, Claude Code (worker-14), while making a call of an undeclared name a rejection
-
 ### Whether a type is a scalar is decided twice, once by its spelling and once by its symbol
 - Category: one idea, several implementations
 - Where: `typed-trees/src/type_system.rs` (`TypeReferenceNode::primitive_type` calls `PrimitiveType::from_name(name)`; `type_symbol` returns no symbol when the name spells a primitive); `05_typed-trees-to-terminal-psi/src/read/types.rs` (`atom_type` through `SymbolTable::builtin_type_atom`); `symbol-resolved-trees/src/type_system_and_names.rs` (a second `PrimitiveType` with its own `from_name`)
@@ -142,13 +128,6 @@ framework or a list of features that remain unimplemented.
 - Saw: about fifty comments said "the current checker" does this or that; they now say "the deleted checker" did, which is true but leaves the reasoning hollow where the old checker was the reason: a retired spelling is served because refusing it "would only send the same program" to a checker that accepted it, and message wording is pinned to that checker's sentences. The `Knowledge` knob is threaded through discharge only for the comparison example this change deleted
 - Cost: a reader cannot tell which behaviours are the specification's and which were kept for agreement with a checker that no longer exists, and the knob is dead weight in every discharge signature
 - Reported: 2026-11-13, Claude Code, while removing the two-checker names
-
-### A clause the specification rejects can only be reported as not supported yet
-- Category: a verdict with nothing behind it
-- Where: `omega-rust/psi/compilation/representations/terminal-psi/check-tables/src/lib.rs` (`RefusalReason`); `05_typed-trees-to-terminal-psi/src/read/contracts.rs` (`term`, the `Trapping` arm)
-- Saw: `ensures result == left +! right` is an error of the program (`wiki/spec/proofs/contracts.md`, "Total arithmetic": an operation that can transfer control "cannot form a proof term"), but the reader's only negative result that is not a storage or ownership judgment is `Unsupported`, so the clause is refused with the same outcome as a construct nobody has built yet. A wholly anonymous `7 +% 1` and a suffix on a qualified operand are reported the same way
-- Cost: the author is told the compiler cannot judge a program that the language forbids, and a test cannot tell a rule of the language from a gap in the checker
-- Reported: 2026-11-13, Claude Code, while reading suffixed operators in contracts
 
 ### `Console::exit_process` ends the process without publishing `reaches ProcessExit`
 - Category: a verdict with nothing behind it
@@ -220,20 +199,6 @@ framework or a list of features that remain unimplemented.
 - Cost: an overflow or zero divisor that native code would trap on shows up as "the verified artifact is malformed" with no reason, so a native and Psi disagreement reads as an interpreter failure and the cause must be found by hand
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### Architecture rules are enforced by searching source text for substrings
-- Category: tests that pin the bug
-- Where: `omega-rust/omega/compilation/compiler/src/product_boundary.rs`, `omega-rust/omega/build-system/orchestration/src/build_boundary.rs`, `omega-rust/omega/compilation/native-compiler/src/pipeline_boundary.rs`, `omega-rust/omega/compilation/realization/provider-planning/src/source_guards.rs`, `omega-rust/omega/compilation/backend/plans/program-entry-plan/src/source_guards.rs`, `omega-rust/psi/foundation/access-plans/src/tests.rs`, `omega-rust/psi/interpreter/terminal-interpreter/src/embedding.rs`
-- Saw: these tests assert that source strings are present, absent or ordered, rather than exercise the owned operation or dependency boundary. The compiler guards pinned fields of the deleted custody and had to lose those assertions when it was removed; they never established that custody had a producer. The stage-05 guards themselves are gone.
-- Cost: harmless renaming breaks tests while equivalent forbidden behavior can pass under another spelling. Move actual dependency rules to the boundary checker and use behavior tests for custody and execution claims; do not mechanically preserve old strings or test totals.
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
-### `pipeline.md` says the default compile runs no stage validators; two run, and one stage header misdescribes its own
-- Category: the documents disagree
-- Where: `omega-rust/pipeline.md:66-68` and `:91-93`; `omega-rust/omega/compilation/backend/machine-emission/src/exit_contract.rs:153` and `:205-222`; `omega-rust/omega/compilation/pipeline/07_post-allocation-machine-to-selected-form-encoding/src/lib.rs:45-47` against `.../src/validation.rs:630`, `:639` and `.../src/row_encoding.rs:661`, `:670`
-- Saw: `stage_whole_function_exit_contract_for_layout`, reached from `native-compiler/src/pipeline.rs`, calls the stage 08 and stage 09 validators, and the stage 08 header says so; the stage 07 header says its replay "never calls the producer's route table or encoders", yet it calls the same dynamic-call template encoders the producer calls. The former corpus-runner comparison is no longer a consumer.
-- Cost: an agent can cite the document to remove the stage 08 and 09 checks or to add more, and cannot tell from headers which checks are separate work and which reuse the producer
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
 ### Typing refuses its own questions as if they waited for the checker
 - Category: a stage reaching across a boundary
 - Where: `03_symbol-resolved-trees-to-typed-trees/src/lib.rs` (`unavailable_judgment`) and its 26 callers, such as `typing_queries.rs` ("constructor field type", "call entry parameter types") and `type_reference.rs` ("closed const argument declaration custody")
@@ -248,19 +213,19 @@ framework or a list of features that remain unimplemented.
 - Cost: each remaining gate must be served for the entire library before any program compiles, or be moved onto the same carrier one by one as a program meets it
 - Reported: 2026-11-13, Claude Code, while getting the route probe through typing
 
-### A generated machine is identified three ways and copied by a hand-kept list
-- Category: one idea, several implementations
-- Where: `typed-trees` (`MachineSpecialization` rows, `Symbol::generated_from`, `executable_application_template`); `05_typed-trees-to-terminal-psi/src/lib.rs` (`template_of`), `read/calls.rs` (`applies_nothing`), `declare.rs`; `04_typed-trees-to-typed-trees/src/passes/specialization.rs` (`template`, `held_types`)
-- Saw: "this machine was generated from that generic machine" is read from the state symbol's `generated_from` in three places and from the `machine_specializations` row in a fourth, and nothing ties the two; the row also keeps eight string and commitment fields that only the deleted checker filled. Separately, an expression copy shares the types its nodes hold, so the pass lists by hand which node kinds hold a type (`held_types`) and which body constructs it cannot copy
-- Cost: a pass that sets one marker and not the other produces a machine the reader accepts and the declaration step refuses, or the reverse; a new expression node that holds a type is silently left pointing at the generic machine's type until someone adds it to the list
-- Reported: 2026-11-13, Claude Code, while rebuilding specialization as a typed preparation pass
-
 ### A typing unit test is red on `main` and nothing runs it before merge
 - Category: a test that pins nothing while it is red
 - Where: `03_symbol-resolved-trees-to-typed-trees/src/call_and_product_selections.rs`, `construction_destinations::tests::an_assigned_literal_lands_on_its_binding_or_refuses_its_own_machine`
 - Saw: at `6f829063b3ed7` the test fails with no local change: `owned = Record {}` is asserted to be built at the type handle written on `owned` and gets a different handle (index 3, not 1), so either landing now inserts an equal copy of the type or the assertion compares identity where it means equality
 - Cost: `mbx test -p symbol-resolved-trees-to-typed-trees --lib` cannot be clean for anyone changing typing, so a second regression in the same crate hides behind the first
 - Reported: 2026-11-13, Claude Code, while accounting for domain casts in typing
+
+### Two type-table tests expect an array-index refusal the table no longer makes
+- Category: a test that pins nothing while it is red
+- Where: `typed-trees/src/type_system.rs`, `instantiation_refuses_a_binder_spelling_an_array_length` and `instantiation_applies_the_substitution_to_domain_arguments`
+- Saw: at fixed base `44ed2132219fb20261abeab4ef3e61b4ab0f845a`, `mbx test -p typed-trees --lib type_system::types::tests::instantiation_` passes the unchanged-row case and fails these two tests. They expect a bound array extent to refuse; `TypeReferenceTable::instantiate` explicitly forwards a valid named argument as an extent binder instead. The table has no symbol table with which to distinguish that forwarded value binder from the tests' named data type
+- Cost: the crate's unit suite is red independently of generated-machine ownership changes; the tests and the substitution owner's contract need to agree without weakening source-level value-index eligibility
+- Reported: 2026-11-14, Codex, while attributing the focused generated-application validation failures against its unchanged base
 
 ### The parser still accepts a boundary requirement with no `crashes` clause
 - Category: a verdict with nothing behind it
@@ -283,23 +248,16 @@ framework or a list of features that remain unimplemented.
 - Cost: the host row's operation is decided twice from text, and the native binding cannot be closed at its locator type by the pass that closes every other application until typing records that application on the call
 - Reported: 2026-11-13, Claude Code, while closing boundary requirements at the types their calls apply
 
-### A call of a machine nothing declares is refused as "not supported yet", not as an error
-- Category: a verdict with nothing behind it
-- Where: `typed-trees/src/deferred_refusals.rs` (`DeferredRequest::UnresolvedCallTarget`); `05_typed-trees-to-terminal-psi/src/read.rs` (raises the row as `RefusalReason::Unsupported`); `compiler/tests/route_probe.rs` (`an_unknown_machine_after_a_call_that_never_returns_is_not_accepted`)
-- Saw: typing records a call whose name no declaration answers as a deferred row beside rows for constructs no pass serves yet, and the reader raises every row the same way. `undeclared_machine(x);` in a program's own machine therefore reaches the user as "not supported yet ... with no claim that it is wrong" and never as a rejection
-- Cost: a misspelled machine name reads as a compiler limitation; state_contracts.md ("an unknown machine name or malformed type is an error wherever it appears") is met only in that the program is not accepted, and the outcome word is `not-supported` where it should be `rejected`
-- Reported: 2026-11-13, Claude Code, while accepting statements after a call that never returns
-
-### No stage types a result value against the type its machine declares
-- Category: a verdict with nothing behind it
-- Where: `03_symbol-resolved-trees-to-typed-trees` (no expression has a type there; `typing_queries.rs` answers declared places only); `05_typed-trees-to-terminal-psi/src/read/transitions.rs` and `read/expressions.rs` (`Unserved::Typing("arm value type")`, `"match arm value type"`)
-- Saw: `machine f(value: u32) -> bool { value }`, `machine f(value: u1) -> bool { value }` and `machine f(value: bool) -> u1 { value }` all pass typing. Each is stopped only by the lowered-form reader, which calls it `not-supported` because it expects typing to have rejected it
-- Cost: an ordinary type error reaches the author as "not supported yet" with no source line, and the reader's 57 `Unserved::Typing` refusals are the only owner of value typing. Making any of them a rejection needs typing to compute expression types, which it does not do today
-- Reported: 2026-11-13, Claude Code, while making integer widths symbolic
-
 ### A value name in a type is read by its spelling before resolution, past the parameters that hide it
 - Category: one idea, several implementations
 - Where: `02_.../preparation_integer_widths.rs` (`width_of`) and `02_.../preparation_const_evaluation.rs` (`closed_fixed_array_length`) both close a name through `ConstantSelection::select` before resolution; after it, `symbols_type_references.rs` `resolve_type_symbol` and `assign_fixed_array_length_symbol` look at type parameters and then top-level declarations only
 - Saw: in `const count: u64 = 13; machine f(count: u64, v: u<count>)` (or `[u8; count]`) the runtime parameter `count` is read as the constant. modules.md "Resolution" puts local bindings and parameters before imported names. Not reachable as an accepted program today only because the checker refuses every top-level `const` declaration
 - Cost: an integer width and an array extent each decide what a value name in a type means, by spelling, in two places; the day `const` declarations are read, a runtime width or extent is silently fixed to a constant. One type-position value-name resolver that sees the enclosing value bindings would serve both
 - Reported: 2026-11-14, Claude Code, while landing symbolic integer widths
+
+### The scalar contract fixture's inferred call proof is refused by the kernel
+- Category: a proof producer and checker disagree
+- Where: `tests/fixtures/run/calls/scalar_contract_route_exit/main.omg:26` (the call `settle(product)`)
+- Saw: `omega run --both` on the unchanged fixture reports `cannot prove requires contract for call settle from main: inferred input condition`, with `kernel Certificate(IntegerOrderMiddleMismatch)`, before either engine runs. Observed on Windows x86-64 with the scalar receiving-type diagnostic repair, then reproduced at the same line after restoring all changed production files exactly to `44ed2132219fb20261abeab4ef3e61b4ab0f845a` and rebuilding `omega` through `mbx`. The fixture is unchanged, and its contracts and guards were not weakened.
+- Cost: a simple scalar contract program cannot provide native/Psi execution evidence, and an invalid proof certificate is surfaced as a caller fact it should establish instead of identifying the proof producer's disagreement with the kernel
+- Reported: 2026-11-14, Codex, while checking scalar receiving-type diagnostics

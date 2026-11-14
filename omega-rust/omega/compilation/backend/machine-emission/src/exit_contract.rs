@@ -1,7 +1,7 @@
 /*
-We stage and replay the whole-function exit contract that proves every exit, call, trap, and preserved-register effect of each function matches its target ABI and frame disposition.
+We construct whole-function exit contracts from the current machine layout, checking ABI preservation, stack disposition and exit effects while recording their evidence. The producer joins exact input identities and computes the contract once; it does not replay layout stages or the record it just produced.
 
-When function realization calls `stage_whole_function_exit_contract_for_layout`, we first replay the resolved layout and layout optimization against the selected instruction plan, post-allocation machine plan, and selected-form encoding. We then compute the `WholeFunctionExitContract` over the selected layout (`compute_inner`)—checking callee-saved and link-register writes against the frame's granted permissions, verifying that non-return instructions leave the stack pointer balanced and match their catalog memory/control footprints, and recording every return, hosted process exit, and authored crash—and admit the contract only after independent record replay (`validate_exit_record`).
+Retained-artifact validation calls `validate_exit_record_for_replayed_layout` after separately validating the layout and optimization. That path checks the stored contract independently, including callee-saved and link-register effects, returns, process exits and authored crashes. Production and replay retain distinct entrypoints.
 */
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -30,12 +30,7 @@ use register_model::{
     ValidatedPhysicalRegisterModel,
 };
 use resolved_layout_to_resolved_layout::{
-    OptimizedX86BranchRelaxationError, ResolvedLayoutOptimization, ResolvedLayoutOptimizationError,
-    validate_resolved_layout_optimization,
-};
-use selected_form_encoding_to_resolved_layout::{
-    OptimizedResolvedSelectedFormLayoutError, StagedOptimizedResolvedSelectedFormLayout,
-    validate_optimized_resolved_selected_form_layout,
+    OptimizedX86BranchRelaxationError, ResolvedLayoutOptimization,
 };
 use selected_instructions::{
     MachineAlternativeFamily, MachineEncodedControlEffect, MachineEncodedEffects,
@@ -53,11 +48,11 @@ use crate::frame_layout::{
 use crate::frame_protocol::ValidatedTargetFrameProtocolEncoding;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedWholeFunctionExitContract {
+pub struct StagedWholeFunctionExitContract {
     contract: Arc<WholeFunctionExitContract>,
 }
 
-impl ValidatedWholeFunctionExitContract {
+impl StagedWholeFunctionExitContract {
     pub fn contract(&self) -> &WholeFunctionExitContract {
         &self.contract
     }
@@ -68,9 +63,7 @@ impl ValidatedWholeFunctionExitContract {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WholeFunctionExitContractError {
-    Layout(OptimizedResolvedSelectedFormLayoutError),
     Relaxation(OptimizedX86BranchRelaxationError),
-    LayoutOptimization(ResolvedLayoutOptimizationError),
     OptimizationCustodyMismatch,
     RootMismatch,
     UnsupportedTargetPolicy,
@@ -143,14 +136,12 @@ pub(crate) fn stage_whole_function_exit_contract_for_layout<S: ValidatedSelected
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
     encoding: &StagedOptimizedSelectedFormEncoding,
-    baseline: &StagedOptimizedResolvedSelectedFormLayout,
     layout: &ResolvedLayoutOptimization,
     frame: Option<(
         &ValidatedTargetFrameLayout,
         &ValidatedTargetFrameProtocolEncoding,
     )>,
-) -> Result<ValidatedWholeFunctionExitContract, WholeFunctionExitContractError> {
-    validate_layout(selected, machine, physical, encoding, baseline, layout)?;
+) -> Result<StagedWholeFunctionExitContract, WholeFunctionExitContractError> {
     let custody = layout_custody(layout);
     let contract = compute_inner(
         selected,
@@ -161,17 +152,7 @@ pub(crate) fn stage_whole_function_exit_contract_for_layout<S: ValidatedSelected
         custody,
         frame,
     )?;
-    validate_exit_record(
-        selected,
-        machine,
-        physical,
-        encoding,
-        layout.layout(),
-        custody,
-        frame,
-        &contract,
-    )?;
-    Ok(ValidatedWholeFunctionExitContract {
+    Ok(StagedWholeFunctionExitContract {
         contract: Arc::new(contract),
     })
 }
@@ -187,7 +168,7 @@ pub(crate) fn validate_exit_record_for_replayed_layout<S: ValidatedSelectedAnaly
         &ValidatedTargetFrameLayout,
         &ValidatedTargetFrameProtocolEncoding,
     )>,
-    contract: &ValidatedWholeFunctionExitContract,
+    contract: &StagedWholeFunctionExitContract,
 ) -> Result<(), WholeFunctionExitContractError> {
     validate_exit_record(
         selected,
@@ -199,27 +180,6 @@ pub(crate) fn validate_exit_record_for_replayed_layout<S: ValidatedSelectedAnaly
         frame,
         contract.contract(),
     )
-}
-
-#[allow(clippy::too_many_arguments)]
-fn validate_layout<S: ValidatedSelectedAnalysis>(
-    selected: &S,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
-    physical: &ValidatedPhysicalRegisterModel,
-    encoding: &StagedOptimizedSelectedFormEncoding,
-    baseline: &StagedOptimizedResolvedSelectedFormLayout,
-    layout: &ResolvedLayoutOptimization,
-) -> Result<(), WholeFunctionExitContractError> {
-    validate_optimized_resolved_selected_form_layout(
-        selected.current_program(),
-        machine.machine().plan(),
-        physical,
-        encoding.program(),
-        baseline,
-    )
-    .map_err(WholeFunctionExitContractError::Layout)?;
-    validate_resolved_layout_optimization(physical, baseline.program(), layout.selections(), layout)
-        .map_err(WholeFunctionExitContractError::LayoutOptimization)
 }
 
 fn layout_custody(layout: &ResolvedLayoutOptimization) -> WholeFunctionExitLayoutCustody {

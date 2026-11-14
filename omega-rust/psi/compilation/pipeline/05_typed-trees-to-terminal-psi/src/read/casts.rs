@@ -121,6 +121,11 @@ impl Program<'_> {
         let converted = if from == to {
             operand
         } else {
+            // counts_and_addresses.md: "neither arbitrary value-to-address
+            // conversions nor the inverse ... follow from these queries".
+            if from.is_address() || to.is_address() {
+                return unserved("cast to or from an address");
+            }
             if !from.can_widen_to(to) && !from.can_exact_cast_to(to) {
                 return unserved("cast with no exact conversion");
             }

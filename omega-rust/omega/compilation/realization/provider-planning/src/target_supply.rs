@@ -389,7 +389,7 @@ impl SettledTargetSupply {
     pub fn plans(
         &self,
         planning: SupplyPlanning<'_>,
-    ) -> Result<Vec<backend_plan::TerminalTargetProviderPlan>, Vec<Diagnostic>> {
+    ) -> Result<Vec<effects::provider_plan::ProviderPlan>, Vec<Diagnostic>> {
         if self.requirements.is_empty() {
             return Ok(Vec::new());
         }
@@ -463,7 +463,7 @@ fn slot_plan(
     slot: symbols::SymbolHandle,
     requirements: &[&SettledRequirement],
     planning: &SupplyPlanning<'_>,
-) -> Result<backend_plan::TerminalTargetProviderPlan, Diagnostic> {
+) -> Result<effects::provider_plan::ProviderPlan, Diagnostic> {
     use effects::provider_plan::{
         ProviderBinding, ProviderIdentityTable, ProviderPlan, ProviderPlanRow, ServiceSchema,
     };
@@ -567,6 +567,15 @@ fn slot_plan(
             },
         });
     }
+    let provider_declaration = text(owner.identity())
+        .filter(|declaration| !declaration.is_empty())
+        .ok_or_else(|| {
+            refuse(format!(
+                "`{}` has no declaration identity in the accepted module",
+                provider.authored_path
+            ))
+        })?
+        .to_owned();
     let plan = ProviderPlan {
         name: crate::satisfies_plan_name(
             target,
@@ -575,6 +584,8 @@ fn slot_plan(
         ),
         provider_type: provider.canonical_path.clone(),
         provider_type_package_identity: provider.package,
+        provider_declaration: Some(provider_declaration),
+        row_numeric_realizations: vec![None; rows.len()],
         target: target.to_owned(),
         schema: ServiceSchema::from_declaration(std::sync::Arc::clone(surface)),
         identities,
@@ -586,20 +597,7 @@ fn slot_plan(
     if !errors.is_empty() {
         return Err(refuse(errors.join("; ")));
     }
-    let provider_declaration = text(owner.identity())
-        .filter(|declaration| !declaration.is_empty())
-        .ok_or_else(|| {
-            refuse(format!(
-                "`{}` has no declaration identity in the accepted module",
-                provider.authored_path
-            ))
-        })?
-        .to_owned();
-    Ok(backend_plan::TerminalTargetProviderPlan {
-        row_numeric_realizations: vec![None; plan.rows.len()],
-        provider_declaration: Some(provider_declaration),
-        plan,
-    })
+    Ok(plan)
 }
 
 fn refuse(target: &str, demand: &str) -> Diagnostic {

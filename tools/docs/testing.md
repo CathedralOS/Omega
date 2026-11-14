@@ -541,6 +541,16 @@ for a flag it does not model: a full build reports `0 hits, 0 misses, 213
 bypassed` and stores nothing (`mbx explain build -p <crate>` names the flag).
 `mbx` still schedules builds and manages target directories.
 
+Windows MSVC host builds select Rust's bundled LLD linker through
+`.cargo/config.toml`. Microsoft's `link.exe` refused an existing 266-character
+managed dependency path with LNK1104 while opening the same file through its
+209-character checkout alias; LLD linked and ran a focused probe using that
+exact long input path. This avoids shortening crate names, relocating caches or
+installing a separate linker: the configuration names `rust-lld`, the copy every
+rustup toolchain ships, because the flavor alone makes rustc look for a program
+named `lld` on `PATH`. The MSVC ABI and SDK/runtime libraries are still
+used. The setting changes Rust host builds, not Omega's native code emission.
+
 Managed setup (`tools/agent_setup.sh`, including `--mbx-only`) keeps the shared
 `.agents/worktree` pool in mbx's global `target.keep` list through
 `mbx xtask managed-cache-retention`. The managed path bootstraps this Rust helper

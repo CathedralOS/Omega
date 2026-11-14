@@ -1373,8 +1373,11 @@ pub(crate) mod statement {
                 }),
             ),
             resolved::statement::StatementNode::Call(call)
-                if call.target.as_str() == "code_layout"
-                    && !call.target_symbol.is_valid()
+                if lowerer
+                    .source_trees
+                    .symbols
+                    .builtin_function_for_symbol(call.target_symbol)
+                    == Some(symbols::BuiltinFunction::CodeLayout)
                     && call.receiver.is_empty() =>
             {
                 let mut request =
@@ -1397,7 +1400,7 @@ pub(crate) mod statement {
                             exact_coercion_target: Default::default(),
                             requirement_application: Default::default(),
                             receiver: Default::default(),
-                            target_symbol: Default::default(),
+                            target_symbol: call.target_symbol,
                             static_machine_parameter: Default::default(),
                             target: crate::lowerer::name::lower_name(&call.target),
                             static_requirement_dispatch: None,

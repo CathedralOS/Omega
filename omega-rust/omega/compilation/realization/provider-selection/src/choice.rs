@@ -151,7 +151,6 @@ pub fn admit<'a, Declaration: Clone + Eq, Owner, Origin: Clone + Eq>(
     let mut independent_join = IndependentComponentJoin::new(independent_components);
     for selected in &selected {
         let plan = &selected.candidate.plan;
-        let correspondence = &selected.candidate.declarations;
         let composition = match selected.selected_by.composition_mode() {
             Ok(mode) => mode,
             Err(reason) => {
@@ -159,18 +158,10 @@ pub fn admit<'a, Declaration: Clone + Eq, Owner, Origin: Clone + Eq>(
                 continue;
             }
         };
-        if composition == CompositionMode::Independent {
-            match &correspondence.selecting_declaration {
-                Ok(Some(owner)) => {
-                    if let Err(diagnostic) = independent_join.realize(plan, owner) {
-                        diagnostics.push(diagnostic);
-                    }
-                }
-                Ok(None) => diagnostics.push(Diagnostic::error(
-                    "independent provider has no exact selecting declaration",
-                )),
-                Err(refused) => diagnostics.extend(refused.iter().cloned()),
-            }
+        if composition == CompositionMode::Independent
+            && let Err(diagnostic) = independent_join.realize(plan)
+        {
+            diagnostics.push(diagnostic);
         }
         check_selected_declaration(selected, &mut diagnostics);
     }

@@ -30,9 +30,14 @@ pub(super) fn atom_type(atom: BuiltinTypeAtom, machine: MachineId) -> Checked<Sc
     match atom {
         BuiltinTypeAtom::Bool => Ok(ScalarType::Boolean),
         BuiltinTypeAtom::Integer(carrier) => integer(carrier, machine),
-        BuiltinTypeAtom::Address => {
-            Err(refuse(machine, Construct::Machine, Unserved::Type("addr")))
-        }
+        // counts_and_addresses.md: "`addr`, interpreted under the selected
+        // target's address model. Address data grants no storage or access
+        // authority." A value of it is carried and compared like any
+        // scalar; arithmetic and casts on it are refused where they are
+        // read (`address_operation`).
+        BuiltinTypeAtom::Address => Ok(ScalarType::Integer(
+            IntegerType::supported_address_representation(),
+        )),
         BuiltinTypeAtom::F32 | BuiltinTypeAtom::F64 => {
             Err(refuse(machine, Construct::Machine, Unserved::Type("float")))
         }

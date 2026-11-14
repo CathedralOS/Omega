@@ -54,6 +54,7 @@ pub use publication::{DesignatedOperands, SourceCorrespondence};
 mod canonical;
 mod components;
 mod declare;
+mod inhabitation;
 mod lower;
 
 mod operational;
@@ -62,6 +63,7 @@ mod policy;
 mod proof_scope;
 mod read;
 mod reference_results;
+mod suspension;
 
 // One compilation's forms read the same frozen owner and its immutable
 // capture index. Sharing this scratch never transfers source or proof authority.
@@ -423,20 +425,10 @@ pub(crate) fn is_generic_template(
 /// The declaration a machine was generated from, when stage 04 generated it
 /// to close a static application: the generic machine it specializes.
 pub fn template_of(typed: &TypedTrees, machine: SymbolHandle) -> Option<SymbolHandle> {
-    let states = typed
-        .machine_states
-        .span(typed.machine_by_symbol(machine)?.states)?;
-    let [state] = states else {
-        return None;
-    };
-    let declared = typed.symbols.get(state.symbol).generated_from;
-    if !declared.is_valid() {
-        return None;
-    }
-    Some(match typed.symbols.get(declared).kind {
-        symbols::SymbolKind::State => typed.symbols.get(declared).parent,
-        _ => declared,
-    })
+    typed
+        .executable_application_template(machine)
+        .ok()
+        .flatten()
 }
 
 /// Elaborates the conformance witness of `implementation` for `requirement`:
@@ -548,11 +540,30 @@ fn elaborate_witness_call(
                 .parameters
                 .iter()
                 .enumerate()
-                .map(|(slot, value_type)| Expression {
-                    call_context: None,
-                    kind: ExpressionKind::Slot(slot),
-                    result: Some(*value_type),
-                    source,
+                .map(|(slot, value_type)| {
+                    let place = Expression {
+                        call_context: None,
+                        kind: ExpressionKind::Slot(slot),
+                        result: Some(*value_type),
+                        source,
+                    };
+                    // The witness forwards each formal's original passing
+                    // mode. A borrowed formal denotes incoming storage;
+                    // forwarding its value alone would read a scalar or move
+                    // its carrier instead of reborrowing that storage.
+                    match required.borrowed(slot) {
+                        Some(borrowed) => Expression {
+                            call_context: None,
+                            kind: ExpressionKind::Borrow {
+                                access: borrowed.access,
+                                place: Box::new(place),
+                                home: borrowed.home.clone(),
+                            },
+                            result: Some(*value_type),
+                            source,
+                        },
+                        None => place,
+                    }
                 })
                 .collect(),
             designated: None,
@@ -650,6 +661,8 @@ fn finish_reading<'source>(
                 &mut elaboration.module,
             )
         })
+        // Last, over the finished operations and published contracts.
+        .and_then(|()| suspension::publish_crossings(&mut elaboration.module))
         .map_err(|reason| {
             refuse(
                 diagnostic,
@@ -658,6 +671,7 @@ fn finish_reading<'source>(
             )
         })?;
     source.records = program.source_record_correspondence(diagnostic)?;
+    source.readiness = program.publish_readiness(diagnostic, &mut elaboration.module)?;
     for selected in &mut program.selections {
         if let Some(required) = selected.required_contract {
             selected.required_contract =
@@ -777,18 +791,10 @@ fn lower_generic_for<'source>(
     let local_results = declarations
         .map(|source| source.local_result_bodies(entry))
         .transpose()?;
-    let outcomes = outcome::outcomes(bodies, signatures, requirements, local_results.as_deref())?;
     let mut module = match entry {
         Some(entry) => TerminalModule::for_entry(entry),
         None => TerminalModule::declarations(),
     };
-    // Declaration checking publishes no executable arrival or root reach.
-    if let Some(entry) = entry {
-        module.root_service_reach.concrete =
-            terminal_check_tables::row(&outcomes, entry, entry, Construct::Machine)?
-                .service_reach
-                .clone();
-    }
     // Terminal Psi declares each record type once for the module, with the
     // interned identity its declaration form requires. A module with no
     // record declares none and keeps the empty identity table.
@@ -801,6 +807,20 @@ fn lower_generic_for<'source>(
         }
     };
     let declared = lower::places::declare(diagnostic, records, bodies, signatures, identities)?;
+    let outcomes = outcome::outcomes(
+        bodies,
+        signatures,
+        requirements,
+        local_results.as_deref(),
+        &declared.records.inhabitation,
+    )?;
+    // Declaration checking publishes no executable arrival or root reach.
+    if let Some(entry) = entry {
+        module.root_service_reach.concrete =
+            terminal_check_tables::row(&outcomes, entry, entry, Construct::Machine)?
+                .service_reach
+                .clone();
+    }
     module.identities = declared.identities;
     module.structural_types = declared.structural_types;
     module.native_layouts = declared.native_layouts;

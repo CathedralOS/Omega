@@ -17,9 +17,6 @@ use std::sync::Arc;
 pub struct SelectedExecution {
     target_profile: Option<target::TargetProfile>,
     plans: Arc<effects::SelectedProviderPlanFacts>,
-    /// The same plans, each with the provider declaration its checked
-    /// adapters are joined to the artifact's candidates by.
-    declared: Arc<[backend_plan::TerminalTargetProviderPlan]>,
 }
 
 impl SelectedExecution {
@@ -36,23 +33,17 @@ impl SelectedExecution {
                 "selected execution and settled provider supply name different deployments",
             )]);
         }
-        let declared = supply.plans(planning)?;
-        let plans = effects::SelectedProviderPlanFacts::from_selected_plans(
-            declared
-                .iter()
-                .map(|declared| declared.plan.clone())
-                .collect(),
-        )
-        .map_err(|reason| {
-            vec![Diagnostic::error(format!(
-                "provider settlement for `{}`: {reason}",
-                supply.target().unwrap_or("<unscoped>")
-            ))]
-        })?;
+        let plans =
+            effects::SelectedProviderPlanFacts::from_selected_plans(supply.plans(planning)?)
+                .map_err(|reason| {
+                    vec![Diagnostic::error(format!(
+                        "provider settlement for `{}`: {reason}",
+                        supply.target().unwrap_or("<unscoped>")
+                    ))]
+                })?;
         Ok(Self {
             target_profile,
             plans: Arc::new(plans),
-            declared: declared.into(),
         })
     }
 
@@ -91,7 +82,7 @@ impl SelectedExecution {
     ) -> Option<backend_plan::TerminalTargetProviderProposal> {
         let target = self.target_profile?.target_name();
         let selection = backend_plan::TerminalTargetProviderSelection::from_plans(
-            self.declared.to_vec(),
+            self.plans.plans().to_vec(),
             artifact,
         )
         .map(|mut selection| {

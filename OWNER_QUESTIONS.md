@@ -64,65 +64,49 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-<a id="native-cache-producer-authorization"></a>
+<a id="applied-boundary-service-reach"></a>
 
-### Q1 - Does enabling a native component cache authorize its producer?
+### Q1 - What does a `reaches` row mean when it names a boundary trait that has parameters?
 
-Decision name: `native-cache-producer-authorization`.
+Decision name: `applied-boundary-service-reach`.
 
-**Customer.** Separate package builds reuse native components from the optional
-disk cache. `ComponentProductCache::load` checks the compiler identity, input
-key, record size and content digest before recovering a component. Those checks
-identify bytes; they do not authorize the process that produced them.
+**Customer.** A package that publishes one service per compile-time index, and
+a caller that bounds its reach by it. The specification's own example gives a
+service an applied parent, `boundary trait WallClock: ClockOps<NoState> {}`
+([effects](wiki/spec/language/effects.md#declarations)), and
+`samples/cli/support/fact_dependencies/reading_provider` declares
+`public boundary trait Reading<const Tag: u64>`; the 18 programs of
+`samples/cli/facts/build_target_provider` call `Reading<17u64>::total()` from
+`machine journey(expected: u64) reaches Reading crashes Trap`.
 
-**Gap.** [Publication and separate consumption](wiki/spec/terminal-psi/product.md#publication-and-separate-consumption)
-requires receiving-host authorization of the exact artifact and producer, and
-permits trusted internal outputs without replay. That page and
-[claim admission](wiki/drafts/designs/psi_claim_admission.md) do not say whether
-configuring `CompilerProductRetention` is itself that host authorization.
-The implementation has a directory and identities, but no separate decision.
+**Gap.** [Effects](wiki/spec/language/effects.md#declarations) says
+"`reaches A + B` bounds service reach by the named boundary services and their
+boundary parents" and "Boundary traits supply identities that may be named in
+`reaches`", and that published summaries hold "finite unions of concrete
+service identities". [Boundary calls](wiki/spec/terminal-psi/boundary_calls.md)
+says a requirement retains "its exact owning service identity" and that a call
+retains "the trait application". No page says whether a trait with parameters
+supplies one service identity or one per application, so none says what the
+bare name denotes in a row. A row cannot write an application: the parser
+refuses `reaches Reading<17u64>` (`expected identifier, found punctuation`).
+The lowered-form checker keeps a service per application
+(`05_typed-trees-to-terminal-psi/src/read/services.rs`) and refuses the bare
+name of a trait with parameters (`boundary service needs its complete applied
+declaration`). Checked on `origin/main` at `a8f13149a1e`: no ratification
+covers it.
 
-**Question.** (a) Require explicit host authorization for recovered components,
-treating unauthorized optional cache entries as misses and rebuilding source;
-or (b) define enabling a cache as an explicit host decision to trust its writers
-and recovered contents? Directory protection remains the host's responsibility,
-not a new Omega guarantee. Recommend (a), keeping byte identity separate from
-authorization without adding an OS credential or ACL system.
+**Question.** In `reaches Reading`, where `Reading` is a boundary trait with
+parameters, does the row (a) bound reach by every application of `Reading`,
+each application remaining its own service identity in published summaries;
+(b) name one service identity that all applications of `Reading` share, so a
+summary never tells `Reading<17>` from `Reading<29>`; or (c) reject, with a
+row required to write the application it means once rows have a form for one?
+Recommend (a): it gives the one spelling the grammar has a meaning, keeps the
+identities [provider selection](wiki/spec/build/provider_selection.md#generic-selected-requirements)
+already tells apart ("Keep concrete generic arguments in the closure keys rather
+than collapsing `Stage<1>` and `Stage<2>`"), and adds no syntax.
 
-**Until answered.** Cache recovery retains its existing behavior; hashes must
-not be described as producer authorization. The public native ingress repair
-remains under `PSI-CLAIM-ADMISSION`.
-
-### Q2 - Is a borrow of a fixed array accepted where a view of its elements is expected?
-
-Decision name: `array-borrow-as-view`.
-
-**Customer.** Reading a file into a buffer the machine owns. The toolchain's
-own Build prelude declares
-`BuildSource::read(source: &BuildSource, descriptor: i32, buffer: &mut [u8], count: u64)`,
-and every Build that calls it writes
-`let mut bytes: [u8; 38]; BuildSource::read(&builder.source, reader, &mut bytes, 38);`.
-`Console::read_line(&mut buffer)` in the standard library is called the same
-way. About 165 sample and fixture files pass `&bytes` or `&mut bytes` of a
-`[u8; N]` for a `&[u8]` or `&mut [u8]` formal.
-
-**Gap.** No page says a borrow of `[T; N]` is a value of `&[T]`.
-[Expressions](wiki/spec/language/expressions.md#collection-arguments-and-results)
-gives the adaptation for `[]` and `[..]` only and adds that it introduces no
-"automatic borrowing for other operator operands";
-[counts and addresses](wiki/spec/language/counts_and_addresses.md#bounds-and-lowering)
-fixes an array's length at `N` and says nothing of views of it. The language
-guide converts explicitly (chapter 5: `ArrayAccess::as_slice(&fixed)`), and
-core declares that boundary (`source/library/core/array.omg`). The checker
-follows the pages and refuses the call (`typing argument types`). Checked on
-`origin/main` at `9f23002f48`: no ratification covers it.
-
-**Question.** At an argument, a `let` or a field store whose expected type is
-`&[T]` or `&mut [T]`, is `&array` or `&mut array` of a `[T; N]` (a) accepted
-as a view of all `N` elements, with the view's length known to be `N`; (b)
-accepted only when written as a range, `&array[..]` and `&mut array[..]`; or
-(c) not accepted, so `ArrayAccess::as_slice` and `as_mut_slice` are the only
-way, and the prelude's callers change?
-
-**Until answered.** The checker refuses the call by name. Nine programs stop
-in their Build for it; the rest of the 165 files meet it later.
+**Until answered.** The checker keeps refusing the bare name of a boundary
+trait with parameters in a `reaches` or `invokes` row. The 18 programs stop
+there, in their own Product, after the package's Build and its applied
+provider choices complete.

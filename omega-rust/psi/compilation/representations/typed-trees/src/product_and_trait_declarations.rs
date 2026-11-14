@@ -409,7 +409,6 @@ pub mod product_operand {
     pub use occurrences::{ProductSelectionOccurrence, collect_product_selection_occurrences};
 
     pub(crate) mod static_environment {
-        use crate::static_applications::StaticMachineBindingValue;
         use crate::{TypedTrees, expression as expr, types};
         use arena::{Handle, HandleSpan};
         use language_semantics::declaration_selection::product_operands::*;
@@ -464,37 +463,35 @@ pub mod product_operand {
                 expressions: Vec::new(),
                 active_expressions: Vec::new(),
             };
-            for binding in
-                program.static_machine_application_bindings(specialization.binding_application)
+            let template = program
+                .machine_by_symbol(specialization.template)
+                .ok_or("Build helper lost its source template")?;
+            let operand = program
+                .specialization_source_operand(specialization)
+                .map_err(str::to_owned)?;
+            let selected = operand
+                .application
+                .as_deref()
+                .ok_or("Build helper lost its reconstructed source application")?;
+            for (formal, actual) in program
+                .machine_callable_parameters(template)
+                .iter()
+                .zip(&selected.arguments)
             {
                 let parameter = program
                     .symbols
-                    .symbol_provenance_source_span(binding.parameter)
+                    .symbol_provenance_source_span(formal.symbol)
                     .ok_or("Build helper static binder lost source identity")?;
-                let actual = match &binding.value {
-                    StaticMachineBindingValue::Type(reference)
-                    | StaticMachineBindingValue::Const(reference) => program
-                        .static_operand_from_type_reference(*reference)
-                        .map_err(str::to_owned)?,
-                    StaticMachineBindingValue::Machine(argument)
-                    | StaticMachineBindingValue::Conformance(argument) => argument.clone(),
-                    StaticMachineBindingValue::RuntimeValue { .. } => continue,
-                };
-                let argument = capture.operand(&actual)?;
-                let declared_type = program
-                    .data_type_parameters
-                    .span_or_empty(specialization.template_parameters)
-                    .iter()
-                    .find(|formal| formal.symbol == binding.parameter)
-                    .and_then(|formal| match formal.kind {
-                        crate::data::TypeParameterKind::Const { type_reference } => {
-                            Some(type_reference)
-                        }
-                        _ => None,
-                    })
-                    .map(|reference| capture.ty(reference))
-                    .transpose()?
-                    .unwrap_or_default();
+                let argument = capture.operand(actual)?;
+                let declared_type = match formal.kind {
+                    crate::data::TypeParameterKind::Const { type_reference } => {
+                        Some(type_reference)
+                    }
+                    _ => None,
+                }
+                .map(|reference| capture.ty(reference))
+                .transpose()?
+                .unwrap_or_default();
                 capture
                     .environment
                     .bindings
@@ -505,9 +502,6 @@ pub mod product_operand {
                         declared_type,
                     });
             }
-            let template = program
-                .machine_by_symbol(specialization.template)
-                .ok_or("Build helper lost its source template")?;
             for binding in
                 program.static_machine_application_lifetimes(specialization.binding_application)
             {
@@ -530,58 +524,10 @@ pub mod product_operand {
                         lexical_owner: owner,
                     });
             }
-            let mut identity = b"omega-source-static-environment-v1\0".to_vec();
-            let frame = |out: &mut Vec<u8>, value: &[u8]| {
-                out.extend_from_slice(&(value.len() as u64).to_le_bytes());
-                out.extend_from_slice(value);
-            };
-            frame(
-                &mut identity,
-                specialization.normalized_template_identity.as_bytes(),
-            );
-            for values in [
-                &specialization.type_argument_identities,
-                &specialization.const_argument_identities,
-            ] {
-                identity.extend_from_slice(&(values.len() as u64).to_le_bytes());
-                for value in values {
-                    frame(&mut identity, value.as_bytes());
-                }
-            }
-            for symbols in [
-                &specialization.machine_arguments,
-                &specialization.conformance_arguments,
-            ] {
-                identity.extend_from_slice(&(symbols.len() as u64).to_le_bytes());
-                for symbol in symbols {
-                    frame(
-                        &mut identity,
-                        program
-                            .normalized_hermetic_symbol_identity(*symbol)?
-                            .as_bytes(),
-                    );
-                }
-            }
-            identity.extend_from_slice(
-                &(specialization.conformance_applications.len() as u64).to_le_bytes(),
-            );
-            for application in &specialization.conformance_applications {
-                identity.extend_from_slice(&application.commitment.as_bytes());
-            }
-            for binding in
-                program.static_machine_application_lifetimes(specialization.binding_application)
-            {
-                let actual = crate::type_identity::portable_applied_lifetime_identity(
-                    program,
-                    binding.argument.as_str(),
-                    application.lexical_owner,
-                    &[],
-                )
-                .and_then(|identity| program.type_identity_text(identity))
-                .ok_or("Build helper region actual lost its exact portable scope")?;
-                frame(&mut identity, actual.as_bytes());
-            }
-            capture.environment.identity = identity;
+            capture.environment.identity = program
+                .specialization_source_identity(specialization)
+                .map_err(str::to_owned)?
+                .into_bytes();
             Ok(Some(Arc::new(capture.environment)))
         }
 

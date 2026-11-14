@@ -919,15 +919,11 @@ fn unbound_value_name(program: &TypedTrees, expression: ExpressionHandle) -> Opt
     .then_some(name)
 }
 
-/// The bare names a call compiler-recognizes by its spelling alone: no
-/// declaration carries them, and typing gives each its meaning
-/// (`expression_lowering`, `statement_lowering`).
-const COMPILER_CALL_SPELLINGS: [&str; 2] = ["address_of", "code_layout"];
-
 /// Of the bare names `written` that calls resolution left unbound, those
 /// nothing in the program has: no declaration, parameter, local, state or
-/// builtin of any kind, in this source or any library, carries the name, and
-/// it is no compiler operation's spelling. Such a call is an error in every
+/// builtin of any kind, in this source or any library, carries the name.
+/// Compiler operations have installed declarations too; a bare spelling needs
+/// no exemption from this check. Such a call is an error in every
 /// program (`DeferredRequest::UndeclaredCallName`). A name something has
 /// may name it validly where resolution does not follow yet (a local
 /// holding a callable, an ambiguous import), so it stays a request.
@@ -936,11 +932,7 @@ fn undeclared_call_names<'a>(
     written: impl Iterator<Item = &'a str>,
 ) -> Vec<&'a str> {
     // A call with no written name was made by the compiler, not the author.
-    program.names_nothing_has(
-        written
-            .filter(|name| !COMPILER_CALL_SPELLINGS.contains(name))
-            .collect(),
-    )
+    program.names_nothing_has(written.collect())
 }
 
 #[cfg(test)]
@@ -1399,15 +1391,15 @@ mod tests {
             deferred(&program).unwrap(),
             vec![(holder, DeferredRequest::UndeclaredCallName)]
         );
-        // A compiler operation's spelling has no declaration either, and is
-        // no unknown name.
+        // A spelling alone grants no compiler meaning. This synthetic table
+        // has no installed declaration for the query, so it still names nothing.
         let ExpressionNode::Call(node) = program.expression_table.expression_mut(unbound) else {
             panic!("call expression")
         };
         node.target = typed_trees::name::Identifier::generated("address_of");
         assert_eq!(
             deferred(&program).unwrap(),
-            vec![(holder, DeferredRequest::UnresolvedCallTarget)]
+            vec![(holder, DeferredRequest::UndeclaredCallName)]
         );
         // Unbound, but something is named `run`: resolution may not follow
         // it yet, so the call stays a request.

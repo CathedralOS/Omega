@@ -33,12 +33,14 @@ pub use content_transformations::{domain_preservation, quotients};
 pub mod control_graph;
 mod descriptor_replay;
 pub mod descriptors;
+pub mod inhabitation;
 pub mod plain_affine;
 pub mod references;
 pub mod scalars;
 pub mod storage;
 pub mod structural;
 pub mod substitution;
+pub mod suspension_frontier;
 
 pub use access::access_lifecycles::{
     AccessResultContract, access_result_contract, access_view_reference_slot,

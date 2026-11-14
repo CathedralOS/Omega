@@ -186,6 +186,9 @@ impl Program<'_> {
         expected: ValueType,
         source: crate::SourceOrigin,
     ) -> Checked<crate::Expression> {
+        if let Some(view) = self.array_view(machine, slots, argument, expected, source)? {
+            return Ok(view);
+        }
         let Some((referent, access)) = self.reference_referent(machine, expected)? else {
             return Err(refuse(
                 machine,
@@ -234,8 +237,11 @@ impl Program<'_> {
         let (value, _) = self.lent(machine, slots, argument, &formal, referent)?;
         if !matches!(value.kind, crate::ExpressionKind::Borrow { .. }) {
             unreachable!()
-        }
-        if !self.agrees(value.result, referent) {
+        };
+        // A view's loan result carries its chosen presentation; its backing
+        // place retains the original type. Empty-value compatibility grants
+        // no permission to reinterpret either storage type.
+        if !self.same_type(value.result, referent) {
             return Err(refuse(
                 machine,
                 Construct::Machine,
@@ -308,7 +314,7 @@ impl Program<'_> {
 
     /// Borrowing a descriptor's home is distinct from borrowing the storage
     /// the descriptor views. Its backing lifetime cannot keep that home live.
-    fn storage_loan_regions(
+    pub(super) fn storage_loan_regions(
         &mut self,
         machine: MachineId,
         slots: &[super::Slot],
@@ -368,9 +374,16 @@ impl Program<'_> {
 
     /// Every reference crossing must retain the descriptor's own ceiling.
     /// Possessing its carrier never grants ownership of the backing.
+    ///
+    /// A carrier reached through storage this machine was lent shared is
+    /// itself only observed: the shared loan of its holder is the parent of
+    /// what is asked through it, and a `Read` parent rejects a mutable and a
+    /// write-only child (loans.md, "Reborrow lineage and access"). So an
+    /// exclusive reference inside a record held `&Carrier` grants no write.
     pub(super) fn reference_place_access(
         &self,
         machine: MachineId,
+        slots: &[super::Slot],
         place: &crate::Expression,
         requested: language_core::ReferenceAccess,
     ) -> Checked<bool> {
@@ -381,7 +394,7 @@ impl Program<'_> {
         };
         let mut crossed = false;
         let mut captures = super::storage_path::Captures::new(machine, &self.captures);
-        super::storage_path::walk(
+        let root = super::storage_path::walk(
             place,
             |capture| captures.resolve(capture),
             |projection, descriptor| {
@@ -404,11 +417,22 @@ impl Program<'_> {
                             ),
                         ));
                     };
+                    // loans.md, "Reborrow lineage and access": a `Read`
+                    // parent rejects a mutable and a write-only child, and a
+                    // `Write-only` parent a shared and a mutable one. So a
+                    // place asked for more than the reference it is reached
+                    // through grants is wrong in every program.
                     if !requested.admits_referent(access) {
-                        return Err(refuse(
+                        return Err(crate::reject(
                             machine,
-                            Construct::Machine,
-                            Unserved::Call("reference reborrow exceeds its actual access"),
+                            projection.source,
+                            format!(
+                                "this place requires {} source access, and the reference it \
+                                 is reached through grants {} access only: a reference admits \
+                                 no child with access it does not itself hold",
+                                access_named(requested),
+                                access_named(access),
+                            ),
                         ));
                     }
                     crossed = true;
@@ -416,7 +440,35 @@ impl Program<'_> {
                 Ok(())
             },
         )?;
+        if crossed
+            && requested != StructuralAccess::SharedBorrow
+            && let crate::ExpressionKind::Slot(holder) = root.kind
+            && slots.get(holder).and_then(|slot| slot.borrowed)
+                == Some(language_core::ReferenceAccess::Shared)
+        {
+            return Err(crate::reject(
+                machine,
+                place.source,
+                format!(
+                    "this place requires {} source access, and the reference it is reached \
+                     through is held in storage lent shared: a shared loan admits no {} \
+                     child, whatever a reference stored inside it grants",
+                    access_named(requested),
+                    access_named(requested),
+                ),
+            ));
+        }
         Ok(crossed)
+    }
+}
+
+/// An access as source spells it, for the rejection above.
+const fn access_named(access: StructuralAccess) -> &'static str {
+    match access {
+        StructuralAccess::SharedBorrow => "shared",
+        StructuralAccess::MutableBorrow => "mutable",
+        StructuralAccess::WriteOnlyBorrow => "write-only",
+        StructuralAccess::Owned => "owned",
     }
 }
 

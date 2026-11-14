@@ -119,6 +119,9 @@ pub(crate) struct Program<'t> {
         ),
     >,
     resolving_services: Vec<SymbolHandle>,
+    /// The services a Build selection awaits a provider for, in first-read
+    /// order (`designate`, `publish_readiness`).
+    readiness: Vec<semantic_vocabulary::ServiceId>,
     /// What diagnostics call each machine's constructs, pushed with its
     /// signature and completed as its body is read.
     pub names: IdTable<MachineId, crate::MachineNames>,
@@ -169,6 +172,9 @@ pub(crate) struct Program<'t> {
     /// Every record type a formal, local, result, field or literal named, in
     /// discovery order; a nested record is discovered before its owner.
     pub records: IdTable<StructuralTypeId, RecordType>,
+    /// Only completed source contracts enter this stage-local query cache.
+    /// It contains no value facts and is never published as evidence.
+    inhabitation: terminal_semantics::inhabitation::Inhabitation,
     /// The symbols each record type was resolved from, by the same identity.
     record_sources: IdTable<StructuralTypeId, places::RecordSource>,
     /// The data declarations being resolved, outermost first: a declaration
@@ -309,6 +315,7 @@ impl<'t> Program<'t> {
             boundary_services: IdTable::default(),
             services: IdTable::default(),
             resolving_services: Vec::new(),
+            readiness: Vec::new(),
             names: IdTable::default(),
             rigid,
             requirements: Vec::new(),
@@ -327,6 +334,7 @@ impl<'t> Program<'t> {
             generic_binders: Vec::new(),
             value_arguments: IdTable::default(),
             records: IdTable::default(),
+            inhabitation: Default::default(),
             record_sources: IdTable::default(),
             resolving: Vec::new(),
             lifetime_owner: SymbolHandle::invalid(),
@@ -837,10 +845,15 @@ mod tests {
     /// a result in an entry clause are refused, and a body cannot name it.
     #[test]
     fn result_is_taken_by_its_owner_identity_never_by_its_spelling() {
+        use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
         use typed_trees::name::Identifier;
-        let mut typed = TypedTrees::default();
-        let owner = SymbolHandle::from_arena_index(3);
-        let other = SymbolHandle::from_arena_index(4);
+        let mut symbols = SymbolTableBuilder::default();
+        let owner = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("owner"));
+        let other = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("other"));
+        let mut typed = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
         let mut members = arena::HandleSpan::empty();
         typed
             .expression_table
@@ -1216,6 +1229,16 @@ mod tests {
                 .unwrap_err()
                 .detail
         };
+        let invalid_policy_operand = |scope: &ClauseScope<'_>, expression| {
+            let refusal = program
+                .term(machine(), scope, expression, None)
+                .unwrap_err();
+            assert!(matches!(
+                refusal.reason,
+                terminal_check_tables::RefusalReason::Violation(_)
+            ));
+            assert_eq!(refusal.detail, crate::policy::QUALIFIED_OPERAND);
+        };
         let no_input = "contract old of a subject without an admitted invocation input";
         assert_eq!(
             program
@@ -1386,10 +1409,7 @@ mod tests {
             Ok((ScalarTerm::value(value, scalar_type), domain[0].value_type))
         );
         for expression in [using_old, computed] {
-            assert_eq!(
-                detail(&domain_scope, expression),
-                "contract builtin operator on a value with a declared domain in a clause"
-            );
+            invalid_policy_operand(&domain_scope, expression);
         }
         let erased_qualification = [(foreign, ScalarTerm::value(value, scalar_type))];
         assert_eq!(
@@ -1411,14 +1431,9 @@ mod tests {
             ..scope
         };
         assert!(program.term(machine(), &qualified_scope, old, None).is_ok());
-        assert_eq!(
-            detail(&qualified_scope, using_old),
-            format!("contract {}", crate::policy::QUALIFIED_OPERAND)
-        );
-        assert_eq!(
-            detail(&qualified_scope, computed),
-            format!("contract {}", crate::policy::QUALIFIED_OPERAND)
-        );
+        for expression in [using_old, computed] {
+            invalid_policy_operand(&qualified_scope, expression);
+        }
         assert!(
             program.expression(machine(), &slots, old, None).is_err(),
             "old has no executable implementation"

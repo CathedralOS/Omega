@@ -186,7 +186,6 @@ impl<Declaration, Origin> SelectionProvenance<Declaration, Origin> {
 pub struct CandidateDeclarations<Declaration> {
     pub schema: Result<Declaration, String>,
     pub provider: Option<Result<Declaration, String>>,
-    pub selecting_declaration: Result<Option<String>, Vec<Diagnostic>>, // refusal stays dormant until independent composition needs its canonical join
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
