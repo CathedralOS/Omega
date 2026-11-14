@@ -14,8 +14,9 @@
 //!   stops them now.
 //! - `--changed <rev> [--previous <sweep.tsv>]` checks the change's blast
 //!   zone since `<rev>`: programs whose own folder holds a changed file,
-//!   programs whose `build.omg` names a changed path dependency, every program
-//!   when a library under `source/library/` changed, and, when the compiler
+//!   programs whose path dependencies (followed to the end) hold a changed
+//!   `.omg` file, every program when the toolchain's `core` or `std` changed
+//!   (every check reads them), and, when the compiler
 //!   changed, the earlier sweep's blocked programs whose error contains a
 //!   message on the diff's changed lines plus every program that checks or is
 //!   rejected as it should be (a regression guard). `--list` prints the
@@ -452,7 +453,7 @@ enum Reason {
     OwnSource,
     /// Its `build.omg` names a path dependency the change touched.
     Dependency,
-    /// A library every program reads changed.
+    /// The toolchain's `core` or `std`, which every check reads, changed.
     Library,
     /// It was blocked by an error message the change touched.
     Message,
@@ -465,8 +466,8 @@ impl Reason {
     fn label(self) -> &'static str {
         match self {
             Self::OwnSource => "a file in its own folder changed",
-            Self::Dependency => "a path dependency it names changed",
-            Self::Library => "a library every program reads changed",
+            Self::Dependency => "a package it depends on, directly or not, changed",
+            Self::Library => "the toolchain core or std it reads changed",
             Self::Message => "it was blocked by an error message the change touched",
             Self::Guard => "it checks or is rejected as expected (regression guard)",
         }
@@ -558,8 +559,7 @@ fn normal(path: &str) -> String {
 
 /// The repository paths a program's `build.omg` names as path dependencies
 /// (`location: "<relative path>"`), resolved against the program's folder.
-fn dependency_roots(root: &Path, program: &str) -> Vec<String> {
-    let folder = program.trim_end_matches("main.omg").trim_end_matches('/');
+fn direct_dependencies(root: &Path, folder: &str) -> Vec<String> {
     let Ok(build) = fs::read_to_string(root.join(folder).join("build.omg")) else {
         return Vec::new();
     };
@@ -570,6 +570,33 @@ fn dependency_roots(root: &Path, program: &str) -> Vec<String> {
         .filter(|location| location.starts_with('.'))
         .map(|location| normal(&format!("{folder}/{location}")))
         .collect()
+}
+
+/// The package folders a program's check reads besides its own: its path
+/// dependencies, and theirs, to the end. With the program's own folder (every
+/// `.omg` beneath a package root is its source, `LogicalSourceInventory` in
+/// `package-compilation`) and the toolchain's `core` and `std`, these are the
+/// source closure `omega --check` compiles.
+fn dependency_roots(root: &Path, program: &str) -> Vec<String> {
+    let folder = program.trim_end_matches("main.omg").trim_end_matches('/');
+    let mut found: Vec<String> = Vec::new();
+    let mut pending = direct_dependencies(root, folder);
+    while let Some(dependency) = pending.pop() {
+        if found.contains(&dependency) {
+            continue;
+        }
+        pending.extend(direct_dependencies(root, &dependency));
+        found.push(dependency);
+    }
+    found.sort();
+    found
+}
+
+/// Whether a changed library file is in a library every check reads: the
+/// toolchain supplies `core` and `std` to every program, declared or not;
+/// any other library arrives only through a declared dependency.
+fn toolchain_library(path: &str) -> bool {
+    path.starts_with("source/library/core/") || path.starts_with("source/library/std/")
 }
 
 /// The blast zone of the change from `rev`: each program the change can
@@ -594,7 +621,7 @@ fn blast_zone(
     });
     let library = changed
         .iter()
-        .any(|path| path.starts_with("source/library/"));
+        .any(|path| toolchain_library(path) && path.ends_with(".omg"));
     if library {
         for program in programs {
             add(program, Reason::Library);
@@ -603,10 +630,9 @@ fn blast_zone(
     let sources: Vec<&String> = changed
         .iter()
         // Only Omega source reaches a check: a README or an expected-output
-        // file beside a program changes nothing `omega --check` reads.
-        .filter(|path| {
-            (path.starts_with("samples/") || path.starts_with("tests/")) && path.ends_with(".omg")
-        })
+        // file beside a program changes nothing `omega --check` reads. A
+        // changed `core` or `std` file already selected every program.
+        .filter(|path| path.ends_with(".omg") && !toolchain_library(path))
         .collect();
     if !sources.is_empty() {
         for program in programs {
@@ -941,6 +967,36 @@ mod tests {
             "tests/support/x"
         );
         assert_eq!(normal("a/./b//c/../d"), "a/b/d");
+    }
+
+    #[test]
+    fn dependencies_are_followed_to_the_end() {
+        // app depends on lib, lib on base, and base back on lib: the closure
+        // is both packages, once each.
+        let root = std::env::temp_dir().join(format!("sweep-deps-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let build = |folder: &str, location: &str| {
+            fs::create_dir_all(root.join(folder)).unwrap();
+            fs::write(
+                root.join(folder).join("build.omg"),
+                format!("Source::Path {{ location: \"{location}\" }}"),
+            )
+            .unwrap();
+        };
+        build("samples/app", "../../packages/lib");
+        build("packages/lib", "../base");
+        build("packages/base", "../lib");
+        let roots = dependency_roots(&root, "samples/app/main.omg");
+        let _ = fs::remove_dir_all(&root);
+        assert_eq!(roots, ["packages/base", "packages/lib"]);
+    }
+
+    #[test]
+    fn only_core_and_std_reach_every_program() {
+        assert!(toolchain_library("source/library/core/layout.omg"));
+        assert!(toolchain_library("source/library/std/console.omg"));
+        assert!(!toolchain_library("source/library/alloc/vec.omg"));
+        assert!(!toolchain_library("samples/cli/facts/f/local/main.omg"));
     }
 
     #[test]
