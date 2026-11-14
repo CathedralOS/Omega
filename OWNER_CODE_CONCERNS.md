@@ -87,13 +87,6 @@ framework or a list of features that remain unimplemented.
 - Cost: a correct program is rejected, not refused as unsupported, and the message blames the author. Passing a stored view needs a form that copies the descriptor out before the exclusive loan is formed
 - Reported: 2026-11-13, Claude Code, while lending case payloads
 
-### Four walks from a place to its root in the reader, each with its own list of steps
-- Category: one idea, several implementations
-- Where: `05_typed-trees-to-terminal-psi/src/read/calls.rs` (`root_slot`), `read/statements.rs` (the assignment target loop), `read/authority.rs` (`written_through`), `read/expressions.rs` (`names_storage`)
-- Saw: `lent` had a fifth, which stopped at a case payload and at a saved match subject though `root_slot` beside it walked both; that was the whole of `call borrow of a case payload`. `written_through` stopped at a saved subject, so an exclusive loan of a payload of `match holder.field` authorized no write through `holder`
-- Cost: each new step kind (payload, saved subject) is taught to one walk at a time, and the ones that are missed either refuse a served program or skip an authority check
-- Reported: 2026-11-13, Claude Code, while lending case payloads
-
 ### Whether a type is a scalar is decided twice, once by its spelling and once by its symbol
 - Category: one idea, several implementations
 - Where: `typed-trees/src/type_system.rs` (`TypeReferenceNode::primitive_type` calls `PrimitiveType::from_name(name)`; `type_symbol` returns no symbol when the name spells a primitive); `05_typed-trees-to-terminal-psi/src/read/types.rs` (`atom_type` through `SymbolTable::builtin_type_atom`); `symbol-resolved-trees/src/type_system_and_names.rs` (a second `PrimitiveType` with its own `from_name`)
@@ -241,12 +234,12 @@ framework or a list of features that remain unimplemented.
 - Cost: a new instruction kind that misses the effect table is declared effect-free and passes validation by construction; "validated catalog" reads as an independent check and is not one
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### Every obligation becomes an "accepted" fact, and no later stage can tell a proven one from an unproven one
+### Native lowering accepts module bytes without artifact-bound host producer trust
 - Category: a verdict with nothing behind it
-- Where: `omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/verified_unit.rs:194-400` and `:412-425`; readers at `.../01_.../src/rules.rs`, `.../03_target-operations-to-selected-instructions/src/legalization.rs:234-244`
-- Saw: `source_checked_obligation_facts` pushes one `AcceptedObligationFact` per obligation reference; the proof fingerprint is 32 zero bytes unless a seal names it, and the comment says no module the current pipeline produces has seals; the only readers of the fingerprint are a measurement printout, the identity hash and one equality against a proof question; stage 03 takes the first matching fact and needs only that it exists
-- Cost: the names "accepted" and "source checked" read as proof; stages 01 and 03 remove or omit runtime checks on the strength of a fact that only records that an obligation was stated
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
+- Where: `00_terminal-psi-to-abstract-operations/src/artifact_admission.rs` (`lower_artifact`), `abstract-operations/verified-input/src/lib.rs` (`VerifiedPsiOptimizationInput::lowered`), and `01_abstract-operations-to-abstract-operations/src/verified_unit.rs` (`source_checked_obligation_facts`)
+- Saw: the public byte-lowering route canonically decodes a module and can produce accepted obligation facts without an artifact-bound host producer-trust witness. Zero proof fingerprints are not themselves the defect: `product.md#publication-and-separate-consumption` permits reuse of a trusted producer's judgments without transported derivations.
+- Cost: an embedding caller can reach native optimization with asserted obligations but no explicit authorization of their producer; repair the ingress trust boundary under `PSI-CLAIM-ADMISSION`, not by replaying proofs on every trusted internal stage handoff.
+- Reported: 2026-11-12, Claude Code; narrowed against the ratified execution-admission contract by Codex on 2026-11-13 while auditing accepted facts
 
 ### A default compile seals the native artifact without running the replay, and a failed replay under `--both` is reported as declined
 - Category: a verdict with nothing behind it

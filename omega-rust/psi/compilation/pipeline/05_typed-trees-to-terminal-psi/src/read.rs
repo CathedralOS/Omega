@@ -38,6 +38,7 @@ mod regions;
 mod services;
 mod source_records;
 mod statements;
+mod storage_path;
 mod subjects;
 mod transitions;
 mod types;

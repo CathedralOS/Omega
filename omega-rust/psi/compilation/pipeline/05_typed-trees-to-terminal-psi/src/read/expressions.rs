@@ -13,6 +13,7 @@ use typed_trees::expression::{
 };
 
 use super::authority::Access;
+use super::storage_path::names_storage;
 use super::{Program, Slot, symbol_kind};
 use crate::body::{Expression, ExpressionKind, Policy, Strict, ValueType};
 use crate::{SourceOrigin, Unserved, refuse};
@@ -528,36 +529,6 @@ impl<'t> Program<'t> {
         }
         let result = result.ok_or_else(|| unserved("match without an arm"))?;
         Ok((arms, default, result))
-    }
-}
-
-/// Whether a data-typed expression names storage that exists before it is
-/// read: a slot, or a field or payload path beneath one. Reading it again
-/// names the same place and evaluates nothing.
-pub(super) fn names_storage(expression: &Expression) -> bool {
-    match &expression.kind {
-        ExpressionKind::Slot(_) | ExpressionKind::SavedSubject(_) => true,
-        ExpressionKind::Field { base, .. }
-        | ExpressionKind::Payload { base, .. }
-        | ExpressionKind::Index { base, .. } => names_storage(base),
-        ExpressionKind::Borrow { .. }
-        | ExpressionKind::Integer(_)
-        | ExpressionKind::ByteLiteral(_)
-        | ExpressionKind::CollectionMeasure { .. }
-        | ExpressionKind::Boolean(_)
-        | ExpressionKind::Array { .. }
-        | ExpressionKind::Record { .. }
-        | ExpressionKind::Case { .. }
-        | ExpressionKind::IsCase { .. }
-        | ExpressionKind::Match { .. }
-        | ExpressionKind::Strict { .. }
-        | ExpressionKind::Not(_)
-        | ExpressionKind::BitwiseNot(_)
-        | ExpressionKind::Cast(_)
-        | ExpressionKind::Requalify(_)
-        | ExpressionKind::Establish { .. }
-        | ExpressionKind::ShortCircuit { .. }
-        | ExpressionKind::Call { .. } => false,
     }
 }
 
