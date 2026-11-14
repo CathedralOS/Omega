@@ -90,6 +90,7 @@ pub(crate) fn outcomes(
     signatures: Signatures<'_>,
     requirements: &[MachineId],
     local_results: Option<&[MachineId]>,
+    inhabitation: &terminal_semantics::inhabitation::Inhabitation,
 ) -> Checked<IdTable<MachineId, Outcome>> {
     // A closed-body input has no source-unit boundary. Source compilations
     // supply the same actual private-body roster as result-summary checking.
@@ -106,6 +107,7 @@ pub(crate) fn outcomes(
     let mut walk = Walk {
         signatures,
         requirements,
+        inhabitation,
         reached: bodies.map(|_, _| Reached::default()),
         causes: BTreeSet::new(),
         contributed: Default::default(),
@@ -117,13 +119,17 @@ pub(crate) fn outcomes(
             walk.causes.clear();
             walk.contributed = Default::default();
             walk.operational = [false; 2];
+            let declared_empty = crate::inhabitation::excludes_result(
+                inhabitation,
+                signatures.get(machine.into(), machine)?.result,
+            );
             let completes_normally = if requirements.contains(&machine) {
-                true
+                !declared_empty
             } else {
                 // Always walk the body for its other effects. Only its
                 // normal-completion inference is private to the unit.
                 let completes = walk.statements(machine, &body.statements)?;
-                completes || local.get(machine) != Some(&true)
+                !declared_empty && (completes || local.get(machine) != Some(&true))
             };
             let found = Reached {
                 operational: walk.operational,
@@ -193,6 +199,7 @@ struct Contributed {
 
 struct Walk<'b> {
     signatures: Signatures<'b>,
+    inhabitation: &'b terminal_semantics::inhabitation::Inhabitation,
     /// Machines that are a requirement's contract and have no body.
     requirements: &'b [MachineId],
     reached: IdTable<MachineId, Reached>,
@@ -492,6 +499,9 @@ impl Walk<'_> {
                     else {
                         return Ok(true);
                     };
+                    // A general boundary no-return transfer still needs its
+                    // distinct invocation/admission path; never turn it into
+                    // canonical process-exit authority here.
                     return Ok(required_contract.is_some()
                         || self.signatures.completion(boundary, machine)?
                             == semantic_vocabulary::BoundaryCompletion::NormalReturn);
@@ -509,11 +519,13 @@ impl Walk<'_> {
                 })?;
                 // A routed requirement advertises its own contract, never
                 // the stronger private outcome of its chosen implementation.
-                let completes = required_contract.is_some() || reached.completes_normally;
                 let causes = reached.causes.clone();
                 let signature =
                     self.signatures
                         .invocation((*callee).into(), *required_contract, machine)?;
+                let completes =
+                    !crate::inhabitation::excludes_result(self.inhabitation, signature.result)
+                        && (required_contract.is_some() || reached.completes_normally);
                 let published = signature.operational.published(reached.operational);
                 for (contributes, published) in self.operational.iter_mut().zip(published) {
                     *contributes |= published;

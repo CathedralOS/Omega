@@ -54,6 +54,7 @@ pub use publication::{DesignatedOperands, SourceCorrespondence};
 mod canonical;
 mod components;
 mod declare;
+mod inhabitation;
 mod lower;
 
 mod operational;
@@ -785,18 +786,10 @@ fn lower_generic_for<'source>(
     let local_results = declarations
         .map(|source| source.local_result_bodies(entry))
         .transpose()?;
-    let outcomes = outcome::outcomes(bodies, signatures, requirements, local_results.as_deref())?;
     let mut module = match entry {
         Some(entry) => TerminalModule::for_entry(entry),
         None => TerminalModule::declarations(),
     };
-    // Declaration checking publishes no executable arrival or root reach.
-    if let Some(entry) = entry {
-        module.root_service_reach.concrete =
-            terminal_check_tables::row(&outcomes, entry, entry, Construct::Machine)?
-                .service_reach
-                .clone();
-    }
     // Terminal Psi declares each record type once for the module, with the
     // interned identity its declaration form requires. A module with no
     // record declares none and keeps the empty identity table.
@@ -809,6 +802,20 @@ fn lower_generic_for<'source>(
         }
     };
     let declared = lower::places::declare(diagnostic, records, bodies, signatures, identities)?;
+    let outcomes = outcome::outcomes(
+        bodies,
+        signatures,
+        requirements,
+        local_results.as_deref(),
+        &declared.records.inhabitation,
+    )?;
+    // Declaration checking publishes no executable arrival or root reach.
+    if let Some(entry) = entry {
+        module.root_service_reach.concrete =
+            terminal_check_tables::row(&outcomes, entry, entry, Construct::Machine)?
+                .service_reach
+                .clone();
+    }
     module.identities = declared.identities;
     module.structural_types = declared.structural_types;
     module.native_layouts = declared.native_layouts;

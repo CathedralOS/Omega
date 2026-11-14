@@ -368,6 +368,12 @@ impl Program<'_> {
                 "local initializer type",
             ));
         }
+        // A bottom initializer produces no value, but the declared local
+        // keeps its annotation for source checking after the call. Keep
+        // existing inferred regions when the ordinary carriers already agree.
+        let value_type = declared
+            .filter(|declared| declared.erased() != value_type.erased())
+            .unwrap_or(value_type);
         let slot = Slot {
             symbol: local.symbol,
             value_type,

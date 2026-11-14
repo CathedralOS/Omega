@@ -912,7 +912,7 @@ impl<'t> Program<'t> {
         }
         let source_value = self.local_type(id, source_type)?;
         let view_value = self.local_type(id, view_type)?;
-        if !self.agrees(Some(source_value), view_value) {
+        if !self.same_type(Some(source_value), view_value) {
             return Err(unavailable(
                 "a different qualified view needs evaluated policy, layout and backing correspondence",
             ));
@@ -1884,7 +1884,12 @@ impl<'t> Program<'t> {
                 .is_some_and(|borrowed| borrowed.referent == crate::body::BorrowedReferent::Slice)
                 && matches!(actual.kind, ExpressionKind::Borrow { .. })
                 && self.borrowed_byte_array_matches(actual.result, formal);
-            if !self.agrees(actual.result, formal) && !array_view {
+            let agrees = if borrowed.is_some() {
+                self.same_type(actual.result, formal)
+            } else {
+                self.agrees(actual.result, formal)
+            };
+            if !agrees && !array_view {
                 // The typed trees give a borrow no span of its own; the
                 // place it lends is the authored argument.
                 let at = match (&actual.kind, actual.source) {
