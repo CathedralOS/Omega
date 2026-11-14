@@ -28,7 +28,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use runtime_abi::NativeBorrowedStorageLayout;
-use semantic_vocabulary::{IntegerValue, ScalarType};
+use semantic_vocabulary::{ClosedIntegerType, IntegerValue, ScalarType};
 use target_operations::NormalizedForeignCallBinding;
 use terminal_interpreter::{
     TerminalBoundaryByteBuffer, TerminalBoundaryStorageBuffer, TerminalEffect,
@@ -241,9 +241,10 @@ fn selector(
     let [TerminalScalarValue::Integer { scalar_type, value }] = arguments else {
         return Err(invalid());
     };
+    let closed = ClosedIntegerType::try_from(*scalar_type).map_err(|_| invalid())?;
     if signature.scalar_parameters.as_slice() != [ScalarType::Integer(*scalar_type)]
-        || scalar_type.bits() != 32
-        || scalar_type.is_address()
+        || closed.bits() != 32
+        || closed.is_address()
         || !scalar_type.admits(*value)
     {
         return Err(invalid());
