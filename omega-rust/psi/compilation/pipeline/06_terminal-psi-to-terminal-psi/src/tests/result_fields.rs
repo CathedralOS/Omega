@@ -101,8 +101,9 @@ machine build_entry(INPUT, bytes: &[u8]) -> Pair
 requires p.first == 0, bytes.len > 0
 ensures result.first == 0
 {
+    let original: u32 = p.first;
     p.first = 9;
-    Pair { first: 0, second: 7 }
+    Pair { first: original, second: 7 }
 }
 "#;
 
