@@ -85,20 +85,20 @@ impl<'t> Program<'t> {
     /// traits are not service identities." The typed trees keep one authored
     /// row per written clause, with no target for `reaches none`, so a
     /// clause is told from an omission by the row and never by an empty
-    /// set. A ceiling bound by an installation (`reaches <= Bound`) is an
-    /// abstract row, which no slice reads yet.
+    /// set. `reaches <= Bound` contributes its written upper bound while
+    /// checking source; the selected installation still owes its exact row.
     pub(super) fn reach_ceiling(
         &mut self,
         caller: MachineId,
         owner: symbols::SymbolHandle,
+        requirement: bool,
     ) -> Checked<crate::Ceiling> {
         let typed = self.typed;
-        let unserved = |what| refuse(caller, Construct::Machine, Unserved::Machine(what));
         let mut written = false;
         let mut named = Vec::new();
         for row in typed.authored_service_reach_rows_for(owner) {
-            if row.installation_bound {
-                return Err(unserved("service reach bound by an installation"));
+            if row.installation_bound && !requirement {
+                continue;
             }
             written = true;
             named.extend(row.targets.iter().map(|target| target.service));

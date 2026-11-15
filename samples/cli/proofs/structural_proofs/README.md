@@ -12,7 +12,7 @@ omega --check samples/cli/proofs/structural_proofs/main.omg
 ```
 
 `build.omg` binds the hosted targets' `ProgramEntry` slots to the inert
-`Main::main`, so a target compile also produces a native artifact (compile
+static `main` machine, so a target compile also produces a native artifact (compile
 and code-size legs only; the empty entry's run behavior is unspecified):
 
 ```
