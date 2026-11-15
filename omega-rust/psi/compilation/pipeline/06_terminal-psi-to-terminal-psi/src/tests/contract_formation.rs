@@ -307,3 +307,25 @@ machine build_entry() {{ let value: u32 = divide(31, 3); }}
         rejected_source(&source.replace("requires right > 0", "requires true"));
     }
 }
+
+/// Nested computations retain their policy and every inner formation question,
+/// including when an outer multiplication cannot change the final value.
+#[test]
+fn nested_summary_arithmetic_keeps_each_inner_formation_obligation() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/fixtures/run/calls/scalar_contract_route_exit/main.omg"
+    ))
+    .replace("machine main()", "machine build_entry()");
+    executed_source(&source);
+
+    let guarded = r#"
+machine nested(value: u8) -> u8
+requires value <= 254
+ensures result == (value + 1u8) * 0u8
+{ 0u8 }
+machine build_entry() { let value: u8 = nested(0u8); }
+"#;
+    executed_source(guarded);
+    rejected_source(&guarded.replace("requires value <= 254", "requires true"));
+}
