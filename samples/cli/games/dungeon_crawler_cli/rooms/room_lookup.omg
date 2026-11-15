@@ -1,11 +1,8 @@
-use text::buffer;
-use rooms::map;
-use rooms::rooms;
 
 data RoomLookup {
 }
 
-machine RoomLookup::find_room(level: Level,
+machine find_room(level: Level,
     cell: CellId,
     out_room: &mut Room)
 ensures
@@ -64,7 +61,7 @@ ensures
     }
 }
 
-machine RoomLookup::find_room_mut(level: &mut Level,
+machine find_room_mut(level: &mut Level,
     cell: CellId) -> &mut Room {
     let rooms: &mut [Room] = &mut level.rooms[..];
 
