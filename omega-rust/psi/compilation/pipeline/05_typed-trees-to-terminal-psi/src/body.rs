@@ -176,6 +176,18 @@ impl DomainSet {
         self.len += 1;
         Some(self)
     }
+
+    /// This set with `domain` removed: `None` when it is not a member.
+    pub fn without(mut self, domain: DomainInstance) -> Option<Self> {
+        let count = usize::from(self.len);
+        let position = self.members[..count]
+            .iter()
+            .position(|member| *member == Self::key(domain))?;
+        self.members.copy_within(position + 1..count, position);
+        self.members[count - 1] = (0, 0, 0);
+        self.len -= 1;
+        Some(self)
+    }
 }
 
 /// An arithmetic policy a type can carry, or a suffixed operator selects for
@@ -1132,13 +1144,15 @@ pub enum ExpressionKind {
     /// policy, so no operation is emitted and the operand keeps the
     /// operations its own type chose.
     Requalify(Box<Expression>),
-    /// `value as +D` for a domain with predicates: the scalar operand,
-    /// whose value is the result, and the predicates the cast proves of
-    /// it, each over the one value `ValueId(1)` (`read/predicates.rs`).
-    /// domains.md, "Domain-only casts": "Has predicates | Prove them for
-    /// this value." Lowering continues in a block whose parameter is the
-    /// result and whose invariant is the clauses, so the edge into it owes
-    /// them and everything after knows them.
+    /// `value as +D` for a domain with predicates: the operand, whose value
+    /// is the result, and the predicates the cast proves of it
+    /// (`read/predicates.rs`), each over the one value `ValueId(1)` for a
+    /// scalar, or over the one structural subject `self_place()` for an
+    /// array, a record or a reference. domains.md, "Domain-only casts":
+    /// "Has predicates | Prove them for this value." Lowering continues in
+    /// a block whose parameter is the result and whose invariant is the
+    /// clauses, so the edge into it owes them and everything after knows
+    /// them.
     Establish {
         operand: Box<Expression>,
         clauses: Vec<Proposition>,

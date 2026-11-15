@@ -696,6 +696,56 @@ pub fn declared_multiplicity(
     }
 }
 
+/// Each edge into a block parameter that carries a fresh permission on
+/// (`carried`) supplies a whole root of that affine custody, so the
+/// parameter's loan lifecycle is the one its argument owned.
+fn carried_permissions(
+    machine: &TerminalMachine,
+    contracts: &[Option<(
+        semantic_vocabulary::StructuralTypeId,
+        terminal_psi::StructuralMultiplicity,
+        StructuralAccess,
+        Option<terminal_psi::StructuralMultiplicity>,
+    )>],
+    carried: &[PlaceId],
+) -> Result<(), Error> {
+    if carried.is_empty() {
+        return Ok(());
+    }
+    for block in &machine.blocks {
+        let edges = block.terminator.successor_edges();
+        let arguments = block.terminator.successor_block_arguments();
+        for ((_, target), arguments) in edges.into_iter().zip(arguments) {
+            let Some(target) = machine.blocks.iter().find(|block| block.id == target) else {
+                return Err(Error::malformed(
+                    "a structural successor names an absent block",
+                ));
+            };
+            for (argument, parameter) in arguments.iter().zip(&target.structural_parameters) {
+                if !carried.contains(&parameter.place) {
+                    continue;
+                }
+                let affine = argument.path.is_empty()
+                    && argument.access == StructuralAccess::Owned
+                    && contracts
+                        .get(index(argument.place.get())?)
+                        .copied()
+                        .flatten()
+                        .is_some_and(|(structural_type, multiplicity, _, _)| {
+                            structural_type == parameter.structural_type
+                                && multiplicity == terminal_psi::StructuralMultiplicity::Affine
+                        });
+                if !affine {
+                    return Err(Error::malformed(
+                        "an affine permission parameter receives other than its carrier",
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn required_result_multiplicity(
     operation: &terminal_psi::Operation,
 ) -> Option<terminal_psi::StructuralMultiplicity> {
@@ -793,6 +843,13 @@ fn analyze(
         }
         Ok(())
     };
+    // A block parameter may carry a fresh permission carrier on, keeping
+    // the custody its producer gave it: a shared reference is affine while
+    // it owns its loan although its type permits copies
+    // (`required_result_multiplicity`). Every arrival must then supply such
+    // a carrier whole (`carried_permissions`), so the marking is never an
+    // arbitrary one.
+    let mut carried = Vec::new();
     for parameter in machine
         .structural_parameters
         .iter()
@@ -804,12 +861,33 @@ fn analyze(
         {
             exclude_whole(parameter.place)?;
         }
+        let required = (parameter.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+            && parameter.access == StructuralAccess::Owned
+            && machine
+                .block_structural_parameters()
+                .any(|block| block.place == parameter.place)
+            && types
+                .get(index(parameter.structural_type.get())?)
+                .is_some_and(|declaration| {
+                    declaration.copyable
+                        && matches!(
+                            declaration.shape,
+                            terminal_psi::StructuralTypeShape::Reference {
+                                access: StructuralAccess::SharedBorrow,
+                                ..
+                            }
+                        )
+                }))
+        .then_some(terminal_psi::StructuralMultiplicity::Affine);
+        if required.is_some() {
+            carried.push(parameter.place);
+        }
         insert_contract(
             parameter.place,
             parameter.structural_type,
             parameter.multiplicity,
             parameter.access,
-            None,
+            required,
         )?;
     }
     // Copyable storage joins the region walk when a disposition affects it.
@@ -894,6 +972,7 @@ fn analyze(
             None,
         )?;
     }
+    carried_permissions(machine, &contracts, &carried)?;
     // An empty-domain observation needs an actual initialized value even
     // when it has no scalar leaves. Follow its producers and copies through
     // the same region transfer, without converting copies into affine moves.

@@ -648,18 +648,19 @@ ensures result == 0
     );
 }
 
-/// Building such a record means establishing the domain on the lent array
-/// (`&text as +Terminated`), and a cast that adds a predicated domain to a
-/// value that is not a scalar is still refused by name. So no value of the
-/// record exists without its predicate proved, whatever the array holds.
+/// Building such a record establishes the domain on the lent array:
+/// `&text as +Terminated` lends `text` and owes `text[3] == 0` on the edge
+/// into the block the cast continues in (domains.md, "Domain-only casts":
+/// "Has predicates | Prove them for this value."). The array's last element
+/// decides it: 0 proves it, 5 leaves the establishment unproved.
 #[test]
-fn a_stored_referents_domain_is_not_established_without_its_cast() {
+fn a_stored_referents_domain_is_established_by_its_proved_cast() {
     let source = |last: u16| {
         format!(
             r#"
 domain [u16; 4]::Terminated requires self[3] == 0;
 data Named<'s> {{ buffer: &'s [u16; 4] in Terminated; }}
-machine last(named: &Named) -> u16 {{ named.buffer[3] }}
+machine last(named: &Named) -> u16 ensures result == 0 {{ named.buffer[3] }}
 machine entry() -> u16 {{
     let text: [u16; 4] = [7, 8, 9, {last}];
     let named: Named = Named {{ buffer: &text as +Terminated }};
@@ -668,14 +669,48 @@ machine entry() -> u16 {{
 "#
         )
     };
-    for last in [0, 5] {
-        let refused = invocation(&source(last)).unwrap_err();
-        assert_eq!(refused.reason, RefusalReason::Unsupported);
-        assert!(
-            refused.detail.contains(
-                "cast that adds a domain with predicates to a value that is not a scalar"
-            ),
-            "{refused:?}"
-        );
-    }
+    let accepted = judge(invocation(&source(0))).unwrap();
+    assert!(
+        matches!(accepted, RouteVerdict::Accepted(_)),
+        "{accepted:?}"
+    );
+    let unproved = judge(invocation(&source(5))).unwrap();
+    assert!(
+        matches!(unproved, RouteVerdict::Rejected { ref unproved, .. }
+        if unproved.iter().any(|row| matches!(row.kind, ObligationKind::ArrivalInvariant { .. }))),
+        "{unproved:?}"
+    );
+}
+
+/// The same cast on the array itself: `text as +Terminated` owes
+/// `text[3] == 0` on the edge into the block the cast continues in, and the
+/// formal in the domain then knows it.
+#[test]
+fn an_arrays_domain_is_established_by_its_proved_cast() {
+    let source = |last: u16| {
+        format!(
+            r#"
+domain [u16; 4]::Terminated requires self[3] == 0;
+machine last(text: [u16; 4] in Terminated) -> u16 ensures result == 0 {{
+    let plain: [u16; 4] = text as -Terminated;
+    plain[3]
+}}
+machine entry() -> u16 {{
+    let text: [u16; 4] = [7, 8, 9, {last}];
+    last(text as +Terminated)
+}}
+"#
+        )
+    };
+    let accepted = judge(invocation(&source(0))).unwrap();
+    assert!(
+        matches!(accepted, RouteVerdict::Accepted(_)),
+        "{accepted:?}"
+    );
+    let unproved = judge(invocation(&source(5))).unwrap();
+    assert!(
+        matches!(unproved, RouteVerdict::Rejected { ref unproved, .. }
+        if unproved.iter().any(|row| matches!(row.kind, ObligationKind::ArrivalInvariant { .. }))),
+        "{unproved:?}"
+    );
 }
