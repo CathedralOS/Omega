@@ -1094,6 +1094,28 @@ pub(crate) mod expression {
                         self.target()
                             .set_constructed_value_type_reference(lowered, result);
                     }
+                    // Constant evaluation can replace this use with an array literal.
+                    // Bind its contextual carrier while the source still names the declaration.
+                    if let Some(program) = self.program
+                        && let Some(carrier @ TypeReference::FixedArray(_)) =
+                            super::member_binding::constant_use_type(
+                                program,
+                                self.source,
+                                expression,
+                            )
+                    {
+                        let exposure = self.source.authored_expression_exposure(expression).unwrap_or(
+                            language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                        );
+                        let carrier = lower_type_reference_into_trees_with_exposure(
+                            program,
+                            self.target_trees,
+                            carrier,
+                            exposure,
+                        )?;
+                        self.target()
+                            .set_constructed_value_type_reference(lowered, carrier);
+                    }
                     self.target().set_source_span(lowered, source_span);
                     let unresolved_name = self.source.unresolved_name(expression);
                     self.target().set_unresolved_name(lowered, unresolved_name);
@@ -2596,6 +2618,41 @@ pub(crate) mod expression {
                 fields.next().is_none().then_some(field)
             }
 
+            pub(super) fn constant_use_type<'program>(
+                program: &'program resolved::SymbolResolvedTrees,
+                expressions: &resolved::expression::ExpressionTable,
+                expression: ExpressionHandle,
+            ) -> Option<&'program TypeReference> {
+                match expressions.expression(expression) {
+                    ExpressionNode::Name(path) => {
+                        return program
+                            .const_declaration(path.symbol)
+                            .map(|constant| &constant.declared_type);
+                    }
+                    ExpressionNode::ArrayLiteral(_) | ExpressionNode::StructLiteral(_) => {}
+                    _ => return None,
+                }
+                let mut declared = None;
+                for occurrence in expressions.authored_selection_occurrences(expression) {
+                    let selection = program.authored_declaration_selections().get(occurrence)?;
+                    if selection.source_span() != expressions.source_span(expression) {
+                        continue;
+                    }
+                    let language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(selected) = selection.target() else {
+                        continue;
+                    };
+                    let Some(constant) = program.const_declaration(selected.selected_symbol())
+                    else {
+                        continue;
+                    };
+                    if declared.is_some_and(|previous| previous != &constant.declared_type) {
+                        return None;
+                    }
+                    declared = Some(&constant.declared_type);
+                }
+                declared
+            }
+
             fn declared_type<'program>(
                 program: &'program resolved::SymbolResolvedTrees,
                 expressions: &resolved::expression::ExpressionTable,
@@ -2614,35 +2671,14 @@ pub(crate) mod expression {
                             // collection measurements in member selection.
                             declared_call_return(program, path.reserved_result_of)
                         } else {
-                            inferred_capture_type(program, expressions, path.symbol, depth)
+                            constant_use_type(program, expressions, expression).or_else(|| {
+                                inferred_capture_type(program, expressions, path.symbol, depth)
+                            })
                         }
                     }
                     ExpressionNode::Call(call) => declared_call_return(program, call.target_symbol),
-                    ExpressionNode::ArrayLiteral(_) => {
-                        let mut declared = None;
-                        for occurrence in expressions.authored_selection_occurrences(expression) {
-                            let selection =
-                                program.authored_declaration_selections().get(occurrence)?;
-                            if selection.source_span() != expressions.source_span(expression) {
-                                continue;
-                            }
-                            let language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(selected) = selection.target() else {
-                    continue;
-                };
-                            let Some(constant) =
-                                program.const_declaration(selected.selected_symbol())
-                            else {
-                                continue;
-                            };
-                            if !matches!(constant.declared_type, TypeReference::FixedArray(_))
-                                || declared
-                                    .is_some_and(|previous| previous != &constant.declared_type)
-                            {
-                                return None;
-                            }
-                            declared = Some(&constant.declared_type);
-                        }
-                        declared
+                    ExpressionNode::ArrayLiteral(_) | ExpressionNode::StructLiteral(_) => {
+                        constant_use_type(program, expressions, expression)
                     }
                     ExpressionNode::Borrow(borrow) => {
                         declared_type(program, expressions, borrow.target, depth + 1)

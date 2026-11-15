@@ -485,7 +485,15 @@ impl<'t> Program<'t> {
                 };
             }
             ExpressionNode::ArrayLiteral(elements) => {
-                return self.array_literal(id, slots, *elements, expected, source);
+                let declared = typed
+                    .expression_table
+                    .constructed_value_type_reference(handle);
+                let array_type = if declared.is_valid() {
+                    Some(self.value_type(id, declared)?)
+                } else {
+                    expected
+                };
+                return self.array_literal(id, slots, *elements, array_type, source);
             }
             ExpressionNode::Atomic(atomic) => return self.atomic_load(id, slots, atomic, source),
             ExpressionNode::Cast(cast) => return self.cast(id, slots, cast, source),

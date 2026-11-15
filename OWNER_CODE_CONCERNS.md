@@ -73,6 +73,27 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### Build invocations lose closed data applications during argument construction
+- Category: knowledge crossing a boundary
+- Where: [host argument declaration lookup](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/invocation.rs#L45), [closed data declarations](omega-rust/psi/compilation/representations/typed-trees/src/type_identity.rs#L7731)
+- Saw: Clean `a225808b7c9` on macOS arm64 passes 124 of 129 Build-time evaluation tests. The fixed and generic Pair policies, C scalar layout policy, unselected applied collection, and equal const-index storage all refuse “invocation value has no exact closed data application” while binding the layout schema, shelf, or storage value.
+- Cost: Checked host argument preparation cannot use the closed record that its declaration selects. Find which occurrence loses the retained application and use the existing applied declaration owner while binding the value, keeping the new shared typed-view controls and exact missing or wrong application refusals.
+- Reported: 2026-11-15, Codex, while validating copyable record constants against the repaired main tree.
+
+### The bundled atomic fence still uses a retired attached declaration
+- Category: zombie machinery
+- Where: [bundled atomic ordering facade](source/library/core/atomic.omg#L12), [kept Boolean store](samples/cli/facts/atomic_boolean_store/local/main.omg#L12), [attached-machine admission](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/machine.rs#L891)
+- Saw: On macOS arm64 with the atomic-store build repair at `0eefa10be23`, the unchanged Boolean-store sample fails at `core/atomic.omg:12:16` because `Atomic::fence` is attached to a data declaration. The existing invalid twin still rejects `Receive` on the store itself. The unchanged projected store/load probe from the atomic-wake test runs in both engines when exposed through its hosted entry.
+- Cost: A program importing the bundled fence cannot reach the compiler's exact atomic-fence primitive. Restore the existing public ordering behavior through a supported declaration owner and retain the rejection for a lookalike or illegal ordering. Re-run the kept Boolean store/twin placements.
+- Reported: 2026-11-15, Codex, while running the atomic-store compiler-build repair.
+
+### A constant snapshot loses a checked element qualification
+- Category: knowledge crossing a boundary
+- Where: [observed result records](omega-rust/psi/compilation/build-time-evaluation/src/terminal_values.rs#L356), [constant array recovery](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/constant_jobs.rs#L338), [checked element construction](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/arrays.rs#L324)
+- Saw: On macOS arm64 with the copyable record constant repair on `4a720b7a9b5`, the accepted invocation behind `const issued_tickets: [Ticket in Stamped; 2] = make();` returns both field values and passes the constant receipt check. Product then refuses the reconstructed element at “typing array literal element.” Calling the original `make()` directly preserves the qualification through both engines. Ordinary computed and literal `[Ticket; 2]` constants also run in both engines.
+- Cost: The snapshot holds a record's field bits and declared type while the invocation checked qualification on each element path. Separate copy-eligible refinement facts from authority that a constant may not grant. Use the invocation's existing checked result to authenticate any recoverable refinement and refuse authority-bearing snapshots at their constant boundary.
+- Reported: 2026-11-15, Codex, while carrying evaluated record-array constants to named use.
+
 ### A textual merge can pass Admission with a Rust type error
 - Category: verifying costs more than writing
 - Where: [pre-merge Admission](.github/workflows/admission.yml#L68), [post-merge checks](.github/workflows/post-merge-check.yml#L64), [atomic store reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/atomics.rs#L223)
@@ -107,13 +128,6 @@ framework or a list of features that remain unimplemented.
 - Saw: On macOS arm64 with the byte-domain predicate repair on `6730ae09229`, a machine stores `"no plan"` in `report.reason: &[u8]` and checks that `report.reason.len` equals 7. Psi exits 0. Native refuses machine 1, operation 5 with `SourceCustodyMismatch` when the byte-length operation asks for its geometry at `legalization_source.rs:2687`. Qualifying the same field with the UTF-8 domain yields the same Psi and native outcomes. Measuring the literal through a direct local byte view exits 0 in both engines.
 - Cost: A byte view can be stored in a record and read by Psi, yet that field's length cannot reach native execution. Rejoin the exact projected descriptor source and its access to the existing byte-length geometry query, keeping the ordinary local and invalid backing controls.
 - Reported: 2026-11-15, Codex, while checking stored byte domains in both engines.
-
-### Product loses a copyable record array at constant use
-- Category: knowledge crossing a boundary
-- Where: [computed constant result](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/constant_jobs.rs#L327), [checked constant reading](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/constant_values.rs#L1)
-- Saw: On macOS arm64 at `7ff185a76e8` with `data Ticket [copy]`, `const TICKETS: [Ticket; 2] = make();` fails with “constant result needs its pure snapshot materializer” when `main` reads `TICKETS[1u64].number`. Calling the same `make` into a local and reading that field exits 0 in both engines. Replacing only the constant initializer with the same two record literals instead loses the array's closed contextual type at the indexed use. The qualified computed-array control reaches the same materializer refusal.
-- Cost: A constant declaration cannot supply the same checked owned value as an ordinary call. Carry the evaluator's exact pure structural snapshot and the declaration's checked carrier through the existing canonical constant materialization and expression reader. Preserve the identity of the initializer and the rejection of references or authority-bearing values as constant snapshots.
-- Reported: 2026-11-15, Codex, while checking record-domain placement through constant names.
 
 ### An owned record-sequence literal stops at native target lowering
 - Category: knowledge crossing a boundary

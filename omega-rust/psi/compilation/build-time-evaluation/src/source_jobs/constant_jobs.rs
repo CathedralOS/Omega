@@ -9,7 +9,7 @@ use std::collections::VecDeque;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::ExpressionHandle;
 use typed_trees::references::TypedReferences;
 
 use crate::{BuildTimeValue, InvocationTarget, SourceCompletionAccounting};
@@ -228,27 +228,12 @@ pub fn validate_constant_evaluations(
         for expression in
             std::iter::once(constant.materialized_initializer).chain(uses.iter().copied())
         {
-            if !program.expression_table.expression_is_valid(expression) {
-                return Err("constant materialization has a stale value occurrence".into());
-            }
-            let current = program.expression_table.expression(expression);
-            match (&value, current) {
-                (
-                    language_semantics::const_value::DecodedCanonicalConstValue::Boolean(value),
-                    ExpressionNode::Boolean(current),
-                ) if value == current => {}
-                (
-                    language_semantics::const_value::DecodedCanonicalConstValue::Integer {
-                        value,
-                        ..
-                    },
-                    ExpressionNode::Integer(current),
-                ) if current.value_bignum().as_ref() == Some(value) => {}
-                _ => {
-                    return Err(
-                        "constant materialization differs from its invocation outcome".into(),
-                    );
-                }
+            if !program.canonical_const_materialization_matches(
+                constant.declared_type,
+                expression,
+                &value,
+            ) {
+                return Err("constant materialization differs from its invocation outcome".into());
             }
         }
     }
@@ -318,36 +303,100 @@ fn request_references(program: &TypedTrees, expression: ExpressionHandle) -> Ref
     references
 }
 
-/// A returned scalar keeps its declared carrier, including the u64 bit pattern
-/// transported by BuildTimeValue::Int. Reference and authority-bearing values
-/// are not constant snapshots; further carriers need their actual materializer.
+/// Decode the evaluator's snapshot against the constant's exact carrier.
+/// References and authority-bearing values have no constant representation.
 pub(super) fn decoded(
     program: &TypedTrees,
     carrier: typed_trees::types::TypeReferenceHandle,
     value: &BuildTimeValue,
 ) -> Result<language_semantics::const_value::DecodedCanonicalConstValue, String> {
+    if !program
+        .type_reference_table
+        .contains_type_reference(carrier)
+        || program.stored_value_multiplicity(carrier)
+            != language_semantics::Multiplicity::Unrestricted
+    {
+        return Err("constant result does not have an unrestricted carrier".into());
+    }
+    decode_snapshot(program, carrier, value)
+}
+
+fn decode_snapshot(
+    program: &TypedTrees,
+    carrier: typed_trees::types::TypeReferenceHandle,
+    value: &BuildTimeValue,
+) -> Result<language_semantics::const_value::DecodedCanonicalConstValue, String> {
     use language_semantics::const_value::DecodedCanonicalConstValue;
-    let carrier = program
+    use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceNode};
+    let unsupported =
+        || "no product route yet: constant result needs its pure snapshot materializer".to_owned();
+    let underlying = program
         .unwrapped_type_reference(carrier)
         .ok_or("constant result has no exact carrier")?;
-    let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(carrier)
-    else {
-        return Err(
-            "no product route yet: constant result needs its pure snapshot materializer".into(),
-        );
+    let symbol = match program.type_reference_table.type_reference(underlying) {
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length: FixedArrayLength::Literal(length),
+        } => {
+            let BuildTimeValue::Array(elements) = value else {
+                return Err("constant result is not an array of its declared type".into());
+            };
+            if elements.len() != *length {
+                return Err("constant result differs from its declared array extent".into());
+            }
+            let values = elements
+                .iter()
+                .map(|element| decode_snapshot(program, *element_type, element))
+                .collect::<Result<_, _>>()?;
+            return Ok(DecodedCanonicalConstValue::Array {
+                type_name: program.display_type_reference(carrier),
+                values,
+            });
+        }
+        TypeReferenceNode::Named { symbol, .. } => *symbol,
+        _ => return Err(unsupported()),
     };
+    if let Some(record) = program.data_definition_by_symbol(symbol) {
+        let BuildTimeValue::Struct { type_name, fields } = value else {
+            return Err(unsupported());
+        };
+        if *type_name != program.normalized_type_identity_text(underlying) {
+            return Err("constant result differs from its declared record type".into());
+        }
+        let members = program.data_members(record);
+        if members.len() != fields.len() {
+            return Err("constant result differs from its declared field count".into());
+        }
+        let fields = members
+            .iter()
+            .zip(fields)
+            .map(|(member, (identity, value))| {
+                let field = member.as_field().ok_or_else(unsupported)?;
+                if field.member_identity().spelling() != *identity {
+                    return Err("constant result differs from its declared field identity".into());
+                }
+                Ok((
+                    field.name.as_str().to_owned(),
+                    decode_snapshot(program, field.type_reference, value)?,
+                ))
+            })
+            .collect::<Result<_, String>>()?;
+        return Ok(DecodedCanonicalConstValue::Record {
+            type_name: record.name.as_str().to_owned(),
+            fields,
+        });
+    }
     let atom = program
         .symbols
-        .builtin_type_atom(*symbol)
-        .ok_or("no product route yet: constant result needs its pure snapshot materializer")?;
+        .builtin_type_atom(symbol)
+        .ok_or_else(unsupported)?;
     let primitive = match atom {
-        symbols::BuiltinTypeAtom::Bool => typed_trees::types::PrimitiveType::Bool,
-        atom => typed_trees::types::PrimitiveType::from_builtin_atom(atom)
+        symbols::BuiltinTypeAtom::Bool => PrimitiveType::Bool,
+        atom => PrimitiveType::from_builtin_atom(atom)
             .ok_or("constant result has no builtin carrier")?,
     };
     match (primitive, value) {
-        (typed_trees::types::PrimitiveType::Bool, BuildTimeValue::Bool(value)) => {
+        (PrimitiveType::Bool, BuildTimeValue::Bool(value)) => {
             Ok(DecodedCanonicalConstValue::Boolean(*value))
         }
         (primitive, BuildTimeValue::Int(value)) if primitive.accepts_integer_literal() => {
@@ -355,6 +404,7 @@ pub(super) fn decoded(
                 integer_type: primitive
                     .landed_landing()
                     .ok_or("constant result has no integer carrier")?,
+                // BuildTimeValue::Int retains the complete u64 bit pattern.
                 value: if primitive.is_signed_integer() {
                     numerics::bignum::BigInt::from(*value)
                 } else {
@@ -362,9 +412,7 @@ pub(super) fn decoded(
                 },
             })
         }
-        _ => {
-            Err("no product route yet: constant result needs its pure snapshot materializer".into())
-        }
+        _ => Err(unsupported()),
     }
 }
 
