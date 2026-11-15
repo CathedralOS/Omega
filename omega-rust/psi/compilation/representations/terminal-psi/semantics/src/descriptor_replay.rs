@@ -7205,6 +7205,184 @@ pub(crate) mod engine {
             }
         }
 
+        // An incomplete call leaves its callee summary unprepared. The
+        // caller's physical storage snapshot can nevertheless complete.
+        #[test]
+        fn late_return_summary_cannot_freeze_an_earlier_storage_query() {
+            use crate::descriptors::descriptor_lifetimes::{
+                DescriptorFlowEdge, DescriptorFlowStep,
+            };
+            use semantic_vocabulary::{BlockId, OperationId};
+
+            let caller_id = MachineId::new(1).unwrap();
+            let callee_id = MachineId::new(2).unwrap();
+            let block = BlockId::new(1).unwrap();
+            let point = |index| (block, index);
+            let edge = |target| DescriptorFlowEdge {
+                definitions: Vec::new(),
+                target,
+                parameters: Vec::new(),
+                bindings: Vec::new(),
+            };
+            let scalar = scalar_type(1);
+            let roster_id = StructuralTypeId::new(2).unwrap();
+            let borrowed_id = StructuralTypeId::new(3).unwrap();
+            let types = vec![
+                scalar.clone(),
+                StructuralTypeDeclaration {
+                    shape: StructuralTypeShape::ElementView {
+                        element: scalar.id,
+                        access: None,
+                    },
+                    copyable: false,
+                    ..scalar_type(2)
+                },
+                StructuralTypeDeclaration {
+                    shape: StructuralTypeShape::ElementView {
+                        element: scalar.id,
+                        access: Some(StructuralAccess::SharedBorrow),
+                    },
+                    ..scalar_type(3)
+                },
+            ];
+            let returned = location(1);
+            let borrowed = location(2);
+            let mut caller = bare_machine(
+                caller_id,
+                vec![
+                    DescriptorPlace {
+                        producer: Some(point(0)),
+                        place: returned.root,
+                        definition: DescriptorDefinition::Local,
+                    },
+                    DescriptorPlace {
+                        producer: Some(point(1)),
+                        place: borrowed.root,
+                        definition: DescriptorDefinition::Arrival {
+                            access: StructuralAccess::SharedBorrow,
+                        },
+                    },
+                ],
+                BTreeMap::from([(returned.root, roster_id), (borrowed.root, borrowed_id)]),
+                BTreeSet::from([(point(1), returned.clone(), borrowed.clone())]),
+            );
+            caller.flow = BTreeMap::from([
+                (
+                    point(0),
+                    DescriptorFlowStep {
+                        definitions: vec![returned.clone()],
+                        successors: vec![edge(point(1))],
+                        ..Default::default()
+                    },
+                ),
+                (
+                    point(1),
+                    DescriptorFlowStep {
+                        definitions: vec![borrowed.clone()],
+                        derivations: vec![(returned.clone(), borrowed.clone())],
+                        successors: vec![edge(point(2))],
+                        ..Default::default()
+                    },
+                ),
+                (point(2), DescriptorFlowStep::default()),
+            ]);
+            caller.normal_exits = vec![point(2)];
+            caller.calls.insert(
+                point(0),
+                DescriptorInvocation {
+                    scalar_arguments: Vec::new(),
+                    operation: OperationId::new(1).unwrap(),
+                    target: DescriptorInvocationTarget::Machine(callee_id),
+                    arguments: vec![None],
+                    argument_contents: vec![None],
+                    result: Some(returned.clone()),
+                },
+            );
+
+            let empty = location(1);
+            let unused_input = location(2);
+            let mut callee = bare_machine(
+                callee_id,
+                vec![
+                    DescriptorPlace {
+                        producer: Some(point(0)),
+                        place: empty.root,
+                        definition: DescriptorDefinition::Local,
+                    },
+                    DescriptorPlace {
+                        producer: None,
+                        place: unused_input.root,
+                        definition: DescriptorDefinition::Parameter {
+                            position: 0,
+                            access: StructuralAccess::SharedBorrow,
+                            structural_type: borrowed_id,
+                        },
+                    },
+                ],
+                BTreeMap::from([(empty.root, roster_id), (unused_input.root, borrowed_id)]),
+                BTreeSet::new(),
+            );
+            callee.flow = BTreeMap::from([
+                (
+                    point(0),
+                    DescriptorFlowStep {
+                        definitions: vec![empty.clone()],
+                        successors: vec![edge(point(1))],
+                        ..Default::default()
+                    },
+                ),
+                (point(1), DescriptorFlowStep::default()),
+            ]);
+            callee
+                .originations
+                .insert(point(0), vec![(empty.clone(), DescriptorCallOrigin::Empty)]);
+            callee.normal_exits = vec![point(1)];
+            callee.returns = Some(vec![(point(1), empty)]);
+            let graph = vec![caller, callee];
+
+            // Pin both original answers against one unchanged caller snapshot.
+            let mut replay = Replay::new(&types, &graph);
+            let snapshots = replay.states(caller_id, 0).unwrap();
+            assert!(!replay.summaries.contains_key(&callee_id));
+            let before = &snapshots[&point(2)];
+            assert_eq!(
+                replay.canonical_storage(&graph[0], before, &borrowed, None),
+                Some(returned.clone()),
+            );
+            let summary = replay.summary(callee_id, 0).unwrap();
+            assert!(matches!(
+                summary.result.as_deref(),
+                Some([slot]) if matches!(slot.origins.as_slice(),
+                    [DescriptorStoredOrigin::Empty])
+            ));
+            assert_eq!(
+                replay.canonical_storage(&graph[0], before, &borrowed, None),
+                Some(borrowed.clone()),
+            );
+            drop(replay);
+
+            // Preparing another machine is not a graph edit; the memo must
+            // not freeze an answer depending on that unavailable summary.
+            let mut analysis = DescriptorAnalysis::new(&types, &graph);
+            assert_eq!(
+                analysis.location(caller_id, point(2), &borrowed),
+                Some(returned.clone()),
+            );
+            assert_eq!(
+                analysis.location(caller_id, point(2), &borrowed),
+                Some(returned),
+            );
+            assert!(analysis.result_slots(callee_id).is_some());
+            assert_eq!(
+                analysis.location(caller_id, point(2), &borrowed),
+                Some(borrowed.clone()),
+            );
+            assert_eq!(
+                analysis.location(caller_id, point(2), &borrowed),
+                Some(borrowed),
+            );
+        }
+
         #[test]
         fn a_backedge_cannot_make_a_replaced_descriptor_preserve_its_input() {
             use crate::descriptors::descriptor_lifetimes::{
