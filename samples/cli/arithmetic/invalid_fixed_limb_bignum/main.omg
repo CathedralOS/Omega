@@ -13,6 +13,6 @@ data Main {
     value: Bignum;
 }
 
-machine Main::main(main: &mut Main) {
+machine main(main: &mut Main) {
     store_overflow_carry(&mut main.value, 1);
 }

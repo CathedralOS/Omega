@@ -10,7 +10,7 @@ use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 
 data Main { }
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("collatz_sequence: count hailstone steps from 27 down to 1");
 
     transition {
@@ -53,7 +53,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
         Console::write_line("result: the step count, 111 for seed 27 (the exit code)");
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block Console::read_line(&mut pause);
+        _ = block Console::read_line(&mut pause[..]);
         ProcessExit::exit_process(steps as i32);
     }
 }
@@ -61,5 +61,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

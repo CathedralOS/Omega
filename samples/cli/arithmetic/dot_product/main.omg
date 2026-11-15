@@ -18,7 +18,7 @@ use omega_language_std::Console;
 data Main {
 }
 
-machine Main::main(context: &mut Main) reaches ProcessExit + Console {
+machine main(context: &mut Main) reaches ProcessExit + Console {
     Console::write_line("dot_product: [1,2,3] . [4,5,6] via inline indexed multiply-accumulate");
     let a: [i32 in Wrapping; 3] = [1, 2, 3];
     let b: [i32 in Wrapping; 3] = [4, 5, 6];
@@ -26,7 +26,7 @@ machine Main::main(context: &mut Main) reaches ProcessExit + Console {
     Console::write_line("result: the dot product, 32 for these vectors (the exit code)");
     Console::write_line("[press Enter to close]");
     let mut pause: [u8; 256];
-    _ = block Console::read_line(&mut pause);
+    _ = block Console::read_line(&mut pause[..]);
     ProcessExit::exit_process(sum as i32);
 }
 
@@ -54,5 +54,5 @@ machine compute_dot_product(a: &[i32 in Wrapping; 3], b: &[i32 in Wrapping; 3]) 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }
