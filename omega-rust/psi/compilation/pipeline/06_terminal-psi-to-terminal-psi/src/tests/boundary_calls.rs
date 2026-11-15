@@ -2339,10 +2339,24 @@ fn generic_named_map_captures_keep_every_unused_binder() {
         captures[0].conformance_application.identity_encoding,
         captures[1].conformance_application.identity_encoding
     );
-    assert_named_invocation_value(
-        compilation_verdicts_of(&prepared),
-        semantic_vocabulary::IntegerValue::Unsigned(7),
+    let verdicts = compilation_verdicts_of(&prepared);
+    let RouteVerdict::Accepted(invocation) = &verdicts[0] else {
+        panic!("expected the closed invocation: {verdicts:?}");
+    };
+    let module = &invocation.elaboration.module;
+    terminal_semantics::closed_reach::validate_closed_reach_applications(module).unwrap();
+    let retained = module
+        .machines
+        .iter()
+        .filter_map(|machine| machine.closed_reach_application.as_ref()?.capture.as_ref())
+        .collect::<Vec<_>>();
+    assert_eq!(retained.len(), 2);
+    assert!(
+        retained
+            .iter()
+            .all(|capture| capture.parameter_kinds == [0, 0])
     );
+    assert_named_invocation_value(verdicts, semantic_vocabulary::IntegerValue::Unsigned(7));
     let mut missing = (*prepared).clone();
     missing.captured_machine_applications = Default::default();
     missing
