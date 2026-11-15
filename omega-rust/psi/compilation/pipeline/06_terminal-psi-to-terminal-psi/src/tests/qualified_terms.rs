@@ -471,3 +471,68 @@ machine entry() -> i64 {{ observe(issue(7)) }}
         "{wrong_value:?}"
     );
 }
+
+/// A domain's predicates over an array or record formal are that formal's
+/// entry clauses, exactly as `requires path[7] == 0` written on the machine
+/// would be: the body may use them, and a predicate that says something else
+/// proves nothing about the element it does not name.
+#[test]
+fn a_data_formal_in_a_predicated_domain_assumes_its_predicates() {
+    let terminated = |element: u32| {
+        format!(
+            r#"
+domain [u16; 8]::Terminated requires self[{element}] == 0;
+machine entry(path: &[u16; 8] in Terminated) -> u16
+ensures result == 0
+{{
+    path[7]
+}}
+"#
+        )
+    };
+    let accepted = judge(invocation(&terminated(7))).unwrap();
+    assert!(
+        matches!(accepted, RouteVerdict::Accepted(_)),
+        "{accepted:?}"
+    );
+    let elsewhere = judge(invocation(&terminated(6))).unwrap();
+    assert!(
+        matches!(elsewhere, RouteVerdict::Rejected { ref unproved, .. }
+        if unproved.iter().any(|row| matches!(row.kind, ObligationKind::NormalGuarantee { .. }))),
+        "{elsewhere:?}"
+    );
+
+    let ordered = judge(invocation(
+        r#"
+data Span { low: u32; high: u32; }
+domain Span::Ordered requires self.low <= self.high;
+machine entry(span: Span in Ordered) -> u32
+ensures result <= span.high
+{
+    span.low
+}
+"#,
+    ))
+    .unwrap();
+    assert!(matches!(ordered, RouteVerdict::Accepted(_)), "{ordered:?}");
+}
+
+/// A formal the body may write would let the body break the predicate it
+/// assumed, so the reader refuses it rather than assume a stale fact.
+#[test]
+fn a_mutably_borrowed_data_formal_in_a_predicated_domain_is_refused() {
+    let refused = invocation(
+        r#"
+domain [u16; 8]::Terminated requires self[7] == 0;
+machine entry(path: &mut [u16; 8] in Terminated) -> u16 { path[7] }
+"#,
+    )
+    .unwrap_err();
+    assert_eq!(refused.reason, RefusalReason::Unsupported);
+    assert!(
+        refused
+            .detail
+            .contains("mutably borrowed formal of a data type in a domain with predicates"),
+        "{refused:?}"
+    );
+}
