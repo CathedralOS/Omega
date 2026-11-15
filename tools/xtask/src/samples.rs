@@ -593,6 +593,19 @@ fn expectations_usable(project: &SampleProject) -> Result<(), String> {
     Ok(())
 }
 
+/// Whether a diagnostic line is a refusal the compiler gives for a program it
+/// cannot judge yet, rather than a verdict on it.
+fn unjudged_refusal(line: &str) -> bool {
+    let message = line.trim_start();
+    let message = message
+        .strip_prefix("error:")
+        .unwrap_or(message)
+        .trim_start();
+    message.starts_with("not supported yet")
+        || message.starts_with("no product route yet")
+        || line.contains("the checker does not support this construct yet")
+}
+
 /// Whether a negative sample's `--check` was refused for the reason it pins:
 /// a normal rejection (exit 1) whose diagnostics hold every
 /// `rejection_contains` fragment and, when given, one `rejection_any_contains`
@@ -605,6 +618,13 @@ pub fn judge_rejection(
     expectations_usable(project)?;
     if exit != Some(1) {
         return Err(format!("expected rejection exit 1, got {exit:?}"));
+    }
+    // A refusal the checker gives without judging the program ("not
+    // supported yet ... with no claim that it is wrong", or no product
+    // route) says nothing about the fact a negative pins, even when its text
+    // happens to contain the pinned fragment.
+    if let Some(line) = diagnostics.lines().find(|line| unjudged_refusal(line)) {
+        return Err(format!("refused without a verdict: {}", line.trim()));
     }
     let fold = |text: &str| {
         if project.rejection_casefold {
@@ -1013,6 +1033,29 @@ mod tests {
         )
         .unwrap();
         project_at(directory, directory).unwrap()
+    }
+
+    /// A negative earns credit for a verdict that holds its pinned fragment,
+    /// never for a refusal the checker gave without judging the program,
+    /// even when that refusal's text holds the fragment too.
+    #[test]
+    fn a_rejection_earns_credit_only_as_a_verdict_for_the_pinned_reason() {
+        let directory = execution::reserve_directory(&std::env::temp_dir()).unwrap();
+        let mut sample = invalid_sample(&directory);
+        sample.rejection = vec!["may overflow `u64`".to_owned()];
+        let verdict =
+            "cannot compile\n  error: exact arithmetic in machine `f` may overflow `u64`\n";
+        assert!(judge_rejection(&sample, Some(1), verdict).is_ok());
+        let unjudged = "cannot compile\n  error: not supported yet: exact arithmetic in machine `f` \
+                        may overflow `u64`; the checker does not support this construct yet, so the \
+                        program is refused, with no claim that it is wrong\n";
+        let refused = judge_rejection(&sample, Some(1), unjudged).unwrap_err();
+        assert!(refused.contains("refused without a verdict"), "{refused}");
+        let unrouted =
+            "error: no product route yet: Build behavior exclusion admission may overflow `u64`\n";
+        assert!(judge_rejection(&sample, Some(1), unrouted).is_err());
+        assert!(judge_rejection(&sample, Some(101), verdict).is_err());
+        fs::remove_dir_all(directory).unwrap();
     }
 
     #[test]

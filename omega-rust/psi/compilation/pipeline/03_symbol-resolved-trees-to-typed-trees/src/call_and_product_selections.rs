@@ -2947,7 +2947,18 @@ pub(crate) mod product_selections {
             use language_semantics::declaration_selection::{
                 EnumExclusionRequest, ExclusionVocabulary,
             };
-            let vocabulary = match name {
+            // The call resolved into the prelude, so the prelude machine it
+            // calls names the operation. A call resolves to its callee's
+            // entry state, whose parent is that machine. The written name
+            // keeps its `Build::` qualifier here (only an unresolved call has
+            // it folded away above), so matching the text never recognised
+            // `Build::exclude_crash`: the Build ran it as the empty prelude
+            // body and the Product never saw the exclusion.
+            let callee = match source.symbols.get(target).kind {
+                symbols::SymbolKind::State => source.symbols.get(target).parent,
+                _ => target,
+            };
+            let vocabulary = match source.symbols.name(callee) {
                 "exclude_crash" => Some(ExclusionVocabulary::CrashCause),
                 "exclude_physical_authority" => Some(ExclusionVocabulary::PhysicalAuthorityClass),
                 _ => None,

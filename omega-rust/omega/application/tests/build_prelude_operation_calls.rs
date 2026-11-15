@@ -53,9 +53,23 @@ fn build_ran(stderr: &str) {
     }
 }
 
+/// The exclusion the Build ran reached the Product. Nothing on the lowered
+/// route judges a behavior exclusion yet, so its admission refuses it by
+/// name. Before typing read the call's resolved declaration, the written
+/// `Build::exclude_crash` was never recognised: the Build ran the empty
+/// prelude body, recorded nothing, and `omega --check` accepted a program
+/// whose selected entry traps under a Build that excludes `Trap`
+/// (`tests/fixtures/fail/targets/distinct_roots_exclusion_selected_body`).
+fn exclusion_reached_the_product(stderr: &str) {
+    assert!(
+        stderr.contains("no product route yet: Build behavior exclusion admission"),
+        "{stderr}"
+    );
+}
+
 #[test]
 fn a_build_that_excludes_a_crash_cause_runs() {
-    build_ran(&check(
+    let stderr = check(
         "exclude-crash",
         "machine build(builder: &mut Build) {
     Build::application(builder, \"excluding\");
@@ -63,14 +77,16 @@ fn a_build_that_excludes_a_crash_cause_runs() {
     Build::exclude_crash(builder, CrashCause::Trap);
 }
 ",
-    ));
+    );
+    build_ran(&stderr);
+    exclusion_reached_the_product(&stderr);
 }
 
 /// The same request made by a helper machine the Build forwards its `Build`
 /// to, with the cause passed as a value.
 #[test]
 fn a_helper_machine_that_excludes_a_crash_cause_runs() {
-    build_ran(&check(
+    let stderr = check(
         "exclude-helper",
         "machine build(builder: &mut Build) {
     Build::application(builder, \"excluding\");
@@ -81,7 +97,27 @@ machine exclude(builder: &mut Build, cause: CrashCause) {
     Build::exclude_crash(builder, cause);
 }
 ",
-    ));
+    );
+    build_ran(&stderr);
+    exclusion_reached_the_product(&stderr);
+}
+
+/// A Build that excludes nothing has nothing for that admission to refuse.
+#[test]
+fn a_build_without_exclusions_is_not_refused_for_one() {
+    let stderr = check(
+        "no-exclusion",
+        "machine build(builder: &mut Build) {
+    Build::application(builder, \"plain\");
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+}
+",
+    );
+    build_ran(&stderr);
+    assert!(
+        !stderr.contains("Build behavior exclusion admission"),
+        "{stderr}"
+    );
 }
 
 /// A Product query in a value position: the entry a root binding is given.
