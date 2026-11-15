@@ -94,13 +94,6 @@ framework or a list of features that remain unimplemented.
 - Cost: Target operands remain dependent on earlier executable histories and their matching operation roster, so adding a value form or changing target operations can require synchronized recognizers across stages. Fix the producer to complete the needed runtime-index evidence and descriptor-origin records in the target representation, retaining shared immutable catalogs rather than copying them; have ordinary selection consume that product and keep earlier bodies available to independent correspondence validation. Acceptance: selection constructs the same instructions from target operations and their explicit catalogs/evidence without reading earlier executable bodies, while the independent validator still rejects changed operands or evidence.
 - Reported: 2026-11-15, Codex, while verifying representation handoffs after the IR cleanup; static source and caller-chain evidence only
 
-### Provider body admission requires a second satisfaction edge
-- Category: a fact with no owner
-- Where: [provider body admission](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/machine.rs#L396), [routed entry contract](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/machine.rs#L1418)
-- Saw: With supply lookup reading the exact named row, `Native satisfies Service { Service::go = provider_go; }` retains a Reference row to `provider_go`. Removing only the machine's duplicate `satisfies Service::go` clause leaves that row intact. Both the exact requirement and whole-trait supplies then refuse with `machine provider body needs its exact supplied requirement`.
-- Cost: A named implementation explicitly selects the machine for its slot. Provider body admission gets the advertised requirement only from an edge or row the machine owns. Route the selected entry under the named row's requirement and retain the independent check of the machine's own contract and body.
-- Reported: 2026-11-14, Codex, while checking named provider selection rows
-
 ### Native application assembly refuses settled provider plans
 - Category: a fact with no owner
 - Where: [native Product assembly](omega-rust/omega/compilation/compiler/src/terminal/native_product.rs#L56), [boundary settlement](omega-rust/omega/compilation/representations/abstract-operations/verified-optimization-input/src/settlement.rs#L13)

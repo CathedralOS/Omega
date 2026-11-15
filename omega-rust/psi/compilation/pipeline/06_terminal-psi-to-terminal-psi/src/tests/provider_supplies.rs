@@ -323,6 +323,41 @@ fn a_provider_supply_judges_the_existing_machine_selected_by_its_row() {
 }
 
 #[test]
+fn a_named_provider_selection_needs_no_edge_on_its_machine() {
+    let without_edge =
+        |contract| referenced_provider(contract).replacen(" satisfies Service::go ", " ", 1);
+    let plain = without_edge(CONTRACT);
+    let stricter =
+        without_edge("requires value <= 5 ensures result <= 11 reaches none crashes none");
+    for slot in ["Service::go", "Service"] {
+        assert_eq!(supplied(&plain, slot).unwrap(), ["entry", "provider_go"]);
+        let rejection = supplied(&stricter, slot).unwrap_err();
+        assert!(rejection.starts_with("part 1 rejected:"), "{rejection}");
+        assert!(rejection.contains("value <= 5"), "{rejection}");
+    }
+
+    // The selected route limits its input to 5. A direct call still sees
+    // the plain machine's own contract, which accepts input 7.
+    let narrowed = plain.replacen(
+        CONTRACT,
+        "requires value <= 5 ensures result <= 11 reaches none crashes none",
+        1,
+    );
+    let direct = narrowed.replace("Service::go(3)", "provider_go(7)");
+    assert_eq!(
+        supplied(&direct, "Service").unwrap(),
+        ["entry", "provider_go"]
+    );
+    let routed = narrowed.replace("Service::go(3)", "Service::go(7)");
+    let rejection = supplied(&routed, "Service").unwrap_err();
+    assert!(
+        rejection
+            .starts_with("part 0 rejected: cannot prove requires clause 1 of the called machine."),
+        "{rejection}"
+    );
+}
+
+#[test]
 fn a_provider_supply_refuses_duplicate_rows_for_one_requirement() {
     let mut typed = typed(&referenced_provider(CONTRACT));
     let implementation = typed
