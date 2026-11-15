@@ -414,24 +414,19 @@ impl Program<'_> {
                 },
             ));
         }
-        // A declared type is the initializer's expected type; without one the
-        // local takes the initializer's type.
-        // Unit is resolution's sentinel for a local whose type still
-        // needs inference. Read that initializer without an expected type
-        // so its checked expression selects the carrier.
-        let needs_inference = local.type_is_inferred
-            && matches!(
-                self.typed
-                    .type_reference_table
-                    .type_reference(local.type_reference),
-                typed_trees::types::TypeReferenceNode::Unit
-            );
-        let declared = if local.type_reference.is_valid() && !needs_inference {
+        // Only an authored annotation constrains the supplied value. An
+        // inferred binding derives its complete type from the initializer,
+        // including regions substituted through an actual parent value.
+        let declared = if local.type_reference.is_valid() && !local.type_is_inferred {
             Some(self.local_type(id, local.type_reference)?)
         } else {
             None
         };
-        let mut value = self.expression(id, slots, local.initial_value, declared)?;
+        let mut value = if local.type_is_inferred {
+            self.inferred_initializer(id, slots, local.initial_value, local.type_reference)?
+        } else {
+            self.expression(id, slots, local.initial_value, declared)?
+        };
         crate::operational::boundary(&mut value);
         let Some(value_type) = value.result else {
             return Err(refuse(

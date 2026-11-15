@@ -97,6 +97,25 @@ fn owned_cleanup_requires_are_proved_at_the_exact_action() {
 }
 
 #[test]
+fn ordinary_inferred_bindings_keep_the_parent_values_reference_region() {
+    let text = r#"
+data Counter { value: u64; }
+data Held<'view> { target: &'view mut Counter; value: u64; }
+machine consume(held: Held) {
+    let { target, value } = move held;
+    let again = target;
+    again.value = value;
+}
+machine caller(counter: &mut Counter) {
+    let held: Held = Held { target: counter, value: 1u64 };
+    consume(held);
+}
+"#;
+    let result = judged(text).expect("ordinary inferred values must reach the receiving checker");
+    assert!(matches!(result, RouteVerdict::Accepted(_)), "{result:?}");
+}
+
+#[test]
 fn receiving_rejects_missing_reordered_or_relocated_cleanup_requirements() {
     let accepted = accepted();
     let (machine, invocation, call) = accepted
