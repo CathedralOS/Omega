@@ -64,4 +64,25 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-None.
+### 1. May the interrupt-table validator trap before publication?
+
+An interrupt-table installation runs the selected validator before publishing
+the table. Returning `false` refuses publication and returns control to the
+caller. A `Trap` from the validator would terminate that invocation instead.
+The public requirement determines which validators a kernel can select.
+
+[Open callable contracts](wiki/spec/language/effects.md#open-callable-contracts)
+requires an explicit crash ceiling.
+[Boundary crash contracts](wiki/spec/terminal-psi/boundary_calls.md#boundary-crash-contracts)
+keeps that ceiling independent of any provider body.
+[`StaticInterruptTableValidation::validate`](source/library/core/static_interrupt.omg#L22)
+promises a Boolean result tied to the table policy and omits the crash clause.
+[`X86StaticInterruptScope::run`](source/library/core/static_interrupt.omg#L75)
+already permits `Trap` for its separate work callback and for invocation
+sequence exhaustion. Those routes leave the validator's own ceiling open.
+The tracked Omega and Cathedral sources have no authored validator that
+establishes the intended ceiling.
+
+Should `StaticInterruptTableValidation::validate` publish `crashes none` and
+use a Boolean result to reject a table, or may it publish `crashes Trap` so a
+selected validator can trap before publication?
