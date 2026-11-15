@@ -554,6 +554,7 @@ pub mod control_flow {
 
         #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
         pub struct CallStorage {
+    pub target_is_static: bool,
             pub unresolved_name: symbols::UnresolvedName,
     pub receiver_root_symbol: SymbolHandle,
     pub receiver: HandleSpan<DiagnosticName>,

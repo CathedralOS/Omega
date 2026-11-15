@@ -1687,28 +1687,11 @@ mod lookup {
     */
     pub(super) fn lexical_declaration_lookup(
         symbols: &SymbolTable,
-        mut scope: SymbolHandle,
+        scope: SymbolHandle,
         name: &str,
         kinds: &[SymbolKind],
     ) -> SymbolLookup {
-        while symbols.get(scope).kind == SymbolKind::Machine {
-            let mut declarations =
-                symbols
-                    .child_handles(scope)
-                    .into_iter()
-                    .flatten()
-                    .filter(|child| {
-                        kinds.contains(&symbols.get(*child).kind) && symbols.name(*child) == name
-                    });
-            if let Some(first) = declarations.next() {
-                return match declarations.next() {
-                    Some(second) => SymbolLookup::Ambiguous { first, second },
-                    None => SymbolLookup::Unique(first),
-                };
-            }
-            scope = symbols.get(scope).parent;
-        }
-        SymbolLookup::NotFound
+        symbols.lexical_declaration_lookup(scope, name, kinds)
     }
 
     pub(super) fn diagnostic_path_source_span(members: &[DiagnosticName]) -> source::SourceSpan {
@@ -4729,13 +4712,57 @@ mod scoped_paths {
             } else {
                 resolve_path_head(symbols, machine_symbol, state_symbol, members)
             };
+        resolve_member_suffix(
+            symbols,
+            head,
+            &members[prefix_length..],
+            indexed_last_member,
+        )
+    }
+
+    /// Resolve a receiver only against bindings preceding this occurrence.
+    /// State arenas also contain later locals; those are not lexical candidates.
+    pub(super) fn resolve_lexical_members(
+        symbols: &SymbolTable,
+        machine: &super::scope::MachineScope<'_>,
+        parameters: &[symbol_resolved_trees::signature::StateParameter],
+        members: &[symbol_resolved_trees::name::DiagnosticName],
+    ) -> (SymbolHandle, SymbolHandle) {
+        let Some((first, suffix)) = members.split_first() else {
+            return invalid_symbol_pair();
+        };
+        let head = super::expressions::lexical_value_head(
+            machine,
+            parameters,
+            first.as_str(),
+            !suffix.is_empty(),
+        );
+        if head.is_valid() {
+            return resolve_member_suffix(symbols, head, suffix, None);
+        }
+        // Parameters were considered from the actual header above. Do not
+        // reopen the whole state's local roster while trying a declaration.
+        resolve_state_scoped_members(
+            symbols,
+            machine.symbol,
+            SymbolHandle::invalid(),
+            members,
+            None,
+        )
+    }
+
+    fn resolve_member_suffix(
+        symbols: &SymbolTable,
+        head: SymbolHandle,
+        suffix: &[symbol_resolved_trees::name::DiagnosticName],
+        indexed_last_member: Option<i64>,
+    ) -> (SymbolHandle, SymbolHandle) {
         if !head.is_valid() {
             return invalid_symbol_pair();
         }
         let mut current = head;
-
-        for (offset, member) in members[prefix_length..].iter().enumerate() {
-            let is_last = offset + prefix_length + 1 == members.len();
+        for (offset, member) in suffix.iter().enumerate() {
+            let is_last = offset + 1 == suffix.len();
             current = if let Some(last_index) = indexed_last_member.filter(|_| is_last) {
                 child_indexed_symbol_by_kinds(
                     symbols,
@@ -4756,7 +4783,6 @@ mod scoped_paths {
                 return (head, SymbolHandle::invalid());
             }
         }
-
         (head, current)
     }
 
@@ -5642,8 +5668,6 @@ use domain_facts::assign_domain_fact_symbols;
 use statements::{assign_machine_signature_reference_symbols, assign_statement_reference_symbols};
 use top_level::assign_top_level_symbols;
 
-pub(crate) use targets::normalize_static_module_calls;
-
 // The named entry takes precedence over the parser's implicit entry. Both the
 // symbol table and the provisional conformance catalog use this selection rule.
 pub(crate) fn select_machine_entry<T>(
@@ -6095,11 +6119,6 @@ pub(crate) fn assign_declarations(
         .types
         .generic_application_origins
         .len();
-    normalize_static_module_calls(
-        &mut lowerer.symbol_resolved_trees,
-        &lowerer.pending_static_module_calls,
-        &lowerer.pending_static_module_statement_calls,
-    );
     contracts::finalize_outcome_specific_contract_symbols(
         &mut lowerer.symbol_resolved_trees,
         &lowerer.pending_outcome_specific_contracts,
@@ -6136,11 +6155,6 @@ pub(crate) fn assign_body_symbols(
         selected_machines,
     )?;
     assign_contract_reference_symbols(&mut lowerer.symbol_resolved_trees, &symbols)?;
-    normalize_static_module_calls(
-        &mut lowerer.symbol_resolved_trees,
-        &lowerer.pending_static_module_calls,
-        &lowerer.pending_static_module_statement_calls,
-    );
     contracts::finalize_outcome_specific_contract_symbols(
         &mut lowerer.symbol_resolved_trees,
         &lowerer.pending_outcome_specific_contracts,
@@ -6175,11 +6189,6 @@ pub(crate) fn assign_lexical_inputs(
         &symbols,
         &mut inputs,
     )?;
-    normalize_static_module_calls(
-        &mut lowerer.symbol_resolved_trees,
-        &lowerer.pending_static_module_calls,
-        &lowerer.pending_static_module_statement_calls,
-    );
     let mut calls = Vec::new();
     for input in &mut inputs {
         for (_, expression) in input.calls.drain(..) {

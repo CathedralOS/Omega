@@ -967,12 +967,8 @@ mod static_namespaces {
     */
 
     use crate::symbols::lookup;
-    use crate::tables::body_expressions;
-    use symbol_resolved_trees::SymbolResolvedTrees;
-    use symbol_resolved_trees::expression::ExpressionHandle;
+    use symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
     use symbol_resolved_trees::name::DiagnosticName;
-    use symbol_resolved_trees::statement::Statement;
-    use symbol_resolved_trees::statement::TransitionTarget;
     use symbols::{SymbolHandle, SymbolKind};
 
     /*
@@ -1001,6 +997,23 @@ mod static_namespaces {
         if lexical_head.is_valid() && symbols.get(lexical_head).kind != SymbolKind::Module {
             return None;
         }
+        // A leaf import selects the whole callable without exposing its
+        // module as a bare name. Use that same source-owned selection for
+        // every call form, without choosing among an ambiguous family.
+        let candidates =
+            symbols.top_level_candidates_from_source(name, super::SOURCE_CALL_KINDS, reference);
+        // A conformance-owned body keeps its selected-call owner. The
+        // module containing its source cannot replace that public route.
+        let declared_module = candidates.first().and_then(|first| {
+            let owner = symbols.namespace_parent(*first);
+            (owner.is_valid()
+                && symbols.get(owner).kind == SymbolKind::Module
+                && candidates.iter().all(|candidate| {
+                    !symbols.get(*candidate).declaration_owner.is_valid()
+                        && symbols.namespace_parent(*candidate) == owner
+                }))
+            .then_some(owner)
+        });
         let namespace = symbols.find_top_level_by_name_and_kinds_from_source(
             receiver_name,
             &[SymbolKind::Module],
@@ -1008,6 +1021,7 @@ mod static_namespaces {
         );
         if !namespace.is_some_and(|symbol| symbols.get(symbol).kind == SymbolKind::Module)
             && !symbols.is_source_package_qualifier(reference, receiver_name)
+            && declared_module.is_none()
         {
             // A source-free qualified operation has a declaration too. Only an
             // unbound namespace may reach that default; visible authored owners
@@ -1024,12 +1038,10 @@ mod static_namespaces {
             return None;
         }
         Some(
-            symbols
-                .find_top_level_by_name_and_kinds_from_source(
-                    name,
-                    super::SOURCE_CALL_KINDS,
-                    reference,
-                )
+            candidates
+                .first()
+                .copied()
+                .filter(|first| candidates.iter().all(|candidate| candidate == first))
                 .map(|symbol| {
                     if symbols.get(symbol).kind == SymbolKind::Machine {
                         let call_target = name
@@ -1045,125 +1057,101 @@ mod static_namespaces {
         )
     }
 
-    pub(crate) fn normalize_static_module_calls(
-        program: &mut SymbolResolvedTrees,
-        calls: &[(ExpressionHandle, Vec<DiagnosticName>)],
-        statement_calls: &[(source::SourceSpan, Vec<DiagnosticName>)],
-    ) {
-        use symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode};
+    // Resolve only after the receiver's ordinary lexical visit. An unresolved
+    // receiver before that visit might still be a parameter or local, so a
+    // declaration-wide pass cannot safely erase it.
+    pub(in crate::symbols) fn normalize_expression_module_call(
+        symbols: &symbols::SymbolTable,
+        expressions: &mut ExpressionTable,
+        expression: ExpressionHandle,
+    ) -> Option<SymbolHandle> {
         use symbols::JoinedPath;
-        for (expression, path) in calls {
-            let Some((target, receiver)) = path.split_last() else {
-                continue;
-            };
-            let receiver_name = receiver.joined_path();
-            let reference = lookup::diagnostic_path_source_span(path);
-            let name = format!("{receiver_name}::{}", target.as_str());
-            let original_receiver = match program.tables.bodies.expressions.expression(*expression)
-            {
-                ExpressionNode::Call(call) => call.receiver,
-                _ => continue,
-            };
-            let lexical_head = if original_receiver.is_valid() {
-                body_expressions(program)
-                    .name_path_node(original_receiver)
-                    .map(|path| path.head_symbol)
-                    .unwrap_or_default()
-            } else {
-                SymbolHandle::invalid()
-            };
-            let Some(selected) = static_call_target(
-                &program.symbols,
-                &receiver_name,
-                &name,
-                reference,
-                lexical_head,
-            ) else {
-                continue;
-            };
-            if original_receiver.is_valid()
-                && let ExpressionNode::Name(original_path) = body_expressions(program)
-                    .expression(original_receiver)
-                    .clone()
-            {
-                let mut prefix = String::new();
-                for (offset, member) in receiver.iter().enumerate() {
-                    if !prefix.is_empty() {
-                        prefix.push_str("::");
-                    }
-                    prefix.push_str(member.as_str());
-                    let selected_module = program
-                        .symbols
-                        .find_top_level_by_name_and_kinds_from_source(
-                            &prefix,
-                            &[SymbolKind::Module],
-                            reference,
-                        )
-                        .unwrap_or_else(SymbolHandle::invalid);
-                    program
-                        .tables
-                        .bodies
-                        .expressions
-                        .set_name_path_member_symbol_at_offset(
-                            original_path.member_symbols,
-                            offset as u32,
-                            selected_module,
-                        );
-                }
-            }
-            if let ExpressionNode::Call(call) = program
-                .tables
-                .bodies
-                .expressions
-                .expression_mut(*expression)
-            {
-                call.receiver = ExpressionHandle::invalid();
-                call.target = DiagnosticName::from_str(&name, reference);
-                call.target_symbol = selected;
-            }
+        let ExpressionNode::Call(call) = expressions.expression(expression) else {
+            return None;
+        };
+        if !call.target_is_static || !call.receiver.is_valid() {
+            return None;
         }
-        let symbols = &program.symbols;
-        let declarations = &mut program.tables.declarations;
-        let members = &mut declarations.statement_path_members;
-        declarations
-            .state_statements
-            .for_each_mut(|_, statement| match statement {
-                Statement::Call(call) => {
-                    let Some((_, path)) = statement_calls
-                        .iter()
-                        .find(|(span, _)| *span == call.target.source_span())
-                    else {
-                        return;
-                    };
-                    let Some((target, receiver)) = path.split_last() else {
-                        return;
-                    };
-                    let receiver_name = receiver.joined_path();
-                    let reference = lookup::diagnostic_path_source_span(path);
-                    let name = format!("{receiver_name}::{}", target.as_str());
-                    let Some(selected) = static_call_target(
-                        symbols,
-                        &receiver_name,
-                        &name,
-                        reference,
-                        call.receiver_root_symbol,
-                    ) else {
-                        return;
-                    };
-                    call.receiver = arena::HandleSpan::empty();
-                    call.receiver_symbol = SymbolHandle::invalid();
-                    call.receiver_root_symbol = SymbolHandle::invalid();
-                    call.target = DiagnosticName::from_str(&name, reference);
-                    call.target_symbol = selected;
-                }
-                Statement::Transition(transition) => {
-                    normalize_terminal_namespace(symbols, members, &mut transition.target);
-                    if let Some(continuation) = &mut transition.continuation {
-                        normalize_terminal_namespace(symbols, members, continuation);
-                    }
-                }
-                _ => {}
-            });
+        let receiver_handle = call.receiver;
+        let ExpressionNode::Name(path) = expressions.expression(call.receiver) else {
+            return None;
+        };
+        if path.static_application.is_valid() {
+            return None;
+        }
+        let path = *path;
+        let receiver = expressions.name_path_members(path.members);
+        if receiver.is_empty() {
+            return None;
+        }
+        let receiver_name = receiver.joined_path();
+        let mut reference = lookup::diagnostic_path_source_span(receiver);
+        if reference.source_id == call.target.source_span().source_id {
+            reference.span.end = call.target.source_span().span.end;
+        }
+        let name = format!("{receiver_name}::{}", call.target.as_str());
+        let selected =
+            static_call_target(symbols, &receiver_name, &name, reference, path.head_symbol)?;
+        let mut prefix = String::new();
+        for offset in 0..receiver.len() {
+            if !prefix.is_empty() {
+                prefix.push_str("::");
+            }
+            prefix.push_str(expressions.name_path_members(path.members)[offset].as_str());
+            let module = symbols
+                .find_top_level_by_name_and_kinds_from_source(
+                    &prefix,
+                    &[SymbolKind::Module],
+                    reference,
+                )
+                .unwrap_or_default();
+            expressions.set_name_path_member_symbol_at_offset(
+                path.member_symbols,
+                offset as u32,
+                module,
+            );
+        }
+        // The proven static qualifier is no longer a value operand. Retain its
+        // scoped lookup outcome on the whole call, not as a missing value read
+        // on the detached receiver (a leaf import need not expose that module).
+        expressions.set_unresolved_name(receiver_handle, Default::default());
+        if let ExpressionNode::Call(call) = expressions.expression_mut(expression) {
+            call.receiver = ExpressionHandle::invalid();
+            call.target = DiagnosticName::from_str(&name, reference);
+            call.target_symbol = selected;
+        }
+        Some(selected)
+    }
+
+    pub(in crate::symbols) fn normalize_statement_module_call(
+        symbols: &symbols::SymbolTable,
+        members: &arena::Arena<DiagnosticName>,
+        call: &mut symbol_resolved_trees::statement::Call,
+    ) -> Option<SymbolHandle> {
+        use symbols::JoinedPath;
+        if !call.target_is_static || call.receiver.is_empty() {
+            return None;
+        }
+        let receiver = members.span_or_empty(call.receiver);
+        let receiver_name = receiver.joined_path();
+        let mut reference = lookup::diagnostic_path_source_span(receiver);
+        if reference.source_id == call.target.source_span().source_id {
+            reference.span.end = call.target.source_span().span.end;
+        }
+        let name = format!("{receiver_name}::{}", call.target.as_str());
+        let selected = static_call_target(
+            symbols,
+            &receiver_name,
+            &name,
+            reference,
+            call.receiver_root_symbol,
+        )?;
+        call.receiver = arena::HandleSpan::empty();
+        call.receiver_symbol = SymbolHandle::invalid();
+        call.receiver_root_symbol = SymbolHandle::invalid();
+        call.target = DiagnosticName::from_str(&name, reference);
+        call.target_symbol = selected;
+        Some(selected)
     }
 
     /*
@@ -1171,22 +1159,18 @@ mod static_namespaces {
         original authored occurrence and source span; the runtime path has only its
         selected callable coordinate, just as an ordinary normalized call does.
     */
-    fn normalize_terminal_namespace(
+    pub(super) fn normalize_terminal_namespace(
         symbols: &symbols::SymbolTable,
         members: &mut arena::Arena<DiagnosticName>,
-        target: &mut TransitionTarget,
-    ) {
-        use symbol_resolved_trees::statement::TransitionTarget;
+        named: &mut symbol_resolved_trees::statement::NamedTransitionTarget,
+    ) -> bool {
         use symbols::JoinedPath;
-        let TransitionTarget::Named(named) = target else {
-            return;
-        };
         let path = members.span_or_empty(named.path);
         let Some((target, receiver)) = path
             .split_last()
             .filter(|(_, receiver)| !receiver.is_empty())
         else {
-            return;
+            return false;
         };
         let receiver_name = receiver.joined_path();
         let reference = lookup::diagnostic_path_source_span(path);
@@ -1194,7 +1178,7 @@ mod static_namespaces {
         let Some(selected) =
             static_call_target(symbols, &receiver_name, &name, reference, named.head_symbol)
         else {
-            return;
+            return false;
         };
         let invocation = super::transitions::terminal_call_target(symbols, selected);
         let mut canonical = arena::HandleSpan::empty();
@@ -1203,6 +1187,7 @@ mod static_namespaces {
         named.symbol = invocation;
         named.head_symbol = invocation;
         named.receiver_symbol = SymbolHandle::invalid();
+        true
     }
 }
 mod transitions {
@@ -1213,7 +1198,7 @@ mod transitions {
         assign_expression_span_symbols, assign_statement_expression_symbols,
     };
     use crate::symbols::scope::MachineScope;
-    use crate::symbols::scoped_paths::resolve_state_scoped_members;
+    use crate::symbols::scoped_paths::resolve_lexical_members;
 
     pub(in crate::symbols) fn assign_transition_target_symbols(
         machine: &MachineScope<'_>,
@@ -1283,19 +1268,20 @@ mod transitions {
             }
         }
 
-        let (head_symbol, symbol) =
-            resolve_state_scoped_members(symbols, machine.symbol, state_symbol, path, None);
+        let (head_symbol, symbol) = resolve_lexical_members(symbols, machine, parameters, path);
         named.head_symbol = head_symbol;
         if path.len() >= 2 {
-            let (receiver_head, receiver) = resolve_state_scoped_members(
-                symbols,
-                machine.symbol,
-                state_symbol,
-                &path[..path.len() - 1],
-                None,
-            );
+            let (receiver_head, receiver) =
+                resolve_lexical_members(symbols, machine, parameters, &path[..path.len() - 1]);
             named.head_symbol = receiver_head;
             named.receiver_symbol = receiver;
+            if super::static_namespaces::normalize_terminal_namespace(
+                symbols,
+                statement_path_members,
+                named,
+            ) {
+                return;
+            }
             if let Some(leaf) = target_name.as_ref() {
                 let selected = super::calls::resolve_call_target_symbol(
                     machine,
@@ -1348,7 +1334,9 @@ pub(super) use calls::{
 };
 pub(super) use transitions::assign_transition_target_symbols;
 
-pub(crate) use static_namespaces::normalize_static_module_calls;
+pub(super) use static_namespaces::{
+    normalize_expression_module_call, normalize_statement_module_call,
+};
 
 #[cfg(test)]
 mod tests {
@@ -1549,6 +1537,137 @@ mod tests {
                 .name(program.symbols.get(call.target_symbol).parent),
             "kit::work"
         );
+    }
+
+    // Selecting an imported callable does not expose its module by itself.
+    // Every call form must still use that exact selection; a lexical value
+    // or another member of the same module cannot borrow it.
+    #[test]
+    fn imported_callable_paths_bind_without_exposing_their_module() {
+        let library =
+            "module kit; public machine work() -> u64 { 7 } public machine sibling() -> u64 { 8 }";
+        let caller = r#"
+            use omega::language::core::kit::work;
+            machine expression() -> u64 { kit::work() }
+            machine statement() { kit::work(); }
+            machine parameter_shadow(kit: u64) { kit::work(); }
+            machine local_shadow() { let kit: u64 = 0; kit::work(); }
+            machine unimported() { kit::sibling(); }
+        "#;
+        let mut sources = source::SourceMap::default();
+        let library_id = sources
+            .add_with_metadata(
+                "toolchain/kit.omg".into(),
+                library.into(),
+                "toolchain".into(),
+                None,
+                source::SourceOrigin::Toolchain,
+            )
+            .source_id;
+        let caller_id = sources
+            .add_with_metadata(
+                "app/main.omg".into(),
+                caller.into(),
+                "app".into(),
+                None,
+                source::SourceOrigin::User,
+            )
+            .source_id;
+        let mut syntax = syntax_trees::SyntaxTrees::new(caller_id);
+        for (id, text) in [(library_id, library), (caller_id, caller)] {
+            let tokens = Lexer::new(text).tokenize().expect("tokenize retained unit");
+            tokens_to_syntax_trees::parse(&mut syntax, id, &tokens).expect("parse retained unit");
+        }
+        let program = resolve(ResolutionRequest {
+            syntax,
+            sources: Some(std::sync::Arc::new(sources)),
+            top_level_bindings: vec![symbols::SourceScopedTopLevelBinding::logical_module_import(
+                caller_id,
+                library_id,
+                "omega::language::core::kit::work",
+                3,
+            )],
+            retained_base: None,
+        })
+        .expect("resolve exact imported callable");
+        let work = program
+            .machines
+            .iter()
+            .find(|machine| {
+                machine.name.as_str() == "work"
+                    && machine.name.source_span().source_id == library_id
+            })
+            .unwrap();
+        let [state] = program.machine_state_handles(work.states) else {
+            panic!("one actual supplied work entry")
+        };
+        let expected = program.machine_state(*state).symbol;
+        let expression = program
+            .tables
+            .bodies
+            .expressions
+            .iter_expressions()
+            .find_map(|(_, node)| match node {
+                ExpressionNode::Call(call) if call.target.as_str() == "kit::work" => Some(call),
+                _ => None,
+            })
+            .expect("the imported expression call");
+        assert_eq!(expression.target_symbol, expected);
+        assert!(!expression.receiver.is_valid());
+        assert!(
+            program
+                .symbols
+                .find_top_level_by_name_and_kinds_from_source(
+                    "kit",
+                    &[SymbolKind::Module],
+                    expression.target.source_span(),
+                )
+                .is_none(),
+            "the import did not expose the namespace itself"
+        );
+        for (name, shadow) in [
+            ("statement", None),
+            ("parameter_shadow", Some(SymbolKind::Parameter)),
+            ("local_shadow", Some(SymbolKind::Local)),
+            ("unimported", None),
+        ] {
+            let machine = program
+                .machines
+                .iter()
+                .find(|machine| machine.name.as_str() == name)
+                .unwrap();
+            let calls = program
+                .machine_state_handles(machine.states)
+                .iter()
+                .flat_map(|state| {
+                    program.state_statements(program.machine_state(*state).statements)
+                })
+                .filter_map(|node| match node {
+                    symbol_resolved_trees::statement::Statement::Call(call) => Some(call),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            let [call] = calls.as_slice() else {
+                panic!("one actual call in {name}")
+            };
+            if name == "statement" {
+                assert_eq!(call.target_symbol, expected);
+                assert!(call.receiver.is_empty());
+            } else {
+                assert!(
+                    !call.target_symbol.is_valid(),
+                    "{name} cannot borrow the imported declaration"
+                );
+                assert!(!call.receiver.is_empty());
+                if let Some(kind) = shadow {
+                    assert!(
+                        call.receiver_root_symbol.is_valid(),
+                        "{name} keeps its lexical value"
+                    );
+                    assert_eq!(program.symbols.get(call.receiver_root_symbol).kind, kind);
+                }
+            }
+        }
     }
 
     /*

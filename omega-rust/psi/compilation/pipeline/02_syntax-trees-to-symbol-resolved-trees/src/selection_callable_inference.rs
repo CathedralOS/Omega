@@ -657,7 +657,7 @@ fn same_type_arguments(
     )
 }
 
-fn same_type_values(
+pub(crate) fn same_type_values(
     program: &SymbolResolvedTrees,
     left: Vec<TypeReference>,
     right: Vec<TypeReference>,
