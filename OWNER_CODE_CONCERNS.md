@@ -73,6 +73,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Package review refuses a local provider for an imported service
+- Category: knowledge crossing a boundary
+- Where: [selected service ownership check](omega-rust/omega/packages/review-evidence/src/capture/providers.rs), [restored consumer Build](tests/fixtures/pass/effects/inferred_imported_reach/consumer/build.omg#L4)
+- Saw: On macOS arm64 after restoring the unsupplied review policy on `e99dbfdc9e7`, the original consumer selects its `MarkerMark` for the support package's `Mark` and runs both engines with exit 0. The support policy completes and recovers independently. The consumer's `packages audit --details` exits 1 with “the selected provider's complete local service application”.
+- Cost: Review requires the service to belong to the realizing package. Retain the exact installed plan with the foreign requirement identity and the local implementation while keeping the public callable and trait declaration under the dependency's reviewed package.
+- Reported: 2026-11-15, Codex, while restoring the original inferred reach review probe.
+
 ### Fixture review stops even when a project has no dangerous service
 - Category: fake gates
 - Where: [fixture discovery call](omega-rust/omega/compilation/compiler/tests/support/fixture_package_inputs.rs#L709), [service discovery](omega-rust/omega/compilation/compiler/tests/support/dangerous_service_acceptance.rs#L47)
@@ -87,18 +94,11 @@ framework or a list of unimplemented features.
 - Cost: A batch pays for the same source inventory repeatedly. Prepare the role, name and original occurrence lookups in their existing source owners. Keep the exact package alias and visibility, source stratum, qualified-path precedence, ambiguity, and lexical author checks for audit, provider and native selection.
 - Reported: 2026-11-15, Codex, while reviewing the authored service audit admission.
 
-### Package review cannot retain the audit driver's unsupplied boundary
-- Category: knowledge crossing a boundary
-- Where: [Driver's public contract](tests/fixtures/pass/effects/root_service_audit/driver/main.omg#L5), [review inventory](omega-rust/omega/packages/review-evidence/src/capture/providers.rs)
-- Saw: The unchanged `root_service_audit` project at tested `df9b4619a87` produces exit 1 from `omega packages audit --project … --details`. macOS arm64 reports that `audit_driver` cannot retain the complete boundary/service inventory. That package declares a public `Driver::drive` boundary without selecting its implementation.
-- Cost: The consumer cannot inspect the dependency's authored reach or its audit findings. Project the existing reviewed requirement as an interface without granting an installation or weakening the unrelated-boundary denial. The [archived inferred reach probe](#the-inferred-reach-review-probe-lost-its-support-package) also reaches this inventory gate after source migration.
-- Reported: 2026-11-15, Codex, while verifying authored reach slack.
-
 ### The root service-audit controls refer to retired source paths
 - Category: tests that pin the bug
-- Where: [direct root example](omega-rust/omega/compilation/compiler/examples/package_batch_sources.rs#L47), [authored import](tests/fixtures/pass/effects/root_service_audit/main.omg#L1), [denial guide](tests/fixtures/pass/effects/root_service_audit/README.md#L13)
-- Saw: On `df9b4619a87`, the kept `package_batch_sources --service-audits` example refuses `audit_driver::main` at line 1, column 5 because the import selects no declaration or module. The guide's `tests/omega/fail/build/service_audit_requires_boundary` path is absent.
-- Cost: The direct check cannot prove exact delegated `MotorControl` custody, idempotence, or the absence of untaken and dependency registrations. Migrate the import and reconnect the ordinary-trait denial while retaining those exact assertions.
+- Where: [direct root example](omega-rust/omega/compilation/compiler/examples/package_batch_sources.rs#L47), [authored import](tests/fixtures/pass/effects/root_service_audit/main.omg#L1), [nested dependency](tests/fixtures/pass/effects/root_service_audit/build.omg#L3), [denial guide](tests/fixtures/pass/effects/root_service_audit/README.md#L13)
+- Saw: On `df9b4619a87`, the kept `package_batch_sources --service-audits` example refuses `audit_driver::main` at line 1, column 5 because the import selects no declaration or module. The guide's `tests/omega/fail/build/service_audit_requires_boundary` path is absent. After the driver's interface becomes reviewable, the original `packages audit` project also refuses overlapping consumer and driver source roots.
+- Cost: The direct check cannot prove exact delegated `MotorControl` custody, idempotence, or the absence of untaken and dependency registrations. Migrate the import and use disjoint source roots for the same two packages. Reconnect the ordinary-trait denial while retaining those exact assertions.
 - Reported: 2026-11-15, Codex, while replaying the kept audit controls.
 
 ### A computed array extent blocks a layout constant before target evaluation
@@ -114,13 +114,6 @@ framework or a list of unimplemented features.
 - Saw: On macOS arm64 at `99191b767cf`, a callee replaces `settings[index].identifier` in `&mut [Settings<'storage>; 2]`, with `identifier: &'storage [u8]` and `requires index < 2`. Calling it on an array of two initialized records with index 1 refuses in the caller with “descriptor storage flow cannot be reconstructed”. With literal index 1 in the same callee, the caller's unchanged-sibling and replacement checks run with native and Psi exit 0. Constructing the array and reading both stored view lengths also runs without the call.
 - Cost: A checked runtime selector cannot carry the replacement back to the exact record at the call boundary. Trace the existing descriptor-flow owner for the selected element and preserve the unchanged sibling and the bounds refusal.
 - Reported: 2026-11-15, Codex, while validating retained byte-view store operands
-
-### The inferred-reach review probe lost its support package
-- Category: tests that pin the bug
-- Where: [inferred reach round trip](omega-rust/omega/compilation/compiler/tests/package_review.rs#L198)
-- Saw: The original `fetch_mark` support package was deleted in `67936f8b622`. On `8329cdc221e` its exact archived `values.omg:1:64` requires a crash ceiling. Adding `crashes none` and removing the retired sibling import in scratch reaches package review, which refuses the complete boundary/service inventory.
-- Cost: The exact inferred `Mark` reach still has no live recovery witness. Preserve the original private-to-public call and require the recovered row to retain the inferred reach, its absent authored ceiling, and the exact service identity.
-- Reported: 2026-11-15, Codex, while reconnecting package review's kept fixtures.
 
 ### Two package-review probes use retired source declarations
 - Category: zombie machinery

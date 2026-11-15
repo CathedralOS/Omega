@@ -196,11 +196,8 @@ fn review_product_keeps_exact_custody_and_policy_budget() {
 
 #[test]
 fn review_policy_round_trip_preserves_inferred_imported_reach() {
-    // The original support package was removed when the facts tree was
-    // deduplicated. Keep its assertion separate from the two live reach probes.
-    let fixture = fixture_package_inputs::repo_root().join(
-        "tests/omega/pass/facts/unannotated_imported_boundary_call_through_local_exit/support/main.omg",
-    );
+    // Review the package that declares the public helper and its private call.
+    let fixture = kept_fixture("pass/effects/inferred_imported_reach/support/main.omg");
     let recovered = reviewed_and_recovered(&fixture, "macos_arm64");
     let callable = recovered
         .callables()
@@ -216,6 +213,44 @@ fn review_policy_round_trip_preserves_inferred_imported_reach() {
     assert_eq!(realized.len(), 1);
     assert_eq!(realized[0].path(), "Mark");
     assert_eq!(callable.published_service_reach(), Some(realized));
+}
+
+#[test]
+fn review_policy_round_trip_keeps_unsupplied_driver_requirements() {
+    let recovered = reviewed_and_recovered(
+        &kept_fixture("pass/effects/root_service_audit/driver/main.omg"),
+        "macos_arm64",
+    );
+    assert!(recovered.selected_providers().plans().is_empty());
+
+    let traits = recovered.public_traits();
+    let driver = traits
+        .iter()
+        .find(|shape| shape.identity().path() == "Driver")
+        .expect("public Driver interface");
+    let [requirement] = driver.requirements() else {
+        panic!("one Driver requirement");
+    };
+    assert_eq!(requirement.identity().path(), "Driver::drive");
+    let callable = recovered
+        .callables()
+        .callables()
+        .iter()
+        .find(|callable| callable.identity() == requirement.identity())
+        .expect("the exact bodyless Driver requirement");
+    assert_eq!(format!("{:?}", callable.supply()), "Boundary");
+    assert!(callable.checked_service_reach().realized().is_none());
+
+    let expected = ["DependencyOnly", "MotorControl", "Untaken"].map(|name| {
+        traits
+            .iter()
+            .find(|shape| shape.identity().path() == name)
+            .expect("authored service")
+            .identity()
+            .clone()
+    });
+    assert_eq!(callable.declared_service_reach(), Some(expected.as_slice()));
+    assert_eq!(callable.service_reach_dependency().concrete(), expected);
 }
 
 #[test]
