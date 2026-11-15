@@ -270,7 +270,7 @@ fn a_case_literal_owes_only_its_active_fields_without_losing_conditional_domains
                     encoded.semantic_bytes(),
                 );
                 let expected = if wrong_carrier {
-                    "primitive byte domain has a non-byte carrier"
+                    "structural qualification has the wrong carrier"
                 } else {
                     "complete structural domain lost part of its required theory"
                 };

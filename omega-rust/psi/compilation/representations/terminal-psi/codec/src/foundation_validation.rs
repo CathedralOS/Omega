@@ -2330,11 +2330,20 @@ pub(crate) mod declaration_foundations {
     pub(crate) use calling_signatures::validate as validate_calling_signatures;
 
     pub(crate) fn validate_domains(module: &TerminalModule) -> Result<(), CodecError> {
+        // The decoder checks canonical type order before domain validation, so
+        // each condition can resolve its carrier without scanning all types.
+        let declaration = |identity| {
+            module
+                .structural_types
+                .binary_search_by_key(&identity, |row| row.id)
+                .ok()
+                .map(|index| &module.structural_types[index])
+        };
         for domain in &module.structural_domains {
             if domain.byte_predicate.is_some()
-                && !terminal_semantics::byte_predicate_carrier(
-                    module.structural_types.iter(),
+                && !terminal_semantics::byte_predicate_carrier_with_lookup(
                     domain.carrier,
+                    declaration,
                 )
             {
                 return malformed("primitive byte domain has a non-byte carrier");

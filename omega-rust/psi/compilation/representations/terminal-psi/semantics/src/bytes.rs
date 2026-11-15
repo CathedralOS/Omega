@@ -364,13 +364,24 @@ pub(crate) mod byte_sequence_predicates {
         types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
         carrier: StructuralTypeId,
     ) -> bool {
-        let Some(declaration) = crate::structural_declaration(types.clone(), carrier) else {
+        byte_predicate_carrier_with_lookup(carrier, |identity| {
+            crate::structural_declaration(types.clone(), identity)
+        })
+    }
+
+    pub fn byte_predicate_carrier_with_lookup<'types>(
+        carrier: StructuralTypeId,
+        declaration: impl Fn(
+            StructuralTypeId,
+        ) -> Option<&'types terminal_psi::StructuralTypeDeclaration>,
+    ) -> bool {
+        let Some(carrier) = declaration(carrier) else {
             return false;
         };
-        match declaration.shape {
+        match carrier.shape {
             StructuralTypeShape::ByteSequence(_) => true,
             StructuralTypeShape::FixedArray { element, .. } => {
-                crate::structural_declaration(types.clone(), element).is_some_and(|row| {
+                declaration(element).is_some_and(|row| {
                     matches!(row.shape, StructuralTypeShape::PrimitiveScalar(
                         semantic_vocabulary::ScalarType::Integer(integer)
                     ) if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == Some(8) && !integer.is_address())
