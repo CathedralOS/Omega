@@ -23,7 +23,7 @@ use omega::language::core::FieldPlan;
 use omega::language::core::FieldEntry;
 use omega::language::core::LayoutPlan;
 use omega::language::core::PrivateCallbackSlot;
-use omega::language::core::LayoutPlan::place_private;
+use omega::language::core::layout_plan_place_private_field;
 use omega::language::core::LayoutTarget;
 use omega::language::core::LayoutStorage;
 use omega::language::core::FixedLayout;
@@ -178,11 +178,11 @@ public TimerGateLayout satisfies FixedLayout<TimerGate> {
         entries[2] = FieldEntry { key: schema.fields[2].key, representation: FieldPlan::At { offset: 5 } };
         entries[3] = FieldEntry { key: schema.fields[3].key, representation: FieldPlan::At { offset: 12 } };
         let plan: LayoutPlan = LayoutPlan { entries: entries, entry_count: 4, size_fixed: 16, size_is_dynamic: false, align: 8 };
-        let low: LayoutPlan = LayoutPlan::place_private<TimerGateEntry>(plan,
+        let low: LayoutPlan = layout_plan_place_private_field<TimerGateEntry>(plan,
             FieldPlan::Bits { container: 0, container_width: 16, destination_lsb: 0, source_lsb: 0, width: 16 });
-        let middle: LayoutPlan = LayoutPlan::place_private<TimerGateEntry>(low,
+        let middle: LayoutPlan = layout_plan_place_private_field<TimerGateEntry>(low,
             FieldPlan::Bits { container: 6, container_width: 16, destination_lsb: 0, source_lsb: 16, width: 16 });
-        LayoutPlan::place_private<TimerGateEntry>(middle,
+        layout_plan_place_private_field<TimerGateEntry>(middle,
             FieldPlan::Bits { container: 8, container_width: 32, destination_lsb: 0, source_lsb: 32, width: 32 })
     }
 }

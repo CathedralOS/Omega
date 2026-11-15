@@ -391,7 +391,13 @@ const ROWS: &[SealedIntrinsicRow] = &[
     ),
     row(
         "layout.omg",
-        "LayoutPlan::place_private",
+        "layout_plan_place_private",
+        CORE_LAYOUT,
+        SealedIntrinsic::PrivateLayoutPlacement,
+    ),
+    row(
+        "layout.omg",
+        "layout_plan_place_private_field",
         CORE_LAYOUT,
         SealedIntrinsic::PrivateLayoutPlacement,
     ),
@@ -665,18 +671,19 @@ mod tests {
 
     #[test]
     fn rows_match_only_their_exact_file_declaration_and_source() {
+        for placement in [
+            "layout_plan_place_private",
+            "layout_plan_place_private_field",
+        ] {
+            assert_eq!(
+                SealedIntrinsicCatalog::classify(site("layout.omg", placement, CORE_LAYOUT)),
+                Some(SealedIntrinsic::PrivateLayoutPlacement)
+            );
+        }
         assert_eq!(
             SealedIntrinsicCatalog::classify(site(
                 "layout.omg",
-                "LayoutPlan::place_private",
-                CORE_LAYOUT
-            )),
-            Some(SealedIntrinsic::PrivateLayoutPlacement)
-        );
-        assert_eq!(
-            SealedIntrinsicCatalog::classify(site(
-                "layout.omg",
-                "LayoutPlan::place_private",
+                "layout_plan_place_private",
                 b"authored lookalike"
             )),
             None

@@ -3,14 +3,14 @@
 // argument is a MACHINE — `WindowProcedure::call` cites
 // the callback requirement directly. A named
 // implementation is inert until a layout policy cites it
-// through `LayoutPlan::place_private<Implementation>`.
+// through `layout_plan_place_private<Implementation>`.
 //
 //   * `trait PrivateCallbackSlot<Layout, machine
 //     Requirement>` — machine-typed trait parameter.
 //   * `Slot satisfies PrivateCallbackSlot<Spread,
 //     WindowProcedure::call>` — named impl citing the
 //     boundary machine by reference.
-//   * `LayoutPlan::place_private<WndClassSlot>(plan, 8)` — the
+//   * `layout_plan_place_private<WndClassSlot>(plan, 8)` — the
 //     policy machine cites the named impl as a static
 //     argument; runtime code receives no slot identity.
 //
@@ -20,7 +20,7 @@
 use omega::language::core::FieldEntry;
 use omega::language::core::FieldPlan;
 use omega::language::core::LayoutPlan;
-use omega::language::core::LayoutPlan::place_private;
+use omega::language::core::layout_plan_place_private;
 use omega::language::core::PrivateCallbackSlot;
 use omega::language::core::Schema;
 
@@ -47,8 +47,8 @@ machine Spread::plan(schema: Schema) -> LayoutPlan {
         size_is_dynamic: false,
         align: 8,
     };
-    let placed: LayoutPlan = LayoutPlan::place_private<WndClassSlot>(plan, 8);
-    LayoutPlan::place_private<SecondarySlot>(placed, 16)
+    let placed: LayoutPlan = layout_plan_place_private<WndClassSlot>(plan, 8);
+    layout_plan_place_private<SecondarySlot>(placed, 16)
 }
 
 data Main { hits: i32 in Wrapping; }
