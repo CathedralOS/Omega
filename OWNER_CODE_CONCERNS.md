@@ -80,13 +80,6 @@ framework or a list of features that remain unimplemented.
 - Cost: Producers can emit portable bytes that the receiving trust boundary rejects. Carry the concrete source specialization through the existing declaration/application correspondence and preserve rejection for a genuinely missing or mismatched application.
 - Reported: 2026-11-15, Codex, on macOS arm64 with the source-inspection candidate on `30ae6323d4b`.
 
-### The complete-debug-module fixture passes an unqualified value to a qualified formal
-- Category: tests that pin the bug
-- Where: [debug-module fixture](tests/fixtures/pass/terminal_psi/debug_identity_complete_module/main.omg#L6), [inspection batch control](omega-rust/omega/compilation/compiler/examples/package_batch_sources.rs#L97)
-- Saw: The exact `7ff185a76e8` macOS arm64 CLI refuses `finish(10u8)` in `state_graph` because the argument does not carry the formal's `Wrapping` domain. The inspection batch's debug-module control stops at the same point before it can compare a scalar body with a multiblock body.
-- Cost: The kept fixture cannot check debug identity over control flow. Establish the intended arithmetic policy at the original call and preserve the state graph, call closure, complete debug map and exit oracles.
-- Reported: 2026-11-15, Codex, while validating mixed named Psi inspection.
-
 ### Eight host access-view controls stop at a retired constructor
 - Category: zombie machinery
 - Where: [placed view fixture](tests/fixtures/pass/layouts/placed_view_call_custody/main.omg#L12), [fixture admission](omega-rust/omega/compilation/compiler/tests/access_view_calls.rs#L22)
