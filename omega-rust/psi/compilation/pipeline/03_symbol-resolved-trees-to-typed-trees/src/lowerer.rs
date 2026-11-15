@@ -1603,12 +1603,15 @@ pub(crate) fn type_resolved_cohort(
         .iter()
         .skip(cohort.const_declarations)
     {
+        lowerer.typed_trees.begin_declaration_output();
         lowerer.lower_const_declaration(declaration)?;
     }
     for data_definition in source.data_definitions.iter().skip(cohort.data_definitions) {
+        lowerer.typed_trees.begin_declaration_output();
         lowerer.lower_data_declaration(data_definition)?;
     }
     for alias in source.type_aliases.iter().skip(cohort.type_aliases) {
+        lowerer.typed_trees.begin_declaration_output();
         lowerer.lower_type_alias_declaration(alias)?;
     }
     for domain_definition in source
@@ -1616,6 +1619,7 @@ pub(crate) fn type_resolved_cohort(
         .iter()
         .skip(cohort.domain_definitions)
     {
+        lowerer.typed_trees.begin_declaration_output();
         let domain_definition = lowerer.with_type_reference_exposure(
             declaration_exposure(domain_definition.is_public),
             |lowerer| lower_domain_definition(lowerer, domain_definition),
@@ -1625,6 +1629,7 @@ pub(crate) fn type_resolved_cohort(
             .push_domain_definition(domain_definition);
     }
     for proposition in source.propositions.iter().skip(cohort.propositions) {
+        lowerer.typed_trees.begin_declaration_output();
         let proposition = lowerer.with_type_reference_exposure(
             declaration_exposure(proposition.is_public),
             |lowerer| lower_proposition_definition(lowerer, proposition),
@@ -1636,6 +1641,7 @@ pub(crate) fn type_resolved_cohort(
         .iter()
         .skip(cohort.mathematical_definitions)
     {
+        lowerer.typed_trees.begin_declaration_output();
         let definition = lowerer.with_type_reference_exposure(
             declaration_exposure(definition.is_public),
             |lowerer| lower_mathematical_definition(lowerer, definition),
@@ -1661,13 +1667,16 @@ pub(crate) fn type_resolved_cohort(
             }
             continue;
         }
+        lowerer.typed_trees.begin_declaration_output();
         lowerer.lower_machine_declaration(machine)?;
     }
     for measure in source.measures.iter().skip(cohort.measures) {
+        lowerer.typed_trees.begin_declaration_output();
         let measure = crate::declarations::measure::lower_measure_definition(lowerer, measure)?;
         lowerer.typed_trees.push_measure(measure);
     }
     for operator in source.operators.iter().skip(cohort.operators) {
+        lowerer.typed_trees.begin_declaration_output();
         let operator = lowerer
             .with_type_reference_exposure(declaration_exposure(operator.is_public), |lowerer| {
                 lower_operator_definition(lowerer, operator)
@@ -1675,12 +1684,15 @@ pub(crate) fn type_resolved_cohort(
         lowerer.typed_trees.push_operator(operator);
     }
     for trait_definition in source.traits.iter().skip(cohort.traits) {
+        lowerer.typed_trees.begin_declaration_output();
         lowerer.lower_trait_declaration(trait_definition)?;
     }
     for conformance in source.conformances.iter().skip(cohort.conformances) {
+        lowerer.typed_trees.begin_declaration_output();
         crate::declarations::conformance::lower_conformance(lowerer, conformance)?;
     }
     for wire_schema in source.wire_schemas.iter().skip(cohort.wire_schemas) {
+        lowerer.typed_trees.begin_declaration_output();
         let wire_schema = lowerer.with_type_reference_exposure(
             declaration_exposure(wire_schema.is_public),
             |lowerer| crate::declarations::wire::lower_wire_schema(lowerer, wire_schema),
@@ -1971,6 +1983,7 @@ impl Lowerer<'_> {
 
     fn lower_const_initializer_evidence(&mut self, frontier: usize) -> Result<(), Diagnostic> {
         for ordinal in frontier..self.source_trees.const_declarations.len() {
+            self.typed_trees.begin_declaration_output();
             let declaration = &self.source_trees.const_declarations[ordinal];
             let (symbol, original, materialized) = (
                 declaration.symbol,

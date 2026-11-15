@@ -81,8 +81,13 @@ pub(crate) mod source_occurrences {
                 }
                 let mut roots = SourceCalls::default();
                 visit_program(self, &mut roots);
+                let mut previous_owner = None;
                 for (expression, owner) in roots.expressions {
-                    self.retain_call_static_argument_context(expression, owner)?;
+                    if previous_owner != Some(owner) {
+                        self.begin_declaration_output();
+                        previous_owner = Some(owner);
+                    }
+                    self.retain_call_static_argument_context_in_owner(expression, owner)?;
                 }
                 let statement_calls = self
                     .machines()
@@ -106,7 +111,12 @@ pub(crate) mod source_occurrences {
                         })
                     })
                     .collect::<Vec<_>>();
+                let mut previous_owner = None;
                 for (handle, owner, mut call) in statement_calls {
+                    if previous_owner != Some(owner) {
+                        self.begin_declaration_output();
+                        previous_owner = Some(owner);
+                    }
                     if crate::reflection::construction::declaration_query_argument_role(
                         self,
                         crate::references::StaticArgumentCall::Statement(&call),
@@ -169,6 +179,15 @@ pub(crate) mod source_occurrences {
             /// whose prepared context is unchanged. Later call producers use
             /// the same operation for calls they introduce.
             pub fn retain_call_static_argument_context(
+                &mut self,
+                expression: crate::expression::ExpressionHandle,
+                owner: SymbolHandle,
+            ) -> Result<(), &'static str> {
+                self.begin_declaration_output();
+                self.retain_call_static_argument_context_in_owner(expression, owner)
+            }
+
+            fn retain_call_static_argument_context_in_owner(
                 &mut self,
                 expression: crate::expression::ExpressionHandle,
                 owner: SymbolHandle,

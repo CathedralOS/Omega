@@ -3359,6 +3359,12 @@ pub mod expression {
             }
         }
 
+        pub(crate) fn finish_output_page(&mut self) {
+            // Later source applications replace expression nodes. Their child
+            // lists remain append batches rather than tiny per-owner pages.
+            self.expressions.finish_append_page();
+        }
+
         pub fn clear(&mut self) {
             self.expressions.reset_retain_capacity();
             self.build_selection_requests.reset_retain_capacity();
@@ -4212,33 +4218,34 @@ pub mod expression {
         /// The caller joins the source owner and approved node substitutions.
         pub fn retains_input_storage(&self, source: &Self) -> bool {
             fn rows<T: Default + PartialEq>(current: &Arena<T>, source: &Arena<T>) -> bool {
-                source
-                    .iter()
-                    .all(|(handle, value)| current.is_valid(handle) && current.get(handle) == value)
+                super::retains_input_rows(current, source, |_, current, original| {
+                    current == original
+                })
             }
             if self.constructed_value_type_count < source.constructed_value_type_count
                 || self.construction_required_type_count < source.construction_required_type_count
             {
                 return false;
             }
-            for (handle, original) in source.expressions.iter() {
-                let Some(current) = self.expressions.try_get(handle) else {
-                    return false;
-                };
-                let position = source_span_index(expression_handle(handle));
-                let mut expected = original.metadata;
-                // A source records attachments through its initialized prefix.
-                // Adding one beyond that prefix does not rewrite a source input.
-                if position >= source.constructed_value_type_count {
-                    expected.constructed_value_type = current.metadata.constructed_value_type;
-                }
-                if position >= source.construction_required_type_count {
-                    expected.construction_required_type =
-                        current.metadata.construction_required_type;
-                }
-                if expected != current.metadata {
-                    return false;
-                }
+            if !super::retains_input_rows(
+                &self.expressions,
+                &source.expressions,
+                |handle, current, original| {
+                    let position = source_span_index(expression_handle(handle));
+                    let mut expected = original.metadata;
+                    // A source records attachments through its initialized prefix.
+                    // Adding one beyond that prefix does not rewrite a source input.
+                    if position >= source.constructed_value_type_count {
+                        expected.constructed_value_type = current.metadata.constructed_value_type;
+                    }
+                    if position >= source.construction_required_type_count {
+                        expected.construction_required_type =
+                            current.metadata.construction_required_type;
+                    }
+                    expected == current.metadata
+                },
+            ) {
+                return false;
             }
             macro_rules! storage {
                 ($($arena:ident),* $(,)?) => {{
@@ -5654,13 +5661,133 @@ pub mod subtrees {
     }
 }
 
+// Both tables yield active handles in slot order. Merge their streams rather
+// than searching a page directory again for each retained row. New rows may
+// appear between old ones, but every retained generation and value must match.
+fn retains_input_rows<T: Default>(
+    current: &arena::RetainedArena<T>,
+    source: &arena::RetainedArena<T>,
+    mut equivalent: impl FnMut(arena::Handle<T>, &T, &T) -> bool,
+) -> bool {
+    let mut current = current.iter().peekable();
+    for (handle, original) in source.iter() {
+        while current
+            .peek()
+            .is_some_and(|(candidate, _)| candidate.arena_index() < handle.arena_index())
+        {
+            current.next();
+        }
+        let Some((candidate, value)) = current.next() else {
+            return false;
+        };
+        if candidate != handle || !equivalent(handle, value, original) {
+            return false;
+        }
+    }
+    true
+}
+
 #[cfg(test)]
 mod storage_ownership_tests {
+    use super::retains_input_rows;
     use crate::expression::{ExpressionNode, ExpressionTable};
     use crate::statement::{StatementNode, StatementTable};
     use crate::types::TypeReferenceHandle;
     use language_core::PatternComponent;
     use source::{SourceId, SourceSpan, Span};
+
+    #[test]
+    fn input_row_merge_keeps_active_slots_generations_and_value_comparisons() {
+        let mut original = arena::RetainedArena::new();
+        let first = original.append(1u32);
+        let second = original.append(2);
+        let mut source = original.clone();
+        source.free(first);
+        assert!(retains_input_rows(&original, &source, |_, a, b| a == b));
+        let mut missing = original.clone();
+        missing.free(second);
+        assert!(!retains_input_rows(&missing, &source, |_, a, b| a == b));
+
+        // An empty directory has no element encoding. Use a normal Arena
+        // record to vary its generation without adding a production constructor.
+        #[derive(compiler_storage::Record)]
+        struct AppendedRows {
+            pages: Vec<u8>,
+            appended: std::sync::Arc<arena::Arena<u32>>,
+            start: usize,
+        }
+        let mut other = arena::Arena::with_generation(9);
+        other.insert_many([1u32, 2]);
+        let limits = compiler_storage::RecordLimits::default();
+        let bytes = compiler_storage::encode(
+            &AppendedRows {
+                pages: Vec::new(),
+                appended: std::sync::Arc::new(other),
+                start: 0,
+            },
+            limits,
+        )
+        .unwrap();
+        let other: arena::RetainedArena<u32> = compiler_storage::decode(&bytes, limits).unwrap();
+        assert!(!retains_input_rows(&other, &original, |_, a, b| a == b));
+
+        let mut non_reflexive = arena::RetainedArena::new();
+        non_reflexive.append(f64::NAN);
+        assert!(!retains_input_rows(
+            &non_reflexive,
+            &non_reflexive,
+            |_, a, b| a == b
+        ));
+    }
+
+    #[test]
+    fn declaration_output_keeps_untouched_body_pages_shared() {
+        let mut source = crate::TypedTreeTables::default();
+        source.begin_declaration_output();
+        let first = source
+            .expression_table
+            .insert(ExpressionNode::Boolean(true));
+        let first_statement = source
+            .statement_table
+            .insert(StatementNode::Expression(first));
+        let revision = source.statement_table.declaration_revision();
+        source.begin_declaration_output();
+        assert_eq!(source.statement_table.declaration_revision(), revision);
+        let second = source
+            .expression_table
+            .insert(ExpressionNode::Boolean(false));
+        let second_statement = source
+            .statement_table
+            .insert(StatementNode::Expression(second));
+        let mut selected = source.clone();
+        *selected.expression_table.expression_mut(first) = ExpressionNode::Boolean(false);
+        *selected.statement_table.statement_mut(first_statement) =
+            StatementNode::Expression(second);
+        assert_eq!(
+            source.expression_table.expression(first),
+            &ExpressionNode::Boolean(true)
+        );
+        assert!(std::ptr::eq(
+            source.expression_table.expression(second),
+            selected.expression_table.expression(second)
+        ));
+        assert!(std::ptr::eq(
+            source.statement_table.statement(second_statement),
+            selected.statement_table.statement(second_statement)
+        ));
+        assert_eq!(
+            selected
+                .expression_table
+                .iter_expressions_from(second.arena_index() as usize)
+                .map(|(handle, _)| handle)
+                .collect::<Vec<_>>(),
+            [second]
+        );
+        let limits = compiler_storage::RecordLimits::default();
+        let bytes = compiler_storage::encode(&selected, limits).unwrap();
+        let decoded: crate::TypedTreeTables = compiler_storage::decode(&bytes, limits).unwrap();
+        assert_eq!(selected, decoded);
+    }
 
     #[test]
     fn body_tables_share_retained_rows_and_keep_metadata_with_their_handles() {

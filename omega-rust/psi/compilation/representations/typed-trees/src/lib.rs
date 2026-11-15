@@ -1349,6 +1349,16 @@ pub struct TypedTreeTables {
     pub wire_members: Arena<wire::WireMember>,
 }
 
+impl TypedTreeTables {
+    /// Keep one declaration or completed body's expressions and statements
+    /// together. A later source-application update may rewrite that owner,
+    /// but must not detach unrelated bodies from the earlier completion batch.
+    pub fn begin_declaration_output(&mut self) {
+        self.expression_table.finish_output_page();
+        self.statement_table.finish_output_page();
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TypedTreeRoots {
     pub retained_product_applications: HandleSpan<Handle<ProductOperandApplication>>,
