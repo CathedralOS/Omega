@@ -145,6 +145,30 @@ fn retained_instruction_metadata_projects_without_a_node_and_rejects_changed_cus
             ..
         }
     ));
+    let mut annotated_cleanup = target.functions[0].graph.blocks[0].clone();
+    annotated_cleanup
+        .operations
+        .push(target_operations::TargetInstruction {
+            source: Some(source.clone()),
+            kind: TargetUnitOperation::CleanupCall {
+                owner: target_operations::CallSiteOwner::CleanupAction {
+                    edge: edge(1),
+                    action_ordinal: 0,
+                },
+                callee: machine(),
+                call_plan: target.functions[0].graph.call_plan.clone(),
+                arguments: Vec::new(),
+            },
+        });
+    let failure = crate::legalization_control::project(machine(), &annotated_cleanup, &[], &[])
+        .expect_err("cleanup keeps its cleanup owner, not an authored instruction identity");
+    assert!(matches!(
+        failure,
+        crate::LegalizationError::InstructionMetadata {
+            reason: "compiler cleanup call carries authored instruction metadata",
+            ..
+        }
+    ));
     for mutation in 0..10 {
         let mut changed = instruction.clone();
         if mutation == 0 {

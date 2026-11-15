@@ -381,16 +381,21 @@ pub(crate) fn project(
     let first_cleanup = block
         .operations
         .iter()
-        .position(|operation| matches!(operation, TargetUnitOperation::CleanupCall { .. }))
+        .position(|operation| matches!(&operation.kind, TargetUnitOperation::CleanupCall { .. }))
         .unwrap_or(block.operations.len());
     let mut calls = Vec::with_capacity(block.operations.len() - first_cleanup);
     for operation in &block.operations[first_cleanup..] {
+        if operation.source.is_some() {
+            return Err(LegalizationError::instruction_metadata(
+                "compiler cleanup call carries authored instruction metadata",
+            ));
+        }
         let TargetUnitOperation::CleanupCall {
             owner,
             callee,
             call_plan,
             arguments,
-        } = operation
+        } = &operation.kind
         else {
             return Err(LegalizationError::custody());
         };
