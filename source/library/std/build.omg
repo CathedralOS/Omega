@@ -84,7 +84,7 @@ machine configure_clock(builder: &mut Build) {
             library: "kernel32.dll", export: "Sleep"
         } });
 
-    Build::select_provider<Clock, DarwinClock>(builder, macos_arm64);
+    Build::select_provider<Clock, MacosArm64Clock>(builder, macos_arm64);
     Build::bind<DarwinClockWait::poll>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_poll"
