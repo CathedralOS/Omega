@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 269`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 270`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -210,19 +210,6 @@ pub(crate) mod canonical_order {
                     }
                 }
             }
-        }
-        require_increasing(
-            module
-                .target_machine_families
-                .iter()
-                .map(|family| family.canonical),
-            "target-machine families by canonical callable",
-        )?;
-        for family in &module.target_machine_families {
-            require_increasing(
-                family.members.iter().map(|member| member.target.as_str()),
-                "target-family members by deployment tag",
-            )?;
         }
         require_increasing(
             module
@@ -1522,8 +1509,8 @@ pub(crate) mod machine_wire {
 
     #[cfg(test)]
     mod tests {
+        use super::super::entry_tests::{identity_table, unit_machine};
         use super::super::module_wire::encode_raw;
-        use super::super::target_family_tests::{identity_table, unit_machine};
         use crate::{decode_module, encode_module, semantic_fingerprint};
         use semantic_vocabulary::{
             IntegerSign, IntegerType, MachineId, PlaceId, ScalarType, StructuralPlaceKind,
@@ -2806,7 +2793,7 @@ mod counted_collection_bound_tests {
     use super::{CodecError, decode_module, encode_module};
     use crate::{decode_crash_route_buckets, encode_crash_route_buckets};
 
-    use super::target_family_tests::unit_machine;
+    use super::entry_tests::unit_machine;
 
     #[test]
     fn bounded_count_refuses_a_count_the_remaining_input_cannot_hold() {
@@ -2889,9 +2876,7 @@ mod counted_collection_bound_tests {
 }
 #[cfg(test)]
 mod external_provider_tests {
-    use super::{
-        module_wire::encode_raw, numeric_intrinsic_tests, target_family_tests::identity_table,
-    };
+    use super::{entry_tests::identity_table, module_wire::encode_raw, numeric_intrinsic_tests};
     use crate::{decode_module, encode_module, semantic_fingerprint};
     use language_semantics::{ExternalBindingIdentity, numeric_intrinsics::NumericIntrinsic};
     use semantic_vocabulary::PackageKeyIdentity;
@@ -3032,8 +3017,8 @@ mod external_provider_tests {
 }
 #[cfg(test)]
 mod numeric_intrinsic_tests {
+    use super::entry_tests::{identity_table, unit_machine};
     use super::module_wire::encode_raw;
-    use super::target_family_tests::{identity_table, unit_machine};
     use crate::{decode_module, encode_module, semantic_fingerprint};
     use language_semantics::numeric_intrinsics::{NumericIntrinsic, NumericResult, NumericType};
     use semantic_vocabulary::{
@@ -3214,7 +3199,7 @@ mod numeric_intrinsic_tests {
 #[cfg(test)]
 mod reference_transport_tests {
 
-    use super::target_family_tests::identity_table;
+    use super::entry_tests::identity_table;
     use crate::{CodecError, decode_module, encode_module};
     use semantic_vocabulary::{StructuralFieldId, StructuralTypeId};
     use terminal_psi::{
@@ -3564,8 +3549,8 @@ mod reference_transport_tests {
 }
 #[cfg(test)]
 mod routed_scalar_tests {
+    use super::entry_tests::{identity_table, unit_machine};
     use super::module_wire::encode_raw;
-    use super::target_family_tests::{identity_table, unit_machine};
     use crate::{decode_module, encode_module, semantic_fingerprint};
     use semantic_vocabulary::{
         DomainSemanticId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
@@ -4424,15 +4409,13 @@ mod routed_scalar_tests {
     }
 }
 #[cfg(test)]
-pub(crate) mod target_family_tests {
+pub(crate) mod entry_tests {
 
     use crate::sections::semantic_module::module_wire::encode_raw;
     use crate::{CodecError, decode_module, encode_module};
     use semantic_vocabulary::{BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId};
     use terminal_psi::{
-        Block, BoundaryCompletion, BoundaryMachineDeclaration, BoundaryMachineResult,
-        BoundaryRequirementKind, TargetMachineCallable, TargetMachineFamily,
-        TargetMachineFamilyMember, TargetMachineSupply, TerminalIdentityIndex, TerminalMachine,
+        Block, TargetMachineCallable, TerminalIdentityIndex, TerminalMachine,
         TerminalMachineResult, TerminalModule, Terminator,
     };
 
@@ -4464,159 +4447,23 @@ pub(crate) mod target_family_tests {
     }
 
     #[test]
-    fn target_family_round_trip_preserves_exact_tags_callables_and_supplies() {
+    fn portable_entry_requires_one_retained_executable_machine() {
         let machine = MachineId::new(1).unwrap();
         let mut module = TerminalModule::for_entry(machine);
         module.machines.push(unit_machine(machine));
-        module.identities = identity_table(10);
-        let mut members = vec![TargetMachineFamilyMember {
-            target: "freestanding_custom".into(),
-            callable: TargetMachineCallable::Machine(machine),
-            supply: TargetMachineSupply::CheckedBody,
-        }];
-        for (boundary_position, (target, supply)) in [
-            ("linux_x86_64", TargetMachineSupply::Requirement),
-            ("macos_arm64", TargetMachineSupply::TopLevelRequirement),
-            ("opaque:custom", TargetMachineSupply::Boundary),
-            ("target.with.dots", TargetMachineSupply::AdmissionClaim),
-            ("windows_x86_64", TargetMachineSupply::ExternalRealization),
-        ]
-        .into_iter()
-        .enumerate()
-        {
-            let boundary = BoundaryMachineId::new(boundary_position as u64 + 1).unwrap();
-            module.boundary_machines.push(BoundaryMachineDeclaration {
-                numeric_intrinsic: None,
-                normal_qualifications: Vec::new(),
-                scalar_domain_requirements: Vec::new(),
-                declaration: None,
-                role: terminal_psi::BoundaryDeclarationRole::Callable,
-                id: boundary,
-                kind: BoundaryRequirementKind::Machine,
-                completion: BoundaryCompletion::NormalReturn,
-                unconditional_termination: false,
-                identity: TerminalIdentityIndex(
-                    u32::try_from(boundary.get()).expect("boundary identity"),
-                ),
-                attachment: None,
-                owner: terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
-                parameter_order: Vec::new(),
-                scalar_parameters: Vec::new(),
-                crash_routes: Vec::new(),
-                structural_parameters: Vec::new(),
-                result: BoundaryMachineResult::Unit,
-                requires: Vec::new(),
-                scalar_requires: Vec::new(),
-                scalar_ensures: Vec::new(),
-                program_local_root_introductions: Vec::new(),
-                content_guarantees: Vec::new(),
-                result_reference_regions: Vec::new(),
-                reference_outputs: Vec::new(),
-                fixed_service_reach: Vec::new(),
-                owning_service: None,
-                published_synchronous_entries: Vec::new(),
-                published_service_ceiling: Vec::new(),
-            });
-            members.push(TargetMachineFamilyMember {
-                target: target.into(),
-                callable: TargetMachineCallable::Boundary(boundary),
-                supply,
-            });
-        }
-        module.target_machine_families.push(TargetMachineFamily {
-            canonical: members[0].callable,
-            head_contract: [1; 32],
-            members,
-        });
-        let owner = semantic_vocabulary::ServiceId::new(1).unwrap();
-        module.services.push(terminal_psi::ServiceDeclaration {
-            id: owner,
-            identity: TerminalIdentityIndex(10),
-            parents: Vec::new(),
-        });
-        module.boundary_machines[0].kind = BoundaryRequirementKind::Trait;
-        module.boundary_machines[0].owning_service = Some(owner);
-        for canonical in [
-            TargetMachineCallable::Machine(machine),
+        let bytes = encode_module(&module).unwrap();
+        assert_eq!(decode_module(&bytes).unwrap(), module);
+        for invalid in [
+            TargetMachineCallable::Machine(MachineId::new(2).unwrap()),
             TargetMachineCallable::Boundary(BoundaryMachineId::new(1).unwrap()),
         ] {
-            module.target_machine_families[0].canonical = canonical;
-            let encoded_bytes = encode_module(&module).unwrap();
-            let decoded_module = decode_module(&encoded_bytes).unwrap();
-            assert_eq!(decoded_module, module);
-            assert_eq!(encode_module(&decoded_module).unwrap(), encoded_bytes);
-        }
-    }
-
-    #[test]
-    fn target_family_wire_rejects_duplicate_tags_and_missing_callables() {
-        let machine = TargetMachineCallable::Machine(MachineId::new(1).unwrap());
-        let boundary = TargetMachineCallable::Boundary(BoundaryMachineId::new(1).unwrap());
-        for (case, members, expected_error) in [
-            (
-                "duplicate deployment tag",
-                vec![
-                    TargetMachineFamilyMember {
-                        target: "custom_target".into(),
-                        callable: machine,
-                        supply: TargetMachineSupply::CheckedBody,
-                    },
-                    TargetMachineFamilyMember {
-                        target: "custom_target".into(),
-                        callable: boundary,
-                        supply: TargetMachineSupply::Requirement,
-                    },
-                ],
-                CodecError::NonCanonicalOrder("target-family members by deployment tag"),
-            ),
-            (
-                "missing machine",
-                vec![TargetMachineFamilyMember {
-                    target: "custom_target".into(),
-                    callable: machine,
-                    supply: TargetMachineSupply::CheckedBody,
-                }],
-                CodecError::MalformedStructuralFoundation(
-                    "target-family checked member has no matching body supply",
-                ),
-            ),
-            (
-                "missing boundary",
-                vec![TargetMachineFamilyMember {
-                    target: "custom_target".into(),
-                    callable: boundary,
-                    supply: TargetMachineSupply::Requirement,
-                }],
-                CodecError::MalformedStructuralFoundation(
-                    "target-family opaque member has no matching declaration supply",
-                ),
-            ),
-        ] {
-            let entry = MachineId::new(2).unwrap();
-            let mut module = TerminalModule::for_entry(entry);
-            module.machines.push(unit_machine(entry));
-            module.identities = identity_table(10);
-            module.target_machine_families.push(TargetMachineFamily {
-                canonical: members[0].callable,
-                head_contract: [1; 32],
-                members,
-            });
-            let encoded_bytes = encode_raw(&module).unwrap();
-            if matches!(expected_error, CodecError::NonCanonicalOrder(_)) {
-                assert_eq!(
-                    encode_module(&module),
-                    Err(expected_error.clone()),
-                    "{case}"
-                );
-            } else {
-                assert_eq!(encode_module(&module).unwrap(), encoded_bytes, "{case}");
-                assert_eq!(
-                    crate::semantic_fingerprint(&module).unwrap(),
-                    super::fingerprint_bytes(&encoded_bytes),
-                    "{case}"
-                );
-            }
-            assert_eq!(decode_module(&encoded_bytes), Err(expected_error), "{case}");
+            module.entry = Some(invalid);
+            assert_eq!(
+                decode_module(&encode_raw(&module).unwrap()),
+                Err(CodecError::MalformedStructuralFoundation(
+                    "portable entry has no retained executable machine"
+                ))
+            );
         }
     }
 
@@ -4834,6 +4681,7 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
+// Marker 270 removes executable target-family catalogs and portable family heads.
 // Marker 269 retains complete primitive scalar storage types and predicate
 // establishment completions. Earlier catalogs cannot express either judgment.
 // Marker 268 retains the declared public result lifetime groups separately from body origins.
@@ -4847,7 +4695,7 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // separately from its executable body. Marker 263 operational ceilings and call
 // acknowledgements, 262 opaque contexts, 261 write summaries and the earlier
 // numeric and finite-family identities remain part of the same format.
-pub(crate) const FORMAT_MARKER: u16 = 269;
+pub(crate) const FORMAT_MARKER: u16 = 270;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -4994,8 +4842,8 @@ pub(crate) fn fingerprint_bytes(bytes: &[u8]) -> SemanticFingerprint {
 #[cfg(test)]
 mod normal_qualification_tests {
 
+    use super::entry_tests::{identity_table, unit_machine};
     use super::module_wire::encode_raw;
-    use super::target_family_tests::{identity_table, unit_machine};
     use crate::{CodecError, decode_module, encode_module, semantic_fingerprint};
     use semantic_vocabulary::{
         BoundaryMachineId, DomainSemanticId, MachineId, PlaceId, StructuralDomainId,
@@ -5332,7 +5180,7 @@ mod normal_qualification_tests {
 
 #[cfg(test)]
 mod global_descriptor_table_tests {
-    use super::target_family_tests::{identity_table, unit_machine};
+    use super::entry_tests::{identity_table, unit_machine};
     use crate::{decode_module, encode_module};
     use semantic_vocabulary::{
         MachineId, OperationId, PlaceId, ServiceId, StructuralPlaceKind, StructuralTypeId,
@@ -5467,7 +5315,7 @@ mod global_descriptor_table_tests {
 
 #[cfg(test)]
 mod descriptor_operation_tests {
-    use super::target_family_tests::{identity_table, unit_machine};
+    use super::entry_tests::{identity_table, unit_machine};
     use crate::{decode_module, encode_module};
     use semantic_vocabulary::{
         IntegerSign, IntegerType, MachineId, OperationId, PlaceId, ScalarType, ServiceId,
@@ -5752,7 +5600,7 @@ mod descriptor_operation_tests {
 
 #[cfg(test)]
 mod opaque_value_tests {
-    use super::target_family_tests::identity_table;
+    use super::entry_tests::identity_table;
     use crate::{decode_module, encode_module};
     use semantic_vocabulary::{StructuralCaseId, StructuralTypeId};
     use terminal_psi::{
@@ -5833,7 +5681,9 @@ mod format_marker_tests {
         // Neither body may be interpreted as the combined layout, regardless
         // of which payload follows their shared legacy marker. Marker 260's finite
         // float conversion ordinal also cannot supply the retained carrier identity.
-        for legacy in [250u16, 251, 252, 256, 260, 261, 264, 265, 266, 267] {
+        for legacy in [
+            250u16, 251, 252, 256, 260, 261, 264, 265, 266, 267, 268, 269,
+        ] {
             for payload in [&[][..], &[0xff, 0xff, 0xff][..]] {
                 let mut bytes = MAGIC.to_vec();
                 bytes.extend_from_slice(&legacy.to_le_bytes());

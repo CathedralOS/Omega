@@ -32,10 +32,38 @@ target. On another host, copy one and change the executable suffix and target.
 | `progress [options]` | How fast is this commit's release compiler on this host? |
 | `scaling --omega <omega> [options]` | Does a bigger program make each machine cost more to check? |
 | `dominance-summary <graph-run-dir>` | Validate and summarize retained pairs from the private checker graph driver. |
+| `proof-plan <source\|prepare\|prove> <baseline> <candidate> <main.omg> <new-plan.json> [options]` | Prepare a portable comparison of the proof benchmark's source route or timed replay. |
+| `proof-square <new-directory> [--identity-build]` | Reconstruct the pinned square-sum workload and verify its source hashes. |
 
 Any command may start with `--address-space-gib N` to change the Linux
 address-space cap (default 64 GiB) every measured process runs under; records
 name the value used.
+
+## Proof preparation inputs
+
+The proof preparation helpers run inside this Rust executable on each hosted
+platform; they do not require PowerShell. Run them from the checkout root and
+pass the actual baseline and candidate executable paths, including `.exe` on
+Windows. `proof-plan` writes a normal plan for `compare`, which continues to
+own sample ordering, stdin closure, resource capture and correctness checks.
+
+In `source` mode, pass `--target windows_x86_64`, `linux_x86_64`, `linux_arm64`
+or `macos_arm64`. Its oracle requires the route probe's single accepted part
+and final accepted verdict, with no warnings. It measures the source/Product
+route, not Build execution or native publication. `prepare` and `prove` instead
+require `--repeats N --work-units N --checksum VALUE`, matching the replay's
+reported work and checksum. The chosen mode reaches the replay executable as
+an explicit argument. Both modes default to eight pairs after one warmup;
+`--pairs N` can change the pair count. Existing plans are never overwritten.
+
+`proof-square` reads commit `9b4898865ecd5789bea4def6c2da078192a4ab82`
+through Git and adds the exact literal qualifications used by the retained
+measurements. It verifies both resulting source hashes before creating the new
+directory. `--identity-build` additionally removes the pinned six optional
+optimization selections; it preserves the arithmetic and checksum. A shallow
+checkout missing the pinned commit must fetch it first. See the
+[proof preparation report](../../wiki/drafts/measurements/proof_preparation_2026_11_14.md)
+for the measured boundary, source distributions and reproduction commands.
 
 ## Paired comparisons
 

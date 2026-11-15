@@ -1,8 +1,14 @@
 /*
 We solve transition-free, spill-free virtual-to-physical register home
-assignment and independently replay the resulting `RegisterHomePlan` against
-live ranges, allocation legality, tied-operand components, directional early
-clobbers, and target register-unit interference.
+assignment over live ranges, allocation legality, tied-operand components,
+directional early clobbers, and target register-unit interference.
+
+Nothing replays the resulting `RegisterHomePlan`: following the compiler's
+verification placement (`omega-rust/pipeline.md#verification-placement`), the
+default compile trusts this solver. `RegisterHomeReceipt` only binds the plan's
+identity to the identities and counts of the inputs it was computed from, so a
+consumer can tell which inputs a set of `AssignedRegisterHomes` belongs to; it
+is not evidence that a second check accepted the homes.
 */
 
 use register_environment::ValidatedTargetRegisterEnvironment;
@@ -2532,15 +2538,15 @@ pub(crate) mod receipt {
 
     use selected_instructions::VirtualRegisterId;
 
-    use crate::{RegisterHomePlan, RegisterHomeValidationReceipt, register_home_identity};
+    use crate::{RegisterHomePlan, RegisterHomeReceipt, register_home_identity};
     use selected_instruction_analyses::ValidatedLiveRanges;
     use selected_instructions::DistinctUseDefTie;
 
     pub(crate) fn build(
         plan: &RegisterHomePlan,
         ranges: &ValidatedLiveRanges,
-    ) -> RegisterHomeValidationReceipt {
-        RegisterHomeValidationReceipt {
+    ) -> RegisterHomeReceipt {
+        RegisterHomeReceipt {
             identity: register_home_identity(plan),
             legality: plan.legality,
             ranges: plan.ranges,
@@ -2621,7 +2627,7 @@ pub(crate) fn assign_register_homes(
     legality: &ValidatedAllocationLegality,
     ranges: &ValidatedLiveRanges,
     environment: &ValidatedTargetRegisterEnvironment,
-) -> Result<ValidatedRegisterHomes, RegisterHomeError> {
+) -> Result<AssignedRegisterHomes, RegisterHomeError> {
     assign_register_homes_reusing(legality, ranges, environment, None)
 }
 
@@ -2630,10 +2636,10 @@ pub(crate) fn assign_register_homes_reusing(
     ranges: &ValidatedLiveRanges,
     environment: &ValidatedTargetRegisterEnvironment,
     reuse: Option<&mut compute::FunctionHomeReuse>,
-) -> Result<ValidatedRegisterHomes, RegisterHomeError> {
+) -> Result<AssignedRegisterHomes, RegisterHomeError> {
     let plan = compute::compute_terminal_register_homes(legality, ranges, environment, reuse)?;
     let receipt = receipt::build(&plan, ranges);
-    Ok(ValidatedRegisterHomes {
+    Ok(AssignedRegisterHomes {
         plan: plan.into(),
         receipt,
     })
@@ -2641,7 +2647,7 @@ pub(crate) fn assign_register_homes_reusing(
 
 copy_receipt! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub struct RegisterHomeValidationReceipt {
+    pub struct RegisterHomeReceipt {
         pub(crate) identity: RegisterHomeIdentity,
         pub(crate) legality: AllocationLegalityIdentity,
         pub(crate) ranges: LiveRangeIdentity,
@@ -2656,12 +2662,12 @@ copy_receipt! {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedRegisterHomes {
+pub struct AssignedRegisterHomes {
     pub(crate) plan: std::sync::Arc<RegisterHomePlan>,
-    pub(crate) receipt: RegisterHomeValidationReceipt,
+    pub(crate) receipt: RegisterHomeReceipt,
 }
 
-impl ValidatedRegisterHomes {
+impl AssignedRegisterHomes {
     pub fn shared_plan(&self) -> std::sync::Arc<RegisterHomePlan> {
         std::sync::Arc::clone(&self.plan)
     }
@@ -2669,8 +2675,8 @@ impl ValidatedRegisterHomes {
     pub fn plan(&self) -> &RegisterHomePlan {
         &self.plan
     }
-    receipt_accessor_rows!(ref ValidatedRegisterHomes {
-        receipt: RegisterHomeValidationReceipt,
+    receipt_accessor_rows!(ref AssignedRegisterHomes {
+        receipt: RegisterHomeReceipt,
     });
 }
 

@@ -2,7 +2,7 @@
 // millisecond sleep with the requirement's shape; its timed wait is POSIX
 // `poll(fds, nfds, timeout)`, which waits out the timeout when it is given no
 // descriptors. The leaf states poll's own parameters through the one-member
-// `DarwinClockWait` trait, and `DarwinClock::sleep` is an ordinary
+// `DarwinClockWait` trait, and `MacosArm64Clock::sleep` is an ordinary
 // checked adapter over it.
 use omega::language::core::narrow_u32_to_i32_wrapping;
 
@@ -23,7 +23,7 @@ boundary trait DarwinClockWait {
 // poll reads its timeout as a signed `int`, where -1 waits without bound and
 // any other negative count is invalid, so a count above `i32 maximum` waits in
 // three equal parts and the remainder; every part fits the signed range.
-public DarwinClock satisfies Clock {
+public MacosArm64Clock satisfies Clock {
     machine sleep(milliseconds: u32)
     reaches Clock
     invokes DarwinClockWait

@@ -6114,6 +6114,7 @@ pub(crate) mod result_dispatch_terms {
                         semantic_roles: constituent_definition.semantic_roles,
                         establishment_routes: constituent_definition.establishment_routes.clone(),
                         source_selection: None,
+                        names_no_visible_domain: false,
                     };
                     collect_declared_result_dispatch_terms(
                         program,

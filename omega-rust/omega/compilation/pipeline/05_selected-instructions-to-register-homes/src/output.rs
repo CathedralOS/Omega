@@ -44,7 +44,7 @@ pub(crate) mod baseline {
 pub(crate) mod current {
     use std::sync::Arc;
 
-    use crate::{ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes};
+    use crate::{AssignedRegisterHomes, ValidatedPostAllocationOptimizationManifest};
     use optimization_core::{OptimizationSelections, OptimizationWorkBudget};
     use register_environment::ValidatedTargetRegisterEnvironment;
     use register_homes::{AllocatedProgram, AllocatedProgramFacts};
@@ -65,7 +65,7 @@ pub(crate) mod current {
         liveness: ValidatedLiveness,
         ranges: ValidatedLiveRanges,
         legality: ValidatedAllocationLegality,
-        homes: ValidatedRegisterHomes,
+        homes: AssignedRegisterHomes,
         manifest: ValidatedPostAllocationOptimizationManifest,
         environment: ValidatedTargetRegisterEnvironment,
         effects: Arc<PreAllocationMachineEffectPlan>,
@@ -388,12 +388,11 @@ pub(crate) mod runtime_spill {
 }
 
 use crate::{
-    StagedOptimizedActiveResidentRematerializationCustodyReceipt,
+    AssignedRegisterHomes, StagedOptimizedActiveResidentRematerializationCustodyReceipt,
     StagedOptimizedPostCopyRegisterHomeCustodyReceipt,
     StagedOptimizedPostPreAllocationHomeCustodyReceipt,
     StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
     StagedOptimizedRegisterHomeCustodyReceipt, ValidatedPostAllocationOptimizationManifest,
-    ValidatedRegisterHomes,
 };
 use optimization_core::{OptimizationSelections, OptimizationWorkBudget};
 use register_environment::ValidatedTargetRegisterEnvironment;
@@ -413,7 +412,7 @@ pub struct AllocationOutput<'program> {
     liveness: &'program ValidatedLiveness,
     ranges: &'program ValidatedLiveRanges,
     legality: &'program ValidatedAllocationLegality,
-    homes: &'program ValidatedRegisterHomes,
+    homes: &'program AssignedRegisterHomes,
     manifest: &'program ValidatedPostAllocationOptimizationManifest,
     environment: &'program ValidatedTargetRegisterEnvironment,
     evidence: AllocationEvidence,
@@ -443,7 +442,7 @@ impl<'program> AllocationOutput<'program> {
         liveness: &'program ValidatedLiveness,
         ranges: &'program ValidatedLiveRanges,
         legality: &'program ValidatedAllocationLegality,
-        homes: &'program ValidatedRegisterHomes,
+        homes: &'program AssignedRegisterHomes,
     });
     pub const fn post_allocation_manifest(
         &self,

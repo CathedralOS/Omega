@@ -256,7 +256,8 @@ impl Program<'_> {
                 Unserved::Type("array literal without a closed contextual type"),
             ));
         };
-        let (element, extent) = self.array_element(machine, array)?;
+        let (element, extent) =
+            self.array_element(machine, super::authority::Opened::constructing(array))?;
         // An array value holds its elements' regions (`array_type`).
         let element_regions = self.collection_element_regions(machine, array, regions)?;
         let declared = super::places::with_regions(
@@ -300,6 +301,7 @@ impl Program<'_> {
         indexed: &TableIndexedExpression,
         handle: ExpressionHandle,
         expected: Option<ValueType>,
+        access: Access,
     ) -> Checked<Expression> {
         let source = SourceOrigin::of(self.typed.expression_table.source_span(handle));
         // A range preserves the backing region of its operand. Context can
@@ -313,15 +315,15 @@ impl Program<'_> {
         )
         .then_some(hint)
         .flatten();
-        let base = self.expression(machine, slots, indexed.collection, hint)?;
-        let Some(array) = self.opened(machine, base.result, Access::Read)? else {
+        let base = self.place(machine, slots, indexed.collection, hint, access)?;
+        let Some(array) = self.opened(machine, base.result, access)? else {
             return Err(refuse(
                 machine,
                 Construct::Machine,
                 Unserved::Typing("index into non-array storage"),
             ));
         };
-        if self.is_readable_byte_view(machine, array)? {
+        if self.is_readable_byte_view(machine, array.record())? {
             if let typed_trees::expression::ExpressionNode::Range(range) =
                 self.node(machine, indexed.index)?
             {
@@ -340,7 +342,7 @@ impl Program<'_> {
         let regions = base
             .result
             .map_or(crate::body::Regions::NONE, ValueType::regions);
-        let element_regions = self.collection_element_regions(machine, array, regions)?;
+        let element_regions = self.collection_element_regions(machine, array.record(), regions)?;
         let result = super::places::with_regions(
             self.storage_value_type(machine, element)?,
             element_regions,
@@ -383,9 +385,9 @@ impl Program<'_> {
     pub(super) fn array_element(
         &self,
         machine: MachineId,
-        array: StructuralTypeId,
+        array: super::authority::Opened,
     ) -> Checked<(StructuralTypeId, CollectionExtent)> {
-        match &self.data_type(machine, array)?.shape {
+        match &self.data_type(machine, array.record())?.shape {
             StorageShape::FixedArray {
                 element,
                 length: ArrayExtent::Literal(length),

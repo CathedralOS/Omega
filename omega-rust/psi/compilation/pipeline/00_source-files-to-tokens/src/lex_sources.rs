@@ -1,5 +1,6 @@
 /*
-Parallel batch tokenization (`lex_sources`) over loaded in-memory source units,
+Parallel batch tokenization (`lex_sources`) over loaded in-memory source units
+on the invocation's `execution_admission` budget,
 preserving source order, origin metadata, and shared backing text while reporting
 the first lexical failure with exact file, line, and column coordinates.
 */
@@ -17,7 +18,9 @@ pub fn lex_sources(mut sources: LoadedSources) -> Result<LexedSources, Vec<Diagn
     let results: Vec<Result<LexedSource, Diagnostic>> = if source_count <= 1 {
         loaded_sources.iter_mut().map(lex_source).collect()
     } else {
-        loaded_sources.par_iter_mut().map(lex_source).collect()
+        execution_admission::within_budget(|| {
+            loaded_sources.par_iter_mut().map(lex_source).collect()
+        })
     };
     let lexed = results
         .into_iter()

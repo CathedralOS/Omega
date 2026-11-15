@@ -517,26 +517,6 @@ pub(super) fn encode_call_source(
                 encode_completion_receipt(bytes, receipt);
             }
         }
-        NativeCallOrigin::TargetFamily {
-            boundary,
-            member,
-            target,
-            completion_claim_sources,
-            completion_receipts,
-        } => {
-            bytes.push(3);
-            bytes.extend_from_slice(&boundary.get().to_le_bytes());
-            bytes.extend_from_slice(&member.get().to_le_bytes());
-            encode_string(bytes, target);
-            length(bytes, completion_claim_sources.len());
-            for source in completion_claim_sources {
-                encode_completion_claim_source(bytes, source);
-            }
-            length(bytes, completion_receipts.len());
-            for receipt in completion_receipts {
-                encode_completion_receipt(bytes, receipt);
-            }
-        }
         NativeCallOrigin::InstalledProvider {
             boundary,
             provider,
@@ -577,6 +557,7 @@ pub(super) fn decode_call_source(
     cursor: &mut Cursor<'_>,
     retain_projected_qualifications: bool,
 ) -> Result<NativeCallOrigin, FixedViewCopyDecodeError> {
+    // Tag 3 belonged to retired target-family calls and remains unassigned.
     match cursor.byte()? {
         1 => Ok(NativeCallOrigin::Authored),
         5 => {
@@ -592,20 +573,6 @@ pub(super) fn decode_call_source(
                 boundary,
                 entry,
                 source_signature,
-                completion_claim_sources,
-                completion_receipts,
-            })
-        }
-        3 => {
-            let boundary = decode_id(cursor, BoundaryMachineId::new)?;
-            let member = decode_id(cursor, MachineId::new)?;
-            let target = decode_string(cursor)?;
-            let completion_claim_sources = decode_list(cursor, decode_completion_claim_source)?;
-            let completion_receipts = decode_list(cursor, decode_completion_receipt)?;
-            Ok(NativeCallOrigin::TargetFamily {
-                boundary,
-                member,
-                target,
                 completion_claim_sources,
                 completion_receipts,
             })
@@ -1117,6 +1084,21 @@ pub(super) fn decode_signature(
         entry_claims,
         published_service_ceiling: decode_ids(cursor, ServiceId::new)?,
     })
+}
+
+#[cfg(test)]
+mod call_source_tests {
+    use super::{Cursor, FixedViewCopyDecodeError, decode_call_source};
+
+    #[test]
+    fn retired_target_family_tag_rejects_before_reading_payload() {
+        for payload in [&[3][..], &[3, 0xff, 0xff, 0xff][..]] {
+            assert_eq!(
+                decode_call_source(&mut Cursor::new(payload), true),
+                Err(FixedViewCopyDecodeError::UnknownCallSource(3)),
+            );
+        }
+    }
 }
 
 #[cfg(test)]

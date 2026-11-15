@@ -623,32 +623,8 @@ fn require_access_backing_origins(
         .iter()
         .map(|function| function.machine)
         .collect::<BTreeSet<_>>();
-    let mut selected_calls = Vec::new();
-    for operation in module
-        .machines
-        .iter()
-        .filter(|machine| reachable.contains(&machine.id))
-        .flat_map(|machine| &machine.blocks)
-        .flat_map(|block| &block.operations)
-    {
-        let terminal_psi::OperationKind::BoundaryCall { boundary: head, .. } = &operation.kind
-        else {
-            continue;
-        };
-        if selected_calls.iter().any(|(previous, _)| previous == head) {
-            continue;
-        }
-        if let Some(terminal_psi::TargetMachineCallable::Machine(member)) =
-            input.target_family_member(*head)?
-        {
-            selected_calls.push((*head, member));
-        }
-    }
-    let graph = terminal_semantics::descriptor_results::terminal_access_origin_graph(
-        module,
-        &selected_calls,
-    )
-    .ok_or_else(|| "placed RAM origin graph is incomplete".to_owned())?;
+    let graph = terminal_semantics::descriptor_results::terminal_access_origin_graph(module, &[])
+        .ok_or_else(|| "placed RAM origin graph is incomplete".to_owned())?;
     let mut origins = terminal_semantics::AccessRamOriginAnalysis::new(
         module,
         &graph,

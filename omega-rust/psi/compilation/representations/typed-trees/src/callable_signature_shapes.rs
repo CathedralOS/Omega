@@ -177,6 +177,17 @@ impl crate::TypedTrees {
         owner: SymbolHandle,
         call: crate::references::StaticArgumentCall<'_>,
     ) -> Result<&'source crate::signature::StateSignature, String> {
+        let source = self.source_call_requirement_declaration(owner, call)?;
+        Ok(self
+            .selected_requirement_invocation_signature(owner, call.application(), source)?
+            .unwrap_or(source))
+    }
+
+    fn source_call_requirement_declaration<'source>(
+        &'source self,
+        owner: SymbolHandle,
+        call: crate::references::StaticArgumentCall<'_>,
+    ) -> Result<&'source crate::signature::StateSignature, String> {
         for application in call.applications() {
             if !self
                 .expression_table

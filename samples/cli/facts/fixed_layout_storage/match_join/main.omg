@@ -1,4 +1,6 @@
-// Fact: An ordinary FixedLayout<Pair> application preserves the established Delivered fact on Pair.lo, so reading lo and subtracting 42u64 remains justified through each storage transport and execution uses the authored lo-at-8 representation.
+// Pair.lo must retain its exact Delivered value through storage transport.
+// Named casts establish the constraint and expose plain arithmetic without
+// losing its numerical fact; byte checks observe the authored field offsets.
 // Expected exit: 0
 use omega::language::core::FieldEntry;
 use omega::language::core::FieldPlan;
@@ -19,7 +21,7 @@ PairLayout satisfies FixedLayout<Pair> {
 }
 machine make() -> LayoutStorage<Pair, PairLayout> {
     let mut value: LayoutStorage<Pair, PairLayout>;
-    value.lo = 42u64;
+    value.lo = 42u64 as +Delivered;
     value.hi = 9u64;
     value
 }
@@ -29,7 +31,7 @@ machine choose(flag: bool, marker: &mut u64) -> LayoutStorage<Pair, PairLayout> 
 machine exercise(flag: bool, expected_marker: u64) crashes Trap {
     let mut marker: u64 = 0u64;
     let value: LayoutStorage<Pair, PairLayout> = choose(flag, &mut marker);
-    let difference: u64 = value.lo - 42u64;
+    let difference: u64 = (value.lo as -Delivered) - 42u64;
     let bytes: &[u8; 16] = &value as &[u8; 16];
     transition marker == expected_marker && difference == 0u64 && value.hi == 9u64 && bytes[8] == 42u8 && bytes[0] == 9u8 {
         true -> done()

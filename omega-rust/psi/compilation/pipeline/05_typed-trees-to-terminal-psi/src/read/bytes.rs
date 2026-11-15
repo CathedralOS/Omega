@@ -399,6 +399,7 @@ impl Program<'_> {
                 call_context: None,
                 kind: ExpressionKind::Strict {
                     operation: crate::body::Strict::Add,
+                    policy: None,
                     left: last,
                     right: Box::new(Expression {
                         call_context: None,
@@ -435,7 +436,9 @@ impl Program<'_> {
     ) -> Checked<Expression> {
         use typed_trees::expression::CollectionMeasure;
         let base = self.expression(machine, slots, receiver, None)?;
-        let Some(record) = self.opened(machine, base.result, super::authority::Access::Read)?
+        let Some(record) = self
+            .opened(machine, base.result, super::authority::Access::Read)?
+            .map(super::authority::Opened::record)
         else {
             return Err(refuse(
                 machine,

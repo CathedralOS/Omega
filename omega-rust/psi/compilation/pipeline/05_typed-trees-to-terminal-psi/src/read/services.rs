@@ -147,22 +147,17 @@ impl<'t> Program<'t> {
                     ));
                 }
                 // "A row names a parameter path or a requirement identity",
-                // so a bare name nothing in the program has names neither,
-                // in every program. A path, or a name something has, may
-                // name one where typing does not follow it yet.
-                Named::Unresolved
-                    if !row.name.as_str().contains(['.', ':'])
-                        && !self
-                            .typed
-                            .names_nothing_has(vec![row.name.as_str()])
-                            .is_empty() =>
-                {
+                // and typing found that nothing the row's source can see
+                // has its name, so it names neither in every program. A
+                // row whose name something visible has may name one where
+                // typing does not follow it yet.
+                Named::Undeclared => {
                     return Err(crate::reject(
                         caller,
                         crate::SourceOrigin::of(row.source_span),
                         format!(
-                            "`invokes {}` names no parameter and no requirement: a name nothing \
-                             in the program declares is an error wherever it appears",
+                            "`invokes {}` names no parameter and no requirement: a name no declaration visible \
+                             here has is an error wherever it appears",
                             row.name.as_str()
                         ),
                     ));
@@ -171,7 +166,9 @@ impl<'t> Program<'t> {
                     return Err(refuse(
                         caller,
                         Construct::Machine,
-                        Unserved::Typing("invokes names nothing this program declares"),
+                        Unserved::Typing(
+                            "invokes naming a declaration typing does not select as a requirement",
+                        ),
                     ));
                 }
             }

@@ -688,7 +688,8 @@ mod tests {
         );
         assert_eq!(
             refusal.detail,
-            "declaration holding a call selected by its receiver's type, which no pass serves yet"
+            "declaration holding a call selected by its receiver's type, which no pass serves yet \
+             while reading the signature of `holder`"
         );
         // The same declaration without the row is read like its twin.
         typed.deferred_refusals.clear();
@@ -1669,7 +1670,7 @@ mod tests {
             terminal_check_tables::RefusalReason::Violation(_)
         ));
         assert!(uncovered.detail.contains("does not cover every value"));
-        let record = StructuralTypeId::new(1).unwrap();
+        let record = authority::Opened::constructing(StructuralTypeId::new(1).unwrap());
         let pattern = |guard, head| TableDestructurePattern {
             guard,
             head,

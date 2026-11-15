@@ -862,18 +862,41 @@ impl Lowering<'_> {
         Ok(())
     }
 
-    /// `left && right` / `left || right`: the left value decides on one edge
-    /// and is itself the result there; the other edge evaluates the right
-    /// operand in its own block. Both meet at a join block whose one Boolean
-    /// parameter is the result.
+    /// A chain of one connective shares its result join. Each short-circuit
+    /// edge passes the deciding operand, so the continuing edge retains its
+    /// guard facts until the next operand is evaluated.
     pub(super) fn short_circuit(
         &mut self,
         conjunction: bool,
         left: &Expression,
         right: &Expression,
     ) -> Evaluation<Value> {
-        let decided = continuing!(self.scalar(left));
-        let evaluate_right =
+        let mut pending = vec![right, left];
+        let mut operands = std::iter::from_fn(|| {
+            while let Some(operand) = pending.pop() {
+                if let ExpressionKind::ShortCircuit {
+                    conjunction: nested,
+                    left,
+                    right,
+                } = &operand.kind
+                    && *nested == conjunction
+                {
+                    pending.extend([right.as_ref(), left.as_ref()]);
+                } else {
+                    return Some(operand);
+                }
+            }
+            None
+        });
+        let first = operands
+            .next()
+            .expect("a binary connective has a left operand");
+        let mut decided = continuing!(self.scalar(first));
+        let mut decision_source = first.source;
+        let mut operand = operands
+            .next()
+            .expect("a binary connective has a right operand");
+        let mut evaluate_right =
             self.block(SourceOrigin::Unpositioned(Unpositioned::ShortCircuitRight));
         let join = self.block(SourceOrigin::Unpositioned(Unpositioned::ShortCircuitJoin));
         let result = self.value(
@@ -884,24 +907,36 @@ impl Lowering<'_> {
             },
         );
         self.parameter(join, result, ScalarType::Boolean)?;
-        let (when_true, when_false) = if conjunction {
-            ((evaluate_right, Vec::new()), (join, vec![decided]))
-        } else {
-            ((join, vec![decided]), (evaluate_right, Vec::new()))
-        };
-        self.branch(decided, when_true, when_false, left.source)?;
-        self.enter(evaluate_right);
-        self.joining += 1;
-        let right_value = self.scalar(right);
-        self.joining -= 1;
-        // A right operand whose every path ends at a call that never returns
-        // ends that branch only: the join has the left operand's arrival.
-        if let Reached::Value(right_value) = right_value? {
-            self.jump(
-                join,
-                vec![right_value],
-                SourceOrigin::Unpositioned(Unpositioned::ShortCircuitJoin),
-            )?;
+        loop {
+            let continuing = (evaluate_right, Vec::new());
+            let short = (join, vec![decided]);
+            let (when_true, when_false) = if conjunction {
+                (continuing, short)
+            } else {
+                (short, continuing)
+            };
+            self.branch(decided, when_true, when_false, decision_source)?;
+            self.enter(evaluate_right);
+            self.joining += 1;
+            let evaluated = self.scalar(operand);
+            self.joining -= 1;
+            // A nonreturning operand ends only its continuing path.
+            let Reached::Value(value) = evaluated? else {
+                break;
+            };
+            let Some(next) = operands.next() else {
+                self.jump(
+                    join,
+                    vec![value],
+                    SourceOrigin::Unpositioned(Unpositioned::ShortCircuitJoin),
+                )?;
+                break;
+            };
+            decided = value;
+            decision_source = operand.source;
+            operand = next;
+            evaluate_right =
+                self.block(SourceOrigin::Unpositioned(Unpositioned::ShortCircuitRight));
         }
         self.enter(join);
         Ok(Reached::Value(Value::Scalar(result)))

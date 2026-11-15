@@ -911,10 +911,7 @@ pub(crate) mod block_bindings {
                     self.structural_cases.as_map(),
                     self.account.as_ref(),
                 )?;
-                let captured = admitted
-                    .get(&parameter.place)
-                    .cloned()
-                    .ok_or_else(malformed)?;
+                let captured = admitted.get(&parameter.place).cloned().ok_or(malformed())?;
                 aggregate_payload.stage(
                     self,
                     argument,
@@ -1905,10 +1902,7 @@ pub(crate) mod structural_return {
                         ..
                     }) => Some(match claim_origin {
                         crate::engine::execution::ResultClaimOrigin::CalleeReturn
-                        | crate::engine::execution::ResultClaimOrigin::CheckedProvider
-                        | crate::engine::execution::ResultClaimOrigin::TargetFamilyReturn {
-                            ..
-                        } => {
+                        | crate::engine::execution::ResultClaimOrigin::CheckedProvider => {
                             let mut active_result = result.clone();
                             active_result.claims =
                                 self.active_structural_claims(*source, &result.claims)?;
@@ -1924,38 +1918,6 @@ pub(crate) mod structural_return {
                     Some(_) => return Err(malformed()),
                     None => None,
                 };
-                if let Some(SuspendedCall {
-                    result:
-                        SuspendedCallResult::Structural {
-                            result,
-                            claim_origin:
-                                crate::engine::execution::ResultClaimOrigin::TargetFamilyReturn {
-                                    head,
-                                    member,
-                                },
-                            ..
-                        },
-                    ..
-                }) = self.call_stack.last()
-                {
-                    if *member != self.current_machine || !self.program.is_target_family_head(*head)
-                    {
-                        return Err(malformed());
-                    }
-                    if result
-                        .projected_qualifications
-                        .iter()
-                        .any(|row| !value.projected_qualifications.contains(row))
-                    {
-                        return Err(TerminalInterpretError::UnsupportedSemanticVariant(
-                            "family result projected qualification lacks transported member evidence",
-                        ));
-                    }
-                    value.qualifications.clone_from(&result.qualifications);
-                    value
-                        .projected_qualifications
-                        .clone_from(&result.projected_qualifications);
-                }
                 if let Some(SuspendedCall {
                     result:
                         SuspendedCallResult::Structural {
@@ -2076,7 +2038,7 @@ pub(crate) mod structural_return {
                 return Err(malformed());
             }
             let selected =
-                terminal_psi::find_structural_case(cases, contents.case).ok_or_else(malformed)?;
+                terminal_psi::find_structural_case(cases, contents.case).ok_or(malformed())?;
             if selected.fields.iter().any(|field| {
                 field.relevance.is_erased() || field.field_type.scalar_type().is_none()
             }) {
@@ -2092,7 +2054,7 @@ pub(crate) mod structural_return {
                     .map(crate::storage::scalar_storage::ScalarCell::read)
                     .transpose()?
                     .map(|scalar| (field.id, scalar))
-                    .ok_or_else(malformed)
+                    .ok_or(malformed())
             });
             let snapshot = TerminalScalarCaseResult::collect(
                 declaration,
@@ -2538,9 +2500,8 @@ impl TerminalExecution<'_> {
         let actual = self.scalar_value(arguments[0])?;
         crate::engine::custody::bind_boundary_arguments(&declaration.scalar_parameters, &[actual])?;
         crate::engine::custody::validate_boundary_requirements(declaration, |_| None)?;
-        if let Some(callee) = crate::engine::calls::target_families::completion_callee(
+        if let Some(callee) = crate::engine::calls::boundary_calls::completion_callee(
             &self.program,
-            self.target_machines.as_ref(),
             self.boundary_supplies.get(boundary).copied(),
             *boundary,
         )? {

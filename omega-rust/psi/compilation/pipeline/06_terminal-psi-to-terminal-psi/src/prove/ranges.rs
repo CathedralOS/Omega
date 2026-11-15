@@ -371,7 +371,7 @@ impl Prover<'_> {
                             || (right == &count && left.integer_value().is_some())
                 )
             })
-            .map(|fact| fact.proof.clone());
+            .map(|fact| fact.proof(&self.facts));
         match fixed {
             Some(fixed) => parts.push(fixed),
             None => {

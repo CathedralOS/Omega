@@ -113,7 +113,7 @@ pub(crate) mod access_views {
             let view = structural_arguments
                 .get(row.runtime_position as usize)
                 .filter(|view| view.structural_type == parameter.structural_type)
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             if occurrences.iter().any(|(previous_row, previous)| {
                 previous.view == StructuralRuntimePlace::from(view)
                     && (previous.referent != referent
@@ -139,7 +139,7 @@ pub(crate) mod access_views {
                 .zip(
                     &module
                         .machine(entry)
-                        .ok_or_else(malformed)?
+                        .ok_or(malformed())?
                         .structural_parameters,
                 )
                 .enumerate()
@@ -195,9 +195,9 @@ pub(crate) mod access_views {
                 let parameter = input_parameter(module, row)?;
                 let argument = arguments
                     .get(row.runtime_position as usize)
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 let (resolved, ram) = self.resolve_live_access_projection(argument)?;
-                let presented = values.get(&parameter.place).ok_or_else(malformed)?;
+                let presented = values.get(&parameter.place).ok_or(malformed())?;
                 if argument.access != row.access
                     || presented.structural_type != parameter.structural_type
                 {
@@ -209,7 +209,7 @@ pub(crate) mod access_views {
                         .access_view_plans
                         .iter()
                         .find(|plan| plan.carrier == ram.carrier())
-                        .ok_or_else(malformed)?;
+                        .ok_or(malformed())?;
                     if ram.selected_field.is_some()
                         || ram.presentation != resolved
                         || ram.carrier() != parameter.structural_type
@@ -439,12 +439,12 @@ pub(crate) mod byte_arrays {
                 }
                 let (index, resident) = self
                     .packed()
-                    .ok_or_else(malformed)?
+                    .ok_or(malformed())?
                     .cells()
                     .iter()
                     .enumerate()
                     .find(|(_, cell)| matches!(cell, ScalarCell::Resident { .. }))
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 let resident = resident.clone();
                 let mut retained = self.clone();
                 let account = retained.account.clone();
@@ -469,11 +469,11 @@ pub(crate) mod byte_arrays {
                 match &self.backing {
                     StructuralByteArrayBacking::Local(bytes) => {
                         Ok(crate::TerminalByteRead::contiguous(
-                            bytes.bytes().get(start..end).ok_or_else(malformed)?,
+                            bytes.bytes().get(start..end).ok_or(malformed())?,
                         ))
                     }
                     StructuralByteArrayBacking::Cells(cells) => crate::TerminalByteRead::cells(
-                        cells.cells().get(start..end).ok_or_else(malformed)?,
+                        cells.cells().get(start..end).ok_or(malformed())?,
                     ),
                 }
             }
@@ -481,10 +481,10 @@ pub(crate) mod byte_arrays {
             pub(crate) fn read(&self, index: usize) -> Result<u8, TerminalInterpretError> {
                 match &self.backing {
                     StructuralByteArrayBacking::Local(bytes) => {
-                        bytes.get(index).copied().ok_or_else(malformed)
+                        bytes.get(index).copied().ok_or(malformed())
                     }
                     StructuralByteArrayBacking::Cells(cells) => {
-                        scalar_byte(&cells.element(index)?.ok_or_else(malformed)?)
+                        scalar_byte(&cells.element(index)?.ok_or(malformed())?)
                     }
                 }
             }
@@ -530,10 +530,10 @@ pub(crate) mod byte_arrays {
             > {
                 match &self.backing {
                     StructuralByteArrayBacking::Local(bytes) => {
-                        Ok((byte_scalar(*bytes.get(index).ok_or_else(malformed)?)?, None))
+                        Ok((byte_scalar(*bytes.get(index).ok_or(malformed())?)?, None))
                     }
                     StructuralByteArrayBacking::Cells(cells) => {
-                        let cell = cells.cell(index).ok_or_else(malformed)?;
+                        let cell = cells.cell(index).ok_or(malformed())?;
                         Ok((
                             cell.read()?,
                             match cell {
@@ -643,7 +643,7 @@ pub(crate) mod byte_arrays {
                         if start > end || end > limit - base {
                             return Err(malformed());
                         }
-                        let values = self.frame_array(depth, place).ok_or_else(malformed)?;
+                        let values = self.frame_array(depth, place).ok_or(malformed())?;
                         TerminalByteRead::cells(&values.cells()[base + start..base + end])
                     }
                 }
@@ -704,16 +704,16 @@ pub(crate) mod byte_arrays {
                         terminal_psi::StructuralTypeShape::PrimitiveScalar(_) => 1,
                         _ => {
                             terminal_semantics::scalar_array_leaf_shape(types.values(), element)
-                                .ok_or_else(malformed)?
+                                .ok_or(malformed())?
                                 .1
                         }
                     };
                     offset = offset
                         .checked_add(
-                            usize::try_from(index.checked_mul(child_count).ok_or_else(malformed)?)
+                            usize::try_from(index.checked_mul(child_count).ok_or(malformed())?)
                                 .map_err(|_| malformed())?,
                         )
-                        .ok_or_else(malformed)?;
+                        .ok_or(malformed())?;
                     selected = element;
                 }
                 let length =
@@ -724,7 +724,7 @@ pub(crate) mod byte_arrays {
                 let end = offset
                     .checked_add(length)
                     .filter(|end| *end <= array.len())
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 Ok((offset, end))
             }
 
@@ -764,12 +764,12 @@ pub(crate) mod byte_arrays {
                         let absolute = start
                             .checked_add(index)
                             .filter(|index| *index < end)
-                            .ok_or_else(malformed)?;
+                            .ok_or(malformed())?;
                         let value = self
                             .frame_array(depth, place)
-                            .ok_or_else(malformed)?
+                            .ok_or(malformed())?
                             .element(absolute)?
-                            .ok_or_else(malformed)?;
+                            .ok_or(malformed())?;
                         scalar_byte(&value)
                     }
                 }
@@ -785,17 +785,17 @@ pub(crate) mod byte_arrays {
                     ArrayStorageHome::Runtime => self
                         .structural_byte_storage
                         .get_mut(&storage.referent)
-                        .ok_or_else(malformed)?
+                        .ok_or(malformed())?
                         .replace_byte(index, byte),
                     ArrayStorageHome::Frame { depth, place, .. } => {
                         let (start, end) = self.frame_byte_array_window(storage)?;
                         let absolute = start
                             .checked_add(index)
                             .filter(|index| *index < end)
-                            .ok_or_else(malformed)?;
+                            .ok_or(malformed())?;
                         let array = frame_field_mut!(self, depth, scalar_array_values)
                             .backing_mut(&place)
-                            .ok_or_else(malformed)?;
+                            .ok_or(malformed())?;
                         let scalar_type =
                             IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| malformed())?;
                         array.set_element(
@@ -837,7 +837,7 @@ pub(crate) mod byte_arrays {
                         return Err(malformed());
                     }
                     return Ok(ByteSequenceView::new(ByteSequenceStorage::from_values(
-                        end.checked_sub(start).ok_or_else(malformed)?,
+                        end.checked_sub(start).ok_or(malformed())?,
                         (start..end).map(|index| array.read(index)),
                         self.account.as_ref(),
                     )?));
@@ -852,7 +852,7 @@ pub(crate) mod byte_arrays {
                 let values = self
                     .frame_array(depth, place)
                     .and_then(|array| array.cells().get(base + start..base + end))
-                    .ok_or_else(malformed)?
+                    .ok_or(malformed())?
                     .iter()
                     .map(|cell| scalar_byte(&cell.read()?));
                 Ok(ByteSequenceView::new(ByteSequenceStorage::from_values(
@@ -1041,9 +1041,9 @@ pub(crate) mod byte_arrays {
                 value.structural_type,
                 &value.qualifications,
             )
-            .ok_or_else(malformed)?;
+            .ok_or(malformed())?;
             let required = terminal_semantics::byte_parameter_predicates_in(domains, parameter)
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             if !original.implies(required)
                 || (argument.access == StructuralAccess::MutableBorrow
                     && !required.implies(original))
@@ -1072,7 +1072,7 @@ pub(crate) mod byte_arrays {
                 let parameter = machine
                     .structural_parameters
                     .get(argument.argument_index as usize)
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 if !matches!(
                     parameter.access,
                     StructuralAccess::Owned | terminal_psi::borrowed_access_pair_pattern!()
@@ -1096,9 +1096,9 @@ pub(crate) mod byte_arrays {
                     root.structural_type,
                     &argument.path,
                 )
-                .ok_or_else(malformed)?;
-                let length = byte_array_length(&self.structural_types(), array_type)
-                    .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
+                let length =
+                    byte_array_length(&self.structural_types(), array_type).ok_or(malformed())?;
                 if argument.bytes.len() as u128 != u128::from(length) {
                     return Err(malformed());
                 }
@@ -1485,7 +1485,7 @@ pub(crate) mod byte_arrays {
                         .iter()
                         .chain(machine.block_structural_parameters())
                         .find(|source| source.place == argument.place)
-                        .ok_or_else(malformed)?;
+                        .ok_or(malformed())?;
                     let types = self.structural_types();
                     if source.structural_type != value.structural_type
                         || source.access != StructuralAccess::SharedBorrow
@@ -1510,7 +1510,7 @@ pub(crate) mod byte_arrays {
                         argument,
                         parameter,
                     )
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                     let ByteSequenceBinding::Immutable(bytes) = binding else {
                         return Err(malformed());
                     };
@@ -1545,7 +1545,7 @@ pub(crate) mod byte_arrays {
                         .iter()
                         .chain(machine.block_structural_parameters())
                         .find(|source| source.place == argument.place)
-                        .ok_or_else(malformed)?;
+                        .ok_or(malformed())?;
                     let types = self.structural_types();
                     if source.structural_type != value.structural_type
                         || source.access != StructuralAccess::MutableBorrow
@@ -1571,7 +1571,7 @@ pub(crate) mod byte_arrays {
                         argument,
                         parameter,
                     )
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                     let ByteSequenceBinding::Immutable(bytes) = borrowed else {
                         return Err(malformed());
                     };
@@ -1648,7 +1648,7 @@ pub(crate) mod byte_arrays {
                 return Err(malformed());
             }
             let source = terminal_semantics::structural_argument_source(machine, argument.place, 0)
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             if source.structural_type != root_type {
                 return Err(malformed());
             }
@@ -1659,7 +1659,7 @@ pub(crate) mod byte_arrays {
                 argument,
                 parameter,
             )
-            .ok_or_else(malformed)?;
+            .ok_or(malformed())?;
             let backing_argument = StructuralArgument {
                 place: argument.place,
                 path: window.backing_path.to_vec(),
@@ -1684,7 +1684,7 @@ pub(crate) mod byte_arrays {
                     window
                         .offset
                         .checked_add(window.length)
-                        .ok_or_else(malformed)?,
+                        .ok_or(malformed())?,
                 )
                 .map_err(|_| malformed())?;
                 let descriptor = self
@@ -1773,12 +1773,11 @@ pub(crate) mod case_membership {
                 if contents.structural_type != parent_type || contents.case != case {
                     return Err(malformed());
                 }
-                let selected =
-                    terminal_psi::find_structural_case(cases, case).ok_or_else(malformed)?;
+                let selected = terminal_psi::find_structural_case(cases, case).ok_or(malformed())?;
                 Ok((&selected.fields, StructuralFieldNamespace::CasePayload))
             } else {
                 Ok((
-                    declaration.shape.direct_fields().ok_or_else(malformed)?,
+                    declaration.shape.direct_fields().ok_or(malformed())?,
                     StructuralFieldNamespace::Member,
                 ))
             }
@@ -1845,7 +1844,7 @@ pub(crate) mod case_membership {
                 }
                 actual = Some(candidate);
             }
-            actual.ok_or_else(malformed)
+            actual.ok_or(malformed())
         }
 
         pub(crate) fn actual_storage_type(
@@ -1899,17 +1898,16 @@ pub(crate) mod case_membership {
                             return Err(malformed());
                         }
                         selected_case = Some(
-                            terminal_psi::find_structural_case(cases, *case)
-                                .ok_or_else(malformed)?,
+                            terminal_psi::find_structural_case(cases, *case).ok_or(malformed())?,
                         );
                         emit(CanonicalStructuralPathSegment::Case(*case));
                     }
                     StructuralPathSegment::Field(identity) => {
                         let fields = match selected_case.take() {
                             Some(case) => case.fields.as_slice(),
-                            None => declaration.shape.direct_fields().ok_or_else(malformed)?,
+                            None => declaration.shape.direct_fields().ok_or(malformed())?,
                         };
-                        let field = field_by_identity(fields, *identity).ok_or_else(malformed)?;
+                        let field = field_by_identity(fields, *identity).ok_or(malformed())?;
                         let Some(child) = field.field_type.as_structural() else {
                             return Err(malformed());
                         };
@@ -2004,7 +2002,7 @@ pub(crate) mod case_membership {
                         let contents = self
                             .structural_cases
                             .get(&StructuralRuntimePlace::from(&leaf))
-                            .ok_or_else(malformed)?;
+                            .ok_or(malformed())?;
                         if contents.structural_type != leaf.structural_type
                             || contents.case != *case
                         {
@@ -2015,7 +2013,7 @@ pub(crate) mod case_membership {
                             cases
                                 .iter()
                                 .find(|candidate| candidate.id == *case)
-                                .ok_or_else(malformed)?
+                                .ok_or(malformed())?
                                 .fields
                                 .as_slice(),
                         ));
@@ -2038,7 +2036,7 @@ pub(crate) mod case_membership {
                             .find(|candidate| {
                                 candidate.id == *field && !candidate.relevance.is_erased()
                             })
-                            .ok_or_else(malformed)?;
+                            .ok_or(malformed())?;
                         let Some(child) = field.field_type.as_structural() else {
                             return Err(malformed());
                         };
@@ -2189,7 +2187,7 @@ pub(crate) mod case_membership {
         for (position, case) in selected {
             let prefix = &path[..position];
             let selected_type = resolve_structural_path_type(types, structural_type, prefix)?;
-            let stored = membership(prefix)?.ok_or_else(malformed)?;
+            let stored = membership(prefix)?.ok_or(malformed())?;
             let declaration = types.declaration(&selected_type)?;
             let (StructuralTypeShape::Sum {
                 cases: declared_cases,
@@ -2876,7 +2874,7 @@ pub(crate) mod scalar_fields {
                 root.structural_type,
                 path,
             )
-            .ok_or_else(malformed)?;
+            .ok_or(malformed())?;
             let mut parent = StructuralRuntimePlace::from(root);
             parent.path.extend(carrier.path);
             if !values.contains_key(&StructuralScalarRuntimeField::member(parent, field)) {
