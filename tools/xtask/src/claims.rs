@@ -308,6 +308,25 @@ fn append_note(
 }
 
 fn fetch_snapshot(repo: &Path) -> Result<(String, ClaimsRecord), u8> {
+    let version = remote_version(repo)?;
+    if version.is_empty() {
+        return Ok((version, ClaimsRecord::default()));
+    }
+    if snapshot_is_cached(repo, &version)? {
+        return read_record(repo, &version).map(|record| (version, record));
+    }
+    // A source fetch can hold admission for much longer than a claim update.
+    // Sample the head again after that wait, so the lease does not age in line.
+    crate::repository::with_git_fetch(repo, |fetch| Ok(fetch_snapshot_admitted(repo, fetch)))
+        .map_err(fetch_error)?
+}
+
+fn fetch_error(error: String) -> u8 {
+    eprintln!("claims: {error}");
+    1
+}
+
+fn remote_version(repo: &Path) -> Result<String, u8> {
     let ls = Command::new("git")
         .args(["ls-remote", "origin", CLAIMS_REF])
         .current_dir(repo)
@@ -322,20 +341,24 @@ fn fetch_snapshot(repo: &Path) -> Result<(String, ClaimsRecord), u8> {
         return Err(1);
     }
     let stdout = String::from_utf8_lossy(&ls.stdout);
-    let version = stdout
+    Ok(stdout
         .split_whitespace()
         .next()
         .unwrap_or("")
         .trim()
-        .to_owned();
+        .to_owned())
+}
+
+fn fetch_snapshot_admitted(repo: &Path, fetch: &mut Command) -> Result<(String, ClaimsRecord), u8> {
+    let version = remote_version(repo)?;
     if version.is_empty() {
         return Ok((String::new(), ClaimsRecord::default()));
     }
-    let record = fetch_record(repo, &version)?;
+    let record = fetch_record_admitted(repo, &version, fetch)?;
     Ok((version, record))
 }
 
-fn fetch_record(repo: &Path, version: &str) -> Result<ClaimsRecord, u8> {
+fn snapshot_is_cached(repo: &Path, version: &str) -> Result<bool, u8> {
     // Worktrees share immutable objects. Locally written snapshots need no
     // network fetch or shared fetch lock before the compare-and-swap push.
     let cached = Command::new("git")
@@ -349,27 +372,45 @@ fn fetch_record(repo: &Path, version: &str) -> Result<ClaimsRecord, u8> {
             eprintln!("claims: cannot inspect local snapshot {version}: {error}");
             1u8
         })?;
+    Ok(cached.success())
+}
+
+fn fetch_record_admitted(
+    repo: &Path,
+    version: &str,
+    fetch: &mut Command,
+) -> Result<ClaimsRecord, u8> {
     // Fetch the exact advertised snapshot: another writer may move the ref
     // between ls-remote and fetch. Reading a different or empty record under
     // the advertised lease could overwrite other sessions' claims.
     // Only the newest record matters: each commit's message is the whole
     // registry, and the ref's history is tens of thousands of such commits,
     // so a full fetch can exhaust a session's memory.
-    if !cached.success() {
-        let fetch = crate::repository::with_git_fetch(repo, |command| {
-            command
-                .args(["-q", "--depth=1", "origin", version])
-                .status()
-        })
-        .map_err(|error| {
-            eprintln!("claims: {error}");
-            1u8
-        })?;
-        if !fetch.success() {
+    if !snapshot_is_cached(repo, version)? {
+        let status = fetch
+            .args(["-q", "--depth=1", "origin", version])
+            .status()
+            .map_err(|error| fetch_error(format!("cannot fetch snapshot {version}: {error}")))?;
+        if !status.success() {
             eprintln!("claims: cannot fetch registry snapshot {version}");
             return Err(1);
         }
     }
+    read_record(repo, version)
+}
+
+#[cfg(test)]
+fn fetch_record(repo: &Path, version: &str) -> Result<ClaimsRecord, u8> {
+    if snapshot_is_cached(repo, version)? {
+        return read_record(repo, version);
+    }
+    crate::repository::with_git_fetch(repo, |fetch| {
+        Ok(fetch_record_admitted(repo, version, fetch))
+    })
+    .map_err(fetch_error)?
+}
+
+fn read_record(repo: &Path, version: &str) -> Result<ClaimsRecord, u8> {
     let show = Command::new("git")
         .args(["show", "-s", "--format=%B", version])
         .current_dir(repo)
@@ -960,6 +1001,61 @@ mod tests {
             record.claims,
             replacement["claims"].as_array().unwrap().to_vec()
         );
+    }
+
+    #[test]
+    fn an_uncached_snapshot_uses_the_head_observed_after_fetch_admission() {
+        let fixture = RegistryFixture::new();
+        let observed = fixture.publish(
+            &json!({"protocol": PROTOCOL,
+            "claims": [{"ticket": "old"}], "notes": []})
+            .to_string(),
+        );
+        assert_eq!(remote_version(&fixture.reader).unwrap(), observed);
+        assert!(!snapshot_is_cached(&fixture.reader, &observed).unwrap());
+        let (latest, snapshot) = crate::repository::with_git_fetch(&fixture.reader, |fetch| {
+            // Another writer may publish while this reader waits for admission.
+            let latest = fixture.publish(
+                &json!({"protocol": PROTOCOL,
+                "claims": [{"ticket": "new", "unknown": [1, 2]}], "notes": []})
+                .to_string(),
+            );
+            Ok((latest, fetch_snapshot_admitted(&fixture.reader, fetch)))
+        })
+        .unwrap();
+        let (version, record) = snapshot.unwrap();
+        assert_eq!(version, latest);
+        assert_ne!(version, observed);
+        assert_eq!(record.claims, [json!({"ticket": "new", "unknown": [1, 2]})]);
+        // A newer malformed head is a refusal, not a reason to reuse the old body.
+        let snapshot = crate::repository::with_git_fetch(&fixture.reader, |fetch| {
+            fixture.publish("malformed newer registry");
+            Ok(fetch_snapshot_admitted(&fixture.reader, fetch))
+        })
+        .unwrap();
+        assert!(snapshot.is_err());
+    }
+
+    #[test]
+    fn a_cached_snapshot_does_not_wait_for_fetch_admission() {
+        let fixture = RegistryFixture::new();
+        let version = fixture.publish(&serde_json::to_string(&ClaimsRecord::default()).unwrap());
+        fetch_record(&fixture.reader, &version).unwrap();
+        let snapshot = std::thread::scope(|threads| {
+            crate::repository::with_git_fetch(&fixture.reader, |_| {
+                let (send, receive) = std::sync::mpsc::channel();
+                let reader = &fixture.reader;
+                threads.spawn(move || {
+                    let _ = send.send(fetch_snapshot(reader));
+                });
+                Ok(receive.recv_timeout(Duration::from_secs(5)))
+            })
+            .unwrap()
+        })
+        .expect("cached reads finish while fetch admission is held")
+        .unwrap();
+        assert_eq!(snapshot.0, version);
+        assert_eq!(snapshot.1, ClaimsRecord::default());
     }
 
     #[test]
