@@ -73,6 +73,27 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### Stage 06 refusal controls omit the declaration context now emitted by Stage 05
+- Category: tests that pin the bug
+- Where: [example diagnostic assertions](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/address_bounds.rs)
+- Saw: On macOS arm64 at production base `af9510104ca63735a02adea551f7e50332e461c9` with the test-constructor compatibility repair, the Stage 06 suite reports 70 failures. In 46 of those, the exact actual text is the old expected reason followed by one or more `while reading …` contexts. For example, the missing-`embed` control now names the signature of `sized`.
+- Cost: The red diagnostic assertions obscure independent failures. Pin the original reason and its appropriate declaration context. Attribute the remaining failures separately.
+- Reported: 2026-11-14, Codex, while restoring downstream checker test compilation
+
+### Stored-reference field tests stop at field selection before checking custody
+- Category: tests that pin the bug
+- Where: [Stage 06 stored-reference fixtures](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/stored_references.rs)
+- Saw: At production base `af9510104ca` with the test-constructor compatibility repair, `a_store_through_a_stored_reference_changes_the_original_cell`, `a_record_holding_a_reference_is_passed_on_as_an_owned_argument`, and other stored-reference fixtures fail with `typing member is not a field of its receiver's data type`.
+- Cost: Positive programs and their rejection controls cannot reach the original-cell, ownership or loan checks. Trace exact field identity through the referent and preserve the programs and their custody oracles.
+- Reported: 2026-11-14, Codex, while restoring downstream checker test compilation on macOS arm64
+
+### An indexed read from a lent record cannot retain its scalar qualification
+- Category: knowledge crossing a boundary
+- Where: [Stage 06 runtime indexed element controls](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/runtime_indexed_elements.rs)
+- Saw: At production base `af9510104ca` with the test-constructor compatibility repair, the read/write acceptance test expects `accepted` and receives `MalformedStructuralFoundation("ordinary scalar operation cannot establish a declared domain")` from scalar-qualification validation.
+- Cost: The ordinary indexed-element route cannot show that a value taken from lent storage keeps its declared scalar qualification. Trace the selected array element type through the emitted operation and its validator before changing the fixture.
+- Reported: 2026-11-14, Codex, while restoring downstream checker test compilation on macOS arm64
+
 ### The macOS entry adapter exhausts proof search before running a Unit program
 - Category: verifying costs more than writing
 - Where: [macOS arm64 entry Calling policy](source/library/std/targets/macos_arm64/entry.omg#L38), `physical_indices`
@@ -142,13 +163,6 @@ framework or a list of features that remain unimplemented.
 - Saw: `selected_implementation_receipt` filters all of `machine_specializations` for the one receipt of an instance, once per dispatched call read by stage 05, proof scope and build-time evaluation. Stage 04 application lookup and the repeated scan in `source_call_requirement_signature` are indexed or removed already.
 - Cost: D dispatched calls over S receipts cost D*S symbol comparisons. A carried instance-to-receipt index has to survive `machine_specializations` being a public `Vec` that declaration projection retains and tests mutate, so it needs one stage-owned construction point rather than a cache. Keep the missing/ambiguous/stale refusals.
 - Reported: 2026-11-14, Claude Code, while indexing stage 04 generated applications; structural bound, not a benchmark
-
-### Logical-module discovery discards a full parse that source admission repeats
-- Category: re-deriving
-- Where: [logical inventory parsing](omega-rust/omega/packages/package-compilation/src/source/source_imports/logical.rs#L185), [inventory output](omega-rust/omega/packages/package-compilation/src/source/source_imports/logical.rs#L211), [selected-source parsing](omega-rust/omega/packages/package-compilation/src/source/source_assembly.rs#L949)
-- Saw: discovery runs the ordinary lexer/parser over the owner's eligible captured files, retains only each path and module name, and drops the syntax. Selected files are then parsed again after admission; source reselection also parses under fresh consumer coordinates. Those fresh coordinates protect source ownership and selection ledgers, but the syntax work is repeated over unchanged bytes.
-- Cost: Selected files pay for syntax construction twice. Retain immutable syntax and a module/import index within the invocation, separately from semantic owner, scope, stratum and bindings. Pin parse counts, distinct Build/Product identities, changed-input behavior and diagnostic locations. Release unused discovery syntax when ownership permits and measure retained memory against avoided parsing; do not add a persistent cache. See the [draft syntax retention design](wiki/drafts/designs/compiler_work_ownership.md#actionable-repair-references).
-- Reported: 2026-11-14, Codex, while comparing Squalr-inspired pipeline proposals at `c445e89a1eead`
 
 ### Completing selected bodies copies the retained typed program
 - Category: re-deriving

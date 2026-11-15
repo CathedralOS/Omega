@@ -732,6 +732,29 @@ impl<T> Arena<T> {
     }
 }
 
+impl<T> Arena<T> {
+    /// Moves every row of a never-rewritten arena to `generation`, visiting
+    /// each row so the caller can move the handles it stores with it. An
+    /// arena whose slots were freed or reused keeps per-slot generations that
+    /// no single move can rewrite, so it is refused.
+    pub fn relocate_fresh_generation(
+        &mut self,
+        generation: u32,
+        visit: impl FnMut(&mut T),
+    ) -> Result<(), &'static str> {
+        if generation == 0 {
+            return Err("arena generation must be nonzero");
+        }
+        if !self.fresh || !self.implicit_slot_metadata {
+            return Err("arena rows were rewritten after they were appended");
+        }
+        self.bump_rewrite_revision();
+        self.fresh_generation = generation;
+        self.items.iter_mut().for_each(visit);
+        Ok(())
+    }
+}
+
 impl<T: Default> Arena<T> {
     #[inline]
     fn append_slot_metadata(&mut self) {

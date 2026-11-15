@@ -117,6 +117,7 @@ fn lower_ranked(
     let positive = expression(
         ExpressionKind::Strict {
             operation: Strict::Greater,
+            policy: None,
             left: Box::new(slot(0, u32_type())),
             right: Box::new(unsigned(0)),
         },

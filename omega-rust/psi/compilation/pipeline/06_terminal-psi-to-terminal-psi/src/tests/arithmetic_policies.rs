@@ -48,6 +48,7 @@ fn operate(
     of(
         ExpressionKind::Strict {
             operation,
+            policy: result.policy(),
             left: Box::new(left),
             right: Box::new(right),
         },
