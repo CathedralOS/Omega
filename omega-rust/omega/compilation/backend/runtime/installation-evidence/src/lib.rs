@@ -44,10 +44,6 @@ use std::collections::BTreeSet;
 pub struct InstalledArtifactOccurrenceDigest([u8; 32]); // Collision-resistant SHA-256 commitment to one exact installed executable occurrence.
 
 impl InstalledArtifactOccurrenceDigest {
-    pub const fn from_sha256(digest: [u8; 32]) -> Self {
-        Self(digest)
-    }
-
     pub const fn as_bytes(&self) -> &[u8; 32] {
         &self.0
     }

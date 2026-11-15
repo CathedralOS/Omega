@@ -74,14 +74,6 @@ impl<'request> PreparationRequest<'request> {
         self
     }
 
-    pub const fn with_opaque_representation_selections(
-        mut self,
-        selections: &'request [OpaqueRepresentationSelection],
-    ) -> Self {
-        self.opaque_representation_selections = selections;
-        self
-    }
-
     pub const fn with_wire_compatibility_demands(
         mut self,
         demands: &'request [language_semantics::wire::WireCompatibilityDemand],

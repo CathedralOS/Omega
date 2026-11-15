@@ -360,34 +360,6 @@ impl NormalizedForeignCallBinding {
         }
     }
 
-    pub fn symbolic_import(
-        &self,
-    ) -> Option<(
-        target::NormalizedImportLocatorRef<'_>,
-        &task_plans::AdmittedSameStackContribution,
-    )> {
-        match &self.mechanism {
-            NormalizedForeignCallMechanism::Import {
-                locator,
-                same_stack_contribution,
-            } => Some((
-                target::NormalizedImportLocatorRef::Foreign(locator),
-                same_stack_contribution,
-            )),
-            NormalizedForeignCallMechanism::Component {
-                locator,
-                same_stack_contribution,
-                ..
-            } => Some((
-                target::NormalizedImportLocatorRef::Component(locator),
-                same_stack_contribution,
-            )),
-            NormalizedForeignCallMechanism::SystemCall(_)
-            | NormalizedForeignCallMechanism::HostedImport { .. }
-            | NormalizedForeignCallMechanism::Table { .. } => None,
-        }
-    }
-
     pub fn import_locator(&self) -> Option<target::NormalizedImportLocatorRef<'_>> {
         match &self.mechanism {
             NormalizedForeignCallMechanism::Import { locator, .. }

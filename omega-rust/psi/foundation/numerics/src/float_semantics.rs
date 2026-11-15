@@ -183,16 +183,6 @@ impl FloatMeaning {
         self.to_exact().to_f64()
     }
 
-    pub fn to_interpreter_value(&self, format: FloatFormat) -> f64 {
-        if format == FloatFormat::BINARY32 {
-            f64::from(self.to_f32())
-        } else if format == FloatFormat::BINARY64 {
-            self.to_f64()
-        } else {
-            panic!("unsupported floating-point format record: {format:?}")
-        }
-    }
-
     pub fn is_finite(&self) -> bool {
         matches!(self, Self::FiniteNonZero(_) | Self::Zero { .. })
     }
@@ -719,7 +709,6 @@ fn correctly_rounded_square_root_bits(
 
 pub const FLOAT_SEMANTICS_CATALOG_VERSION: u16 = 2;
 pub const FLOAT_SEMANTICS_NAMESPACE: &str = "FloatSemantics";
-pub const FLOAT_FORMAT_CORE_SOURCE: &str = "float_format.omg";
 const FLOAT_SEMANTICS_CONTRACT_DOMAIN: &[u8] = b"psi-float-semantics-contract\0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

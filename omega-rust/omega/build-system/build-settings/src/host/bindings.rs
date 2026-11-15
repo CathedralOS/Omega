@@ -271,15 +271,6 @@ impl TerminalBuildBindingHost {
         }
     }
 
-    pub fn into_executed(self: Arc<Self>) -> Result<Vec<ExecutedBuildSelection>, String> {
-        let host = Arc::try_unwrap(self)
-            .map_err(|_| "Build bindings still have live adapters".to_owned())?;
-        host.state
-            .into_inner()
-            .map_err(|_| "Build binding activation lock was poisoned".to_owned())?
-            .take_executed()
-    }
-
     pub(crate) fn take_executed(&self) -> Result<Vec<ExecutedBuildSelection>, String> {
         lock_state(&self.state)?.take_executed()
     }
