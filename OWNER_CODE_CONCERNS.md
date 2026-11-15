@@ -101,13 +101,6 @@ framework or a list of unimplemented features.
 - Cost: The early checked computation has no selected provider. Carry the symbolic extent into the existing checked scalar application and target-closure path so the request retains its exact selected realization, result and proof. Keep the original layout query, bound and invalid twin.
 - Reported: 2026-11-15, Codex, while restoring the exact historical layout input inventory. Narrowed after the target-independent field extent ran and reopened.
 
-### Two package-review probes use retired source declarations
-- Category: zombie machinery
-- Where: [qualified recursion](tests/fixtures/pass/calls/machine_self_call_recursion_compile/main.omg#L13), [dynamic slot](tests/fixtures/pass/traits/runtime_dyn_slot_metadata_exit/main.omg#L17)
-- Saw: With both kept paths on `8329cdc221e`, the package custody-and-budget witness refuses a data-qualified machine at line 13, column 9. The slot metadata witness rejects `dyn` at line 17, column 19.
-- Cost: The first probe cannot test the exact accepted package and byte limit. The second cannot recover its checked returned-borrow origin or `Utf8` precondition. Establish current source forms for the original behaviors before applying the unchanged review assertions.
-- Reported: 2026-11-15, Codex, while reconnecting the package-review fixture paths.
-
 ### Installation-bound reach stops before the provider union
 - Category: knowledge crossing a boundary
 - Where: [staggered provider fixture](tests/fixtures/pass/providers/staggered_installation_reach_exit/main.omg), [union and review checks](omega-rust/omega/compilation/compiler/tests/package_review.rs#L83)
