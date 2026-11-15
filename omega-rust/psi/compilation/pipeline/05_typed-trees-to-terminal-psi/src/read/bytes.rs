@@ -399,6 +399,7 @@ impl Program<'_> {
                 call_context: None,
                 kind: ExpressionKind::Strict {
                     operation: crate::body::Strict::Add,
+                    policy: None,
                     left: last,
                     right: Box::new(Expression {
                         call_context: None,

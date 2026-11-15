@@ -73,12 +73,19 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
-### A suffixed trapping operation is refused as a qualified value
-- Category: knowledge crossing a boundary
-- Where: [Stage 05 suffixed expression](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/expressions.rs#L1219), [qualification lowering](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/qualifications.rs#L448), [route controls](omega-rust/omega/compilation/compiler/tests/route_probe.rs#L187)
-- Saw: `mbx test -p compiler --locked --test route_probe trapping_primitives` at `f208d178cfd` plus the exact #3270 production patch fails both #3204 controls. The published add is `not-supported`, and the runtime witness stops at `type trapping arithmetic policy qualification` before execution. The reader requalifies plain operands to route the suffix through ordinary policy operations, and qualification lowering tries to publish those temporary types as value domains.
-- Cost: Plain suffixed programs are blocked by a value-qualification support limit even though the operation and crash predicate have implementations. Carry the operation policy through lowering independently of an authored value qualification and restore both route controls, including the original overflow trap. Full Trapping-domain support is tracked under OPERATION-ARITHMETIC-POLICY.
-- Reported: 2026-11-14, Codex, while validating the Stage 05 build repair on macOS arm64
+### The macOS entry adapter exhausts proof search before running a Unit program
+- Category: verifying costs more than writing
+- Where: [macOS arm64 entry Calling policy](source/library/std/targets/macos_arm64/entry.omg#L38), `physical_indices`
+- Saw: On macOS arm64, the compiler built from clean `a70ae5ad39e56fd0b94f412321050e7b5c891361` exits 200 on `omega run --both` for a plain Unit `main` with the trapping fixture's unchanged hosted Build. The bundled Calling policy reports exhausted bounded disjunction search for operation safety in `physical_indices`, before either engine runs.
+- Cost: Hosted native acceptance can stop in the standard library independently of the program being checked. Trace the conjunction of array-index bounds and preserve each index guard and its invalid control when repairing the proof path. Other targets were unmeasured.
+- Reported: 2026-11-14, Codex, while validating native execution of suffixed arithmetic
+
+### Stage 05 refusal tests expect diagnostics without their declaration context
+- Category: tests that pin the bug
+- Where: [requirement body test](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/calls_visibility_tests.rs#L274), [demanded signature test](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read.rs#L672)
+- Saw: On macOS arm64 at clean base `a70ae5ad39e56fd0b94f412321050e7b5c891361`, the Stage 05 unit suite fails these two exact-message assertions. The actual refusal adds the body of `Raw::read` or the signature of `holder` to the original reason.
+- Cost: The unit suite stays red while dropping coverage for declaration context. Pin the reason and the correct contextual owner for both refusals.
+- Reported: 2026-11-14, Codex, while validating suffixed operation selection
 
 ### The target-body reachability policy has no compiler caller
 - Category: zombie machinery
