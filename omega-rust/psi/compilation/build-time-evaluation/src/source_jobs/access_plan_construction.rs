@@ -134,27 +134,7 @@ fn reflected_schema(
     invocation_target: InvocationTarget<'_>,
     accounting: &mut SourceCompletionAccounting,
 ) -> crate::MeasuredEvaluation<BuildTimeValue> {
-    let requester = typed
-        .realized_machine_named(requester_name)
-        .expect("actual source query author")
-        .symbol;
-    let mut calls = typed
-        .expression_table
-        .iter_expressions()
-        .filter_map(|(expression, node)| {
-            let ExpressionNode::Call(call) = node else {
-                return None;
-            };
-            (typed_trees::references::StaticArgumentCall::Expression(expression, call)
-                .lexical_owner(typed)
-                == requester)
-                .then_some(expression)
-        });
-    let expression = calls.next().expect("actual retained schema query");
-    assert!(
-        calls.next().is_none(),
-        "one exact request in the source query author"
-    );
+    let (requester, expression) = query_call(typed, requester_name);
     let call = typed
         .expression_table
         .call_node(expression)
@@ -411,6 +391,235 @@ fn ordinary_lifetime_invocation_keeps_schema_images_and_refuses_local_escape() {
         accounting.receipts().len(),
         before,
         "no evaluation of the escaping local borrow"
+    );
+    accounting.validate_charges().unwrap();
+}
+
+fn last_receipt(
+    accounting: &SourceCompletionAccounting,
+) -> std::sync::Arc<crate::PureTerminalEvaluationReceipt> {
+    let Some(crate::PureEvaluationRecord::Invocation(receipt)) = accounting.receipts().last()
+    else {
+        panic!("the actual checked invocation has its own receipt")
+    };
+    receipt.clone()
+}
+
+fn query_call(
+    typed: &typed_trees::TypedTrees,
+    name: &str,
+) -> (
+    symbols::SymbolHandle,
+    typed_trees::expression::ExpressionHandle,
+) {
+    let author = typed.realized_machine_named(name).unwrap().symbol;
+    let mut expressions = typed
+        .expression_table
+        .iter_expressions()
+        .filter_map(|(handle, node)| {
+            let ExpressionNode::Call(call) = node else {
+                return None;
+            };
+            (typed_trees::references::StaticArgumentCall::Expression(handle, call)
+                .lexical_owner(typed)
+                == author)
+                .then_some(handle)
+        });
+    let call = expressions
+        .next()
+        .expect("the source author owns its query");
+    assert!(expressions.next().is_none(), "one exact declaration query");
+    (author, call)
+}
+
+fn field_mut<'a>(value: &'a mut BuildTimeValue, name: &str) -> &'a mut BuildTimeValue {
+    let BuildTimeValue::Struct { fields, .. } = value else {
+        panic!("record data")
+    };
+    &mut fields.iter_mut().find(|(key, _)| key == name).unwrap().1
+}
+
+// This is ordinary checked plan construction, not a selected policy call. It
+// exercises the semantic decoder with real descriptors before any authority
+// consumer exists, and checks that a genuine record type cannot bless bad data.
+#[test]
+fn actual_access_plan_normalization_preserves_rules_and_authenticates_descriptions() {
+    let typed = typed_source(SOURCE);
+    let prepared = PreparedBuildMachineProgram::prepare(&typed, None).unwrap();
+    let facts = facts();
+    let mut accounting = SourceCompletionAccounting::default();
+    let private_query = typed
+        .realized_machine_named("inaccessible_cell_field")
+        .unwrap()
+        .symbol;
+    let error = prepared
+        .entry(private_query, private_query, &[])
+        .err()
+        .expect("this source cannot adopt another source file's private field");
+    assert!(
+        error.contains("a field query is outside its author's declaration scope"),
+        "{error}"
+    );
+    assert!(
+        accounting.receipts().is_empty(),
+        "visibility refusal precedes execution"
+    );
+    let mut descriptions = Vec::new();
+    for name in [
+        "describe_rule_cell",
+        "describe_machine",
+        "describe_requirement",
+    ] {
+        let (author, expression) = query_call(&typed, name);
+        let value = prepared
+            .entry_call(author, expression, &[])
+            .unwrap()
+            .invoke_recorded(target(&facts), &mut accounting)
+            .unwrap_or_else(|error| panic!("actual {name}: {error}"));
+        descriptions.push((value.value().clone(), last_receipt(&accounting)));
+    }
+    let (schema, query) = &descriptions[0];
+    let builder = typed
+        .realized_machine_named("construct_observed_plan")
+        .unwrap()
+        .symbol;
+    let arguments = [
+        schema.clone(),
+        descriptions[1].0.clone(),
+        descriptions[2].0.clone(),
+    ];
+    let produced = prepared
+        .entry(builder, builder, &arguments)
+        .unwrap()
+        .invoke_recorded(target(&facts), &mut accounting)
+        .expect("nonempty plan is constructed and returned through ordinary checked source");
+    let result = last_receipt(&accounting);
+    let normalized = crate::terminal_values::access_plan_result(query, &result)
+        .expect("exact query and result correspondence");
+    let issuers = normalized.issuance.as_ref().expect("explicit Only choice");
+    assert_eq!(issuers.len(), 2);
+    assert_eq!(
+        issuers.iter().filter(|(required, _)| *required).count(),
+        1,
+        "a public requirement must remain distinct from a concrete machine"
+    );
+    let fields = normalized.schema.governed_fields().unwrap();
+    assert_eq!(
+        fields.len(),
+        1,
+        "the actual source-owned RuleCell value member"
+    );
+    let member = fields[0].0;
+    assert_eq!(
+        normalized.readers.len(),
+        3,
+        "parent and repeated field rows intersect"
+    );
+    assert!(
+        normalized
+            .readers
+            .iter()
+            .any(|(region, callers)| *region == normalized.schema.root() && callers.len() == 2)
+    );
+    assert!(
+        normalized
+            .readers
+            .iter()
+            .any(|(region, callers)| *region == member && callers.len() == 1)
+    );
+    assert!(
+        normalized
+            .readers
+            .iter()
+            .any(|(region, callers)| *region == member && callers.is_empty())
+    );
+    assert_eq!(
+        normalized.writers,
+        vec![(member, Vec::new())],
+        "explicit empty is denial"
+    );
+    assert_eq!(normalized.observations.len(), 2);
+    assert!(
+        normalized.observations.contains(&(member, None)),
+        "Inaccessible is an authored row"
+    );
+    assert!(
+        normalized
+            .observations
+            .iter()
+            .any(|(region, demand)| *region == member
+                && demand.is_some_and(|(model, permissions, exposure)| model
+                    == access_plans::ObservationModel::Stable
+                    && permissions.read
+                    && !permissions.write
+                    && exposure == access_plans::AccessExposure::Exported))
+    );
+
+    let transport = typed
+        .realized_machine_named("transport_observed_plan")
+        .unwrap()
+        .symbol;
+    // Each altered value is still supplied to an ordinary checked call. The
+    // receiving decoder must reject its semantic correspondence independently.
+    for (component, reason) in [
+        ("member_identity", "outside the actual schema subject"),
+        (
+            "source_revision",
+            "another owner, application or source revision",
+        ),
+    ] {
+        let mut altered = produced.value().clone();
+        let BuildTimeValue::Array(entries) = field_mut(&mut altered, "fields") else {
+            unreachable!()
+        };
+        *field_mut(field_mut(&mut entries[0], "field"), component) =
+            BuildTimeValue::Text(b"foreign".to_vec());
+        prepared
+            .entry(transport, transport, &[schema.clone(), altered])
+            .unwrap()
+            .invoke_recorded(target(&facts), &mut accounting)
+            .unwrap();
+        let error = crate::terminal_values::access_plan_result(query, &last_receipt(&accounting))
+            .unwrap_err();
+        assert!(error.contains(reason), "{error}");
+    }
+    let mut altered = produced.value().clone();
+    let BuildTimeValue::Case { payload, .. } = field_mut(&mut altered, "issuance") else {
+        unreachable!()
+    };
+    let (_, BuildTimeValue::Array(routes)) = &mut payload[0] else {
+        unreachable!()
+    };
+    let BuildTimeValue::Case { variant, .. } = &mut routes[0] else {
+        unreachable!()
+    };
+    *variant = "Requirement".into();
+    prepared
+        .entry(transport, transport, &[schema.clone(), altered])
+        .unwrap()
+        .invoke_recorded(target(&facts), &mut accounting)
+        .unwrap();
+    let error =
+        crate::terminal_values::access_plan_result(query, &last_receipt(&accounting)).unwrap_err();
+    assert!(
+        error.contains("callable description is not bound to the actual source"),
+        "{error}"
+    );
+
+    let lookalike = typed
+        .realized_machine_named("construct_lookalike")
+        .unwrap()
+        .symbol;
+    prepared
+        .entry(lookalike, lookalike, std::slice::from_ref(schema))
+        .unwrap()
+        .invoke_recorded(target(&facts), &mut accounting)
+        .unwrap();
+    let error =
+        crate::terminal_values::access_plan_result(query, &last_receipt(&accounting)).unwrap_err();
+    assert!(
+        error.contains("not the genuine core AccessPlan declaration"),
+        "{error}"
     );
     accounting.validate_charges().unwrap();
 }

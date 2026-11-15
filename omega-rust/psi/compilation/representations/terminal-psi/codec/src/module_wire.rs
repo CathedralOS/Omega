@@ -1970,8 +1970,9 @@ pub(crate) mod access_view_plan_wire {
     use super::super::CodecError;
     use super::super::wire::{Reader, Writer, decode_canonical, decode_counted};
     use access_plans::{
-        AccessExposure, AccessPermissions, AccessPlanSnapshot, AtomicPermissions, BoundaryReach,
-        BoundaryServiceReachId, ExternalRead, FieldAccess, ObservationModel, ValidatedAccessPlan,
+        AccessExposure, AccessPermissions, AtomicPermissions, BoundaryReach,
+        BoundaryServiceReachId, ExternalRead, FieldAccess, ObservationModel, PlacementSnapshot,
+        ValidatedPlacement,
     };
     use layout_plans::{
         IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
@@ -2019,7 +2020,7 @@ pub(crate) mod access_view_plan_wire {
 
     pub(crate) fn encode_placement(
         writer: &mut Writer,
-        placement: &ValidatedAccessPlan,
+        placement: &ValidatedPlacement,
     ) -> Result<(), CodecError> {
         let snapshot = placement.snapshot();
         writer.u64(snapshot.layout.schema_report_fingerprint);
@@ -2131,7 +2132,7 @@ pub(crate) mod access_view_plan_wire {
 
     pub(crate) fn decode_placement(
         reader: &mut Reader<'_>,
-    ) -> Result<ValidatedAccessPlan, CodecError> {
+    ) -> Result<ValidatedPlacement, CodecError> {
         let schema_report_fingerprint = reader.u64()?;
         let size = decode_optional_u64(reader)?;
         let align = reader.u64()?;
@@ -2181,7 +2182,7 @@ pub(crate) mod access_view_plan_wire {
             BoundaryServiceReachId::from_normalized_identity(reader.u64()?)
                 .map_err(|error| CodecError::AccessPlan(error.to_string()))
         })?;
-        AccessPlanSnapshot {
+        PlacementSnapshot {
             layout: LayoutPlanReport {
                 schema_report_fingerprint,
                 entries,

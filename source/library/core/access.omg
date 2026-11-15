@@ -59,6 +59,7 @@ reaches none
 crashes none
 terminates
 requires plan.reader_count < 32
+ensures embed(plan.reader_count) == embed(old(plan.reader_count)) + 1
 {
     let index: u64 = plan.reader_count;
     plan.readers[index] = AccessCallerRule { region: region, callers: callers };
@@ -70,6 +71,7 @@ reaches none
 crashes none
 terminates
 requires plan.reader_count < 32
+ensures embed(plan.reader_count) == embed(old(plan.reader_count)) + 1
 {
     allow_readers(plan, AccessRegion::Field { field: field }, callers);
 }
@@ -79,6 +81,7 @@ reaches none
 crashes none
 terminates
 requires plan.writer_count < 32
+ensures embed(plan.writer_count) == embed(old(plan.writer_count)) + 1
 {
     let index: u64 = plan.writer_count;
     plan.writers[index] = AccessCallerRule { region: region, callers: callers };
@@ -90,6 +93,7 @@ reaches none
 crashes none
 terminates
 requires plan.writer_count < 32
+ensures embed(plan.writer_count) == embed(old(plan.writer_count)) + 1
 {
     allow_writers(plan, AccessRegion::Field { field: field }, callers);
 }
@@ -101,6 +105,7 @@ reaches none
 crashes none
 terminates
 requires plan.field_count < 32
+ensures embed(plan.field_count) == embed(old(plan.field_count)) + 1
 {
     let index: u64 = plan.field_count;
     plan.fields[index] = AccessFieldEntry { field: field, access: access };

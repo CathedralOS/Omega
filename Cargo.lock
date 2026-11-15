@@ -68,6 +68,7 @@ dependencies = [
  "compiler-storage",
  "extents",
  "language-core",
+ "language-semantics",
  "layout-plans",
  "optimization",
  "semantic-vocabulary",

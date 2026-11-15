@@ -1,7 +1,7 @@
 //! Validates field access demands and their compatibility with supplied backing.
 //!
-//! `plan` joins layout geometry, field decisions and reach into the normalized
-//! representation consumed by compiler stages. `plan_policy` checks operations;
+//! `plan` normalizes semantic policy data separately from the validated
+//! placement that joins physical layout, operation decisions and reach. `plan_policy` checks operations;
 //! `resources` checks provider profiles, range supply and relocation requirements.
 //! These checks do not establish runtime views or issue backing authority.
 
@@ -64,7 +64,8 @@ pub use access_fields::{
     ObservationModel, RelativeEffectFootprint, ValidatedAccessFields,
 };
 pub use plan::{
-    AccessPlan, AccessPlanId, AccessPlanSnapshot, ValidatedAccessPlan, validate_access_plan,
+    AccessPlan, PlacementId, PlacementSnapshot, ValidatedPlacement, normalize_access_plan,
+    validate_placement,
 };
 pub use plan_policy::access_fields_validation::validate_access_fields;
 pub use plan_policy::access_operations::{AccessOperation, AtomicAccessOperation, BorrowPolarity};
