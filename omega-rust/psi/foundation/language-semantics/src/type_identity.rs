@@ -247,6 +247,10 @@ mod framing {
             self.position
         }
 
+        pub(super) fn consumed_since(&self, position: usize) -> &'a str {
+            &self.text[position..self.position]
+        }
+
         pub(super) fn finish(&self) -> Result {
             if self.position == self.text.len() {
                 Ok(())
@@ -614,7 +618,8 @@ mod grammar {
         visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
     ) -> Result {
         let name = reader.leaf_atom(visitor)?;
-        semantic_name(&name, visitor)
+        semantic_name(&name, visitor)?;
+        visitor.static_name(&name)
     }
 
     fn semantic_name(name: &str, visitor: &mut dyn TypeIdentityPackageOwnerVisitor) -> Result {
@@ -654,9 +659,10 @@ mod grammar {
         reader: &mut Reader<'_>,
         visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
     ) -> Result {
-        owner(reader, visitor)?;
+        let (owner, digest) = owner(reader, visitor)?;
         reader.expect(b',')?;
-        reader.opaque(Label::Path, visitor)
+        let path = reader.atom(Label::Path, visitor)?;
+        visitor.nominal_declaration(owner, digest, &path)
     }
 
     fn compiler_type(
@@ -678,41 +684,51 @@ mod grammar {
         }
     }
 
-    fn owner(reader: &mut Reader<'_>, visitor: &mut dyn TypeIdentityPackageOwnerVisitor) -> Result {
-        match reader.production::<OwnerForm>()? {
+    fn owner_digest(
+        reader: &mut Reader<'_>,
+        visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
+    ) -> Result<[u8; 32]> {
+        let hexadecimal = reader.leaf_byte_atom(visitor)?;
+        if hexadecimal.len() != 64 {
+            return Err(Error::MalformedIdentity);
+        }
+        let mut digest = [0; 32];
+        for (output, pair) in digest
+            .iter_mut()
+            .zip(hexadecimal.as_bytes().as_chunks::<2>().0)
+        {
+            let value = |byte| {
+                if byte <= b'9' {
+                    byte - b'0'
+                } else {
+                    byte - b'a' + 10
+                }
+            };
+            *output = (value(pair[0]) << 4) | value(pair[1]);
+        }
+        Ok(digest)
+    }
+
+    fn owner(
+        reader: &mut Reader<'_>,
+        visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
+    ) -> Result<(OwnerForm, Option<[u8; 32]>)> {
+        let form = reader.production::<OwnerForm>()?;
+        match form {
             OwnerForm::Package => {
-                let hexadecimal = reader.leaf_byte_atom(visitor)?;
-                if hexadecimal.len() != 64 {
-                    return Err(Error::MalformedIdentity);
-                }
-                let mut digest = [0u8; 32];
-                for (output, pair) in digest
-                    .iter_mut()
-                    .zip(hexadecimal.as_bytes().as_chunks::<2>().0)
-                {
-                    let value = |byte| {
-                        if byte <= b'9' {
-                            byte - b'0'
-                        } else {
-                            byte - b'a' + 10
-                        }
-                    };
-                    *output = (value(pair[0]) << 4) | value(pair[1]);
-                }
+                let digest = owner_digest(reader, visitor)?;
                 if digest == [0; 32] {
                     return Err(Error::MalformedIdentity);
                 }
-                visitor.package_owner(digest)
+                visitor.package_owner(digest)?;
+                Ok((form, Some(digest)))
             }
-            OwnerForm::ToolchainSource => {
-                if reader.leaf_byte_atom(visitor)?.len() != 64 {
-                    return Err(Error::MalformedIdentity);
-                }
-                Ok(())
+            OwnerForm::ToolchainSource => Ok((form, Some(owner_digest(reader, visitor)?))),
+            OwnerForm::Toolchain => {
+                visitor.descriptive_toolchain_owner()?;
+                Ok((form, None))
             }
-            OwnerForm::Toolchain | OwnerForm::Unresolved => {
-                Err(unadmitted(Unadmitted::InvalidIdentity))
-            }
+            OwnerForm::Unresolved => Err(unadmitted(Unadmitted::InvalidIdentity)),
         }
     }
 
@@ -1064,18 +1080,29 @@ mod index {
         }
         if reader.peek::<IndexForm>() == Some(IndexForm::StaticApplication) {
             reader.production::<IndexForm>()?;
-            return compound(reader, visitor, |reader, visitor| {
+            visitor.enter_static_application()?;
+            let result = compound(reader, visitor, |reader, visitor| {
+                let mut ordinal = 0_u32;
+                let mut start = reader.position();
+                visitor.enter_static_argument(ordinal)?;
                 expression(reader, visitor)?;
+                visitor.static_argument(ordinal, reader.consumed_since(start))?;
                 while reader.next(b',') {
                     reader.expect(b',')?;
+                    ordinal = ordinal.checked_add(1).ok_or(Error::ResourceLimitExceeded)?;
+                    start = reader.position();
+                    visitor.enter_static_argument(ordinal)?;
                     if reader.peek::<Label>() == Some(Label::Lifetime) {
                         reader.opaque(Label::Lifetime, visitor)?;
                     } else {
                         static_argument(reader, visitor)?;
                     }
+                    visitor.static_argument(ordinal, reader.consumed_since(start))?;
                 }
                 Ok(())
             });
+            visitor.leave_static_application();
+            return result;
         }
         if reader.peek::<TypeForm>().is_some() {
             grammar::type_identity(reader, visitor)
@@ -1429,6 +1456,45 @@ pub trait TypeIdentityPackageOwnerVisitor {
     fn package_owner(&mut self, digest: [u8; 32]) -> Result<(), TypeIdentityVisitError>;
     fn embedded_name(&mut self, name: &str) -> Result<(), TypeIdentityVisitError>;
 
+    /// Source descriptions can name a toolchain declaration before its exact
+    /// revision is joined. Ordinary portable identities must still refuse it.
+    fn descriptive_toolchain_owner(&mut self) -> Result<(), TypeIdentityVisitError> {
+        Err(TypeIdentityVisitError::Unadmitted(
+            vocabulary::Unadmitted::InvalidIdentity,
+        ))
+    }
+
+    fn nominal_declaration(
+        &mut self,
+        _owner: vocabulary::OwnerForm,
+        _digest: Option<[u8; 32]>,
+        _path: &str,
+    ) -> Result<(), TypeIdentityVisitError> {
+        Ok(())
+    }
+
+    fn static_name(&mut self, _name: &str) -> Result<(), TypeIdentityVisitError> {
+        Ok(())
+    }
+
+    fn enter_static_application(&mut self) -> Result<(), TypeIdentityVisitError> {
+        Ok(())
+    }
+
+    fn leave_static_application(&mut self) {}
+
+    fn enter_static_argument(&mut self, _ordinal: u32) -> Result<(), TypeIdentityVisitError> {
+        Ok(())
+    }
+
+    fn static_argument(
+        &mut self,
+        _ordinal: u32,
+        _identity: &str,
+    ) -> Result<(), TypeIdentityVisitError> {
+        Ok(())
+    }
+
     fn enter_type(&mut self, _form: vocabulary::TypeForm) -> Result<(), TypeIdentityVisitError> {
         Ok(())
     }
@@ -1452,6 +1518,18 @@ pub fn visit_type_identity_package_owners(
 ) -> Result<(), TypeIdentityVisitError> {
     let mut reader = framing::Reader::new(identity);
     grammar::type_identity(&mut reader, visitor)?;
+    reader.finish()
+}
+
+/// Read the same argument grammar used inside a canonical type application.
+/// Descriptions retain complete machine arguments; consumers compare them to
+/// checked declarations only after this whole traversal succeeds.
+pub fn visit_static_argument_package_owners(
+    identity: &str,
+    visitor: &mut impl TypeIdentityPackageOwnerVisitor,
+) -> Result<(), TypeIdentityVisitError> {
+    let mut reader = framing::Reader::new(identity);
+    index::static_argument(&mut reader, visitor)?;
     reader.finish()
 }
 

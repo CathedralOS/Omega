@@ -915,6 +915,170 @@ fn validate_arguments(
     Ok(())
 }
 
+/// Read caller descriptions through the canonical identity grammar. The
+/// unversioned toolchain name is descriptive: its retained source bytes must
+/// match the exact revision on the module's declaration before it can link.
+fn validate_machine_caller_declaration(
+    module: &TerminalModule,
+    description: &language_semantics::reflection::CallableDescription,
+    declaration: &terminal_psi::NominalDeclarationIdentity,
+    callable: terminal_psi::TerminalIdentityIndex,
+) -> Judged<()> {
+    use language_semantics::type_identity::{
+        TypeIdentityPackageOwnerVisitor, TypeIdentityVisitError,
+        visit_static_argument_package_owners, visit_type_identity_package_owners,
+        vocabulary::OwnerForm,
+    };
+    type Nominal = (OwnerForm, Option<[u8; 32]>, String);
+    #[derive(Default)]
+    struct Description {
+        depth: usize,
+        remaining: usize,
+        applications: usize,
+        argument: u32,
+        root_names: Vec<Option<String>>,
+        machine: Vec<Nominal>,
+        entry: Vec<Nominal>,
+    }
+    impl TypeIdentityPackageOwnerVisitor for Description {
+        fn enter(&mut self) -> Result<(), TypeIdentityVisitError> {
+            if self.depth == 128 {
+                return Err(TypeIdentityVisitError::ResourceLimitExceeded);
+            }
+            self.depth += 1;
+            Ok(())
+        }
+        fn leave(&mut self) {
+            self.depth -= 1;
+        }
+        fn reserve(&mut self, bytes: usize) -> Result<(), TypeIdentityVisitError> {
+            self.remaining = self
+                .remaining
+                .checked_sub(bytes)
+                .ok_or(TypeIdentityVisitError::ResourceLimitExceeded)?;
+            Ok(())
+        }
+        fn package_owner(&mut self, _: [u8; 32]) -> Result<(), TypeIdentityVisitError> {
+            Ok(())
+        }
+        fn embedded_name(&mut self, _: &str) -> Result<(), TypeIdentityVisitError> {
+            Ok(())
+        }
+        fn descriptive_toolchain_owner(&mut self) -> Result<(), TypeIdentityVisitError> {
+            Ok(())
+        }
+        fn nominal_declaration(
+            &mut self,
+            owner: OwnerForm,
+            digest: Option<[u8; 32]>,
+            path: &str,
+        ) -> Result<(), TypeIdentityVisitError> {
+            let rows = match (self.applications, self.argument) {
+                (0, _) | (1, 0) => &mut self.machine,
+                (1, 1) => &mut self.entry,
+                _ => return Ok(()),
+            };
+            self.remaining = self
+                .remaining
+                .checked_sub(path.len())
+                .ok_or(TypeIdentityVisitError::ResourceLimitExceeded)?;
+            rows.push((owner, digest, path.to_owned()));
+            Ok(())
+        }
+        fn enter_static_application(&mut self) -> Result<(), TypeIdentityVisitError> {
+            self.applications += 1;
+            Ok(())
+        }
+        fn leave_static_application(&mut self) {
+            self.applications -= 1;
+        }
+        fn enter_static_argument(&mut self, ordinal: u32) -> Result<(), TypeIdentityVisitError> {
+            if self.applications == 1 {
+                self.argument = ordinal;
+                self.root_names.push(None);
+            }
+            Ok(())
+        }
+        fn static_name(&mut self, name: &str) -> Result<(), TypeIdentityVisitError> {
+            if self.applications == 1 && self.argument < 3 {
+                let row = self
+                    .root_names
+                    .last_mut()
+                    .ok_or(TypeIdentityVisitError::MalformedIdentity)?;
+                if row.is_some() {
+                    return Err(TypeIdentityVisitError::MalformedIdentity);
+                }
+                self.remaining = self
+                    .remaining
+                    .checked_sub(name.len())
+                    .ok_or(TypeIdentityVisitError::ResourceLimitExceeded)?;
+                *row = Some(name.to_owned());
+            }
+            Ok(())
+        }
+    }
+    let error = |detail| StructuralQualificationError {
+        machine: None,
+        detail,
+    };
+    let applied = std::str::from_utf8(&description.1[1])
+        .map_err(|_| error("machine caller lost its applied identity"))?;
+    let mut described = Description {
+        remaining: applied.len().saturating_mul(3),
+        ..Default::default()
+    };
+    visit_static_argument_package_owners(applied, &mut described)
+        .map_err(|_| error("machine caller has an invalid complete application description"))?;
+    if described.root_names.len() < 3
+        || described.root_names[..3].iter().any(Option::is_none)
+        || described.machine.len() != 1
+        || described.entry.len() != 1
+    {
+        return Err(error(
+            "machine caller lost its original machine, entry or signature",
+        ));
+    }
+    let exact = module
+        .identities
+        .text(declaration.identity())
+        .ok_or_else(|| error("machine caller has no exact source declaration"))?;
+    let mut retained = Description {
+        remaining: exact.len().saturating_mul(3),
+        ..Default::default()
+    };
+    visit_type_identity_package_owners(exact, &mut retained)
+        .map_err(|_| error("machine caller declaration has an invalid canonical identity"))?;
+    let [actual] = retained.machine.as_slice() else {
+        return Err(error(
+            "machine caller declaration has no unique nominal owner",
+        ));
+    };
+    let declared = &described.machine[0];
+    let revision = source::source_identity::toolchain_source_revision_digest(&description.1[2]);
+    let same_owner = match (actual.0, declared.0) {
+        (OwnerForm::Package, OwnerForm::Package) => actual.1 == declared.1,
+        (OwnerForm::ToolchainSource, OwnerForm::Toolchain) => actual.1 == Some(revision),
+        (OwnerForm::ToolchainSource, OwnerForm::ToolchainSource) => {
+            actual.1 == declared.1 && actual.1 == Some(revision)
+        }
+        _ => false,
+    };
+    if !same_owner || actual.2 != declared.2 {
+        return Err(error(
+            "machine caller describes another source declaration or revision",
+        ));
+    }
+    // An applied caller additionally owes its checked static argument account
+    // at the operation. The unspecialized identity already has no arguments
+    // to hide, so its complete signature must match here too.
+    if described.root_names.len() == 3
+        && module.identities.text(callable) != described.root_names[2].as_deref()
+    {
+        return Err(error("machine caller route has another declared signature"));
+    }
+    Ok(())
+}
+
 /// Validate each rule against the source declarations retained by this module.
 /// A lookalike record, case or field cannot satisfy a policy for another one.
 pub fn validate_access_policy(
@@ -1125,6 +1289,18 @@ pub fn validate_access_policy(
             .chain(&plan.writers)
             .flat_map(|(_, callers)| callers),
     ) {
+        if let StructuralEstablishmentRoute::ExactMachine {
+            declaration,
+            machine_identity,
+        } = route
+        {
+            validate_machine_caller_declaration(
+                module,
+                description,
+                declaration,
+                *machine_identity,
+            )?;
+        }
         if description.0 != !matches!(route, StructuralEstablishmentRoute::ExactMachine { .. })
             || module
                 .identities

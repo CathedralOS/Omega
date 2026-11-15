@@ -341,6 +341,113 @@ fn a_selected_access_plan_returns_its_declared_route_element_lifetimes() {
     }
 }
 
+// The original selected-plan program names its actual issuer and then uses
+// the governed value. Its returned description must remain linked to that
+// declaration after source-free transport; a different owner cannot replace it.
+#[test]
+fn actual_policy_callers_keep_their_selected_declaration_after_transport() {
+    let mut typed = typed_source(include_str!("selected_access_plan_family.omg"));
+    let main = typed.realized_machine_named("main").unwrap().symbol;
+    let entries = [main];
+    let request = terminal_production::TerminalSourceCompilation {
+        declaration_metadata: &[],
+        entries: &entries,
+        subjects: &[],
+        purpose: source::DependencyScope::Product,
+        selected: &[],
+        bindings: &[],
+        supplies: &[],
+    };
+    let mut accounting = SourceCompletionAccounting::default();
+    super::domain_access_plans::evaluate(&mut typed, request, None, None, &mut accounting)
+        .expect("evaluate the actual domain's selected policy with normal call accounting");
+    let (source, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+        typed.clone(),
+        &typed_trees_to_typed_trees::PreparationRequest::settled(),
+    )
+    .expect("ordinary preparation keeps the exact caller description");
+    let accepted = terminal_production::AcceptedTerminalSource::judge(
+        std::sync::Arc::new(source),
+        request,
+        terminal_codec::TerminalPublication::Portable,
+    )
+    .expect("the original governed program passes normal admission");
+    let bytes = terminal_codec::encode_module(accepted.module()).unwrap();
+    let restored = terminal_codec::decode_module(&bytes)
+        .expect("the same policy links survive independent artifact receiving");
+    let domain = restored
+        .structural_domains
+        .iter()
+        .position(|domain| {
+            domain.access_policy.as_ref().is_some_and(|plan| {
+                plan.issuance
+                    .as_ref()
+                    .is_some_and(|routes| routes.len() == 1)
+            })
+        })
+        .expect("one actual retained issuer");
+    let route = &restored.structural_domains[domain]
+        .access_policy
+        .as_ref()
+        .unwrap()
+        .issuance
+        .as_ref()
+        .unwrap()[0];
+    assert!(
+        !route.0.0,
+        "the actual selected issuer is an ordinary machine"
+    );
+    assert!(matches!(
+        route.1,
+        terminal_psi::StructuralEstablishmentRoute::ExactMachine { .. }
+    ));
+    let number = typed.realized_machine_named("number").unwrap().symbol;
+    let number_identity = typed.normalized_hermetic_symbol_identity(number).unwrap();
+    let other = restored
+        .machines
+        .iter()
+        .filter_map(|machine| machine.declaration.as_ref())
+        .find(|declaration| {
+            restored.identities.text(declaration.semantic_declaration)
+                == Some(number_identity.as_str())
+        })
+        .expect("the original program's other genuine declaration");
+    let mut redirected = restored.clone();
+    let changed = redirected.structural_domains[domain]
+        .access_policy
+        .as_mut()
+        .unwrap()
+        .issuance
+        .as_mut()
+        .unwrap()
+        .first_mut()
+        .unwrap();
+    let terminal_psi::StructuralEstablishmentRoute::ExactMachine {
+        declaration,
+        machine_identity,
+    } = &mut changed.1
+    else {
+        unreachable!()
+    };
+    *declaration = other.machine.clone();
+    *machine_identity = other.callable;
+    let error = terminal_semantics::structural_qualifications::validate(&redirected)
+        .expect_err("a valid description cannot name another genuine source declaration");
+    assert_eq!(
+        error.detail,
+        "machine caller describes another source declaration or revision"
+    );
+    let prepared = PreparedBuildMachineProgram::prepare(&typed, None).unwrap();
+    let facts = facts();
+    let result = prepared
+        .entry(main, main, &[])
+        .unwrap()
+        .invoke_recorded(target(&facts), &mut accounting)
+        .expect("the unchanged original program executes with its genuine issuer");
+    assert_eq!(result.value(), &BuildTimeValue::Unit);
+    accounting.validate_charges().unwrap();
+}
+
 #[test]
 fn ordinary_lifetime_invocation_keeps_schema_images_and_refuses_local_escape() {
     let source = r#"
