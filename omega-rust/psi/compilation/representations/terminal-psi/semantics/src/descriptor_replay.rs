@@ -3868,17 +3868,8 @@ pub(crate) mod engine {
             };
             loop {
                 let root_type = *machine.place_types.get(&current.root)?;
-                let definition =
-                    &exactly_one(machine.places.iter(), |row| row.place == current.root)?
-                        .definition;
-                let borrowed = match definition {
-                    DescriptorDefinition::Parameter { access, .. }
-                    | DescriptorDefinition::Arrival { access } => {
-                        *access != StructuralAccess::Owned
-                    }
-                    DescriptorDefinition::Local | DescriptorDefinition::Literal => false,
-                };
-                if current.path.is_empty() && !borrowed {
+                let definition = machine.place_definition(current.root)?;
+                if current.path.is_empty() && definition.has_independent_storage() {
                     return Some(StorageResolution::Unique(current));
                 }
                 // A machine parameter names the lender's original home. A
@@ -4021,6 +4012,15 @@ pub(crate) mod engine {
             state: &State,
             location: &DescriptorLocation,
         ) -> Option<Vec<DescriptorLocation>> {
+            // A store can fill a vacant descriptor home before its contents
+            // name any backing. Its declaration still identifies the slot.
+            if location.path.is_empty()
+                && machine
+                    .place_definition(location.root)?
+                    .has_independent_storage()
+            {
+                return Some(vec![location.clone()]);
+            }
             let origins = state
                 .slots
                 .get(&DescriptorLocation::whole(location.root))?

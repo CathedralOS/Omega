@@ -5682,8 +5682,13 @@ pub mod descriptor_results {
                     if let Some(producer) = machine.payload_producers.get(&current) {
                         failure = "established payload contract is absent";
                         let mut produced = source(*producer)?;
+                        failure = "established payload contract has a different carrier";
+                        if machine.place_types.get(producer) != Some(&produced.carrier) {
+                            return None;
+                        }
                         produced.scalar_requirements.sort();
                         produced.scalar_requirements.dedup();
+                        let completion = (identity, (current.0, current.1.checked_add(1)?));
                         for (actual, destination) in &step.derivations {
                             if destination.root != *producer
                                 || machine.storage_derivations.contains(&(
@@ -5704,15 +5709,16 @@ pub mod descriptor_results {
                                     )
                                 })
                             {
-                                let path =
-                                    descriptor_path(types, produced.carrier, &destination.path)?;
-                                let destination_carrier = qualification_path_carrier(
-                                    types.iter(),
-                                    produced.carrier,
-                                    &path,
+                                // A sequence constructor authenticates the exact ordinal of
+                                // each operand. Plain type paths lack that storage context.
+                                failure = "payload producer destination has no typed coordinate";
+                                let (path, destination_carrier) = machine.resolve_location(
+                                    types,
+                                    destination,
+                                    Some(completion),
                                 )?;
                                 let Some(incoming) =
-                                    incoming.presented(types, domains, destination_carrier)
+                                    incoming.presented(types, domains, destination_carrier?)
                                 else {
                                     continue;
                                 };
@@ -13473,9 +13479,6 @@ pub mod descriptor_results {
                 normal_exits: Vec::new(),
             };
             for place in &machine.structural_places {
-                if graph.places.iter().any(|row| row.place == place.id) {
-                    return None;
-                }
                 graph.places.push(DescriptorPlace {
                     place: place.id,
                     definition: terminal_definition(module, machine, place.id, place.kind)?,
@@ -13483,6 +13486,14 @@ pub mod descriptor_results {
                 if let Some(ty) = machine.structural_place_type(place.id) {
                     graph.place_types.insert(place.id, ty);
                 }
+            }
+            graph.places.sort_unstable_by_key(|row| row.place);
+            if graph
+                .places
+                .windows(2)
+                .any(|pair| pair[0].place == pair[1].place)
+            {
+                return None;
             }
             let location = |root, path: &[StructuralPathSegment], field| {
                 descriptor_location(
@@ -15723,6 +15734,7 @@ pub mod descriptor_results {
     pub struct DescriptorMachine {
         pub id: MachineId,
         pub returns: Option<Vec<(DescriptorPosition, DescriptorLocation)>>,
+        /// Sorted by place identity with no duplicate declarations.
         pub places: Vec<DescriptorPlace>,
         pub place_types: BTreeMap<PlaceId, StructuralTypeId>,
         pub entry: DescriptorPosition,
@@ -15759,6 +15771,14 @@ pub mod descriptor_results {
     }
 
     impl DescriptorMachine {
+        pub(crate) fn place_definition(&self, place: PlaceId) -> Option<&DescriptorDefinition> {
+            let index = self
+                .places
+                .binary_search_by_key(&place, |row| row.place)
+                .ok()?;
+            Some(&self.places[index].definition)
+        }
+
         pub(crate) fn sequence_construction<'graph>(
             &'graph self,
             types: &[StructuralTypeDeclaration],
@@ -16004,6 +16024,17 @@ pub mod descriptor_results {
         },
         Local,
         Literal,
+    }
+
+    impl DescriptorDefinition {
+        pub(crate) fn has_independent_storage(&self) -> bool {
+            match self {
+                Self::Parameter { access, .. } | Self::Arrival { access } => {
+                    *access == StructuralAccess::Owned
+                }
+                Self::Local | Self::Literal => true,
+            }
+        }
     }
 
     pub fn reconstruct_result_origins(
