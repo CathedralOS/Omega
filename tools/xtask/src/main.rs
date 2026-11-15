@@ -3,6 +3,7 @@
 //! Subcommands:
 //! - `cargo xtask fmt [--check] [--verbose] [--repository <dir>] [-- <rustfmt-args>...]`
 //! - `cargo xtask check-boundary`
+//! - `cargo xtask branch-cleanup [--delete] [--min-age-hours <n>] [--max-delete <n>] [--include-unmerged-no-pr]`
 //! - `cargo xtask rust-producer-omission --manifest <path> [--steps <path>] [--root <dir>]`
 //! - `cargo xtask check-rules [--base <rev>] [--title <title>] [--body-file <path>]`
 //! - `cargo xtask sample-gate [--filter <fragments>] [--facts]`
@@ -23,6 +24,7 @@
 mod alpha_forge;
 mod attached_machines;
 mod boundary;
+mod branch_cleanup;
 mod claims;
 mod doctor;
 mod execution;
@@ -85,6 +87,7 @@ formatting and migration:
 coordination and workspace:
   doctor                    Run host toolchain and repository preflight checks
   claims                    Inspect or update the cross-session work-claim registry
+  branch-cleanup            Report (or, with --delete, delete) stale merged remote branches
   worktree                  List, acquire/recycle, release, or clean isolated `.agents/worktree/` checkouts
   managed-cache-retention   Retain the managed session's shared worker pool in mbx
   provenance                Emit the canonical model-audit footer from the active session transcript
@@ -105,6 +108,7 @@ fn main() -> ExitCode {
     let result = match subcommand.as_str() {
         "fmt" => fmt::run(&args),
         "check-boundary" => boundary::run(&args),
+        "branch-cleanup" => branch_cleanup::run(&args),
         "check-rules" => rules::run(&args),
         "rust-producer-omission" => rust_producer_omission::run(&args),
         "sample-gate" => samples::run(&args),

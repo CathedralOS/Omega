@@ -51,7 +51,8 @@ A failed run does not revert any commit; automatic reverts are a later step of
 `.github/workflows/branch-cleanup.yml` deletes stale branches; it runs only
 when started by hand (Actions, Branch cleanup, Run workflow) and by default
 only reports. Uncheck `dry_run` to delete. It exists because cloud agent
-sessions cannot delete refs. `tools/branch_cleanup.py` holds the rules: it
+sessions cannot delete refs. `mbx xtask branch-cleanup`
+(`tools/xtask/src/branch_cleanup.rs`) holds the rules: it
 keeps protected branches, branches with an open pull request and branches
 newer than `min_age_hours`, and deletes a branch whose merged or closed pull
 request still ends at its tip, or whose tip is already in main. Branches with
