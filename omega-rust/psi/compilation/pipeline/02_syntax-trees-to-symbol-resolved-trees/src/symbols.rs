@@ -423,6 +423,7 @@ mod contracts {
                     crate::symbols::type_references::reassign_type_reference_symbols(
                         symbols,
                         child_type_references,
+                        machine.type_constraints,
                         machine.type_parameters,
                         handle,
                     );
@@ -2330,7 +2331,7 @@ mod mathematical {
     use symbols::SymbolTable;
 
     use super::propositions::assign_expression_symbols;
-    use super::type_references::assign_type_reference_symbol_with_locals;
+    use super::type_references::assign_type_reference_symbol_with_locals_and_constraints;
 
     pub(super) fn assign_mathematical_expression_symbols(
         program: &mut symbol_resolved_trees::SymbolResolvedTrees,
@@ -2340,6 +2341,7 @@ mod mathematical {
         let mathematical_parameters = &program.tables.declarations.mathematical_parameters;
         let mathematical_types = &mut program.tables.declarations.mathematical_types;
         let child_type_references = &mut program.tables.declarations.child_type_references;
+        let type_constraints = &program.tables.types.constraints;
         let expressions = &mut program.tables.bodies.expressions;
         let definitions = &program.roots.mathematical_definitions;
 
@@ -2354,9 +2356,10 @@ mod mathematical {
                     | TypeParameterKind::Value { type_reference } => type_reference,
                     _ => continue,
                 };
-                assign_type_reference_symbol_with_locals(
+                assign_type_reference_symbol_with_locals_and_constraints(
                     symbols,
                     child_type_references,
+                    type_constraints,
                     &local_type_parameters,
                     type_reference,
                 );
@@ -2370,9 +2373,10 @@ mod mathematical {
                 let mut node = mathematical_types.get(handle).clone();
                 match &mut node {
                     MathematicalType::Ordinary(reference) => {
-                        assign_type_reference_symbol_with_locals(
+                        assign_type_reference_symbol_with_locals_and_constraints(
                             symbols,
                             child_type_references,
+                            type_constraints,
                             &local_type_parameters,
                             reference,
                         );
@@ -2389,6 +2393,7 @@ mod mathematical {
                             assign_expression_symbols(
                                 expressions,
                                 child_type_references,
+                                type_constraints,
                                 symbols,
                                 definition.symbol,
                                 &local_type_parameters,
@@ -2406,6 +2411,7 @@ mod mathematical {
             assign_expression_symbols(
                 expressions,
                 child_type_references,
+                type_constraints,
                 symbols,
                 definition.symbol,
                 &local_type_parameters,
@@ -2673,7 +2679,7 @@ mod propositions {
         ExpressionHandle, ExpressionNode, ExpressionTable, MatchPattern,
     };
     use symbol_resolved_trees::proposition::PropositionBody;
-    use symbol_resolved_trees::types::TypeReference;
+    use symbol_resolved_trees::types::{TypeConstraint, TypeReference};
     use symbols::{FixedCoreDeclaration, JoinedPath, SymbolHandle, SymbolKind, SymbolTable};
 
     use super::expressions::{NameRole, assign_struct_literal_symbols};
@@ -2689,6 +2695,7 @@ mod propositions {
     ) {
         let proposition_binders = &program.tables.declarations.proposition_binders;
         let child_type_references = &mut program.tables.declarations.child_type_references;
+        let type_constraints = &program.tables.types.constraints;
         let expressions = &mut program.tables.bodies.expressions;
         let propositions = &program.roots.propositions;
         for proposition in propositions {
@@ -2708,6 +2715,7 @@ mod propositions {
             assign_expression_symbols(
                 expressions,
                 child_type_references,
+                type_constraints,
                 symbols,
                 proposition.symbol,
                 &local_type_parameters,
@@ -2719,6 +2727,7 @@ mod propositions {
     fn assign_expression_span_symbols(
         expressions: &mut ExpressionTable,
         child_type_references: &mut Arena<TypeReference>,
+        type_constraints: &Arena<TypeConstraint>,
         symbols: &SymbolTable,
         owner_symbol: SymbolHandle,
         local_type_parameters: &[TypeParameter],
@@ -2729,6 +2738,7 @@ mod propositions {
             assign_expression_symbols(
                 expressions,
                 child_type_references,
+                type_constraints,
                 symbols,
                 owner_symbol,
                 local_type_parameters,
@@ -2749,6 +2759,7 @@ mod propositions {
     pub(super) fn assign_expression_symbols(
         expressions: &mut ExpressionTable,
         child_type_references: &mut Arena<TypeReference>,
+        type_constraints: &Arena<TypeConstraint>,
         symbols: &SymbolTable,
         owner_symbol: SymbolHandle,
         local_type_parameters: &[TypeParameter],
@@ -2757,28 +2768,29 @@ mod propositions {
         assign_expression_symbols_in_role(
             expressions,
             child_type_references,
+            type_constraints,
             symbols,
             owner_symbol,
             local_type_parameters,
-            expression,
-            NameRole::Value,
+            (expression, NameRole::Value),
         );
     }
 
     fn assign_expression_symbols_in_role(
         expressions: &mut ExpressionTable,
         child_type_references: &mut Arena<TypeReference>,
+        type_constraints: &Arena<TypeConstraint>,
         symbols: &SymbolTable,
         owner_symbol: SymbolHandle,
         local_type_parameters: &[TypeParameter],
-        expression: ExpressionHandle,
-        role: NameRole,
+        (expression, role): (ExpressionHandle, NameRole),
     ) {
         macro_rules! recurse {
             ($expression:expr) => {
                 assign_expression_symbols(
                     expressions,
                     child_type_references,
+                    type_constraints,
                     symbols,
                     owner_symbol,
                     local_type_parameters,
@@ -2802,15 +2814,18 @@ mod propositions {
                         assign_expression_symbols_in_role(
                             expressions,
                             child_type_references,
+                            type_constraints,
                             symbols,
                             owner_symbol,
                             local_type_parameters,
-                            pattern,
-                            if pattern == head {
-                                NameRole::PatternHead
-                            } else {
-                                NameRole::Value
-                            },
+                            (
+                                pattern,
+                                if pattern == head {
+                                    NameRole::PatternHead
+                                } else {
+                                    NameRole::Value
+                                },
+                            ),
                         );
                     }
                     recurse!(arm.value);
@@ -2820,6 +2835,7 @@ mod propositions {
             ExpressionNode::ArrayLiteral(values) => assign_expression_span_symbols(
                 expressions,
                 child_type_references,
+                type_constraints,
                 symbols,
                 owner_symbol,
                 local_type_parameters,
@@ -2840,6 +2856,7 @@ mod propositions {
                 crate::symbols::type_references::reassign_type_reference_symbols(
                     symbols,
                     child_type_references,
+                    type_constraints,
                     local_type_parameters,
                     cast.target_type,
                 );
@@ -2847,6 +2864,7 @@ mod propositions {
                     crate::symbols::type_references::reassign_type_reference_symbols(
                         symbols,
                         child_type_references,
+                        type_constraints,
                         local_type_parameters,
                         handle,
                     );
@@ -2859,6 +2877,7 @@ mod propositions {
                 assign_expression_span_symbols(
                     expressions,
                     child_type_references,
+                    type_constraints,
                     symbols,
                     owner_symbol,
                     local_type_parameters,
@@ -3008,6 +3027,7 @@ mod propositions {
                 crate::symbols::type_references::reassign_type_reference_symbols(
                     symbols,
                     child_type_references,
+                    type_constraints,
                     local_type_parameters,
                     type_reference,
                 );

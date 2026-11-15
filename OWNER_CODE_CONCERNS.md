@@ -136,13 +136,6 @@ framework or a list of features that remain unimplemented.
 - Cost: Target operands remain dependent on earlier executable histories and their matching operation roster, so adding a value form or changing target operations can require synchronized recognizers across stages. Fix the producer to complete the needed runtime-index evidence and descriptor-origin records in the target representation, retaining shared immutable catalogs rather than copying them; have ordinary selection consume that product and keep earlier bodies available to independent correspondence validation. Acceptance: selection constructs the same instructions from target operations and their explicit catalogs/evidence without reading earlier executable bodies, while the independent validator still rejects changed operands or evidence.
 - Reported: 2026-11-15, Codex, while verifying representation handoffs after the IR cleanup; static source and caller-chain evidence only
 
-### The Build-time access-plan control stops before its borrowed plan result
-- Category: tests that pin the bug
-- Where: [access-plan control](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/access_plan_construction.rs#L191), [direct result slot lookup](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references.rs#L279)
-- Saw: After `core::access` stopped attaching machines to data, the control stopped entering `construct_restricted_plan` with `returned reference callee has no complete actual source correspondence`: its ordinary callee `access::new_plan` returns an `AccessPlan` holding the borrowed `TypeSchema` bytes. At `c6a4fd36813` it panics earlier, in symbol resolution, with `arena span_or_empty received an unresolved span`. The make-based sequence controls that shared this refusal now run: a returned sequence its body built carries its own roster.
-- Cost: The control cannot check schema backing or complete zero tails. Repair the stale span, then trace the plan's borrowed result slots to the caller's schema argument.
-- Reported: 2026-11-14, Codex, while comparing Build-time evaluator tests; narrowed 2026-11-15 by Claude Code to the access-plan control after the sequence controls were repaired
-
 ### Provider body admission requires a second satisfaction edge
 - Category: a fact with no owner
 - Where: [provider body admission](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/machine.rs#L396), [routed entry contract](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/machine.rs#L1418)

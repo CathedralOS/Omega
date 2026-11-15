@@ -1045,28 +1045,6 @@ mod assignment {
     }
 
     /*
-        Cast/zero-value target leaves use a separate semantic-domain field and do
-        not own declaration constraint spans. Signature/declaration traversal uses
-        the `_and_constraints` variants above so indexed arguments resolve in their
-        lexical generic scope.
-    */
-    pub(in crate::symbols) fn assign_type_reference_symbol_with_locals(
-        symbols: &SymbolTable,
-        child_type_references: &mut Arena<TypeReference>,
-        local_type_parameters: &[TypeParameter],
-        type_reference: &mut TypeReference,
-    ) {
-        let constraints = Arena::new();
-        assign_type_reference_symbol_with_locals_and_constraints(
-            symbols,
-            child_type_references,
-            &constraints,
-            local_type_parameters,
-            type_reference,
-        );
-    }
-
-    /*
         A name in type position reads only the type role
         (`wiki/spec/language/modules.md#builtin-type-names`): a generic binder
         that introduces a value, such as `const N: u64`, never hides a type, so
@@ -1757,8 +1735,9 @@ mod value_expressions {
     }
 
     /*
-        Re-assign symbols and value expressions on a cloned child type reference,
-        then write it back — the tail every Cast/argument reassign site repeats.
+        A cast or static argument can refer to constraints in the program's
+        type table. Bind its type names and value expressions before replacing
+        the child reference.
     */
     pub(in crate::symbols) fn reassign_type_reference_symbols_and_values(
         symbols: &SymbolTable,
@@ -1770,9 +1749,10 @@ mod value_expressions {
         handle: Handle<TypeReference>,
     ) {
         let mut type_reference = child_types.get(handle).clone();
-        crate::symbols::type_references::assign_type_reference_symbol_with_locals(
+        crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_constraints(
             symbols,
             child_types,
+            machine.type_constraints,
             machine.type_parameters,
             &mut type_reference,
         );
@@ -1795,13 +1775,15 @@ mod value_expressions {
     pub(in crate::symbols) fn reassign_type_reference_symbols(
         symbols: &SymbolTable,
         child_types: &mut Arena<TypeReference>,
+        type_constraints: &Arena<TypeConstraint>,
         local_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
         handle: Handle<TypeReference>,
     ) {
         let mut type_reference = child_types.get(handle).clone();
-        crate::symbols::type_references::assign_type_reference_symbol_with_locals(
+        crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_constraints(
             symbols,
             child_types,
+            type_constraints,
             local_type_parameters,
             &mut type_reference,
         );
@@ -2139,7 +2121,6 @@ pub(super) use assignment::{
     assign_proposition_family_argument_symbols, assign_trait_bound_slot_argument_symbols,
     assign_trait_implementation_argument_symbols,
     assign_type_reference_argument_symbols_with_constraints,
-    assign_type_reference_symbol_with_locals,
     assign_type_reference_symbol_with_locals_and_constraints, assign_type_reference_symbols,
 };
 pub(super) use queries::call_target_for_type_reference;
