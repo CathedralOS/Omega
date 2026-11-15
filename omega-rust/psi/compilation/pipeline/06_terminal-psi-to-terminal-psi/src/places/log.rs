@@ -533,7 +533,8 @@ impl Storage<'_> {
                     Stored::Moved(self.stored_at(*source, &[], concerns)?),
                 ));
             }
-            OperationKind::ByteSequenceSubslice { .. } => {
+            OperationKind::ByteSequenceSubslice { .. }
+            | OperationKind::ElementViewSubslice { .. } => {
                 self.shared_subslice(operation)?;
                 rows.push((fresh()?, Stored::Established));
             }

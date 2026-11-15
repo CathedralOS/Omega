@@ -586,11 +586,20 @@ fn typed_whole_array_views_keep_exact_length_and_their_backing() {
         "a three-entry view cannot satisfy require_four: {short}"
     );
     let partial = program.replace("&entries[..]", "&entries[1..]");
+    let refused = judge_build(&partial).unwrap();
+    assert!(
+        matches!(refused, RouteVerdict::Rejected { ref unproved, .. }
+            if !unproved.is_empty()
+                && unproved.iter().all(|row| matches!(row.kind, ObligationKind::CallRequirement { .. }))),
+        "the three-entry window cannot meet the four-entry contract: {refused:?}"
+    );
+    let partial_with_its_extent = partial
+        .replace("require_four", "require_three")
+        .replace("length == 4", "length == 3");
     assert_eq!(
-        verdict(&partial),
-        "expression partial typed array views need their element-view subslice formation \
-         while reading the local binding of `extent::entry::view` while reading the body of \
-         `extent`"
+        verdict(&partial_with_its_extent),
+        "accepted",
+        "{partial_with_its_extent}"
     );
 }
 

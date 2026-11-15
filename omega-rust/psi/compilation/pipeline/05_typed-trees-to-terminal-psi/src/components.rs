@@ -260,7 +260,7 @@ fn expression<'body>(value: &'body Expression, terminal: bool, sites: &mut Vec<C
                 expression(element, false, sites);
             }
         }
-        ExpressionKind::ByteSubslice { base, start, end } => {
+        ExpressionKind::CollectionSubslice { base, start, end } => {
             for operand in std::iter::once(base.as_ref())
                 .chain(start.as_deref())
                 .chain(end.as_deref())

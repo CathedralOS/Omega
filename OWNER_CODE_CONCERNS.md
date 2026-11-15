@@ -87,13 +87,6 @@ framework or a list of unimplemented features.
 - Cost: A caller cannot state the tighter valid bound on a deployment that supplies a narrower child. Carry that containment question to the existing installation closure and preserve the refusal when the selected child actually reaches Y or has no supplier.
 - Reported: 2026-11-15, Codex, while restoring the staggered provider review and manifest.
 
-### Fixed-array windows reach slice formation only for bytes
-- Category: branch per shape
-- Where: [fixed-array view elaboration](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/arrays.rs#L309), [element subslice contract](wiki/spec/terminal-psi/byte_views.md#element-typed-slice-views)
-- Saw: On clean `67fda671ffc` on macOS arm64, `extent(&numbers[1..2])` refuses with “partial typed array views need their element-view subslice formation” for `numbers: [u32; 2]` and `extent(view: &[u32]) -> u64 { view.len }`. The whole typed-array twin reads length 2, and the same partial range and length check over `u8` reads length 1. Both twins exit 0 in native and Psi and reopen independently. The elaborator rejects the typed range before forming its array loan or window.
-- Cost: The existing two-endpoint subslice rule cannot receive this typed array's backing and element extent. Carry the shared array loan into the existing element-window operation, keeping the actual range and distinct ordered bounds.
-- Reported: 2026-11-15, Codex, while checking typed slice fields through a runtime-selected array element.
-
 ### Float fixtures stop before target and requirement policy checks
 - Category: tests that pin the bug
 - Where: [rootless conversion](tests/fixtures/pass/float/rootless_target_realization_scope/main.omg), [selected conversion](tests/fixtures/packages/selected-provider-unsupported-target/main.omg), [Float::add owner check](omega-rust/omega/compilation/compiler/tests/package_review.rs#L598)
