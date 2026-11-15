@@ -108,14 +108,6 @@ framework or a list of unimplemented features.
 - Cost: The library and selected UEFI twin never distinguish target capability, and the closed addition never reaches the toolchain owner in recovered policy. Retain each authored operation while completing its canonical call contract.
 - Reported: 2026-11-15, Codex, while replaying kept package-review numeric fixtures.
 
-### Exact storage queries revisit reconverging copies
-- Category: verifying costs more than writing
-- Where: [reaching storage](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs#L2551), [reconverging copy control](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs#L5472)
-- Saw: On `a343c6b50a9`, the twelve-branch control scans 475,120 rows for an exact value and 196 for initialization. Exact-value and case queries retrace copies across incoming edges. Restricting each scan to the requested root cut the exact-value count to 237,560 and left the repeated traversal intact.
-- Cost: The cost grows with the number of paths through a graph with few distinct writes. Reuse reaching-write equations for the exact query, and preserve projected writes, disagreement across arrivals, case retirement and cycle refusal.
-- Reported: 2026-11-15, Codex, while profiling the checked native callback fixture.
-
-
 ### Static callable specialization needs a portable receipt for open structural reach
 - Category: knowledge crossing a boundary
 - Where: [static operand reader](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs), [checked application producer](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/declare.rs#L537), [retained reach reader](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/calls.rs#L2324), [open structural requirements](wiki/spec/language/effects.md#deferred-callback-reach)
