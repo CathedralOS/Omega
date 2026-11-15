@@ -325,6 +325,7 @@ pub(crate) fn boundary(
         program_local_root_introductions: Vec::new(),
         content_guarantees: Vec::new(),
         fixed_service_reach: reach.clone(),
+        service_reach_is_installation_bound: false,
         owning_service: if primitive { None } else { service },
         published_service_ceiling: reach.clone(),
         published_synchronous_entries: entries.clone(),
@@ -1080,7 +1081,11 @@ impl<'a> Lowering<'a> {
                 let mut clauses = Vec::with_capacity(signature.requires.len());
                 for clause in &signature.requires {
                     clauses.push(canonical::substitute_parameters(
-                        clause, &scalars, &roots, id,
+                        clause,
+                        &scalars,
+                        &roots,
+                        &self.tables.values,
+                        id,
                     )?);
                 }
                 self.invariants.push(ScalarBlockInvariant {

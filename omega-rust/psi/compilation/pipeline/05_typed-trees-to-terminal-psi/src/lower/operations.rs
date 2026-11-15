@@ -332,8 +332,18 @@ impl Lowering<'_> {
             ExpressionKind::Requalify(operand) => {
                 let scalar_type = self.result_type(operand)?;
                 let operand = continuing!(self.scalar(operand));
-                self.prove_membership(operand, scalar_type, &[], "", source)
-                    .map(|value| Reached::Value(Value::Scalar(value)))
+                self.establish_predicates(
+                    operand,
+                    scalar_type,
+                    expression
+                        .result
+                        .ok_or_else(|| self.internal("a cast has no result type"))?
+                        .qualification(),
+                    &[],
+                    "",
+                    source,
+                )
+                .map(|value| Reached::Value(Value::Scalar(value)))
             }
             ExpressionKind::Establish {
                 operand,
@@ -342,8 +352,18 @@ impl Lowering<'_> {
             } => {
                 let scalar_type = self.result_type(operand)?;
                 let operand = continuing!(self.scalar(operand));
-                self.prove_membership(operand, scalar_type, clauses, stated, source)
-                    .map(|value| Reached::Value(Value::Scalar(value)))
+                self.establish_predicates(
+                    operand,
+                    scalar_type,
+                    expression
+                        .result
+                        .ok_or_else(|| self.internal("a cast has no result type"))?
+                        .qualification(),
+                    clauses,
+                    stated,
+                    source,
+                )
+                .map(|value| Reached::Value(Value::Scalar(value)))
             }
             ExpressionKind::Strict {
                 left: left_expression,

@@ -1591,10 +1591,13 @@ impl<'a> Lowering<'a> {
                     clause,
                     &[],
                     &[place],
+                    &self.tables.values,
                     id,
                 )?);
             }
-            self.sources.memberships.push((cast, stated.to_owned()));
+            self.sources
+                .predicate_establishments
+                .push((cast, stated.to_owned()));
             self.invariants.push(terminal_psi::ScalarBlockInvariant {
                 machine: id,
                 header: cast,

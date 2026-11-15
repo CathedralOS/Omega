@@ -30,11 +30,11 @@ data Main {
 
 machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("entity_list: [Monster; 4] -- deal 10 damage to each, then sum HP");
-    main.monsters[0].hp = 30;
-    main.monsters[1].hp = 12;
-    main.monsters[2].hp = 25;
-    main.monsters[3].hp = 8;
-    main.i = 0;
+    main.monsters[0].hp = 30i32 as +Wrapping;
+    main.monsters[1].hp = 12i32 as +Wrapping;
+    main.monsters[2].hp = 25i32 as +Wrapping;
+    main.monsters[3].hp = 8i32 as +Wrapping;
+    main.i = 0i32 as +Wrapping;
     transition { _ -> block damage_loop(main) }
 
     machine damage_loop(main: &mut Main) {
@@ -49,8 +49,8 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     }
 
     machine sum_start(main: &mut Main) {
-        main.i = 0;
-        main.total = 0;
+        main.i = 0i32 as +Wrapping;
+        main.total = 0i32 as +Wrapping;
         transition { _ -> block sum_loop(main) }
     }
     machine sum_loop(main: &mut Main) {

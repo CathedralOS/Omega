@@ -3,6 +3,7 @@ We evaluate scalar, borrowed-argument, owned-argument, and normalized-foreign
 call ABI placements and carrier normalizations for instruction selection.
 */
 
+use crate::selection::aggregate_result_input::indirect_result;
 use crate::selection::model::SelectedInstructionError;
 use crate::structural_inputs::structural_reference_input::owned_storage_shape;
 use crate::structural_inputs::structural_unit_input::{accepts_graph, parameter_views};
@@ -1538,9 +1539,7 @@ fn invocation_key(
         }
     }
     let mut inputs = views.len();
-    let hidden = call.result_placement.as_ref().and_then(|placement| {
-        crate::selection::aggregate_result_input::indirect_result(placement, call.call_plan.policy)
-    });
+    let hidden = call.result_placement.as_ref().and_then(indirect_result);
     if let Some(hidden) = hidden {
         views.push(environment.fixed_register_view(hidden)?);
         inputs += 1;
@@ -1721,10 +1720,12 @@ pub(crate) fn validate(
         }
         return Ok(());
     }
-    if call.result_placement.as_ref().is_some_and(|placement| {
-        crate::selection::aggregate_result_input::indirect_result(placement, call.call_plan.policy)
-            .is_some()
-    }) {
+    if call
+        .result_placement
+        .as_ref()
+        .and_then(indirect_result)
+        .is_some()
+    {
         crate::selection::aggregate_result_input::call_result(source, call).ok_or_else(invalid)?;
         if unit_key(call, environment) != Some(key)
             || environment.constraint(key) != Some(row)

@@ -80,7 +80,7 @@ machine write_slot(main: &mut Main, idx: i32 in Saturating, value: i32 in Satura
 // ---------------------------------------------------------------------------
 machine pop_result(main: &mut Main) {
     main.stack.result = main.stack.slots[0];
-    main.stack.sp = 0;
+    main.stack.sp = 0i32 as +Saturating;
 }
 
 // ---------------------------------------------------------------------------
@@ -100,7 +100,7 @@ machine add(main: &mut Main) {
     machine add_sp2(main: &mut Main) {
         let a: i32 in Saturating = main.stack.slots[0];
         let b: i32 in Saturating = main.stack.slots[1];
-        main.stack.sp = 1;
+        main.stack.sp = 1i32 as +Saturating;
         main.stack.slots[0] = a + b;
     }
 
@@ -119,7 +119,7 @@ machine sub(main: &mut Main) {
     machine sub_sp2(main: &mut Main) {
         let a: i32 in Saturating = main.stack.slots[0];
         let b: i32 in Saturating = main.stack.slots[1];
-        main.stack.sp = 1;
+        main.stack.sp = 1i32 as +Saturating;
         main.stack.slots[0] = a - b;
     }
 
@@ -138,7 +138,7 @@ machine mul(main: &mut Main) {
     machine mul_sp2(main: &mut Main) {
         let a: i32 in Saturating = main.stack.slots[0];
         let b: i32 in Saturating = main.stack.slots[1];
-        main.stack.sp = 1;
+        main.stack.sp = 1i32 as +Saturating;
         main.stack.slots[0] = a * b;
     }
 
@@ -150,14 +150,14 @@ machine mul(main: &mut Main) {
 // ---------------------------------------------------------------------------
 machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("calculator_rpn: evaluate \"32 4 + 2 * 2 -\" on a fixed-capacity stack");
-    push(main, 32);
-    push(main, 4);
+    push(main, 32i32 as +Saturating);
+    push(main, 4i32 as +Saturating);
     add(main);       // stack: [36], sp=1
 
-    push(main, 2);
+    push(main, 2i32 as +Saturating);
     mul(main);       // stack: [72], sp=1
 
-    push(main, 2);
+    push(main, 2i32 as +Saturating);
     sub(main);       // stack: [70], sp=1
 
     // Extract result from slot 0.

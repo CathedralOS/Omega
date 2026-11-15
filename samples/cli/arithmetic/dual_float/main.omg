@@ -38,7 +38,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("dual_float: f32 and f64 coexisting in one struct -- 3.5+3.5 (f32) and 6.5-3.0 (f64)");
     // Assign the mixed-width float fields.
     main.f.low = 3.5;
@@ -59,7 +59,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine bad_sum_low(main: &mut Main) {
         Console::write_line("FAIL: f32 sum <= 6.9 -- expected ~7.0 (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(71);
     }
 
@@ -72,7 +72,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine bad_sum_high(main: &mut Main) {
         Console::write_line("FAIL: f32 sum >= 7.1 -- expected ~7.0 (exit 72)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(72);
     }
 
@@ -86,7 +86,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine bad_diff_low(main: &mut Main) {
         Console::write_line("FAIL: f64 diff <= 3.4 -- expected ~3.5 (exit 73)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(73);
     }
 
@@ -99,7 +99,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine bad_diff_high(main: &mut Main) {
         Console::write_line("FAIL: f64 diff >= 3.6 -- expected ~3.5 (exit 74)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(74);
     }
 
@@ -115,14 +115,14 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine good(main: &mut Main) {
         Console::write_line("PASS: both float widths computed and compared correctly (exit 70)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(70);
     }
 
     machine bad_result(main: &mut Main) {
         Console::write_line("FAIL: integer result field readback != 70 (exit 75)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(75);
     }
 }
@@ -130,5 +130,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

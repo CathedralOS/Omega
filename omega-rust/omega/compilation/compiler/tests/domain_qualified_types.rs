@@ -437,8 +437,7 @@ fn rejected(name: &str, machines: &str, expected: &str) {
 }
 
 /// What the rejection of a cast says, before the domain and its predicate.
-const UNPROVED_CAST: &str =
-    "cannot prove the value of this cast is in the domain it adds in machine `wrong`";
+const UNPROVED_CAST: &str = "cannot prove the required condition of this cast in machine `wrong`";
 
 /// The domain and predicate the rejection names.
 const POSITIVE: &str = "domain `i32::Positive` requires `self > 0`";

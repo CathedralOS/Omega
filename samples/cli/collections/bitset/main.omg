@@ -19,11 +19,11 @@ data Main {
 
 machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("bitset: insert {3, 5, 7} into a u32 bitset via runtime shifts, then test membership of 5, 4, 7");
-    main.vals[0] = 3;
-    main.vals[1] = 5;
-    main.vals[2] = 7;
-    main.bits = 0;
-    main.i = 0;
+    main.vals[0] = 3u32 as +Wrapping;
+    main.vals[1] = 5u32 as +Wrapping;
+    main.vals[2] = 7u32 as +Wrapping;
+    main.bits = 0u32 as +Wrapping;
+    main.i = 0u32 as +Wrapping;
     transition { _ -> block ins_step(main) }
 
     // Insert each value: bits |= 1 << vals[i].
@@ -34,7 +34,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         }
     }
     machine insert(main: &mut Main) {
-        main.mask = 1;
+        main.mask = 1u32 as +Wrapping;
         main.mask = main.mask << main.vals[main.i];
         main.bits = main.bits | main.mask;
         main.i = main.i + 1;

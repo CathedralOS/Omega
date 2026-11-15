@@ -653,7 +653,16 @@ fn elaborate_witness_with_captures(
         expected,
     )?;
     let callee = program.implementation(implementation, declaring_trait, requirement)?;
-    elaborate_witness_call(program, entry, callee)
+    let mut elaboration = elaborate_witness_call(program, entry, callee)?;
+    if typed
+        .trait_machine_signature(requirement)
+        .is_some_and(|(owner, signature)| {
+            owner.is_boundary && signature.service_reach_is_installation_bound
+        })
+    {
+        elaboration.installation_bound_refinement = Some(entry);
+    }
+    Ok(elaboration)
 }
 
 fn elaborate_witness_call(
@@ -1269,6 +1278,7 @@ fn lower_generic_for<'source>(
         selected_calls: Vec::new(),
         prepared_applications: Vec::new(),
         program: Elaboration {
+            installation_bound_refinement: None,
             module,
             tables,
             sources,

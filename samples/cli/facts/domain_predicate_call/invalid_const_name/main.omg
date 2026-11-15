@@ -18,8 +18,8 @@ requires direct == true
 const KEPT: bool = true;
 
 machine main() crashes Trap {
-    let direct: bool in Held = KEPT;
-    transition hold(direct) {
+    let direct: bool in Held = KEPT as +Held;
+    transition hold(direct as -Held) {
         true -> done()
         _ -> bad()
     }

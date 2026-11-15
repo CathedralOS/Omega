@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+flow-effects = { path = "../../foundation/flow-effects" }
 arena = { path = "../../foundation/arena" }
 numerics = { path = "../../foundation/numerics" }
 proof-admission = { path = "../proof-admission" }

@@ -1393,6 +1393,7 @@ pub(crate) mod structural_encoding {
             encode_boundary_content_guarantee,
         );
         encode_ids(bytes, &declaration.fixed_service_reach);
+        bytes.boolean(declaration.service_reach_is_installation_bound);
         encode_optional(
             bytes,
             declaration.owning_service.as_ref(),
@@ -2286,6 +2287,7 @@ pub(crate) mod structural_encoding {
                 program_local_root_introductions: Vec::new(),
                 content_guarantees: Vec::new(),
                 fixed_service_reach: Vec::new(),
+                service_reach_is_installation_bound: false,
                 owning_service: None,
                 published_synchronous_entries: Vec::new(),
                 published_service_ceiling: Vec::new(),

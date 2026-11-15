@@ -1505,8 +1505,6 @@ pub mod product_operand {
     #[derive(Clone, Copy)]
     pub struct ProductEntryDeclaration<'program> {
         machine_symbol: SymbolHandle,
-        machine_contracts: &'program [crate::signature::SignatureContract],
-        entry_contracts: &'program [crate::signature::SignatureContract],
         pub name: &'program str,
         pub attached_data_symbol: SymbolHandle,
         pub type_parameters: &'program [crate::data::TypeParameter],
@@ -1554,29 +1552,12 @@ pub mod product_operand {
             self.machine_symbol
         }
 
-        pub fn erased_requires_inputs(self) -> impl Iterator<Item = &'program str> + 'program {
-            self.machine_contracts
-                .iter()
-                .chain(self.entry_contracts)
-                .filter_map(|contract| {
-                    (contract.kind == crate::signature::SignatureContractKind::Requires)
-                        .then_some(contract.binding.as_ref())
-                        .flatten()
-                        .map(|binding| binding.as_str())
-                })
-        }
-
         pub fn from_machine(
             program: &'program TypedTrees,
             machine: &'program crate::machine::Machine,
         ) -> Self {
             Self {
                 machine_symbol: machine.symbol,
-                machine_contracts: program.machine_contracts(machine),
-                entry_contracts: program
-                    .machine_states(machine)
-                    .first()
-                    .map_or(&[][..], |entry| program.state_contracts(entry)),
                 name: machine.name.as_str(),
                 attached_data_symbol: machine.attached_data_symbol,
                 type_parameters: program.machine_type_parameters(machine),
@@ -2146,33 +2127,6 @@ pub mod trait_definition {
                     })
                 }
 
-                pub fn portable_application_identity_under_invocation(
-                    &self,
-                    program: &TypedTrees,
-                    declaration: SymbolHandle,
-                    argument_owner: SymbolHandle,
-                    arguments: &[(SymbolHandle, IndexIdentityArgument<'_>)],
-                    bindings: &[crate::static_applications::StaticMachineLifetimeBinding],
-                ) -> Option<NormalizedTypeIdentity> {
-                    let region =
-                        invocation_region_scope(program, declaration, argument_owner, bindings)?;
-                    self.with_identity_scopes(program, |scopes| {
-                        let mut complete = Vec::with_capacity(scopes.len() + 1);
-                        complete.push(AppliedTypeIdentityScope {
-                            declaration: region.declaration,
-                            arguments,
-                            lifetimes: &region.lifetimes,
-                        });
-                        complete.extend_from_slice(scopes);
-                        self.portable_application_identity_in_scopes(
-                            program,
-                            argument_owner,
-                            &complete,
-                            1,
-                        )
-                    })
-                }
-
                 fn portable_application_identity_in_scopes(
                     &self,
                     program: &TypedTrees,
@@ -2476,123 +2430,12 @@ pub mod trait_definition {
         }
         use regions::AppliedDeclarationRegionScope;
         pub(crate) mod enclosing {
-            use super::project_type_reference;
+
             use super::{AppliedDeclarationRegionScope, AppliedTraitScope};
             use crate::TypedTrees;
             use crate::data::DataDefinition;
             use crate::name::Identifier;
             use crate::types::{TypeReferenceHandle, TypeReferenceNode};
-
-            impl TypedTrees {
-                pub fn project_enclosing_data_type_reference(
-                    &self,
-                    reference: TypeReferenceHandle,
-                    applications: &[TypeReferenceHandle],
-                ) -> Option<(TypeReferenceHandle, usize)> {
-                    let mut substitutions = Vec::new();
-                    let mut starts = Vec::new();
-                    for application in applications {
-                        let application = data_application(self, *application)?;
-                        starts.push(substitutions.len());
-                        substitutions.extend(
-                            self.data_type_parameters(application.declaration)
-                                .iter()
-                                .zip(application.arguments)
-                                .filter(|(parameter, _)| {
-                                    parameter.kind == crate::data::TypeParameterKind::Type
-                                })
-                                .map(|(parameter, argument)| (parameter.symbol, *argument)),
-                        );
-                    }
-                    let mut applied =
-                        project_type_reference(self, reference, &substitutions, &starts);
-                    let mut visited = Vec::new();
-                    loop {
-                        if !self.contains_type_reference(applied.reference)
-                            || visited.contains(&(applied.reference, applied.scope_starts.len()))
-                        {
-                            return None;
-                        }
-                        visited.push((applied.reference, applied.scope_starts.len()));
-                        let TypeReferenceNode::Named { symbol, .. } =
-                            self.type_reference_table.type_reference(applied.reference)
-                        else {
-                            break;
-                        };
-                        let Some(origin) = self
-                            .data_definition_by_symbol(*symbol)
-                            .and_then(|definition| definition.generic_instance)
-                        else {
-                            break;
-                        };
-                        applied = project_type_reference(
-                            self,
-                            origin,
-                            applied.substitutions,
-                            applied.scope_starts,
-                        );
-                    }
-                    Some((applied.reference, applied.scope_starts.len()))
-                }
-
-                pub fn with_enclosing_data_identity_scopes<Result>(
-                    &self,
-                    applications: &[TypeReferenceHandle],
-                    use_scopes: impl FnOnce(
-                        &[crate::type_identity::AppliedTypeIdentityScope<'_>],
-                    ) -> Result,
-                ) -> Option<Result> {
-                    let applications = applications
-                        .iter()
-                        .map(|reference| data_application(self, *reference))
-                        .collect::<Option<Vec<_>>>()?;
-                    let arguments =
-                        applications
-                            .iter()
-                            .map(|application| {
-                                self.data_type_parameters(application.declaration)
-                    .iter()
-                    .zip(application.arguments)
-                    .map(|(parameter, actual)| {
-                        let actual = if parameter.kind == crate::data::TypeParameterKind::Type {
-                            crate::type_identity::IndexIdentityArgument::TypeArgument(*actual)
-                        } else {
-                            crate::type_identity::IndexIdentityArgument::TypeReference(*actual)
-                        };
-                        (parameter.symbol, actual)
-                    })
-                    .collect::<Vec<_>>()
-                            })
-                            .collect::<Vec<_>>();
-                    let lifetimes = applications
-                        .iter()
-                        .map(|application| {
-                            application
-                                .declaration
-                                .lifetime_parameters
-                                .iter()
-                                .zip(application.lifetimes)
-                                .map(|(parameter, actual)| {
-                                    (parameter.as_str().to_owned(), actual.as_str().to_owned())
-                                })
-                                .collect::<Vec<_>>()
-                        })
-                        .collect::<Vec<_>>();
-                    let scopes = applications
-                        .iter()
-                        .zip(&arguments)
-                        .zip(&lifetimes)
-                        .map(|((application, arguments), lifetimes)| {
-                            crate::type_identity::AppliedTypeIdentityScope {
-                                declaration: application.declaration.symbol,
-                                arguments,
-                                lifetimes,
-                            }
-                        })
-                        .collect::<Vec<_>>();
-                    Some(use_scopes(&scopes))
-                }
-            }
 
             pub(crate) struct DataApplication<'program> {
                 pub declaration: &'program DataDefinition,
@@ -2743,34 +2586,6 @@ pub mod trait_definition {
                     Ok(Some(requirements[ordinal]))
                 }
 
-                pub fn requirement_callable_parameters(
-                    &self,
-                    requirement: &StateSignature,
-                    provider: &[crate::data::TypeParameter],
-                ) -> Vec<crate::data::TypeParameter> {
-                    use crate::data::TypeParameterKind;
-                    let mut ordinary = provider
-                        .iter()
-                        .filter(|parameter| parameter.kind != TypeParameterKind::Implementation);
-                    let mut evidence = provider
-                        .iter()
-                        .filter(|parameter| parameter.kind == TypeParameterKind::Implementation);
-                    let mut aligned = Vec::with_capacity(provider.len());
-                    for required in self.requirement_invocation_contract_parameters(requirement) {
-                        let selected = if required.kind == TypeParameterKind::Implementation {
-                            evidence.next()
-                        } else {
-                            ordinary.next()
-                        };
-                        if let Some(parameter) = selected {
-                            aligned.push(parameter.clone());
-                        }
-                    }
-                    aligned.extend(ordinary.cloned());
-                    aligned.extend(evidence.cloned());
-                    aligned
-                }
-
                 pub fn machine_callable_parameters(
                     &self,
                     machine: &Machine,
@@ -2828,58 +2643,6 @@ pub mod trait_definition {
                                 .find(|declaration| declaration.symbol == owner)
                                 .map(|declaration| declaration.conformance_bounds.as_slice())
                         })
-                }
-
-                pub fn callable_conformance_bound(
-                    &self,
-                    owner: SymbolHandle,
-                    binder: SymbolHandle,
-                ) -> Option<&crate::machine::GenericConformanceBound> {
-                    if !binder.is_valid()
-                        || self.symbols.get(binder).kind
-                            != symbols::SymbolKind::ConformanceParameter
-                    {
-                        return None;
-                    }
-                    if let Some(bound) = self
-                        .callable_conformance_bounds(owner)
-                        .and_then(|bounds| bounds.iter().find(|bound| bound.binder == binder))
-                    {
-                        return Some(bound);
-                    }
-                    let parent = self.symbols.get(binder).parent;
-                    self.declaration_conformance_bounds(parent)
-                        .and_then(|bounds| bounds.iter().find(|bound| bound.binder == binder))
-                }
-
-                pub fn conformance_target_requirement<'program>(
-                    &'program self,
-                    machine: &'program Machine,
-                    target: SymbolHandle,
-                ) -> Result<Option<GenericBoundRequirement<'program>>, String> {
-                    if !target.is_valid() {
-                        return Ok(None);
-                    }
-                    for bound in &machine.conformance_bounds {
-                        let binder = bound.binder;
-                        if self
-                            .symbols
-                            .child_handles(binder)
-                            .is_some_and(|mut children| children.any(|child| child == target))
-                        {
-                            return self.conformance_bound_requirement(machine, binder, target);
-                        }
-                    }
-                    Ok(None)
-                }
-
-                pub fn conformance_bound_requirement<'program>(
-                    &'program self,
-                    machine: &'program Machine,
-                    receiver: SymbolHandle,
-                    target: SymbolHandle,
-                ) -> Result<Option<GenericBoundRequirement<'program>>, String> {
-                    self.evidence_bound_requirement(machine.symbol, receiver, target)
                 }
 
                 pub fn evidence_bound_requirement<'program>(

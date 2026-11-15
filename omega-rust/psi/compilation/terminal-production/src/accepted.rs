@@ -52,44 +52,19 @@ impl AcceptedTerminalSource {
         compilation: typed_trees_to_terminal_psi::Compilation<'_>,
         publication: terminal_codec::TerminalPublication,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let prepared =
+        let mut prepared =
             typed_trees_to_terminal_psi::prepare_compilation(&source, compilation, publication);
+        retain_installation_reach(&mut prepared.program)?;
         let verdicts = terminal_psi_to_terminal_psi::judge_compilation(prepared.program);
         let advisories = advisories(&verdicts);
         let closure = accept_compilation(verdicts)?;
-        let mut accepted = Self {
+        Ok(Self {
             source,
             closure,
             correspondence: prepared.source,
             publication,
             advisories,
-        };
-        accepted.retain_installation_reach()?;
-        Ok(accepted)
-    }
-
-    fn retain_installation_reach(&mut self) -> Result<(), Vec<Diagnostic>> {
-        let requirements = self.installation_reach_requirements();
-        let module = &mut self.closure.elaboration.module;
-        let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = module.entry else {
-            return Ok(());
-        };
-        if requirements.is_empty() {
-            return Ok(());
-        }
-        let reach = terminal_installation::SynchronousCallGraph::new(module, None)
-            .and_then(|graph| graph.service_reach_from(entry, &requirements, false))
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        if reach.installation_dependencies.is_empty() {
-            return Ok(());
-        }
-        for boundary in &mut module.boundary_machines {
-            if requirements.binary_search(&boundary.id).is_ok() {
-                boundary.fixed_service_reach.clear();
-            }
-        }
-        module.root_service_reach = reach;
-        Ok(())
+        })
     }
 
     /// Preserve every emitted site of this exact typed call and source member.
@@ -299,18 +274,7 @@ impl AcceptedTerminalSource {
 
     /// Exact lowered boundary declarations whose source owns an installation bound.
     pub fn installation_reach_requirements(&self) -> Vec<semantic_vocabulary::BoundaryMachineId> {
-        self.closure
-            .elaboration
-            .boundaries
-            .iter()
-            .filter_map(|(boundary, symbol)| {
-                let (owner, signature) = self.source.trait_machine_signature(*symbol)?;
-                (owner.is_boundary
-                    && signature.symbol == *symbol
-                    && signature.service_reach_is_installation_bound)
-                    .then_some(boundary)
-            })
-            .collect()
+        self.module().installation_reach_requirements()
     }
 
     /// The boundary requirements this accepted module declares, in the
@@ -573,6 +537,35 @@ impl AcceptedTerminalSource {
     pub fn is_invocation(&self) -> bool {
         self.publication == terminal_codec::TerminalPublication::Invocation
     }
+}
+
+/// The checker must see the same conditional root that publication retains.
+/// All authority comes from the lowered declarations, not a later source read.
+fn retain_installation_reach(
+    compilation: &mut terminal_check_tables::compilation::TerminalCompilation,
+) -> Result<(), Vec<Diagnostic>> {
+    use terminal_check_tables::compilation::TerminalCompilation;
+    let TerminalCompilation::Prepared(prepared) = compilation else {
+        return Ok(());
+    };
+    let Ok(elaboration) = &mut prepared.closure else {
+        return Ok(());
+    };
+    let module = &mut elaboration.module;
+    let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = module.entry else {
+        return Ok(());
+    };
+    let requirements = module.installation_reach_requirements();
+    if requirements.is_empty() {
+        return Ok(());
+    }
+    let reach = terminal_installation::SynchronousCallGraph::new(module, None)
+        .and_then(|graph| graph.service_reach_from(entry, &requirements))
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    if !reach.installation_dependencies.is_empty() {
+        module.root_service_reach = reach;
+    }
+    Ok(())
 }
 
 /// The advisories of every accepted part: the entry closure and each

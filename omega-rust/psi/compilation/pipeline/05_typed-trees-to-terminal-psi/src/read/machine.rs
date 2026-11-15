@@ -1467,13 +1467,20 @@ impl<'t> Program<'t> {
             let arguments = self.conformer_value_arguments(id, machine, requirement)?;
             let (routed, routed_names) = self.requirement_signature(id, requirement, &arguments)?;
             self.same_conformer_shape(id, &signature, &routed, machine.symbol)?;
-            // The executable entry exposes only its requirement. The existing
-            // independent witness checks the member under its own contract.
+            // Calls expose the requirement's contracts. The independent
+            // witness checks the member under its own contract; abstract
+            // reach additionally needs the selected installation below.
             signature.requires = routed.requires;
             signature.ensures = routed.ensures;
             names.requires = routed_names.requires;
             names.ensures = routed_names.ensures;
-            if !matches!(routed.reaches, crate::Ceiling::Inferred) {
+            // An abstract requirement bounds the selected installation's
+            // resolved row. Its body keeps its own written ceiling or
+            // inference; replacing that with the abstract bound would
+            // reject a child whose wider bound resolves to a smaller row.
+            if !requirement.service_reach_is_installation_bound
+                && !matches!(routed.reaches, crate::Ceiling::Inferred)
+            {
                 signature.reaches = routed.reaches;
             }
             signature.invokes = routed.invokes;
@@ -2650,7 +2657,7 @@ impl<'t> Program<'t> {
     /// Two kinds stay refused by name: an `[erased]` one, which names a
     /// term and has no storage to assign, and one of a type parameter,
     /// whose replaced value no slice disposes of yet.
-    fn formal(
+    pub(super) fn formal(
         &mut self,
         id: MachineId,
         formal: &StateParameter,

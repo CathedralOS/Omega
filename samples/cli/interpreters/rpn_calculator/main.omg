@@ -24,9 +24,9 @@ requires self.sp >= 0 && self.sp <= 16,
 {
     // Wrapping DECLARED (program/stack/tok/a/b/acc): the operand values flow
     // through array elements, which carry no range facts yet.
-    program: [i32; 16] in Wrapping;
+    program: [i32 in Wrapping; 16];
     nprog: i32;
-    stack: [i32; 16] in Wrapping;
+    stack: [i32 in Wrapping; 16];
     sp: i32;
     pc: i32;
     tok: i32 in Wrapping;
@@ -38,11 +38,11 @@ requires self.sp >= 0 && self.sp <= 16,
 
 machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("rpn_calculator: evaluates the postfix program 3 4 + 5 * on an operand stack");
-    main.program[0] = 3;
-    main.program[1] = 4;
-    main.program[2] = 0 - 1;
-    main.program[3] = 5;
-    main.program[4] = 0 - 2;
+    main.program[0] = 3i32 as +Wrapping;
+    main.program[1] = 4i32 as +Wrapping;
+    main.program[2] = (0i32 - 1) as +Wrapping;
+    main.program[3] = 5i32 as +Wrapping;
+    main.program[4] = (0i32 - 2) as +Wrapping;
     main.nprog = 5;
 
     main.sp = 0;

@@ -43,16 +43,16 @@ terminates by s -> Slice::Length
 machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("subslice_sum: shrinking-window recursion sums [3, 7, 12, 18, 5, 25]");
     // Initialize the array.
-    main.arr[0] = 3;
-    main.arr[1] = 7;
-    main.arr[2] = 12;
-    main.arr[3] = 18;
-    main.arr[4] = 5;
-    main.arr[5] = 25;
+    main.arr[0] = 3i32 as +Wrapping;
+    main.arr[1] = 7i32 as +Wrapping;
+    main.arr[2] = 12i32 as +Wrapping;
+    main.arr[3] = 18i32 as +Wrapping;
+    main.arr[4] = 5i32 as +Wrapping;
+    main.arr[5] = 25i32 as +Wrapping;
 
     // Sum all 6 elements via shrinking-window recursion: 3+7+12+18+5+25 = 70.
     let s: &[i32 in Wrapping] = &main.arr[..];
-    let t: i32 = walk(s, 0);
+    let t: i32 = walk(s, 0i32 as +Wrapping);
 
     transition t == 70 {
         true -> block good(main)

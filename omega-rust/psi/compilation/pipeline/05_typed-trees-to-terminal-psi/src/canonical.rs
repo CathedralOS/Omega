@@ -154,6 +154,7 @@ pub(crate) fn routes(
 pub(crate) fn substituted_routes(
     routes: &[CrashRouteBucket],
     actuals: &[ValueId],
+    values: &semantic_vocabulary::IdTable<ValueId, terminal_check_tables::values::ValueRow>,
     id: MachineId,
 ) -> Checked<Vec<CrashRouteBucket>> {
     let mut alternatives = Vec::new();
@@ -161,9 +162,14 @@ pub(crate) fn substituted_routes(
         for guard in &bucket.alternatives {
             let guard = match guard {
                 CrashRouteGuard::Truth => CrashRouteGuard::Truth,
-                CrashRouteGuard::Predicate(predicate) => CrashRouteGuard::Predicate(
-                    CrashPredicateTerm::new(substitute(predicate.proposition(), actuals, id)?),
-                ),
+                CrashRouteGuard::Predicate(predicate) => {
+                    CrashRouteGuard::Predicate(CrashPredicateTerm::new(substitute(
+                        predicate.proposition(),
+                        actuals,
+                        values,
+                        id,
+                    )?))
+                }
             };
             alternatives.push((bucket.cause, guard));
         }
@@ -177,9 +183,10 @@ pub(crate) fn substituted_routes(
 pub(crate) fn substitute(
     proposition: &Proposition,
     actuals: &[ValueId],
+    values: &semantic_vocabulary::IdTable<ValueId, terminal_check_tables::values::ValueRow>,
     id: MachineId,
 ) -> Checked<Proposition> {
-    substitute_parameters(proposition, actuals, &[], id)
+    substitute_parameters(proposition, actuals, &[], values, id)
 }
 
 /// A loop header restates a source contract over its own parameter identities.
@@ -189,13 +196,15 @@ pub(crate) fn substitute_parameters(
     proposition: &Proposition,
     actuals: &[ValueId],
     places: &[semantic_vocabulary::PlaceId],
+    values: &semantic_vocabulary::IdTable<ValueId, terminal_check_tables::values::ValueRow>,
     id: MachineId,
 ) -> Checked<Proposition> {
     let substituted = terminal_semantics::substitution::clauses::substitute_clause(
         proposition,
         &mut ScalarFormals {
-            values: actuals,
+            actuals,
             places,
+            values,
         },
     )
     .map_err(|detail| refuse(id, Construct::Machine, Unserved::Contract(detail)))?;
@@ -234,7 +243,8 @@ fn canonical_clause(proposition: Proposition, id: MachineId) -> Checked<Proposit
 }
 
 struct ScalarFormals<'a> {
-    values: &'a [ValueId],
+    actuals: &'a [ValueId],
+    values: &'a semantic_vocabulary::IdTable<ValueId, terminal_check_tables::values::ValueRow>,
     places: &'a [semantic_vocabulary::PlaceId],
 }
 
@@ -263,7 +273,7 @@ impl terminal_semantics::substitution::clauses::ClauseBindings for ScalarFormals
         let actual = usize::try_from(formal.get())
             .ok()
             .and_then(|position| position.checked_sub(1))
-            .and_then(|position| self.values.get(position))
+            .and_then(|position| self.actuals.get(position))
             .ok_or("clause names a value that is not a formal")?;
         Ok(ScalarTerm::value(*actual, scalar_type))
     }
@@ -301,6 +311,31 @@ impl terminal_semantics::substitution::clauses::ClauseBindings for ScalarFormals
         })
     }
 
+    fn validate_float_meaning_source(&mut self, source: &ScalarTerm) -> Result<(), Self::Error> {
+        use terminal_check_tables::values::ValueOrigin;
+        match source {
+            ScalarTerm::IeeeFloatLiteral(_) => Ok(()),
+            ScalarTerm::Value { id, scalar_type } => {
+                let row = self
+                    .values
+                    .get(*id)
+                    .ok_or("float meaning restatement names no lowered value")?;
+                if row.scalar_type != *scalar_type || row.rigid.is_some() {
+                    return Err("float meaning restatement changes its lowered value type");
+                }
+                match row.origin {
+                    ValueOrigin::MachineParameter { .. }
+                    | ValueOrigin::BlockParameter { .. }
+                    | ValueOrigin::Operation(_) => Ok(()),
+                    ValueOrigin::MachineResult | ValueOrigin::StorageContent { .. } => {
+                        Err("float meaning restatement has no executable scalar producer")
+                    }
+                }
+            }
+            _ => Err("float meaning restatement needs an exact scalar producer or literal"),
+        }
+    }
+
     fn extent(
         &mut self,
         root: semantic_vocabulary::PlaceId,
@@ -329,6 +364,20 @@ mod tests {
     use super::*;
     use semantic_vocabulary::{IntegerMathTerm, IntegerSign, IntegerType, ScalarType};
 
+    fn values(
+        scalar_type: ScalarType,
+    ) -> semantic_vocabulary::IdTable<ValueId, terminal_check_tables::values::ValueRow> {
+        let mut values = semantic_vocabulary::IdTable::default();
+        for position in 0..8 {
+            values.push(terminal_check_tables::values::ValueRow {
+                scalar_type,
+                origin: terminal_check_tables::values::ValueOrigin::MachineParameter { position },
+                rigid: None,
+            });
+        }
+        values
+    }
+
     #[test]
     fn clause_substitution_preserves_nested_operations_and_actual_identity() {
         let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
@@ -347,10 +396,24 @@ mod tests {
         let mut expected = clause.clone();
         expected.remap_value_ids(|formal| actuals[(formal.get() - 1) as usize]);
         assert_eq!(
-            substitute(&clause, &actuals, MachineId::new(1).unwrap()).unwrap(),
+            substitute(
+                &clause,
+                &actuals,
+                &values(scalar),
+                MachineId::new(1).unwrap()
+            )
+            .unwrap(),
             expected
         );
-        assert!(substitute(&clause, &actuals[..1], MachineId::new(1).unwrap()).is_err());
+        assert!(
+            substitute(
+                &clause,
+                &actuals[..1],
+                &values(scalar),
+                MachineId::new(1).unwrap()
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -365,7 +428,7 @@ mod tests {
         let actuals = [ValueId::new(8).unwrap(), ValueId::new(3).unwrap()];
         let machine = MachineId::new(1).unwrap();
         assert_eq!(
-            substitute(&clause, &actuals, machine).unwrap(),
+            substitute(&clause, &actuals, &values(scalar), machine).unwrap(),
             conjunction(
                 vec![
                     equal(value(3), value(8), machine).unwrap(),
@@ -375,5 +438,36 @@ mod tests {
             )
             .unwrap()
         );
+    }
+    #[test]
+    fn meaning_restatement_requires_the_actual_minted_value_and_format() {
+        use semantic_vocabulary::{FloatMeaningClause, IeeeFloatFormat};
+        let scalar = ScalarType::IeeeFloat(IeeeFloatFormat::Binary64);
+        let clause = Proposition::FloatMeaningEqual(
+            FloatMeaningClause::conversion_roundtrip(
+                ScalarTerm::value(ValueId::new(1).unwrap(), scalar),
+                IeeeFloatFormat::Binary32,
+            )
+            .unwrap(),
+        );
+        let actuals = [ValueId::new(8).unwrap()];
+        let machine = MachineId::new(1).unwrap();
+        let mut roster = values(scalar);
+        let mapped = substitute(&clause, &actuals, &roster, machine).unwrap();
+        let Proposition::FloatMeaningEqual(mapped) = mapped else {
+            unreachable!()
+        };
+        assert_eq!(
+            mapped.sources().collect::<Vec<_>>(),
+            [&ScalarTerm::value(actuals[0], scalar)]
+        );
+        assert!(substitute(&clause, &[ValueId::new(9).unwrap()], &roster, machine).is_err());
+        roster.get_mut(actuals[0]).unwrap().scalar_type =
+            ScalarType::IeeeFloat(IeeeFloatFormat::Binary32);
+        assert!(substitute(&clause, &actuals, &roster, machine).is_err());
+        let row = roster.get_mut(actuals[0]).unwrap();
+        row.scalar_type = scalar;
+        row.origin = terminal_check_tables::values::ValueOrigin::MachineResult;
+        assert!(substitute(&clause, &actuals, &roster, machine).is_err());
     }
 }

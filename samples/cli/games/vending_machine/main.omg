@@ -32,12 +32,12 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("vending_machine: folds insert/insert/press events through a coin register");
     // Three events: insert 50c, insert 25c, press slot 1 (price 75c).
-    Main::apply(main, Event::Insert { cents: 50 });
-    Main::apply(main, Event::Insert { cents: 25 });
-    Main::apply(main, Event::Press { slot: 1 });
+    apply(main, Event::Insert { cents: 50 as +Saturating });
+    apply(main, Event::Insert { cents: 25 as +Saturating });
+    apply(main, Event::Press { slot: 1 as +Saturating });
 
     // After the press the balance should be spent and 75c of product
     // dispensed; encode "balance 0 and dispensed 75" as exit 70.
@@ -55,29 +55,29 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 
     machine good_verdict(main: &mut Main) {
         Console::write_line("PASS: balance spent and 75c dispensed (exit 70)");
-        transition { _ -> block report(main, 70) }
+        transition { _ -> block report(main, 70 as +Saturating) }
     }
 
     machine bad_balance(main: &mut Main) {
         Console::write_line("FAIL: the balance was not fully spent (exit 71)");
-        transition { _ -> block report(main, 71) }
+        transition { _ -> block report(main, 71 as +Saturating) }
     }
 
     machine bad_dispensed(main: &mut Main) {
         Console::write_line("FAIL: dispensed total was not 75 cents (exit 72)");
-        transition { _ -> block report(main, 72) }
+        transition { _ -> block report(main, 72 as +Saturating) }
     }
 
     machine report(main: &mut Main, code: i32 in Saturating) {
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(code as i32);
     }
 }
 
 // Fold one event into the register. Coins add to the balance; a press that
 // the balance covers dispenses the price and spends the balance.
-machine Main::apply(main: &mut Main, event: Event) {
+machine apply(main: &mut Main, event: Event) {
     transition event {
         Event::Insert { cents } -> add_balance(main, cents)
         Event::Press { slot } -> try_dispense(main, slot)
@@ -89,7 +89,7 @@ machine Main::apply(main: &mut Main, event: Event) {
     }
 
     machine try_dispense(main: &mut Main, slot: i32 in Saturating) {
-        let price: i32 in Saturating = Main::price_of(slot);
+        let price: i32 in Saturating = price_of(slot);
         transition main.register.balance >= price {
             true -> dispense(main, price)
             false -> idle()
@@ -98,7 +98,7 @@ machine Main::apply(main: &mut Main, event: Event) {
 
     machine dispense(main: &mut Main, price: i32 in Saturating) {
         main.register.dispensed = main.register.dispensed + price;
-        main.register.balance = 0;
+        main.register.balance = 0 as +Saturating;
     }
 
     machine idle() {
@@ -106,7 +106,7 @@ machine Main::apply(main: &mut Main, event: Event) {
 }
 
 // Slot 1 costs 75 cents; everything else is free (price 0) for this demo.
-machine Main::price_of(slot: i32 in Saturating) -> i32 in Saturating {
+machine price_of(slot: i32 in Saturating) -> i32 in Saturating {
     transition slot == 1 {
         true -> seventy_five()
         _ -> zero()
@@ -114,13 +114,13 @@ machine Main::price_of(slot: i32 in Saturating) -> i32 in Saturating {
 
     machine seventy_five() -> i32 in Saturating {
         transition {
-            _ -> 75
+            _ -> 75 as +Saturating
         }
     }
 
     machine zero() -> i32 in Saturating {
         transition {
-            _ -> 0
+            _ -> 0 as +Saturating
         }
     }
 }
@@ -128,5 +128,5 @@ machine Main::price_of(slot: i32 in Saturating) -> i32 in Saturating {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

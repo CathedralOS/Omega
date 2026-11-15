@@ -77,11 +77,10 @@ pub struct MachineSources {
     /// which machine's body a head begins; a diagnostic about an arrival
     /// names it as the callee.
     pub heads: Vec<(BlockId, MachineId)>,
-    /// The block each `value as +D` of a domain with predicates continues
-    /// in (`lower`, `prove_membership`), with the domain and predicates the
-    /// cast owes as written. The lowered form holds only the block's
-    /// invariant; a diagnostic about the arrival names the domain.
-    pub memberships: Vec<(BlockId, String)>,
+    /// Each cast that must establish a predicate continues in this block.
+    /// Lowering retains its stated requirement for diagnostics; the lowered
+    /// form carries the actual invariant and owes it on every arrival.
+    pub predicate_establishments: Vec<(BlockId, String)>,
     /// The statements lowering left out because the call before them never
     /// returns, one row per such call (`lower`, `body`). The lowered form
     /// holds nothing of them, so the advisory warning about them is read
@@ -143,6 +142,10 @@ pub struct SuppliedRequirement {
 /// and every machine those call.
 #[derive(Debug, Clone)]
 pub struct Elaboration {
+    /// A proof-only conformance root for an installation-bound requirement.
+    /// Known reach must fit now; abstract child rows are checked against the
+    /// exact selected provider at installation. Never an executable export.
+    pub installation_bound_refinement: Option<MachineId>,
     /// Unsealed: no proof fields and no evidence. Its only type declarations
     /// are the record types its machines name and the subject declares. In a
     /// compilation's module (`elaborate`) each machine also states the

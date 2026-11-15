@@ -30,7 +30,7 @@ data Main {
     byte: u8;
     // Wrapping DECLARED: values round-trip through array elements, which
     // carry no range facts.
-    values: [i32; 16] in Wrapping;
+    values: [i32 in Wrapping; 16];
     value_count: u64;
     operators: [u8; 16];
     operator_count: u64;

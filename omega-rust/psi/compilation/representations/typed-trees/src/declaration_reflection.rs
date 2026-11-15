@@ -610,27 +610,6 @@ pub mod reflection {
             }
         }
 
-        pub fn resolve_subject<'program>(
-            typed: &'program TypedTrees,
-            owner_identity: &str,
-        ) -> Result<&'program DataDefinition, String> {
-            let mut matches = typed.data_definitions().iter().filter(|data| {
-                exact_symbol_identity(typed, data.symbol)
-                    .is_ok_and(|(identity, _)| identity == owner_identity)
-            });
-            let Some(data) = matches.next() else {
-                return Err(format!(
-                    "schema owner `{owner_identity}` does not resolve to a data declaration in this program"
-                ));
-            };
-            if matches.next().is_some() {
-                return Err(format!(
-                    "schema owner `{owner_identity}` resolves to more than one data declaration"
-                ));
-            }
-            Ok(data)
-        }
-
         pub fn construct_semantic_schema_graph(
             typed: &TypedTrees,
             subject: SymbolHandle,

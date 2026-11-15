@@ -828,6 +828,9 @@ pub(crate) mod declarations {
         pub program_local_root_introductions: Vec<ProgramLocalRootIntroductionSchema>,
         pub content_guarantees: Vec<BoundaryContentGuarantee>,
         pub fixed_service_reach: Vec<ServiceId>,
+        /// Installation substitutes this requirement's exact selected row;
+        /// the published ceiling bounds that row rather than contributing it.
+        pub service_reach_is_installation_bound: bool,
         pub owning_service: Option<ServiceId>,
         pub published_service_ceiling: Vec<ServiceId>,
         /// The entries every admitted implementation may arrive at before

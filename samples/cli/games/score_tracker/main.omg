@@ -36,14 +36,14 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("score_tracker: replays score/bonus/reset events for two players");
-    Main::apply(main, Event::Score { player: 0, points: 30 });
-    Main::apply(main, Event::Score { player: 1, points: 20 });
-    Main::apply(main, Event::Bonus { player: 0 });
-    Main::apply(main, Event::Score { player: 1, points: 10 });
-    Main::apply(main, Event::Reset { player: 1 });
-    Main::apply(main, Event::Score { player: 1, points: 10 });
+    apply(main, Event::Score { player: 0 as +Saturating, points: 30 as +Saturating });
+    apply(main, Event::Score { player: 1 as +Saturating, points: 20 as +Saturating });
+    apply(main, Event::Bonus { player: 0 as +Saturating });
+    apply(main, Event::Score { player: 1 as +Saturating, points: 10 as +Saturating });
+    apply(main, Event::Reset { player: 1 as +Saturating });
+    apply(main, Event::Score { player: 1 as +Saturating, points: 10 as +Saturating });
 
     // player[0] = 60, player[1] = 10, total = 70
     main.tracker.total = main.scores[0] + main.scores[1];
@@ -56,20 +56,20 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine good(main: &mut Main) {
         Console::write_line("PASS: final scores 60 + 10 total 70 (exit 70)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(70);
     }
 
     machine bad(main: &mut Main) {
         Console::write_line("FAIL: event replay total did not equal 70 (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(71);
     }
 }
 
 // Apply one event to the scores array.
-machine Main::apply(main: &mut Main, event: Event) {
+machine apply(main: &mut Main, event: Event) {
     transition event {
         Event::Score { player, points } -> add_score(main, player, points)
         Event::Bonus { player } -> double_score(main, player)
@@ -115,11 +115,11 @@ machine Main::apply(main: &mut Main, event: Event) {
     }
 
     machine reset_p0(main: &mut Main) {
-        main.scores[0] = 0;
+        main.scores[0] = 0 as +Saturating;
     }
 
     machine reset_p1(main: &mut Main) {
-        main.scores[1] = 0;
+        main.scores[1] = 0 as +Saturating;
     }
 
     machine done(main: &mut Main) {
@@ -129,5 +129,5 @@ machine Main::apply(main: &mut Main, event: Event) {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

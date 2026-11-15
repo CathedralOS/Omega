@@ -47,26 +47,6 @@ impl RecordedDeclarationAuthority {
                 .filter_map(|file| file.package_identity),
         )
     }
-    pub fn require_current_sites(
-        &self,
-        authority: Option<&dyn DeclarationSelectionAuthority>,
-        program: &crate::TypedTrees,
-        sites: impl Iterator<Item = source::SourceSpan>,
-    ) -> Result<(), &'static str> {
-        let mut requesters = std::collections::BTreeSet::new();
-        for site in sites {
-            let file = program
-                .symbols
-                .source_file(site)
-                .ok_or("retained pending invocation has no source custody")?;
-            if !file.origin.is_toolchain()
-                && let Some(requester) = file.package_identity
-            {
-                requesters.insert(requester);
-            }
-        }
-        self.require_requesters(authority, requesters.into_iter())
-    }
     fn require_requesters(
         &self,
         authority: Option<&dyn DeclarationSelectionAuthority>,

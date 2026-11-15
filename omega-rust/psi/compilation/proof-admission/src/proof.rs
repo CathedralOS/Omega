@@ -70,6 +70,8 @@ pub enum AcceptedProofRule {
     /// Positive IEEE order composition; provisional until derived in the
     /// mathematical core (foundation.md, kernel-rule-admission).
     IeeeFloatOrderChain,
+    /// Congruence and exact widening reversal of float meanings; provisional.
+    FloatMeaningNormalization,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2526,7 +2528,8 @@ mod traversal {
             | ProofRule::SemanticAxiom { .. }
             | ProofRule::Assumption { .. }
             | ProofRule::IntegerCorrelatedForbiddenRoots { .. } => {}
-            ProofRule::IeeeFloatOrderChain(children) => {
+            ProofRule::IeeeFloatOrderChain(children)
+            | ProofRule::FloatMeaningNormalization(children) => {
                 pending.push(Action::Children(children));
             }
             ProofRule::ConjunctionIntroduction(children) => {
@@ -2708,6 +2711,17 @@ fn check_node_locally(
         machine_parameter_values,
     };
     match &proof.rule {
+        ProofRule::FloatMeaningNormalization(premises) => {
+            crate::check_float_meaning_normalization(
+                &proof.conclusion,
+                premises.iter().map(|premise| &premise.conclusion),
+            )
+            .map_err(|error| ProofError::FloatMeaningNormalization(Box::new(error)))?;
+            acceptance
+                .rules
+                .insert(AcceptedProofRule::FloatMeaningNormalization);
+            Ok(())
+        }
         ProofRule::IeeeFloatOrderChain(premises) => {
             crate::ieee_float_rules::check_chain(
                 &proof.conclusion,
@@ -2812,6 +2826,7 @@ pub enum ProofError {
     IntegerOrderMiddleMismatch,
     IntegerOrderConclusionMismatch,
     IeeeFloatOrderMismatch(&'static str),
+    FloatMeaningNormalization(Box<crate::FloatMeaningNormalizationError>),
     UnknownIntegerOrderEndpoint(usize),
     IntegerOrderUnchangedEndpointMismatch,
     IntegerOrderSubstitutionMismatch,

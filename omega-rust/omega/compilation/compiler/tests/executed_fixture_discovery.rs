@@ -274,3 +274,121 @@ fn target_audit_rejoins_compiled_foreign_operands() {
     image_emission::verify_retained_target_operations(artifact.object())
         .unwrap_or_else(|error| panic!("process-ID target audit: {error:?}"));
 }
+
+#[test]
+fn target_audit_checks_the_retained_indirect_result_register() {
+    use calling_conventions::MachineRegister::{Aarch64X, X86Rcx, X86Rdi, X86Rdx};
+    use calling_conventions::{IndirectPointerLocation, ValueLocation, ValueShape};
+    use target::TargetProfile::{LinuxArm64, LinuxX64, MacosArm64, WindowsX64};
+    use target_operations::{NativeCallOrigin, TargetCallResult, TargetUnitOperation};
+    use target_operations_to_selected_instructions::{
+        TargetOperationAuditError, verify_target_operation_plan_with_closed_module,
+    };
+
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let root =
+        repo_root().join("samples/cli/facts/nominal_record_representation/call_result/main.omg");
+    let cases = [
+        (LinuxX64, X86Rdi, X86Rdx),
+        (LinuxArm64, Aarch64X(8), Aarch64X(9)),
+        (MacosArm64, Aarch64X(8), Aarch64X(9)),
+        (WindowsX64, X86Rcx, X86Rdx),
+    ];
+    let request = compiler::CompileRequest::for_targets(
+        root.clone(),
+        root.with_file_name("build"),
+        cases.iter().map(|&(profile, _, _)| Some(profile)).collect(),
+    )
+    .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact);
+    let outcomes =
+        orchestration::compile_sources(&mut compiler::CompilationSession::default(), request)
+            .unwrap_or_else(|errors| panic!("aggregate return matrix: {errors:?}"));
+    assert_eq!(outcomes.outcomes().len(), cases.len());
+    for (profile, hidden_register, wrong_register) in cases {
+        let outcome = outcomes
+            .outcomes()
+            .iter()
+            .find(|outcome| outcome.target_profile() == Some(profile))
+            .expect("requested target has a compilation outcome");
+        let report = outcome
+            .report()
+            .unwrap_or_else(|| panic!("{profile:?} aggregate return: {:?}", outcome.diagnostics()));
+        let object = report
+            .retained_native_artifact()
+            .expect("emitted native artifact")
+            .object();
+        let target = object
+            .retained_fragment_source()
+            .expect("object retains the optimized target producer")
+            .source()
+            .source()
+            .source()
+            .source()
+            .optimized_target();
+        let optimized = target.optimized();
+        let verify = |plan| {
+            verify_target_operation_plan_with_closed_module(
+                plan,
+                optimized.plan(),
+                optimized.unit(),
+                target.boundary_origins(),
+                target.lowering_facts().installed_interrupts(),
+                target.lowering_facts().closed_module(),
+            )
+        };
+        verify(target.target_operations())
+            .unwrap_or_else(|error| panic!("{profile:?} aggregate target audit: {error:?}"));
+        let mut mismatched = target.target_operations().clone();
+        let mut results = mismatched.functions.iter_mut().flat_map(|function| {
+            let caller = function.machine;
+            function
+                .graph
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.operations)
+                .filter_map(move |operation| {
+                    let TargetUnitOperation::Call {
+                        origin: NativeCallOrigin::Authored,
+                        result: TargetCallResult::Structural { .. },
+                        call_plan,
+                        ..
+                    } = &mut operation.kind
+                    else {
+                        return None;
+                    };
+                    let placement = call_plan.result.as_mut()?;
+                    (placement.shape == ValueShape::integer(24, 8)).then_some((caller, placement))
+                })
+        });
+        let (caller, placement) = results
+            .next()
+            .expect("compiled call returns the three-word record");
+        assert!(results.next().is_none());
+        assert_eq!(
+            placement.locations.as_slice(),
+            [ValueLocation::indirect(
+                IndirectPointerLocation::Register(hidden_register),
+                None,
+                24,
+                8,
+            )],
+        );
+        // Keep the original aggregate geometry and change only the caller's
+        // hidden register. The audit must catch disagreement with the callee.
+        placement.locations[0] = ValueLocation::indirect(
+            IndirectPointerLocation::Register(wrong_register),
+            None,
+            24,
+            8,
+        );
+        let error = verify(&mismatched).expect_err(
+            "a different hidden result register must fail independent target validation",
+        );
+        assert!(
+            matches!(error, TargetOperationAuditError::SourceCustodyMismatch {
+                machine: Some(machine), ..
+            } if machine == caller),
+            "{profile:?}: {error:?}"
+        );
+    }
+}

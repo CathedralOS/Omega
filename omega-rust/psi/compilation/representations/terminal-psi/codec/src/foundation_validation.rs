@@ -2413,6 +2413,9 @@ pub(crate) mod declaration_foundations {
                     "installation reach dependency has no exact boundary declaration",
                 );
             };
+            if !boundary.service_reach_is_installation_bound {
+                return malformed("installation reach dependency names a fixed requirement");
+            }
             let mut reach = boundary.fixed_service_reach.clone();
             reach.extend(dependency.upper_bound.iter().copied());
             reach.sort_unstable();
@@ -2518,6 +2521,12 @@ pub(crate) mod declaration_foundations {
         }
         require_known_services(module, &boundary.published_service_ceiling)?;
         require_known_services(module, &boundary.fixed_service_reach)?;
+        if boundary.service_reach_is_installation_bound
+            && (boundary.kind != terminal_psi::BoundaryRequirementKind::Trait
+                || !boundary.fixed_service_reach.is_empty())
+        {
+            return malformed("installation-bound reach must be an abstract trait requirement");
+        }
         require_known_services(module, &boundary.published_synchronous_entries)?;
         validate_boundary_scalar_rows(boundary)?;
         if let Some(owner) = boundary.owning_service {
@@ -5200,6 +5209,7 @@ pub(crate) mod scalar_applications {
                 program_local_root_introductions: Vec::new(),
                 content_guarantees: Vec::new(),
                 fixed_service_reach: Vec::new(),
+                service_reach_is_installation_bound: false,
                 owning_service: None,
                 published_synchronous_entries: Vec::new(),
                 published_service_ceiling: Vec::new(),

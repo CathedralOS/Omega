@@ -614,7 +614,7 @@ impl SupplyPlanning<'_> {
                 }
                 let required = boundary(supplied.boundary)?;
                 let reach = graph
-                    .service_reach_from(supplied.candidate, self.installation_requirements, true)
+                    .service_reach_from(supplied.candidate, self.installation_requirements)
                     .map_err(fail)?;
                 let dependencies = reach
                     .installation_dependencies

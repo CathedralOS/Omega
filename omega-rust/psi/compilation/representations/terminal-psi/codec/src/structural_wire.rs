@@ -1386,6 +1386,7 @@ pub(crate) mod structural_signature_wire {
             program_local_root_introductions: List<RootIntroduction>,
             content_guarantees: List<ContentGuarantee>,
             fixed_service_reach: Ids,
+            service_reach_is_installation_bound: Flag,
             owning_service: OptionalId,
             published_service_ceiling: Ids,
             published_synchronous_entries: Ids,

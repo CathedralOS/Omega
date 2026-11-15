@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 277`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 278`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -3108,6 +3108,7 @@ mod numeric_intrinsic_tests {
             result_lifetimes: None,
             reference_outputs: Vec::new(),
             fixed_service_reach: Vec::new(),
+            service_reach_is_installation_bound: false,
             owning_service: None,
             published_synchronous_entries: Vec::new(),
             published_service_ceiling: Vec::new(),
@@ -3765,6 +3766,7 @@ mod routed_scalar_tests {
             result_lifetimes: None,
             reference_outputs: Vec::new(),
             fixed_service_reach: Vec::new(),
+            service_reach_is_installation_bound: false,
             owning_service: None,
             published_synchronous_entries: Vec::new(),
             published_service_ceiling: Vec::new(),
@@ -4789,10 +4791,11 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Marker 272 retains each structural value's explicit qualification changes
 // (`value as +D`, `value as -D`) and their issuer routes. A 271 artifact has no
 // row a qualified structural parameter could have arrived through.
-// Marker 277 retains complete domain access rules and the source identities
-// that bind their subject, cases and fields. A 276 artifact cannot supply
-// those independent receiving checks.
-pub(crate) const FORMAT_MARKER: u16 = 277;
+// Marker 278 retains complete domain access rules and the source identities
+// that bind their subject, cases and fields. A 277 artifact cannot supply
+// those independent receiving checks. The installation-bound reach data
+// published in marker 277 remains part of this format.
+pub(crate) const FORMAT_MARKER: u16 = 278;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -5131,6 +5134,7 @@ mod normal_qualification_tests {
             program_local_root_introductions: Vec::new(),
             content_guarantees: Vec::new(),
             fixed_service_reach: Vec::new(),
+            service_reach_is_installation_bound: false,
             owning_service: None,
             published_synchronous_entries: Vec::new(),
             published_service_ceiling: Vec::new(),
