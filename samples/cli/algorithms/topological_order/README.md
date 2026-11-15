@@ -19,7 +19,7 @@ On agreement it prints `PASS` and exits `0`.
 
 An intended-invalid control in `../invalid_topological_order/` marks node `8` (violating
 `node < 8`) as emitted and is rejected at compile time
-(`cannot prove requires contract for call mark_emitted from Main::main`).
+(`cannot prove requires contract for call mark_emitted from main`).
 
 After ordinary package review on macOS arm64:
 

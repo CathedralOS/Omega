@@ -18,7 +18,7 @@ use omega_language_std::Console;
 data Main {
 }
 
-machine Main::main(context: &mut Main) reaches ProcessExit + Console {
+machine main(context: &mut Main) reaches ProcessExit + Console {
     Console::write_line("horner_eval: evaluating x^4+2x^3+3x^2+4x+5 at x=2 by Horner's method");
     let coefficients: [i32 in Wrapping; 5] = [1, 2, 3, 4, 5];
     let result: i32 in Wrapping = evaluate_polynomial(&coefficients, 2);
@@ -63,5 +63,5 @@ machine evaluate_polynomial(coefficients: &[i32 in Wrapping; 5], argument: i32 i
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

@@ -53,7 +53,7 @@ machine precedence(operator: u8) -> u64 {
     machine none() -> u64 { 0 }
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     // "2*(3+4)-5"
     main.text[0] = 50;
     main.text[1] = 42;
@@ -276,5 +276,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    main(&mut entry_storage);
 }

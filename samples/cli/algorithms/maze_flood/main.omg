@@ -24,10 +24,10 @@ data MazeSearch {
     count: i32 in Wrapping;
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("maze_flood: BFS shortest distances flooding a 5x5 maze (## = wall)");
     let mut search: MazeSearch;
-    let distance: i32 = MazeSearch::distance(&mut search);
+    let distance: i32 = distance(&mut search);
     transition distance == 16 {
         true -> block render(main, &search, 0)
         _ -> block bad(main)
@@ -68,7 +68,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     }
 }
 
-machine MazeSearch::distance(search: &mut MazeSearch) -> i32 {
+machine distance(search: &mut MazeSearch) -> i32 {
     search.walls = [0, 0, 0, 0, 0,  1, 1, 1, 1, 0,  0, 0, 0, 0, 0,  0, 1, 1, 1, 1,  0, 0, 0, 0, 0];
     search.distances = [0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1,  0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1,
                         0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1,  0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1,
@@ -245,5 +245,5 @@ machine render_row(search: &MazeSearch, line: &mut [u8; 16] in Ascii,
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }
