@@ -156,8 +156,12 @@ consumer's policy, and changes to that policy change accepted review meaning.
 ## Static interrupt-table validation
 
 A kernel supplies the table validator invoked by `X86StaticInterruptScope::run`
-before publication. The [validator's crash ceiling](../../OWNER_QUESTIONS.md#1-may-the-interrupt-table-validator-trap-before-publication)
-is open.
+before publication. The validator publishes `crashes none` and returns a Boolean
+satisfying its table policy. A policy-justified `false` refuses publication and
+returns to the caller, which decides whether refusal is fatal. The
+[validation contract](../../wiki/spec/build/hardware_materialization.md#interrupt-table-validation)
+leaves the scope's separate trap routes and validation's termination contract
+unchanged.
 
 ## C record storage
 
