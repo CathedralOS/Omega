@@ -811,14 +811,29 @@ pub(crate) fn defer_unbound_calls(
             let owners = typed_trees::references::collect_program_operand_owners(program);
             for (handle, request, bare) in in_expressions {
                 let source_span = program.expression_table.source_span(handle);
-                let before = in_declarations.len();
-                in_declarations.extend(
-                    owners
-                        .expression_owners(handle)
-                        .filter(|owner| owner.is_valid())
-                        .map(|owner| (owner, request, source_span, bare)),
-                );
-                if in_declarations.len() == before {
+                let mut owned = false;
+                for owner in owners
+                    .expression_owners(handle)
+                    .filter(|owner| owner.is_valid())
+                {
+                    owned = true;
+                    // This exact fact selects the byte predicate even though
+                    // lexical lookup found no ordinary callable for its name.
+                    if bare == symbols::UnresolvedName::NoVisibleDeclaration
+                        && program
+                            .domain_definition(owner)
+                            .and_then(|domain| {
+                                typed_trees::byte_predicates::byte_slice_domain_predicate(
+                                    program, domain,
+                                )
+                            })
+                            .is_some_and(|(predicate, _)| predicate == handle)
+                    {
+                        continue;
+                    }
+                    in_declarations.push((owner, request, source_span, bare));
+                }
+                if !owned {
                     return Err(Diagnostic::error(format!(
                         "no product route yet: an expression outside every declaration is one {}",
                         request.construct()

@@ -73,12 +73,12 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
-### Stored byte-domain fixtures stop at their primitive predicates
+### Native lowering loses a stored byte view's length
 - Category: knowledge crossing a boundary
-- Where: [subject domain check](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/subjects.rs#L314), [primitive byte domain](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/bytes.rs#L132), [four byte-domain controls](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/byte_domains.rs)
-- Saw: On clean `c75dc2fc5e6` on macOS arm64 the four stored-byte domain controls stop with an unknown-machine diagnostic for `valid_utf8(self)`, `ascii_only(self)` or `no_nul(self)`. The suite passed at `900602b2d28`. The exact subject-domain check introduced in `be3dab2f6e9` surfaces the earlier typing refusal before the byte-domain owner consumes the predicate.
-- Cost: The accepted ASCII and UTF-8 values and their invalid twins never reach the checked field stores. Classify the exact primitive at the existing source call and domain owners, preserving the strict subject check and refusals for an actually unresolved call.
-- Reported: 2026-11-15, Codex, while retesting qualified arrays on current main.
+- Where: [native byte-length operation](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_source.rs#L2671), [projected descriptor geometry](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_scalar_graph.rs#L3257)
+- Saw: On macOS arm64 with the byte-domain predicate repair on `6730ae09229`, a machine stores `"no plan"` in `report.reason: &[u8]` and checks that `report.reason.len` equals 7. Psi exits 0. Native refuses machine 1, operation 5 with `SourceCustodyMismatch` when the byte-length operation asks for its geometry at `legalization_source.rs:2687`. Qualifying the same field with the UTF-8 domain yields the same Psi and native outcomes. Measuring the literal through a direct local byte view exits 0 in both engines.
+- Cost: A byte view can be stored in a record and read by Psi, yet that field's length cannot reach native execution. Rejoin the exact projected descriptor source and its access to the existing byte-length geometry query, keeping the ordinary local and invalid backing controls.
+- Reported: 2026-11-15, Codex, while checking stored byte domains in both engines.
 
 ### Product loses a copyable record array at constant use
 - Category: knowledge crossing a boundary
