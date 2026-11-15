@@ -58,6 +58,29 @@ fn canonical_float_calls_keep_their_full_contract_and_reject_format_conversion()
             let schemas = provider_planning::compiler_primitive_schemas(module).unwrap();
             let leaves = provider_planning::direct_compiler_primitive_leaves(module, &schemas, "macos_arm64").unwrap();
             assert_eq!(leaves.len(), 12);
+            let selection = effects::SelectedProviderPlanFacts::default()
+                .with_direct_boundary_plans(leaves.iter().map(|leaf| leaf.plan.clone()).collect()).unwrap();
+            let executions = selection.plans().iter().map(|plan| {
+                let leaf = leaves.iter().find(|leaf| leaf.plan == *plan).unwrap();
+                let backend_plan::DirectBoundaryExecution::Intrinsic(execution) = leaf.execution else { panic!("numeric leaf needs an intrinsic") };
+                vec![execution]
+            }).collect::<Vec<_>>();
+            let demands = module.boundary_machines.iter().map(|boundary|
+                module.identities.text(boundary.identity).unwrap().to_owned()).collect();
+            let settle = |direct: &[backend_plan::DirectBoundaryLeaf]| {
+                terminal_psi_to_abstract_operations::provider_admission::derive_selected_intrinsic_settlement_proposals(
+                    &selection, selection.plans().iter().zip(&executions).map(|(plan, row_executions)|
+                        provider_selection::CompilerIntrinsicPlanProvenance { plan, semantic_schema: &plan.schema, row_executions }),
+                    &demands, module, direct)
+            };
+            let proposals = settle(&leaves).unwrap();
+            assert_eq!(proposals.len(), 12);
+            assert!(proposals.iter().all(|proposal| matches!(proposal.settlement(),
+                terminal_psi_to_abstract_operations::provider_admission::TerminalCompilerBuiltinSettlement::Execution { .. })));
+            assert!(settle(&[]).is_err(), "a numeric meaning alone supplies no execution custody");
+            let mut missing_target = leaves.clone();
+            missing_target[0].target_realization = None;
+            assert!(format!("{:?}", settle(&missing_target).unwrap_err()).contains("target realization"));
             for leaf in leaves {
                 assert_eq!(leaf.target_realization, Some(target::CanonicalFloatRealization::CatalogIntrinsic {
                     isa: target::FloatIsaAdmission::Baseline,
