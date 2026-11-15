@@ -693,7 +693,7 @@ fn finish_reading<'source>(
                 })?);
         }
     }
-    complete_structural(&mut elaboration, &program.selections)?;
+    complete_structural(diagnostic, &mut elaboration, &program.selections)?;
     // Inventory the finished operations after their real loan dispositions.
     suspension::publish_crossings(&mut elaboration.module).map_err(|reason| {
         refuse(
@@ -775,7 +775,7 @@ pub fn lower_generic(
         None,
     )
     .and_then(|mut prepared| {
-        complete_structural(&mut prepared.program, &[])?;
+        complete_structural(entry, &mut prepared.program, &[])?;
         Ok(prepared.program)
     })
 }
@@ -784,14 +784,11 @@ pub fn lower_generic(
 /// Both source preparation and the low-level body API complete the same
 /// Terminal operations here, before publishing their final parent roster.
 fn complete_structural(
+    diagnostic: MachineId,
     elaboration: &mut Elaboration,
     selections: &[crate::Selected],
 ) -> Checked<()> {
     reference_results::publish_results(&mut elaboration.module, selections)?;
-    let diagnostic = elaboration
-        .module
-        .entry
-        .unwrap_or_else(|| MachineId::new(1).expect("1 is nonzero"));
     {
         let Elaboration {
             module,
