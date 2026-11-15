@@ -4265,6 +4265,13 @@ pub mod expression {
             self.name_path_members.span_or_empty(span)
         }
 
+        pub(crate) fn checked_name_path_members(
+            &self,
+            span: HandleSpan<Identifier>,
+        ) -> Option<&[Identifier]> {
+            self.name_path_members.span(span)
+        }
+
         pub fn respell_single_member_names(&mut self, symbol: SymbolHandle, member: &Identifier) {
             let spans: Vec<HandleSpan<Identifier>> = self
                 .expressions

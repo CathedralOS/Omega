@@ -16,6 +16,10 @@ names a file in the run folder at that commit.
 
 ## Records without a run folder
 
+- [Exact declaration lookup during typing](declaration_lookups_2026_11_14.md):
+  bounded tiny-body scans, retained binding/field relationships, measured
+  preparation/reuse costs, source-query counts and correctness limits.
+
 - [checked_provider_linear_result_qualification_2026_10_13.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/checked_provider_linear_result_qualification_2026_10_13.json):
   qualification of linear provider results on `linux_x86_64`, producer `8be2e4cc7d33` on base
   `1b5cc675a718` (baseline `9dd545defbc0` refused with "provider structural result disagrees with its

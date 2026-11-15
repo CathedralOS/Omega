@@ -93,9 +93,7 @@ pub(crate) fn prepare(
         .collect();
     for (caller, handle, mut input) in statements {
         let application = infer_call(source, program, &mut input, caller)?;
-        if let typed_trees::statement::StatementNode::Call(call) =
-            program.statement_table.statement_mut(handle)
-        {
+        if let Some(call) = program.statement_table.call_mut(handle) {
             call.target_symbol = input.target;
             if let Some(application) = application {
                 call.authored_machine_application = application;

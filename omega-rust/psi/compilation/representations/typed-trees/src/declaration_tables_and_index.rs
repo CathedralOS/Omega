@@ -304,6 +304,7 @@ pub(crate) mod data_definitions {
 }
 
 pub mod declaration_index {
+    use crate::declared_bindings::{BindingScope, StateDeclarationIndex};
     use crate::machine_declarations::MachinePositionIndex;
     use crate::type_parameters::TypeParameterIndex;
     use crate::{data, machine};
@@ -422,7 +423,7 @@ pub mod declaration_index {
     };
     pub(crate) mod relationships {
 
-        use crate::{data::DataMember, signature::StateParameter, statement::StatementNode};
+        use crate::data::DataMember;
         use symbols::SymbolHandle;
 
         /// The most direct offsets a relation may allocate per row it holds.
@@ -507,6 +508,10 @@ pub mod declaration_index {
                 self.get(symbol).first()
             }
 
+            pub(crate) fn rows(&self) -> impl Iterator<Item = (SymbolHandle, &Position)> {
+                self.symbols.iter().copied().zip(&self.positions)
+            }
+
             #[cfg(test)]
             fn is_dense(&self) -> bool {
                 !self.starts.is_empty()
@@ -522,39 +527,11 @@ pub mod declaration_index {
             arena::HandleSpan<crate::data::DataDefinition>,
         );
 
-        pub(crate) type StateDeclarationRevision = (
-            u64,
-            u64,
-            u64,
-            u64,
-            u64,
-            u64,
-            arena::HandleSpan<crate::machine::Machine>,
-            arena::HandleSpan<crate::proposition::PropositionDefinition>,
-        );
-
-        #[derive(Clone, Default)]
-        pub(crate) struct StateDeclarationIndex {
-            locals: SymbolRows<(u32, u32, u32)>,
-            states: SymbolRows<(u32, u32)>,
-            parameter_types: SymbolRows<crate::types::TypeReferenceHandle>,
-            value_types: SymbolRows<(usize, crate::types::TypeReferenceHandle)>,
-        }
-
         #[derive(Clone, Default)]
         pub(crate) struct DataMemberIndex {
             fields: SymbolRows<(u32, u32, u32)>,
             variants: SymbolRows<(u32, u32)>,
             variant_names: Vec<(Box<str>, (u32, u32))>,
-        }
-
-        impl StateDeclarationIndex {
-            pub(crate) fn densify(&mut self) {
-                self.locals.densify();
-                self.states.densify();
-                self.parameter_types.densify();
-                self.value_types.densify();
-            }
         }
 
         impl DataMemberIndex {
@@ -574,158 +551,6 @@ pub mod declaration_index {
                 )
             }
 
-            pub(crate) fn with_state_declarations<R>(
-                &self,
-                run: impl FnOnce(&StateDeclarationIndex) -> R,
-            ) -> R {
-                let revision = (
-                    self.tables.machines.revision(),
-                    self.tables.machine_states.revision(),
-                    self.tables.state_parameters.revision(),
-                    self.tables.machine_owned_data.revision(),
-                    self.statement_table.declaration_revision(),
-                    self.tables.propositions.revision(),
-                    self.roots.machines,
-                    self.roots.propositions,
-                );
-                self.declaration_indexes.state_declarations.with(
-                    revision,
-                    || {
-                        let (mut locals, mut states, mut parameter_types, mut value_types) =
-                            (Vec::new(), Vec::new(), Vec::new(), Vec::new());
-                        for (_, parameter) in self.tables.state_parameters.iter() {
-                            parameter_types.push((parameter.symbol, parameter.type_reference));
-                        }
-                        for (machine_position, machine) in self.machines().iter().enumerate() {
-                            for owned in self.machine_owned_data(machine) {
-                                let order = value_types.len();
-                                value_types.push((owned.symbol, (order, owned.type_reference)));
-                            }
-                            for (state_position, state) in
-                                self.machine_states(machine).iter().enumerate()
-                            {
-                                for parameter in self.state_parameters(state) {
-                                    let order = value_types.len();
-                                    value_types.push((
-                                        parameter.symbol,
-                                        (order, parameter.type_reference),
-                                    ));
-                                }
-                                let position = (machine_position as u32, state_position as u32);
-                                let first = self
-                                    .state_parameters(state)
-                                    .first()
-                                    .map_or(SymbolHandle::invalid(), |parameter| parameter.symbol);
-                                states.push((first, position));
-                                for (statement_position, statement) in self
-                                    .statement_table
-                                    .statements(state.statement_nodes)
-                                    .iter()
-                                    .enumerate()
-                                {
-                                    if let StatementNode::LocalData(local) = statement {
-                                        let order = value_types.len();
-                                        value_types
-                                            .push((local.symbol, (order, local.type_reference)));
-                                        locals.push((
-                                            local.symbol,
-                                            (position.0, position.1, statement_position as u32),
-                                        ));
-                                    }
-                                }
-                            }
-                        }
-                        for proposition in self.propositions() {
-                            for parameter in self.proposition_parameters(proposition) {
-                                let order = value_types.len();
-                                value_types
-                                    .push((parameter.symbol, (order, parameter.type_reference)));
-                            }
-                        }
-                        StateDeclarationIndex {
-                            locals: SymbolRows::new(locals),
-                            states: SymbolRows::new(states),
-                            parameter_types: SymbolRows::new(parameter_types),
-                            value_types: SymbolRows::new(value_types),
-                        }
-                    },
-                    run,
-                )
-            }
-
-            pub fn first_named_value_declared_type(
-                &self,
-                symbol: SymbolHandle,
-                head_symbol: SymbolHandle,
-            ) -> Option<crate::types::TypeReferenceHandle> {
-                self.with_state_declarations(|index| {
-                    if symbol.is_valid()
-                        && symbol == head_symbol
-                        && let Some(type_reference) = index.parameter_types.first(symbol)
-                    {
-                        return Some(*type_reference);
-                    }
-                    [symbol, head_symbol]
-                        .into_iter()
-                        .filter(|symbol| symbol.is_valid())
-                        .filter_map(|symbol| index.value_types.first(symbol).copied())
-                        .min_by_key(|(order, _)| *order)
-                        .map(|(_, type_reference)| type_reference)
-                })
-            }
-
-            pub fn local_data_positions_for_symbol(
-                &self,
-                symbol: SymbolHandle,
-            ) -> Vec<(u32, u32, u32)> {
-                self.with_state_declarations(|index| index.locals.get(symbol).to_vec())
-            }
-
-            /// One exact local declaration, without copying its indexed position roster.
-            /// A duplicate binder cannot choose a component contract for another local.
-            pub fn unique_local_data_for_symbol(
-                &self,
-                symbol: SymbolHandle,
-            ) -> Option<&crate::statement::TableLocalData> {
-                let (machine, state, statement) = self.with_state_declarations(|index| {
-                    let [position] = index.locals.get(symbol) else {
-                        return None;
-                    };
-                    Some(*position)
-                })?;
-                let machine = self.machines().get(machine as usize)?;
-                let state = self.machine_states(machine).get(state as usize)?;
-                self.statement_table
-                    .statements(state.statement_nodes)
-                    .get(statement as usize)?
-                    .as_local_data()
-            }
-
-            /// The first state with this exact binder sequence. Empty spans and forged
-            /// duplicate symbols retain the same first-match rule as a source roster.
-            pub fn state_position_for_parameter_symbols(
-                &self,
-                parameters: &[StateParameter],
-            ) -> Option<(u32, u32)> {
-                let first = parameters
-                    .first()
-                    .map_or(SymbolHandle::invalid(), |parameter| parameter.symbol);
-                self.with_state_declarations(|index| {
-                    index.states.get(first).iter().copied().find(
-                        |&(machine_position, state_position)| {
-                            let machine = &self.machines()[machine_position as usize];
-                            let state = &self.machine_states(machine)[state_position as usize];
-                            let authored = self.state_parameters(state);
-                            authored.len() == parameters.len()
-                                && authored
-                                    .iter()
-                                    .zip(parameters)
-                                    .all(|(left, right)| left.symbol == right.symbol)
-                        },
-                    )
-                })
-            }
-
             pub(crate) fn with_data_members<R>(
                 &self,
                 run: impl FnOnce(&DataMemberIndex) -> R,
@@ -735,12 +560,21 @@ pub mod declaration_index {
                     || {
                         let (mut fields, mut variants) = (Vec::new(), Vec::new());
                         let mut variant_names: Vec<(Box<str>, (u32, u32))> = Vec::new();
-                        for (data_position, definition) in
-                            self.data_definitions().iter().enumerate()
-                        {
-                            for (member_position, member) in
-                                self.data_members(definition).iter().enumerate()
-                            {
+                        // A partial field relation cannot prove uniqueness;
+                        // malformed storage refuses the complete query family.
+                        let Some(definitions) = self
+                            .tables
+                            .data_definitions
+                            .span(self.roots.data_definitions)
+                        else {
+                            return DataMemberIndex::default();
+                        };
+                        for (data_position, definition) in definitions.iter().enumerate() {
+                            let Some(members) = self.tables.data_members.span(definition.members)
+                            else {
+                                return DataMemberIndex::default();
+                            };
+                            for (member_position, member) in members.iter().enumerate() {
                                 let position = (data_position as u32, member_position as u32);
                                 match member {
                                     DataMember::Field(field) => fields
@@ -749,8 +583,12 @@ pub mod declaration_index {
                                         variants.push((variant.symbol, position));
                                         variant_names
                                             .push((variant.name.as_str().into(), position));
-                                        for (payload_position, field) in
-                                            self.data_payload_fields(variant).iter().enumerate()
+                                        let Some(payload) =
+                                            self.tables.data_payload_fields.span(variant.payload)
+                                        else {
+                                            return DataMemberIndex::default();
+                                        };
+                                        for (payload_position, field) in payload.iter().enumerate()
                                         {
                                             fields.push((
                                                 field.symbol,
@@ -777,6 +615,43 @@ pub mod declaration_index {
                 symbol: SymbolHandle,
             ) -> Vec<(u32, u32, u32)> {
                 self.with_data_members(|index| index.fields.get(symbol).to_vec())
+            }
+
+            /// Borrow the sole declaration of an exact field, including case
+            /// payloads. Duplicate rows cannot select a constructor's type.
+            pub fn unique_declared_field_by_symbol(
+                &self,
+                symbol: SymbolHandle,
+            ) -> Option<&crate::data::DataField> {
+                if !self.symbols.symbols().nodes().is_valid(symbol)
+                    || self.symbols.get(symbol).kind != symbols::SymbolKind::Field
+                {
+                    return None;
+                }
+                let (data, member, payload) = self.with_data_members(|index| {
+                    let [position] = index.fields.get(symbol) else {
+                        return None;
+                    };
+                    Some(*position)
+                })?;
+                let definition = self
+                    .tables
+                    .data_definitions
+                    .span(self.roots.data_definitions)?
+                    .get(data as usize)?;
+                let member = self
+                    .tables
+                    .data_members
+                    .span(definition.members)?
+                    .get(member as usize)?;
+                if payload == u32::MAX {
+                    member.as_field()
+                } else {
+                    self.tables
+                        .data_payload_fields
+                        .span(member.as_variant()?.payload)?
+                        .get(payload as usize)
+                }
             }
 
             pub fn data_variant_position_for_symbol(
@@ -951,9 +826,7 @@ pub mod declaration_index {
         }
     }
     use crate::types::TypeReferenceHandle;
-    use relationships::{
-        DataMemberIndex, DataMemberScope, StateDeclarationIndex, StateDeclarationRevision,
-    };
+    use relationships::{DataMemberIndex, DataMemberScope};
     use requirement_applications::RequirementApplicationIndex;
 
     #[cfg(test)]
@@ -1551,7 +1424,7 @@ pub mod declaration_index {
     #[derive(Clone, Default, compiler_storage::Record)]
     pub struct DeclarationIndexes {
         states: OwnedIndex<StatePositionIndex, (u64, u64, HandleSpan<machine::Machine>)>,
-        state_declarations: OwnedIndex<StateDeclarationIndex, StateDeclarationRevision>,
+        pub(crate) state_declarations: OwnedIndex<StateDeclarationIndex, BindingScope>,
         data_members: OwnedIndex<DataMemberIndex, DataMemberScope>,
         domains: OwnedIndex<DomainPositionIndex, DomainDeclarationScope>,
         call_targets: OwnedIndex<CallTargetIndex, CallTargetScope>,
@@ -1577,12 +1450,12 @@ pub mod declaration_index {
 
     impl crate::TypedTrees {
         pub(crate) fn seal_declaration_indexes(&mut self) {
-            self.invalidate_state_declaration_index();
+            self.declaration_indexes.state_declarations.unseal();
             self.declaration_indexes.states.clear();
             let any_symbol = self.symbols.root();
             self.with_machine_position_index(|_| ());
             self.with_state_position_index(|_| ());
-            self.with_state_declarations(|_| ());
+            self.prepare_root_state_declarations();
             self.with_data_members(|_| ());
             self.with_data_definition_index(|_| ());
             self.data_type_parameter_by_symbol(any_symbol);
@@ -1591,11 +1464,11 @@ pub mod declaration_index {
             self.with_requirement_application_index(|_| ());
             self.with_operator_spelling_index(|_| ());
             let indexes = &mut self.declaration_indexes;
-            self.tables.machines.seal();
-            indexes.states.seal_with(SymbolRows::densify);
             indexes
                 .state_declarations
                 .seal_with(StateDeclarationIndex::densify);
+            self.tables.machines.seal();
+            indexes.states.seal_with(SymbolRows::densify);
             indexes.data_members.seal_with(DataMemberIndex::densify);
             self.tables.data_definitions.seal();
             self.tables.data_type_parameters.seal();
@@ -1607,15 +1480,11 @@ pub mod declaration_index {
             indexes.operator_spellings.seal();
         }
 
-        pub(crate) fn invalidate_state_declaration_index(&mut self) {
-            self.declaration_indexes.state_declarations.clear();
-        }
-
         pub(crate) fn unseal_declaration_indexes(&mut self) {
             let indexes = &mut self.declaration_indexes;
+            indexes.state_declarations.unseal();
             self.tables.machines.unseal();
             indexes.states.unseal();
-            indexes.state_declarations.unseal();
             indexes.data_members.unseal();
             self.tables.data_definitions.unseal();
             self.tables.data_type_parameters.unseal();
