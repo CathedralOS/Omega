@@ -37,6 +37,11 @@ the settled target block once, after arrival inference; revisiting a block does
 not repeatedly copy them. Compiler-introduced cleanup calls instead retain their
 explicit cleanup owner and have no second input-operation annotation.
 
+Control exits retain their work, effect and ownership annotations. Each successor
+also retains its edge charge and bound structural selector operands before the
+edge commits transfers and cleanup; selection does not reopen an earlier body
+to recover those relationships.
+
 Signature preparation, dominance, operation lowering, terminators, and edge
 bindings have separate owners inside the common graph. Unsupported operations,
 qualification transport, cleanup, or ABI relationships reject at their owning

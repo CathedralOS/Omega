@@ -60,7 +60,7 @@ pub mod control_flow;
 pub use control_flow::{
     TargetCasePointerSlot, TargetControlBlock, TargetControlCasePayload,
     TargetControlCaseSuccessor, TargetControlGraph, TargetControlSuccessor,
-    TargetControlTerminator, TargetFunction, TargetScalarBlockParameter,
+    TargetControlTerminator, TargetFunction, TargetOperationMetadata, TargetScalarBlockParameter,
     TargetStructuralCaseSource, TargetStructuralContract, TargetStructuralReturnSource,
 };
 pub mod provenance;
@@ -92,8 +92,7 @@ pub use descriptor_input::{
 pub mod operations;
 pub use operations::{
     NativeCallOrigin, TargetFloatResultPolicy, TargetInstallationCall, TargetInstruction,
-    TargetInstructionSource, TargetOperationMetadata, TargetStructuralRuntimeIndex,
-    TargetUnitOperation,
+    TargetInstructionSource, TargetStructuralRuntimeIndex, TargetUnitOperation,
 };
 pub mod values;
 pub use values::{

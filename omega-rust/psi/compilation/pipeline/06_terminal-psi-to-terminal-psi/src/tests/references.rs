@@ -739,9 +739,8 @@ machine entry() crashes none {
         )
         .program
     };
-    // The product closure is accepted and runs. Its generic check form of
-    // `relay` is not judged yet (OWNER_CODE_CONCERNS.md, "A rigid
-    // requirement call cannot return a reference").
+    // The product closure is accepted and runs. Its generic check form is
+    // `a_rigid_requirement_call_borrows_its_declared_input_region`.
     let RouteVerdict::Accepted(accepted) = crate::judge_compilation(prepare()).remove(0).unwrap()
     else {
         panic!("the selected call must read its public requirement contract");
@@ -1461,5 +1460,177 @@ machine build_entry() {{
     assert!(
         matches!(accepted, RouteVerdict::Accepted(_)),
         "{accepted:?}"
+    );
+}
+
+const HANDOFF: &str = "
+trait Handoff {
+    machine hand(source: &mut i64) -> &mut i64 crashes none;
+}
+Direct satisfies Handoff {
+    machine hand(source: &mut i64) -> &mut i64 crashes none { source }
+}
+";
+
+/// The generic check form of `relay`, whose `Chosen::hand` call reaches the
+/// bodiless requirement, judged against that requirement alone.
+fn rigid_relay(relay: &str) -> (typed_trees_to_terminal_psi::Elaboration, crate::Discharge) {
+    let typed = super::boundary_calls::typed(&format!("{HANDOFF}{relay}"));
+    let symbol = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "relay")
+        .unwrap()
+        .symbol;
+    let mut form = typed_trees_to_terminal_psi::elaborate_generic(&typed, symbol).unwrap();
+    let discharged = crate::discharge(&mut form).unwrap();
+    (form, discharged)
+}
+
+fn within_source(form: &typed_trees_to_terminal_psi::Elaboration, machine: usize) -> bool {
+    let machine = &form.module.machines[machine];
+    let source = machine.structural_parameters[0].place;
+    machine.result.structural().unwrap().reference_sources
+        == vec![terminal_psi::StructuralReferenceResultSource {
+            path: Vec::new(),
+            sources: vec![terminal_psi::StructuralReferenceOrigin::Parameter(
+                terminal_psi::ReferenceOriginSource {
+                    place: source,
+                    path: Vec::new(),
+                    extent: semantic_vocabulary::ReferenceOriginExtent::WithinRegion,
+                    access: terminal_psi::StructuralAccess::MutableBorrow,
+                },
+            )],
+        }]
+}
+
+#[test]
+fn a_rigid_requirement_call_borrows_its_declared_input_region() {
+    // lifetimes.md, "Returned views": `hand` elides its lifetimes, so the
+    // result may be anywhere `source` lends. The requirement has no body,
+    // and its header publishes that declared region; `relay`'s generic form
+    // keeps `source` exclusively lent while `child` is live.
+    let (form, discharged) = rigid_relay(
+        "machine relay<Chosen satisfies Handoff>(source: &mut i64) crashes none {
+    let child: &mut i64 = Chosen::hand(source);
+    child = 41;
+}",
+    );
+    assert_eq!(form.requirements, vec![id(2)]);
+    assert!(form.module.machines[1].blocks.is_empty());
+    assert!(
+        within_source(&form, 1),
+        "{:?}",
+        form.module.machines[1].result
+    );
+    let relay = discharged.machines.get(id(1)).unwrap();
+    assert!(relay.conflicts.is_empty(), "{:?}", relay.conflicts);
+    assert!(
+        relay.verdicts.values().all(Result::is_ok),
+        "{:?}",
+        relay.verdicts
+    );
+
+    // The negative twin writes the lent input while `child` is still used.
+    let (_, discharged) = rigid_relay(
+        "machine relay<Chosen satisfies Handoff>(source: &mut i64) crashes none {
+    let child: &mut i64 = Chosen::hand(source);
+    source = 5;
+    child = 41;
+}",
+    );
+    assert!(!discharged.machines.get(id(1)).unwrap().conflicts.is_empty());
+}
+
+#[test]
+fn a_returned_requirement_result_publishes_its_input_region() {
+    // Returning the rigid call's result returns storage known only within
+    // `source`'s region. The generic form publishes that region rather than
+    // inventing an exact projection.
+    let (form, discharged) = rigid_relay(
+        "machine relay<Chosen satisfies Handoff>(source: &mut i64) -> &mut i64 crashes none {
+    Chosen::hand(source)
+}",
+    );
+    assert!(
+        within_source(&form, 0),
+        "{:?}",
+        form.module.machines[0].result
+    );
+    let relay = discharged.machines.get(id(1)).unwrap();
+    assert!(relay.conflicts.is_empty(), "{:?}", relay.conflicts);
+    assert!(
+        relay.verdicts.values().all(Result::is_ok),
+        "{:?}",
+        relay.verdicts
+    );
+}
+
+/// The product closure of `entry`, with `relay<Direct>` returning the
+/// selected call's result.
+fn returned_relay(entry: &str) -> crate::RouteVerdict {
+    let text = format!(
+        "{HANDOFF}machine relay<Chosen satisfies Handoff>(source: &mut i64) -> &mut i64 crashes none {{
+    Chosen::hand(source)
+}}
+{entry}"
+    );
+    let (typed, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+        super::boundary_calls::typed(&text),
+        &typed_trees_to_typed_trees::PreparationRequest::settled(),
+    )
+    .unwrap();
+    let entry = super::boundary_calls::entry(&typed);
+    let prepared = typed_trees_to_terminal_psi::prepare_compilation(
+        &typed,
+        typed_trees_to_terminal_psi::Compilation {
+            declaration_metadata: &[],
+            entries: &[entry],
+            subjects: &[],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        },
+        terminal_codec::TerminalPublication::Invocation,
+    )
+    .program;
+    crate::judge_compilation(prepared).remove(0).unwrap()
+}
+
+#[test]
+fn a_returned_selected_result_keeps_its_input_lent_and_runs() {
+    use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus, TerminalProgram};
+    let RouteVerdict::Accepted(accepted) = returned_relay(
+        "machine entry() crashes none {
+    let mut backing: i64 = 17;
+    let child: &mut i64 = relay<Direct>(&mut backing);
+    child = 41;
+}",
+    ) else {
+        panic!("a returned selected result keeps its declared input region");
+    };
+    let publication = accepted.publish_invocation().unwrap();
+    let program = TerminalProgram::borrow(publication.artifact.view());
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    assert_eq!(
+        instance
+            .invoke(&mut terminal_work::WorkMeter::with_budget(10_000))
+            .unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+
+    // The negative twin writes `backing` while the returned `child` is live.
+    let verdict = returned_relay(
+        "machine entry() crashes none {
+    let mut backing: i64 = 17;
+    let child: &mut i64 = relay<Direct>(&mut backing);
+    backing = 5;
+    child = 41;
+}",
+    );
+    assert!(
+        matches!(&verdict, RouteVerdict::Rejected { conflicts, .. } if !conflicts.is_empty()),
+        "{verdict:?}"
     );
 }

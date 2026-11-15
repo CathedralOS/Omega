@@ -695,6 +695,11 @@ fn finish_reading<'source>(
                 })?);
         }
     }
+    reference_results::publish_requirements(
+        &mut elaboration.module,
+        &program,
+        &program.requirements,
+    )?;
     reference_results::publish(&mut elaboration, &program.selections)?;
     finish_storage(diagnostic, &mut elaboration)?;
     elaboration.machines = program.symbols;

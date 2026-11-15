@@ -1721,3 +1721,155 @@ fn a_const_argument_call_that_cannot_be_an_argument_is_an_error_at_the_call() {
         );
     }
 }
+
+#[test]
+fn equal_const_indices_keep_the_same_record_type_through_build_invocation() {
+    use crate::BuildTimeValue;
+    use typed_trees::data::DataMember;
+    use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
+
+    for (declarations, argument, receipts) in [
+        ("", "4", 0),
+        ("", "(2 + 2)", 0),
+        ("const CAPACITY: u64 = 4u64;", "CAPACITY", 0),
+        ("", "outer()", 2),
+    ] {
+        let text = const_argument_program(declarations, "4u64", argument);
+        let (library, main) = text
+            .rsplit_once("machine main()")
+            .expect("the original main and library declarations");
+        let main = format!("machine main(){main}");
+        let (_, _, base, pending) = constant_base(&[("main.omg", &main), ("library.omg", library)]);
+        for (root, expected_receipts) in [("main", 0), ("demanded", receipts)] {
+            let mut program = base.typed().clone();
+            pending
+                .clone()
+                .evaluate_or_defer_recorded(&mut program)
+                .unwrap();
+            let entry = program.realized_machine_named(root).unwrap().symbol;
+            let request = terminal_production::TerminalSourceCompilation {
+                declaration_metadata: &[],
+                entries: &[entry],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            };
+            let mut accounting = crate::SourceCompletionAccounting::default();
+            crate::evaluate_const_arguments(&mut program, request, None, None, &mut accounting)
+                .unwrap_or_else(|error| panic!("{argument}, {root}: {error:?}"));
+            crate::evaluate_constant_initializers(&mut program, request, None, &mut accounting)
+                .unwrap();
+            assert_eq!(
+                accounting.receipts().len(),
+                expected_receipts,
+                "{argument}, {root}"
+            );
+            accounting.validate_charges().unwrap();
+            let prepared = crate::PreparedBuildMachineProgram::prepare(&program, None).unwrap();
+            let invoke = |arguments: &[BuildTimeValue]| {
+                prepared
+                    .entry(entry, entry, arguments)
+                    .and_then(|invocation| {
+                        invocation.invoke(
+                            crate::InvocationTarget {
+                                name: None,
+                                layout_target: None,
+                                carrier_layout: None,
+                                address_model: None,
+                            },
+                            &mut terminal_work::WorkMeter::unbounded(),
+                        )
+                    })
+            };
+            if root == "main" {
+                assert_eq!(invoke(&[]), Ok(BuildTimeValue::Int(0)), "{argument}");
+                continue;
+            }
+
+            let storage = program.data_definition_by_name_str("Storage").unwrap();
+            let [DataMember::Field(buffer)] = program.data_members(storage) else {
+                panic!("Storage retains its single Buffer field");
+            };
+            let TypeReferenceNode::Generic { arguments, .. } = program
+                .type_reference_table
+                .type_reference(buffer.type_reference)
+            else {
+                panic!("Storage retains its applied Buffer field");
+            };
+            let [index] = program
+                .type_reference_table
+                .type_reference_handles(*arguments)
+            else {
+                panic!("Buffer retains its single Capacity argument");
+            };
+            assert!(
+                matches!(
+                    program.type_reference_table.type_reference(*index),
+                    TypeReferenceNode::Named { symbol, name }
+                        if !symbol.is_valid() && name.as_str() == "4"
+                ),
+                "{argument}"
+            );
+            if argument == "CAPACITY" {
+                let [constant] = program.const_declarations() else {
+                    panic!("one selected const declaration");
+                };
+                let origins = program
+                    .type_reference_table
+                    .constant_origins(*index)
+                    .unwrap();
+                assert!(
+                    origins
+                        .iter()
+                        .any(|origin| origin.declaration == constant.symbol)
+                );
+            }
+            let view = program
+                .closed_data_definition(buffer.type_reference)
+                .expect("the record argument has an exact closed application");
+            let [DataMember::Field(slots)] = program.data_members(view) else {
+                panic!("Buffer retains its single array field");
+            };
+            assert!(matches!(
+                program
+                    .type_reference_table
+                    .type_reference(slots.type_reference),
+                TypeReferenceNode::FixedArray {
+                    length: FixedArrayLength::Literal(4),
+                    ..
+                }
+            ));
+
+            let input = |buffer: &str, length| BuildTimeValue::Struct {
+                type_name: "Storage".into(),
+                fields: vec![(
+                    "buffer".into(),
+                    BuildTimeValue::Struct {
+                        type_name: buffer.into(),
+                        fields: vec![(
+                            "slots".into(),
+                            BuildTimeValue::Array(vec![BuildTimeValue::Int(0); length]),
+                        )],
+                    },
+                )],
+            };
+            assert_eq!(
+                invoke(&[input("Buffer", 4)]),
+                Ok(BuildTimeValue::Int(0)),
+                "{argument}"
+            );
+            assert_eq!(
+                invoke(&[input("Buffer", 3)]).unwrap_err(),
+                "constant argument `storage`: array argument differs from its declared extent",
+                "{argument}"
+            );
+            assert_eq!(
+                invoke(&[input("OtherBuffer", 4)]).unwrap_err(),
+                "constant argument `storage`: invocation record names another declaration",
+                "{argument}"
+            );
+        }
+    }
+}

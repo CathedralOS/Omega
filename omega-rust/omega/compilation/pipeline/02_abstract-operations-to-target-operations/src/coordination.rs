@@ -597,6 +597,12 @@ pub(crate) fn lower_to_target_operations_with_settlements_and_installation(
         &installed_by_call,
         &settlements_by_boundary,
     );
+    if plan.functions.len() != unit.functions.len() {
+        return Err(LoweringError::FunctionContract {
+            machine: plan.entry,
+            reason: "function metadata roster differs",
+        });
+    }
     let mut target_plan = TargetOperationPlan {
         borrowed_storage_layouts: super::borrowed_storage::capture(plan, &structural_types),
         psi: plan.psi,

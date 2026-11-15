@@ -264,100 +264,110 @@ impl SelectedReferenceResult<'_> {
         input: &BoundaryLifetimeDependency,
         path: &[StructuralPathSegment],
     ) -> Result<TerminalDynamicReferenceRegion, &'static str> {
-        let result = self
-            .contract
-            .result
-            .structural()
-            .ok_or("selected result lifetime has no structural result")?;
-        let leaf = crate::runtime_structural_path_tip(
-            self.module.structural_types.iter(),
-            result.structural_type,
-            path,
-        )
-        .ok_or("selected lifetime output path has no canonical borrowed carrier")?;
-        let access = match leaf.shape {
-            StructuralTypeShape::Reference { access, .. } => access,
-            StructuralTypeShape::ElementView {
+        declared_region(self.module, self.contract, input, path)
+    }
+}
+
+/// One declared lifetime input as the input region a result leaf may borrow.
+/// The region names storage the formal can supply at the leaf's access; it
+/// is a public bound, never the storage a body actually returned.
+pub(crate) fn declared_region(
+    module: &TerminalModule,
+    contract: &MachineContract,
+    input: &BoundaryLifetimeDependency,
+    path: &[StructuralPathSegment],
+) -> Result<TerminalDynamicReferenceRegion, &'static str> {
+    let result = contract
+        .result
+        .structural()
+        .ok_or("selected result lifetime has no structural result")?;
+    let leaf = crate::runtime_structural_path_tip(
+        module.structural_types.iter(),
+        result.structural_type,
+        path,
+    )
+    .ok_or("selected lifetime output path has no canonical borrowed carrier")?;
+    let access = match leaf.shape {
+        StructuralTypeShape::Reference { access, .. } => access,
+        StructuralTypeShape::ElementView {
+            access: Some(access),
+            ..
+        }
+        | StructuralTypeShape::ByteSequence(
+            terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: Some(access),
+            }
+            | terminal_psi::ByteSequenceCarrier::BoundedView {
                 access: Some(access),
                 ..
+            },
+        ) => access,
+        _ => return Err("selected lifetime output is not a declared borrowed descriptor"),
+    };
+    let (argument_index, mut source_path, supplied) = match input {
+        BoundaryLifetimeDependency::Referent {
+            argument_index,
+            access,
+        } => (*argument_index, Vec::new(), *access),
+        BoundaryLifetimeDependency::Stored {
+            argument_index,
+            path,
+            access,
+        } => (*argument_index, path.clone(), *access),
+    };
+    let position = usize::try_from(argument_index)
+        .map_err(|_| "selected lifetime input ordinal exceeds host positions")?;
+    let parameter = contract
+        .structural_parameters
+        .get(position)
+        .ok_or("selected lifetime input names no public structural formal")?;
+    if !access.admits_referent(supplied) {
+        return Err("selected reference result exceeds a possible input's declared access");
+    }
+    match input {
+        BoundaryLifetimeDependency::Referent { .. } => {
+            if parameter.access != supplied || parameter.access == StructuralAccess::Owned {
+                return Err("selected lifetime referent is not that public borrowed formal");
             }
-            | StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView {
-                    access: Some(access),
+        }
+        BoundaryLifetimeDependency::Stored { .. } => {
+            let source = crate::runtime_structural_path_tip(
+                module.structural_types.iter(),
+                parameter.structural_type,
+                &source_path,
+            )
+            .ok_or("selected lifetime stored input has no canonical carrier")?;
+            match source.shape {
+                StructuralTypeShape::Reference { access, .. } if access == supplied => {
+                    source_path.push(StructuralPathSegment::Referent);
                 }
-                | terminal_psi::ByteSequenceCarrier::BoundedView {
+                StructuralTypeShape::ElementView {
                     access: Some(access),
                     ..
-                },
-            ) => access,
-            _ => return Err("selected lifetime output is not a declared borrowed descriptor"),
-        };
-        let (argument_index, mut source_path, supplied) = match input {
-            BoundaryLifetimeDependency::Referent {
-                argument_index,
-                access,
-            } => (*argument_index, Vec::new(), *access),
-            BoundaryLifetimeDependency::Stored {
-                argument_index,
-                path,
-                access,
-            } => (*argument_index, path.clone(), *access),
-        };
-        let position = usize::try_from(argument_index)
-            .map_err(|_| "selected lifetime input ordinal exceeds host positions")?;
-        let parameter = self
-            .contract
-            .structural_parameters
-            .get(position)
-            .ok_or("selected lifetime input names no public structural formal")?;
-        if !access.admits_referent(supplied) {
-            return Err("selected reference result exceeds a possible input's declared access");
-        }
-        match input {
-            BoundaryLifetimeDependency::Referent { .. } => {
-                if parameter.access != supplied || parameter.access == StructuralAccess::Owned {
-                    return Err("selected lifetime referent is not that public borrowed formal");
                 }
-            }
-            BoundaryLifetimeDependency::Stored { .. } => {
-                let source = crate::runtime_structural_path_tip(
-                    self.module.structural_types.iter(),
-                    parameter.structural_type,
-                    &source_path,
-                )
-                .ok_or("selected lifetime stored input has no canonical carrier")?;
-                match source.shape {
-                    StructuralTypeShape::Reference { access, .. } if access == supplied => {
-                        source_path.push(StructuralPathSegment::Referent);
+                | StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: Some(access),
                     }
-                    StructuralTypeShape::ElementView {
+                    | terminal_psi::ByteSequenceCarrier::BoundedView {
                         access: Some(access),
                         ..
-                    }
-                    | StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView {
-                            access: Some(access),
-                        }
-                        | terminal_psi::ByteSequenceCarrier::BoundedView {
-                            access: Some(access),
-                            ..
-                        },
-                    ) if access == supplied => {}
-                    _ => {
-                        return Err(
-                            "selected lifetime stored input differs from its declared descriptor",
-                        );
-                    }
+                    },
+                ) if access == supplied => {}
+                _ => {
+                    return Err(
+                        "selected lifetime stored input differs from its declared descriptor",
+                    );
                 }
             }
         }
-        Ok(TerminalDynamicReferenceRegion {
-            path: path.to_vec(),
-            origin: TerminalDynamicReferenceOrigin::Parameter { argument_index },
-            source_path,
-            access,
-        })
     }
+    Ok(TerminalDynamicReferenceRegion {
+        path: path.to_vec(),
+        origin: TerminalDynamicReferenceOrigin::Parameter { argument_index },
+        source_path,
+        access,
+    })
 }
 
 fn region_argument(region: &TerminalDynamicReferenceRegion) -> Result<usize, &'static str> {
@@ -368,22 +378,25 @@ fn region_argument(region: &TerminalDynamicReferenceRegion) -> Result<usize, &'s
         .map_err(|_| "selected lifetime input ordinal exceeds host positions")
 }
 
+/// The public header's result as a call-site shape reads it.
+pub(crate) fn public_result(contract: &MachineContract) -> BoundaryMachineResult {
+    match &contract.result {
+        TerminalMachineResult::Unit => BoundaryMachineResult::Unit,
+        TerminalMachineResult::Scalar(result) => BoundaryMachineResult::Scalar(result.value_type()),
+        TerminalMachineResult::Structural(result) => {
+            BoundaryMachineResult::Structural(BoundaryStructuralResultDeclaration {
+                structural_type: result.structural_type,
+                multiplicity: result.multiplicity,
+                qualifications: result.qualifications.clone(),
+                projected_qualifications: result.projected_qualifications.clone(),
+            })
+        }
+    }
+}
+
 impl ReferenceResultShape for SelectedReferenceResult<'_> {
     fn result(&self) -> Cow<'_, BoundaryMachineResult> {
-        Cow::Owned(match &self.contract.result {
-            TerminalMachineResult::Unit => BoundaryMachineResult::Unit,
-            TerminalMachineResult::Scalar(result) => {
-                BoundaryMachineResult::Scalar(result.value_type())
-            }
-            TerminalMachineResult::Structural(result) => {
-                BoundaryMachineResult::Structural(BoundaryStructuralResultDeclaration {
-                    structural_type: result.structural_type,
-                    multiplicity: result.multiplicity,
-                    qualifications: result.qualifications.clone(),
-                    projected_qualifications: result.projected_qualifications.clone(),
-                })
-            }
-        })
+        Cow::Owned(public_result(self.contract))
     }
     fn maximum_reference_leaves(&self) -> usize {
         self.leaves

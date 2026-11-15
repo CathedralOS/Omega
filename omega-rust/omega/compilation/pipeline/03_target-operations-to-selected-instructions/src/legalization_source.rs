@@ -2865,7 +2865,8 @@ pub(crate) mod scalar_graph {
             LegalizedScalarReturn, LegalizedScalarReturnValue, LegalizedScalarSuccessor,
             LegalizedScalarTerminator,
         };
-        pub(crate) fn project(
+        /// Source oracle for the independent correspondence audit only.
+        pub(crate) fn audit_project(
             node: &optimization_unit::OptimizationNode,
             function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
             plan: &crate::native_geometry::NativePlan<'_>,
@@ -3266,14 +3267,13 @@ pub(crate) mod scalar_graph {
         if optimized.blocks.len() != target.graph.blocks.len() {
             return Err(Error::custody());
         }
-        let function_inputs = crate::legalization_function_inputs::FunctionInputs::new(optimized);
         let blocks = optimized
             .blocks
             .iter()
             .zip(&target.graph.blocks)
             .map(|(block, targeted)| {
                 *current_operation = None;
-                let (last, body) = block.nodes.split_last().ok_or(Error::custody())?;
+                let (_, body) = block.nodes.split_last().ok_or(Error::custody())?;
                 let rows = targeted
                     .operations
                     .split_at(
@@ -3316,13 +3316,15 @@ pub(crate) mod scalar_graph {
                     parameters,
                     structural_parameters: targeted.structural_parameters.clone(),
                     instructions,
-                    terminator: terminator::project(
-                        last,
-                        &function_inputs,
-                        plan,
-                        native,
-                        unit,
-                        &targeted.terminator,
+                    terminator: crate::legalization_control::project(
+                        target.machine,
+                        targeted,
+                        target
+                            .structural_contract
+                            .as_ref()
+                            .map(|contract| contract.parameters.as_slice())
+                            .unwrap_or(&[]),
+                        &unit.accepted_obligation_facts,
                     )?,
                 })
             })

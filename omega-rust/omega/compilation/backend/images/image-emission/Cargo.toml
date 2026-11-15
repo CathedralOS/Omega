@@ -53,6 +53,7 @@ terminal-work = { path = "../../../../../psi/compilation/representations/termina
 iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder", "instr_info"] }
 
 [dev-dependencies]
+optimization-unit = { path = "../../../representations/abstract-operations/optimization-unit" }
 abstract-operations-to-abstract-operations = { path = "../../../pipeline/01_abstract-operations-to-abstract-operations" }
 compiler = { path = "../../../compiler" }
 image-emission = { path = ".", features = ["test-support"] }

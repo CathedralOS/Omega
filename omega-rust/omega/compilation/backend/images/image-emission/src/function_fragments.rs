@@ -10989,6 +10989,14 @@ mod source {
                             structural_parameters: vec![],
                             operations: vec![],
                             terminator,
+                            terminator_metadata: target_operations::TargetOperationMetadata {
+                                work: vec![],
+                                effect: optimization_unit::EffectLink {
+                                    input: 0,
+                                    output: 0,
+                                },
+                                ownership: vec![],
+                            },
                         }],
                     },
                 }
@@ -11111,6 +11119,8 @@ mod source {
                             target: destination,
                             bindings: vec![],
                             structural_bindings: vec![],
+                            structural_indices: vec![],
+                            work: vec![],
                             cleanup_actions: actual.clone(),
                         },
                     });
@@ -15070,6 +15080,14 @@ mod source {
                                 kind: target_operation,
                                 source: None,
                             }],
+                            terminator_metadata: target_operations::TargetOperationMetadata {
+                                work: vec![],
+                                effect: optimization_unit::EffectLink {
+                                    input: 0,
+                                    output: 0,
+                                },
+                                ownership: vec![],
+                            },
                             terminator: TargetControlTerminator::Return {
                                 psi_edge: edge,
                                 cleanup_actions: vec![],

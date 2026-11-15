@@ -73,6 +73,34 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### An assigned local worktree can lose its warm target between checks
+- Category: verifying costs more than writing
+- Where: [pool cache retention](tools/docs/testing.md#L589), [managed retention setup](tools/xtask/src/managed_cache_retention.rs#L1)
+- Saw: On macOS arm64 at `c55c52f59b1`, the assigned `worker-8` passed its focused test at 22:11:11 PST on 2026-11-14. By 22:11:49, the same slot's `target` was a dangling mbx symlink and its next command failed with `Not a directory (os error 20)`. A concurrent mbx 1.29.2 test log reported 37.9 GiB free against its 45.0 GiB floor and removal of two live target directories while two running commands kept theirs. The host had no `target.keep` setting. No command in this slot was compiling while its target was removed.
+- Cost: A local agent holding a pool slot can lose its binaries and incremental build state between tests. Repairing the link gets the next build started cold. Make cache retention follow the local pool's assignment lifetime within the workstation's disk budget.
+- Reported: 2026-11-15, Codex, while validating const-index record arguments
+
+### The C layout field walk omits ranks on five recursive helpers
+- Category: a verdict with nothing behind it
+- Where: [C ABI field walk](source/library/core/c_layout.omg#L36), [scalar C-layout control](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs#L1202)
+- Saw: On macOS arm64 at `01ee33b7779`, the existing scalar `Record` on `linux_x86_64` fails with `contract termination promise over a call cycle`. `c_abi_fields` decreases `remaining_steps` before calling `place`. The cycle passes through `represented`, `checked`, `extent`, and `append` before returning to `c_abi_fields`. Those five helpers omit that measure. Adding it exposes the value match in `represented`, where the compiler rejects the recursive call as nonterminal. An equivalent terminal test of the two accepted tags gets through lowering and uncovers failures in the arrivals, field alignment reads, and padding guarantee.
+- Cost: The compiler refuses the unchanged layout before checking size 24, alignment 8, and offsets `[0, 8, 16]`. The scalar and nested-representation samples use this field walk at all nine placements. Preserve the same rank, field order, bounds, and invalid-layout controls through the existing terminal proof mechanisms.
+- Reported: 2026-11-15, Codex, after the Build-time reflection and field lifetime repairs
+
+### A ranked arrival loses the conjuncts of its own guard
+- Category: knowledge crossing a boundary
+- Where: [short-circuit lowering](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lower/control.rs#L877), [join predicate scope](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/joins.rs#L143)
+- Saw: At `01ee33b7779`, a two-machine scalar cycle starts with `index <= 32` and `1 <= remaining <= 33`. Its `index < 32 && remaining > 1` arm forwards `index` and `remaining - 1` to the other ranked member, which requires `index < 32` and `1 <= remaining <= 32`. Stage 06 refuses the arrival because it cannot prove that requirement. The acyclic control with the same guard and requirement passes, as does a ranked cycle with a single remaining-step guard. The lowered guard's Boolean join cannot state its relationship to the earlier ranked head's parameters in its current predicate scope.
+- Cost: A loop can check the exact conditions required for its next iteration and still be refused at that edge. Preserve the guard facts through the existing conditional and arrival proof route.
+- Reported: 2026-11-15, Codex, while restoring the C ABI field walk
+
+### The padding value match loses its strict result bound
+- Category: knowledge crossing a boundary
+- Where: [padding contract](source/library/core/c_layout.omg#L25), [inferred join predicates](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/joins.rs#L226)
+- Saw: At `01ee33b7779`, the scalar padding body by itself computes `r = offset % alignment` and returns zero if `r == 0`, or `alignment - r` otherwise. With `1 <= alignment <= 16`, Stage 06 refuses its published `result < alignment` after the value match. Returning the remainder directly proves `result < alignment`, and returning the subtraction directly with `0 < r < alignment` proves the same bound. A terminal branch that selects subtraction for `r > 0` and zero otherwise also proves the original guarantee.
+- Cost: A checked arithmetic bound is lost when the padding branches produce a joined value. Keep the result relation through the existing join and arithmetic proofs.
+- Reported: 2026-11-15, Codex, while restoring the C ABI field walk
+
 ### The shared typed-view Build-time control stops before its mutable twin
 - Category: knowledge crossing a boundary
 - Where: [shared typed-view control](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/sequence_values.rs#L216), [generated caller](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/invocation.rs), [original borrow lookup](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references.rs#L198)
@@ -87,19 +115,12 @@ framework or a list of features that remain unimplemented.
 - Cost: Target operands remain dependent on earlier executable histories and their matching operation roster, so adding a value form or changing target operations can require synchronized recognizers across stages. Fix the producer to complete the needed runtime-index evidence and descriptor-origin records in the target representation, retaining shared immutable catalogs rather than copying them; have ordinary selection consume that product and keep earlier bodies available to independent correspondence validation. Acceptance: selection constructs the same instructions from target operations and their explicit catalogs/evidence without reading earlier executable bodies, while the independent validator still rejects changed operands or evidence.
 - Reported: 2026-11-15, Codex, while verifying representation handoffs after the IR cleanup; static source and caller-chain evidence only
 
-### Native application assembly refuses settled provider plans
-- Category: a fact with no owner
-- Where: [native Product assembly](omega-rust/omega/compilation/compiler/src/terminal/native_product.rs#L56), [boundary settlement](omega-rust/omega/compilation/representations/abstract-operations/verified-optimization-input/src/settlement.rs#L13)
-- Saw: On macOS arm64, a Build that selects a named provider for `Service::go` passes source checking. Both the referenced `provider_go` realization and an inline realization with the same contract stop before execution with `executable providers need their canonical row realizations and package permissions`.
-- Cost: Native assembly refuses a nonempty settled plan before supplying the existing boundary settlement with canonical row execution provenance and admitted package permissions. Join those existing inputs for the exact selected plan and application before trying to execute it.
-- Reported: 2026-11-14, Codex, while comparing the referenced and inline provider controls
-
-### A rigid requirement call cannot return a reference
-- Category: a verdict with nothing behind it
-- Where: [05 reference result publication](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/reference_results.rs) (`publish_results`), [returned origins](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references.rs) (`reference_result_sources`), [Stage 06 selected result control](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/references.rs) (`a_selected_reference_result_needs_its_public_requirement_contract`)
-- Saw: with `trait Handoff { machine hand(source: &mut i64) -> &mut i64 crashes none; }`, the product closure of `relay<Chosen satisfies Handoff>(source: &mut i64) { let child: &mut i64 = Chosen::hand(source); child = 41; }` is accepted and runs, but the generic check form of `relay` falls back with `call reference result has no complete actual return-source correspondence`: the rigid call's callee is the bodiless requirement, whose result origins nothing reconstructs. If `relay` instead returns `Chosen::hand(source)`, the product refuses with `call reference result needs an exact retained input projection`, because the selected call's result is known only within its public region and a published result source admits only exact projections.
-- Cost: a generic machine cannot call a reference-returning requirement, and no machine can return a selected reference result. lifetimes.md, "Returned views", keeps every leaf of the selected lifetime as a possible source, so the requirement's declared lifetime groups (`terminal_semantics::selected_reference_result`) must stand for the bodiless callee's origins, and a within-region origin must publish as `ReferenceOriginExtent::WithinRegion` rather than be refused.
-- Reported: 2026-11-15, Claude Code (worker-1), after the requirement schema kept its elided signature lifetimes
+### Selected and rigid requirement results keep separate declared-lifetime accounts
+- Category: re-deriving
+- Where: [requirement header publication](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/reference_results.rs) (`publish_requirements`), [rigid call shape](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references/requirement_results.rs), [selected call shape](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references/selected_results.rs), [projection transport](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/storage.rs) (`forget_address`, `without_runtime_coordinates`)
+- Saw: a rigid call reads the bodiless requirement's header column, which 05 derives from `declared_result_lifetimes`; a selected call reads the closed-conformance method's `result_lifetimes`, checked against the original definition. Both come from the same signature, but two shapes carry them. Result publication turns any inexact, non-indirect, unwindowed projection into `ReferenceOriginExtent::WithinRegion` over its retained prefix. That prefix always contains the actual backing, so the claim is sound, but a forgotten public region and a window stripped of runtime coordinates publish the same region, and the narrower window is lost.
+- Cost: callers lend a whole declared region where a window would do, and a change to one lifetime account must be mirrored in the other. Let one declaration-contract owner hold the public lifetime account for both call routes, and carry the kind of bound in the projection address so publication can keep the narrower one.
+- Reported: 2026-11-15, Claude Code, after letting rigid requirement calls return their declared input region; refines Codex's #3400 note
 
 ### Completing selected bodies copies the retained typed program
 - Category: re-deriving
@@ -117,7 +138,7 @@ framework or a list of features that remain unimplemented.
 
 ### A whole-program stage refuses every program for a library construct nobody calls
 - Category: a verdict with nothing behind it
-- Where: `03_symbol-resolved-trees-to-typed-trees` (the remaining `unavailable_judgment` callers: the declaration-lowering queries in `typing_queries.rs`, and "closed const argument replay" in `type_reference.rs`); `build-time-evaluation/src/source_frontier.rs` (`source_jobs`: the side tables it still refuses whole, such as constant recipes and wire plans); any by-name refusal added to `04_typed-trees-to-typed-trees`
+- Where: `03_symbol-resolved-trees-to-typed-trees` (the remaining `unavailable_judgment` callers: the declaration-lowering queries in `typing_queries.rs`); `build-time-evaluation/src/source_frontier.rs` (`source_jobs`: the side tables it still refuses whole, such as constant recipes and wire plans); any by-name refusal added to `04_typed-trees-to-typed-trees`
 - Saw: these stages see the program together with all of `core` and `std` and have no notion of what an entry demands, so one such construct in an uncalled library declaration stops a program that never reaches it; the gates the route probe met (unbound calls, assignment literals, constructor field types, layout-policy and computed types) and the construction-destination pass's call gates (a mathematical call taking a built argument, a callee whose parameters typing does not select), a membership fact whose domain selection stays late-bound (found through the owners of the value it constrains), and a const argument typing does not admit now record the refusal on the declaration instead (`typed-trees/src/deferred_refusals.rs`), and the others still refuse the program. A refusal inside one declaration's lowering (`type_resolved_cohort`) returns midway through it, so those gates need a clean per-declaration rollback before they can move
 - Cost: each remaining gate must be served for the entire library before any program compiles, or be moved onto the same carrier one by one as a program meets it
 - Reported: 2026-11-13, Claude Code, while getting the route probe through typing

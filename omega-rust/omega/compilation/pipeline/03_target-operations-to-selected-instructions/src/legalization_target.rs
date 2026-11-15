@@ -1356,6 +1356,30 @@ pub(crate) mod control_flow {
         let block_entries = block_entry_states(optimized, descriptor_inputs)?;
         let source_inputs = sources::SourceInputs::new(graph, optimized);
         for (block, source) in graph.blocks.iter().zip(&optimized.blocks) {
+            let terminal = source.nodes.last().ok_or(LegalizationError::custody())?;
+            if block.terminator_metadata.work != terminal.work
+                || block.terminator_metadata.effect != terminal.effect
+                || block.terminator_metadata.ownership != terminal.ownership
+                || crate::legalization_control::project(
+                    function.machine,
+                    block,
+                    function
+                        .structural_contract
+                        .as_ref()
+                        .map(|contract| contract.parameters.as_slice())
+                        .unwrap_or(&[]),
+                    &unit.accepted_obligation_facts,
+                )? != crate::legalization_source::scalar_graph::terminator::audit_project(
+                    terminal,
+                    function_inputs,
+                    plan,
+                    native,
+                    unit,
+                    &block.terminator,
+                )?
+            {
+                return Err(LegalizationError::custody());
+            }
             let body_len = block
                 .operations
                 .iter()
