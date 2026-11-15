@@ -151,22 +151,26 @@ pub(crate) fn admit_terminal_runtime(
     request: NativeRealizationRequest<'_>,
 ) -> Result<Option<native_artifact::TerminalRuntimeProvisions>, Vec<Diagnostic>> {
     let AdmittedRealization {
-        admitted:
-            AdmittedNativeRealization {
-                input,
-                mut providers,
-                ..
-            },
+        admitted: AdmittedNativeRealization { input, .. },
         runtime_provisions,
         ..
     } = admit_realization(artifact, input, &request)?;
     let private_entry_ram = input.private_entry_ram().to_vec();
-    let borrowed_storage_layouts = object_emission::lower_borrowed_storage_layouts(
+    let optimized = crate::pipeline::optimize_abstract(
         input,
-        providers.installation.take(),
-        &providers.settlements,
-        &request,
-    )?;
+        request.optimization_selections,
+        request.optimization_budget(),
+        request.observation,
+    )
+    .map_err(|error| realization_error("canonical abstract optimization", error))?;
+    let (program, lowering_facts) = optimized.into_lowering_parts();
+    let borrowed_storage_layouts =
+        abstract_operations_to_target_operations::capture_runtime_borrowed_storage_layouts(
+            &program,
+            &lowering_facts,
+            request.admission.providers.target(),
+        )
+        .map_err(|error| realization_error("runtime borrowed storage layout", error))?;
     Ok(runtime_provisions.map(|provisions| {
         provisions
             .with_private_entry_ram(private_entry_ram)

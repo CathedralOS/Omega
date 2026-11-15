@@ -1,7 +1,6 @@
-// Application object emission (`emit_realization_object`) and Terminal-only
-// borrowed-storage layout lowering (`lower_borrowed_storage_layouts`). Root
-// fragment emission runs before `lower_callback_thunks` so optimization-pruned
-// callback references never demand unused private bodies.
+// Application object emission. Root fragment emission runs before
+// `lower_callback_thunks` so optimization-pruned callback references never
+// demand unused private bodies.
 
 use crate::pipeline::{self, BodyEmissionError, TargetLoweringError};
 use crate::realization::callback_thunks::{
@@ -25,16 +24,6 @@ use terminal_psi_to_abstract_operations::{
 pub(crate) struct EmittedRealizationObject {
     pub object: PublishedFragmentObject,
     pub borrowed_storage_layouts: Vec<runtime_abi::NativeBorrowedStorageLayout>,
-}
-
-pub(crate) fn lower_borrowed_storage_layouts(
-    input: VerifiedNativeArtifactInput,
-    provider_installation: Option<AdmittedProviderInstallation>,
-    settlements: &[AdmittedBoundarySettlement<'_>],
-    request: &NativeRealizationRequest<'_>,
-) -> Result<Vec<runtime_abi::NativeBorrowedStorageLayout>, Vec<Diagnostic>> {
-    let target = lower_target(input, provider_installation, settlements, request)?;
-    Ok(target.borrowed_storage_layouts().to_vec())
 }
 
 fn lower_target(
