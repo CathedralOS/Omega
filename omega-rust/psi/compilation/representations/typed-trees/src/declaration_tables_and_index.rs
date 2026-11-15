@@ -5077,22 +5077,29 @@ pub(crate) mod trait_and_machine_tables {
                 })
         }
 
-        pub fn state_local_declaration(
+        pub fn immutable_local_initializer(
             &self,
-            state: &crate::state::State,
             symbol: SymbolHandle,
-        ) -> Option<(usize, &crate::statement::TableLocalData)> {
-            let mut declarations = self
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .enumerate()
-                .filter_map(|(ordinal, statement)| match statement {
-                    LocalData(local) if local.symbol == symbol => Some((ordinal, local)),
-                    _ => None,
-                });
-            let declaration = declarations.next()?;
-            declarations.next().is_none().then_some(declaration)
+        ) -> Option<crate::expression::ExpressionHandle> {
+            if !self.symbols.symbols().nodes().is_valid(symbol) {
+                return None;
+            }
+            let binding = self.symbols.get(symbol);
+            if binding.kind != symbols::SymbolKind::Local {
+                return None;
+            }
+            let state = binding.parent;
+            if !self.symbols.symbols().nodes().is_valid(state) {
+                return None;
+            }
+            let owner = self.symbols.get(state).parent;
+            let machine = self.machine_by_symbol(owner)?;
+            let state = self.state_in_machine(machine, state)?;
+            let (_, local) = self.state_local_declaration(state, symbol)?;
+            if local.is_mutable {
+                return None;
+            }
+            local.ordinary_value_initializer()
         }
 
         pub fn immutable_scalar_locals_before(
