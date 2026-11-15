@@ -3205,6 +3205,7 @@ pub(crate) mod element_views {
     use terminal_psi::StructuralAccess;
     use terminal_psi::StructuralMultiplicity;
     use terminal_psi::StructuralPathSegment;
+    use terminal_psi::StructuralTypeDeclaration;
     use terminal_psi::StructuralTypeShape;
 
     #[derive(Clone)]
@@ -3640,8 +3641,26 @@ pub(crate) mod element_views {
             self.access
         }
 
-        pub(crate) fn owned_multiplicity(&self) -> Option<StructuralMultiplicity> {
+        pub(crate) fn owned_multiplicity(
+            &self,
+            declaration: &StructuralTypeDeclaration,
+        ) -> Option<StructuralMultiplicity> {
             match self.access {
+                // Shared access is the immutable backing's read authority.
+                // The stored-length descriptor itself has the declared custody.
+                StructuralAccess::SharedBorrow
+                    if matches!(self.backing, ElementViewBacking::ImmutableSequence(_))
+                        && matches!(
+                            declaration.shape,
+                            StructuralTypeShape::ElementView { access: None, .. }
+                        ) =>
+                {
+                    let multiplicity = terminal_semantics::plain_affine::declared_multiplicity(
+                        declaration,
+                        StructuralAccess::Owned,
+                    );
+                    (multiplicity != StructuralMultiplicity::Linear).then_some(multiplicity)
+                }
                 StructuralAccess::SharedBorrow => Some(StructuralMultiplicity::Unrestricted),
                 StructuralAccess::MutableBorrow => Some(StructuralMultiplicity::Affine),
                 _ => None,

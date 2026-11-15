@@ -14,15 +14,10 @@ fn stage_project(name: &str, source: &str, build: &str) -> PathBuf {
     project
 }
 
-#[test]
-fn psi_runs_an_owned_record_sequence_literal() {
+fn assert_psi_runs(name: &str, source: &str) {
     let project = stage_project(
-        "owned-sequence",
-        "data Ticket { number: u32; }
-machine main() {
-    let tickets: [Ticket] = [Ticket { number: 11u32 }];
-}
-",
+        name,
+        source,
         r#"machine build(builder: &mut Build) {
     Build::application(builder, "structural_domain_issuer");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
@@ -49,6 +44,34 @@ machine main() {
     assert!(
         report.lines().any(|line| line == "terminal exit 0"),
         "{report}",
+    );
+}
+
+#[test]
+fn psi_runs_an_owned_record_sequence_literal() {
+    assert_psi_runs(
+        "owned-sequence",
+        "data Ticket { number: u32; }
+machine main() {
+    let tickets: [Ticket] = [Ticket { number: 11u32 }];
+}
+",
+    );
+}
+
+#[test]
+fn psi_moves_a_returned_owned_sequence_into_a_by_value_argument() {
+    assert_psi_runs(
+        "move-owned-sequence",
+        "data Ticket { number: u32; }
+machine main() {
+    consume(make(11u32));
+}
+machine make(number: u32) -> [Ticket] {
+    [Ticket { number: number }]
+}
+machine consume(tickets: [Ticket]) {}
+",
     );
 }
 
