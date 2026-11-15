@@ -622,6 +622,7 @@ impl Lowering<'_> {
                     reason: RefusalReason::ForeignIdentity,
                     machine: self.id,
                     concerns: Construct::Block(block),
+                    source_span: None,
                     detail: String::from("a parameter block is missing"),
                 })?
                 .structural_parameters = formals.records.clone();
