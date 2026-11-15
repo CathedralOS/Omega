@@ -125,19 +125,12 @@ pub(super) enum BorrowedResource {
 #[derive(Debug)]
 enum LoanRegion {
     Storage(super::Lineage),
-    /// The provider establishes permission, but no physical payload region.
-    /// It cannot prove disjointness from a write to any other region.
+    /// An admitted provider establishes a stable shared permission. Its input
+    /// loans are retained separately; its address remains unavailable.
     Provider,
 }
 
 impl LoanRegion {
-    fn known_storage(&self) -> Option<&super::Lineage> {
-        match self {
-            Self::Storage(storage) => Some(storage),
-            Self::Provider => None,
-        }
-    }
-
     fn respects_parent(&self, parent: &Self) -> bool {
         match (self, parent) {
             (Self::Storage(child), Self::Storage(parent)) => {
@@ -175,9 +168,21 @@ fn competing_borrows(
     right: ReferenceAccess,
     right_place: &LoanRegion,
 ) -> Option<LoanConflict> {
-    if !overlap(left_place.known_storage(), right_place.known_storage())
-        || !left.is_exclusive() && !right.is_exclusive()
+    // The boundary contract establishes permission and stability, not a
+    // physical region covering the caller. Conflicts with its inputs are
+    // checked through the original loans kept alive by the complete result
+    // dependencies. No address or disjointness fact follows from this case.
+    if matches!(left_place, LoanRegion::Provider) && left.is_exclusive()
+        || matches!(right_place, LoanRegion::Provider) && right.is_exclusive()
     {
+        return Some(LoanConflict::AccessExceedsParent);
+    }
+    let (LoanRegion::Storage(left_place), LoanRegion::Storage(right_place)) =
+        (left_place, right_place)
+    else {
+        return None;
+    };
+    if !overlap(left_place, right_place) || !left.is_exclusive() && !right.is_exclusive() {
         None
     } else if left.is_exclusive() && right.is_exclusive() {
         Some(LoanConflict::TwiceExclusive)
@@ -1027,8 +1032,13 @@ impl Storage<'_> {
                             (place, backing)
                         }
                     };
-                    if loan.access.is_exclusive()
-                        && overlap(loan.lineage.known_storage(), backing.known_storage())
+                    if competing_borrows(
+                        loan.access,
+                        &loan.lineage,
+                        ReferenceAccess::Shared,
+                        &backing,
+                    )
+                    .is_some()
                         && !self.authorized_reference(loan, &place, at, formed)?
                     {
                         return Ok(Some((concerns, LoanConflict::ObserveWhileExclusive)));
@@ -1050,7 +1060,13 @@ impl Storage<'_> {
                             (place, backing)
                         }
                     };
-                    if overlap(loan.lineage.known_storage(), backing.known_storage())
+                    if competing_borrows(
+                        loan.access,
+                        &loan.lineage,
+                        ReferenceAccess::Mutable,
+                        &backing,
+                    )
+                    .is_some()
                         && (!loan.access.is_exclusive()
                             || !self.authorized_reference(loan, &place, at, formed)?)
                     {
@@ -1067,7 +1083,14 @@ impl Storage<'_> {
                 for action in actions {
                     let cleaned = self.stored_at(action.place(), action.path(), concerns)?;
                     let backing = self.backing(&cleaned, block.id, usize::MAX, concerns)?;
-                    if overlap(loan.lineage.known_storage(), &backing) {
+                    if competing_borrows(
+                        loan.access,
+                        &loan.lineage,
+                        ReferenceAccess::Mutable,
+                        &LoanRegion::Storage(backing),
+                    )
+                    .is_some()
+                    {
                         return Ok(Some((concerns, LoanConflict::ChangeWhileBorrowed)));
                     }
                 }
@@ -1208,8 +1231,8 @@ impl Storage<'_> {
                             .lifetime
                             .as_ref()
                             .is_some_and(|life| life.live.contains(&at))
-                            && overlap(loan.lineage.known_storage(), backing.known_storage())
-                            && (loan.access.is_exclusive() || access.is_exclusive())
+                            && competing_borrows(loan.access, &loan.lineage, access, &backing)
+                                .is_some()
                             && !self.authorized_reference(loan, &raw, at, formed)?
                         {
                             return Err(crate::refusal(

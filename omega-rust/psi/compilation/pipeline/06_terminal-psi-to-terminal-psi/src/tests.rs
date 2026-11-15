@@ -2322,12 +2322,6 @@ fn sibling_fields_are_disjoint_and_ancestors_overlap() {
     // The same path under another root is other storage.
     assert!(!overlap(l(&[4, 2]), m(&[4, 2])));
     assert!(!overlap(l(&[]), m(&[])));
-    // A provider's unknown backing cannot establish disjointness in either
-    // direction, even from an otherwise unrelated known root.
-    let known = crate::places::lineage(id(1), &tables.places, m(&[])).unwrap();
-    assert!(crate::places::overlap(None, &known));
-    assert!(crate::places::overlap(&known, None));
-    assert!(crate::places::overlap(None, None));
 
     // Segments that do not prove disjoint storage overlap: two cases of one
     // sum overlay, and unequal identities alone prove nothing.

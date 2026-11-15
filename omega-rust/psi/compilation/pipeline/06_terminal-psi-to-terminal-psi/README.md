@@ -715,13 +715,24 @@ the rows from the lowered form, as every other row is
 one per borrowed structural argument of each call, created at the point
 before the call, whose captured place is the invocation row's actual at that
 position and the place the argument's storage path names, and whose lender
-is the incoming loan when the root is a borrowed formal (`Lender::Incoming`)
-and the owner otherwise. The access must be the callee formal's declared
-access. A row the lowered form does not owe, or owes otherwise, is
+is the incoming loan when the root is a borrowed formal (`Lender::Incoming`),
+an earlier loan for a reborrow, the admitted provider permission for a
+provider-established view, or the storage owner. The access must be the callee
+formal's declared access. A row the lowered form does not owe, or owes otherwise, is
 `ForeignIdentity`.
 
-A loan formed for a call that returns ends when it does, so it is live on no
-edge and no edge disposes of it. A loan formed for a call with no normal
+A loan used only during a call ends when it returns, so it is live on no
+edge and no edge disposes of it. A returned view can instead keep the input
+loans alive until that view's last use. Those dependencies restrict access to
+the inputs; they do not make the result's pointer an alias of an input.
+
+An admitted provider contract can establish a stable shared view whose address
+is unknown. That permission can coexist with an independent mutable caller
+object. The complete input loans still prevent mutation of an input on which
+the view depends, and the provider permission cannot authorize mutable access.
+The storage-overlap operation continues to require exact known places.
+
+A loan formed for a call with no normal
 return (an `InvokeNoNormal` or `ExternalCompletion` terminator) is carried
 into that transfer, and its edge must consume exactly those loans, each once
 (`Fate::Consumed`), and dispose of nothing else; any other roster is

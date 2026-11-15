@@ -88,6 +88,41 @@ fn a_view_a_boundary_returned_is_handed_on_by_a_machine() {
 }
 
 #[test]
+fn a_provider_view_keeps_its_input_loan_without_borrowing_independent_storage() {
+    let source = r#"
+data Token { id: u64; }
+boundary trait Fs { machine path(source: &Token) -> &[u8] reaches none crashes none; }
+machine helper(source: &Token) -> &[u8] reaches Fs invokes Fs { Fs::path(source) }
+machine see(bytes: &[u8]) {}
+machine use_path(other: &mut Token, bytes: &[u8]) { see(bytes); other.id = 4; }
+machine entry() reaches Fs invokes Fs {
+    let mut source: Token = Token { id: 1 };
+    let mut other: Token = Token { id: 2 };
+    let bytes: &[u8] = helper(&source);
+    use_path(&mut other, bytes);
+    source.id = 9;
+}
+"#;
+    assert_eq!(verdict(source), "accepted");
+    let invalid = source.replace(
+        "use_path(&mut other, bytes)",
+        "use_path(&mut source, bytes)",
+    );
+    assert_ne!(source, invalid);
+    let rejected = crate::judge(elaborate(&invalid));
+    let Ok(RouteVerdict::Rejected { conflicts, .. }) = rejected else {
+        panic!("the Token input must remain borrowed through use_path: {rejected:?}");
+    };
+    assert!(
+        conflicts.iter().any(|conflict| matches!(
+            conflict.conflict,
+            crate::LoanConflict::ExclusiveAndShared | crate::LoanConflict::ChangeWhileBorrowed
+        )),
+        "changing the retained Token input must conflict: {conflicts:?}"
+    );
+}
+
+#[test]
 fn a_provider_view_permission_cannot_be_claimed_as_owned_storage() {
     use terminal_check_tables::obligations::Lender;
     let input = elaborate(RETURNED_VIEW).unwrap();

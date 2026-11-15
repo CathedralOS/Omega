@@ -478,6 +478,153 @@ pub(crate) mod reference_completion {
         }
     }
 
+    fn retain_call_lifetime(
+        retained: &mut [Option<crate::descriptor_lifetimes::DescriptorLifetime>],
+        position: usize,
+        lifetime: crate::descriptor_lifetimes::DescriptorLifetime,
+    ) -> Result<(), &'static str> {
+        let previous = retained
+            .get_mut(position)
+            .ok_or("returned borrow dependency has no input position")?;
+        if let Some(previous) = previous {
+            previous.live.extend(lifetime.live);
+            for (at, names) in lifetime.authorized {
+                previous.authorized.entry(at).or_default().extend(names);
+            }
+        } else {
+            *previous = Some(lifetime);
+        }
+        Ok(())
+    }
+
+    fn retain_provider_inputs(
+        module: &terminal_psi::TerminalModule,
+        result: &terminal_psi::StructuralOperationResult,
+        call: terminal_psi::ModuleInvocationInputs<'_, terminal_psi::TargetMachineCallable>,
+        slots: &[crate::descriptor_results::DescriptorResultSlot],
+        at: crate::descriptor_lifetimes::DescriptorPosition,
+        flow: &std::collections::BTreeMap<
+            crate::descriptor_lifetimes::DescriptorPosition,
+            crate::descriptor_lifetimes::DescriptorFlowStep,
+        >,
+        retained: &mut [Option<crate::descriptor_lifetimes::DescriptorLifetime>],
+    ) -> Result<(), &'static str> {
+        use crate::descriptor_results::DescriptorStoredOrigin;
+        let parameters = module
+            .invocation_structural_parameters(call.callee, call.required_contract)
+            .ok_or("returned provider view has no retained input contract")?;
+        if parameters.len() != call.structural_arguments.len() || parameters.len() != retained.len()
+        {
+            return Err("returned provider view differs from its input contract");
+        }
+        for slot in slots {
+            if borrowed_descriptor_shape(module, result.structural_type, &slot.path).is_none() {
+                continue;
+            }
+            let descriptor = crate::descriptor_lifetimes::DescriptorLocation {
+                root: result.place,
+                path: slot.path.clone(),
+            };
+            let mut pending = Vec::new();
+            for origin in &slot.origins {
+                if let DescriptorStoredOrigin::Provider(provider) = origin {
+                    pending.extend(
+                        provider
+                            .lifetime_dependencies
+                            .iter()
+                            .map(|debt| &debt.origin),
+                    );
+                }
+            }
+            if pending.is_empty() {
+                continue;
+            }
+            let lifetime =
+                crate::descriptor_lifetimes::descriptor_location_lifetime(flow, at, &descriptor);
+            if lifetime.live.contains(&at) {
+                return Err("returned provider dependency crosses its own call formation");
+            }
+            // These inputs keep the result valid. The provider descriptor
+            // is not an alias through which the input loan may be used.
+            let mut inputs = Vec::new();
+            while let Some(origin) = pending.pop() {
+                let (position, stored) = match origin {
+                    DescriptorStoredOrigin::Provider(provider) => {
+                        pending.extend(
+                            provider
+                                .lifetime_dependencies
+                                .iter()
+                                .map(|debt| &debt.origin),
+                        );
+                        continue;
+                    }
+                    DescriptorStoredOrigin::Parameter { position, .. } => (*position, false),
+                    DescriptorStoredOrigin::IncomingSlot { position, .. }
+                    | DescriptorStoredOrigin::IncomingContents { position, .. } => {
+                        (*position, true)
+                    }
+                    DescriptorStoredOrigin::Literal { .. } | DescriptorStoredOrigin::Empty => {
+                        continue;
+                    }
+                    DescriptorStoredOrigin::Invocation { .. }
+                    | DescriptorStoredOrigin::AccessFormation { .. } => {
+                        return Err(
+                            "returned provider dependency needs its admitted retention resource",
+                        );
+                    }
+                };
+                let formal = parameters
+                    .get(position)
+                    .ok_or("returned provider dependency names no input formal")?;
+                let argument = call
+                    .structural_arguments
+                    .get(position)
+                    .ok_or("returned provider dependency names no actual argument")?;
+                if argument.access != formal.access {
+                    return Err("returned provider dependency changes its input access");
+                }
+                if argument.access == StructuralAccess::Owned {
+                    // A moved descriptor carries its original permission;
+                    // the call did not form a new loan of its storage.
+                    continue;
+                }
+                let formal_type = module
+                    .structural_type(formal.structural_type)
+                    .ok_or("returned provider dependency has no typed input formal")?;
+                if formal_type.shape.is_view_descriptor() {
+                    // The view carries its original payload loan through
+                    // descriptor flow; this is not a loan of its storage.
+                    continue;
+                }
+                if stored
+                    && !crate::descriptor_results::is_descriptor(
+                        module.structural_types.iter(),
+                        formal.structural_type,
+                    )
+                {
+                    // A reference held inside an input retains its own
+                    // original loan through descriptor flow, not a new
+                    // borrow of the enclosing record's storage.
+                    continue;
+                }
+                if !inputs.contains(&position) {
+                    inputs.push(position);
+                }
+            }
+            for position in inputs {
+                retain_call_lifetime(
+                    retained,
+                    position,
+                    crate::descriptor_lifetimes::DescriptorLifetime {
+                        live: lifetime.live.clone(),
+                        authorized: Default::default(),
+                    },
+                )?;
+            }
+        }
+        Ok(())
+    }
+
     /// A reference or view returned by a call keeps its input loan until
     /// every transported result descriptor ends (lifetimes.md, "Returned
     /// views": the source must "remain live for the result's use").
@@ -522,15 +669,43 @@ pub(crate) mod reference_completion {
             };
         };
         let terminal_psi::TargetMachineCallable::Machine(callee) = call.callee else {
-            // A view from a boundary relates to its inputs only through the
-            // boundary's declared result lifetimes, which are not published
-            // yet (OWNER_CODE_CONCERNS.md). Its descriptor flow still keeps
-            // every view passed in live for the result's use.
-            return if returns_reference {
-                Err("returned boundary reference needs its admitted completion resource")
-            } else {
-                Ok(Vec::new())
+            if returns_reference {
+                return Err("returned boundary reference needs its admitted completion resource");
+            }
+            let terminal_psi::TargetMachineCallable::Boundary(boundary) = call.callee else {
+                return Err("returned view has no exact boundary invocation");
             };
+            let declaration =
+                crate::exactly_one::exactly_one(module.boundary_machines.iter(), |declaration| {
+                    declaration.id == boundary
+                })
+                .ok_or("returned view has no exact boundary declaration")?;
+            let terminal_psi::BoundaryMachineResult::Structural(expected) = &declaration.result
+            else {
+                return Err("returned view has no structural boundary result");
+            };
+            if result.structural_type != expected.structural_type
+                || result.multiplicity != expected.multiplicity
+                || result.qualifications != expected.qualifications
+                || result.projected_qualifications != expected.projected_qualifications
+            {
+                return Err("returned view differs from its boundary result contract");
+            }
+            let at = crate::descriptors::descriptor_results::operation_position(caller, operation)
+                .ok_or("returned view has no exact caller operation")?;
+            let slots = analysis.call_result_slots(caller.id, at, result.place)?;
+            let flow = analysis
+                .flow(caller.id)
+                .ok_or("returned provider view has no complete descriptor flow")?;
+            let mut retained = (0..declaration.structural_parameters.len())
+                .map(|_| None)
+                .collect::<Vec<_>>();
+            retain_provider_inputs(module, result, call, &slots, at, &flow, &mut retained)?;
+            return Ok(retained
+                .into_iter()
+                .enumerate()
+                .filter_map(|(position, lifetime)| lifetime.map(|lifetime| (position, lifetime)))
+                .collect());
         };
         let callee = module
             .machine(callee)
@@ -618,19 +793,6 @@ pub(crate) mod reference_completion {
             .ok_or("returned reference caller has no complete descriptor flow")?;
         let mut retained: Vec<Option<crate::descriptor_lifetimes::DescriptorLifetime>> =
             (0..parameters.len()).map(|_| None).collect();
-        let retain =
-            |retained: &mut [Option<crate::descriptor_lifetimes::DescriptorLifetime>],
-             position: usize,
-             lifetime: crate::descriptor_lifetimes::DescriptorLifetime| {
-                if let Some(previous) = &mut retained[position] {
-                    previous.live.extend(lifetime.live);
-                    for (at, names) in lifetime.authorized {
-                        previous.authorized.entry(at).or_default().extend(names);
-                    }
-                } else {
-                    retained[position] = Some(lifetime);
-                }
-            };
         for (mapping_index, binding) in bindings.into_iter().enumerate() {
             let source_positions = if let Some(public) = &public {
                 use terminal_psi::ReferenceResultShape;
@@ -703,7 +865,7 @@ pub(crate) mod reference_completion {
                 if lifetime.live.contains(&at) {
                     return Err("returned reference loan crosses its own call formation");
                 }
-                retain(&mut retained, position, lifetime);
+                retain_call_lifetime(&mut retained, position, lifetime)?;
             }
         }
         // A view leaf has no published header row: its origins are the
@@ -775,9 +937,10 @@ pub(crate) mod reference_completion {
                 if lifetime.live.contains(&at) {
                     return Err("returned view loan crosses its own call formation");
                 }
-                retain(&mut retained, *position, lifetime);
+                retain_call_lifetime(&mut retained, *position, lifetime)?;
             }
         }
+        retain_provider_inputs(module, result, call, &slots, at, &flow, &mut retained)?;
         Ok(retained
             .into_iter()
             .enumerate()
