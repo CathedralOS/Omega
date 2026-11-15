@@ -235,6 +235,9 @@ struct Root {
     /// which disposal the home owes.
     affine: bool,
     multiplicity: terminal_psi::StructuralMultiplicity,
+    /// The root's own contract is nonlinear, unqualified and claim-free.
+    /// This is a static storage restriction, never authority to use a loan.
+    whole_restoration: bool,
     parameter: bool,
     /// A parameter lent with `&mut`: the only storage the machine does not
     /// own that an owned value may be moved out of, leaving a window the
@@ -759,6 +762,17 @@ fn analyze(
         }
     }
     let mut contracts = vec![None; machine.structural_places.len()];
+    // Read static whole-origin restrictions once with the custody declarations.
+    // Actual loan authority and the current value remain separate judgments.
+    let mut whole_restoration = vec![true; machine.structural_places.len()];
+    let mut exclude_whole = |place: PlaceId| -> Result<(), Error> {
+        *whole_restoration
+            .get_mut(index(place.get())?)
+            .ok_or(Error::malformed(
+                "whole-origin contract is outside the machine",
+            ))? = false;
+        Ok(())
+    };
     let mut insert_contract = |place: PlaceId,
                                structural_type,
                                multiplicity,
@@ -783,6 +797,12 @@ fn analyze(
         .iter()
         .chain(machine.block_structural_parameters())
     {
+        if parameter.access != StructuralAccess::Owned
+            || !parameter.is_unqualified_root()
+            || !parameter.additional_input_qualifications.is_empty()
+        {
+            exclude_whole(parameter.place)?;
+        }
         insert_contract(
             parameter.place,
             parameter.structural_type,
@@ -798,6 +818,12 @@ fn analyze(
             terminal_psi::OperationKind::MoveStructuralField { .. }
         );
         if let Some(result) = operation.result.as_structural() {
+            if !(result.is_affine_plain() || result.is_unrestricted_plain())
+                || !result.additional_input_qualifications.is_empty()
+                || !result.qualification_establishments.is_empty()
+            {
+                exclude_whole(result.place)?;
+            }
             let required_result = required_result_multiplicity(operation);
             if required_result.is_some() {
                 // An operation-owned permission is distinct from the type's
@@ -827,6 +853,21 @@ fn analyze(
                 required_result,
             )?;
         }
+        if let terminal_psi::OperationKind::EstablishByteSequenceLiteral {
+            destination,
+            qualifications,
+            ..
+        } = &operation.kind
+            && !qualifications.is_empty()
+        {
+            exclude_whole(*destination)?;
+        }
+    }
+    for claim in machine.entry_claims.iter().chain(&machine.block_entry_claims) {
+        exclude_whole(claim.input)?;
+    }
+    for claim in &machine.content_entry_claims {
+        exclude_whole(claim.input.root)?;
     }
     if let TerminalMachineResult::Structural(result) = &machine.result {
         insert_contract(
@@ -972,6 +1013,7 @@ fn analyze(
             owned,
             affine: tracked,
             multiplicity,
+            whole_restoration: owned && whole_restoration[roots.len()],
             parameter,
             exclusive,
         }));
@@ -1972,15 +2014,16 @@ impl Analysis<'_> {
                     else {
                         unreachable!()
                     };
-                    let projected = carrier_path
-                        .iter()
-                        .rposition(|segment| *segment == StructuralPathSegment::Referent)
-                        .is_some_and(|referent| {
-                            field.is_some() || referent + 1 < carrier_path.len()
-                        });
-                    if !projected {
+                    if !carrier_path.contains(&StructuralPathSegment::Referent) {
                         return Err(Error::unsupported(
-                            "a local loan cannot open a whole-referent ownership window",
+                            "an owned storage window requires an exclusive reference crossing",
+                        ));
+                    }
+                    if !crate::structural_window_selects_child(carrier_path, *field)
+                        && !root.whole_restoration
+                    {
+                        return Err(Error::unsupported(
+                            "whole-referent restoration requires unqualified nonlinear owned storage without claims",
                         ));
                     }
                 }
@@ -2003,7 +2046,9 @@ impl Analysis<'_> {
                     ));
                 }
                 self.read(state, source, &selected, site)?;
-                self.vacate(state, source, &selected)?;
+                // The value leaves, but the authenticated reference still
+                // owns access to this allocated home until repair and release.
+                self.vacate_contents(state, source, &selected)?;
             }
             Op::ScalarStructuralField {
                 source,
@@ -2612,8 +2657,8 @@ impl Analysis<'_> {
         Ok(())
     }
 
-    /// Only an owned whole move ends the home. A borrowed root's storage
-    /// remains allocated and owes restoration even when all its contents move.
+    /// Ordinary owned transfer ends its source home. A storage extraction
+    /// through a live reference instead uses `vacate_contents` and keeps it.
     fn vacate(&self, state: &mut State, place: PlaceId, path: &[Segment]) -> Result<(), Error> {
         let root = self
             .root(place)?
@@ -2621,7 +2666,23 @@ impl Analysis<'_> {
         let region = &mut state.regions[index(place.get())?];
         if root.owned && path.is_empty() {
             *region = None;
-        } else if let Some(region) = region {
+            Ok(())
+        } else {
+            self.vacate_contents(state, place, path)
+        }
+    }
+
+    fn vacate_contents(
+        &self,
+        state: &mut State,
+        place: PlaceId,
+        path: &[Segment],
+    ) -> Result<(), Error> {
+        let region = state
+            .regions
+            .get_mut(index(place.get())?)
+            .ok_or(Error::malformed("vacated contents are outside the machine"))?;
+        if let Some(region) = region {
             region.set(path, false);
         }
         Ok(())
@@ -3163,6 +3224,7 @@ mod tests {
                 owned: true,
                 affine: true,
                 multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+                whole_restoration: true,
                 parameter: false,
                 exclusive: false,
             })],
