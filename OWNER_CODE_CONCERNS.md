@@ -73,6 +73,13 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### Runtime array index proofs cannot attach to their canonical operations
+- Category: knowledge crossing a boundary
+- Where: [checked index goals](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs#L1770), [seal owner reconstruction](omega-rust/psi/compilation/representations/terminal-psi/codec/src/obligation_evidence.rs#L244)
+- Saw: The [lent indexed record control](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/runtime_indexed_elements.rs#L64) publishes its checked invocation. With a hosted entry, the scalar-policy fix at `3fe15f1a32c` and the provisional universe admission repair, both `omega run --both` and Psi-only execution refuse the in-bounds program at `UnownedSeal`. Bare element types with an explicit saturating add reach the same error. The out-of-bounds twin still rejects each unsafe access.
+- Cost: Checked dynamic reads and writes cannot run through the product path. Stage 06 certifies each runtime path step, while the codec reconstructs only operation-local scalar and byte goals. Reuse each stored path step's exact array extent and obligation in the shared semantic query so several bounds on one operation remain attributable.
+- Reported: 2026-11-14, Codex, while validating mixed policy operands through hosted execution on macOS arm64
+
 ### A specialized contract literal loses its const parameter carrier
 - Category: knowledge crossing a boundary
 - Where: [Stage 04 specialization control](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization/tests.rs#L987)
@@ -121,13 +128,6 @@ framework or a list of features that remain unimplemented.
 - Saw: At `7f12cb9f722` a machine under `Session` that names its data declaration's lifetime returns `rejected` from the test harness. The test expects the explicit refusal that the byte view has no complete owned region identity.
 - Cost: The control cannot show that the machine rejected the data declaration's lifetime because the machine has no binder for it. Inspect the rejection evidence before updating the expected outcome.
 - Reported: 2026-11-14, Codex, while rerunning the Stage 06 refusal controls on macOS arm64
-
-### An indexed read from a lent record cannot retain its scalar qualification
-- Category: knowledge crossing a boundary
-- Where: [Stage 06 runtime indexed element controls](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/runtime_indexed_elements.rs)
-- Saw: At production base `af9510104ca` with the test-constructor compatibility repair, the read/write acceptance test expects `accepted` and receives `MalformedStructuralFoundation("ordinary scalar operation cannot establish a declared domain")` from scalar-qualification validation.
-- Cost: The ordinary indexed-element route cannot show that a value taken from lent storage keeps its declared scalar qualification. Trace the selected array element type through the emitted operation and its validator before changing the fixture.
-- Reported: 2026-11-14, Codex, while restoring downstream checker test compilation on macOS arm64
 
 ### A view returned by a boundary keeps no loan of the input it borrows from
 - Category: a verdict with nothing behind it
