@@ -349,7 +349,7 @@ impl Lowering<'_> {
                 // published contract, rather than predicting that from syntax
                 // or treating an inhabited result as disposable.
                 match self.expression(expression)? {
-                    Reached::NoNormal => Ok(Reached::NoNormal),
+                    Reached::Ended(origin) => Ok(Reached::Ended(origin)),
                     Reached::Value(_) if expression.result.is_none() || *discards_result => {
                         Ok(Reached::Value(()))
                     }
