@@ -83,7 +83,9 @@ impl Program<'_> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
         for domain in value_type.qualification().domains.members() {
             let definition = self.domain_theory(id, domain)?;
-            if definition.access_policy.is_some() {
+            // A checked plan has no reader or writer rules, so it restricts
+            // neither; a plan nobody has run cannot be shown to permit this.
+            if definition.access_unjudged() {
                 return unserved(match access {
                     Access::Read => "read inside a value governed by an access policy",
                     Access::Replace => "replacement of a value governed by an access policy",

@@ -9,6 +9,7 @@ use typed_trees::TypedTrees;
 mod build_activation;
 mod const_argument_jobs;
 mod constant_jobs;
+mod domain_access_plans;
 mod fixed_layouts;
 mod invocation;
 mod source_selection;
@@ -19,6 +20,7 @@ pub use constant_jobs::{
     evaluate_with_source_consent as evaluate_constant_initializers_with_source_consent,
     validate_constant_evaluations,
 };
+pub use domain_access_plans::evaluate as evaluate_domain_access_plans;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixedLayoutTargetScope {

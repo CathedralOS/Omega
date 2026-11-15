@@ -1088,12 +1088,61 @@ pub mod domain {
         pub selection: crate::expression::StaticMachineArgument,
         /// Where the policy is named.
         pub source_span: source::SourceSpan,
+        /// What Build-time evaluation concluded about the plan the selected
+        /// policy returns for this domain. Only a demanded domain's plan is
+        /// run.
+        pub plan: AccessPlanJudgment,
+    }
+
+    /// The Build's conclusion about one domain's access plan. Only
+    /// `Checked` shows anybody to be an issuer or judges a read or write;
+    /// the other two leave every such use refused.
+    #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+    pub enum AccessPlanJudgment {
+        /// Nobody has run the plan: the domain is not demanded, or its
+        /// policy application is itself unserved.
+        #[default]
+        Unevaluated,
+        Checked(CheckedDomainAccessPlan),
+        /// The Build ran the plan and could not judge it: it failed to
+        /// evaluate, described another schema, named a route no declaration
+        /// answers, or stated restrictions no consumer reads yet. The domain
+        /// still passes whole through formals, results and fields, as an
+        /// unevaluated one does.
+        Unjudged(String),
     }
 
     impl DomainAccessPolicy {
         pub fn implementation(&self) -> SymbolHandle {
             self.selection.symbol
         }
+    }
+
+    /// The judgment of one evaluated `AccessPolicy::plan` result
+    /// (`wiki/spec/resources/access.md`, "Plans and admitted supply").
+    ///
+    /// The evaluator records a plan as checked only when it can state all of
+    /// it here:
+    /// the returned schema is the domain subject's own, every route names a
+    /// declaration of this program, and the plan has no field observation
+    /// demands, no reader or writer rules and no required reach. A plan with
+    /// any of those is `AccessPlanJudgment::Unjudged` instead, so this record
+    /// is the plan's complete judgment: issuance is exactly `issuance`, and reads and
+    /// writes are unrestricted by this policy ("omission leaves that axis
+    /// unrestricted").
+    #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+    pub struct CheckedDomainAccessPlan {
+        /// The policy member whose body returned the plan.
+        pub plan_machine: SymbolHandle,
+        pub issuance: CheckedIssuance,
+    }
+
+    /// The plan's issuer choice. `Only` with no routes permits nobody; it is
+    /// never read as `Unrestricted`.
+    #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+    pub enum CheckedIssuance {
+        Only(Vec<language_semantics::DomainEstablishmentRoute>),
+        Unrestricted,
     }
 
     /// Who may introduce a domain, as far as its declaration decides it
@@ -1103,12 +1152,13 @@ pub mod domain {
         /// No policy and no route list: qualification needs the predicates
         /// and nothing else.
         Unrestricted,
-        /// Exactly these origins, written on the declaration with the
-        /// retired `established by` clause.
+        /// Exactly these origins: written on the declaration with the
+        /// retired `established by` clause, or returned by the selected
+        /// policy's evaluated plan (`CheckedDomainAccessPlan`).
         Only(&'domain [language_semantics::DomainEstablishmentRoute]),
-        /// The selected policy's plan states the issuance. Nothing evaluates
-        /// a plan yet, so no origin can be shown to be authorized: a reader
-        /// treats this as admitting nobody it can name, never as
+        /// The selected policy's plan states the issuance, and no checked
+        /// plan is recorded: no origin can be shown to be authorized, so a
+        /// reader treats this as admitting nobody it can name, never as
         /// unrestricted.
         Planned(&'domain DomainAccessPolicy),
     }
@@ -1142,10 +1192,30 @@ pub mod domain {
         /// never both.
         pub fn issuance(&self) -> DomainIssuance<'_> {
             match &self.access_policy {
-                Some(policy) => DomainIssuance::Planned(policy),
+                Some(policy) => match &policy.plan {
+                    AccessPlanJudgment::Checked(plan) => match &plan.issuance {
+                        CheckedIssuance::Only(routes) => DomainIssuance::Only(routes),
+                        CheckedIssuance::Unrestricted => DomainIssuance::Unrestricted,
+                    },
+                    AccessPlanJudgment::Unevaluated | AccessPlanJudgment::Unjudged(_) => {
+                        DomainIssuance::Planned(policy)
+                    }
+                },
                 None if self.establishment_routes.is_empty() => DomainIssuance::Unrestricted,
                 None => DomainIssuance::Only(&self.establishment_routes),
             }
+        }
+    }
+
+    impl DomainDefinition {
+        /// Whether reads and writes of what this domain governs wait on a
+        /// plan no pass has judged. A checked plan has no reader or writer
+        /// rules (`CheckedDomainAccessPlan`), so only an unjudged one
+        /// restricts.
+        pub fn access_unjudged(&self) -> bool {
+            self.access_policy
+                .as_ref()
+                .is_some_and(|policy| !matches!(policy.plan, AccessPlanJudgment::Checked(_)))
         }
     }
 
