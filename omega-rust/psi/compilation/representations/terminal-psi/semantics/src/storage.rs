@@ -1541,6 +1541,46 @@ pub(crate) mod arrival_storage {
     use terminal_psi::StructuralTypeShape;
     use terminal_psi::{Block, StructuralParameterDeclaration, TerminalMachine};
 
+    /// Whether a formal of `formal` type, lent with `access`, accepts an
+    /// actual of `actual` type. Types must be equal, except for a direct
+    /// byte window: a formal with the canonical byte view
+    /// (`BorrowedView { access: None }`) carries its access on the
+    /// parameter, so it accepts any borrowed byte view that grants that
+    /// access. The view lends its bytes; the callee receives a descriptor of
+    /// its own and cannot replace the caller's.
+    pub fn formal_accepts_actual_type<'types>(
+        declarations: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
+        formal: semantic_vocabulary::StructuralTypeId,
+        access: terminal_psi::StructuralAccess,
+        actual: semantic_vocabulary::StructuralTypeId,
+    ) -> bool {
+        use terminal_psi::ByteSequenceCarrier;
+        if formal == actual {
+            return true;
+        }
+        let shape = |id| {
+            let mut rows = declarations.clone().filter(move |row| row.id == id);
+            rows.next()
+                .filter(|_| rows.next().is_none())
+                .map(|row| &row.shape)
+        };
+        matches!(
+            shape(formal),
+            Some(StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: None
+            }))
+        ) && matches!(
+            access,
+            terminal_psi::StructuralAccess::SharedBorrow
+                | terminal_psi::StructuralAccess::MutableBorrow
+        ) && matches!(
+            shape(actual),
+            Some(StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(granted)
+            })) if access.admits(*granted)
+        )
+    }
+
     pub fn view_descriptor_projected_qualifications<'types>(
         declarations: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration>,
         root: semantic_vocabulary::StructuralTypeId,

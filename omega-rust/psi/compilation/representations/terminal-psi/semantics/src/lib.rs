@@ -607,7 +607,8 @@ pub use semantic_rows::{
 };
 pub use storage::arrival_storage::{
     StorageNames, arrival_parameter, borrowed_storage_parameter,
-    borrowed_storage_reference_ceiling, descriptor_parameter_access, projection_before_edge,
+    borrowed_storage_reference_ceiling, descriptor_parameter_access, formal_accepts_actual_type,
+    projection_before_edge,
     root_before_edge, storage_names, structural_argument_source, structural_projection_authority,
     view_descriptor_parameter, view_descriptor_projected_qualifications,
 };
