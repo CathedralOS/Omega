@@ -182,7 +182,7 @@ fn repeated_equations_keep_first_definition_and_whole_axiom_identity() {
 
 #[test]
 fn integer_equality_lifts_keep_the_original_right_reflexive_child_in_both_orientations() {
-    use semantic_vocabulary::{IntegerSign, IntegerType};
+    use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
     let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
     let scalar_type = ScalarType::Integer(integer);
     let mut values = IdTable::default();
@@ -195,8 +195,15 @@ fn integer_equality_lifts_keep_the_original_right_reflexive_child_in_both_orient
             })
         })
         .collect();
-    let left = ScalarTerm::value(ids[0], scalar_type);
-    let right = ScalarTerm::value(ids[1], scalar_type);
+    // Expressions on both sides need the embedding view without supplying a
+    // value definition, in either orientation of the original relation.
+    let expression = |id| ScalarTerm::ExactIntegerAdd {
+        scalar_type: integer,
+        left: Box::new(ScalarTerm::value(id, scalar_type)),
+        right: Box::new(ScalarTerm::integer(integer, IntegerValue::Unsigned(0)).unwrap()),
+    };
+    let left = expression(ids[0]);
+    let right = expression(ids[1]);
     let context =
         PropositionContext::from_value_types(ids.iter().map(|&id| (id, scalar_type))).unwrap();
     let lifted = Proposition::IntegerMathEqual(
@@ -208,7 +215,7 @@ fn integer_equality_lifts_keep_the_original_right_reflexive_child_in_both_orient
         let known = Known::new(&context, std::slice::from_ref(&equation), &[], &values);
         assert!(
             known.equations.is_empty(),
-            "an assumed value alias is not an integer definition"
+            "a relation between expressions is not a value definition"
         );
         assert_eq!(known.facts.len(), 2);
         let expected = node(

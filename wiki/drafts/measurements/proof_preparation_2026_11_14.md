@@ -2,12 +2,11 @@
 
 The checker copied derivations for every available fact before knowing which
 evidence a search would request. Keeping compact origins beside the facts cuts
-requested allocation bytes by 69–81% during preparation of three real source
-programs' successful-obligation contexts. Isolated preparation is 28% faster
-for the tiny ownership workload and 44% faster for square-sum in paired runs;
-the larger scalar-contract workload's timing is inconclusive. The returned proofs and complete
-kernel acceptance results retain their baseline fingerprints. This measures
-proof preparation; it does not establish a whole-compiler latency improvement.
+requested allocation bytes by 62–81% in fresh current-main context replays.
+The original fixed-base experiment also measures complete preparation plus
+search 23–41% faster across the three source workloads. Exact proofs and kernel
+results match their respective baseline producers. These are local proving
+operations; whole-compiler latency is not established.
 
 Each fact now owns its proposition and an assumption, axiom, conjunct,
 integer-equality or transport origin. Equations reference those same facts.
@@ -24,7 +23,9 @@ capture the ordered equations available before the consequence was added.
 The kernel and portable proof format are unchanged: expanded logical node
 occurrences, premise scopes and depth budgets are checked as before.
 
-The fixed production base is `5b3cc09bbdbd1227e38193380d73c7b73462baf2`.
+The initial experiment's fixed production base is
+`5b3cc09bbdbd1227e38193380d73c7b73462baf2`. Tables before the integration
+paragraph below belong to those producers and inputs.
 Baseline producers were built and retained before the representation changed.
 Baseline-only preparation added private Debug derivations and explicit module
 paths for the diagnostic example; the temporary full-route profiling hook was
@@ -43,7 +44,7 @@ stress. `scalar` is
 `tests/fixtures/run/calls/scalar_contract_route_exit/main.omg`; `borrowed` is
 `tests/fixtures/run/ownership/borrowed_root_replacement/main.omg`. `square`
 uses the retained canonical-literal square-sum source reconstructed by
-`tools/benchmark/dominance/prepare_control.ps1`, preserving its algorithm,
+the portable `omega-bench proof-square` command, preserving its algorithm,
 constants and checksum. Its source archive remains under the raw-data root.
 
 Full source-route profiling counted every `Known` invocation, including
@@ -108,6 +109,19 @@ before the comparison.
 | borrowed | 4.146 → 2.932 | −28.22% | −33.91% to −25.75% | lower in this run |
 | square | 10.821 → 6.075 | −43.84% | −45.83% to −40.42% | lower in this run |
 
+To check whether deferred materialization merely shifts work into selection,
+the same counter-free driver also times complete `Prover::new` plus `prove`.
+Independent kernel verification and exact baseline fingerprint checks stay
+outside the timer. The original producer pair and context mix are unchanged;
+eight AB/BA pairs use 100 scalar, 200,000 borrowed and 10,000 square source
+passes per observation. All complete-search intervals are below zero:
+
+| Source | Median microseconds/context, before → after | Paired median change | 95% paired bootstrap interval |
+|---|---:|---:|---:|
+| scalar | 2,384.597 → 1,824.471 | −23.49% | −27.37% to −22.14% |
+| borrowed | 3.685 → 2.596 | −26.84% | −31.89% to −25.53% |
+| square | 13.037 → 7.578 | −41.13% | −45.02% to −39.74% |
+
 The baseline eagerly retains 654 ordinary proof-node occurrences across the
 16 scalar contexts, 20 across the two borrowed contexts, and 314 across the
 12 square contexts. The selected certificates contain 203, 2 and 43 nodes
@@ -147,7 +161,7 @@ baseline observations alone ranged from 3.59 to 10.13 seconds and approximately
 12.3 to 20.3 billion process CPU cycles. Other host Rust builds and Defender
 were present. These observations do not establish the cause of the first
 slowdown or a stable whole-route effect. Both runs are retained; the result is
-a smaller, faster measured preparation operation, not a whole-compiler claim.
+a smaller, faster measured proving operation, not a whole-compiler claim.
 
 The baseline and candidate also execute the same byte-identical isolated
 scalar-contract project with `omega run --both`: native/Psi agreement, exit 0.
@@ -160,12 +174,18 @@ The reproduction driver is
 `tools/benchmark/proof-preparation/README.md` explains its measurement boundary.
 Build with `mbx build --release -p terminal-psi-to-terminal-psi --example
 proof_preparation`, then run the retained executable on each source with
-`100`, or on `wide64` and `nested8`. The observer script closes stdin and saves
-streams and resource counters. `plan.ps1` prepares the uninstrumented source
-comparison, run with `target/release/omega-bench compare <plan> <new-directory>`.
+`100`, or on `wide64` and `nested8`. It never reads stdin. Portable
+`omega-bench proof-plan source` creates a source-route plan with an explicit
+hosted `--target`; `prepare` and `prove` create target-neutral timed plans with
+explicit repeat counts, work units and checksums. Run them with
+`omega-bench compare <plan> <new-directory>`, which closes stdin and owns
+resource/oracle capture. No PowerShell is required for reproduction.
 The adjacent `proof_preparation_timing` example shares the driver in
-`tools/benchmark/proof-preparation/harness.rs`; `timing_plan.ps1` binds its
-`prepare` mode to the repeated context work count and checksum.
+`tools/benchmark/proof-preparation/harness.rs`. The square generator verifies
+main SHA-256 `f069e526d1da8440718195f266437c92345f5d9ace8b8461dad1bbad2968253d`
+and default Build `9813449ec4cd31761ff0dfe63aa76b1a050d9985e279f56a80414a02795faa87`;
+the default retains six optimization selections. `--identity-build` also has
+its own frozen hash. Fetch the pinned Git object if a shallow clone lacks it.
 
 Validation passed on the changed owner and its immediate consumers:
 
@@ -185,6 +205,30 @@ source/control contexts, matched the frozen proof/acceptance checksums and
 matched the earlier per-pass allocation counts exactly. The initial owning
 crate all-target check failed at the fixed base's two stale `psi_work` test
 references; the #3241 prerequisite repaired them without changing expectations.
+
+Actual PR conflicts required integration onto
+`a0802ba24dbe2ba7e6252f1924201fe2093f3410`. The queue conflict was resolved
+without losing a newer, unrelated concern. Main's broader integer-equality
+transport and inhabitation preparation were retained. The embedding control
+uses expressions on both sides because direct value aliases now legitimately
+serve as definitions. Fresh 58-test, Clippy, formatting and boundary checks pass.
+
+New baseline/candidate drivers on this integration base independently match all
+40 proof/complete-kernel-result comparisons: 17 scalar, two borrowed, 19 square
+and two secondary controls. These are fresh results, separate from the initial
+30-source-context timing experiment. Preparation per source pass is:
+
+| Current-base source | Allocation calls, before → after | Requested bytes | Largest retained context, bytes |
+|---|---:|---:|---:|
+| scalar | 16,131 → 11,730 | 2,354,519 → 887,423 | 185,824 → 25,240 |
+| borrowed | 140 → 119 | 35,373 → 8,325 | 22,256 → 2,680 |
+| square | 4,040 → 3,018 | 1,370,321 → 254,873 | 100,448 → 9,336 |
+
+The current-base candidate again completes scalar native/Psi agreement, exit
+0. Its native source is byte-identical to the current kept fixture, SHA-256
+`abe2e510430a8bf7caf7abc2641bd18e4f6b40b09a82b69c554158e675a66280`.
+This also verifies the old queue report about `settle(product)` is already
+resolved; its stale bullet is removed without claiming a new semantic repair.
 
 Raw data, baseline/candidate producers, source and harness snapshots, all
 individual streams, allocation summaries and paired journals remain outside
