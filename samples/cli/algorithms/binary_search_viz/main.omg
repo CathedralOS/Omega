@@ -135,7 +135,7 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
 
     machine finish(main: &mut Main) {
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(0);
     }
     machine not_found(main: &mut Main) {

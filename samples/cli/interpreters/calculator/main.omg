@@ -65,13 +65,13 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     machine unknown(main: &mut Main) {
         Console::write_line("FAIL: operator byte not '+' or '-' -- unknown operator (exit 0)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(0);
     }
     machine emit(main: &mut Main) {
         Console::write_line("result: the evaluated expression, 12+34 = 46 (the exit code)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(main.result as i32);
     }
 }

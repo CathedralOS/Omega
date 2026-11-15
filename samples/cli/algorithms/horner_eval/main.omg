@@ -30,14 +30,14 @@ machine main(context: &mut Main) reaches ProcessExit + Console {
         Console::write_line("PASS: p(2) == 57 (exit 70)");
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block Console::read_line(&mut pause);
+        _ = block Console::read_line(&mut pause[..]);
         ProcessExit::exit_process(70);
     }
     machine bad(context: &mut Main, result: i32 in Wrapping) {
         Console::write_line("FAIL: p(2) != 57 (exits the wrong value it computed)");
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block Console::read_line(&mut pause);
+        _ = block Console::read_line(&mut pause[..]);
         ProcessExit::exit_process(result as i32);
     }
 }

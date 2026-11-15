@@ -122,7 +122,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     machine done(main: &mut Main) {
         Console::write_line("result: nums[0] after sorting -- the minimum, 10 for this dataset (the exit code)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(main.nums[0]);
     }
 }

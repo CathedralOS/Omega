@@ -23,7 +23,7 @@ machine main(context: &mut Main) reaches ProcessExit + Console {
     Console::write_line("result: the longest run length, 4 (the bbbb) for this text (the exit code)");
     Console::write_line("[press Enter to close]");
     let mut pause: [u8; 256];
-    _ = block Console::read_line(&mut pause);
+    _ = block Console::read_line(&mut pause[..]);
     ProcessExit::exit_process(maximum as i32);
 }
 

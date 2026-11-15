@@ -193,7 +193,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     machine bad0(main: &mut Main) {
         Console::write_line("FAIL: arr[0] != 1 after sorting (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(71);
     }
 
@@ -208,7 +208,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     machine bad1(main: &mut Main) {
         Console::write_line("FAIL: arr[1] != 2 after sorting (exit 72)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(72);
     }
 
@@ -223,7 +223,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     machine bad2(main: &mut Main) {
         Console::write_line("FAIL: arr[2] != 3 after sorting (exit 73)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(73);
     }
 
@@ -238,7 +238,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     machine bad3(main: &mut Main) {
         Console::write_line("FAIL: arr[3] != 5 after sorting (exit 74)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(74);
     }
 
@@ -253,7 +253,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     machine bad4(main: &mut Main) {
         Console::write_line("FAIL: arr[4] != 7 after sorting (exit 75)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(75);
     }
 
@@ -268,14 +268,14 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     machine bad5(main: &mut Main) {
         Console::write_line("FAIL: arr[5] != 8 after sorting (exit 76)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(76);
     }
 
     machine good(main: &mut Main) {
         Console::write_line("PASS: array sorted to [1,2,3,5,7,8] (exit 70)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(70);
     }
 }

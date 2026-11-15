@@ -182,7 +182,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         // The result is the bottom of the stack.
         Console::write_line("result: the RPN evaluation, 35 for this program (the exit code)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(main.stack[0] as i32);
     }
 }

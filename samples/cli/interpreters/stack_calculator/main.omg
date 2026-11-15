@@ -101,13 +101,13 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     machine done(main: &mut Main) {
         Console::write_line("result: (3 + 4) * 5 = 35 at the bottom of the stack (the exit code)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(main.stack[0] as i32);
     }
     machine bad(main: &mut Main) {
         Console::write_line("FAIL: a stack-pointer bounds guard tripped (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(71);
     }
 }
