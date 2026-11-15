@@ -964,7 +964,7 @@ pub mod closed_conformances {
         schema: &ClosedConformanceSchema,
     ) -> Result<Option<(u32, Vec<&str>, &str)>, &'static str> {
         let mut bytes = schema.definition.as_slice();
-        let domain = b"omega.requirement-schema.v4\0";
+        let domain = b"omega.requirement-schema.v5\0";
         if take(&mut bytes, domain.len())? != domain {
             return Err("conformance schema has an unknown definition domain");
         }
@@ -1001,8 +1001,13 @@ pub mod closed_conformances {
             1 => {
                 let outer = u32::try_from(length(&mut bytes)?)
                     .map_err(|_| "original signature lifetime roster exceeds u32")?;
+                // Elided signature positions take fresh lifetimes after
+                // every declared one.
+                let elided = u32::try_from(length(&mut bytes)?)
+                    .map_err(|_| "original signature elided lifetimes exceed u32")?;
                 let lifetimes = outer
                     .checked_add(schema.lifetime_parameter_count)
+                    .and_then(|lifetimes| lifetimes.checked_add(elided))
                     .ok_or("original signature lifetime roster overflows")?;
                 let count = length(&mut bytes)?;
                 if count > bytes.len() / 8 {

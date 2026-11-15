@@ -157,12 +157,12 @@ framework or a list of features that remain unimplemented.
 - Cost: Provider admission looks for a machine owned by the implementation. A selection row keeps the existing machine's original declaration. Resolve the named implementation's exact row and check its body against the nominated requirement.
 - Reported: 2026-11-14, Codex, while restoring the Stage 06 provider-supply controls
 
-### The selected reference result control stops before checking its public contract
-- Category: tests that pin the bug
-- Where: [Stage 06 selected result control](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/references.rs#L694)
-- Saw: At `7f12cb9f722` the call of `Chosen::hand` in `relay` refuses with `call selected result has no complete original declared types`. The test expects the refusal for the absent public requirement contract on a selected reference result.
-- Cost: The test cannot demonstrate that the selected call refuses to use only the private implementation's result origin. Trace the selected declaration and preserve the missing-contract control.
-- Reported: 2026-11-14, Codex, while rerunning the Stage 06 refusal controls on macOS arm64
+### A rigid requirement call cannot return a reference
+- Category: a verdict with nothing behind it
+- Where: [05 reference result publication](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/reference_results.rs) (`publish_results`), [returned origins](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references.rs) (`reference_result_sources`), [Stage 06 selected result control](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/references.rs) (`a_selected_reference_result_needs_its_public_requirement_contract`)
+- Saw: with `trait Handoff { machine hand(source: &mut i64) -> &mut i64 crashes none; }`, the product closure of `relay<Chosen satisfies Handoff>(source: &mut i64) { let child: &mut i64 = Chosen::hand(source); child = 41; }` is accepted and runs, but the generic check form of `relay` falls back with `call reference result has no complete actual return-source correspondence`: the rigid call's callee is the bodiless requirement, whose result origins nothing reconstructs. If `relay` instead returns `Chosen::hand(source)`, the product refuses with `call reference result needs an exact retained input projection`, because the selected call's result is known only within its public region and a published result source admits only exact projections.
+- Cost: a generic machine cannot call a reference-returning requirement, and no machine can return a selected reference result. lifetimes.md, "Returned views", keeps every leaf of the selected lifetime as a possible source, so the requirement's declared lifetime groups (`terminal_semantics::selected_reference_result`) must stand for the bodiless callee's origins, and a within-region origin must publish as `ReferenceOriginExtent::WithinRegion` rather than be refused.
+- Reported: 2026-11-15, Claude Code (worker-1), after the requirement schema kept its elided signature lifetimes
 
 ### The checker ends a reference loan at its last use; the lowering never releases the carrier
 - Category: a verdict with nothing behind it
