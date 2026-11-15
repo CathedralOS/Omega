@@ -78,6 +78,9 @@ impl Program<'_> {
             .ok_or_else(|| {
                 unserved("call in a premise without a transparent mathematical declaration")
             })?;
+        // A definition typing could not finish holds a deferred request
+        // (`typed_trees::deferred_refusals`); its body is never read through.
+        self.served(id, definition.symbol)?;
         if !definition.binders.is_empty()
             || call.receiver.is_valid()
             || !call.machine_arguments.is_empty()

@@ -84,6 +84,18 @@ pub(crate) fn defer_declared_jobs(typed: &mut TypedTrees) -> Result<(), Vec<Diag
     Ok(())
 }
 
+/// Layout evaluation may serve one occurrence while another in the same
+/// declaration remains open. Rebuild only this request kind from the complete
+/// current inventory; all other deferred obligations remain untouched.
+pub(crate) fn refresh_layout_policy_requests(
+    typed: &mut TypedTrees,
+) -> Result<(), Vec<Diagnostic>> {
+    typed
+        .deferred_refusals
+        .retain(|row| row.request != DeferredRequest::LayoutPolicyStorage);
+    defer_declared_jobs(typed)
+}
+
 /// The evaluation requests of the program's declarations, after refusing
 /// every request the program holds outside them.
 fn source_jobs(typed: &TypedTrees) -> Result<Vec<SourceJob>, Vec<Diagnostic>> {
@@ -166,7 +178,9 @@ pub(crate) fn declared_jobs(typed: &TypedTrees) -> Result<Vec<SourceJob>, Vec<Di
     for reference in references.type_references {
         use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
         if typed.layout_storage_arguments(reference).is_some() {
-            types.push((reference, DeferredRequest::LayoutPolicyStorage));
+            if typed.plan_laid_layout_for_type(reference).is_none() {
+                types.push((reference, DeferredRequest::LayoutPolicyStorage));
+            }
             continue;
         }
         match typed.type_reference_table.type_reference(reference) {
@@ -182,7 +196,6 @@ pub(crate) fn declared_jobs(typed: &TypedTrees) -> Result<Vec<SourceJob>, Vec<Di
             | TypeReferenceNode::FixedArray { .. }
             | TypeReferenceNode::Slice { .. }
             | TypeReferenceNode::Generic { .. }
-            | TypeReferenceNode::DynamicTrait { .. }
             | TypeReferenceNode::Named { .. }
             | TypeReferenceNode::Unit => {}
         }

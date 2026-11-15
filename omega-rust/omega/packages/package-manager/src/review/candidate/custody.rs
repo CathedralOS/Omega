@@ -8,7 +8,7 @@ use crate::declarations::PackageKey;
 use crate::resolution::PackageCompilationScope;
 use crate::resolution::graph::ResolvedPackageSourceClosure;
 use crate::review::timings;
-use package_source::local::operations::verify_package_source_snapshot;
+use source_acquisition::local::operations::verify_package_source_snapshot;
 
 pub(crate) fn verify_transitive_source_custody(
     closure: &ResolvedPackageSourceClosure,

@@ -18,7 +18,7 @@
 use std::collections::BTreeSet;
 
 use diagnostics::Diagnostic;
-use package_evidence::record::PackagePolicyRowKind;
+use review_evidence::record::PackagePolicyRowKind;
 use semantic_vocabulary::PackageKeyIdentity;
 
 use crate::Hex;
@@ -26,7 +26,7 @@ use crate::lock::{PackageCheckedContext, PackageLockTarget};
 use crate::resolution::graph::DependencyRequestPath;
 use package_compilation::build_execution::RestrictedBuildGrants;
 use package_compilation::build_execution::RestrictedBuildRequest;
-use package_evidence::encoding::restricted_build_request_acceptance_text;
+use review_evidence::encoding::restricted_build_request_acceptance_text;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UngrantedRestrictedBuildRequest {
@@ -42,7 +42,7 @@ impl UngrantedRestrictedBuildRequest {
         context: PackageCheckedContext,
         request_path: Option<DependencyRequestPath>,
         request: &RestrictedBuildRequest,
-    ) -> Result<Self, package_evidence::encoding::PackageReviewEncodingError> {
+    ) -> Result<Self, review_evidence::encoding::PackageReviewEncodingError> {
         let request = request.clone().for_target(Some(context.target()));
         let request_meaning =
             restricted_build_request_acceptance_text(package, context.target(), &request)?;

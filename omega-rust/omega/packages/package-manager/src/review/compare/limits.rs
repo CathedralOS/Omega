@@ -9,8 +9,8 @@ use super::{
 use crate::declarations::PackageKey;
 use crate::lock::PackageAcceptanceRow;
 use crate::resolution::graph::CanonicalSourceClosureSubjectLimits;
-use package_evidence::record::{PackagePolicyRowLimits, PackagePolicyRowUsage};
-use package_source::SourceLineage;
+use review_evidence::record::{PackagePolicyRowLimits, PackagePolicyRowUsage};
+use source_acquisition::SourceLineage;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct PackagePolicyChangeLimits {

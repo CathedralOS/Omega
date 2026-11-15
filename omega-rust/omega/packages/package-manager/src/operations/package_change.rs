@@ -11,6 +11,7 @@ without writing `build.omg` or `omega.lock`.
 
 use crate::build_session::PackageBuildSession;
 
+#[path = "package_change_error.rs"]
 mod error;
 pub(crate) use error::PackageChangeError;
 

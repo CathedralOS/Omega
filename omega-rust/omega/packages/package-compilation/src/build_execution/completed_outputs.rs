@@ -9,6 +9,7 @@ use super::{BuildObservationIdentity, BuildObservationSummary};
 use build_output::{BuildStagedOutputEntryKind, BuildStagedOutputTree};
 use std::path::{Path, PathBuf};
 
+#[path = "completed_outputs_verification.rs"]
 mod verification;
 
 #[derive(Debug)]

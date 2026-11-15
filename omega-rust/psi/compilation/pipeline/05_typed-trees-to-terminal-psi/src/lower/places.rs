@@ -660,6 +660,13 @@ pub(crate) fn borrowed_access(access: language_core::ReferenceAccess) -> Option<
 }
 
 impl Records<'_> {
+    pub(crate) fn primitive_types(
+        &self,
+    ) -> impl Iterator<Item = (ValueType, StructuralTypeId)> + '_ {
+        self.primitives
+            .iter()
+            .map(|(value_type, _, id)| (*value_type, *id))
+    }
     pub(super) fn multiplicity(
         &self,
         record: StructuralTypeId,
@@ -1580,19 +1587,48 @@ impl<'a> Lowering<'a> {
                 else {
                     return Err(self.internal("a persistent loan has no reference descriptor type"));
                 };
-                if Some(declared) != borrowed_access(*access)
-                    || place.result.map(ValueType::erased)
-                        != Some(self.storage_value_type(referent)?.erased())
-                {
-                    return Err(
-                        self.internal("a reference formation changed its referent or access")
-                    );
+                if Some(declared) != borrowed_access(*access) {
+                    return Err(self.internal("a reference formation changed its source access"));
+                }
+                let reinterpret = place.result.map(ValueType::erased)
+                    != Some(self.storage_value_type(referent)?.erased());
+                if reinterpret && *access != language_core::ReferenceAccess::Shared {
+                    return Err(refuse(
+                        self.id,
+                        Construct::Machine,
+                        Unserved::Expression(
+                            "exclusive reference view without restoration evidence",
+                        ),
+                    ));
                 }
                 // A persistent reference borrows the original storage. The
                 // descriptor snapshot used for a call argument expires with
                 // that call and cannot become this reference's backing.
                 let captured = continuing!(self.capture_place(place, home.as_deref()));
                 let lent = self.captured_loan(place, *access, captured, None)?;
+                let storage = if reinterpret {
+                    let byte_offset = self.zero(
+                        ScalarType::Integer(
+                            semantic_vocabulary::IntegerType::new(
+                                semantic_vocabulary::IntegerSign::Unsigned,
+                                64,
+                            )
+                            .expect("u64 is valid"),
+                        ),
+                        expression.source,
+                    )?;
+                    Some(terminal_psi::ReferenceStorageView {
+                        byte_offset,
+                        stored_scalar: match self.record_type(referent)?.shape {
+                            StorageShape::PrimitiveScalar { .. } => {
+                                place.result.and_then(ValueType::scalar)
+                            }
+                            _ => None,
+                        },
+                    })
+                } else {
+                    None
+                };
                 let operation = self.operation_identity(expression.source);
                 let before = self.here()?;
                 self.obligation(
@@ -1616,10 +1652,7 @@ impl<'a> Lowering<'a> {
                 let (root, place) = self.produce(
                     operation,
                     record,
-                    OperationKind::EstablishReference {
-                        source,
-                        storage: None,
-                    },
+                    OperationKind::EstablishReference { source, storage },
                 )?;
                 self.write(
                     place,
@@ -1650,25 +1683,52 @@ impl<'a> Lowering<'a> {
     /// Evaluates a record-typed expression to a root that holds its value
     /// and that nothing else names. A literal or call is its own fresh root;
     /// a slot or member path is copied only with declared copy permission.
-    /// Otherwise `MoveStructuralValue` vacates exactly that region; its
-    /// continuation owns any remaining cleanup and home retirement.
+    /// Owned transport vacates that region with `MoveStructuralValue`; an
+    /// exclusive borrowed source uses `MoveStructuralField`, retaining its
+    /// storage and restoration debt instead of consuming the incoming loan.
     pub(super) fn record(&mut self, expression: &Expression) -> Evaluation<PlaceId> {
+        let root = continuing!(self.owned_record(expression));
+        if self.empty_owned_value(root) {
+            // Keep the actual owned Empty expression as the completion. It
+            // cannot initialize a receiver, form a call argument or become a
+            // sibling value, so every consumer sees the same ended path.
+            self.return_record(root, expression.source)?;
+            Ok(Reached::Ended(expression.source))
+        } else {
+            Ok(Reached::Value(root))
+        }
+    }
+
+    fn owned_record(&mut self, expression: &Expression) -> Evaluation<PlaceId> {
         let at = continuing!(self.located(expression));
         if at.fresh && at.path.is_empty() {
             return Ok(Reached::Value(at.root));
         }
         let moving = !self.record_type(at.record)?.copyable;
+        let borrowed = self.borrowed_roots.contains(&at.root);
+        let mut window = borrowed;
+        let mut exclusive_path = !borrowed || self.exclusive_roots.contains(&at.root);
+        for step in &at.path {
+            if let Step::Referent { owner } = step {
+                window = true;
+                exclusive_path &= matches!(
+                    self.record_type(*owner)?.shape,
+                    StorageShape::Reference {
+                        access: StructuralAccess::MutableBorrow,
+                        ..
+                    }
+                );
+            }
+        }
         // ownership.md, "Borrowed-storage invariant windows": "An owned move
         // out of a place reached through `&mut` may temporarily leave that
         // place unestablished." The move below vacates exactly that place;
         // whether it holds a value again where the borrow returns to its
         // owner is the checker's judgment of the lowered machine, not a
-        // claim made here. A shared formal lends no such window, and the
-        // whole referent is never taken from its owner.
-        if moving
-            && self.borrowed_roots.contains(&at.root)
-            && (at.path.is_empty() || !self.exclusive_roots.contains(&at.root))
-        {
+        // claim made here. A shared formal lends no such window. The empty
+        // path selects the whole referent's contents, retaining its loan and
+        // storage just as a projected window does.
+        if moving && window && !exclusive_path {
             return Err(refuse(
                 self.id,
                 Construct::Machine,
@@ -1685,7 +1745,13 @@ impl<'a> Lowering<'a> {
         let (root, exact) = self.produce(
             operation,
             at.record,
-            if moving {
+            if moving && window {
+                OperationKind::MoveStructuralField {
+                    source: at.root,
+                    path,
+                    field: None,
+                }
+            } else if moving {
                 OperationKind::MoveStructuralValue {
                     source: StructuralArgument {
                         place: at.root,
@@ -1713,7 +1779,7 @@ impl<'a> Lowering<'a> {
                 ProgramPoint::AfterOperation(operation),
                 Content::Vacated,
             )?;
-            if at.path.is_empty() {
+            if at.path.is_empty() && !borrowed {
                 self.retire_homes(&[], expression.source)?;
             }
         }
@@ -2336,6 +2402,7 @@ impl<'a> Lowering<'a> {
                             },
                         );
                         self.parameter(block, value, scalar_type)?;
+                        self.qualify(value, field.value_type.qualification())?;
                         payload_fields.push(field.id);
                         Some(value)
                     }

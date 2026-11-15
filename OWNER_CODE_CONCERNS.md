@@ -73,6 +73,20 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### The macOS entry adapter exhausts proof search before running a Unit program
+- Category: verifying costs more than writing
+- Where: [macOS arm64 entry Calling policy](source/library/std/targets/macos_arm64/entry.omg#L38), `physical_indices`
+- Saw: On macOS arm64, the compiler built from clean `a70ae5ad39e56fd0b94f412321050e7b5c891361` exits 200 on `omega run --both` for a plain Unit `main` with the trapping fixture's unchanged hosted Build. The bundled Calling policy reports exhausted bounded disjunction search for operation safety in `physical_indices`, before either engine runs.
+- Cost: Hosted native acceptance can stop in the standard library independently of the program being checked. Trace the conjunction of array-index bounds and preserve each index guard and its invalid control when repairing the proof path. Other targets were unmeasured.
+- Reported: 2026-11-14, Codex, while validating native execution of suffixed arithmetic
+
+### The target-body reachability policy has no compiler caller
+- Category: zombie machinery
+- Where: [target_bodies.rs](omega-rust/omega/compilation/realization/provider-selection/src/bodies/target_bodies.rs#L14), [typed direct-call inventory](omega-rust/psi/compilation/representations/typed-trees/src/service_declarations.rs#L90)
+- Saw: `DirectTargetBodyAbsences` and `reject_reached_inert_calls` appear only at their definitions and reexports in the workspace. The inventory's direct-call accessors have only crate tests as customers. Current [target supply](omega-rust/omega/compilation/realization/provider-planning/src/target_supply.rs#L639) refuses a demanded target-machine family by name.
+- Cost: The exported graph and inventory tests can look like evidence that current target preparation resolves these requests. Trace the remaining direct-call projections before retiring the unused path while preserving the active refusal.
+- Reported: 2026-11-14, Codex, while tracing the surviving path from provider choice to publication
+
 ### A view returned by a call keeps no loan of the input it borrows from
 - Category: a verdict with nothing behind it
 - Where: `reference_call_lifetimes` in [terminal-psi semantics references.rs](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references.rs), consumed by `formed` in [06 places/loans.rs](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/loans.rs)
@@ -82,7 +96,7 @@ framework or a list of features that remain unimplemented.
 
 ### The checker ends a stored reference at its last use; the interpreter keeps it until its record dies
 - Category: a verdict with nothing behind it
-- Where: checker loan closure in [06 places/loans.rs](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/loans.rs); interpreter transfer check `owned value cannot transfer while its storage is borrowed` in `omega-rust/psi/interpreter/terminal-interpreter`
+- Where: checker loan closure in [06 places/loans.rs](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/loans.rs); interpreter transfer check `owned value cannot transfer while its storage is borrowed` in `omega-rust/psi/interpreter`
 - Saw: `let mut holder: Holder = Holder { engine: &mut engine }; start(&mut holder); transition engine.mode { ... }` with a `Mode` that is not `[copy]` is accepted and published, then the dispatch's `MoveStructuralValue` traps in the Psi interpreter: the record is not used again, but its reference is still registered at run time. The same program with `Mode [copy]` runs (`06_terminal-psi-to-terminal-psi/src/tests/stored_references.rs`, `a_data_value_is_stored_through_a_stored_reference`)
 - Cost: an accepted program fails when run; either lowering must release a reference carrier where the checker closes its loan, or the checker must keep the loan to the carrier's end
 - Reported: 2026-11-14, Claude Code (worker-8), while storing a data value through a stored reference
@@ -108,33 +122,12 @@ framework or a list of features that remain unimplemented.
 - Cost: an explicit exclusive borrow can coexist with an already-live shared cohort. Preserve the written formation and its attenuation as real loan ancestry; do not reject legal attenuation or relax cohort checks. The Build selection repair uses a real mutable-parameter call instead, so it does not depend on this path. Acceptance pairs the still-live cohort with one whose last use precedes the exclusive formation, and keeps ordinary shared calls legal while the cohort is live.
 - Reported: 2026-11-14, Codex, while falsifying Build activation access before landing #3207
 
-### Freezing sparse declaration relationships allocates to the largest global symbol slot
-- Category: re-deriving
-- Where: [sparse and dense lookup paths](omega-rust/psi/compilation/representations/typed-trees/src/declaration_tables_and_index.rs#L477), [unconditional densification](omega-rust/psi/compilation/representations/typed-trees/src/declaration_tables_and_index.rs#L487), [freeze-time index preparation](omega-rust/psi/compilation/representations/typed-trees/src/declaration_tables_and_index.rs#L1512)
-- Saw: `SymbolRows` already stores sorted symbol/position rows and can find a symbol with binary searches. `densify` adds `last.arena_index() + 2` u32 offsets regardless of relationship cardinality. Sealing eagerly prepares multiple indexes and densifies their relationships; the state-declaration index alone densifies locals, states, parameter types and value types. A few high-numbered symbols therefore allocate for the entire preceding ordinal range in each relation.
-- Cost: Freeze-time memory follows the program's symbol high-water mark even for sparse or lightly used relationships. Retain compact sorted lookup for sparse relations; choose dense offsets only when occupancy and query volume justify them, or use owner-local coordinates/segmentation for intermediate workloads. Do not eagerly prepare unused relations solely to freeze the program; preserve safe immutable concurrent reads. Acceptance fixes relation cardinality while increasing global IDs, measures total index bytes across relationships, and includes a dense frequently queried control. Preserve duplicate/uniqueness handling and complete generation checks; this is not a mandate to replace all vectors with pages.
-- Reported: 2026-11-14, Codex, while reconciling the peer audit against `3b0ad89c1fd47`
-
-### Outcome inference walks every body whenever any machine's outcome changes
-- Category: re-deriving
-- Where: [whole-program fixed point](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/outcome.rs#L88), [callee summary consumption](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/outcome.rs#L514), [lowering invokes outcome inference](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lib.rs#L818)
-- Saw: `outcomes` walks every machine in identity order each round, rebuilding crash/service/operational contributions and sorting/deduplicating service rows, until no row changes. Call interpretation reads the currently known callee outcome. A chain ordered caller-before-callee can propagate one link per round while revisiting unrelated bodies. This remains after replacing the separately reported call-component reachability matrix.
-- Cost: An acyclic dependency chain can cause quadratic body visits solely because of declaration order. Prepare reverse dependencies, evaluate acyclic components callee-first and revisit only affected callers; confine fixed-point work to actual recursive components. Reuse call-graph storage only where it represents these semantic dependencies, including calls whose continuation becomes reachable later. Keep the body's ordered control-flow interpretation: blindly unioning every syntactic call would change non-return, crash and service meaning. Acceptance compares outcomes across chain orders, disconnected components, recursion, newly reachable continuations, authored ceilings and source-unit limits on body-derived non-return; count body visits separately from output size.
-- Reported: 2026-11-14, Codex, while reconciling the peer audit against `3b0ad89c1fd47`; propagation cost is structural, elapsed impact is unmeasured
-
 ### Typing scans declarations after resolving the exact binding or field identity
 - Category: one idea, several implementations
 - Where: [state binding scan](omega-rust/psi/compilation/representations/typed-trees/src/declared_bindings.rs#L41), [whole-program field scan](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/typing_queries.rs#L17), [existing local relationship index](omega-rust/psi/compilation/representations/typed-trees/src/declaration_tables_and_index.rs#L683), [existing field relationship index](omega-rust/psi/compilation/representations/typed-trees/src/declaration_tables_and_index.rs#L779)
 - Saw: `declared_binding_type_by_symbol` scans a state's parameters and local statements to find one unique resolved symbol; `exact_declared_field` scans all data definitions and fields for one field symbol. Constructor/place/callable type queries use these scanning routes even though the representation also maintains local and field relationships indexed by symbol. The scans deliberately detect duplicates and enforce owner/type constraints, so replacing them with a first match would weaken the contract.
 - Cost: Repeated uses revisit unrelated locals or records. Provide owner-aware, uniqueness-preserving borrowed lookup through the existing relationship owner; during mutable construction, maintain the relevant body's binding index instead of repeatedly rebuilding a global one. Return a row or compact coordinate without allocating candidate vectors on successful queries. Acceptance holds queried identities fixed while growing unrelated records, and grows locals/uses independently while counting visits. Preserve duplicate-binder, foreign-state, stale-generation and case/constructor-owner refusals, with cold and retained-snapshot controls.
 - Reported: 2026-11-14, Codex, while reconciling the peer audit against `3b0ad89c1fd47`
-
-### Layout tests keep a typed boundary recipe builder with a spelling-based substitution path
-- Category: zombie machinery
-- Where: [typed recipe builder](omega-rust/psi/compilation/representations/typed-trees/src/lib.rs#L66), [identity-or-spelling substitution](omega-rust/psi/compilation/representations/typed-trees/src/lib.rs#L358), [test-only caller](omega-rust/omega/compilation/backend/layout/src/boundary_values.rs#L770)
-- Saw: the only external constructor call found for `BoundaryValuePreparation` is `data_recipes` inside the layout crate's test module, passing empty bindings. The builder's substitution helper nevertheless accepts a matching parameter name even when valid parameter symbols disagree. Its internal recipe traversal uses that helper. Production layout has a separate `TerminalBoundaryRecipes` route. This establishes dormant identity-unsafe machinery and tests exercising another producer, not an observed production mis-substitution.
-- Cost: Tests can keep an obsolete representation bypass looking supported and ready for reuse. Prefer porting those layout tests to the production terminal recipe route and deleting the unused typed builder/substitution helper. Preserve live `BoundaryTypeBinding`/signature records and coverage of padding, float classification, distinct occurrences and unsupported shapes. If a concrete supported consumer requires retaining the builder, first make substitution exact-binder-only and test distinct valid binders with identical names, including nested types. Do not rehabilitate the spelling fallback or classify it as a demonstrated executable bug without a production path.
-- Reported: 2026-11-14, Codex, while reconciling the peer audit against `3b0ad89c1fd47`; the peer's top identity warning is narrowed by caller tracing
 
 ### Typing and Psi 05 classify unresolved names by global leaf spelling
 - Category: knowledge crossing a boundary
@@ -143,91 +136,33 @@ framework or a list of features that remain unimplemented.
 - Cost: Later stages repair incomplete resolution information with a weaker global query, and each Psi 05 request revisits the entire symbol table. Have resolution/typing carry the exact resolved target or a structured unresolved reason with its source, scope and authority; let the reader consume that outcome. Preserve the distinction between malformed source and a valid construct deferred until demanded. Acceptance needs same-leaf names in different namespaces and declaration kinds, inaccessible imports, qualified unknown names, and unreachable malformed uses; unrelated declarations must not change the result or trigger another whole-program search. Trace value/call, domain and invocation producers through publication rather than merely indexing the spelling search.
 - Reported: 2026-11-14, Codex, during the owner-requested architecture/data-flow audit at `07d22466d48ff`; source inspection, not an execution or timing result
 
-### Psi's language-semantics foundation owns Omega's target-provider choice policy
-- Category: knowledge crossing a boundary
-- Where: [shared choice engine](omega-rust/psi/foundation/language-semantics/src/declaration_selection.rs#L169), [Omega candidate adaptation and invocation](omega-rust/omega/compilation/realization/provider-selection/src/choice/selection.rs#L189)
-- Saw: `language_semantics::declaration_selection::provider_choices` implements target filtering, target-package defaults, Build overrides, receiver coverage and provider preference. Its production chooser caller is Omega's provider-selection crate, which adapts native candidates and passes the selected target name. This lives behind generic traits and a string target, so Cargo dependency direction alone does not reveal the policy crossing.
-- Cost: Native realization policy can grow inside a Psi foundation and look available to every earlier stage. Move the chooser and its policy-specific interfaces/tests under Omega's provider-selection owner, leaving genuinely target-neutral declaration records in Psi. Keep selection orchestration visible there and prevent a replacement shared helper from recreating the same direction. Acceptance preserves target filtering, override/default precedence, ambiguity and partial-coverage refusals, receiver relationships, deterministic choice/error order and emitted identities across the hosted target profiles. This is an ownership repair, not a request to duplicate the algorithm or change provider semantics.
-- Reported: 2026-11-14, Codex, during the owner-requested architecture/data-flow audit at `07d22466d48ff`
-
-### Interned type identity still reconstructs the complete textual type on each query
+### Specialization receipt queries scan every receipt per dispatched call
 - Category: re-deriving
-- Where: [ordinary identity query](omega-rust/psi/compilation/representations/typed-trees/src/type_identity.rs#L7876), [normalize before interning](omega-rust/psi/compilation/representations/typed-trees/src/type_identity.rs#L8212), [recursive normalization](omega-rust/psi/compilation/representations/typed-trees/src/type_identity.rs#L2482), [compound text construction](omega-rust/psi/compilation/representations/typed-trees/src/type_identity.rs#L994), [specialization consumer](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs#L660)
-- Saw: `normalized_type_identity` ultimately normalizes the reference into a fresh `String` before asking the text interner for its ID, including when that identity already exists. Compound normalization materializes child strings and copies them into each parent. The interner deduplicates final storage, but does not eliminate traversal, construction or hashing of repeated requests.
-- Cost: Repeated closed-type queries pay for the same structure; nested types also copy descendant text at multiple levels. Give prepared closed types durable canonical identities and compose structural identity keys from child IDs, with textual encoding at the publication/diagnostic boundary. Start with ordinary closed identities; scoped identities must retain binder, substitution, lifetime, qualification and owner distinctions rather than reuse a handle-only cache. Preserve canonical wire bytes and invalid/open-type behavior. Acceptance counts normalization visits and allocated/copied bytes for repeated identical requests, deep types and shared subtypes, plus mutation/continuation and distinct-scope controls; retained storage should track distinct prepared structures, not query count. Do not introduce a persistent compiler cache.
-- Reported: 2026-11-14, Codex, during the owner-requested architecture/data-flow audit at `07d22466d48ff`; cost follows the call path, with no measured speedup claimed
+- Where: [receipt lookup](omega-rust/psi/compilation/representations/typed-trees/src/callable_signature_shapes.rs#L127)
+- Saw: `selected_implementation_receipt` filters all of `machine_specializations` for the one receipt of an instance, once per dispatched call read by stage 05, proof scope and build-time evaluation. Stage 04 application lookup and the repeated scan in `source_call_requirement_signature` are indexed or removed already.
+- Cost: D dispatched calls over S receipts cost D*S symbol comparisons. A carried instance-to-receipt index has to survive `machine_specializations` being a public `Vec` that declaration projection retains and tests mutate, so it needs one stage-owned construction point rather than a cache. Keep the missing/ambiguous/stale refusals.
+- Reported: 2026-11-14, Claude Code, while indexing stage 04 generated applications; structural bound, not a benchmark
 
-### Specialization searches all generated instances for every closed application
+### Completing selected bodies copies the retained typed program
 - Category: re-deriving
-- Where: [append-only specialization driver](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs#L83), [generated-instance lookup](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs#L382), [argument identity](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs#L619), [downstream instance lookup](omega-rust/psi/compilation/representations/typed-trees/src/callable_signature_shapes.rs#L115), [repeated requirement lookup](omega-rust/psi/compilation/representations/typed-trees/src/callable_signature_shapes.rs#L187)
-- Saw: `serve` constructs the closed argument key, then uses `generated.iter().find` on the entire growing `Vec<Generated>` to locate `(template, arguments)`. That vector spans unrelated templates. Its local `instances` index answers a different question. Downstream, `selected_implementation_operand` scans all specialization records for an instance; `source_call_requirement_signature` calls it and immediately repeats that scan, both checking uniqueness.
-- Cost: G distinct closed applications can perform G*(G-1)/2 failed candidate comparisons before required body generation, followed by repeated instance searches in consumers. Keep stable append-only rows with a canonical application-key index and a uniqueness-aware instance-to-record association carried to consumers. Partition lookup by template where useful; compare complete keys rather than treating a digest as semantic authority. Acceptance covers repeated/distinct requests, unrelated templates, generated calls, unused static arguments, type/value/implementation distinctions, ambiguous or stale receipts and recursive limits. Preserve stable encounter-order IDs and refusal behavior; count comparisons separately from emitted body size. Remove the repeated work sequentially before considering concurrency. A pre-sized vector remains suitable for ordered rows.
-- Reported: 2026-11-14, Codex, during the owner-requested architecture/data-flow audit at `07d22466d48ff`; comparison bound is structural, not a benchmark
-
-### Native operand validation rediscovers tied-register components for each early clobber
-- Category: re-deriving
-- Where: [constraint collection](omega-rust/omega/compilation/representations/selected-instructions/analyses/src/liveness.rs#L839), [per-row validation](omega-rust/omega/compilation/representations/selected-instructions/analyses/src/liveness.rs#L1007), [component fixed point](omega-rust/omega/compilation/representations/selected-instructions/analyses/src/liveness.rs#L1049)
-- Saw: after collecting a function's tied edges and early-clobber rows, `reject_unsupported_constraints` calls `tied_component` for each tied early-clobber row. Each call creates a new tree set and repeatedly scans every tied edge until no membership changes, then scans the early-clobber rows again to count participants in that component. Untied/unrelated checks also search the edge list for each queried register.
-- Cost: Independent constraints pay repeated whole-function connectivity work; edge order can add multiple fixed-point sweeps. Build connected components once over the actual participating virtual registers, with per-component early-clobber counts, indexed direct ties and participation membership. Keep scratch proportional to that selected family, and keep the small per-instruction operand walk simple. Acceptance preserves direct-tie, operand-class, definition/use and unrelated-register checks, with disconnected components, reversed long chains, cycles and multiple early clobbers in one component. Count edge visits and allocations as independent components grow; do not remove validation or confuse transitive membership with a required direct tie.
-- Reported: 2026-11-14, Codex, during the owner-requested architecture/data-flow audit at `07d22466d48ff`
-
-### Parsing and native completion choose their worker budgets independently
-- Category: one idea, several implementations
-- Where: [parser worker pool](omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/parser.rs#L113), [native executor queue](omega-rust/omega/build-system/orchestration/src/compile/native_completion/queue.rs#L10), [compiler worker stack](omega-rust/omega/compilation/compiler/src/checked/checking.rs#L51), [prepared machine lowering loop](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lib.rs#L882), [settled machine discharge loop](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/lib.rs#L412)
-- Saw: parsing owns a process-global `OnceLock<rayon::ThreadPool>` with 256 MiB stacks (`PARSE_STACK_SIZE`) that defaults to all logical cores; native completion spawns up to four 256 MiB-stack scoped workers (`COMPILE_STACK_SIZE`), including its caller. Neither receives an invocation-wide worker or live-memory budget, and `psi/` cannot import `omega/` orchestration to share one. This establishes separate admission policies, not measured overlap or oversubscription. On the surviving route, Psi 05 lowers machines linearly into owned `Lowered` outputs, while post-inference Psi 06 runs obligation reconstruction and proof discharge over disjoint `MachineTables`.
-- Cost: Separate limits cannot bound an invocation's combined active workers, 256 MiB stack reservations or live intermediates, and a process-global parser pool ignores shared-host build budgets. Place the shared execution-admission handle in a target-neutral foundation crate and pass it explicitly per invocation—pairing worker scaling with flat-table recursion (`PIPELINE-ARCHITECTURE-ENFORCEMENT`) so 256 MiB stacks do not multiply. Queue lightweight keys, materialize scratch after admission and distinguish estimated memory reservations from enforced limits. After sequential repeated-work repairs (`outcome.rs`, `graph.rs`, `known.rs`) and a fresh baseline on the surviving route (the ~3,200s Psi 05 measurement in #2788 belonged to the deleted checker), trial post-inference Psi 06 or Psi 05 using dynamic work-stealing over heavy-tailed machines rather than static equal-count chunks, and select the lowest-`MachineId` refusal via a failure watermark rather than completion-order early exit. Closure requires bounded nested execution and a measured elapsed-time benefit without unacceptable small-input or memory regression. See the [draft execution admission design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract).
-- Reported: 2026-11-14, Codex (refined by Antigravity at `2e5ca2da570`), while comparing Squalr-inspired pipeline proposals; threading placement is a proposed experiment, not a measured speedup
-
-### Completing selected bodies can copy the retained typed program
-- Category: re-deriving
-- Where: [retained-body completion](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L810), [shared typing loop](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L1596), [arena cloning](omega-rust/psi/foundation/arena/src/arena.rs#L624)
-- Saw: `SeededTypingBase` holds `Arc<TypedTrees>`, but body completion calls `Arc::unwrap_or_clone(retained.typed)` and feeds the candidate to one mutable `Lowerer`. When another snapshot retains that Arc, cloning copies owned arena vectors even if only a small selected body set changes. Sharing the outer Arc does not make the stored tables independently owned.
+- Where: [selected continuation](omega-rust/psi/compilation/source-compiler/src/source_compilation.rs#L935), [activation copy](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L566), [retained-body completion](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L847), [shared typing loop](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L1596), [arena cloning](omega-rust/psi/foundation/arena/src/arena.rs#L624)
+- Saw: `SeededTypingBase` holds `Arc<TypedTrees>`, but body completion calls `Arc::unwrap_or_clone(retained.typed)` and feeds the candidate to one mutable `Lowerer`. `SourceContinuation::complete_selected` starts from `input.typing.clone()` while its `Arc<SourceCompletionInput>` stays retained for later selections, so `activate_body_completion`'s `Arc::make_mut` deep-copies every `TypedTrees` table once per selected-source continuation, even when one small body set changes; later completions in that loop own the Arc uniquely. Sharing the outer Arc does not make the stored tables independently owned. No local repair fits: per-table copy-on-write still copies the expression and statement arenas every completion appends to, and `Arena` exposes contiguous spans (`span`, `storage_slice`, `storage_view`), so paged sharing changes its contract (verified 2026-11-15 at `171113b06`).
 - Cost: A small continuation can copy unrelated typed storage and cannot return independent body output. Separate immutable declaration/type storage from owned body tables; publish selected replacements through stable handles without flattening unrelated bodies. A shared-snapshot continuation must retain untouched storage, exact authority/context identities and refusal behavior. Measure copied bytes and peak memory; keep signature and inferred-summary dependencies explicit. Defer wide Psi 02–04 representation splits while `LOWERED-FORM-CHECKER` coverage is actively churning those stages unless a measured continuation bottleneck requires it earlier. See the [draft body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract).
 - Reported: 2026-11-14, Codex (refined by Antigravity at `2e5ca2da570`), while comparing Squalr-inspired pipeline proposals
 
-### The standard library declares two public things named `DarwinClock`
-- Category: one idea, several implementations
-- Where: [source/library/std/macos_gui.omg:586](source/library/std/macos_gui.omg#L586) (`public boundary trait DarwinClock`) and [source/library/std/targets/macos_arm64/clock_impl.omg:26](source/library/std/targets/macos_arm64/clock_impl.omg#L26) (`public DarwinClock satisfies Clock`)
-- Saw: `use omega_language_std::DarwinClock;` is refused as selecting no one declaration (modules.md, "Resolution": "Ambiguous imported declarations reject"). Five GUI samples (`samples/gui/window_app`, `image_viewer`, ...) write `invokes DarwinClock` and cannot name it; std's own Build names both meanings unqualified (`Build::select_provider<Clock, DarwinClock>` and `Build::bind<DarwinClock::clock_ns>`)
-- Cost: no consumer can import either declaration, and which one an unqualified `DarwinClock` means inside std depends on the operand's role. One of the two needs another name
-- Reported: 2026-11-14, Claude Code, while moving samples to declaration imports
-
-
-### The lowered form drops declared domains, so only the reader knows a value's type
+### Whole-value structural domains are erased before the lowered checker
 - Category: a verdict with nothing behind it
-- Where: `05_typed-trees-to-terminal-psi/src/lower.rs` and `policy.rs` (`qualifications: ScalarQualificationSetId::ZERO`); `terminal-psi/src/types_and_values.rs` (`ScalarQualificationCatalog`, `ScalarDomainDeclaration`, `ScalarQualificationCoercion`)
-- Saw: Terminal Psi has a catalog for scalar domains, their predicates and the edge where a value is coerced into one, and the lowered route fills none of it. Which domains a value carries, and who may add one, is decided in the reader and erased before the checker sees the program. A domain's predicates do reach the checker, as ordinary contracts and as the invariant of the block a cast continues in, but the nominal part does not.
-- Cost: the checker cannot re-derive that `value as +D` was authorized or that an argument carries the domain its parameter declares; a reader bug there is accepted with no row to contradict it, and a published artifact says nothing about domains
-- Reported: 2026-11-13, Claude Code, while stating domain predicates as contracts
+- Where: `05_typed-trees-to-terminal-psi/src/qualifications.rs` (`Qualifications::declare` skips every `ValueType::Record` carrier in `declared_domains`); `lower.rs`, `lower/places.rs`, `lower/control.rs` (structural parameter, result and operation-result qualifications built as `Vec::new()`); `lower/places.rs` (`ExpressionKind::Requalify` on a record is `located(operand)`, the same place); `terminal-psi/codec/src/foundation_validation.rs` and `psi/interpreter/src/engine_structural.rs`, `storage_*.rs` (every structural operation requires empty `qualification_establishments`)
+- Saw: the reader types, admits and refuses record domains (`compiler/tests/domain_qualified_types.rs`, `ACCEPTED_DATA`: `reading as +Checked`, the issuer call `stamp(ticket)`, `sealed.seal` returned as `Seal in Issued`), but Terminal Psi receives none of it: `module.structural_domains` is empty and every structural qualification list is empty, so the sole lowered checker accepts those machines with nothing behind the membership. Three gaps block carrying it: (1) no Terminal operation may establish a whole-value structural membership; `qualification_establishments` (domain + route index, encoding.md "structural operation result") is rejected by every validator and interpreter path, and `MoveStructuralValue` admits additions only to a non-unrestricted value and with no establishment row, so neither `as +D` on a copyable record nor an issuer route has a form; (2) `StructuralFieldDeclaration` carries no domain, so a field's membership (`Sealed.seal in Issued`) must ride every place of the owner as a projected qualification, including literals, field reads, stores and joins; (3) 06 runs `scalar_qualifications::validate` but no structural judgment, and the codec's structural foundation validation runs only on decode, not on the unsealed module the verdict is taken from
+- Cost: a missing or forged whole-value or field membership, or one added outside its issuer routes, is contradicted only by the reader. Repair as `psi: retain scalar domains through lowered checking` (#3227) did for scalars: produce the structural catalog with issuer routes, give records' `as +D`/`as -D` an exact establishment/erasure operation whose route the checker matches against the enclosing callable, transport whole and projected qualifications through every place family, and run one shared structural qualification judgment in 06 before inference; the interpreter and codec must accept the same establishment rows
+- Reported: 2026-11-13, Claude Code, while stating domain predicates as contracts; premise re-verified and gaps mapped 2026-11-15, Claude Code
 
-### Data applied at a lifetime is one record whose stored views name only the data's own binders
+### A data field's view written without a lifetime is one region in every declaration
 - Category: a verdict with nothing behind it
-- Where: `05_typed-trees-to-terminal-psi/src/read/types.rs` (`value_type`, the `Inner<'a>` arm), `read/places.rs` (`lifetime_binders`, `declared_field`), `read/bytes.rs` (`byte_view_type`)
-- Saw: `Session<'a>` and bare `Session` are the same `ValueType::Record`, and the field `name: &'storage [u8]` has the type "view of `Session`'s `'storage`" in every value. So `long.name = short.name` between two `Session` values is accepted without anything relating the regions the two were applied at, and `with_alias<'s>(d: &mut Description<'s>, alias: &'s [u8]) { d.alias = alias; }` is refused as a type mismatch because the lifetime argument relates nothing. It is safe today only because a view of a formal's region can never enter a record at all
-- Cost: the toolchain's own `dependency::with_alias` cannot be judged, and the first slice that lets a formal's view into a record (or forms a view of local storage) inherits an unchecked exchange between records of different regions. The type of a record value needs its lifetime arguments
-- Reported: 2026-11-13, Claude Code, while reading machines with lifetime parameters
-
-### Every view written without a lifetime is one type in every machine
-- Category: a verdict with nothing behind it
-- Where: `typed-trees/src/type_identity.rs` (`RegionForm::Elided`, no owner and no position); `05_typed-trees-to-terminal-psi/src/read/bytes.rs` (`source_byte_view`), `read/calls.rs` (`view_regions`)
-- Saw: `&[u8]` renders one identity wherever it is written, so two formals without a lifetime have the same type and `pick(a: &[u8], b: &[u8]) -> &[u8] { b }` is accepted as a declaration, though lifetimes.md says "Ambiguous elision requires an explicit relation". The call is what refuses it, and only when the two views passed are of different regions
-- Cost: the elision rule has no owner at the declaration; a reader of the callee alone cannot tell which input the result is related to, and the diagnostic lands on a caller
-- Reported: 2026-11-13, Claude Code, while giving a call's lifetimes the regions of the views it passes
-
-
-### `Console::exit_process` ends the process without publishing `reaches ProcessExit`
-- Category: a verdict with nothing behind it
-- Where: `source/library/std/console.omg:66` (the requirement, `reaches Console`) and `:96` (its provider); `omega-rust/psi/compilation/representations/typed-trees/src/declarations.rs` (`exact_process_exit_requirement` with `console_adapter`, `nominate_source_completion`)
-- Saw: process_exit.md says "Any retained console-exit convenience adapter must obtain legitimate exit authority and publish its additional reach. Console must not inherit `ProcessExit` wholesale." The standard library's `Console::exit_process` declares `reaches Console` and nothing else, and the typed trees decide whether it completes externally from the trait being named `Console` plus a sealed intrinsic or a completion admission. Where neither is present, as in the route probe (`compiler/tests/route_probe.rs`, the `Console` program), the same source call is lowered as a call that returns
-- Cost: a ceiling of `reaches Console` does not mean "cannot end the process", so package review's `ProcessExit` row undercounts; and the checker models one source call as returning or as a terminal transfer depending on an admission the program text does not show, so a body judged in one mode says nothing about the other
-- Reported: 2026-11-13, Claude Code, while taking external completion (`ProcessExit::exit_process`) to the lowered-form checker
-
-### Nothing makes a new reader site ask before it looks inside a qualified data value
-- Category: a verdict with nothing behind it
-- Where: `05_typed-trees-to-terminal-psi/src/read/` (`authority.rs`, and every `ValueType::Record(record, _)` pattern in `places.rs`, `expressions.rs`, `transitions.rs`, `arrays.rs`, `contracts.rs`, `statements.rs`)
-- Saw: a type is a carrier and its domains, and about thirty sites match the carrier and discard the domains with `_`. The sites that take a value apart now call `authority::opened`, but the pattern still compiles anywhere, and two sites were typing a literal with whatever qualified type its context expected until this change (`arrays.rs` array literal, `places.rs` record literal). A store's destination is also read through the expression reader, so it asks read authority where only write authority is owed.
-- Cost: the next site that projects, compares or constructs a record with `_` silently ignores a domain's reader, writer or issuer rule, and no test fails until someone writes the twin for that exact site
-- Reported: 2026-11-13, Claude Code, while reading declared domains on data carriers
+- Where: `05_typed-trees-to-terminal-psi/src/read/regions.rs` (`Elision::Members`, `elided_region` returning `None`, then `fixed_region` of the typed trees' `RegionForm::Elided` identity); bundled data such as `core/seq.omg` (`items: &[u64]`), `core/wire.omg` (`bytes_and_ordering: &[u8]`), `std/calling.omg` (`reason: &[u8] in Utf8`)
+- Saw: signatures and locals now give each elided position its own lifetime or region variable, and a data field that elides a *data application's* lifetime is refused. A field that elides a *reference's* lifetime, `data D { name: &[u8]; }`, still takes the one fixed region of its ownerless rendered identity, so `a.name = b.name` between any two such values is accepted and a formal's view is refused as a type mismatch. It is sound today only because nothing but literals and other such fields produces a value of that region.
+- Cost: the first slice that forms a view of local storage, or lets a variable decide as that region, exchanges views across unrelated records. lifetimes.md says borrow-carrying data "declares the lifetimes of its views"; either refuse the form (and state lifetimes in the bundled data above) or give each field its own region
+- Reported: 2026-11-13, Claude Code, while giving a call's lifetimes the regions of the views it passes; narrowed 2026-11-15
 
 ### Interface ownership still changes some imported-service checks
 - Category: one idea, several implementations
@@ -235,34 +170,6 @@ framework or a list of features that remain unimplemented.
 - Saw: native delegation removes the import's owning service from its declared reach before checking delegation (its unit permits `[owning_service]` with `Unprovided`); filesystem admission skips that same identity; assumed-binding operational compatibility ignores an extra supplied ceiling member when it equals the supplied owner. `wiki/spec/language/effects.md` distinguishes catalogue ownership from the requirement's explicit reach. These permission/compatibility checks must not be reused as proof that a declared ceiling is empty.
 - Cost: the source boundary producer can retain a real catalogue owner even for `reaches none`, so downstream code must keep ownership, declared reach and actual delegated host permissions separate. This entry records the wider retained consumers; the current boundary work requires an explicit source ceiling and fixes the actual exclusion walk's implicit owner contribution, without treating these checks as source proof or expanding into an assumed-binding/delegation campaign.
 - Reported: 2026-11-13, Codex, while carrying selected entry and ordinary Build boundary calls through the surviving lowered route
-
-### "Does every selected external realization have a declaration" is checked two ways, and they disagree on unused ones
-- Category: one idea, several implementations
-- Where: `omega-rust/omega/compilation/realization/provider-admission/src/compiler_builtins/retained.rs:287` (`validate_external_provider_owners`) and `:295` (`validate_retained_external_provider_owners`); caller `omega-rust/omega/compilation/representations/abstract-operations/verified-optimization-input/src/native_proposal.rs:338`
-- Saw: the first demands an `ExternalProviderConformance` row for every selected realization, the second only for requirements the module retains as a boundary; a six-machine scalar program with no float rows builds natively from the default compile, yet the same module is refused ("`NativeFloats` has no retained external implementation for `Float::add`") when a harness hands the proposal the provider declarations prepared for the old program.
-- Cost: proposal validation has two different retained-demand contracts. The Check-mode trial requires the 146 float-table rows while the earlier default scalar compile did not read them; treating the former as the default demand can force unrelated metadata into the product path. The all-catalog investigation is parked while the actual default consumer is reconciled.
-- Reported: 2026-11-13, Claude Code, while carrying the lowered-form checker's published module into Terminal production
-
-### Constructing the source compiler repeats an hour of checking before its tests
-- Category: verifying costs more than writing
-- Where: [tests/product/gate.sh:42](tests/product/gate.sh#L42), [tests/product/gate.sh:70](tests/product/gate.sh#L70)
-- Saw: frozen Rust producer b520 checked the 269-unit, 3.8 MB compiler in 4,089 seconds during update; native construction then took 3,796 seconds, including 3,227 seconds in Psi 05, with a peak near 19 GiB; all 191 product cases took 80 seconds afterward
-- Cost: a source repair spends hours in producer checking before its executable cases run; these measurements belong to the old checker being removed, and cannot stand for seed-chain or replacement-checker performance
-- Reported: 2026-11-12, Codex, while finishing bootstrap compiler construction and storage PRs #2782 and #2788
-
-### Resolution selects an implicit entry by name in one place and child order in another
-- Category: one idea, several implementations
-- Where: `omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/selection.rs` (`resolve_realizations`, `call_custody_source`)
-- Saw: implicit realization selection chooses the state named like the machine's last segment, then `entry`; source-less call custody requires the first State child. The former Build and checker copies are gone, but these two selectors remain.
-- Cost: implicit entry selection and source custody can disagree when name order differs from child order; consolidate their exact entry relationship rather than restoring the deleted selectors.
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
-### Stage 05 of the Omega pipeline hands out "Validated" homes and "validation receipts" with no replay behind them
-- Category: a verdict with nothing behind it
-- Where: `omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/home_assignment.rs:1-6` and `:2628-2640`, `.../src/fixed_view_copy_recovery.rs:1-6` and `:1095-1116`, `.../src/runtime_spill_and_split.rs:530`, `:3224`, `:5460`
-- Saw: both file headers say the result is "independently" replayed; `assign_register_homes_reusing` computes the plan and builds `RegisterHomeValidationReceipt` from that same plan's hash and counts; `seal_validation` does the same for fixed-view copies; the three `ReplayMismatch` error variants are declared and never constructed
-- Cost: a reader of the headers or the type names believes register homes are checked twice, and a wrong home assignment has nothing between it and encoding
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
 ### Unchecked arena lookups still conflate stale handles with the zero sentinel
 - Category: a verdict with nothing behind it
@@ -273,38 +180,17 @@ framework or a list of features that remain unimplemented.
 
 ### The Terminal interpreter reports a failed run-time check as a malformed artifact, with one error for 1,329 sites
 - Category: a verdict with nothing behind it
-- Where: `omega-rust/psi/interpreter/terminal-interpreter/src/boundary_values.rs:696`; example at `engine_execution.rs:3691`
+- Where: `omega-rust/psi/interpreter/src/boundary_values.rs:696`; example at `engine_execution.rs:3691`
 - Saw: `malformed()` returns `VerifiedOperationMalformed` and is called 1,329 times across 15 files; an exact add, multiply or divide whose result does not fit ends in `.ok_or(malformed())?`; a program crash is built on only 7 lines (trapping integer, trapping float, crash terminator, host effect); no crate outside the interpreter names the variant
 - Cost: an overflow or zero divisor that native code would trap on shows up as "the verified artifact is malformed" with no reason, so a native and Psi disagreement reads as an interpreter failure and the cause must be found by hand
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### Typing refuses its own questions as if they waited for the checker
-- Category: a stage reaching across a boundary
-- Where: `03_symbol-resolved-trees-to-typed-trees/src/lib.rs` (`unavailable_judgment`) and its 26 callers, such as `typing_queries.rs` ("constructor field type", "call entry parameter types") and `type_reference.rs` ("closed const argument declaration custody")
-- Saw: every refusal reads "no product route yet: X requires a lowered-form judgment", but most of X is arity, a declared type or a field's owner, which typing decides from declarations; two of them stopped the bundled library (`core::Strict<0>`, `ForeignBinding<N, ...>`) although no proof was involved
-- Cost: a reader cannot tell a typing rule that was not rebuilt from a proof the checker must supply, so each stop is investigated from scratch and the wording invites routing typing work to the checker
-- Reported: 2026-11-13, Claude Code, while getting the route probe through typing
-
 ### A whole-program stage refuses every program for a library construct nobody calls
 - Category: a verdict with nothing behind it
-- Where: `03_symbol-resolved-trees-to-typed-trees` (the remaining `unavailable_judgment` callers, such as "mathematical call receiving types" and "selected call parameter types" in `call_and_product_selections.rs` and `typing_queries.rs`); `build-time-evaluation/src/source_frontier.rs` (`source_jobs`: the side tables it still refuses whole, such as constant recipes and wire plans); any by-name refusal added to `04_typed-trees-to-typed-trees`
-- Saw: these stages see the program together with all of `core` and `std` and have no notion of what an entry demands, so one such construct in an uncalled library declaration stops a program that never reaches it; the gates the route probe met (unbound calls, assignment literals, constructor field types, layout-policy and computed types) now record the refusal on the declaration instead (`typed-trees/src/deferred_refusals.rs`), and the others still refuse the program
+- Where: `03_symbol-resolved-trees-to-typed-trees` (the remaining `unavailable_judgment` callers, such as "contract membership carrier selection" in `contracts_and_signatures.rs`, "closed const argument declaration custody" in `type_reference.rs`, and the declaration-lowering queries in `typing_queries.rs` and `statement_lowering.rs`); `build-time-evaluation/src/source_frontier.rs` (`source_jobs`: the side tables it still refuses whole, such as constant recipes and wire plans); any by-name refusal added to `04_typed-trees-to-typed-trees`
+- Saw: these stages see the program together with all of `core` and `std` and have no notion of what an entry demands, so one such construct in an uncalled library declaration stops a program that never reaches it; the gates the route probe met (unbound calls, assignment literals, constructor field types, layout-policy and computed types) and the construction-destination pass's call gates (a mathematical call taking a built argument, a callee whose parameters typing does not select) now record the refusal on the declaration instead (`typed-trees/src/deferred_refusals.rs`), and the others still refuse the program. A proof fact carries no owning declaration to record a row on, and a refusal inside one declaration's lowering (`type_resolved_cohort`) returns midway through it, so those gates need an owner or a clean per-declaration rollback before they can move
 - Cost: each remaining gate must be served for the entire library before any program compiles, or be moved onto the same carrier one by one as a program meets it
 - Reported: 2026-11-13, Claude Code, while getting the route probe through typing
-
-### A typing unit test is red on `main` and nothing runs it before merge
-- Category: a test that pins nothing while it is red
-- Where: `03_symbol-resolved-trees-to-typed-trees/src/call_and_product_selections.rs`, `construction_destinations::tests::an_assigned_literal_lands_on_its_binding_or_refuses_its_own_machine`
-- Saw: at `6f829063b3ed7` the test fails with no local change: `owned = Record {}` is asserted to be built at the type handle written on `owned` and gets a different handle (index 3, not 1), so either landing now inserts an equal copy of the type or the assertion compares identity where it means equality
-- Cost: `mbx test -p symbol-resolved-trees-to-typed-trees --lib` cannot be clean for anyone changing typing, so a second regression in the same crate hides behind the first
-- Reported: 2026-11-13, Claude Code, while accounting for domain casts in typing
-
-### Two type-table tests expect an array-index refusal the table no longer makes
-- Category: a test that pins nothing while it is red
-- Where: `typed-trees/src/type_system.rs`, `instantiation_refuses_a_binder_spelling_an_array_length` and `instantiation_applies_the_substitution_to_domain_arguments`
-- Saw: at fixed base `44ed2132219fb20261abeab4ef3e61b4ab0f845a`, `mbx test -p typed-trees --lib type_system::types::tests::instantiation_` passes the unchanged-row case and fails these two tests. They expect a bound array extent to refuse; `TypeReferenceTable::instantiate` explicitly forwards a valid named argument as an extent binder instead. The table has no symbol table with which to distinguish that forwarded value binder from the tests' named data type
-- Cost: the crate's unit suite is red independently of generated-machine ownership changes; the tests and the substitution owner's contract need to agree without weakening source-level value-index eligibility
-- Reported: 2026-11-14, Codex, while attributing the focused generated-application validation failures against its unchanged base
 
 ### The parser still accepts a boundary requirement with no `crashes` clause
 - Category: a verdict with nothing behind it
@@ -313,16 +199,9 @@ framework or a list of features that remain unimplemented.
 - Cost: a library or program author learns that the clause is missing only when some caller is refused, and 30 library requirements with no provider and no caller carry `crashes Trap crashes Abort` because nothing in the repository says what narrower ceiling their owner intends
 - Reported: 2026-11-13, Claude Code, while writing the bundled library's crash ceilings
 
-### Typing lets a bare literal be stored into a field declared in a domain
-- Category: one idea built twice
-- Where: `03_symbol-resolved-trees-to-typed-trees` (assignment typing); `05_typed-trees-to-terminal-psi/src/read/rejections.rs` (`mistyped`)
-- Saw: `Sealed { seal: Seal { } }` is refused by typing ("record literal field type") because a literal is the bare carrier, but `builder.seal = BuildSeal { };`, a plain argument for a qualified parameter and a plain value for a qualified result all pass typing. The lowered-form reader now rejects each by the rule (one carrier, two domain sets), so nothing is accepted, but typing checks the rule for one form and the reader for all of them
-- Cost: "the supplied expression's static type must carry exactly the domains the destination declares" has two owners with different coverage and different wording, so the same mistake reads differently by where it is written
-- Reported: 2026-11-13, Claude Code, while declaring the seal that protects the compiler-owned `Build`
-
 ### Build selection calls are found and published by the spelling of their protocol operation
 - Category: one idea built twice
-- Where: `03_symbol-resolved-trees-to-typed-trees/src/call_and_product_selections.rs` (finds `BuildBindingOperations` and `bind_native` by name); `psi-compiler/terminal-production/src/build_companions.rs` (`binding`, matches the same names again)
+- Where: `03_symbol-resolved-trees-to-typed-trees/src/call_and_product_selections.rs` (finds `BuildBindingOperations` and `bind_native` by name); `terminal-production/src/build_companions.rs` (`binding`, matches the same names again)
 - Saw: typing picks the protocol operation of a Build selection by comparing strings, and publication recovers which operation a boundary call is by comparing the requirement's name a second time. The typed call also carries no static application, so `bind_native<Locator>` reaches the checker as an open requirement although typing knows the locator argument it was written with
 - Cost: the host row's operation is decided twice from text, and the native binding cannot be closed at its locator type by the pass that closes every other application until typing records that application on the call
 - Reported: 2026-11-13, Claude Code, while closing boundary requirements at the types their calls apply
@@ -334,9 +213,9 @@ framework or a list of features that remain unimplemented.
 - Cost: a simple scalar contract program cannot provide native/Psi execution evidence, and an invalid proof certificate is surfaced as a caller fact it should establish instead of identifying the proof producer's disagreement with the kernel
 - Reported: 2026-11-14, Codex, while checking scalar receiving-type diagnostics
 
-### Nominal const-domain bounds recover data properties by a name scan
-- Category: identity re-derived by a consumer
-- Where: Stage 02 `preparation_const_evaluation.rs`, `carrier_satisfies_declared_bounds`
-- Saw: the non-scalar branch receives a carrier display string and takes the first root data header with that name; the selected nominal declaration does not accompany this property query
-- Cost: generic-domain bound checking cannot rejoin the declaration that owns the value and instead depends on root order when package instances contain same-named data
-- Reported: 2026-11-14, Codex worker-22, while preserving integer metadata through constant evaluation
+### Every product gate is refused at a macOS layout alias while building for Linux
+- Category: a verdict with nothing behind it
+- Where: `source/library/std/targets/macos_arm64/filesystem_abi.omg:20` (`atime: CLayout<DarwinTimespec>`); reached by `tests/product/gate.sh` through each `tests/psi/*` gate and the product roots
+- Saw: `OMEGA_TARGET=linux_x86_64 sh tests/psi/resolver/test-resolver.sh` at `372860cf534` stops after 54 s with "checked compilation failed for package `psi`: selected type alias has no retained source declaration" at that macOS-only field, before any gate case runs
+- Cost: no product compiler gate can build its artifact on main, so source compiler repairs have no executable cases; the field belongs to another target's ABI and may be the same uncalled-library refusal as "A whole-program stage refuses every program for a library construct nobody calls"
+- Reported: 2026-11-15, Claude Code, while removing the product gate's duplicate review pass

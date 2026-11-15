@@ -132,7 +132,7 @@ pub(crate) mod rematerialization {
 
         pub(crate) fn complete_optimized_active_resident_rematerialization(
             pressure: StagedOptimizedActiveResidentRematerializationPressure,
-            homes: crate::ValidatedRegisterHomes,
+            homes: crate::AssignedRegisterHomes,
         ) -> Result<
             StagedOptimizedActiveResidentRematerialization,
             OptimizedActiveResidentRematerializationError,
@@ -174,7 +174,7 @@ pub(crate) mod rematerialization {
     }
     pub(crate) mod custody {
         use crate::ValidatedPressureRematerialization;
-        use crate::{ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes};
+        use crate::{AssignedRegisterHomes, ValidatedPostAllocationOptimizationManifest};
         use selected_instruction_analyses::{
             ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
             ValidatedRecoveryClassifications, ValidatedSpillChoices,
@@ -222,7 +222,7 @@ pub(crate) mod rematerialization {
 
         pub(crate) fn custody_receipt(
             prefix: StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt,
-            homes: &ValidatedRegisterHomes,
+            homes: &AssignedRegisterHomes,
             manifest: &ValidatedPostAllocationOptimizationManifest,
         ) -> StagedOptimizedActiveResidentRematerializationCustodyReceipt {
             StagedOptimizedActiveResidentRematerializationCustodyReceipt {
@@ -237,11 +237,11 @@ pub(crate) mod rematerialization {
     use optimization_core::OptimizationWorkBudget;
 
     use crate::{
-        PressureRematerializationError, PressureRematerializationPolicy,
-        ValidatedPressureRematerialization,
+        AssignedRegisterHomes, RegisterHomeError, ValidatedPostAllocationOptimizationManifest,
     };
     use crate::{
-        RegisterHomeError, ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes,
+        PressureRematerializationError, PressureRematerializationPolicy,
+        ValidatedPressureRematerialization,
     };
     use register_homes::{
         AllocationLegalityIdentity, PostAllocationOptimizationManifestError,
@@ -270,7 +270,7 @@ pub(crate) mod rematerialization {
         liveness: ValidatedLiveness,
         ranges: ValidatedLiveRanges,
         legality: ValidatedAllocationLegality,
-        homes: ValidatedRegisterHomes,
+        homes: AssignedRegisterHomes,
         manifest: ValidatedPostAllocationOptimizationManifest,
         custody: StagedOptimizedActiveResidentRematerializationCustodyReceipt,
     }
@@ -282,7 +282,7 @@ pub(crate) mod rematerialization {
             liveness: &ValidatedLiveness,
             ranges: &ValidatedLiveRanges,
             legality: &ValidatedAllocationLegality,
-            homes: &ValidatedRegisterHomes,
+            homes: &AssignedRegisterHomes,
         });
         pub const fn post_allocation_manifest(
             &self,
@@ -1501,7 +1501,7 @@ pub(crate) mod fixed_view {
     pub(crate) mod fixed_view_copies {
         pub(crate) mod compute {
             use crate::rewrites::materialize_fixed_view_copies;
-            use crate::{FixedViewCopyPolicy, ValidatedFixedViewCopies};
+            use crate::{FixedViewCopyPolicy, MaterializedFixedViewCopies};
             use optimization_core::OptimizationWorkBudget;
 
             use crate::StagedOptimizedFixedPrecoloredSegmentHomes;
@@ -1512,7 +1512,8 @@ pub(crate) mod fixed_view {
                 source: &StagedOptimizedFixedPrecoloredSegmentHomes,
                 policy: FixedViewCopyPolicy,
                 budget: OptimizationWorkBudget,
-            ) -> Result<ValidatedFixedViewCopies, OptimizedFixedViewCopyCustodyError> {
+            ) -> Result<MaterializedFixedViewCopies, OptimizedFixedViewCopyCustodyError>
+            {
                 let environment = source.register_environment();
                 materialize_fixed_view_copies(
                     source.selected(),
@@ -1533,7 +1534,7 @@ pub(crate) mod fixed_view {
             }
         }
         pub(crate) mod custody {
-            use crate::FixedViewCopyValidationReceipt;
+            use crate::FixedViewCopyReceipt;
 
             use crate::StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt;
 
@@ -1541,7 +1542,7 @@ pub(crate) mod fixed_view {
 
             pub(crate) fn fixed_view_copy_custody_receipt(
                 segment_homes: StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt,
-                copies: FixedViewCopyValidationReceipt,
+                copies: FixedViewCopyReceipt,
             ) -> StagedOptimizedFixedViewCopyCustodyReceipt {
                 StagedOptimizedFixedViewCopyCustodyReceipt {
                     core: segment_homes.upstream().core(),
@@ -1567,9 +1568,9 @@ pub(crate) mod fixed_view {
 
         use crate::StagedOptimizedFixedPrecoloredSegmentHomes;
         use crate::{
-            FixedViewCopyError, FixedViewCopyIdentity,
+            FixedViewCopyError, FixedViewCopyIdentity, MaterializedFixedViewCopies,
             OptimizedFixedPrecoloredSegmentHomeCustodyError, StagedOptimizedAllocationLegality,
-            ValidatedAllocatorAvailability, ValidatedFixedViewCopies,
+            ValidatedAllocatorAvailability,
         };
         use optimization_core::{
             OptimizationIdentityBundleIdentity, OptimizationSelections, OptimizationUnitIdentity,
@@ -1600,7 +1601,7 @@ pub(crate) mod fixed_view {
         #[derive(Debug)]
         pub struct StagedOptimizedFixedViewCopies {
             source: StagedOptimizedFixedPrecoloredSegmentHomes,
-            copies: ValidatedFixedViewCopies,
+            copies: MaterializedFixedViewCopies,
             custody: StagedOptimizedFixedViewCopyCustodyReceipt,
         }
 
@@ -1610,7 +1611,7 @@ pub(crate) mod fixed_view {
                 budget_per_pass
             );
 
-            pub const fn copies(&self) -> &ValidatedFixedViewCopies {
+            pub const fn copies(&self) -> &MaterializedFixedViewCopies {
                 &self.copies
             }
             receipt_accessor_rows!(ref StagedOptimizedFixedViewCopies {
@@ -1736,14 +1737,14 @@ pub(crate) mod settlement_gaps {
 pub(crate) use allocation_recovery::FixedViewCopyDestination;
 pub use allocation_recovery::{
     FixedViewCopy, FixedViewCopyPlan, FixedViewCopyPolicy, FixedViewCopySourceEvidence,
-    PressureRematerializationError, PressureRematerializationPolicy, ValidatedFixedViewCopies,
+    MaterializedFixedViewCopies, PressureRematerializationError, PressureRematerializationPolicy,
     ValidatedPressureRematerialization, fixed_view_copy_identity,
     rematerialize_selected_active_resident,
 };
 pub(crate) use allocation_recovery::{
-    FixedViewCopyError, FixedViewCopyValidationReceipt, FunctionPressureRematerialization,
+    FixedViewCopyError, FixedViewCopyReceipt, FunctionPressureRematerialization,
     PressureRematerializationAction, PressureRematerializationPlan,
-    PressureRematerializationRewrite, PressureRematerializationValidationReceipt,
+    PressureRematerializationReceipt, PressureRematerializationRewrite,
     materialize_fixed_view_copies, pressure_rematerialization_identity,
 };
 pub use fixed_occurrences::{

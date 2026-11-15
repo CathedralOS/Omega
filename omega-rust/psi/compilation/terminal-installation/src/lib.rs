@@ -1,14 +1,14 @@
 /*
 We validate source-free receiving-boundary installation contracts over Terminal
 Psi artifacts (`admit_provider_installation`, `admit_component_provider`,
-`admit_target_machine_selections`, `admit_target_layouts`,
+`admit_target_layouts`,
 `admit_private_entry_ram`, and `admit_compiler_evaluation`).
 */
 
 /*
 Our boundary-admission checks operate on canonical Terminal Psi without
 reopening source trees or embedding host execution loops: provider policy,
-target-machine family selection, target layouts, scalar application closures,
+target layouts, scalar application closures,
 and synchronous call graphs are admitted alongside the artifact so both the
 Terminal Psi interpreter and Omega native realization enforce identical
 installation prerequisites.
@@ -32,7 +32,7 @@ pub use producer_trust::{
 
 pub(crate) use evaluation_and_synchronous_calls::{compiler_evaluation, synchronous_calls};
 pub(crate) use provider_and_target_installation::{
-    component_memberships, component_provider, provider_installation, target_families,
+    component_memberships, component_provider, provider_installation, target_context,
 };
 
 pub(crate) mod entry_values {
@@ -450,7 +450,7 @@ pub(crate) mod private_entry_ram {
 }
 
 pub(crate) mod target_layouts {
-    use crate::AdmittedTargetMachineSelections;
+    use crate::TerminalTargetContext;
     use semantic_vocabulary::StructuralTypeId;
     use terminal_psi::{
         LayoutApplicationId, StructuralRecordStorage, StructuralTypeDeclaration,
@@ -599,7 +599,7 @@ pub(crate) mod target_layouts {
 
     pub fn admit_target_layouts<'artifact>(
         artifact: impl Into<terminal_codec::TerminalExecutionView<'artifact>>,
-        selections: &AdmittedTargetMachineSelections,
+        selections: &TerminalTargetContext,
         target: &layout_plans::LayoutTargetFacts,
     ) -> Result<AdmittedTargetLayouts, TargetLayoutSelectionError> {
         let artifact = artifact.into();
@@ -804,10 +804,7 @@ pub use scalar_applications::{
     ScalarLayoutObservationError, ScalarScopeInputs,
 };
 pub use synchronous_calls::{SynchronousCallClosure, SynchronousCallGraph};
-pub use target_families::{
-    AdmittedTargetMachineSelections, TargetMachineSelection, TargetMachineSelectionError,
-    admit_target_machine_selections, admitted_boundary_member, resolve_target_machine_member,
-};
+pub use target_context::{TerminalEntryError, TerminalTargetContext, terminal_target_context};
 pub use target_layouts::{
     AdmittedTargetLayouts, TargetLayoutClosure, TargetLayoutGeometry, TargetLayoutSelectionError,
     admit_target_layouts,

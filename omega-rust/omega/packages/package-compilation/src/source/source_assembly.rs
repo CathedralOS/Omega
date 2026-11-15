@@ -18,6 +18,7 @@ Provenance:
 - Import discovery, frontier storage, and generated-source admission: `src/source/source_imports.rs`.
 */
 
+#[path = "source_assembly_build_source.rs"]
 mod build_source;
 pub use build_source::BuildSourceSelection;
 

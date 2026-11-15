@@ -59,7 +59,7 @@ pub(crate) struct SelectedProviderCustody {
 }
 
 pub(crate) struct SelectedProductTarget {
-    pub(crate) runtime_policy: Arc<package_evidence::permission_acceptance::PreparedRuntimePolicy>,
+    pub(crate) runtime_policy: Arc<review_evidence::permission_acceptance::PreparedRuntimePolicy>,
     pub(crate) custody: SelectedProviderCustody,
 }
 
@@ -85,7 +85,7 @@ impl SelectedProductTarget {
         )?;
         Ok(Self {
             runtime_policy: Arc::new(
-                package_evidence::permission_acceptance::PreparedRuntimePolicy::capture(source),
+                review_evidence::permission_acceptance::PreparedRuntimePolicy::capture(source),
             ),
             custody: SelectedProviderCustody {
                 terminal_publication: Arc::clone(&source.terminal_publication),

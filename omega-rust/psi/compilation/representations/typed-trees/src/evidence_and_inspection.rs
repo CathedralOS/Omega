@@ -352,9 +352,7 @@ pub mod evidence {
                         .iter()
                         .find_map(|argument| proof_only_mention_in(reasons, program, *argument))
                 }
-                TypeReferenceNode::ConstExpression(_)
-                | TypeReferenceNode::DynamicTrait { .. }
-                | TypeReferenceNode::Unit => None,
+                TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Unit => None,
             }
         }
 
@@ -453,7 +451,6 @@ pub mod evidence {
                         .any(|argument| self.borrows_proof_only_data(program, *argument)),
                     TypeReferenceNode::Named { .. }
                     | TypeReferenceNode::ConstExpression(_)
-                    | TypeReferenceNode::DynamicTrait { .. }
                     | TypeReferenceNode::Unit => false,
                 }
             }
@@ -638,7 +635,6 @@ pub mod evidence {
                 }
                 TypeReferenceNode::Reference { .. }
                 | TypeReferenceNode::Slice { .. }
-                | TypeReferenceNode::DynamicTrait { .. }
                 | TypeReferenceNode::ConstExpression(_)
                 | TypeReferenceNode::Unit => {}
             }
@@ -3452,10 +3448,6 @@ pub mod inspection {
                 ConstExpression {
                     expression: ExpressionSnapshot,
                 },
-                DynamicTrait {
-                    name: String,
-                    arguments: Vec<TypeReferenceSnapshot>,
-                },
                 Named {
                     name: String,
                 },
@@ -3611,16 +3603,6 @@ pub mod inspection {
                             expression: expression_snapshot(program, *expression),
                         }
                     }
-                    TypeReferenceNode::DynamicTrait {
-                        name, arguments, ..
-                    } => TypeReferenceSnapshot::DynamicTrait {
-                        name: name.to_string(),
-                        arguments: program
-                            .type_reference_handles(*arguments)
-                            .iter()
-                            .map(|argument| type_reference_snapshot(program, *argument))
-                            .collect(),
-                    },
                     TypeReferenceNode::Named { name, .. } => TypeReferenceSnapshot::Named {
                         name: name.to_string(),
                     },

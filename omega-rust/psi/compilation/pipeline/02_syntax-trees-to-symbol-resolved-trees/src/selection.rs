@@ -533,11 +533,14 @@ pub(crate) mod call_identity {
         {
             return Err("source-less call target is not its exact owning entry".to_owned());
         }
-        let entry = program
-            .symbols
-            .child_handles(symbol.parent)
-            .and_then(|mut children| {
-                children.find(|child| program.symbols.get(*child).kind == SymbolKind::State)
+        // Copied selections can still name an inactive incarnation of this
+        // machine. Compare against that exact owner's retained children.
+        let entry =
+            crate::symbols::select_machine_entry(program.symbols.name(symbol.parent), |name| {
+                program.symbols.child_handles(symbol.parent)?.find(|child| {
+                    program.symbols.get(*child).kind == SymbolKind::State
+                        && program.symbols.name(*child) == name
+                })
             });
         if entry != Some(target) {
             return Err("source-less call target is not its exact owning entry".to_owned());
@@ -1661,17 +1664,13 @@ pub(crate) mod conformance_blocks {
                     .as_str()
                     .rsplit_once("::")
                     .map_or(machine.name.as_str(), |(_, leaf)| leaf);
-                machine
-                    .states
-                    .iter()
-                    .find(|state| state.name.as_str() == leaf)
-                    .or_else(|| {
-                        machine
-                            .states
-                            .iter()
-                            .find(|state| state.name.as_str() == "entry")
-                    })
-                    .map(|state| (machine, state))
+                crate::symbols::select_machine_entry(leaf, |name| {
+                    machine
+                        .states
+                        .iter()
+                        .find(|state| state.name.as_str() == name)
+                })
+                .map(|state| (machine, state))
             })
             .filter(|(_, state)| {
                 requirement_shape.is_none_or(|shape| {
@@ -2275,10 +2274,9 @@ pub(crate) mod domain_establishment {
                 traversal.bindings.truncate(previous_binding_count);
                 return result;
             }
-            TypeReference::Slice(_)
-            | TypeReference::ConstExpression(_)
-            | TypeReference::DynamicTrait { .. }
-            | TypeReference::Unit => return Ok(()),
+            TypeReference::Slice(_) | TypeReference::ConstExpression(_) | TypeReference::Unit => {
+                return Ok(());
+            }
         };
         for constraint in program
             .tables
@@ -2878,26 +2876,6 @@ pub(crate) mod domain_operator_homes {
                         .zip(program.child_type_references(right.arguments))
                         .all(|(left, right)| type_references_match(program, symbols, left, right))
                     && left.arguments.len() == right.arguments.len()
-            }
-            (
-                TypeReference::DynamicTrait {
-                    name: left,
-                    arguments: left_arguments,
-                    ..
-                },
-                TypeReference::DynamicTrait {
-                    name: right,
-                    arguments: right_arguments,
-                    ..
-                },
-            ) => {
-                same_carrier_name(symbols, left, right)
-                    && left_arguments.count() == right_arguments.count()
-                    && program
-                        .child_type_references(*left_arguments)
-                        .iter()
-                        .zip(program.child_type_references(*right_arguments))
-                        .all(|(left, right)| type_references_match(program, symbols, left, right))
             }
             (TypeReference::Named { name: left, .. }, TypeReference::Named { name: right, .. }) => {
                 same_carrier_name(symbols, left, right)
@@ -4785,7 +4763,6 @@ macro_rules! leaf_carrier_type_reference_pattern {
             | symbol_resolved_trees::types::TypeReference::Slice(_)
             | symbol_resolved_trees::types::TypeReference::Generic(_)
             | symbol_resolved_trees::types::TypeReference::ConstExpression(_)
-            | symbol_resolved_trees::types::TypeReference::DynamicTrait { .. }
             | symbol_resolved_trees::types::TypeReference::Named { .. }
             | symbol_resolved_trees::types::TypeReference::Unit
     };

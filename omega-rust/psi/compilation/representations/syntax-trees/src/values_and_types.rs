@@ -820,10 +820,6 @@ pub mod type_system {
             // owns an application, before namespace resolution assigns its kind.
             StaticSelection(crate::expression::StaticMachineArgument),
             ConstExpression(ExpressionHandle),
-            DynamicTrait {
-                trait_name: Identifier,
-                trait_arguments: HandleSpan<TypeReferenceHandle>,
-            },
             Named(Identifier),
             #[default]
             Unit,

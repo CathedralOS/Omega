@@ -156,8 +156,7 @@ pub(super) mod scalar_completion {
         for scope in scopes {
             let profile = target::TargetProfile::from_canonical_target_name(&scope)
                 .map_err(|error| error.message)?;
-            let selected =
-                terminal_installation::admit_target_machine_selections(artifact.view(), &scope);
+            let selected = terminal_installation::terminal_target_context(artifact.view(), &scope);
             let facts = profile
                 .layout_target_facts()
                 .ok_or("calling scalar target has no immutable layout catalogue")?;

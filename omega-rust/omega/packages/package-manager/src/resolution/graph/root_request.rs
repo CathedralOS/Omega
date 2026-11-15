@@ -3,7 +3,7 @@
 // no requester, its exact source request is retained separately.
 
 use crate::resolution::source::GitPackageSourceRequest;
-use package_source::ExternalSourceContext;
+use source_acquisition::ExternalSourceContext;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

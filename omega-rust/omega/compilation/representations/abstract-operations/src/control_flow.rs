@@ -1,5 +1,5 @@
 /*
-We define abstract functions, block entries, and control-flow successor edges,
+We define abstract functions, blocks, and control-flow successor edges,
 along with their subordinate address-join and bounded-owner loan classifiers.
 
 A receiver may reuse its entrance place across states while a named state
@@ -31,8 +31,9 @@ pub struct AbstractFunction {
     pub entry_claims: Vec<EntryClaim>, // Generic live claims supplied by the caller/root installation.
     pub block_entry_claims: Vec<EntryClaim>, // Block-local names that continue owned incoming claims by typed path.
     pub published_service_ceiling: Vec<ServiceId>, // Verified service ceiling retained for realization and audit.
-    pub block_entries: Vec<AbstractBlockEntry>,    // Canonical block starts in `operations`.
-    pub operations: Vec<AbstractOperation>,        // Operations in canonical block order.
+    /// Blocks own their operation sequences; there is no second flat partition to reconstruct.
+    /// Canonical order is strictly increasing block identity.
+    pub blocks: Vec<AbstractBlock>,
 }
 
 macro_rules! structural_parameter_accessor {
@@ -48,15 +49,19 @@ macro_rules! structural_parameter_accessor {
 structural_parameter_accessor!(AbstractFunction);
 
 impl AbstractFunction {
-    pub fn block_entry(&self, block: BlockId) -> Option<&AbstractBlockEntry> {
-        self.block_entries
+    pub fn operations(&self) -> impl Iterator<Item = &AbstractOperation> {
+        self.blocks.iter().flat_map(|block| &block.operations)
+    }
+
+    pub fn block(&self, block: BlockId) -> Option<&AbstractBlock> {
+        self.blocks
             .binary_search_by_key(&block, |entry| entry.block)
             .ok()
-            .map(|index| &self.block_entries[index])
+            .map(|index| &self.blocks[index])
     }
 
     pub fn block_structural_parameters(&self) -> impl Iterator<Item = &ParameterDeclaration> + '_ {
-        self.block_entries
+        self.blocks
             .iter()
             .flat_map(|entry| &entry.structural_parameters)
     }
@@ -77,7 +82,7 @@ impl AbstractFunction {
                 return None;
             }
         }
-        for block in &self.block_entries {
+        for block in &self.blocks {
             for (position, parameter) in block.structural_parameters.iter().enumerate() {
                 if parameter.place != place {
                     continue;
@@ -94,14 +99,17 @@ impl AbstractFunction {
     }
 }
 
-structural_parameter_accessor!(AbstractBlockEntry);
+structural_parameter_accessor!(AbstractBlock);
 
+/// One basic block, including its final control-transfer operation.
+/// Consumers reject missing or interior terminators; no offset table can assign
+/// an operation to a different block.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AbstractBlockEntry {
+pub struct AbstractBlock {
     pub block: BlockId,
     pub structural_parameters: Vec<ParameterDeclaration>,
     pub parameters: Vec<AbstractParameter>, // Scalar parameters in canonical Terminal Psi declaration order.
-    pub operation_offset: usize,
+    pub operations: Vec<AbstractOperation>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

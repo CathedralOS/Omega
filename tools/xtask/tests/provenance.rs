@@ -57,6 +57,10 @@ impl Transcripts {
     }
 
     fn audit(&self, thread: Option<&str>, explicit: Option<&Path>) -> Output {
+        self.audit_options(thread, explicit, false)
+    }
+
+    fn audit_options(&self, thread: Option<&str>, explicit: Option<&Path>, allow: bool) -> Output {
         let mut command = Command::new(env!("CARGO_BIN_EXE_xtask"));
         command
             .current_dir(env!("CARGO_MANIFEST_DIR"))
@@ -79,6 +83,9 @@ impl Transcripts {
         }
         if let Some(path) = explicit {
             command.arg("--transcript").arg(path);
+        }
+        if allow {
+            command.arg("--allow-unavailable");
         }
         command.output().unwrap()
     }
@@ -157,4 +164,72 @@ fn explicit_transcript_overrides_active_thread_selection() {
     );
     let audit = String::from_utf8(output.stdout).unwrap();
     assert!(audit.contains("Model: explicit-model |"), "{audit}");
+}
+
+#[test]
+fn unavailable_opt_in_never_uses_foreign_metrics() {
+    let transcripts = Transcripts::new();
+    transcripts.write("other", OTHER_THREAD, OTHER_THREAD, "other-model", 2);
+    let output = transcripts.audit_options(Some(ACTIVE_THREAD), None, true);
+    assert!(output.status.success());
+    assert_eq!(
+        String::from_utf8(output.stdout).unwrap().trim(),
+        "Agent: Codex | Model: unavailable | Effort: unavailable | Tokens: unavailable in (unavailable cached), unavailable out | Steps: unavailable | Time: unavailable | Steers: unavailable"
+    );
+}
+
+#[test]
+fn unavailable_opt_in_preserves_real_matching_metrics() {
+    let transcripts = Transcripts::new();
+    transcripts.write("active", ACTIVE_THREAD, ACTIVE_THREAD, "active-model", 1);
+    transcripts.write("other", OTHER_THREAD, OTHER_THREAD, "other-model", 2);
+    let output = transcripts.audit_options(Some(ACTIVE_THREAD), None, true);
+    assert!(output.status.success());
+    let audit = String::from_utf8(output.stdout).unwrap();
+    assert!(
+        audit.contains("Agent: Codex | Model: active-model |"),
+        "{audit}"
+    );
+    assert!(audit.contains("Tokens: 10 in (2 cached), 1 out"), "{audit}");
+    assert!(!audit.contains("unavailable"), "{audit}");
+}
+
+#[test]
+fn explicit_invalid_transcript_refuses_even_with_unavailable_opt_in() {
+    let transcripts = Transcripts::new();
+    let invalid = transcripts.0.join("missing.jsonl");
+    for allow in [false, true] {
+        let output = transcripts.audit_options(Some(ACTIVE_THREAD), Some(&invalid), allow);
+        assert_eq!(output.status.code(), Some(2));
+        assert!(output.stdout.is_empty());
+        assert!(
+            String::from_utf8(output.stderr)
+                .unwrap()
+                .contains("cannot read explicit transcript")
+        );
+    }
+}
+
+#[test]
+fn unreadable_active_transcript_requires_unavailable_opt_in() {
+    let transcripts = Transcripts::new();
+    let path = transcripts.write("active", ACTIVE_THREAD, ACTIVE_THREAD, "active-model", 1);
+    let mut bytes = fs::read(&path).unwrap();
+    bytes.push(0xff);
+    fs::write(path, bytes).unwrap();
+    let strict = transcripts.audit(Some(ACTIVE_THREAD), None);
+    assert_eq!(strict.status.code(), Some(2));
+    assert!(strict.stdout.is_empty());
+    assert!(
+        String::from_utf8(strict.stderr)
+            .unwrap()
+            .contains("cannot read active Codex transcript")
+    );
+    let allowed = transcripts.audit_options(Some(ACTIVE_THREAD), None, true);
+    assert!(allowed.status.success());
+    assert!(
+        String::from_utf8(allowed.stdout)
+            .unwrap()
+            .contains("Model: unavailable")
+    );
 }

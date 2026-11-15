@@ -5499,6 +5499,15 @@ use top_level::assign_top_level_symbols;
 
 pub(crate) use targets::normalize_static_module_calls;
 
+// The named entry takes precedence over the parser's implicit entry. Both the
+// symbol table and the provisional conformance catalog use this selection rule.
+pub(crate) fn select_machine_entry<T>(
+    name: &str,
+    mut state_named: impl FnMut(&str) -> Option<T>,
+) -> Option<T> {
+    state_named(name).or_else(|| state_named("entry"))
+}
+
 #[derive(Default)]
 pub(crate) struct NamespaceDeclarations {
     text: syntax_trees::SyntaxTextOwner,

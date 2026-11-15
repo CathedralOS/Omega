@@ -215,11 +215,6 @@ pub(crate) mod capabilities {
         RegisterAccess {
             operation: terminal_psi::RegisterOperation,
         },
-        TargetMachineMemberSupply {
-            head: terminal_psi::TargetMachineCallable,
-            callable: terminal_psi::TargetMachineCallable,
-            supply: terminal_psi::TargetMachineSupply,
-        },
         ExternalCompletionInvocation {
             boundary: BoundaryMachineId,
             kind: ExternalCompletionKind,
@@ -276,7 +271,6 @@ pub(crate) mod capabilities {
         let mut imports = BTreeSet::new();
         let mut missing_providers = BTreeSet::new();
         let mut access_candidates = Vec::new();
-        let mut selected_calls = Vec::new();
         let mut external_completion = None;
         let mut external_demands = BTreeSet::new();
         let mut scalar_applications = BTreeSet::new();
@@ -453,28 +447,6 @@ pub(crate) mod capabilities {
                             None
                         }
                         OperationKind::BoundaryCall { boundary, .. } => {
-                            if program.is_target_family_head(*boundary) {
-                                let member =
-                                    crate::engine::calls::target_families::selected_member(
-                                        program,
-                                        installation.and_then(|installation| {
-                                            installation.target_machines.as_ref()
-                                        }),
-                                        *boundary,
-                                    )?;
-                                if let terminal_psi::TargetMachineCallable::Machine(member) = member
-                                {
-                                    if !selected_calls.contains(&(*boundary, member)) {
-                                        selected_calls.push((*boundary, member));
-                                    }
-                                    crate::engine::calls::target_families::validate_result_transport(
-                                    operation,
-                                    program.verified_machine(member)?,
-                                )?;
-                                    pending.push(member);
-                                    continue;
-                                }
-                            }
                             let declaration = program.verified_boundary_machine(boundary)?;
                             if crate::embedding::program::compiler_owns_boundary_execution(
                                 declaration,
@@ -549,9 +521,8 @@ pub(crate) mod capabilities {
                 match &block.terminator {
                     Terminator::InvokeNoNormal { callee, .. } => pending.push(*callee),
                     Terminator::ExternalCompletion { boundary, kind, .. } => {
-                        let callee = crate::engine::calls::target_families::completion_callee(
+                        let callee = crate::engine::calls::boundary_calls::completion_callee(
                             program,
-                            installation.and_then(|row| row.target_machines.as_ref()),
                             installation
                                 .and_then(|row| row.supplies.get(boundary))
                                 .copied(),
@@ -589,7 +560,7 @@ pub(crate) mod capabilities {
             }
         }
         if !access_candidates.is_empty() {
-            let graph = terminal_access_origin_graph(&program.catalogs, &selected_calls);
+            let graph = terminal_access_origin_graph(&program.catalogs, &[]);
             if let Some(graph) = graph {
                 let mut origins =
                     AccessRamOriginAnalysis::new(&program.catalogs, &graph, &visited, entry)
@@ -630,22 +601,10 @@ pub(crate) mod capabilities {
             let terminal_psi::ScalarApplication::Evaluate { entry, .. } = declaration else {
                 continue;
             };
-            let callable = match entry {
-                terminal_psi::TargetMachineCallable::Machine(_) => Some(*entry),
-                terminal_psi::TargetMachineCallable::Boundary(_) => installation
-                    .and_then(|installation| installation.target_machines.as_ref())
-                    .and_then(|targets| {
-                        targets
-                            .selections()
-                            .iter()
-                            .find(|selection| selection.head() == *entry)
-                    })
-                    .map(|selection| selection.callable()),
-            };
-            let Some(terminal_psi::TargetMachineCallable::Machine(machine)) = callable else {
+            let terminal_psi::TargetMachineCallable::Machine(machine) = entry else {
                 continue;
             };
-            if !visited.contains(&machine) {
+            if !visited.contains(machine) {
                 continue;
             }
             let application = u64::try_from(position)
@@ -1793,7 +1752,6 @@ pub(crate) mod execution {
         pub(crate) memory_ordering: Option<crate::TerminalMemoryOrderingEnvironment>,
         pub(crate) boundary_supplies:
             BTreeMap<BoundaryMachineId, crate::boundary::effects::AdmittedBoundarySupply>,
-        pub(crate) target_machines: Option<terminal_installation::AdmittedTargetMachineSelections>,
         pub(crate) native_code_layouts:
             Option<std::sync::Arc<crate::TerminalNativeCodeLayoutEnvironment>>,
         pub(crate) assumed_bindings: Vec<AdmittedAssumedBinding>,
@@ -1925,10 +1883,6 @@ pub(crate) mod execution {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub(crate) enum ResultClaimOrigin {
         CalleeReturn,
-        TargetFamilyReturn {
-            head: BoundaryMachineId,
-            member: MachineId,
-        },
         CheckedProvider,
     }
 
@@ -1938,12 +1892,6 @@ pub(crate) mod execution {
             result: &terminal_psi::StructuralOperationResult,
             declared: &[semantic_vocabulary::StructuralDomainId],
         ) -> bool {
-            if matches!(self, Self::TargetFamilyReturn { .. }) {
-                return result
-                    .qualifications
-                    .iter()
-                    .all(|domain| declared.contains(domain));
-            }
             let mut expected = declared.to_vec();
             if self == Self::CheckedProvider {
                 for establishment in &result.qualification_establishments {
@@ -1965,10 +1913,7 @@ pub(crate) mod execution {
             if self != Self::CalleeReturn && !preserved.is_empty() {
                 return false;
             }
-            if matches!(
-                self,
-                Self::TargetFamilyReturn { .. } | Self::CheckedProvider
-            ) {
+            if self == Self::CheckedProvider {
                 result
                     .projected_qualifications
                     .iter()
@@ -2275,8 +2220,6 @@ pub(crate) mod execution {
                     .unwrap_or_default(),
                 native_code_layouts: installation
                     .and_then(|supplies| supplies.native_code_layouts.clone()),
-                target_machines: installation
-                    .and_then(|installation| installation.target_machines.clone()),
                 assumed_bindings: installation
                     .map(|installation| installation.assumed_bindings.clone())
                     .unwrap_or_default(),

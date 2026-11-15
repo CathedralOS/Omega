@@ -1,6 +1,8 @@
 //! Discover call components once, with storage proportional to machines and
 //! calls. Lowering borrows one ordered member span instead of retaining a copy
-//! for every member. The separate emitted graphs keep their existing ownership.
+//! for every member, and outcome inference walks the components callee-first,
+//! re-queuing a member's callers from the retained reverse calls. The separate
+//! emitted graphs keep their existing ownership.
 
 use semantic_vocabulary::MachineId;
 use terminal_check_tables::{Checked, Construct};
@@ -18,6 +20,10 @@ pub(crate) struct Components {
     machine_components: Vec<usize>,
     components: Vec<Component>,
     members: Vec<MachineId>,
+    /// Every call site's caller, grouped by callee: the callers of machine
+    /// index `m` are `callers[caller_offsets[m]..caller_offsets[m + 1]]`.
+    caller_offsets: Vec<usize>,
+    callers: Vec<usize>,
     #[cfg(test)]
     discovery_edge_visits: usize,
 }
@@ -26,8 +32,8 @@ impl Components {
     /// Call targets were checked against the complete body table before this
     /// operation. Both DFS passes are iterative, so a deep call chain needs no
     /// recursive host stack. Kosaraju's second pass numbers components in forward
-    /// topological order; cycle reachability then propagates in reverse order.
-    pub(super) fn discover(calls: &CallGraph, machines: &[MachineId], witnessed: &[bool]) -> Self {
+    /// topological order, so a callee's component never precedes its caller's.
+    pub(super) fn discover(calls: &CallGraph, machines: &[MachineId]) -> Self {
         let count = machines.len();
         #[cfg(test)]
         let mut discovery_edge_visits = 0;
@@ -143,34 +149,57 @@ impl Components {
                 });
             }
         }
-        for component in (0..components.len()).rev() {
-            // A cycle of one machine that supplies its ranking is judged where
-            // it is lowered (`lower::ranking`); every other cycle is unranked.
-            let ranked = matches!(
-                members[components[component].members.clone()],
-                [member] if witnessed.get(index(member)).copied().unwrap_or(false)
-            );
-            let mut reaches_cycle = components[component].cyclic && !ranked;
-            for &member in &members[components[component].members.clone()] {
-                for site in calls.calls(index(member)) {
-                    #[cfg(test)]
-                    {
-                        discovery_edge_visits += 1;
-                    }
-                    let callee_component = machine_components[index(site.callee)];
-                    debug_assert!(callee_component >= component);
-                    reaches_cycle |= components[callee_component].reaches_unranked_cycle;
-                }
-            }
-            components[component].reaches_unranked_cycle = reaches_cycle;
-        }
         Self {
             machine_components,
             components,
             members,
+            caller_offsets: reverse_offsets,
+            callers: reverse_calls,
             #[cfg(test)]
             discovery_edge_visits,
         }
+    }
+
+    /// Records which components lie on or call into an unranked cycle, in
+    /// reverse topological order so every callee component is judged first.
+    pub(super) fn rank(&mut self, calls: &CallGraph, witnessed: &[bool]) {
+        for component in (0..self.components.len()).rev() {
+            // A cycle of one machine that supplies its ranking is judged where
+            // it is lowered (`lower::ranking`); every other cycle is unranked.
+            let members = &self.members[self.components[component].members.clone()];
+            let ranked = matches!(
+                members,
+                [member] if witnessed.get(index(*member)).copied().unwrap_or(false)
+            );
+            let mut reaches_cycle = self.components[component].cyclic && !ranked;
+            for &member in members {
+                for site in calls.calls(index(member)) {
+                    #[cfg(test)]
+                    {
+                        self.discovery_edge_visits += 1;
+                    }
+                    let callee_component = self.machine_components[index(site.callee)];
+                    debug_assert!(callee_component >= component);
+                    reaches_cycle |= self.components[callee_component].reaches_unranked_cycle;
+                }
+            }
+            self.components[component].reaches_unranked_cycle = reaches_cycle;
+        }
+    }
+
+    /// Every component's members in `MachineId` order, callees' components
+    /// before their callers', with whether the component is a call cycle.
+    pub(crate) fn callee_first(&self) -> impl Iterator<Item = (&[MachineId], bool)> {
+        self.components
+            .iter()
+            .rev()
+            .map(|component| (&self.members[component.members.clone()], component.cyclic))
+    }
+
+    /// The machine index of every caller of machine index `callee`, in
+    /// ascending order, once per call site.
+    pub(crate) fn callers(&self, callee: usize) -> &[usize] {
+        &self.callers[self.caller_offsets[callee]..self.caller_offsets[callee + 1]]
     }
 
     pub(crate) fn members(&self, machine: MachineId) -> Checked<&[MachineId]> {
@@ -196,7 +225,7 @@ impl Components {
         self.components[self.machine_components[machine]].reaches_unranked_cycle
     }
 
-    pub(super) fn same_component(&self, left: usize, right: usize) -> bool {
+    pub(crate) fn same_component(&self, left: usize, right: usize) -> bool {
         self.machine_components[left] == self.machine_components[right]
     }
 }
@@ -222,7 +251,9 @@ mod tests {
             }));
             calls.offsets.push(calls.sites.len());
         }
-        Components::discover(&calls, &machines, &vec![false; machines.len()])
+        let mut table = Components::discover(&calls, &machines);
+        table.rank(&calls, &vec![false; machines.len()]);
+        table
     }
 
     #[test]

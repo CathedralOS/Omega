@@ -1,6 +1,6 @@
 /*
     Machine and component call preparation, argument staging, saved caller
-    frames, and target-family resolution for the Terminal Psi engine.
+    frames, and checked-provider boundary calls for the Terminal Psi engine.
 
     We prepare scalar, structural, and component arguments, reserve and capture
     suspended caller frames, and restore caller state upon callee completion.
@@ -707,14 +707,6 @@ pub(crate) mod frames {
             let Some(callee_result) = callee.result.structural() else {
                 return Err(invalid_result("callee has no structural result"));
             };
-            if let crate::engine::execution::ResultClaimOrigin::TargetFamilyReturn { head, member } =
-                claim_origin
-                && (member != callee_id || !program.is_target_family_head(head))
-            {
-                return Err(invalid_result(
-                    "result origin does not name this target-family member",
-                ));
-            }
             let mut preserved_projected_qualifications = Vec::new();
             if claim_origin == crate::engine::execution::ResultClaimOrigin::CalleeReturn
                 && result
@@ -989,74 +981,16 @@ pub(crate) mod frames {
         }
     }
 }
-pub(crate) mod target_families {
-    use crate::boundary::errors::{TerminalInterpretError, malformed};
-    use crate::boundary::values::TerminalScalarValue;
+pub(crate) mod boundary_calls {
+    use crate::boundary::errors::TerminalInterpretError;
     use crate::embedding::program::AdmittedTerminalProgram;
-    use crate::engine::capabilities::TerminalUnsupportedCapability;
-    use crate::engine::custody::{
-        bind_active_structural_arguments, validate_boundary_requirements,
-    };
-    use crate::engine::execution::{
-        OperationFlow, ResultClaimOrigin, TerminalExecution, operation_kind,
-    };
     use semantic_vocabulary::{BoundaryMachineId, MachineId};
-    use terminal_installation::AdmittedTargetMachineSelections;
-    use terminal_psi::{
-        BoundaryMachineDeclaration, ClaimTransfer, Operation, OperationKind, OperationResult,
-        TargetMachineCallable, TargetMachineSupply,
-    };
-
-    pub(crate) fn selected_member(
-        program: &AdmittedTerminalProgram<'_>,
-        selections: Option<&AdmittedTargetMachineSelections>,
-        boundary: BoundaryMachineId,
-    ) -> Result<TargetMachineCallable, TerminalInterpretError> {
-        let head = TargetMachineCallable::Boundary(boundary);
-        let selections =
-            selections.ok_or(TerminalInterpretError::TargetMachineSelectionMissing(head))?;
-        if selections.terminal_psi() != program.identity.semantic() {
-            return Err(TerminalInterpretError::TargetMachineSelectionIdentityMismatch);
-        }
-        let selected = selections
-            .member(head)
-            .map_err(TerminalInterpretError::TargetMachineSelection)?;
-        match (selected.callable(), selected.supply()) {
-            (
-                TargetMachineCallable::Machine(member),
-                TargetMachineSupply::CheckedBody | TargetMachineSupply::Boundary,
-            ) => {
-                program.verified_machine(member)?;
-                Ok(selected.callable())
-            }
-            (TargetMachineCallable::Boundary(member), supply)
-                if supply != TargetMachineSupply::CheckedBody =>
-            {
-                program.verified_boundary_machine(&member)?;
-                Ok(selected.callable())
-            }
-            (callable, supply) => Err(TerminalInterpretError::UnsupportedCapability(
-                TerminalUnsupportedCapability::TargetMachineMemberSupply {
-                    head,
-                    callable,
-                    supply,
-                },
-            )),
-        }
-    }
 
     pub(crate) fn completion_callee(
         program: &AdmittedTerminalProgram<'_>,
-        selections: Option<&AdmittedTargetMachineSelections>,
         supply: Option<crate::boundary::effects::AdmittedBoundarySupply>,
         boundary: BoundaryMachineId,
     ) -> Result<Option<MachineId>, TerminalInterpretError> {
-        if program.is_target_family_head(boundary)
-            && let TargetMachineCallable::Machine(member) =
-                selected_member(program, selections, boundary)?
-        {
-            return Ok(Some(member));
-        }
         match supply {
             Some(crate::boundary::effects::AdmittedBoundarySupply::CheckedProvider(callee)) => {
                 Ok(Some(callee))
@@ -1065,132 +999,6 @@ pub(crate) mod target_families {
                 TerminalInterpretError::ProviderInstallationMissing(boundary),
             ),
             _ => Ok(None),
-        }
-    }
-
-    pub(crate) fn validate_result_transport(
-        operation: &Operation,
-        member: &terminal_psi::TerminalMachine,
-    ) -> Result<(), TerminalInterpretError> {
-        let OperationKind::BoundaryCall { boundary, .. } = operation.kind else {
-            return Err(malformed());
-        };
-        let origin = ResultClaimOrigin::TargetFamilyReturn {
-            head: boundary,
-            member: member.id,
-        };
-        let supported = match &operation.result {
-            OperationResult::Unit => member.result == terminal_psi::TerminalMachineResult::Unit,
-            OperationResult::Scalar(result) => member
-                .result
-                .scalar()
-                .is_some_and(|declared| declared.scalar_type == result.scalar_type),
-            OperationResult::Structural(result) => {
-                member.result.structural().is_some_and(|declared| {
-                    result.structural_type == declared.structural_type
-                        && result.multiplicity == declared.multiplicity
-                        && origin.result_qualifications_match(result, &declared.qualifications)
-                        && origin.result_projected_qualifications_match(
-                            result,
-                            &declared.projected_qualifications,
-                            &[],
-                        )
-                        && result
-                            .qualification_establishments
-                            .iter()
-                            .all(|row| declared.qualifications.contains(&row.domain))
-                })
-            }
-        };
-        if supported { Ok(()) } else { Err(malformed()) }
-    }
-
-    impl TerminalExecution<'_> {
-        pub(crate) fn execute_target_family_call(
-            &mut self,
-            operation: &Operation,
-            head: &BoundaryMachineDeclaration,
-            member_id: MachineId,
-            scalar_arguments: &[TerminalScalarValue],
-        ) -> Result<OperationFlow, TerminalInterpretError> {
-            operation_kind!(operation => BoundaryCall {
-                structural_arguments, completion_receipts, ..
-            });
-            let program = std::sync::Arc::clone(&self.program);
-            let member = program.verified_machine(member_id)?;
-            validate_result_transport(operation, member)?;
-            let prepared =
-                self.prepare_structural_call_arguments(member_id, structural_arguments)?;
-            if head.structural_parameters.len() != member.structural_parameters.len() {
-                return Err(malformed());
-            }
-            let mut opaque_parameters = Vec::new();
-            let mut opaque_values = Vec::new();
-            for (head_parameter, member_parameter) in head
-                .structural_parameters
-                .iter()
-                .zip(&member.structural_parameters)
-            {
-                if let Some(value) = prepared.values.get(&member_parameter.place) {
-                    opaque_parameters.push(head_parameter.clone());
-                    opaque_values.push(value.clone());
-                } else if !prepared.scalar_arrays.contains_key(&member_parameter.place)
-                    || head_parameter.structural_type != member_parameter.structural_type
-                {
-                    return Err(malformed());
-                }
-            }
-            bind_active_structural_arguments(
-                &opaque_parameters,
-                &opaque_values,
-                &self.structural_types(),
-                self.structural_cases.as_map(),
-                self.account.as_ref(),
-            )?;
-            validate_boundary_requirements(head, |argument_index| {
-                member
-                    .structural_parameters
-                    .get(argument_index)
-                    .and_then(|parameter| prepared.values.get(&parameter.place))
-            })?;
-            let transfers = completion_receipts
-                .iter()
-                .map(|receipt| ClaimTransfer {
-                    claim: receipt.claim,
-                    argument_index: receipt.argument_index,
-                    path: receipt.path.clone(),
-                })
-                .collect::<Vec<_>>();
-            match &operation.result {
-                OperationResult::Unit => self.begin_unit_call(
-                    member_id,
-                    scalar_arguments,
-                    structural_arguments,
-                    prepared,
-                    &transfers,
-                )?,
-                OperationResult::Scalar(result) => self.begin_structural_scalar_call(
-                    member_id,
-                    *result,
-                    scalar_arguments,
-                    structural_arguments,
-                    prepared,
-                    &transfers,
-                )?,
-                OperationResult::Structural(result) => self.begin_structural_result_call(
-                    member_id,
-                    result.clone(),
-                    scalar_arguments,
-                    structural_arguments,
-                    prepared,
-                    &transfers,
-                    ResultClaimOrigin::TargetFamilyReturn {
-                        head: head.id,
-                        member: member_id,
-                    },
-                )?,
-            }
-            Ok(OperationFlow::Redispatch)
         }
     }
 }
@@ -3185,23 +2993,6 @@ impl<'artifact> TerminalExecution<'artifact> {
             .map(|argument| self.scalar_value(*argument))
             .collect::<Result<Vec<_>, _>>()?;
         bind_boundary_arguments(&boundary_declaration.scalar_parameters, &scalar_arguments)?;
-        if program.is_target_family_head(boundary) {
-            match target_families::selected_member(
-                &program,
-                self.target_machines.as_ref(),
-                boundary,
-            )? {
-                terminal_psi::TargetMachineCallable::Machine(member) => {
-                    return self.execute_target_family_call(
-                        operation,
-                        boundary_declaration,
-                        member,
-                        &scalar_arguments,
-                    );
-                }
-                terminal_psi::TargetMachineCallable::Boundary(_) => {}
-            }
-        }
         let supply = self.boundary_supplies.get(&boundary).copied();
         if supply == Some(crate::boundary::effects::AdmittedBoundarySupply::DeferredComponent) {
             return Err(TerminalInterpretError::EffectRejected {

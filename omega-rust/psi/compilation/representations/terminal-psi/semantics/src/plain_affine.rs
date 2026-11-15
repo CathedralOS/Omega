@@ -278,6 +278,9 @@ struct Analysis<'a> {
     unavailable_roots: Vec<Option<Site>>,
     stores: Vec<(OperationId, StructuralStoreDisposition)>,
     verify_stores: bool,
+    references: Option<crate::descriptor_results::DescriptorAnalysis<'a>>,
+    machine: Option<semantic_vocabulary::MachineId>,
+    position: Option<crate::descriptor_lifetimes::DescriptorPosition>,
 }
 
 fn index(raw: u64) -> Result<usize, Error> {
@@ -391,7 +394,17 @@ fn live_entries(machine: &TerminalMachine) -> Result<Vec<IdSet<PlaceId>>, Error>
 /// Nominal hooks, conserved claims and borrowed extraction require their own
 /// contracts, rather than an empty plan.
 pub fn plan(machine: &TerminalMachine, types: &[StructuralTypeDeclaration]) -> Result<Plan, Error> {
-    analyze(machine, types, false)
+    analyze(machine, types, false, None)
+}
+
+/// Resolve destructive reference paths with the same descriptor graph as
+/// storage and loan checking. The detached value never owns its lender's home.
+pub fn plan_in(
+    module: &terminal_psi::TerminalModule,
+    identity: semantic_vocabulary::MachineId,
+) -> Result<Plan, Error> {
+    let machine = module_machine(module, identity)?;
+    analyze(machine, &module.structural_types, false, Some(module))
 }
 
 /// Reconstructs the canonical schedule without trusting the supplied actions.
@@ -401,7 +414,35 @@ pub fn verify(
     machine: &TerminalMachine,
     types: &[StructuralTypeDeclaration],
 ) -> Result<Plan, Error> {
-    let plan = analyze(machine, types, true)?;
+    verify_schedule(machine, analyze(machine, types, true, None)?)
+}
+
+/// The receiving checker reconstructs both the exact backing and its schedule.
+pub fn verify_in(
+    module: &terminal_psi::TerminalModule,
+    identity: semantic_vocabulary::MachineId,
+) -> Result<Plan, Error> {
+    let machine = module_machine(module, identity)?;
+    verify_schedule(
+        machine,
+        analyze(machine, &module.structural_types, true, Some(module))?,
+    )
+}
+
+fn module_machine(
+    module: &terminal_psi::TerminalModule,
+    identity: semantic_vocabulary::MachineId,
+) -> Result<&TerminalMachine, Error> {
+    module
+        .machines
+        .get(index(identity.get())?)
+        .filter(|machine| machine.id == identity)
+        .ok_or(Error::malformed(
+            "a window's machine is outside its module catalog",
+        ))
+}
+
+fn verify_schedule(machine: &TerminalMachine, plan: Plan) -> Result<Plan, Error> {
     for block in &machine.blocks {
         for (edge, actions) in block.terminator.cleanup_rosters() {
             for action in actions {
@@ -449,6 +490,7 @@ fn analyze(
     machine: &TerminalMachine,
     types: &[StructuralTypeDeclaration],
     bound_output: bool,
+    module: Option<&terminal_psi::TerminalModule>,
 ) -> Result<Plan, Error> {
     use semantic_vocabulary::StructuralPlaceKind;
     use terminal_psi::TerminalMachineResult;
@@ -533,7 +575,12 @@ fn analyze(
             None,
         )?;
     }
+    let mut has_borrowed_windows = false;
     for operation in machine.operations() {
+        has_borrowed_windows |= matches!(
+            operation.kind,
+            terminal_psi::OperationKind::MoveStructuralField { .. }
+        );
         if let Some(result) = operation.result.as_structural() {
             let required_result = crate::StructuralEffectSemanticRow::for_tag(
                 crate::OperationSemanticTag::for_operation(&operation.kind),
@@ -699,7 +746,9 @@ fn analyze(
             exclusive,
         }));
     }
-    if roots.iter().all(Option::is_none) {
+    // Copy permission does not erase an explicitly destructive window. Even
+    // an untracked carrier's window must reach its governing check or refusal.
+    if roots.iter().all(Option::is_none) && !has_borrowed_windows {
         return Ok(Plan {
             copyable_owned_roots,
             ..Plan::default()
@@ -738,6 +787,22 @@ fn analyze(
     if first >= machine.blocks.len() {
         return Err(Error::malformed("entry block is outside the machine"));
     }
+    let needs_backing = machine.operations().any(|operation| {
+        matches!(
+            &operation.kind,
+            terminal_psi::OperationKind::MoveStructuralField { path, .. }
+                if path.contains(&StructuralPathSegment::Referent)
+        )
+    });
+    let reference_graph = if needs_backing {
+        let module = module.ok_or(Error::unsupported(
+            "a borrowed reference window requires its module's exact backing",
+        ))?;
+        crate::descriptor_results::terminal_reference_graph_from(module, [machine.id])
+            .map_err(|_| Error::unsupported("a borrowed window has no reference closure"))?
+    } else {
+        Vec::new()
+    };
     let mut analysis = Analysis {
         types,
         roots,
@@ -745,6 +810,14 @@ fn analyze(
         unavailable_roots: Vec::new(),
         stores: Vec::new(),
         verify_stores: bound_output,
+        references: needs_backing.then(|| {
+            crate::descriptor_results::DescriptorAnalysis::with_reference_slots(
+                types,
+                &reference_graph,
+            )
+        }),
+        machine: Some(machine.id),
+        position: None,
     };
     // Each block is entered with the frontier every arrival agrees on
     // (ownership.md, "Paths and control flow": predecessor paths must agree
@@ -837,7 +910,12 @@ impl Analysis<'_> {
             .get(index(block_id.get())?)
             .filter(|block| block.id == block_id)
             .ok_or(Error::malformed("block is not at its identity"))?;
-        for operation in &block.operations {
+        for (ordinal, operation) in block.operations.iter().enumerate() {
+            self.position = Some((
+                block.id,
+                u32::try_from(ordinal)
+                    .map_err(|_| Error::malformed("operation position overflows"))?,
+            ));
             // "Suspension must retain the exclusive loan, exact hole,
             // removed-value custody, and restoration obligation without
             // exposing the incomplete owner. Its resume and cancellation
@@ -862,6 +940,11 @@ impl Analysis<'_> {
             self.operation(&mut state, operation, entering.is_some())
                 .map_err(|error| error.at(Site::Operation(operation.id)))?;
         }
+        self.position = Some((
+            block.id,
+            u32::try_from(block.operations.len())
+                .map_err(|_| Error::malformed("terminal position overflows"))?,
+        ));
         let site = Site::Edge(
             block
                 .terminator
@@ -1214,6 +1297,44 @@ impl Analysis<'_> {
             return Err(Error::malformed("a leaf copy duplicates an affine region"));
         }
         match &operation.kind {
+            Op::MoveStructuralField {
+                source,
+                path,
+                field,
+            } => {
+                // The extracted value transfers its own custody. Its original
+                // exclusive loan retains the same storage for handback, so an
+                // empty path is a vacancy, not an ended owned home.
+                let (source, path) = self.backing(state, *source, path, site)?;
+                let root = self.root(source)?.ok_or(Error::unsupported(
+                    "a borrowed move requires tracked storage contents",
+                ))?;
+                if root.owned || !root.parameter || !root.exclusive {
+                    return Err(Error::unsupported(
+                        "a borrowed move requires its incoming mutable loan",
+                    ));
+                }
+                let declared = root.structural_type;
+                let mut selected = self.canonical(source, &path)?;
+                if let Some(field) = field {
+                    selected.push(Segment::Field(*field));
+                }
+                let selected_type =
+                    crate::canonical_structural_path_tip(self.types.iter(), declared, &selected)
+                        .ok_or(Error::malformed("a borrowed move has no selected type"))?;
+                if operation
+                    .result
+                    .as_structural()
+                    .map(|result| result.structural_type)
+                    != Some(selected_type.id)
+                {
+                    return Err(Error::malformed(
+                        "a borrowed move changes its selected type",
+                    ));
+                }
+                self.read(state, source, &selected, site)?;
+                self.vacate(state, source, &selected)?;
+            }
             Op::ScalarStructuralField {
                 source,
                 path,
@@ -1276,7 +1397,12 @@ impl Analysis<'_> {
             }
         }
         match &operation.kind {
-            Op::MoveStructuralValue { source } => self.argument(state, source, site, true)?,
+            Op::MoveStructuralValue { source } => {
+                if self.root(source.place)?.is_some_and(|root| !root.owned) {
+                    return Err(Error::unsupported("owned extraction from borrowed storage"));
+                }
+                self.argument(state, source, site, true)?;
+            }
             Op::ReleaseReference { source, path } => self.argument(
                 state,
                 &StructuralArgument {
@@ -1303,6 +1429,13 @@ impl Analysis<'_> {
                 value,
             } => {
                 self.argument(state, value, site, true)?;
+                let (backing, projection) = if self.references.is_some() {
+                    self.backing(state, *destination, path, site)?
+                } else {
+                    (*destination, path.clone())
+                };
+                let destination = &backing;
+                let path = &projection;
                 if let Some(root) = self.root(*destination)? {
                     // The incoming value transfers from its exact source
                     // above. The receiving region may be an indexed element
@@ -1580,6 +1713,62 @@ impl Analysis<'_> {
             .ok_or(Error::malformed("place is outside the machine"))
     }
 
+    /// A reference carrier stays live while its exact captured lender holds
+    /// the window. Resolve at the use, so reassignment cannot retarget a hole.
+    fn backing(
+        &mut self,
+        state: &State,
+        root: PlaceId,
+        path: &[StructuralPathSegment],
+        site: Site,
+    ) -> Result<(PlaceId, Vec<StructuralPathSegment>), Error> {
+        if !path.contains(&StructuralPathSegment::Referent) {
+            return Ok((root, path.to_vec()));
+        }
+        let declared = self
+            .root(root)?
+            .ok_or(Error::unsupported(
+                "a borrowed window has no tracked reference carrier",
+            ))?
+            .structural_type;
+        let (carrier, _) = self.observed(root, path)?;
+        self.read(state, root, &carrier, site)?;
+        let location = crate::descriptor_lifetimes::descriptor_location(
+            self.types, root, declared, path, None,
+        )
+        .ok_or(Error::unsupported(
+            "a borrowed window has no exact captured path",
+        ))?;
+        let machine = self
+            .machine
+            .ok_or(Error::malformed("a window has no machine"))?;
+        let position = self
+            .position
+            .ok_or(Error::malformed("a window has no use position"))?;
+        let captured = self
+            .references
+            .as_mut()
+            .ok_or(Error::unsupported(
+                "a borrowed reference window requires its module's exact backing",
+            ))?
+            .location(machine, position, &location)
+            .ok_or(Error::unsupported(
+                "a borrowed window has no exact live backing correspondence",
+            ))?;
+        let declaration = self.root(captured.root)?.ok_or(Error::unsupported(
+            "a borrowed window has no tracked lender storage",
+        ))?;
+        let path = crate::descriptor_lifetimes::descriptor_path(
+            self.types,
+            declaration.structural_type,
+            &captured.path,
+        )
+        .ok_or(Error::unsupported(
+            "a borrowed window has no typed lender path",
+        ))?;
+        Ok((captured.root, path))
+    }
+
     fn canonical(
         &self,
         root: PlaceId,
@@ -1742,14 +1931,22 @@ impl Analysis<'_> {
             if !owned && (!lends_window || path.is_empty()) {
                 return Err(Error::unsupported("owned extraction from borrowed storage"));
             }
-            if path.is_empty() {
-                // Whole owned transport consumes its source home as well as
-                // its value. Only a projected move leaves an allocated owner
-                // whose complement needs later disposal and retirement.
-                state.regions[index(argument.place.get())?] = None;
-            } else if let Some(region) = &mut state.regions[index(argument.place.get())?] {
-                region.set(&path, false);
-            }
+            self.vacate(state, argument.place, &path)?;
+        }
+        Ok(())
+    }
+
+    /// Only an owned whole move ends the home. A borrowed root's storage
+    /// remains allocated and owes restoration even when all its contents move.
+    fn vacate(&self, state: &mut State, place: PlaceId, path: &[Segment]) -> Result<(), Error> {
+        let root = self
+            .root(place)?
+            .ok_or(Error::malformed("a moved region has no affine home"))?;
+        let region = &mut state.regions[index(place.get())?];
+        if root.owned && path.is_empty() {
+            *region = None;
+        } else if let Some(region) = region {
+            region.set(path, false);
         }
         Ok(())
     }
@@ -2154,6 +2351,9 @@ mod tests {
             unavailable_roots: vec![None],
             stores: Vec::new(),
             verify_stores: false,
+            references: None,
+            machine: None,
+            position: None,
         }
     }
 

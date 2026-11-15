@@ -257,9 +257,9 @@ impl<'t> Program<'t> {
         signatures: crate::body::Signatures<'_>,
         outcomes: &semantic_vocabulary::IdTable<MachineId, crate::Outcome>,
         records: &crate::lower::places::Records<'_>,
+        qualifications: &mut crate::qualifications::Qualifications,
         module: &mut TerminalModule,
     ) -> Checked<()> {
-        let mut identities = std::mem::take(&mut module.identities).into_builder();
         let mut boundaries = Vec::with_capacity(self.boundary_symbols.len());
         for (boundary, symbol) in self.boundary_symbols.iter() {
             let signature = signatures.get(
@@ -305,7 +305,7 @@ impl<'t> Program<'t> {
                     reach: &reach,
                     entries: &entries,
                 },
-                &mut identities,
+                &mut qualifications.identities,
             )
             .map_err(unavailable)?;
             let service = *terminal_check_tables::row(
@@ -315,11 +315,17 @@ impl<'t> Program<'t> {
                 Construct::Machine,
             )?;
             let declaration = crate::lower::boundary(
-                caller, boundary, signatures, outcomes, records, metadata, service,
+                caller,
+                boundary,
+                signatures,
+                outcomes,
+                records,
+                metadata,
+                service,
+                qualifications,
             )?;
             boundaries.push(declaration);
         }
-        module.identities = identities.build();
         module.boundary_machines = boundaries;
         Ok(())
     }

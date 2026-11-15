@@ -55,16 +55,18 @@ raw-plan range validator still performs fresh liveness replay on every call.
 
 ## Home assignment and recovery
 
-[Home assignment](src/home_assignment.rs) independently validates
-the transition-free, spill-free constraint solution. Tied values share a domain
+[Home assignment](src/home_assignment.rs) solves the transition-free,
+spill-free constraint problem. Nothing replays its solution: the default
+compile trusts the solver ([verification placement](../../../../pipeline.md#verification-placement)),
+and `RegisterHomeReceipt` only binds the plan to the identities and counts of
+its inputs. Tied values share a domain
 formed by intersecting legal views. Interference uses storage/write conflicts;
 early-clobber conflicts are directional. The deterministic producer selects the
 most constrained viable domain, then constrained degree, earliest live point,
 and canonical value order, and chooses the lowest compatible view — preferring
 the view that satisfies the most already-assigned copy partners, then the most
 still-unassigned partners that would themselves take that view under their own
-satisfied-edge ranking, among those legal candidates. Replay
-reconstructs domains, conflicts, and placement separately. Exhaustion is typed
+satisfied-edge ranking, among those legal candidates. Exhaustion is typed
 pressure, not permission to manufacture a home or silently change policy.
 
 The producer prepares domain-pair interference, both directional early-clobber
@@ -72,16 +74,14 @@ relations, and sparse hardware-view conflicts once per allocation attempt. It
 admits all candidates in the original domain/view order before placement; later
 choices only remove candidates from those admitted sets. These private
 facts avoid repeating source scans during greedy placement; they do not change
-candidate order, ranking, error order, or the independently reconstructed result.
+candidate order, ranking, or error order.
 Each new assignment can only remove viable views from remaining domains.
-Producer and replay retain their own candidate sets and remaining constraint
-counts, applying only the newest assignment instead of rescanning earlier ones.
-Replay reconstructs its relationships from current ranges, not the producer's
-prepared facts. Initial view validation keeps the original error order.
+The producer retains its candidate sets and remaining constraint counts,
+applying only the newest assignment instead of rescanning earlier ones.
+Initial view validation keeps the original error order.
 Genuinely empty physical ranges need no home: selected semantic registers can
 remain for exact bindings, but empty legality must also have no occurrences,
-fixed claims, transfers, ties, or other physical constraints. Independent home
-replay checks the precise resulting roster before preservation or emission.
+fixed claims, transfers, ties, or other physical constraints.
 
 Selection prepares scalar edge copies as ordinary instructions in explicit
 implementation blocks. A live destination parameter and its final transfer

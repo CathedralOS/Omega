@@ -1287,7 +1287,6 @@ pub(crate) mod domain_heads {
                         );
                     }
                     TypeReferenceNode::Named(_)
-                    | TypeReferenceNode::DynamicTrait { .. }
                     | TypeReferenceNode::ConstExpression(_)
                     | TypeReferenceNode::Unit => {}
                 }
@@ -1542,7 +1541,6 @@ mod eligibility {
                 TypeReferenceNode::Reference { .. }
                 | TypeReferenceNode::Slice { .. }
                 | TypeReferenceNode::ConstExpression(_)
-                | TypeReferenceNode::DynamicTrait { .. }
                 | TypeReferenceNode::Unit => {}
             }
         }

@@ -383,8 +383,7 @@ mod argument_types {
         while let Some(reference) = pending.pop() {
             match reference {
                 TypeReference::AliasUse { expansion, .. } => pending.push(expansion),
-                TypeReference::Named { symbol, .. }
-                | TypeReference::DynamicTrait { symbol, .. } => {
+                TypeReference::Named { symbol, .. } => {
                     if binder(*symbol) {
                         return false;
                     }
@@ -1546,9 +1545,7 @@ fn classify_type_reference(
         TypeReference::AliasUse { expansion, .. } => {
             classify_type_reference(binders, trees, expansion, depth + 1)
         }
-        TypeReference::Named { symbol, .. } | TypeReference::DynamicTrait { symbol, .. } => {
-            binder_closure(binders, trees, *symbol)
-        }
+        TypeReference::Named { symbol, .. } => binder_closure(binders, trees, *symbol),
         TypeReference::Reference(reference) => classify_type_reference(
             binders,
             trees,

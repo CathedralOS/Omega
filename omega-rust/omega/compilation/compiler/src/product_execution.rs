@@ -25,10 +25,10 @@ use crate::terminal::{ProducedTerminalProduct, TerminalProductRequest};
 use crate::{CheckedCompilation, CompileReport};
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationSelections;
-use package_evidence::permission_acceptance::TerminalPermissionAcceptance;
 use products::{
     CheckedProductReport, NativeProductRequest, ProductReportPlan, ProductReportRequest,
 };
+use review_evidence::permission_acceptance::TerminalPermissionAcceptance;
 use std::path::PathBuf;
 
 #[derive(Clone)]
@@ -529,11 +529,11 @@ impl TerminalCompilation {
 
 fn admit_permissions(
     checked: &CheckedCompilation,
-    declarations: &package_evidence::permission_acceptance::PreparedRuntimePolicy,
+    declarations: &review_evidence::permission_acceptance::PreparedRuntimePolicy,
     permissions: Option<&TerminalPermissionAcceptance>,
     runtime_product: bool,
 ) -> Result<(), CompilationProductError> {
-    let input = package_evidence::permission_acceptance::RuntimePermissionInput::from_compilation(
+    let input = review_evidence::permission_acceptance::RuntimePermissionInput::from_compilation(
         declarations,
         checked,
     );

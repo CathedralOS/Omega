@@ -3036,31 +3036,6 @@ pub(crate) mod trait_defaults {
                     })
                 }
             }
-            TypeReferenceNode::DynamicTrait {
-                trait_name,
-                trait_arguments,
-            } => {
-                let original = syntax_type_references(syntax)
-                    .type_reference_handles(trait_arguments)
-                    .to_vec();
-                let substituted = original
-                    .iter()
-                    .map(|argument| substitute_type_reference(syntax, *argument, substitution))
-                    .collect::<Vec<_>>();
-                if substituted == original {
-                    handle
-                } else {
-                    let trait_arguments = syntax
-                        .type_references
-                        .insert_type_reference_handles(substituted);
-                    syntax
-                        .type_references
-                        .insert(TypeReferenceNode::DynamicTrait {
-                            trait_name,
-                            trait_arguments,
-                        })
-                }
-            }
             TypeReferenceNode::StaticSelection(selection) => {
                 let mut changed = false;
                 let selected =
@@ -4480,30 +4455,6 @@ pub(crate) mod declared_types {
                 | TypeReferenceNode::Slice { element_type } => {
                     self.reference(syntax, element_type, bound)?
                 }
-                TypeReferenceNode::DynamicTrait {
-                    trait_name,
-                    trait_arguments,
-                } => {
-                    let arguments = syntax
-                        .type_references
-                        .type_reference_handles(trait_arguments)
-                        .to_vec();
-                    let parameters = self.selection.generic_parameter_roles(
-                        syntax,
-                        &self.declarations,
-                        &trait_name,
-                        &[SymbolKind::Trait],
-                    );
-                    for (position, argument) in arguments.iter().enumerate() {
-                        if parameters
-                            .as_ref()
-                            .and_then(|parameters| parameters.get(position))
-                            .is_some_and(|parameter| *parameter == GenericParameterRole::Type)
-                        {
-                            self.reference(syntax, *argument, bound)?;
-                        }
-                    }
-                }
                 _ => {}
             }
             Ok(())
@@ -4666,7 +4617,6 @@ pub(crate) mod declared_types {
             let name = match forest.type_references.type_reference(position) {
                 TypeReferenceNode::Named(name) => Some(name),
                 TypeReferenceNode::Generic { base_name, .. } => Some(base_name),
-                TypeReferenceNode::DynamicTrait { trait_name, .. } => Some(trait_name),
                 TypeReferenceNode::FixedArray {
                     length: syntax_trees::types::FixedArrayLength::ConstParameter(name),
                     ..
@@ -4817,12 +4767,6 @@ pub(crate) mod declared_types {
                 children
             }
             TypeReferenceNode::Slice { element_type } => vec![*element_type],
-            TypeReferenceNode::DynamicTrait {
-                trait_arguments, ..
-            } => templates
-                .type_references
-                .type_reference_handles(*trait_arguments)
-                .to_vec(),
             _ => Vec::new(),
         };
         for child in children {

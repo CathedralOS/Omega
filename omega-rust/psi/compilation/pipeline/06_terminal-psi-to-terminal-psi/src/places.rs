@@ -123,23 +123,8 @@ impl Lineage {
     fn descriptor_location(
         &self,
     ) -> Option<terminal_semantics::descriptor_lifetimes::DescriptorLocation> {
-        use terminal_semantics::descriptor_lifetimes::{DescriptorLocation, DescriptorPathSegment};
-        Some(DescriptorLocation {
-            root: self.root,
-            path: self
-                .segments
-                .iter()
-                .map(|step| {
-                    Some(match step {
-                        Segment::Field(field) => DescriptorPathSegment::Field(*field),
-                        Segment::Case(case) => DescriptorPathSegment::Case(*case),
-                        Segment::FixedIndex(index) => DescriptorPathSegment::FixedIndex(*index),
-                        Segment::Referent => DescriptorPathSegment::Referent,
-                        Segment::RuntimeIndex { .. } | Segment::Extent => return None,
-                    })
-                })
-                .collect::<Option<Vec<_>>>()?,
-        })
+        use terminal_semantics::descriptor_lifetimes::DescriptorLocation;
+        DescriptorLocation::captured(self.root, &self.segments)
     }
 }
 
@@ -190,27 +175,7 @@ pub(crate) fn overlap(left: &Lineage, right: &Lineage) -> bool {
     if left.root != right.root {
         return false;
     }
-    let parting = left
-        .segments
-        .iter()
-        .zip(&right.segments)
-        .find(|(left, right)| left != right);
-    match parting {
-        // One path is a prefix of the other: the same place, or ancestor and
-        // descendant.
-        None => true,
-        Some((Segment::Field(_), Segment::Field(_)))
-        | Some((Segment::FixedIndex(_), Segment::FixedIndex(_))) => false,
-        Some((
-            Segment::Field(_)
-            | Segment::Case(_)
-            | Segment::FixedIndex(_)
-            | Segment::RuntimeIndex { .. }
-            | Segment::Extent
-            | Segment::Referent,
-            _,
-        )) => true,
-    }
+    terminal_semantics::storage::place_paths::may_overlap(&left.segments, &right.segments)
 }
 
 /// Whether a field stores a shared byte view, the one view a record holds:
@@ -656,7 +621,6 @@ impl<'a> Storage<'a> {
         before: usize,
         concerns: Construct,
     ) -> Checked<Lineage> {
-        use terminal_semantics::descriptor_lifetimes::DescriptorPathSegment;
         if !place.segments.contains(&Segment::Referent) {
             return Ok(place.clone());
         }
@@ -692,16 +656,7 @@ impl<'a> Storage<'a> {
             })?;
         let resolved = Lineage {
             root: captured.root,
-            segments: captured
-                .path
-                .into_iter()
-                .map(|step| match step {
-                    DescriptorPathSegment::Field(field) => Segment::Field(field),
-                    DescriptorPathSegment::Case(case) => Segment::Case(case),
-                    DescriptorPathSegment::FixedIndex(index) => Segment::FixedIndex(index),
-                    DescriptorPathSegment::Referent => Segment::Referent,
-                })
-                .collect(),
+            segments: captured.path,
         };
         self.shape(&resolved, concerns)?;
         Ok(resolved)
@@ -1351,6 +1306,34 @@ impl<'a> Storage<'a> {
         };
         for segment in &place.segments {
             at = match (at, segment) {
+                (
+                    Shape::Typed(_) | Shape::Scalar(_),
+                    Segment::RepresentationView {
+                        structural_type,
+                        stored_scalar,
+                    },
+                ) => {
+                    let view = terminal_semantics::representation_view_declaration(
+                        self.module.structural_types.iter(),
+                        *structural_type,
+                        *stored_scalar,
+                    )
+                    .ok_or_else(|| {
+                        self.foreign(
+                            concerns,
+                            "a storage view has no matching presentation and codec",
+                        )
+                    })?;
+                    match view.shape {
+                        StructuralTypeShape::PrimitiveScalar(scalar) => Shape::Scalar(scalar),
+                        _ => Shape::Typed(view.id),
+                    }
+                }
+                (Shape::Payload(_), Segment::RepresentationView { .. }) => {
+                    return Err(
+                        self.foreign(concerns, "a storage view is applied to a case namespace")
+                    );
+                }
                 (Shape::Scalar(_), _) => {
                     return Err(self.foreign(concerns, "a place lies beneath a scalar field"));
                 }
@@ -2807,12 +2790,14 @@ impl<'a> Storage<'a> {
         if let Some(leaf) = self.read_leaf(operation)? {
             return Ok(vec![leaf]);
         }
+        if let Some(source) = self.moved_source(operation)? {
+            return Ok(vec![source]);
+        }
         match &operation.kind {
             OperationKind::StructuralLeafCopy { source, path } => {
                 Ok(vec![self.stored_at(*source, path, concerns)?])
             }
-            OperationKind::MoveStructuralValue { source }
-            | OperationKind::EstablishReference { source, .. } => {
+            OperationKind::EstablishReference { source, .. } => {
                 Ok(vec![self.argument(source, concerns)?])
             }
             OperationKind::ReleaseReference { source, path } => {
@@ -2859,6 +2844,40 @@ impl<'a> Storage<'a> {
         }
     }
 
+    /// Both owned transport and an exclusive storage window read exactly the
+    /// region they vacate. The same source drives the read check and write log.
+    fn moved_source(&self, operation: &Operation) -> Checked<Option<Lineage>> {
+        let concerns = Construct::Operation(operation.id);
+        match &operation.kind {
+            OperationKind::MoveStructuralValue { source } => {
+                self.argument(source, concerns).map(Some)
+            }
+            OperationKind::MoveStructuralField {
+                source,
+                path,
+                field,
+            } => self
+                .projected_storage(*source, path, *field, concerns)
+                .map(Some),
+            _ => Ok(None),
+        }
+    }
+
+    fn projected_storage(
+        &self,
+        root: PlaceId,
+        path: &[StructuralPathSegment],
+        field: Option<semantic_vocabulary::StructuralFieldId>,
+        concerns: Construct,
+    ) -> Checked<Lineage> {
+        let mut selected = self.stored_at(root, path, concerns)?;
+        if let Some(field) = field {
+            selected.segments.push(Segment::Field(field));
+            self.shape(&selected, concerns)?;
+        }
+        Ok(selected)
+    }
+
     /// The explicit field destination, used to state that field's invariant.
     /// This is not an inventory of call effects or owned consumption.
     fn field_destination(&self, operation: &Operation) -> Checked<Option<Lineage>> {
@@ -2887,12 +2906,8 @@ impl<'a> Storage<'a> {
             } => (destination, path, None),
             _ => return Ok(None),
         };
-        let mut stored = self.stored_at(*destination, path, concerns)?;
-        if let Some(field) = field {
-            stored.segments.push(Segment::Field(field));
-            self.shape(&stored, concerns)?;
-        }
-        Ok(Some(stored))
+        self.projected_storage(*destination, path, field, concerns)
+            .map(Some)
     }
 
     /// Every storage change uses the already derived write log, including

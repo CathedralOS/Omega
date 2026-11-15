@@ -100,7 +100,7 @@ fn capture_scalar_applications(
     installation: Option<&terminal_installation::AdmittedProviderSelections>,
 ) -> Result<Option<AdmittedScalarApplications>, &'static str> {
     if input.plan().psi != identity
-        || input.target_machine_selections().is_none_or(|selected| {
+        || input.target_context().is_none_or(|selected| {
             selected.terminal_psi() != identity || selected.target() != target.target_name()
         })
     {

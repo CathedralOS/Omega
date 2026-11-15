@@ -90,6 +90,40 @@ pub(super) fn atom_type(atom: BuiltinTypeAtom, machine: MachineId) -> Checked<Sc
     }
 }
 
+/// A scalar's storage keeps its own builtin identity when a loan presents
+/// different bits. Use the inverse of `atom_type`, including floats and
+/// addresses, rather than borrowing the destination's identity.
+pub(super) fn scalar_atom(scalar: ScalarType, machine: MachineId) -> Checked<BuiltinTypeAtom> {
+    Ok(match scalar {
+        ScalarType::Boolean => BuiltinTypeAtom::Bool,
+        ScalarType::Integer(integer) if integer.is_address() => BuiltinTypeAtom::Address,
+        ScalarType::Integer(integer) => {
+            let bits = integer.bits().ok_or_else(|| {
+                refuse(
+                    machine,
+                    Construct::Machine,
+                    Unserved::Type("scalar lender has an unresolved integer width"),
+                )
+            })?;
+            BuiltinTypeAtom::Integer(
+                FixedInteger::new(integer.sign(), u64::from(bits)).ok_or_else(|| {
+                    refuse(
+                        machine,
+                        Construct::Machine,
+                        Unserved::Type("scalar lender has no fixed integer carrier"),
+                    )
+                })?,
+            )
+        }
+        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => {
+            BuiltinTypeAtom::F32
+        }
+        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => {
+            BuiltinTypeAtom::F64
+        }
+    })
+}
+
 /// The integer type a literal landed on, through the same width table.
 fn landed_type(
     landed: numerics::literals::LandedIntegerType,
@@ -161,9 +195,9 @@ impl Program<'_> {
                 TypeReferenceNode::Reference { .. }
                 | TypeReferenceNode::FixedArray { .. }
                 | TypeReferenceNode::Slice { .. } => return Ok(false),
-                TypeReferenceNode::ConstExpression(_)
-                | TypeReferenceNode::DynamicTrait { .. }
-                | TypeReferenceNode::Unit => return Err(unserved()),
+                TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Unit => {
+                    return Err(unserved());
+                }
             }
         }
         Err(unserved())
@@ -242,7 +276,6 @@ impl Program<'_> {
                 )))
             }
             TypeReferenceNode::ConstExpression(_) => unserved("const expression"),
-            TypeReferenceNode::DynamicTrait { .. } => unserved("dynamic trait"),
             TypeReferenceNode::Unit => unserved("unit as a value"),
         }
     }
@@ -579,7 +612,8 @@ impl Program<'_> {
             } = self.typed.type_reference_table.type_reference(handle)
             && !arguments.is_empty()
             && lifetime_arguments.is_empty()
-            && self.typed.closed_data_definition(handle).is_some()
+            && (self.typed.closed_data_definition(handle).is_some()
+                || self.typed.layout_storage_arguments(handle).is_some())
         {
             return self.record_at(id, handle);
         }
@@ -889,6 +923,13 @@ impl Program<'_> {
         // A domain's predicates are judged where the place declared in it
         // has a contract to join (`predicates`); each place without one
         // refuses them there by name.
+        if !self
+            .declared_domains
+            .iter()
+            .any(|(symbol, _)| *symbol == domain)
+        {
+            self.declared_domains.push((domain, plain));
+        }
         Ok(())
     }
 
@@ -1051,6 +1092,32 @@ impl Program<'_> {
         match value {
             Some(value) if integer.admits(value) => Ok((value, integer)),
             Some(_) | None => unserved("integer literal outside its type"),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn served_scalar_atoms_keep_their_storage_identity() {
+        let machine = MachineId::new(1).unwrap();
+        for atom in BuiltinTypeAtom::ALL {
+            if symbols::PrimitiveType::from_builtin_atom(atom).is_none() {
+                continue;
+            }
+            let scalar = atom_type(atom, machine).unwrap();
+            assert_eq!(scalar_atom(scalar, machine).unwrap(), atom);
+        }
+        // Dynamically installed widths must retain their sign and width too,
+        // rather than becoming one of the fixed root-slot integer atoms.
+        for bits in [1, 7, 31, 65, 127] {
+            for sign in [IntegerSign::Signed, IntegerSign::Unsigned] {
+                let atom = BuiltinTypeAtom::Integer(FixedInteger::new(sign, bits).unwrap());
+                let scalar = atom_type(atom, machine).unwrap();
+                assert_eq!(scalar_atom(scalar, machine).unwrap(), atom);
+            }
         }
     }
 }

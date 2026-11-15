@@ -11,7 +11,7 @@ Choose the domain that owns the use case:
 | [packages/](packages/README.md) | Package operations, acquisition, review and compilation inputs |
 | [foundation/](foundation/README.md) | Primitives shared across these domains |
 
-The application is Cargo package `omega` in `application/cli/`; run it from the
+The application is Cargo package `omega` in `application/`; run it from the
 workspace root with `mbx run -p omega -- run <root.omg>`.
 
 These directories group independent packages by responsibility. Each package

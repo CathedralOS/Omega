@@ -52,11 +52,7 @@ pub(crate) mod source_parsing {
                 count.max(1)
             } else {
                 count
-                    .min(
-                        tokens_to_syntax_trees::parser::parse_worker_count()
-                            .max(1)
-                            .saturating_mul(4),
-                    )
+                    .min(execution_admission::current_workers().saturating_mul(4))
                     .max(1)
             };
             let chunk_size = count.max(1).div_ceil(desired_pages);
@@ -80,19 +76,18 @@ pub(crate) mod source_parsing {
                 })
                 .collect();
             let mut pages = Vec::with_capacity(if page_count == 1 { 0 } else { page_count });
-            let mut single_page_sources =
-                tokens_to_syntax_trees::parser::with_parse_workers(|| {
-                    if let [syntax] = trees.as_mut_slice() {
-                        Some(parse_page(sources, syntax))
-                    } else {
-                        sources
-                            .par_chunks_mut(chunk_size)
-                            .zip_eq(trees.par_iter_mut())
-                            .map(|(sources, syntax)| parse_page(sources, syntax))
-                            .collect_into_vec(&mut pages);
-                        None
-                    }
-                });
+            let mut single_page_sources = execution_admission::within_budget(|| {
+                if let [syntax] = trees.as_mut_slice() {
+                    Some(parse_page(sources, syntax))
+                } else {
+                    sources
+                        .par_chunks_mut(chunk_size)
+                        .zip_eq(trees.par_iter_mut())
+                        .map(|(sources, syntax)| parse_page(sources, syntax))
+                        .collect_into_vec(&mut pages);
+                    None
+                }
+            });
             for page in single_page_sources.iter_mut().chain(&mut pages) {
                 if let Some(error) = page.lexical_error.take() {
                     return Err(vec![error]);

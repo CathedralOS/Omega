@@ -546,10 +546,12 @@ mod type_identity {
         assert_eq!(malformed_identity_offset(readable), None);
         let trailing = format!("{readable},elided-region");
         assert_eq!(malformed_identity_offset(&trailing), Some(readable.len()));
+        // The comma introduces a region operand. The ordinary reader stops at
+        // the unsupported operand after consuming the separator.
         let second_operand = "ref(compiler-type(atom(u8)),elided-region)";
         assert_eq!(
             malformed_identity_offset(second_operand),
-            second_operand.find(",elided")
+            second_operand.find("elided-region")
         );
         assert_eq!(malformed_identity_offset(""), Some(0));
         assert_eq!(malformed_identity_offset("unknown(x)"), Some(0));

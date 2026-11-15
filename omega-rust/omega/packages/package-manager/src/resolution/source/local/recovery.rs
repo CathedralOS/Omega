@@ -12,10 +12,10 @@ use super::super::{
 };
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::dependencies::read::DependencyProjections;
-use package_source::local::operations::{
+use source_acquisition::local::operations::{
     recover_cached_local_source_in_lane, verify_package_source_snapshot,
 };
-use package_source::{
+use source_acquisition::{
     ImmutableSourceResolution, SourceContentDigest, SourceLineage, SourceResolver,
 };
 
@@ -69,4 +69,5 @@ pub(crate) fn recover_cached_external_local_source(
 }
 
 #[cfg(test)]
+#[path = "recovery_tests.rs"]
 mod tests;

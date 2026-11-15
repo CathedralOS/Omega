@@ -39,7 +39,7 @@ pub(crate) use limits::PackageLockRecoveryLimits;
 pub(crate) use occurrences::{
     PackageCheckedContext, PackageOccurrenceRoster, PackageOccurrenceRosterError,
 };
-use package_evidence::record::PackagePolicyBaseline;
+use review_evidence::record::PackagePolicyBaseline;
 use target::TargetProfile;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

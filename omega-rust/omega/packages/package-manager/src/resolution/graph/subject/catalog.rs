@@ -208,7 +208,7 @@ mod tests {
     use crate::declarations::dependencies::read::{DependencyProjections, PackageSelection};
     use crate::declarations::{PackageKey, PackageName};
     use crate::resolution::source::PackageSourceNavigation;
-    use package_source::{GitCommitId, GitSourceRequest, GitTreeId, ImmutableSourceResolution};
+    use source_acquisition::{GitCommitId, GitSourceRequest, GitTreeId, ImmutableSourceResolution};
 
     fn source_graph(name: &str, locator: &str) -> CanonicalSourceClosureSubject {
         let request = GitSourceRequest::new(locator, Some("main".into())).unwrap();
@@ -255,7 +255,7 @@ mod tests {
             )
             .unwrap(),
             navigation: PackageSourceNavigation::Member(
-                package_source::SourceRelativePath::parse("unselected").unwrap(),
+                source_acquisition::SourceRelativePath::parse("unselected").unwrap(),
             ),
             purpose: DependencyPurpose::Build,
             ordinal: 0,
@@ -330,7 +330,7 @@ mod tests {
         let pins = crate::resolution::graph::GitDependencyPins::new(
             &recovered,
             &[],
-            package_source::git::resolution::GitExactRevisionAcquisition::Offline,
+            source_acquisition::git::resolution::GitExactRevisionAcquisition::Offline,
         )
         .unwrap();
         let options = crate::resolution::graph::GitResolutionOptions {

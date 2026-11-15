@@ -1,29 +1,22 @@
 #![forbid(unsafe_code)]
 
 /*
-We define the target-neutral abstract operation representation (`AbstractOperationPlan`
-and `AbstractOperation`) consumed by the Omega optimization and target-lowering
-pipeline.
+Abstract operations describe the executable program consumed by Omega's optimizer
+and target lowering. Terminal Psi is the portable semantic product, in memory as
+well as on the wire; serializing it is not what creates this boundary.
 
-Terminal Psi (`PSITERM\0`) arrives with verified control flow, structural place
-custody, loan lifetimes, and obligation certificates, but its serialized form is
-organized as a wire artifact rather than an optimizer representation. We lower
-verified Terminal Psi into flat per-machine operation plans where scalar values,
-structural storage homes, call signatures, atomic memory events, and control
-transfers carry explicit, self-contained semantic custody without target ABI
-commitments.
-*/
+Lowering extracts the admitted execution closure, erases mathematical arguments,
+normalizes scalar operations and makes runtime storage and cleanup explicit.
+Blocks own their operation sequences and edge transfers. The optimizer derives
+SSA definitions, uses, effects and rewrite facts from these same blocks rather
+than reconstructing another partition of a flat instruction stream.
 
-/*
-Optimization and target-lowering stages need a single representation where
-scalar SSA definitions, structural storage lifecycles, restoration windows,
-and call contracts can be inspected without re-parsing Terminal Psi tables or
-committing prematurely to physical ABIs. We partition the representation by
-semantic domain—calls, control flow, atomic events, integer arithmetic,
-quotients, access references, and structural stores—while keeping this crate
-strictly target-neutral (`psi -> abstract-operations`): no register classes,
-calling conventions, or instruction encodings appear here, and every projection
-helper fails closed on duplicate or unverified declarations.
+The operation vocabulary remains target-neutral. Native admission can already
+close layout and lifecycle choices and select the execution closure; physical
+ABI placements, register classes and instruction encodings belong to later forms.
+Retained contracts and semantic identities preserve the relationship with the
+authorized Psi product; neither copied evidence nor these data records grant
+execution authority.
 */
 
 pub(crate) use optimization_core::codec_bytes;
@@ -37,7 +30,7 @@ use terminal_psi::{
 pub struct AbstractOperationPlan {
     pub psi: TerminalPsiIdentity,
     pub entry: MachineId,
-    pub structural_types: StructuralTypeCatalog, // Target-neutral carrier shapes retained for Omega layout and ABI selection.
+    pub structural_types: StructuralTypeCatalog, // Structural declarations and admitted layout/lifecycle relationships retained for ABI planning.
     pub boundary_machines: Vec<BoundaryMachineDeclaration>, // Exact bodyless boundary declarations available to Unit operations.
     pub provider_candidates: Vec<ProviderCandidateConformance>, // Verifier-approved checked provider catalog.
     pub dynamic_dispatch: terminal_psi::TerminalDynamicDispatchCatalog, // Requirement-owned interfaces and selectable implementation maps.
@@ -66,9 +59,7 @@ impl AbstractOperationPlan {
     }
 
     pub fn operations(&self) -> impl Iterator<Item = &AbstractOperation> + '_ {
-        self.functions
-            .iter()
-            .flat_map(|function| &function.operations)
+        self.functions.iter().flat_map(AbstractFunction::operations)
     }
 }
 
@@ -91,12 +82,11 @@ pub use atomic::{
 pub mod calls;
 pub use calls::{
     AbstractBoundaryResult, AbstractCallSignature, AbstractCallTarget,
-    AbstractOperationPlanWithAccessViewInputs, AbstractStructuralCallResult, StructuralCallFormal,
-    StructuralCallResult, call_source,
+    AbstractStructuralCallResult, StructuralCallFormal, StructuralCallResult, call_source,
 };
 pub mod control_flow;
 pub use control_flow::{
-    AbstractBlockEntry, AbstractFunction, AbstractStructuralBinding,
+    AbstractBlock, AbstractFunction, AbstractStructuralBinding,
     AbstractStructuralCasePayloadBinding, AbstractStructuralCaseSuccessor, AbstractSuccessor,
 };
 pub mod values;

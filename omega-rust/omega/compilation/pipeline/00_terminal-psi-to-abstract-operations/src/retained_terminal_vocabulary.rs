@@ -525,33 +525,12 @@ mod providers {
         requirement_identity
     });
 
-    record_fields!(backend_plan::SelectedFamilyRealizationSource {
-        head_declaration_identity,
-        head_callable_identity,
-        target,
-        selected_requirement_identity,
-        provider_plan_report_identity,
-        provider_plan_digest
-    });
-
     record_fields!(effects::SelectedRequirementSpecialization {
         provider_plan_report_identity,
         selected_requirement_identity,
         selected_machine_identity,
         requirement_identity,
         machine_identity
-    });
-
-    record_fields!(effects::SelectedTargetFamilyRealization {
-        terminal,
-        target,
-        head,
-        member,
-        head_identity,
-        member_identity,
-        selected_requirement_identity,
-        provider_plan_report_identity,
-        provider_plan_digest
     });
 
     record_variants!(effects::provider_plan::ServiceEntryAuthorityFlow {
