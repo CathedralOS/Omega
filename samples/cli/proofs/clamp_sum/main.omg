@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Clamp a series of raw sensor readings into a valid band and sum the results.
 // Each reading is clamped to [0, 60] via the standard idiom `max(lo, min(v, hi))`,
 // This composes the ordinary integer min/max helper contracts. For readings [80, -5, 50, 200, 30] the clamped values
@@ -23,7 +24,7 @@ machine clamp_sum(s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32 in Wrappin
 data Main {
 }
 
-machine Main::main(context: &mut Main) reaches Console {
+machine Main::main(context: &mut Main) reaches ProcessExit + Console {
     Console::write_line("clamp_sum: clamp readings [80, -5, 50, 200, 30] to [0, 60] and sum them");
     let values: [i32 in Wrapping; 5] = [80, -5, 50, 200, 30];
 
@@ -33,11 +34,11 @@ machine Main::main(context: &mut Main) reaches Console {
     Console::write_line("[press Enter to close]");
     let mut pause: [u8; 256];
     _ = block Console::read_line(&mut pause);
-    Console::exit_process(total);
+    ProcessExit::exit_process(total);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

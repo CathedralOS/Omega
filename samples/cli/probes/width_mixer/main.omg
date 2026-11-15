@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Width mixer: mixed integer widths (i16, u8, i32) in arithmetic chains.
 //
 // Exercises: i16 and u8 fields in the same data struct as i32 fields,
@@ -39,7 +40,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("width_mixer: u8, i16, and i32 fields combined through named widening");
     // Set up the sub-width fields.
     main.data.flags = 5;
@@ -80,33 +81,33 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("PASS: 50 - 300 + 320 = 70 across three widths (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(70);
+        ProcessExit::exit_process(70);
     }
 
     machine bad_total(main: &mut Main) {
         Console::write_line("FAIL: the mixed-width total was not 70 (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(71);
+        ProcessExit::exit_process(71);
     }
 
     machine bad_flags(main: &mut Main) {
         Console::write_line("FAIL: the u8 flags field did not read back 5 (exit 72)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(72);
+        ProcessExit::exit_process(72);
     }
 
     machine bad_offset(main: &mut Main) {
         Console::write_line("FAIL: the i16 offset field did not read back -300 (exit 73)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(73);
+        ProcessExit::exit_process(73);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

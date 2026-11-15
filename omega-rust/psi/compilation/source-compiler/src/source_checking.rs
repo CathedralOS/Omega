@@ -43,7 +43,6 @@ mod constant_entries {
 pub struct SourceAdmission<'request> {
     pub invocation_sources: Option<Arc<dyn build_time_evaluation::InvocationSourceConsent>>,
     pub external_roots: &'request [symbols::SymbolHandle],
-    pub completion: typed_trees::boundary_completions::SourceCompletionAdmission<'request>,
     pub representations: ProductRepresentationInput<'request>,
     pub layout_scopes: &'request [build_time_evaluation::FixedLayoutTargetScope],
     pub layout_selection_authority:
@@ -130,10 +129,6 @@ impl SourcePreparationRequest<'_> {
             }
             self.admission.representations.require_none_requested()?;
             let mut program = self.program;
-            typed_trees::boundary_completions::prepare_source_completion(
-                &mut program,
-                self.admission.completion,
-            )?;
             build_time_evaluation::evaluate_fixed_layout_applications(
                 &mut program,
                 self.admission.layout_scopes,

@@ -210,7 +210,7 @@ mod tests {
         let schema = ServiceSchemaDigest::from_digest([3; 32]);
         let mut sample_identities = terminal_psi::TerminalIdentityTableBuilder::default();
         let binding = AcceptedSemanticBinding::new(
-            AcceptedSemanticBindingRole::ConsoleExitProcessI32,
+            AcceptedSemanticBindingRole::ConsoleIo,
             package(),
             "std::Console",
             schema,
@@ -220,9 +220,9 @@ mod tests {
         .with_terminal_authority_permissions(
             vec![ServiceTerminalAuthorityPermission::new(
                 schema,
-                sample_identities.intern("exit_process(code: I32)"),
+                sample_identities.intern("write_byte(byte: I32)"),
                 TerminalAuthorityDisposition::from_classes(vec![
-                    TerminalAuthorityClass::ProcessTermination,
+                    TerminalAuthorityClass::ProcessOutput,
                 ]),
             )],
             &sample_identities.build(),

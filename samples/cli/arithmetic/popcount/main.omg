@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Population count (Hamming weight) -- the number of set bits in a word, via the
 // classic shift-and-mask loop. It composes three things this language now has:
 // a bounded state-transition loop, the bitwise AND (`& 1` tests the low bit), and
@@ -16,7 +17,7 @@ use omega_language_std::Console;
 use omega::language::core::narrow_u32_to_i32_trapping;
 
 data Main { }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("popcount: counting the set bits of 0xDEADBEEF by shift-and-mask");
 
     transition {
@@ -47,12 +48,12 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
         _ = block Console::read_line(&mut pause);
-        Console::exit_process(result);
+        ProcessExit::exit_process(result);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

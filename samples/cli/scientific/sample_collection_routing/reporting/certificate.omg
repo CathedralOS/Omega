@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use routing::model;
 
@@ -13,7 +14,7 @@ invokes Console
 
 // A route event must be 0..3; guard before the Exact narrowing to i32.
 // Domain qualification alone does not authorize a narrowing conversion.
-machine route_event(event: u64) reaches Console
+machine route_event(event: u64) reaches ProcessExit + Console
 invokes Console
 {
     transition event < 4 {
@@ -25,7 +26,7 @@ invokes Console
     }
     machine corrupt() {
         Console::write_line("INTERNAL: route event outside 0..3");
-        Console::exit_process(70);
+        ProcessExit::exit_process(70);
     }
 }
 
@@ -51,7 +52,7 @@ requires span.events.len >= 1
     span.events[0] == expected
 }
 
-public machine report(certificate: &Certificate) reaches Console
+public machine report(certificate: &Certificate) reaches ProcessExit + Console
 invokes Console
 {
     Console::write_line("sample_collection_routing: synthetic integer-minute model");
@@ -64,7 +65,7 @@ invokes Console
     }
     machine infeasible() {
         Console::write_line("INFEASIBLE");
-        Console::exit_process(2);
+        ProcessExit::exit_process(2);
     }
     machine optimal(certificate: &Certificate) {
         let head: RouteSpan = chosen_span(&certificate.best.route, 0);
@@ -83,7 +84,7 @@ invokes Console
     }
     machine corrupt_span() {
         Console::write_line("INTERNAL: route window");
-        Console::exit_process(70);
+        ProcessExit::exit_process(70);
     }
     machine emit_optimal(certificate: &Certificate) {
         Console::write_line("OPTIMAL distance_then_completion lexicographic_route");
@@ -105,6 +106,6 @@ invokes Console
         number(certificate.best.arrivals[3]);
         Console::write_line("final_load"); number(certificate.best.load);
         Console::write_line("final_position"); number(certificate.best.position);
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
 }

@@ -1,40 +1,13 @@
 /*
 We represent typed declaration records (`declarations`), including domains, data
 definitions, constants, measures, wire schemas, layout storage, visibility,
-numeric/float intrinsics, and boundary completions in `TypedTrees`.
+numeric/float intrinsics, and exact boundary completion recognition.
 */
 
 pub mod boundary_completions {
+    use crate::TypedTrees;
     use crate::types::{PrimitiveType, TypeReferenceNode};
-    use crate::{BoundaryCompletionDeclaration, TypedTrees};
     use symbols::SymbolHandle;
-
-    pub fn completion_declaration(
-        typed: &TypedTrees,
-        owner: SymbolHandle,
-        package: semantic_vocabulary::PackageKeyIdentity,
-    ) -> Option<BoundaryCompletionDeclaration> {
-        let definition = typed.trait_definition_by_symbol(owner)?;
-        let mut requirements = typed
-            .trait_machine_signatures(definition)
-            .iter()
-            .filter(|signature| signature.name.as_str() == "exit_process");
-        let requirement = requirements.next()?;
-        if requirements.next().is_some() {
-            return None;
-        }
-        let declaration = BoundaryCompletionDeclaration {
-            package: Some(package),
-            owner,
-            owner_path: typed.symbols.display_path(owner, "::"),
-            requirement: requirement.symbol,
-            requirement_path: typed.symbols.display_path(requirement.symbol, "::"),
-            completion: semantic_vocabulary::BoundaryCompletion::External(
-                semantic_vocabulary::ExternalCompletionKind::ProcessExit,
-            ),
-        };
-        valid_boundary_completion_declaration(typed, &declaration).then_some(declaration)
-    }
 
     pub fn boundary_requirement_completion(
         program: &TypedTrees,
@@ -91,21 +64,10 @@ pub mod boundary_completions {
         requirement: SymbolHandle,
     ) -> semantic_vocabulary::BoundaryCompletion {
         use semantic_vocabulary::{BoundaryCompletion, ExternalCompletionKind};
-        let mut declarations = program
-            .boundary_completion_declarations
+        let external = program
+            .traits()
             .iter()
-            .map(|(_, declaration)| declaration)
-            .filter(|declaration| declaration.requirement == requirement);
-        if let Some(declaration) = declarations.next()
-            && declarations.next().is_none()
-            && valid_boundary_completion_declaration(program, declaration)
-        {
-            return declaration.completion;
-        }
-        let external = program.traits().iter().any(|definition| {
-            exact_process_exit_requirement(program, definition, requirement, false)
-                || exact_process_exit_requirement(program, definition, requirement, true)
-        });
+            .any(|definition| exact_process_exit_requirement(program, definition, requirement));
         if external {
             BoundaryCompletion::External(ExternalCompletionKind::ProcessExit)
         } else {
@@ -120,7 +82,7 @@ pub mod boundary_completions {
     ) -> bool {
         program.traits().iter().any(|definition| {
             definition.symbol == trait_symbol
-                && exact_process_exit_requirement(program, definition, requirement, false)
+                && exact_process_exit_requirement(program, definition, requirement)
         })
     }
 
@@ -128,14 +90,8 @@ pub mod boundary_completions {
         program: &TypedTrees,
         definition: &crate::trait_definition::TraitDefinition,
         requirement: SymbolHandle,
-        console_adapter: bool,
     ) -> bool {
         use language_core::sealed_intrinsics::{HostedOperation, SealedIntrinsic};
-        let operation = if console_adapter {
-            HostedOperation::ConsoleExitProcess
-        } else {
-            HostedOperation::ProcessExit
-        };
         if !requirement.is_valid()
             || !definition.is_boundary
             || !definition.lifetime_parameters.is_empty()
@@ -143,12 +99,14 @@ pub mod boundary_completions {
             || program
                 .symbols
                 .sealed_member_intrinsic(definition.symbol, "exit_process")
-                != Some(SealedIntrinsic::HostedRequirement(operation))
+                != Some(SealedIntrinsic::HostedRequirement(
+                    HostedOperation::ProcessExit,
+                ))
         {
             return false;
         }
         let signatures = program.trait_machine_signatures(definition);
-        if !console_adapter && signatures.len() != 1 {
+        if signatures.len() != 1 {
             return false;
         }
         signatures.iter().any(|signature| {
@@ -161,7 +119,9 @@ pub mod boundary_completions {
                 && signature.native_callback_parameters.is_empty()
                 && !signature.suspends
                 && !signature.blocks
-                && exact_direct_intrinsic_signature(
+                && signature.declares_no_crash_route
+                && matches!(&signature.termination_guarantee, language_semantics::TerminationGuarantee::Terminates { premises } if premises.is_empty())
+                && exact_process_exit_signature(
                     program,
                     program.state_signature_parameters(signature),
                     signature.return_type,
@@ -169,77 +129,7 @@ pub mod boundary_completions {
         })
     }
 
-    pub fn valid_boundary_completion_declaration(
-        program: &TypedTrees,
-        declaration: &BoundaryCompletionDeclaration,
-    ) -> bool {
-        if declaration.completion
-            != semantic_vocabulary::BoundaryCompletion::External(
-                semantic_vocabulary::ExternalCompletionKind::ProcessExit,
-            )
-            || !declaration.requirement.is_valid()
-            || declaration.package.is_none()
-            || program.symbols.symbol_package_identity(declaration.owner) != declaration.package
-            || program
-                .symbols
-                .symbol_package_identity(declaration.requirement)
-                != declaration.package
-            || program.symbols.display_path(declaration.owner, "::") != declaration.owner_path
-            || program.symbols.display_path(declaration.requirement, "::")
-                != declaration.requirement_path
-        {
-            return false;
-        }
-        program.traits().iter().any(|definition| {
-            definition.symbol == declaration.owner
-                && definition.is_boundary
-                && definition.is_public
-                && definition.lifetime_parameters.is_empty()
-                && program.trait_type_parameters(definition).is_empty()
-                && program
-                    .trait_machine_signatures(definition)
-                    .iter()
-                    .any(|signature| {
-                        signature.symbol == declaration.requirement
-                            && signature.lifetime_parameters.is_empty()
-                            && program
-                                .state_signature_type_parameters(signature)
-                                .is_empty()
-                            && signature.native_callback_parameters.is_empty()
-                            && !signature.suspends
-                            && !signature.blocks
-                            && program
-                                .state_signature_parameters(signature)
-                                .iter()
-                                .all(|parameter| !parameter.relevance.is_erased())
-                            && exact_direct_intrinsic_signature(
-                                program,
-                                program.state_signature_parameters(signature),
-                                signature.return_type,
-                            )
-                    })
-        })
-    }
-
-    pub fn validate_boundary_completion_declarations(
-        program: &TypedTrees,
-    ) -> Result<(), &'static str> {
-        let mut requirements = Vec::new();
-        for (_, declaration) in program.boundary_completion_declarations.iter() {
-            if !valid_boundary_completion_declaration(program, declaration)
-                || requirements.contains(&declaration.requirement)
-            {
-                return Err(
-                    "boundary completion declaration lost its exact package or requirement custody",
-                );
-            }
-            requirements.push(declaration.requirement);
-        }
-        Ok(())
-    }
-
-    #[doc(hidden)]
-    pub fn exact_direct_intrinsic_signature(
+    fn exact_process_exit_signature(
         program: &TypedTrees,
         parameters: &[crate::signature::StateParameter],
         return_type: crate::types::TypeReferenceHandle,
@@ -247,7 +137,8 @@ pub mod boundary_completions {
         let [parameter] = parameters else {
             return false;
         };
-        !parameter.is_const
+        !parameter.relevance.is_erased()
+            && !parameter.is_const
             && !parameter.is_mutable
             && program.primitive_type_reference(parameter.type_reference)
                 == Some(PrimitiveType::Integer(
@@ -258,125 +149,17 @@ pub mod boundary_completions {
                 loop {
                     match program.type_reference_table.type_reference(current) {
                         TypeReferenceNode::Constrained { base_type, .. } => current = *base_type,
-                        TypeReferenceNode::Unit => break true,
+                        TypeReferenceNode::Named { symbol, .. } => {
+                            break program.symbols.core_vocabulary(*symbol)
+                                == Some(language_core::core_vocabulary::CoreVocabulary::Never);
+                        }
                         _ => break false,
                     }
                 }
             }
     }
-
-    use diagnostics::Diagnostic;
-    use semantic_vocabulary::PackageKeyIdentity;
-
-    #[derive(Clone, Copy, Default)]
-    pub enum SourceCompletionAdmission<'request> {
-        #[default]
-        None,
-        AcceptedProcessExit {
-            package: PackageKeyIdentity,
-            declaration_path: &'request str,
-        },
-        DiscoverProcessExit,
-    }
-
-    pub fn prepare_source_completion(
-        typed: &mut TypedTrees,
-        admission: SourceCompletionAdmission<'_>,
-    ) -> Result<(), Vec<Diagnostic>> {
-        typed.boundary_completion_declarations.clear();
-        let SourceCompletionAdmission::AcceptedProcessExit {
-            package,
-            declaration_path,
-        } = admission
-        else {
-            if matches!(admission, SourceCompletionAdmission::DiscoverProcessExit) {
-                nominate_source_completion(typed)?;
-            }
-            return Ok(());
-        };
-        let declarations = typed
-            .traits()
-            .iter()
-            .filter(|definition| {
-                is_product_declaration(typed, definition.symbol)
-                    && typed.symbols.symbol_package_identity(definition.symbol) == Some(package)
-                    && typed.symbols.display_path(definition.symbol, "::") == declaration_path
-            })
-            .collect::<Vec<_>>();
-        let [definition] = declarations.as_slice() else {
-            return Err(vec![Diagnostic::error(
-                "accepted completion role has no unique package-owned declaration",
-            )]);
-        };
-        let declaration =
-            completion_declaration(typed, definition.symbol, package).ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "accepted completion role has no exact process-exit requirement",
-                )]
-            })?;
-        let _ = typed.boundary_completion_declarations.append(declaration);
-        Ok(())
-    }
-
-    fn nominate_source_completion(typed: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
-        let declarations = typed
-            .traits()
-            .iter()
-            .filter_map(|definition| {
-                if !is_product_declaration(typed, definition.symbol)
-                    || typed.symbols.display_path(definition.symbol, "::") != "Console"
-                {
-                    return None;
-                }
-                let package = typed.symbols.symbol_package_identity(definition.symbol)?;
-                let declaration = completion_declaration(typed, definition.symbol, package)?;
-                has_external_source_candidate(typed, &declaration).then_some(declaration)
-            })
-            .collect::<Vec<_>>();
-        if declarations.len() > 1 {
-            return Err(vec![Diagnostic::error(
-                "completion role discovery has multiple package-owned source declarations",
-            )]);
-        }
-        for declaration in declarations {
-            let _ = typed.boundary_completion_declarations.append(declaration);
-        }
-        Ok(())
-    }
-
-    fn has_external_source_candidate(
-        typed: &TypedTrees,
-        declaration: &BoundaryCompletionDeclaration,
-    ) -> bool {
-        typed.machines().iter().any(|machine| {
-            !machine.body_is_present
-                && matches!(
-                    machine.supply_mode,
-                    language_semantics::MachineSupplyMode::Boundary
-                        | language_semantics::MachineSupplyMode::ExternalRealization { .. }
-                )
-                && is_product_declaration(typed, machine.symbol)
-                && typed.symbols.symbol_package_identity(machine.symbol) == declaration.package
-                && typed
-                    .machine_trait_conformances(machine)
-                    .iter()
-                    .any(|conformance| {
-                        crate::machine::resolve_satisfied_declaration(typed, machine, conformance)
-                            .is_some_and(|requirement| {
-                                requirement.symbol() == declaration.requirement
-                            })
-                    })
-        })
-    }
-
-    fn is_product_declaration(typed: &TypedTrees, symbol: SymbolHandle) -> bool {
-        typed
-            .symbols
-            .symbol_provenance_source_span(symbol)
-            .and_then(|span| typed.symbols.source_file(span))
-            .is_none_or(|file| file.dependency_scope == source::DependencyScope::Product)
-    }
 }
+
 pub mod calling_vocabulary {
     use crate::TypedTrees;
     use crate::data::TypeParameterKind;

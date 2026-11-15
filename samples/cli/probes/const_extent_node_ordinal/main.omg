@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 0
 // Expected output contains: 17
 // A const-generic node table indexed by an ordinal whose declared range is
@@ -31,7 +32,7 @@ requires index < 4
 
 data Main { }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     let roadmap: Nodes<6> = Nodes { x: [0, 10, 3, 7, 3, 7] };
     let quad: Nodes<4> = Nodes { x: [1, 2, 3, 4] };
     let paired: i64 in Wrapping = coordinate(&roadmap, 1) + coordinate(&roadmap, 3);
@@ -40,19 +41,19 @@ machine Main::main(main: &mut Main) reaches Console {
     let opened: i64 in Wrapping = from_call(&quad, start) + coordinate(&quad, 2);
     transition paired == 17 && opened == 4 && roadmap_origin == 0 {
         true -> report(main, paired)
-        false -> Console::exit_process(1)
+        false -> ProcessExit::exit_process(1)
     }
     machine report(main: &mut Main, paired: i64 in Wrapping) {
         number(main, paired);
         Console::write_line("");
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
 }
 
-machine number(main: &mut Main, value: i64 in Wrapping) reaches Console {
+machine number(main: &mut Main, value: i64 in Wrapping) reaches ProcessExit + Console {
     transition value >= 0 && value < 100 {
         true -> tens(main, value, value / 10)
-        false -> Console::exit_process(1)
+        false -> ProcessExit::exit_process(1)
     }
     machine tens(main: &mut Main, value: i64 in Wrapping, ten: i64 in Wrapping) {
         transition ten > 0 {
@@ -70,7 +71,7 @@ machine number(main: &mut Main, value: i64 in Wrapping) reaches Console {
         let byte: i64 in Wrapping = value % 10 + 48;
         transition byte >= 48 && byte <= 57 {
             true -> finish(main, byte)
-            false -> Console::exit_process(1)
+            false -> ProcessExit::exit_process(1)
         }
     }
     machine finish(main: &mut Main, byte: i64 in Wrapping)
@@ -81,7 +82,7 @@ machine number(main: &mut Main, value: i64 in Wrapping) reaches Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     Main::main(&mut entry_storage);
 }

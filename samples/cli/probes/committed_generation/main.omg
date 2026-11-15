@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // One step of a 4-cell line, installed back onto the live board, then
 // stepped again.
 //
@@ -109,7 +110,7 @@ machine Main::checksum(context: &mut Main) -> i32 {
     }
 }
 
-machine Main::main(context: &mut Main) reaches Console {
+machine Main::main(context: &mut Main) reaches ProcessExit + Console {
     Main::seed(context);
     Main::step(context);
     let first: i32 = Main::checksum(context);
@@ -128,13 +129,13 @@ machine Main::main(context: &mut Main) reaches Console {
         }
     }
 
-    machine good(context: &mut Main) { Console::exit_process(50); }
+    machine good(context: &mut Main) { ProcessExit::exit_process(50); }
 
-    machine bad(context: &mut Main) { Console::exit_process(51); }
+    machine bad(context: &mut Main) { ProcessExit::exit_process(51); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     Main::main(&mut entry_storage);
 }

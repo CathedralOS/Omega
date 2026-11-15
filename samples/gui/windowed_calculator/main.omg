@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 use omega::language::core::max_i32;
 use omega::language::core::min_i32;
 
@@ -1010,12 +1011,12 @@ machine Main::main(main: &mut Main) reaches
     machine closed(main: &mut Main, window: Window) {
         Gui::window_destroy(window);
         Console::write_line("windowed calculator closed (exit 0)");
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
     machine bad(main: &mut Main, window: Window) {
         Gui::window_destroy(window);
         Console::write_line("FAIL: windowed_calculator hit a renderer or host assertion (exit 1)");
-        Console::exit_process(1);
+        ProcessExit::exit_process(1);
     }
 }
 

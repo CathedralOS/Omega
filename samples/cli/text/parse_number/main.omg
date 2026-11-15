@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Parse a two-digit number out of its text form -- the core of reading numeric
 // input. Each character byte is widened to i32 through the named conversion,
 // then '0' (48) is subtracted to get the digit, and the digits are combined as
@@ -24,7 +25,7 @@ data Main {
     value: i32;
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("parse_number: reading the two-digit text 25 back into an integer");
     main.text = "25";
 
@@ -40,12 +41,12 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("result: the parsed value, 25 for this text (the exit code)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(main.value);
+        ProcessExit::exit_process(main.value);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

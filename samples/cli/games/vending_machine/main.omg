@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 70.
 // A vending machine driven by a stream of case-payload events.
 //
@@ -31,7 +32,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("vending_machine: folds insert/insert/press events through a coin register");
     // Three events: insert 50c, insert 25c, press slot 1 (price 75c).
     Main::apply(main, Event::Insert { cents: 50 });
@@ -70,7 +71,7 @@ machine Main::main(main: &mut Main) reaches Console {
     machine report(main: &mut Main, code: i32 in Saturating) {
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(code as i32);
+        ProcessExit::exit_process(code as i32);
     }
 }
 
@@ -125,7 +126,7 @@ machine Main::price_of(slot: i32 in Saturating) -> i32 in Saturating {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

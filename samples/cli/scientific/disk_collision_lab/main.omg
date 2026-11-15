@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 use omega::language::core::abs_f64;
 
 // Expected exit: 2 (closed stdin).
@@ -10,7 +11,7 @@ use reporting::ledger;
 use data::fixtures;
 use data::expectations;
 data Main {lab:Lab; choice:i32;}
-machine Main::main(main:&mut Main) reaches Console {
+machine Main::main(main:&mut Main) reaches ProcessExit + Console {
  let input:ByteRead=block Console::read_byte();
  transition input {ByteRead::Byte{value} -> choice(main,value) _ -> invalid(main)}
  machine choice(main:&mut Main,value:i32) {
@@ -58,22 +59,22 @@ machine Main::main(main:&mut Main) reaches Console {
  }
  machine complete(main:&mut Main) {
   totals_row(&main.lab);disk_rows(&main.lab);
-  Console::write_line("status complete");Console::exit_process(0);
+  Console::write_line("status complete");ProcessExit::exit_process(0);
  }
  machine exhausted(main:&mut Main) {
   transition expected_result(&main.lab,main.choice) {true -> report_exhausted(main) _ -> failed(main)}
  }
  machine report_exhausted(main:&mut Main) {
   disk_rows(&main.lab);Console::write_line("status event_budget_exhausted");
-  Console::exit_process(3);
+  ProcessExit::exit_process(3);
  }
- machine invalid(main:&mut Main) {Console::write_line("invalid input: one digit 0..9 and LF required");Console::exit_process(2);}
- machine invalid_model(main:&mut Main) {Console::write_line("invalid model: bounded finite disks, no overlap, restitution 0..1 required");Console::exit_process(2);}
- machine failed(main:&mut Main) {Console::write_line("FAIL conservation or contact tolerance");Console::exit_process(4);}
+ machine invalid(main:&mut Main) {Console::write_line("invalid input: one digit 0..9 and LF required");ProcessExit::exit_process(2);}
+ machine invalid_model(main:&mut Main) {Console::write_line("invalid model: bounded finite disks, no overlap, restitution 0..1 required");ProcessExit::exit_process(2);}
+ machine failed(main:&mut Main) {Console::write_line("FAIL conservation or contact tolerance");ProcessExit::exit_process(4);}
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

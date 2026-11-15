@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // stack_vm: tiny stack-based bytecode evaluator.
 //
 // Opcodes (case type):
@@ -179,7 +180,7 @@ machine Main::step(main: &mut Main, op: Opcode) {
     machine done(main: &mut Main) {}
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("stack_vm: a tiny bytecode VM runs (3 + 4) * 2 - 1 on a fixed stack");
     // Initialize VM.
     Main::init(main);
@@ -208,18 +209,18 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("PASS: program evaluated to 13, reported as 13 + 57 (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(70);
+        ProcessExit::exit_process(70);
     }
     machine bad(main: &mut Main) {
         Console::write_line("FAIL: top of stack was not 13 after the program (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(71);
+        ProcessExit::exit_process(71);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

@@ -77,50 +77,33 @@ pub(crate) fn check_product_source(
                 .flat_map(|selection| [selection.opaque(), selection.application().declaration]),
         );
         let source_admission = source_compiler::SourceAdmission {
-        invocation_sources: None,
-        // Roots belong to structural judgment below, rather than to a deleted
-        // source-checking admission or projection.
-        external_roots: &[],
-        layout_scopes: &layout_scopes,
-        layout_selection_authority: package_inputs.map(|inputs| {
-            Arc::new(inputs.clone()) as Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
-        }),
-        completion: match package_inputs.and_then(|inputs| {
-            inputs.accepted_semantic_binding(
-                package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
-            )
-        }) {
-            Some(binding) => {
-                typed_trees::boundary_completions::SourceCompletionAdmission::AcceptedProcessExit {
-                    package: binding.package(),
-                    declaration_path: binding.declaration_path(),
-                }
-            }
-            None if package_inputs
-                .is_some_and(PackageCompilationInputs::semantic_role_discovery) =>
-            {
-                typed_trees::boundary_completions::SourceCompletionAdmission::DiscoverProcessExit
-            }
-            None => typed_trees::boundary_completions::SourceCompletionAdmission::None,
-        },
-        representations: source_compiler::ProductRepresentationInput {
-            activation: computed_build_config.selected_build_machine_symbol,
-            declared: &computed_build_config.declared_product_selections,
-            executed: &computed_build_config.product_selection_requests,
-            retained: &build.opaque_representation_selections,
-        },
-        asm_authority: Some(
-            language_core::inline_assembly::AsmAuthorityAdmission::from_freestanding(
-                build.settings.freestanding,
-            )
-            .with_grants(
-                build.settings.privileged_services.port_io,
-                build.settings.privileged_services.interrupt_table,
+            invocation_sources: None,
+            // Roots belong to structural judgment below, rather than to a deleted
+            // source-checking admission or projection.
+            external_roots: &[],
+            layout_scopes: &layout_scopes,
+            layout_selection_authority: package_inputs.map(|inputs| {
+                Arc::new(inputs.clone())
+                    as Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
+            }),
+            representations: source_compiler::ProductRepresentationInput {
+                activation: computed_build_config.selected_build_machine_symbol,
+                declared: &computed_build_config.declared_product_selections,
+                executed: &computed_build_config.product_selection_requests,
+                retained: &build.opaque_representation_selections,
+            },
+            asm_authority: Some(
+                language_core::inline_assembly::AsmAuthorityAdmission::from_freestanding(
+                    build.settings.freestanding,
+                )
+                .with_grants(
+                    build.settings.privileged_services.port_io,
+                    build.settings.privileged_services.interrupt_table,
+                ),
             ),
-        ),
-        wire_demands: &build.wire_compatibility_demands,
-        declarations: None,
-    };
+            wire_demands: &build.wire_compatibility_demands,
+            declarations: None,
+        };
 
         let subject = package_inputs.map(PackageCompilationInputs::root);
         let roster = products::ProductRoster {

@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega_language_std::LineReadResult;
 use domain::process;
@@ -14,7 +15,7 @@ data Main {
 // First line: two ASCII digits followed by LF, variant 0..5 and horizon 0..8.
 // Processing ends after this line; trailing input is ignored.
 // The bounded line API distinguishes EOF, full buffers and complete lines.
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     let result: LineReadResult = block Console::read_line(&mut main.input);
     transition result {
         LineReadResult::LineComplete { count } -> length(main, count)
@@ -78,15 +79,15 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_byte(32);
         Main::decimal(main, denominator);
         Console::write_byte(10);
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
     machine invalid(main: &mut Main) {
         Console::write_line("invalid input: expected variant 0..5 and horizon 0..8 followed by LF");
-        Console::exit_process(64);
+        ProcessExit::exit_process(64);
     }
     machine failure(main: &mut Main) {
         Console::write_line("probability conservation failed");
-        Console::exit_process(70);
+        ProcessExit::exit_process(70);
     }
 }
 // Private decimal formatting over the established byte console provider.
@@ -117,7 +118,7 @@ machine Main::decimal(main: &mut Main, number: u64 in Wrapping) reaches Console 
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

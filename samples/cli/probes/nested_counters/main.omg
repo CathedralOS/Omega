@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Nested data: a struct field that is itself a struct, with field updates
 // through an explicit `&mut` subject across multiple sub-machine calls.
 //
@@ -71,7 +72,7 @@ requires
     main.state.multiplier = m;
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("nested_counters: mutating struct-in-struct fields across sub-machine calls");
     Main::set_value(main, 10);
     Main::set_bonus(main, 20);
@@ -90,7 +91,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("FAIL: wrong nested value field (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(71);
+        ProcessExit::exit_process(71);
     }
 
     machine check_bonus(main: &mut Main) {
@@ -104,7 +105,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("FAIL: wrong nested bonus field (exit 72)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(72);
+        ProcessExit::exit_process(72);
     }
 
     machine check_count(main: &mut Main) {
@@ -118,7 +119,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("FAIL: wrong counter value (exit 73)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(73);
+        ProcessExit::exit_process(73);
     }
 
     machine check_multiplier(main: &mut Main) {
@@ -132,7 +133,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("FAIL: wrong nested multiplier field (exit 75)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(75);
+        ProcessExit::exit_process(75);
     }
 
     machine compute_result(main: &mut Main) {
@@ -150,19 +151,19 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("FAIL: wrong combined result (exit 74)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(74);
+        ProcessExit::exit_process(74);
     }
 
     machine good(main: &mut Main) {
         Console::write_line("PASS: 40 + 20 + 2*5 = 70 from nested fields (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(70);
+        ProcessExit::exit_process(70);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

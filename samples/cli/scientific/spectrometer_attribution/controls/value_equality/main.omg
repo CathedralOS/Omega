@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 0.
 // Expected output contains: float equality: equal and unequal
 module spectrometer_equality_control;
@@ -11,7 +12,7 @@ public data Main { }
 // sharing the carrier of a resultless law must not grant proposition equality.
 machine same(left: f64, right: f64) -> bool { left == right }
 
-public machine Main::main(application: &mut Main) reaches Console
+public machine Main::main(application: &mut Main) reaches ProcessExit + Console
 invokes Console
 blocks
 crashes Trap
@@ -29,7 +30,7 @@ crashes Trap
     }
     machine done(application: &mut Main) {
         Console::write_line("float equality: equal and unequal");
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
-    machine bad(application: &mut Main) { Console::exit_process(3); }
+    machine bad(application: &mut Main) { ProcessExit::exit_process(3); }
 }

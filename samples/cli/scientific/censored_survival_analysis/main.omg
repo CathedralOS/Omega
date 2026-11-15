@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Synthetic survival analysis; empty stdin is refused.
 // Expected exit: 2.
 // Expected output contains: ERROR invalid input
@@ -10,7 +11,7 @@ use omega::language::core::F64::from_i32;
 use omega::language::core::I32::from_f64;
 
 data Main { reader: Reader; records: Records; table: Table; logrank: Logrank; }
-machine Main::main(main: &mut Main) reaches Console crashes Trap {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console crashes Trap {
     let count: Number = block number(&mut main.reader);
     let integer: i32 in Saturating = I32::from_f64(count.value);
     transition count.valid && count.value >= 1.0 && count.value <= 32.0 && F64::from_i32(integer as i32) == count.value {
@@ -59,13 +60,13 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
     }
     machine done(main: &mut Main) {
         logrank_report(&mut main.reader, &main.logrank);
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
-    machine invalid(main: &mut Main) { Console::write_line("ERROR invalid input"); Console::exit_process(2); }
+    machine invalid(main: &mut Main) { Console::write_line("ERROR invalid input"); ProcessExit::exit_process(2); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console crashes Trap {
+machine entry_start() reaches ProcessExit + Console crashes Trap {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

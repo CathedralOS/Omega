@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Mandelbrot set, software-rendered to the console as ASCII. A real per-pixel
 // renderer: for each cell map (x,y) to a complex c, run the escape-time iteration
 // z = z*z + c until |z|^2 > 4 or a cap, and pick a palette glyph by escape speed.
@@ -41,7 +42,7 @@ requires self.x >= 0 && self.x <= 64,
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("mandelbrot: escape-time fractal rendered as 64x28 ASCII");
     main.palette = " .:-=+*#";
     main.row = "................................................................";
@@ -118,18 +119,18 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("PASS: 28 rows rendered (exit 0)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
     machine bad(main: &mut Main) {
         Console::write_line("FAIL: internal bounds check failed (exit 1)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(1);
+        ProcessExit::exit_process(1);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

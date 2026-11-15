@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Profile-likelihood endpoint slots are position * 2 + side.
 // Side is the case 0 or 1, not a closed numeric range written by hand.
 // Exact i32 accepts the product when that disjunction is the convex hull
@@ -33,7 +34,7 @@ ensures result >= 0 && result < 8
 
 data Main { endpoints: Endpoints; }
 
-machine Main::main(main: &mut Main) reaches Console crashes Trap {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console crashes Trap {
     main.endpoints.values = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
     let lower: i32 = slot(1, 0);
     main.endpoints.values[lower] = 2.0;
@@ -69,16 +70,16 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
     }
     machine report() {
         Console::write_line("slots=2,7");
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
     machine bad() {
         Console::write_line("slots=miss");
-        Console::exit_process(1);
+        ProcessExit::exit_process(1);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console crashes Trap {
+machine entry_start() reaches ProcessExit + Console crashes Trap {
     let mut entry_storage: Main;
     Main::main(&mut entry_storage);
 }

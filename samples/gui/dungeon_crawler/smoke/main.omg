@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 0.
 // Expected output contains: PASS: dungeon campaign, collision, combat, pixels
 use omega_language_std::Console;
@@ -38,7 +39,7 @@ terminates by count -> Nat::Descending
     machine done() {}
 }
 
-machine Smoke::main(smoke: &mut Smoke) reaches Console {
+machine Smoke::main(smoke: &mut Smoke) reaches ProcessExit + Console {
     transition { _ -> rules(smoke) }
     machine rules(smoke: &mut Smoke) {
     Console::write_line("check: rules");
@@ -110,15 +111,15 @@ machine Smoke::main(smoke: &mut Smoke) reaches Console {
     }
     machine passed() {
         Console::write_line("PASS: dungeon campaign, collision, combat, pixels");
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
     machine failed() {
         Console::write_line("FAIL: dungeon acceptance");
-        Console::exit_process(1);
+        ProcessExit::exit_process(1);
     }
 }
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Smoke;
     Smoke::main(&mut entry_storage);
 }

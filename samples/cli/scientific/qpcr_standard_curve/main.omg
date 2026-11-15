@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 0 for input.txt; numerical oracle: validation/oracles.json.
 use domain::input;
 use domain::report;
@@ -14,20 +15,20 @@ data Application {
     mean_x: f64; mean_y: f64; variance_x: f64; variance_y: f64; covariance: f64;
     slope: f64; intercept: f64; residual_square: f64; minimum_x: f64; maximum_x: f64; minimum_y: f64; maximum_y: f64;
 }
-machine Application::main(application: &mut Application) reaches Console crashes Trap {
+machine Application::main(application: &mut Application) reaches ProcessExit + Console crashes Trap {
     let standards: Number = block number(&mut application.reader);
     let unknowns: Number = block number(&mut application.reader);
     transition standards.valid && unknowns.valid && standards.value >= 3.0 && standards.value <= 8.0 && unknowns.value >= 0.0 && unknowns.value <= 8.0 {
         true -> block counts(application, standards.value, unknowns.value) _ -> invalid(application)
     }
     machine invalid(application: &mut Application) {
-        Console::write_line("ERROR malformed or out-of-range input"); Console::exit_process(10);
+        Console::write_line("ERROR malformed or out-of-range input"); ProcessExit::exit_process(10);
     }
     machine degenerate(application: &mut Application) {
-        Console::write_line("ERROR rank-deficient or nonnegative calibration slope"); Console::exit_process(11);
+        Console::write_line("ERROR rank-deficient or nonnegative calibration slope"); ProcessExit::exit_process(11);
     }
     machine numerical(application: &mut Application) {
-        Console::write_line("ERROR nonrepresentable calibration or inversion"); Console::exit_process(12);
+        Console::write_line("ERROR nonrepresentable calibration or inversion"); ProcessExit::exit_process(12);
     }
     machine counts(application: &mut Application, standards: f64, unknowns: f64) {
         let count: i32 in Saturating = I32::from_f64(standards);
@@ -153,11 +154,11 @@ machine Application::main(application: &mut Application) reaches Console crashes
         field(&mut application.reader, "interval_extrapolated=", match lower < application.minimum_x - 0.000000000001 || upper > application.maximum_x + 0.000000000001 { true -> 1.0 _ -> 0.0 });
         application.index = application.index + 1; transition { _ -> quantify(application) }
     }
-    machine done(application: &mut Application) { Console::exit_process(0); }
+    machine done(application: &mut Application) { ProcessExit::exit_process(0); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console crashes Trap {
+machine entry_start() reaches ProcessExit + Console crashes Trap {
     let mut entry_storage: Application;
     block Application::main(&mut entry_storage);
 }

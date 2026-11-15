@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 161.
 // Fibonacci numbers and the golden ratio. Compute consecutive Fibonacci terms (a, b) by the
 // classic iterative loop -- tmp = a + b; a = b; b = tmp -- then the ratio b / a as a float, which
@@ -14,7 +15,7 @@ use omega::language::core::I32::from_f64;
 use omega_language_std::Console;
 
 data Main { }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("fibonacci_golden: iterating fibonacci pairs to approximate the golden ratio");
 
     transition {
@@ -46,12 +47,12 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
         _ = block Console::read_line(&mut pause);
-        Console::exit_process(result as i32);
+        ProcessExit::exit_process(result as i32);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

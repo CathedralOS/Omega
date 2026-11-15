@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Shape area computation. Combines case-payload dispatch, value-position
 // machine calls, scalar arithmetic, and multi-arm comparison.
 //
@@ -22,7 +23,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("shapes_area: circle + rectangle + triangle areas via value-returning machines");
     // Circle radius 3: r*r = 9, passed as scalar; callee returns 9*3 = 27.
     let rr: i32 in Saturating = 3 * 3;
@@ -45,14 +46,14 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("PASS: areas 27+40+3 total 70 (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(70);
+        ProcessExit::exit_process(70);
     }
 
     machine bad(main: &mut Main) {
         Console::write_line("FAIL: area total did not equal 70 (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(71);
+        ProcessExit::exit_process(71);
     }
 }
 
@@ -78,7 +79,7 @@ machine halve(b: i32 in Saturating, h: i32 in Saturating) -> i32 in Saturating {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

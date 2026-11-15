@@ -1,5 +1,6 @@
 use omega::language::core::DllImport;
 use omega::language::core::ForeignBinding;
+use omega::language::core::ProcessExit;
 machine build(builder: &mut Build) {
     Build::package(builder, "omega_language_std");
     configure_clock(builder);
@@ -9,7 +10,8 @@ machine build(builder: &mut Build) {
     configure_posix_canonical(builder);
     configure_posix_filesystem(builder);
     configure_posix_filesystem_darwin(builder);
-    configure_windows_console(builder);
+    configure_console(builder);
+    configure_process_exit(builder);
     configure_windows_gui(builder);
     configure_macos_gui(builder);
     // Bind the complete ObjectiveC family once. String extents stay static.
@@ -638,7 +640,38 @@ machine configure_posix_filesystem_darwin(builder: &mut Build) {
 // The remaining Windows and Darwin leaf bindings: console I/O and process
 // exit on msvcrt/kernel32, Win32 GUI calls on user32/gdi32, and the AppKit,
 // CoreGraphics and libSystem clock entries the macOS GUI providers call.
-machine configure_windows_console(builder: &mut Build) {
+machine configure_console(builder: &mut Build) {
+    Build::select_provider<Console, NativeConsole>(builder, windows_x86_64);
+    Build::select_provider<ConsoleHost, WindowsConsoleHost>(builder, windows_x86_64);
+    Build::select_provider<Console, NativeConsole>(builder, linux_x86_64);
+    Build::select_provider<ConsoleHost, PosixConsoleHost>(builder, linux_x86_64);
+    Build::select_provider<Console, NativeConsole>(builder, linux_arm64);
+    Build::select_provider<ConsoleHost, PosixConsoleHost>(builder, linux_arm64);
+    Build::select_provider<Console, NativeConsole>(builder, macos_arm64);
+    Build::select_provider<ConsoleHost, PosixConsoleHost>(builder, macos_arm64);
+    Build::select_provider<Console, NativeConsole>(builder, macos_x86_64);
+    Build::select_provider<ConsoleHost, PosixConsoleHost>(builder, macos_x86_64);
+    Build::bind<PosixConsoleIo::read>(builder, linux_x86_64, ForeignBinding::Syscall { number: 0 });
+    Build::bind<PosixConsoleIo::write>(builder, linux_x86_64, ForeignBinding::Syscall { number: 1 });
+    Build::bind<PosixConsoleIo::read>(builder, linux_arm64, ForeignBinding::Syscall { number: 63 });
+    Build::bind<PosixConsoleIo::write>(builder, linux_arm64, ForeignBinding::Syscall { number: 64 });
+    Build::bind<PosixConsoleIo::read>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_read"
+        } });
+    Build::bind<PosixConsoleIo::write>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
+        } });
+    Build::bind<PosixConsoleIo::read>(builder, macos_x86_64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_read"
+        } });
+    Build::bind<PosixConsoleIo::write>(builder, macos_x86_64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
+        } });
+
     Build::bind<WindowsConsoleIo::write>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "msvcrt.dll", export: "_write"
@@ -651,10 +684,7 @@ machine configure_windows_console(builder: &mut Build) {
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "msvcrt.dll", export: "_setmode"
         } });
-    Build::bind<ConsoleHost::exit_process>(builder, windows_x86_64,
-        ForeignBinding::DllImport { import: DllImport::PeByName {
-            library: "kernel32.dll", export: "ExitProcess"
-        } });
+
 }
 
 // Win32 GUI leaves: window and message pumps on user32, device-context and
@@ -785,5 +815,13 @@ machine configure_macos_image(builder: &mut Build) {
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
             symbol: "_CGImageCreate"
+        } });
+}
+
+// Windows supplies canonical process termination through its admitted DLL ABI.
+machine configure_process_exit(builder: &mut Build) {
+    Build::bind<ProcessExit::exit_process>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "ExitProcess"
         } });
 }

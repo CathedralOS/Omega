@@ -1,9 +1,10 @@
+use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega::language::core::U64::from_f64;
 use physics::model;
 // Bounded scientific output: signed fixed point with six fractional digits.
 // Model validation and 8-event cap keep all printed magnitudes below 10^9.
-public machine integer(value:u64) reaches Console
+public machine integer(value:u64) reaches ProcessExit + Console
 invokes Console
 {
  transition { _ -> digits(value,1000000000000000,false) }
@@ -24,10 +25,10 @@ invokes Console
   Console::write_byte(character as i32);
   transition { _ -> digits(value%divisor,divisor/10,true) }
  }
- machine invalid() {Console::write_line("FAIL output bound");Console::exit_process(4);}
+ machine invalid() {Console::write_line("FAIL output bound");ProcessExit::exit_process(4);}
  machine done() {}
 }
-public machine number(value:f64) reaches Console
+public machine number(value:f64) reaches ProcessExit + Console
 invokes Console
 {
  transition value < 0.0 {true -> negative(value) _ -> positive(value)}
@@ -52,17 +53,17 @@ invokes Console
   Console::write_byte(character as i32);
   transition { _ -> fraction(value%divisor,divisor/10) }
  }
- machine invalid() {Console::write_line("FAIL output bound");Console::exit_process(4);}
+ machine invalid() {Console::write_line("FAIL output bound");ProcessExit::exit_process(4);}
  machine done() {}
 }
-public machine contact_row(lab:&Lab) reaches Console
+public machine contact_row(lab:&Lab) reaches ProcessExit + Console
 invokes Console
 {
  Console::write("contact ");integer(lab.first);Console::write(" ");integer(lab.second);
  Console::write(" time=");number(lab.time);Console::write(" impulse=");number(lab.impulse);
  Console::write(" error=");number(lab.contact_error);Console::write_line("");
 }
-public machine totals_row(lab:&Lab) reaches Console
+public machine totals_row(lab:&Lab) reaches ProcessExit + Console
 invokes Console
 {
  Console::write("ledger time=");number(lab.time);
@@ -70,7 +71,7 @@ invokes Console
  Console::write(" energy=");number(lab.energy);Console::write(" loss=");number(lab.loss);
  Console::write_line("");
 }
-public machine disk_rows(lab:&Lab) reaches Console
+public machine disk_rows(lab:&Lab) reaches ProcessExit + Console
 invokes Console
 {
  transition { _ -> scan(lab,0) }

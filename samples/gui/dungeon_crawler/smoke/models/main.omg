@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 0.
 // Expected output contains: PASS: bounded components and terminating controller fan-out
 use omega_language_std::Console;
@@ -60,7 +61,7 @@ machine check_misses() -> bool {
     miss_matches(attacker, friendly) && miss_matches(attacker, behind) && miss_matches(attacker, distant) && miss_matches(attacker, other_room)
 }
 
-machine Smoke::main(smoke: &mut Smoke) reaches Console {
+machine Smoke::main(smoke: &mut Smoke) reaches ProcessExit + Console {
     let knockback: bool = check_knockback();
     let misses: bool = check_misses();
     smoke.actors.items[0].vitality = Vitality { current: 12, maximum: 12 };
@@ -83,11 +84,11 @@ machine Smoke::main(smoke: &mut Smoke) reaches Console {
         true -> passed()
         _ -> failed()
     }
-    machine passed() { Console::write_line("PASS: bounded components and terminating controller fan-out"); Console::exit_process(0); }
-    machine failed() { Console::exit_process(1); }
+    machine passed() { Console::write_line("PASS: bounded components and terminating controller fan-out"); ProcessExit::exit_process(0); }
+    machine failed() { ProcessExit::exit_process(1); }
 }
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Smoke;
     Smoke::main(&mut entry_storage);
 }

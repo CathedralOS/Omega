@@ -19,6 +19,8 @@ use std::path::Path;
 /// A core declaration that typed rules recognize by identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CoreVocabulary {
+    /// Core's ordinary uninhabited `Never` data declaration.
+    Never,
     /// The `MachineControl` service in core `assembly.omg`.
     MachineControlService,
     /// The `PortIo` service in core `assembly.omg`.
@@ -232,6 +234,12 @@ const fn selector(
 }
 
 const ROWS: &[CoreVocabularyRow] = &[
+    row(
+        "never.omg",
+        "Never",
+        core_source!("never.omg"),
+        CoreVocabulary::Never,
+    ),
     row(
         "assembly.omg",
         "MachineControl",
@@ -684,6 +692,22 @@ mod tests {
                 "core::reflect::inspect_record_fields",
                 REFLECT
             )),
+            None
+        );
+    }
+    #[test]
+    fn never_recognition_requires_its_unchanged_core_declaration() {
+        let source = core_source!("never.omg");
+        assert_eq!(
+            CoreVocabularyCatalog::classify(site("never.omg", "Never", source)),
+            Some(CoreVocabulary::Never),
+        );
+        assert_eq!(
+            CoreVocabularyCatalog::classify(site("never.omg", "Other", source)),
+            None
+        );
+        assert_eq!(
+            CoreVocabularyCatalog::classify(site("never.omg", "Never", b"public data Never {}")),
             None
         );
     }

@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // rotor_byte_rows: a wiring lookup's `ensures result < 26` survives widening
 // into the shift that sets one live wire.
 //
@@ -29,7 +30,7 @@ machine wiring_at(wiring: &[[u8; 26]; 3], rotor: i32, letter: i32) -> u8
     }
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("rotor_byte_rows: ensured wiring byte widens into a live-wire shift");
     main.wiring = [
         [4, 10, 12, 5, 11, 6, 3, 16, 21, 25, 13, 19, 14, 22, 24, 7, 23, 20, 18, 15, 0, 8, 1, 17, 2, 9],
@@ -47,17 +48,17 @@ machine Main::main(main: &mut Main) reaches Console {
 
     machine pass(main: &mut Main) {
         Console::write_line("16");
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
 
     machine fail(main: &mut Main) {
         Console::write_line("FAIL");
-        Console::exit_process(1);
+        ProcessExit::exit_process(1);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     Main::main(&mut entry_storage);
 }

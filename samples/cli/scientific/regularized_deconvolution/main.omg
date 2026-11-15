@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 0. Numerical output qualified by validate.py and frozen oracles.
 use domain::input;
 use domain::report;
@@ -13,7 +14,7 @@ data Application {
     length: i32 in Wrapping; width: i32 in Wrapping; index: i32 in Wrapping; iterations: i32 in Wrapping;
     regularization: f64; kernel_sum: f64; sum: f64; squared: f64; previous: f64; scale: f64; residual_norm: f64; roughness: f64;
 }
-machine Application::main(application: &mut Application) reaches Console crashes Trap {
+machine Application::main(application: &mut Application) reaches ProcessExit + Console crashes Trap {
     let length: Number = block number(&mut application.reader);
     let width: Number = block number(&mut application.reader);
     let regularization: Number = block number(&mut application.reader);
@@ -161,14 +162,14 @@ machine Application::main(application: &mut Application) reaches Console crashes
         field(&mut application.reader, "residual_norm=", sqrt_f64(application.residual_norm));
         field(&mut application.reader, "roughness=", sqrt_f64(application.roughness));
         field(&mut application.reader, "objective=", application.residual_norm + application.regularization * application.roughness);
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
-    machine invalid(application: &mut Application) { Console::write_line("ERROR malformed input, measurements, kernel or lambda"); Console::exit_process(2); }
-    machine failed(application: &mut Application) { Console::write_line("ERROR numerical convergence"); Console::exit_process(3); }
+    machine invalid(application: &mut Application) { Console::write_line("ERROR malformed input, measurements, kernel or lambda"); ProcessExit::exit_process(2); }
+    machine failed(application: &mut Application) { Console::write_line("ERROR numerical convergence"); ProcessExit::exit_process(3); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console crashes Trap {
+machine entry_start() reaches ProcessExit + Console crashes Trap {
     let mut entry_storage: Application;
     block Application::main(&mut entry_storage);
 }

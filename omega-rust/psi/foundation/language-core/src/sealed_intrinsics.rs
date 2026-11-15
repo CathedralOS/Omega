@@ -120,8 +120,6 @@ pub enum PlacementContent {
 /// The hosted operations the compiler realizes for every hosted target.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum HostedOperation {
-    /// std `Console::exit_process`.
-    ConsoleExitProcess,
     /// std `Console::write_byte`.
     ConsoleWriteByte,
     /// std `Console::read_byte`.
@@ -217,51 +215,22 @@ const fn row(
 */
 macro_rules! hosted_target_rows {
     ($target:literal) => {
-        [
-            row(
-                concat!("targets/", $target, "/console_impl.omg"),
-                "ConsoleNativeProvider::exit_process",
-                bundled!(concat!("std/targets/", $target, "/console_impl.omg")),
-                SealedIntrinsic::HostedRealization {
-                    operation: HostedOperation::ConsoleExitProcess,
-                    target: $target,
-                },
-            ),
-            row(
-                concat!("targets/", $target, "/console_impl.omg"),
-                "ConsoleNativeProvider::write_byte",
-                bundled!(concat!("std/targets/", $target, "/console_impl.omg")),
-                SealedIntrinsic::HostedRealization {
-                    operation: HostedOperation::ConsoleWriteByte,
-                    target: $target,
-                },
-            ),
-            row(
-                concat!("targets/", $target, "/console_impl.omg"),
-                "ConsoleNativeProvider::read_byte",
-                bundled!(concat!("std/targets/", $target, "/console_impl.omg")),
-                SealedIntrinsic::HostedRealization {
-                    operation: HostedOperation::ConsoleReadByte,
-                    target: $target,
-                },
-            ),
-            row(
-                concat!("targets/", $target, "/process_exit_impl.omg"),
-                "ProcessExitNativeProvider::exit_process",
-                bundled!(concat!("std/targets/", $target, "/process_exit_impl.omg")),
-                SealedIntrinsic::HostedRealization {
-                    operation: HostedOperation::ProcessExit,
-                    target: $target,
-                },
-            ),
-        ]
+        [row(
+            concat!("targets/", $target, "/process_exit_impl.omg"),
+            concat!($target, "_process_exit"),
+            bundled!(concat!("std/targets/", $target, "/process_exit_impl.omg")),
+            SealedIntrinsic::HostedRealization {
+                operation: HostedOperation::ProcessExit,
+                target: $target,
+            },
+        )]
     };
 }
 
-const HOSTED_LINUX_ARM64: [SealedIntrinsicRow; 4] = hosted_target_rows!("linux_arm64");
-const HOSTED_LINUX_X86_64: [SealedIntrinsicRow; 4] = hosted_target_rows!("linux_x86_64");
-const HOSTED_MACOS_ARM64: [SealedIntrinsicRow; 4] = hosted_target_rows!("macos_arm64");
-const HOSTED_MACOS_X86_64: [SealedIntrinsicRow; 4] = hosted_target_rows!("macos_x86_64");
+const HOSTED_LINUX_ARM64: [SealedIntrinsicRow; 1] = hosted_target_rows!("linux_arm64");
+const HOSTED_LINUX_X86_64: [SealedIntrinsicRow; 1] = hosted_target_rows!("linux_x86_64");
+const HOSTED_MACOS_ARM64: [SealedIntrinsicRow; 1] = hosted_target_rows!("macos_arm64");
+const HOSTED_MACOS_X86_64: [SealedIntrinsicRow; 1] = hosted_target_rows!("macos_x86_64");
 const HOSTED_REALIZATIONS: [&[SealedIntrinsicRow]; 4] = [
     &HOSTED_LINUX_ARM64,
     &HOSTED_LINUX_X86_64,
@@ -530,12 +499,6 @@ const ROWS: &[SealedIntrinsicRow] = &[
     ),
     row(
         "console.omg",
-        "Console::exit_process",
-        STD_CONSOLE,
-        SealedIntrinsic::HostedRequirement(HostedOperation::ConsoleExitProcess),
-    ),
-    row(
-        "console.omg",
         "Console::write_byte",
         STD_CONSOLE,
         SealedIntrinsic::HostedRequirement(HostedOperation::ConsoleWriteByte),
@@ -543,24 +506,6 @@ const ROWS: &[SealedIntrinsicRow] = &[
     row(
         "console.omg",
         "Console::read_byte",
-        STD_CONSOLE,
-        SealedIntrinsic::HostedRequirement(HostedOperation::ConsoleReadByte),
-    ),
-    row(
-        "console.omg",
-        "ConsoleHost::exit_process",
-        STD_CONSOLE,
-        SealedIntrinsic::HostedRequirement(HostedOperation::ConsoleExitProcess),
-    ),
-    row(
-        "console.omg",
-        "ConsoleHost::write_byte",
-        STD_CONSOLE,
-        SealedIntrinsic::HostedRequirement(HostedOperation::ConsoleWriteByte),
-    ),
-    row(
-        "console.omg",
-        "ConsoleHost::read_byte",
         STD_CONSOLE,
         SealedIntrinsic::HostedRequirement(HostedOperation::ConsoleReadByte),
     ),
@@ -687,16 +632,12 @@ mod tests {
     }
 
     #[test]
-    fn private_host_requirements_retain_the_exact_catalog_identity() {
-        for (member, operation) in [
-            ("read_byte", HostedOperation::ConsoleReadByte),
-            ("write_byte", HostedOperation::ConsoleWriteByte),
-            ("exit_process", HostedOperation::ConsoleExitProcess),
-        ] {
+    fn private_console_adapters_have_no_hosted_catalog_identity() {
+        for member in ["read_byte", "write_byte", "exit_process"] {
             let requirement = format!("ConsoleHost::{member}");
             assert_eq!(
                 SealedIntrinsicCatalog::classify(site("console.omg", &requirement, STD_CONSOLE)),
-                Some(SealedIntrinsic::HostedRequirement(operation)),
+                None,
             );
             let mut edited = STD_CONSOLE.to_vec();
             edited.push(b' ');
@@ -747,23 +688,23 @@ mod tests {
         );
         // A lookalike file, an edited source, a nested member, or a bare
         // owner name supplies no custody.
-        let linux = bundled!("std/targets/linux_x86_64/console_impl.omg");
+        let linux = bundled!("std/targets/linux_x86_64/process_exit_impl.omg");
         assert_eq!(
             SealedIntrinsicCatalog::classify(site(
-                "targets/linux_x86_64/console_impl.omg",
-                "ConsoleNativeProvider::write_byte",
+                "targets/linux_x86_64/process_exit_impl.omg",
+                "linux_x86_64_process_exit",
                 linux
             )),
             Some(SealedIntrinsic::HostedRealization {
-                operation: HostedOperation::ConsoleWriteByte,
+                operation: HostedOperation::ProcessExit,
                 target: "linux_x86_64",
             })
         );
         // One target's realization bytes never stand in for another target's file.
         assert_eq!(
             SealedIntrinsicCatalog::classify(site(
-                "targets/linux_arm64/console_impl.omg",
-                "ConsoleNativeProvider::write_byte",
+                "targets/linux_arm64/process_exit_impl.omg",
+                "linux_arm64_process_exit",
                 linux
             )),
             None

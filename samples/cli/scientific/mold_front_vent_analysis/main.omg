@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // A complete runtime-input model; there is no baked expected map in this entry.
 // Closed stdin is an invalid request; native fixture runs supply data/*.in.
 // Expected exit: 64.
@@ -10,7 +11,7 @@ use report::output;
 
 data Main { }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     let mut input: [u8; 32];
     let result: LineReadResult = block Console::read_line(&mut input);
     transition result {
@@ -47,20 +48,20 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     machine publish(main: &mut Main, cavity: &Cavity) {
         report(cavity);
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
     machine invalid(main: &mut Main) {
         Console::write_line("INVALID_INPUT");
-        Console::exit_process(64);
+        ProcessExit::exit_process(64);
     }
     machine unbalanced(main: &mut Main) {
         Console::write_line("INTERNAL_BALANCE_ERROR");
-        Console::exit_process(70);
+        ProcessExit::exit_process(70);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

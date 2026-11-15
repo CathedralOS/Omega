@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // CheckedMath::offset_zero is a one-member boundary trait with an empty
 // reach. Build selects the checked adapter. The direct call stays on that
 // trait through Terminal Psi, and both engines return the adapter's result.
@@ -22,7 +23,7 @@ machine length() -> i32 { CheckedMath::offset_zero(9) }
 data Main { bytes: [u8; length()]; }
 
 machine Main::main(main: &mut Main)
-reaches Console
+reaches ProcessExit + Console
 {
     // The same named requirement executes its checked provider during type
     // evaluation. Index 8 requires the computed length, not a placeholder.
@@ -31,12 +32,12 @@ reaches Console
     // passes it straight to the host exit rather than a value computed from
     // it, which normalized foreign-call custody does not yet admit.
     let selected: i32 = CheckedMath::offset_zero(70);
-    Console::exit_process(selected);
+    ProcessExit::exit_process(selected);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start()
-reaches Console
+reaches ProcessExit + Console
 {
     let mut entry_storage: Main;
     Main::main(&mut entry_storage);

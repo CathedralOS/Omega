@@ -37,7 +37,7 @@ pub fn program_entry_semantic_binding_role(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum AcceptedSemanticBindingRole {
-    ConsoleExitProcessI32, // Target-independent recognition of the exact process-exit Console declaration.
+    ConsoleIo, // Explicit Console input/output policy; grants no process termination.
     ProcessExitExitProcessI32, // Target-independent recognition of the canonical core `ProcessExit` boundary requirement realized by the bound package's provider.
     FilesystemHostService, // Exact package-owned raw filesystem service classified as filesystem authority.
     TimeHostService,       // Exact package-owned raw clock service.
@@ -70,7 +70,7 @@ impl AcceptedSemanticBinding {
     ) -> Result<Self, &'static str> {
         if !matches!(
             role,
-            AcceptedSemanticBindingRole::ConsoleExitProcessI32
+            AcceptedSemanticBindingRole::ConsoleIo
                 | AcceptedSemanticBindingRole::ProcessExitExitProcessI32
         ) {
             return Err("accepted semantic role does not bind a selected provider plan");
@@ -133,6 +133,19 @@ impl AcceptedSemanticBinding {
         mut permissions: Vec<ServiceTerminalAuthorityPermission>,
         permission_identities: &terminal_psi::TerminalIdentityTable,
     ) -> Result<Self, &'static str> {
+        if self.role == AcceptedSemanticBindingRole::ConsoleIo
+            && permissions.iter().any(|permission| {
+                permission.permitted().classes().iter().any(|class| {
+                    !matches!(
+                        class,
+                        effects::TerminalAuthorityClass::ProcessInput
+                            | effects::TerminalAuthorityClass::ProcessOutput
+                    )
+                })
+            })
+        {
+            return Err("Console I/O acceptance grants only process input and output");
+        }
         if permissions
             .iter()
             .any(|permission| permission.service_schema() != self.normalized_schema_digest)
@@ -229,4 +242,40 @@ pub fn accepted_service_schema_digest(
         return schema.identity_digest();
     }
     schema.declaration_identity_digest()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use effects::{TerminalAuthorityClass, TerminalAuthorityDisposition};
+
+    #[test]
+    fn console_io_permission_cannot_grant_process_exit() {
+        let package = PackageKeyIdentity::from_digest([7; 32]).unwrap();
+        let schema = ServiceSchemaDigest::from_digest([3; 32]);
+        let binding = AcceptedSemanticBinding::new(
+            AcceptedSemanticBindingRole::ConsoleIo,
+            package,
+            "Console",
+            schema,
+            ProviderPlanDigest::from_digest([5; 32]),
+        )
+        .unwrap();
+        for (class, accepted) in [
+            (TerminalAuthorityClass::ProcessInput, true),
+            (TerminalAuthorityClass::ProcessOutput, true),
+            (TerminalAuthorityClass::ProcessTermination, false),
+        ] {
+            let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+            let permission = ServiceTerminalAuthorityPermission::new(
+                schema,
+                identities.intern("Console::operation"),
+                TerminalAuthorityDisposition::from_classes([class]),
+            );
+            let result = binding
+                .clone()
+                .with_terminal_authority_permissions(vec![permission], &identities.build());
+            assert_eq!(result.is_ok(), accepted, "authority class {class:?}");
+        }
+    }
 }

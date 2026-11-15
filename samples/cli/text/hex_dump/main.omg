@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Hex dump -- renders a fixed 16-byte record as one canonical dump line:
 // offset, sixteen lowercase hex pairs, then an ASCII gutter that maps every
 // byte outside 32..126 to '.'. Bytes are streamed through Console::write_byte
@@ -31,7 +32,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("hex_dump: 16 bytes as one canonical dump line (offset, hex pairs, gutter)");
     Console::write("0000: ");
     main.data = "Omega Psi tape!!";
@@ -161,12 +162,12 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

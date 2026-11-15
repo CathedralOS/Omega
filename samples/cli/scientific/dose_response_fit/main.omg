@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Read supplied dose/replicate/control observations, fit and profile a 4PL.
 // Expected exit: 2.
 // Expected output contains: error=input:
@@ -8,7 +9,7 @@ use domain::fit;
 use domain::report;
 
 data Main { reader: InputReader; }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     main.reader.remaining = 4096; main.reader.exhausted = false;
     let mut observations: Observations;
     let valid: bool = block read_input(&mut main.reader, &mut observations);
@@ -29,36 +30,36 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     machine output(main: &mut Main, observations: &Observations, result: &Fit) {
         report(observations, result);
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
     machine invalid(main: &mut Main) {
         Console::write_line("error=input: invalid or duplicate observation; require 8..32 rows, at least five sample doses, valid direction/noise/roles and <=4096 bytes");
-        Console::exit_process(2);
+        ProcessExit::exit_process(2);
     }
     machine flat(main: &mut Main) {
         Console::write_line("converged=true"); Console::write_line("identifiable=false");
         Console::write_line("error=flat: fitted amplitude must exceed five supplied noise standard deviations");
-        Console::exit_process(3);
+        ProcessExit::exit_process(3);
     }
     machine unidentified(main: &mut Main) {
         Console::write_line("identifiable=false");
         Console::write_line("error=unidentified: profile failed to close strictly within parameter bounds or nuisance minimization did not converge");
-        Console::exit_process(4);
+        ProcessExit::exit_process(4);
     }
     machine direction(main: &mut Main) {
         Console::write_line("converged=true"); Console::write_line("identifiable=false");
         Console::write_line("error=direction: fitted response contradicts requested activation or inhibition");
-        Console::exit_process(5);
+        ProcessExit::exit_process(5);
     }
     machine convergence(main: &mut Main) {
         Console::write_line("converged=false"); Console::write_line("identifiable=false");
         Console::write_line("error=convergence: bounded numerical search exhausted its iteration limit");
-        Console::exit_process(6);
+        ProcessExit::exit_process(6);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

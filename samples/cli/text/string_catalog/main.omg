@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Text catalog: explicit fixed-capacity text owners in a data type with field copies,
 // concatenation, equality guards, and a numeric score derived from matches.
 //
@@ -111,7 +112,7 @@ machine Main::compute_total(main: &mut Main) {
     main.catalog.total = main.catalog.entry1.score + main.catalog.entry2.score;
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("string_catalog: bounded UTF-8 fields, concatenation, and equality guards");
     Main::set_entry1(main);
     Main::set_entry2(main);
@@ -128,7 +129,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("FAIL: entry1.name did not equal Alpha (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(71);
+        ProcessExit::exit_process(71);
     }
 
     machine check_name2(main: &mut Main) {
@@ -142,7 +143,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("FAIL: entry2.name did not equal Beta (exit 72)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(72);
+        ProcessExit::exit_process(72);
     }
 
     machine check_label(main: &mut Main) {
@@ -156,7 +157,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("FAIL: concatenated label was not [Alpha+Beta] (exit 73)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(73);
+        ProcessExit::exit_process(73);
     }
 
     machine check_total(main: &mut Main) {
@@ -170,19 +171,19 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("FAIL: score total was not 70 (exit 74)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(74);
+        ProcessExit::exit_process(74);
     }
 
     machine good(main: &mut Main) {
         Console::write_line("PASS: names, label [Alpha+Beta], and total 70 all verified (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(70);
+        ProcessExit::exit_process(70);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

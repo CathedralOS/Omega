@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // A portable filesystem journal: create a directory, write a 17-byte file,
 // inspect it, read its bytes back, rename it, and remove the file/directory.
 // Each successful step increments the tally; partial completion returns fewer
@@ -22,7 +23,7 @@ data Main {
     buffer: [u8; 64];
 }
 
-machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     // The sample owns these paths. Remove its prior interrupted run first.
     main.result = block Filesystem::remove(&mut main.filesystem, "/tmp/omega_journal_dir/note.txt");
     main.result = block Filesystem::remove(&mut main.filesystem, "/tmp/omega_journal_dir/renamed.txt");
@@ -100,11 +101,11 @@ machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + Fi
         main.passed = main.passed + 1;
         transition { _ -> done(main) }
     }
-    machine done(main: &mut Main) { Console::exit_process(main.passed as i32); }
+    machine done(main: &mut Main) { ProcessExit::exit_process(main.passed as i32); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
+machine entry_start() reaches ProcessExit + Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

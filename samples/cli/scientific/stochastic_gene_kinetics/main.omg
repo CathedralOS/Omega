@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 2 (EOF).
 // Expected output contains: invalid input: one digit 0..9 and LF required
 use omega_language_std::ByteRead;
@@ -10,7 +11,7 @@ data Main {
     replicate: u64; sum_x: u64; sum_x2: u64; sum_y: u64; sum_y2: u64;
     zero: u64; one: u64; two: u64; three_plus: u64;
 }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     let first: ByteRead = block Console::read_byte();
     transition first { ByteRead::Byte { value } -> digit(main, value) _ -> invalid(main) }
     machine digit(main: &mut Main, value: i32) {
@@ -73,7 +74,7 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> failed(main)
         }
     }
-    machine failed(main: &mut Main) { Console::write_line("unexpected control result"); Console::exit_process(5); }
+    machine failed(main: &mut Main) { Console::write_line("unexpected control result"); ProcessExit::exit_process(5); }
     machine trace(main: &mut Main) {
         main.model.budget = 20; main.model.seed = 100000;
         transition main.mode == 8 { true -> gene_header(main) _ -> immigration_header(main) }
@@ -107,7 +108,7 @@ machine Main::main(main: &mut Main) reaches Console {
     machine trace_done(main: &mut Main) {
         Console::write("final time="); number(main.model.time);
         Console::write(" x="); integer(main.model.x);
-        Console::write_line(""); Console::exit_process(0);
+        Console::write_line(""); ProcessExit::exit_process(0);
     }
     machine ensemble(main: &mut Main) { transition { _ -> replicate(main) } }
     machine replicate(main: &mut Main) {
@@ -158,16 +159,16 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write(" 2="); integer(main.two);
         Console::write(" 3plus="); integer(main.three_plus);
         Console::write_line("");
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
-    machine invalid(main: &mut Main) { Console::write_line("invalid input: one digit 0..9 and LF required"); Console::exit_process(2); }
-    machine invalid_model(main: &mut Main) { Console::write_line("invalid model: nonnegative rates and populations, bounded seed required"); Console::exit_process(2); }
-    machine exhausted(main: &mut Main) { Console::write_line("event budget exhausted"); Console::exit_process(3); }
-    machine overflow(main: &mut Main) { Console::write_line("population overflow"); Console::exit_process(4); }
+    machine invalid(main: &mut Main) { Console::write_line("invalid input: one digit 0..9 and LF required"); ProcessExit::exit_process(2); }
+    machine invalid_model(main: &mut Main) { Console::write_line("invalid model: nonnegative rates and populations, bounded seed required"); ProcessExit::exit_process(2); }
+    machine exhausted(main: &mut Main) { Console::write_line("event budget exhausted"); ProcessExit::exit_process(3); }
+    machine overflow(main: &mut Main) { Console::write_line("population overflow"); ProcessExit::exit_process(4); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

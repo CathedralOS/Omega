@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // A dice-roll frequency chart -- a data-analytics output: roll 60 dice from the xorshift32
 // PRNG, tally how often each face 1..6 comes up, and render the distribution as a labeled
 // bar chart. Distinct from samples/histogram (which only counts and exits a number) and
@@ -33,7 +34,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("dice_histogram: 60 xorshift32 dice rolls tallied into a labeled bar chart");
     main.counts = [0, 0, 0, 0, 0, 0];
     main.line = "                        ";
@@ -103,18 +104,18 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("done: all 6 face frequencies charted (exit 0)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
     machine bad(main: &mut Main) {
         Console::write_line("FAIL: a rolled face left the 0..5 range (exit 1)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(1);
+        ProcessExit::exit_process(1);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

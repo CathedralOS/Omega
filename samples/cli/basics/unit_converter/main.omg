@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Unit converter. Exercises f64 scalar conversions:
 // temperature (Celsius ↔ Fahrenheit ↔ Kelvin), distance (km ↔ miles),
 // and mass (kg ↔ lbs). Stresses f64 parameter passing, arithmetic
@@ -43,7 +44,7 @@ machine kg_to_lbs(kg: f64) -> f64 {
     kg * 2.20462
 }
 
-machine Main::main(context: &mut Main) reaches Console {
+machine Main::main(context: &mut Main) reaches ProcessExit + Console {
     Console::write_line("unit_converter: f64 temperature, distance, and mass conversions");
     // Check 1: 100°C → 212°F.
     let result: f64 = celsius_to_fahrenheit(100.0);
@@ -56,7 +57,7 @@ machine Main::main(context: &mut Main) reaches Console {
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
         _ = block Console::read_line(&mut pause);
-        Console::exit_process(71);
+        ProcessExit::exit_process(71);
     }
 
     machine check_c2f_upper(context: &mut Main, result: f64) {
@@ -70,7 +71,7 @@ machine Main::main(context: &mut Main) reaches Console {
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
         _ = block Console::read_line(&mut pause);
-        Console::exit_process(72);
+        ProcessExit::exit_process(72);
     }
 
     // Check 2: 212°F → 100°C.
@@ -86,7 +87,7 @@ machine Main::main(context: &mut Main) reaches Console {
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
         _ = block Console::read_line(&mut pause);
-        Console::exit_process(73);
+        ProcessExit::exit_process(73);
     }
 
     machine check_f2c_upper(context: &mut Main, result: f64) {
@@ -100,7 +101,7 @@ machine Main::main(context: &mut Main) reaches Console {
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
         _ = block Console::read_line(&mut pause);
-        Console::exit_process(74);
+        ProcessExit::exit_process(74);
     }
 
     // Check 3: 373.15K → 100°C.
@@ -116,7 +117,7 @@ machine Main::main(context: &mut Main) reaches Console {
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
         _ = block Console::read_line(&mut pause);
-        Console::exit_process(75);
+        ProcessExit::exit_process(75);
     }
 
     machine check_k2c_upper(context: &mut Main, result: f64) {
@@ -130,7 +131,7 @@ machine Main::main(context: &mut Main) reaches Console {
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
         _ = block Console::read_line(&mut pause);
-        Console::exit_process(76);
+        ProcessExit::exit_process(76);
     }
 
     // Check 4: 10 km → ~6.21 miles.
@@ -146,7 +147,7 @@ machine Main::main(context: &mut Main) reaches Console {
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
         _ = block Console::read_line(&mut pause);
-        Console::exit_process(77);
+        ProcessExit::exit_process(77);
     }
 
     machine check_km_upper(context: &mut Main, result: f64) {
@@ -160,7 +161,7 @@ machine Main::main(context: &mut Main) reaches Console {
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
         _ = block Console::read_line(&mut pause);
-        Console::exit_process(78);
+        ProcessExit::exit_process(78);
     }
 
     // Check 5: 5 kg → ~11.023 lbs.
@@ -176,7 +177,7 @@ machine Main::main(context: &mut Main) reaches Console {
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
         _ = block Console::read_line(&mut pause);
-        Console::exit_process(79);
+        ProcessExit::exit_process(79);
     }
 
     machine check_kg_upper(context: &mut Main, result: f64) {
@@ -190,7 +191,7 @@ machine Main::main(context: &mut Main) reaches Console {
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
         _ = block Console::read_line(&mut pause);
-        Console::exit_process(80);
+        ProcessExit::exit_process(80);
     }
 
     machine good(context: &mut Main) {
@@ -198,12 +199,12 @@ machine Main::main(context: &mut Main) reaches Console {
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
         _ = block Console::read_line(&mut pause);
-        Console::exit_process(70);
+        ProcessExit::exit_process(70);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

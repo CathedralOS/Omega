@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 use omega_language_std::ByteRead;
 use omega_language_std::Console;
 use omega::language::core::I32::from_f64;
@@ -20,7 +21,7 @@ data Protocol {
 // LF or EOF completes the record. The parser stores no more than seven values,
 // reads at most 256 bytes, and rejects rather than wrapping decimal overflow.
 machine Protocol::read(protocol: &mut Protocol) -> bool
-reaches Console
+reaches ProcessExit + Console
 blocks
 crashes Trap
 {
@@ -183,7 +184,7 @@ crashes Trap
 }
 
 machine Protocol::integer(protocol: &mut Protocol, value: i32 in Wrapping)
-reaches Console {
+reaches ProcessExit + Console {
     transition value < 0 {
         true -> negative(protocol, value)
         false -> digits(protocol, value, 1000000000, false)
@@ -235,7 +236,7 @@ reaches Console {
 // Nine significant decimal digits as signed integer mantissa and power of ten.
 // All model outputs are finite, and normalization precedes the trapping cast.
 machine Protocol::number(protocol: &mut Protocol, value: f64)
-reaches Console {
+reaches ProcessExit + Console {
     transition value == 0.0 {
         true -> zero(protocol)
         false -> sign(protocol, value)
@@ -280,7 +281,7 @@ reaches Console {
     }
     machine invalid(protocol: &mut Protocol) {
         Console::write_line("ERROR numeric: reporting value outside finite model envelope");
-        Console::exit_process(66);
+        ProcessExit::exit_process(66);
     }
 }
 

@@ -187,7 +187,6 @@ fn frozen_frontier(
             external_roots: &[],
             layout_scopes: &layout_scopes,
             layout_selection_authority: None,
-            completion: typed_trees::boundary_completions::SourceCompletionAdmission::None,
             representations: source_compiler::ProductRepresentationInput::default(),
             asm_authority: Some(
                 language_core::inline_assembly::AsmAuthorityAdmission::from_freestanding(

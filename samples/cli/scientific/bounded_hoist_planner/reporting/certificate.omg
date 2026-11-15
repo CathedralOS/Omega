@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use clearance::model;
 
@@ -22,7 +23,7 @@ invokes Console
     Console::write_byte(10);
 }
 
-public machine report(certificate: &Certificate) reaches Console
+public machine report(certificate: &Certificate) reaches ProcessExit + Console
 invokes Console
 {
     Console::write_line("clearance_route_planner: synthetic span-height clearance model");
@@ -35,7 +36,7 @@ invokes Console
     }
     machine infeasible() {
         Console::write_line("INFEASIBLE");
-        Console::exit_process(2);
+        ProcessExit::exit_process(2);
     }
     machine optimal(certificate: &Certificate) {
         Console::write_line("OPTIMAL minimum_vertical_travel lexicographic_profile");
@@ -46,6 +47,6 @@ invokes Console
         number(certificate.best.heights[2]);
         number(certificate.best.heights[3]);
         Console::write_line("final_height"); number(certificate.best.heights[3]);
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
 }

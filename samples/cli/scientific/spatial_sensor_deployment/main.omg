@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 0.
 // Expected output contains: placement mask=0005 cost=0004 score=0012
 use omega_language_std::ByteRead;
@@ -5,7 +6,7 @@ use omega_language_std::Console;
 use domain::search;
 use data::fixtures;
 data Main { }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     let input: ByteRead = block Console::read_byte();
     transition input {
         ByteRead::Eof -> execute(main, 0)
@@ -25,11 +26,11 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("spatial_sensor_deployment v1");
         Console::write("case="); Main::number(main, variant); Console::write_byte(10);
         Main::report(main, &search, &problem);
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
     machine invalid(main: &mut Main) {
         Console::write_line("invalid command: expected one byte 0..7 or EOF");
-        Console::exit_process(64);
+        ProcessExit::exit_process(64);
     }
 }
 // Four decimal digits keep the certificate format bounded and inspectable.
@@ -87,7 +88,7 @@ machine Main::report(main: &mut Main, search: &Search, problem: &Problem) reache
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

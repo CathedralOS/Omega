@@ -414,15 +414,6 @@ fn remove_declaration_rows(program: &mut TypedTrees, removed: &SymbolMembership)
     program
         .authored_service_reach_rows
         .retain(|row| !owner_removed(row.owner));
-    let completions = program
-        .boundary_completion_declarations
-        .iter()
-        .filter(|(_, row)| !owner_removed(row.owner))
-        .map(|(_, row)| row.clone())
-        .collect::<Vec<_>>();
-    let mut declarations = arena::Arena::default();
-    declarations.insert_many(completions);
-    program.boundary_completion_declarations = declarations;
     // A retained Product selection leaves only when its owner, the machine
     // application that supplied it and the declaration it names were all
     // removed; otherwise it must still be checked.

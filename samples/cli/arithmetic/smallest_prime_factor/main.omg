@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Smallest prime factor by trial division. Walk d = 2, 3, 4, ... and return the
 // first d that divides n; if d * d ever exceeds n with no divisor found, n is
 // prime and is its own smallest factor. For n = 169 (= 13 * 13) the answer is 13:
@@ -26,7 +27,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("smallest_prime_factor: trial division finds the smallest factor of 169");
     main.trial.n = 169;
     main.trial.d = 2;
@@ -77,19 +78,19 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("PASS: smallest prime factor found, 13 for n=169 (the exit code)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(main.trial.d);
+        ProcessExit::exit_process(main.trial.d);
     }
 
     machine prime(main: &mut Main) {
         Console::write_line("result: n has no divisor up to sqrt(n), so n is prime and exits as its own factor (the exit code)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(main.trial.n);
+        ProcessExit::exit_process(main.trial.n);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

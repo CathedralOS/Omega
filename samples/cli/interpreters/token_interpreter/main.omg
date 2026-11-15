@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Token interpreter: a small state machine that mixes equality guards,
 // range guards (> N), and case-payload guards in the same transitions.
 //
@@ -99,7 +100,7 @@ machine Main::exec(main: &mut Main, tok: Token) {
     machine done() {}
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("token_interpreter: mixed guard shapes run a literal/add/clamp token script");
     // Scripted token sequence:
     // Literal(10) -> acc=10; Add -> acc=20; Literal(5) -> acc=25;
@@ -120,19 +121,19 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("PASS: the token script left the accumulator at 70 (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(70);
+        ProcessExit::exit_process(70);
     }
 
     machine bad(main: &mut Main) {
         Console::write_line("FAIL: the final accumulator was not 70 (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(71);
+        ProcessExit::exit_process(71);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

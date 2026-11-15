@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 module domain::report;
 use domain::model::SensorBlock;
 use domain::model::SensorStream;
@@ -37,7 +38,7 @@ requires value >= 0 && value <= 99999 {
     machine done() { }
 }
 
-public machine report(stream: &SensorStream, records: &SensorBlock, maximum: i32) reaches Console
+public machine report(stream: &SensorStream, records: &SensorBlock, maximum: i32) reaches ProcessExit + Console
 invokes Console
 {
     Console::write("bytes:");
@@ -101,12 +102,12 @@ invokes Console
     requires maximum >= 0 && maximum <= 99999 {
         Console::write("max_error_units: "); number(maximum); Console::write_byte(10);
         Console::write_line("certificate: verified against original records");
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
     machine unverified() {
-        Console::write_line("certificate: decode only; originals unavailable"); Console::exit_process(0);
+        Console::write_line("certificate: decode only; originals unavailable"); ProcessExit::exit_process(0);
     }
     machine failure() {
-        Console::write_line("error: internal report bounds"); Console::exit_process(13);
+        Console::write_line("error: internal report bounds"); ProcessExit::exit_process(13);
     }
 }

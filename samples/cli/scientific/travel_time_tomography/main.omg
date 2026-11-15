@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Entrypoint owns bounded input, private inverse solution, and reporting.
 use omega_language_std::Console;
 use domain::model;
@@ -6,23 +7,23 @@ use io::input;
 use io::report;
 
 data Main { input: Input; output: Output; }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     block read_input(&mut main.input);
     transition main.input.valid { true -> compute(main) false -> invalid(main) }
     machine compute(main: &mut Main) {
         let problem: Problem = problem_from_input(&main.input);
         let fit: Fit = solve(&problem);
         report(&mut main.output, &problem, &fit);
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
     machine invalid(main: &mut Main) {
         Console::write_line("INVALID: expected 13 integers 0..99, ordered bounds, at most 255 input bytes");
-        Console::exit_process(64);
+        ProcessExit::exit_process(64);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

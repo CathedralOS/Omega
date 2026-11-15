@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // A counter saturating at a bound. Showcases `[copy]` type
 // properties and saturating arithmetic over a dispatched self-write path
 // driven by scalar arguments. (Historical: case-payload commands threaded into
@@ -18,7 +19,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("bounded_counter: saturating counter -- three add(40)s against a bound of 100");
     main.counter.bound = 100;
 
@@ -51,7 +52,7 @@ machine Main::main(main: &mut Main) reaches Console {
     machine report(main: &mut Main, code: i32) {
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(code);
+        ProcessExit::exit_process(code);
     }
 }
 
@@ -72,7 +73,7 @@ machine Main::add(main: &mut Main, amount: i32 in Saturating) {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

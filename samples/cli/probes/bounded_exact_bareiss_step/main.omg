@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Exact Bareiss update after a mutable array store cites its ensures.
 //
 // metabolic_flux_analysis writes minors through `&mut [i64 in Wrapping; N]`
@@ -36,7 +37,7 @@ ensures cells[index] >= 1 && cells[index] <= 12
     cells[index] = value;
 }
 
-machine Main::main(main: &mut Main) reaches Console crashes Trap {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console crashes Trap {
     store(&mut main.cells);
     store_at(&mut main.extra, 0, 6);
     transition { _ -> reduce(main) }
@@ -56,16 +57,16 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
     }
     machine report() {
         Console::write_line("exact=6");
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
     machine bad() {
         Console::write_line("exact=miss");
-        Console::exit_process(2);
+        ProcessExit::exit_process(2);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console crashes Trap {
+machine entry_start() reaches ProcessExit + Console crashes Trap {
     let mut entry_storage: Main;
     Main::main(&mut entry_storage);
 }

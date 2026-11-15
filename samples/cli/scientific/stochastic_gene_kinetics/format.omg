@@ -1,8 +1,9 @@
+use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega::language::core::U64::from_f64;
 // Bounded scientific output: signed fixed point with six fractional digits.
 // The admitted populations and two-second horizon bound displayed values.
-public machine integer(value:u64) reaches Console
+public machine integer(value:u64) reaches ProcessExit + Console
 invokes Console
 {
  transition { _ -> digits(value,1000000000000000,false) }
@@ -23,10 +24,10 @@ invokes Console
   Console::write_byte(character as i32);
   transition { _ -> digits(value%divisor,divisor/10,true) }
  }
- machine invalid() {Console::write_line("FAIL output bound");Console::exit_process(4);}
+ machine invalid() {Console::write_line("FAIL output bound");ProcessExit::exit_process(4);}
  machine done() {}
 }
-public machine number(value:f64) reaches Console
+public machine number(value:f64) reaches ProcessExit + Console
 invokes Console
 {
  transition value < 0.0 {true -> negative(value) _ -> positive(value)}
@@ -51,6 +52,6 @@ invokes Console
   Console::write_byte(character as i32);
   transition { _ -> fraction(value%divisor,divisor/10) }
  }
- machine invalid() {Console::write_line("FAIL output bound");Console::exit_process(4);}
+ machine invalid() {Console::write_line("FAIL output bound");ProcessExit::exit_process(4);}
  machine done() {}
 }

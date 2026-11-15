@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 use domain::solver;
 use domain::shockley;
 use io::protocol;
@@ -17,12 +18,12 @@ data Main {
     failed: i32 in Wrapping;
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     let valid: bool = block Protocol::read(&mut main.protocol);
     transition valid { true -> validate(main) false -> bad_syntax(main) }
     machine bad_syntax(main: &mut Main) {
         Console::write_line("ERROR syntax: expected nine integers, maximum 160 bytes");
-        Console::exit_process(64);
+        ProcessExit::exit_process(64);
     }
     machine validate(main: &mut Main) {
         transition main.protocol.fields[0] >= -1000 && main.protocol.fields[0] <= 5000
@@ -41,7 +42,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     machine bad_range(main: &mut Main) {
         Console::write_line("ERROR range: invalid sweep or Shockley model parameters");
-        Console::exit_process(65);
+        ProcessExit::exit_process(65);
     }
     machine configure(main: &mut Main) {
         let start: f64 = main.protocol.fields[0] as f64;
@@ -132,12 +133,12 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write(",");
         Protocol::integer(&mut main.protocol, main.failed);
         Console::write_line("");
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

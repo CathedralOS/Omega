@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Task runner: nested case-payload dispatch through a sub-machine
 // that mutates its subject across multiple calls.
 //
@@ -79,7 +80,7 @@ machine Main::run_task(main: &mut Main, task: Task) {
     machine done() {}
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("task_runner: nested case-payload dispatch runs a compute/double/clamp script");
     Main::run_task(main, Task::Compute { value: 10 });
     Main::run_task(main, Task::Compute { value: 15 });
@@ -97,19 +98,19 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("PASS: the task script left the score at 70 (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(70);
+        ProcessExit::exit_process(70);
     }
 
     machine bad(main: &mut Main) {
         Console::write_line("FAIL: the final score was not 70 (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(71);
+        ProcessExit::exit_process(71);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

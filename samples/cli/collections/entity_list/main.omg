@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // The entity/particle-list pattern: an array of structs `[Monster; N]` updated by a
 // runtime-indexed loop -- the shape every simulation and game needs. Each pass reads
 // a field of `monsters[i]`, transforms it, and writes it back.
@@ -27,7 +28,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("entity_list: [Monster; 4] -- deal 10 damage to each, then sum HP");
     main.monsters[0].hp = 30;
     main.monsters[1].hp = 12;
@@ -66,12 +67,12 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("result: total remaining HP is the exit code (35)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(main.total as i32);
+        ProcessExit::exit_process(main.total as i32);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Complete stdin-driven synthetic scientific sample. Valid data exits zero.
 // Expected exit: 64.
 // Expected output contains: INVALID bounded counterflow input
@@ -8,7 +9,7 @@ use io::report;
 use model::stages;
 
 data Main { }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     let mut raw: io::input::Raw;
     let mut input: io::input::Input;
     let mut solution: model::stages::Solution;
@@ -31,20 +32,20 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     machine output(input: &io::input::Input, solution: &model::stages::Solution) {
         io::report::emit(input, solution);
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
     machine invalid() {
         Console::write_line("INVALID bounded counterflow input");
-        Console::exit_process(64);
+        ProcessExit::exit_process(64);
     }
     machine failed() {
         Console::write_line("FAIL numerical balance");
-        Console::exit_process(65);
+        ProcessExit::exit_process(65);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

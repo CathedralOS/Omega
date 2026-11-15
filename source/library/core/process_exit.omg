@@ -12,8 +12,9 @@
 // execution domain by the admitted entry/runtime environment; declaring the
 // reach or selecting a provider grants none of it.
 public boundary trait ProcessExit {
-    machine exit_process(return_code: i32)
+    machine exit_process(return_code: i32) -> Never
     reaches
         ProcessExit
-    crashes none;
+    crashes none
+    terminates;
 }

@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Gate-owned black-box checking harness. The gate package's build root binds
 // `checking_harness_main` as its own product entry; the product compiler
 // closure never includes it. Lexing, parsing, name resolution and typing run
@@ -46,7 +47,7 @@ data HarnessWord [copy] {
 // whole set then resolves, types and checks. Malformed framing exits 253,
 // and a set its provisions cannot hold 252, without an observation.
 machine main()
-reaches Console
+reaches ProcessExit + Console
 invokes Console
 crashes Trap
 blocks
@@ -56,7 +57,7 @@ blocks
 }
 
 public machine checking_harness_main(checking_harness: &mut CheckingHarness)
-reaches Console
+reaches ProcessExit + Console
 invokes Console
 crashes Trap
 blocks
@@ -362,35 +363,35 @@ blocks
     }
 
     machine accepted(checking_harness: &mut CheckingHarness) {
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
 
     machine check_rejected(checking_harness: &mut CheckingHarness) {
-        Console::exit_process(247);
+        ProcessExit::exit_process(247);
     }
 
     machine type_rejected(checking_harness: &mut CheckingHarness) {
-        Console::exit_process(249);
+        ProcessExit::exit_process(249);
     }
 
     machine resolve_rejected(checking_harness: &mut CheckingHarness) {
-        Console::exit_process(248);
+        ProcessExit::exit_process(248);
     }
 
     machine parse_rejected(checking_harness: &mut CheckingHarness) {
-        Console::exit_process(250);
+        ProcessExit::exit_process(250);
     }
 
     machine lex_rejected(checking_harness: &mut CheckingHarness) {
-        Console::exit_process(251);
+        ProcessExit::exit_process(251);
     }
 
     machine source_full(checking_harness: &mut CheckingHarness) {
-        Console::exit_process(252);
+        ProcessExit::exit_process(252);
     }
 
     machine malformed(checking_harness: &mut CheckingHarness) {
-        Console::exit_process(253);
+        ProcessExit::exit_process(253);
     }
 }
 

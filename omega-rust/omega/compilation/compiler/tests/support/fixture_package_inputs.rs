@@ -987,7 +987,7 @@ fn dangerous_service_bindings(
         ))]);
     }
     if let Some(console) = required.console {
-        bindings.push(provider_acceptance::console_exit_binding(
+        bindings.push(provider_acceptance::console_io_binding(
             preliminary,
             owner,
             console.output,

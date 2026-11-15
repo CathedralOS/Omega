@@ -2221,10 +2221,9 @@ pub(crate) mod definitions_and_contracts {
     #[test]
     fn parses_target_scoped_bodyless_boundary_machine() {
         let source = r#"
-        boundary trait Console { machine exit_process(code: i32) reaches; }
-        data ConsoleNativeProvider {}
-        linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(code: i32)
-            satisfies Console::exit_process;
+        boundary trait ProcessExit { machine exit_process(code: i32) -> Never reaches ProcessExit terminates; }
+        linux_x86_64 boundary machine terminate_process(code: i32) -> Never
+            satisfies ProcessExit::exit_process;
         "#;
 
         let parsed = super::parse_source_verbose(
@@ -2238,7 +2237,7 @@ pub(crate) mod definitions_and_contracts {
                 Item::Machine(machine) => Some(machine),
                 _ => None,
             })
-            .find(|machine| machine.name.as_str(&parsed) == "ConsoleNativeProvider::exit_process")
+            .find(|machine| machine.name.as_str(&parsed) == "terminate_process")
             .expect("target-scoped catalog leaf");
         assert!(machine.boundary);
         assert!(machine.bodyless);

@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 0.
 use omega_language_std::ByteRead;
 use omega_language_std::Console;
@@ -7,7 +8,7 @@ use input::frames;
 use output::report;
 
 data Main { }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("force_plate_balance positions_mm=(-200,-100),(200,-100),(200,100),(-200,100) support_mm=150,75");
     transition { _ -> block next() }
     machine next() {
@@ -76,13 +77,13 @@ machine Main::main(main: &mut Main) reaches Console {
         report(&frame, &result);
         transition { _ -> done() }
     }
-    machine final_invalid() { Console::write_line("INVALID_SYNTAX expected seven signed integers <=1000000"); Console::exit_process(0); }
-    machine done() { Console::exit_process(0); }
-    machine failed() { Console::exit_process(1); }
+    machine final_invalid() { Console::write_line("INVALID_SYNTAX expected seven signed integers <=1000000"); ProcessExit::exit_process(0); }
+    machine done() { ProcessExit::exit_process(0); }
+    machine failed() { ProcessExit::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

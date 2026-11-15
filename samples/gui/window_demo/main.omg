@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Render 60 frames of a 64x64 diagonal color wash in a native 256x256
 // window, paced at 25 ms with an event pump between frames.
 // Persistent handles are explicit application-owned state; provider selection
@@ -223,7 +224,7 @@ machine Main::main(main: &mut Main) reaches
     }
     machine passed(main: &mut Main) {
         Console::write_line("PASS: 60 frames blitted (exit 0)");
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
     machine bad(main: &mut Main, window: Window) {
         let cleaned: bool = Gui::window_destroy(window, main.hdc);
@@ -231,7 +232,7 @@ machine Main::main(main: &mut Main) reaches
     }
     machine failed(main: &mut Main) {
         Console::write_line("FAIL: creation, rendering, or window closure before 60 frames (exit 1)");
-        Console::exit_process(1);
+        ProcessExit::exit_process(1);
     }
 }
 

@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Look up an item by name in a small table of records -- a core serious-app shape
 // (name tables, inventories, registries). Each `Item` is a struct with an `id` and
 // a `&[u8] in Utf8` view `name`, stored in a fixed array `items: [Item; 3]`.
@@ -21,7 +22,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("inventory_lookup: searching a struct table for the item named Shield");
     main.items[0].id = 10;
     main.items[0].name = "Sword";
@@ -46,30 +47,30 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("FAIL: matched the wrong slot 0, Sword (exits its id, 10)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(main.items[0].id);
+        ProcessExit::exit_process(main.items[0].id);
     }
     machine found1(main: &mut Main) {
         Console::write_line("PASS: found Shield at slot 1, id 20 (exit 20)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(main.items[1].id);
+        ProcessExit::exit_process(main.items[1].id);
     }
     machine found2(main: &mut Main) {
         Console::write_line("FAIL: matched the wrong slot 2, Potion (exits its id, 30)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(main.items[2].id);
+        ProcessExit::exit_process(main.items[2].id);
     }
     machine missing(main: &mut Main) {
         Console::write_line("FAIL: Shield not found in the table (exit 0)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

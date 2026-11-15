@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 use omega::language::core::abs_f64;
 use omega::language::core::max_f64;
 
@@ -33,7 +34,7 @@ machine Main::number(main: &mut Main, value: f64) reaches Console {
     }
     machine done() { }
 }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("antenna_array_pattern scalar far-field u=-1:0.25:1; powers in millionths");
     let first: ByteRead = block Console::read_byte();
     transition first {
@@ -128,7 +129,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     machine numerical_failure(main: &mut Main) {
         Console::write_line("ERROR numeric: frozen raw or normalized tolerance exceeded");
-        Console::exit_process(66);
+        ProcessExit::exit_process(66);
     }
     machine report(main: &mut Main) {
         Console::write("sample "); Console::write_byte(48 + main.sample % 10);
@@ -166,18 +167,18 @@ machine Main::main(main: &mut Main) reaches Console {
         transition { _ -> load(main) }
     }
     machine complete(main: &mut Main) {
-        Console::write_line("antenna_array_pattern complete"); Console::exit_process(0);
+        Console::write_line("antenna_array_pattern complete"); ProcessExit::exit_process(0);
     }
     machine invalid_input(main: &mut Main) {
-        Console::write_line("ERROR input: expected one selector 0..6, a, newline or EOF"); Console::exit_process(64);
+        Console::write_line("ERROR input: expected one selector 0..6, a, newline or EOF"); ProcessExit::exit_process(64);
     }
     machine invalid_geometry(main: &mut Main) {
-        Console::write_line("ERROR geometry: position outside [-2,2] or weight outside [-2,2]"); Console::exit_process(65);
+        Console::write_line("ERROR geometry: position outside [-2,2] or weight outside [-2,2]"); ProcessExit::exit_process(65);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }
