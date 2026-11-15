@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Extract and checksum the payload of a framed message. The frame is
 // [header, b0, b1, b2, trailer]; the payload is the middle three bytes, obtained
 // with the TWO-BOUND subslice `full[1..4]` (the `Slice::range` operator, distinct
@@ -29,7 +30,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("framed_payload: subslicing the payload out of a framed message and summing it");
     main.frame.bytes[0] = 255;
     main.frame.bytes[1] = 10;
@@ -42,11 +43,11 @@ machine Main::main(main: &mut Main) reaches Console {
     Console::write_line("result: the payload checksum, 60 for this frame (the exit code)");
     Console::write_line("[press Enter to close]");
     _ = block Console::read_line(&mut main.pause);
-    Console::exit_process(checksum);
+    ProcessExit::exit_process(checksum);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

@@ -75,19 +75,45 @@ pub(crate) fn prepare(
     graph: &Graph,
     context: &PropositionContext,
     invariants: &[ScalarBlockInvariant],
+    storage: &crate::places::Storage<'_>,
 ) -> Checked<Vec<(BlockId, Proposition)>> {
     let mut declared = Vec::new();
     for invariant in invariants.iter().filter(|row| row.machine == id) {
         arrivals::admit(id, lowered, tables, invariant)?;
+        let header = block(lowered, invariant.header).ok_or_else(|| {
+            refusal(
+                RefusalReason::ForeignIdentity,
+                id,
+                Construct::Block(invariant.header),
+                "block predicate has no header",
+            )
+        })?;
+        let arguments = header
+            .structural_parameters
+            .iter()
+            .map(|formal| terminal_psi::StructuralArgument::whole(formal.place, formal.access))
+            .collect::<Vec<_>>();
+        let predicate = crate::substitute(
+            &invariant.predicate,
+            &mut storage.at_join(
+                tables,
+                &header.structural_parameters,
+                &arguments,
+                &[],
+                ProgramPoint::BlockEntry(header.id),
+                Construct::Block(header.id),
+            )?,
+        )
+        .map_err(|error| error.refusal(id, Construct::Block(header.id)))?;
         push_knowledge(
             tables,
-            invariant.predicate.clone(),
+            predicate.clone(),
             ProgramPoint::BlockEntry(invariant.header),
             Justification::BlockInvariant {
                 block: invariant.header,
             },
         );
-        declared.push((invariant.header, invariant.predicate.clone()));
+        declared.push((invariant.header, predicate));
     }
     infer(lowered, id, tables, graph, context)?;
     Ok(declared)
@@ -558,10 +584,8 @@ fn describe(
         // the original fact dominates this join (including read premises
         // supplied by operation semantics). Every arrival still proves the
         // inferred predicate; no storage observation is re-read here.
-        if let Some(stated) = rename(proposition, &renaming)
-            && stated != **proposition
-            && in_scope(&stated)
-        {
+        let stated = rename(proposition, &renaming);
+        if stated != **proposition && in_scope(&stated) {
             parts.push(stated);
         }
         if matches!(justification, Justification::OperationSemantics(_)) {
@@ -582,8 +606,8 @@ fn describe(
                         .chain(&equations[operation_equations..])
                         .copied(),
                 )
-                && let Some(denotation) = rename(&denotation, &renaming)
             {
+                let denotation = rename(&denotation, &renaming);
                 parts.push(project(&denotation, &mut |atom| {
                     in_scope(atom).then(|| atom.clone())
                 }));
@@ -593,9 +617,8 @@ fn describe(
         // Keep a predicate that already crosses under the exact argument
         // substitution. Expanding its Boolean equalities into cases would
         // discard the reusable form the preceding join established.
-        if let Some(stated) = rename(proposition, &renaming)
-            && in_scope(&stated)
-        {
+        let stated = rename(proposition, &renaming);
+        if in_scope(&stated) {
             parts.push(stated);
             continue;
         }
@@ -608,9 +631,7 @@ fn describe(
         // A preceding join's result becomes this join's formal on this
         // exact edge. Its predicate follows that identity too, rather than
         // being discarded for naming the preceding result.
-        let Some(denotation) = rename(&denotation, &renaming) else {
-            continue;
-        };
+        let denotation = rename(&denotation, &renaming);
         parts.push(project(&denotation, &mut |atom| {
             in_scope(atom).then(|| atom.clone())
         }));
@@ -631,16 +652,11 @@ pub(crate) fn arrival_goal(
     obligation: ObligationId,
     edge: EdgeId,
     tables: &MachineTables,
+    storage: &crate::places::Storage<'_>,
+    invariants: &[ScalarBlockInvariant],
 ) -> Checked<Proposition> {
     let concerns = Construct::Obligation(obligation);
-    let (target, arguments) = arrival(lowered, edge).ok_or_else(|| {
-        refusal(
-            RefusalReason::ForeignIdentity,
-            id,
-            concerns,
-            "the arrival edge is not a successor in the module",
-        )
-    })?;
+    let (target, arguments, structural) = storage.arrival(edge, concerns)?;
     let Some(row) = predicate_row(tables, target) else {
         return Ok(Proposition::Truth);
     };
@@ -678,79 +694,50 @@ pub(crate) fn arrival_goal(
         .map(|parameter| parameter.id)
         .zip(arguments.iter().copied())
         .collect();
-    rename(predicate, &renaming).ok_or_else(|| {
-        refusal(
-            RefusalReason::Unsupported,
-            id,
-            concerns,
-            "join predicate form outside the scalar subset",
-        )
-    })
+    let mut bindings = storage.at_join(
+        tables,
+        &join.structural_parameters,
+        structural,
+        &renaming,
+        ProgramPoint::Edge(edge),
+        concerns,
+    )?;
+    let explain = |error: crate::Unbound| {
+        let mut refused = error.refusal(id, concerns);
+        refused.detail = format!(
+            "arrival edge {} into block {}: {}",
+            edge.get(),
+            target.get(),
+            refused.detail
+        );
+        refused
+    };
+    let stated = crate::substitute(predicate, &mut bindings).map_err(explain)?;
+    // The original contract remains an arrival goal after its header's
+    // storage observations have been stated over exact logical values.
+    let original = invariants
+        .iter()
+        .find(|row| row.machine == id && row.header == target);
+    if let Some(original) = original {
+        let original = crate::substitute(&original.predicate, &mut bindings).map_err(explain)?;
+        Ok(connective(vec![stated, original], true))
+    } else {
+        Ok(stated)
+    }
 }
 
-/// Restate a predicate on an arrival using the same checked clause traversal
-/// as calls. Unmapped values keep their identity: machine inputs and values
-/// already in the destination's scope do not become block parameters.
-pub(crate) fn rename(
-    proposition: &Proposition,
-    renaming: &[(ValueId, ValueId)],
-) -> Option<Proposition> {
-    crate::substitute(proposition, &mut RenamedValues(renaming)).ok()
-}
-
-struct RenamedValues<'a>(&'a [(ValueId, ValueId)]);
-
-impl crate::Bindings for RenamedValues<'_> {
-    type Error = crate::Unbound;
-
-    fn value(&mut self, id: ValueId, scalar_type: ScalarType) -> Result<ScalarTerm, Self::Error> {
-        let renamed = self
-            .0
+/// Rename scalar identities simultaneously within the same machine. Storage
+/// observations keep their full subject and are resolved separately at the
+/// actual arrival point; renaming cannot decide a case or an extent.
+pub(crate) fn rename(proposition: &Proposition, renaming: &[(ValueId, ValueId)]) -> Proposition {
+    let mut renamed = proposition.clone();
+    renamed.remap_value_ids(|value| {
+        renaming
             .iter()
-            .find(|(from, _)| *from == id)
-            .map_or(id, |(_, to)| *to);
-        Ok(ScalarTerm::value(renamed, scalar_type))
-    }
-
-    fn field(
-        &mut self,
-        version: semantic_vocabulary::ContentPlaceVersion,
-        root: semantic_vocabulary::PlaceId,
-        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
-        scalar_type: ScalarType,
-    ) -> Result<ScalarTerm, Self::Error> {
-        // This is an identity rename within one machine, not observation of
-        // another frame. Place identities and their projected paths stay put.
-        Ok(match scalar_type {
-            ScalarType::Integer(scalar_type) => ScalarTerm::IntegerField {
-                version,
-                root,
-                path: path.to_vec(),
-                scalar_type,
-            },
-            ScalarType::Boolean => ScalarTerm::BooleanField {
-                version,
-                root,
-                path: path.to_vec(),
-            },
-            _ => {
-                return Err(crate::Unbound::Unsupported(
-                    "join field has no scalar observation",
-                ));
-            }
-        })
-    }
-
-    fn case(
-        &mut self,
-        _: semantic_vocabulary::PlaceId,
-        _: &[semantic_vocabulary::CanonicalStructuralPathSegment],
-        _: semantic_vocabulary::StructuralCaseId,
-    ) -> Result<bool, Self::Error> {
-        Err(crate::Unbound::Unsupported(
-            "join predicate has no captured case",
-        ))
-    }
+            .find(|(from, _)| *from == value)
+            .map_or(value, |(_, to)| *to)
+    });
+    renamed
 }
 
 /// What `check` needs from the machine being discharged.
@@ -873,5 +860,52 @@ pub(crate) fn check(
         if !changed {
             return Ok(weakened);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn renaming_preserves_local_storage_subjects_and_swaps_values_simultaneously() {
+        let from = ValueId::new(1).unwrap();
+        let to = ValueId::new(2).unwrap();
+        let root = semantic_vocabulary::PlaceId::new(7).unwrap();
+        let integer =
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .unwrap();
+        let extent = ScalarTerm::ViewExtent {
+            root,
+            path: Vec::new(),
+            scalar_type: integer,
+        };
+        let membership = Proposition::StructuralCaseMembership {
+            subject: semantic_vocabulary::StructuralCaseSubject::new(root, Vec::new()),
+            case: semantic_vocabulary::StructuralCaseId::new(3).unwrap(),
+        };
+        let predicate = Proposition::Conjunction(vec![
+            Proposition::LessThan(
+                ScalarTerm::value(from, ScalarType::Integer(integer)),
+                extent.clone(),
+            ),
+            Proposition::Equal(
+                ScalarTerm::value(to, ScalarType::Integer(integer)),
+                ScalarTerm::value(from, ScalarType::Integer(integer)),
+            ),
+            membership.clone(),
+        ]);
+        let renamed = rename(&predicate, &[(from, to), (to, from)]);
+        assert_eq!(
+            renamed,
+            Proposition::Conjunction(vec![
+                Proposition::LessThan(ScalarTerm::value(to, ScalarType::Integer(integer)), extent),
+                Proposition::Equal(
+                    ScalarTerm::value(from, ScalarType::Integer(integer)),
+                    ScalarTerm::value(to, ScalarType::Integer(integer))
+                ),
+                membership,
+            ])
+        );
     }
 }

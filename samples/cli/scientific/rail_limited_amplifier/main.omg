@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // NEW034: runtime-configured discrete rail-limited feedback amplifier.
 // Only this project owns its model, bounded parser and report implementation.
 use omega_language_std::Console;
@@ -23,7 +24,7 @@ data Main {
     overload_count: i32 in Wrapping;
     first_recovered: i32;
 }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     let read: LineReadResult = block Console::read_line(&mut main.bytes);
     transition read {
         LineReadResult::LineComplete { count } -> received(main, count)
@@ -119,19 +120,19 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write(",");
         integer(main.first_recovered);
         Console::write_line("");
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
     machine syntax(main: &mut Main) {
         Console::write_line("ERROR syntax: expected ten bounded signed integers");
-        Console::exit_process(64);
+        ProcessExit::exit_process(64);
     }
     machine bad_rails(main: &mut Main) {
         Console::write_line("ERROR rails: lower must be less than upper");
-        Console::exit_process(64);
+        ProcessExit::exit_process(64);
     }
     machine bad_parameters(main: &mut Main) {
         Console::write_line("ERROR parameters: gain, feedback, relaxation, steps or initial output outside bounds");
-        Console::exit_process(64);
+        ProcessExit::exit_process(64);
     }
 }
 machine Main::equilibrium_row(main: &mut Main, phase: i32) reaches Console {
@@ -210,7 +211,7 @@ machine Main::measure(main: &mut Main) {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

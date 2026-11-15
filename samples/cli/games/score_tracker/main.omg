@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Score tracker. Combines case-payload events, fixed arrays, scalar
 // accumulation, [copy] property, and multi-arm case dispatch.
 //
@@ -35,7 +36,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("score_tracker: replays score/bonus/reset events for two players");
     Main::apply(main, Event::Score { player: 0, points: 30 });
     Main::apply(main, Event::Score { player: 1, points: 20 });
@@ -56,14 +57,14 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("PASS: final scores 60 + 10 total 70 (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(70);
+        ProcessExit::exit_process(70);
     }
 
     machine bad(main: &mut Main) {
         Console::write_line("FAIL: event replay total did not equal 70 (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(71);
+        ProcessExit::exit_process(71);
     }
 }
 
@@ -126,7 +127,7 @@ machine Main::apply(main: &mut Main, event: Event) {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

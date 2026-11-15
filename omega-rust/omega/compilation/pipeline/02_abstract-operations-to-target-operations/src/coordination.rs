@@ -115,6 +115,16 @@ mod installed_provider_calls {
                 ..
             }) = boundary_calls.get(key).copied()
             {
+                let declaration = plan
+                    .boundary_machine(key.2)
+                    .ok_or(LoweringError::UnknownBoundarySettlement(key.2))?;
+                crate::control_flow::validate_external_completion_result(
+                    key.2,
+                    declaration.completion,
+                    *kind,
+                    &declaration.result,
+                    plan.structural_types.as_slice(),
+                )?;
                 if installed.result != terminal_psi::OperationResult::Unit
                     || installed.scalar_arguments != *arguments
                     || installed.structural_arguments != *structural_arguments
@@ -122,10 +132,6 @@ mod installed_provider_calls {
                     || !installed.completion_receipts.is_empty()
                     || installed.provider.boundary != key.2
                     || !plan.provider_candidates.contains(&installed.provider)
-                    || !plan.boundary_machine(key.2).is_some_and(|declaration| {
-                        declaration.completion
-                            == semantic_vocabulary::BoundaryCompletion::External(*kind)
-                    })
                 {
                     return Err(LoweringError::SelectedBoundaryCallEvidenceMismatch {
                         machine: key.0,

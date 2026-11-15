@@ -34,6 +34,9 @@ pub fn settled_slot_schemas(
 ) -> Vec<SlotSchema> {
     let mut schemas = Vec::<SlotSchema>::new();
     for requirement in settled.requirements() {
+        if requirement.supply.checked().is_none() {
+            continue;
+        }
         let slot = requirement.reached.slot;
         if schemas.iter().any(|schema| schema.slot == slot) {
             continue;

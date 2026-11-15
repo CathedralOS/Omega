@@ -6,8 +6,8 @@ Every operation that establishes a structural value exposes its exact `structura
 
 use crate::{
     BoundaryByteSequenceArgument, BoundaryExecutionBinding, BoundaryRealization,
-    BoundaryScalarArgument, NormalizedForeignCallBinding, NormalizedForeignScalarArgument,
-    NormalizedForeignStructuralArgument, ProviderExecutionBinding, TargetBoundaryResult,
+    BoundaryScalarArgument, ExternalExecutionBinding, NormalizedForeignCallBinding,
+    NormalizedForeignScalarArgument, NormalizedForeignStructuralArgument, TargetBoundaryResult,
     TargetStructuralArgument, TargetStructuralHomeRequirement, TargetUnitScalarArgumentSource,
     TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement,
     TargetUnitWriteOnlyPrimitiveStoreSource,
@@ -506,7 +506,7 @@ pub enum TargetUnitOperation {
     NormalizedForeignCall {
         psi_operation: OperationId,
         boundary: BoundaryMachineId,
-        provider_execution: ProviderExecutionBinding,
+        provider_execution: ExternalExecutionBinding,
         binding: NormalizedForeignCallBinding,
         scalar_arguments: Vec<NormalizedForeignScalarArgument>,
         structural_arguments: Vec<NormalizedForeignStructuralArgument>,

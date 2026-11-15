@@ -518,9 +518,8 @@ pub(crate) mod vocabulary {
         }
 
         pub const fn get(self) -> u16 {
-            // Explicit Id formation retains its checked mathematical signature
-            // and subject telescope independently of executable comparisons.
-            134
+            // Boundary declarations retain their complete service contract.
+            135
         }
     }
 }

@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 0
 // Expected output contains: 1 10 100
 // Feature powers for one calibration setting. x^0 is 1. For Degree >= 1,
@@ -37,7 +38,7 @@ requires Degree >= 1 && Degree <= 2
 
 data Main { }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     let setting: i64 in Wrapping = 10;
     let constant: i64 in Wrapping = step<0>(setting);
     let linear: Basis<1> = Basis { setting: setting };
@@ -46,7 +47,7 @@ machine Main::main(main: &mut Main) reaches Console {
     let quadratic_power: i64 in Wrapping = from_parameter<2>(quadratic.setting);
     transition constant == 1 && linear_power == 10 && quadratic_power == 100 {
         true -> report(main, constant, linear_power, quadratic_power)
-        false -> Console::exit_process(1)
+        false -> ProcessExit::exit_process(1)
     }
     machine report(main: &mut Main, constant: i64 in Wrapping, linear_power: i64 in Wrapping,
                  quadratic_power: i64 in Wrapping) {
@@ -56,14 +57,14 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write(" ");
         show(main, quadratic_power);
         Console::write_line("");
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
 }
 
-machine show(main: &mut Main, value: i64 in Wrapping) reaches Console {
+machine show(main: &mut Main, value: i64 in Wrapping) reaches ProcessExit + Console {
     transition value >= 0 && value < 1000 {
         true -> hundreds(main, value / 100, value)
-        false -> Console::exit_process(1)
+        false -> ProcessExit::exit_process(1)
     }
     machine hundreds(main: &mut Main, digit: i64 in Wrapping, value: i64 in Wrapping) {
         transition digit > 0 {
@@ -87,7 +88,7 @@ machine show(main: &mut Main, value: i64 in Wrapping) reaches Console {
         let digit: i64 in Wrapping = value % 10;
         transition digit >= 0 && digit <= 9 {
             true -> finish(main, digit)
-            false -> Console::exit_process(1)
+            false -> ProcessExit::exit_process(1)
         }
     }
     machine finish(main: &mut Main, digit: i64 in Wrapping)
@@ -98,7 +99,7 @@ machine show(main: &mut Main, value: i64 in Wrapping) reaches Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     Main::main(&mut entry_storage);
 }

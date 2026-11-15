@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // NEW071: exhaustive bounded manufacturing cut planner. All data is synthetic.
 use omega_language_std::Console;
 use omega_language_std::LineReadResult;
@@ -7,7 +8,7 @@ use planner;
 use report;
 
 data Main { }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     let mut bytes: [u8; 32];
     let observed: LineReadResult = block Console::read_line(&mut bytes);
     transition observed {
@@ -44,19 +45,19 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> internal(main)
         }
     }
-    machine done(main: &mut Main) { Console::exit_process(0); }
+    machine done(main: &mut Main) { ProcessExit::exit_process(0); }
     machine internal(main: &mut Main) {
         Console::write_line("INTERNAL: conservation certificate failed");
-        Console::exit_process(70);
+        ProcessExit::exit_process(70);
     }
     machine invalid(main: &mut Main) {
         Console::write_line("INVALID: expected SSS RRR K LLL LLL LLL LLL; stock and orders must be positive");
-        Console::exit_process(64);
+        ProcessExit::exit_process(64);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

@@ -190,6 +190,7 @@ fn supplied_on(
     let product = supplied_product(compiler::ProductSupplySource {
         publication: Arc::clone(&original),
         build: &[],
+        native_bindings: &[],
         defaults: &defaults,
         layout_deferred: &[],
         layout_prepared: &[],
@@ -198,6 +199,7 @@ fn supplied_on(
     let supply = compiler::prepare_supplied_target(compiler::TargetSupplySource {
         publication: &product,
         build: &[],
+        native_bindings: &[],
         defaults: &defaults,
         target: Some(target),
     })
@@ -259,6 +261,7 @@ fn a_publication_judges_its_exact_roster_including_predeclared_supplies() {
     let error = supplied_product(compiler::ProductSupplySource {
         publication: Arc::new(original),
         build: &[],
+        native_bindings: &[],
         defaults: &defaults,
         layout_deferred: &[],
         layout_prepared: &[],
@@ -411,6 +414,7 @@ fn a_chosen_provider_the_module_does_not_hold_is_refused() {
         compiler::prepare_supplied_target(compiler::TargetSupplySource {
             publication: &publication,
             build: &[],
+            native_bindings: &[],
             defaults: &defaults,
             target: Some(TARGET),
         })
@@ -425,12 +429,13 @@ fn prepare(
     build: &[ProviderSelection],
     defaults: &[TargetProviderDefaults],
 ) -> Result<PreparedTargetSupply, String> {
-    prepare_for_target(accepted, build, defaults, Some(TARGET))
+    prepare_for_target(accepted, build, &[], defaults, Some(TARGET))
 }
 
 fn prepare_for_target(
     accepted: &AcceptedTerminalSource,
     build: &[ProviderSelection],
+    native_bindings: &[provider_planning::native_bindings::NativeBuildSupply],
     defaults: &[TargetProviderDefaults],
     target: Option<&str>,
 ) -> Result<PreparedTargetSupply, String> {
@@ -451,6 +456,7 @@ fn prepare_for_target(
         declared: &declared,
         roots: &roots,
         judged: &[],
+        native_bindings,
         build,
         defaults,
         target,
@@ -591,6 +597,286 @@ fn settle(supplied: &str, program: &str) -> Result<SettledTargetSupply, String> 
 
 fn first(diagnostics: Vec<diagnostics::Diagnostic>) -> String {
     diagnostics[0].message.clone()
+}
+
+fn native_supply(
+    accepted: &AcceptedTerminalSource,
+    target: language_semantics::declaration_selection::ProductTarget,
+    supplier: semantic_vocabulary::PackageKeyIdentity,
+) -> provider_planning::native_bindings::NativeBuildSupply {
+    use evaluation_accounting::{
+        BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
+        TerminalStorageScheduleIdentity,
+    };
+    let requirement = accepted
+        .boundary_requirements_declared()
+        .unwrap()
+        .into_iter()
+        .find(|requirement| requirement.name == "Service::go")
+        .unwrap();
+    let measurement = EvaluationMeasurementIdentity::TerminalPsi {
+        work_schedule: semantic_vocabulary::WorkScheduleIdentity::new(1).unwrap(),
+        storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
+    };
+    let sponsor = BuildEvaluationSponsor::new_with_measurement(
+        BuildEvaluationSponsorLimits::new(100, 100, 8, 8, 100, 100, 100, 100).unwrap(),
+        measurement,
+    )
+    .unwrap();
+    let usage = *sponsor
+        .begin_invocation(measurement, 100)
+        .unwrap()
+        .snapshot()
+        .unwrap()
+        .record();
+    provider_planning::native_bindings::NativeBuildSupply {
+        selection: build_time_evaluation::native_bindings::NativeBindingSelection {
+            application: None,
+            subject: requirement.slot,
+            requirement: requirement.requirement,
+            target,
+            locator: semantic_vocabulary::NativeBindingLocator::Syscall { number: 39 },
+            producer: language_semantics::declaration_selection::NativeBindingProducer {
+                package: supplier,
+                declaration_path: "build".into(),
+                callable_identity: "build::bind_service".into(),
+            },
+            source_occurrence_digest: [5; 32],
+            supplier_package: supplier,
+            source_span: Default::default(),
+        },
+        evaluation: Arc::new(provider_planning::native_bindings::NativeBuildEvaluation {
+            terminal_code: terminal_psi::TerminalPsiIdentity {
+                vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
+                program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([7; 32]),
+            },
+            usage,
+            observation_digest: [9; 32],
+        }),
+    }
+}
+
+#[test]
+fn a_native_binding_supplies_only_its_reached_requirement() {
+    use language_semantics::declaration_selection::ProductTarget;
+    let (source, defaults, roster) = judged(&format!("{WHOLE_SLOT}{NATIVE_DEFAULT}"), REACHES);
+    let original = Arc::new(
+        products::ProductTerminalPublication::judge(
+            source,
+            roster,
+            optimization_core::OptimizationSelections::default(),
+        )
+        .unwrap(),
+    );
+    let native = native_supply(
+        original.accepted().unwrap(),
+        ProductTarget::LinuxX86_64,
+        package(),
+    );
+    let publication = supplied_product(compiler::ProductSupplySource {
+        publication: original,
+        build: &[],
+        native_bindings: std::slice::from_ref(&native),
+        defaults: &defaults,
+        layout_deferred: &[],
+        layout_prepared: &[],
+    })
+    .unwrap();
+    assert!(
+        publication
+            .roster()
+            .unwrap()
+            .declaration_metadata
+            .is_empty(),
+        "the common boundary publisher needs no native-only metadata nomination"
+    );
+    let supplies = &publication.roster().unwrap().supplies;
+    let [checked] = supplies.as_slice() else {
+        panic!("the other targets choose one shared checked default")
+    };
+    assert_eq!(checked.slot, native.selection.subject);
+    assert_eq!(
+        checked.provider,
+        defaults[0].selections[0].provider_type.symbol
+    );
+    let accepted = publication.accepted().unwrap();
+    assert!(
+        accepted
+            .module()
+            .calling_signatures
+            .iter()
+            .any(|signature| {
+                signature.application.is_ok()
+                    && accepted
+                        .module()
+                        .boundary_machine(signature.boundary)
+                        .is_some()
+            }),
+        "the native boundary retains its ABI through the shared publication"
+    );
+    let other = compiler::prepare_supplied_target(compiler::TargetSupplySource {
+        publication: &publication,
+        build: &[],
+        native_bindings: std::slice::from_ref(&native),
+        defaults: &defaults,
+        target: Some("windows_x86_64"),
+    })
+    .unwrap()
+    .settle()
+    .unwrap();
+    assert_eq!(other.requirements().len(), 1);
+    assert_eq!(
+        other.requirements()[0].supply.authority,
+        SupplyAuthority::TargetDefault
+    );
+    assert_eq!(
+        other.requirements()[0].supply.checked(),
+        Some(&defaults[0].selections[0])
+    );
+    assert_eq!(
+        other.requirements()[0].reached.requirement,
+        native.selection.requirement
+    );
+    assert!(
+        other
+            .native_bindings(accepted.module())
+            .unwrap()
+            .rows
+            .is_empty()
+    );
+    let other_plans = plans(accepted, &other).unwrap();
+    let [other_plan] = other_plans.as_slice() else {
+        panic!("the other target retains its exact checked default plan")
+    };
+    assert_eq!(other_plan.provider_type, "Native");
+    assert_eq!(other_plan.target, "windows_x86_64");
+
+    let prepared = prepare_for_target(
+        accepted,
+        &[],
+        std::slice::from_ref(&native),
+        &defaults,
+        Some(TARGET),
+    )
+    .unwrap();
+    assert_eq!(
+        prepared.requirements().len(),
+        1,
+        "the uncalled sibling owes no native binding"
+    );
+    let settled = prepared.settle().unwrap();
+    assert_eq!(
+        settled.requirements()[0].supply.authority,
+        SupplyAuthority::NativeBinding
+    );
+    assert!(
+        plans(accepted, &settled).unwrap().is_empty(),
+        "a native leaf has no checked-provider plan"
+    );
+    let execution = selected_dispatch::SelectedExecution::settle(
+        Some(target::TargetProfile::LinuxX64),
+        &settled,
+        SupplyPlanning {
+            module: accepted.module(),
+            schemas: &[],
+        },
+    )
+    .unwrap();
+    let normalized = execution.native_bindings();
+    let [row] = normalized.rows.as_slice() else {
+        panic!("the chosen leaf retains one receipt")
+    };
+    let boundary = accepted.module().boundary_machine(row.boundary).unwrap();
+    let abi = accepted
+        .module()
+        .calling_abi_identity(row.boundary)
+        .unwrap();
+    let module = accepted.module();
+    assert_eq!(module.calling_signatures.len(), 2);
+    assert_eq!(module.calling_abi_signatures.len(), 2);
+    for declared in &module.boundary_machines {
+        let application = module
+            .calling_signatures
+            .iter()
+            .find(|signature| signature.boundary == declared.id)
+            .unwrap();
+        let calling = module
+            .calling_abi_signature(*application.application.as_ref().unwrap())
+            .unwrap();
+        assert_eq!(
+            module.identities.text(calling.requirement_identity),
+            module
+                .identities
+                .text(declared.declaration.as_ref().unwrap().source.callable)
+        );
+    }
+    let calling = module.calling_abi_signature(abi.id()).unwrap();
+    assert!(
+        calling.storage.is_ok(),
+        "the canonical calling declaration retains its storage"
+    );
+    let callable = boundary.declaration.as_ref().unwrap().source.callable;
+    let origin = row
+        .binding
+        .receipt()
+        .build_origin()
+        .expect("the evaluation keeps its Build origin");
+    assert_eq!(
+        normalized.identities.text(origin.requirement_identity),
+        accepted.module().identities.text(callable)
+    );
+}
+
+#[test]
+fn native_binding_targets_and_supplier_conflicts_are_enforced() {
+    use language_semantics::declaration_selection::ProductTarget;
+    let (accepted, _) = accepted(WHOLE_SLOT, REACHES);
+    let native = native_supply(&accepted, ProductTarget::LinuxArm64, package());
+    let missing = prepare_for_target(&accepted, &[], &[native], &[], Some(TARGET))
+        .unwrap()
+        .settle()
+        .unwrap_err();
+    assert!(first(missing).contains("has no provider"));
+    let native = native_supply(&accepted, ProductTarget::LinuxX86_64, package());
+    let mut other = native.clone();
+    let other_supplier = semantic_vocabulary::PackageKeyIdentity::from_digest([2; 32]).unwrap();
+    other.selection.supplier_package = other_supplier;
+    other.selection.producer.package = other_supplier;
+    let conflict = prepare_for_target(&accepted, &[], &[native, other], &[], Some(TARGET))
+        .unwrap()
+        .settle()
+        .unwrap_err();
+    assert!(first(conflict).contains("conflicting providers"));
+}
+
+#[test]
+fn an_explicit_checked_selection_overrides_a_native_binding() {
+    use language_semantics::declaration_selection::ProductTarget;
+    let (accepted, defaults) = accepted(&format!("{WHOLE_SLOT}{NATIVE_DEFAULT}"), REACHES);
+    let explicit = defaults[0].selections[0].clone();
+    let native = native_supply(&accepted, ProductTarget::LinuxX86_64, package());
+    let settled = prepare_for_target(
+        &accepted,
+        std::slice::from_ref(&explicit),
+        &[native],
+        &defaults,
+        Some(TARGET),
+    )
+    .unwrap()
+    .settle()
+    .unwrap();
+    assert_eq!(
+        settled.requirements()[0].supply.authority,
+        SupplyAuthority::Build
+    );
+    assert_eq!(settled.requirements()[0].supply.checked(), Some(&explicit));
+    assert!(
+        settled
+            .native_bindings(accepted.module())
+            .unwrap()
+            .rows
+            .is_empty()
+    );
 }
 
 fn profile() -> target::TargetProfile {
@@ -755,7 +1041,7 @@ fn unscoped_supply_keeps_pure_programs_targetless_and_refuses_provider_demands()
         &format!("{SLOT}{PROVIDERS}{NATIVE_DEFAULT}"),
         REACHES_NOTHING,
     );
-    let prepared = prepare_for_target(&accepted, &[], &defaults, None).unwrap();
+    let prepared = prepare_for_target(&accepted, &[], &[], &defaults, None).unwrap();
     assert_eq!(prepared.target(), None);
     let settled = prepared.settle().unwrap();
     let execution = execution(None, &accepted, &settled).unwrap();
@@ -773,7 +1059,7 @@ fn unscoped_supply_keeps_pure_programs_targetless_and_refuses_provider_demands()
 
     let (reached, defaults) =
         self::accepted(&format!("{SLOT}{PROVIDERS}{NATIVE_DEFAULT}"), REACHES);
-    let error = prepare_for_target(&reached, &[], &defaults, None).unwrap_err();
+    let error = prepare_for_target(&reached, &[], &[], &defaults, None).unwrap_err();
     assert!(
         error.contains("requires an explicit deployment target"),
         "{error}"
@@ -801,7 +1087,8 @@ fn a_reached_requirement_settles_to_its_one_declared_default() {
     assert_eq!(
         settled.requirements()[0]
             .supply
-            .selection
+            .checked()
+            .unwrap()
             .provider_type
             .authored_path,
         "Native"
@@ -900,6 +1187,173 @@ fn a_chosen_provider_forms_one_plan_for_its_whole_slot() {
     judged.sort_unstable();
     assert_eq!(installed, judged);
     assert_eq!(check_conditions(&artifact, &proposal), Ok(()));
+}
+
+/// A supplied slot needs ABI declarations for its uncalled members too.
+/// Their signatures remain distinct from the reached member's signature.
+#[test]
+fn a_whole_slot_keeps_each_members_exact_calling_declaration() {
+    let supplied = format!(
+        "{}{NATIVE_DEFAULT}",
+        WHOLE_SLOT.replace("stop()", "stop(bytes: &[u8])")
+    );
+    let target = supplied_target(&supplied, REACHES).expect("both supplied bodies check");
+    assert_eq!(target.supply.requirements().len(), 1, "only go is demanded");
+    let accepted = target.publication.accepted().unwrap();
+    let module = accepted.module();
+    assert_eq!(module.calling_signatures.len(), 2);
+    assert_eq!(module.calling_abi_signatures.len(), 2);
+    for boundary in &module.boundary_machines {
+        let declaration = boundary.declaration.as_ref().unwrap();
+        let signature = module
+            .calling_signatures
+            .iter()
+            .find(|row| row.boundary == boundary.id)
+            .unwrap();
+        let abi = module
+            .calling_abi_signature(*signature.application.as_ref().unwrap())
+            .unwrap();
+        assert_eq!(
+            module.identities.text(abi.requirement_identity),
+            module.identities.text(declaration.source.callable),
+            "each ABI belongs to its exact requirement"
+        );
+    }
+    let settled = target.supply.settle().unwrap();
+    let execution = execution(Some(profile()), accepted, &settled).unwrap();
+    let plan = &execution.plans().plans()[0];
+    let program = provider_planning::calling_policy_plans::CallingProgram {
+        artifact: produced(accepted),
+        evaluator: build_settings::CALLING_POLICY_EVALUATOR,
+    };
+    let applications = provider_planning::calling_policy_plans::component_calling_applications(
+        profile(),
+        &program,
+        &[plan],
+        &[],
+    )
+    .expect("every member has a materializable declaration application");
+    assert_eq!(applications.len(), 2);
+
+    let mut changed = plan.clone();
+    let sibling = module
+        .calling_abi_signatures
+        .iter()
+        .find(|abi| {
+            module.identities.text(abi.requirement_identity)
+                != Some(
+                    changed
+                        .identities
+                        .text(changed.rows[0].declared_requirement_identity),
+                )
+        })
+        .unwrap();
+    changed.rows[0].calling_signature = Some(sibling.id);
+    let error = provider_planning::calling_policy_plans::component_calling_applications(
+        profile(),
+        &program,
+        &[&changed],
+        &[],
+    )
+    .expect_err("one member cannot borrow its sibling's declaration ABI");
+    assert!(
+        diagnostics::join_messages(&error)
+            .contains("selected closed method lost its exact published declaration ABI")
+    );
+}
+
+/// Local checked calls keep the sum's actual tag and every payload. That
+/// private layout does not authorize passing the same type to foreign code.
+#[test]
+fn a_local_checked_provider_keeps_case_results_without_a_foreign_abi() {
+    let supplied = format!(
+        r#"
+public data Outcome {{
+    case Empty;
+    case Count(value: u64);
+    case Byte(value: u8);
+}}
+public boundary trait Service {{
+    machine go() -> Outcome reaches none crashes none;
+    machine stop() -> Outcome reaches none crashes none;
+}}
+Native satisfies Service {{
+    machine go() -> Outcome reaches none crashes none {{ Outcome::Count {{ value: 7u64 }} }}
+    machine stop() -> Outcome reaches none crashes none {{ Outcome::Byte {{ value: 9u8 }} }}
+}}
+data NativeDefaults {{}}
+{NATIVE_DEFAULT}
+"#
+    );
+    let target = supplied_target(
+        &supplied,
+        "machine main() { let result: Outcome = Service::go(); }",
+    )
+    .expect("the local provider and its uncalled member check");
+    assert_eq!(target.supply.requirements().len(), 1);
+    let accepted = target.publication.accepted().unwrap();
+    let settled = target.supply.settle().unwrap();
+    let execution = execution(Some(profile()), accepted, &settled).unwrap();
+    let artifact = produced(accepted);
+    let proposal = execution
+        .provider_proposal(
+            artifact.view(),
+            optimization_core::OptimizationSelections::default().identity(),
+        )
+        .unwrap();
+    let selection = proposal.selection.as_ref().unwrap();
+    let installed = selection
+        .admit(artifact.view(), TARGET)
+        .expect("all local members have exact checked installations");
+    assert_eq!(installed.providers().count(), 2);
+    assert_eq!(check_conditions(&artifact, &proposal), Ok(()));
+
+    let module = artifact.semantic_module();
+    let terminal_psi::BoundaryMachineResult::Structural(result) =
+        &module.boundary_machines[0].result
+    else {
+        panic!("the result keeps its logical case type")
+    };
+    let geometry =
+        calling_conventions::terminal_layout::NativeGeometry::new(&module.structural_types)
+            .unwrap();
+    let layout = geometry.sum_layout(result.structural_type).unwrap();
+    assert_eq!(
+        layout.tag_shape,
+        calling_conventions::ValueShape::integer(4, 4)
+    );
+    assert_eq!(
+        layout.shape,
+        calling_conventions::ValueShape::integer(16, 8)
+    );
+    assert_eq!(layout.cases.len(), 3);
+    assert!(layout.cases[0].fields.is_empty());
+    assert_eq!(
+        layout.cases[1].fields[0].shape,
+        calling_conventions::ValueShape::integer(8, 8)
+    );
+    assert_eq!(
+        layout.cases[2].fields[0].shape,
+        calling_conventions::ValueShape::integer(1, 1)
+    );
+    assert_eq!(layout.cases[1].fields[0].byte_offset, 8);
+    assert_eq!(layout.cases[2].fields[0].byte_offset, 8);
+
+    let no_extents = |_| panic!("this closed case type has no evaluated extent");
+    let mut foreign = layout::TerminalBoundaryRecipes::new(module, TARGET, &no_extents);
+    let refused = foreign.value(result.structural_type).unwrap_err();
+    assert!(
+        refused.contains("case data is not yet classifiable as a boundary value"),
+        "{refused}"
+    );
+
+    let mut changed = selection.clone();
+    changed.checked_candidates[0].candidate = changed.checked_candidates[1].candidate;
+    let refused = changed.admit(artifact.view(), TARGET).unwrap_err();
+    assert!(
+        refused.contains("complete canonical selected-provider roster"),
+        "{refused}"
+    );
 }
 
 /// The twins of the plan. A module that states no candidate of the provider
@@ -1008,7 +1462,8 @@ fn supply_is_ranked_by_authority_and_keyed_by_target() {
     assert_eq!(
         settled.requirements()[0]
             .supply
-            .selection
+            .checked()
+            .unwrap()
             .provider_type
             .authored_path,
         "Other"

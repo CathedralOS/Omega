@@ -811,6 +811,41 @@ fn template_commitment(
     Ok(Some(digest.finish()))
 }
 
+pub(crate) fn service_declaration_scope(
+    typed: &TypedTrees,
+    owner: SymbolHandle,
+) -> Result<source::DependencyScope, &'static str> {
+    if typed.symbols.source_files().next().is_none() {
+        // Without source files there are no scoped source instances to choose.
+        return Ok(source::DependencyScope::default());
+    }
+    let span = typed
+        .symbols
+        .symbol_provenance_source_span(owner)
+        .ok_or("boundary declaration lost its retained source provenance")?;
+    let file = typed
+        .symbols
+        .source_file(span)
+        .ok_or("boundary declaration provenance has no retained source file")?;
+    Ok(file.dependency_scope)
+}
+
+fn service_declaration_commitment(
+    typed: &TypedTrees,
+    owner: &typed_trees::trait_definition::TraitDefinition,
+) -> Result<[u8; 32], &'static str> {
+    // The declaration's actual source instance selects its checking context.
+    // This describes the complete service; it grants no execution permission.
+    let scope = service_declaration_scope(typed, owner.symbol)?;
+    Ok(typed_trees::service_declarations::projection::from_typed(
+        typed_trees::provider_declarations::ProviderPlanningContext::new(typed, scope),
+        owner,
+    )
+    .ok_or("boundary declaration has no complete service contract")?
+    .declaration
+    .declaration_commitment())
+}
+
 /// A bodyless trait method retains its actual nominal owner and signature.
 /// There is no executable state to invent: the owning trait and requirement
 /// occupy the existing owner/entry coordinates of the declaration record.
@@ -852,6 +887,7 @@ pub(crate) fn boundary(
     let sources =
         source::source_identity::toolchain_source_identities(typed.symbols.source_files())
             .map_err(|_| "a boundary toolchain source has no exact identity")?;
+    let service_declaration = service_declaration_commitment(typed, owner)?;
     let (owner, source, method_arguments) = trait_requirement(
         typed,
         &sources,
@@ -863,6 +899,7 @@ pub(crate) fn boundary(
     Ok((
         owner,
         terminal_psi::CheckedBoundaryCallable {
+            service_declaration,
             source,
             execution: terminal_psi::CheckedBoundaryExecution::Provider,
             method_arguments,
@@ -892,6 +929,38 @@ fn primitive_boundary(
     let [state] = typed.machine_states(machine) else {
         return Err("primitive has no exact entry state");
     };
+    let terminal_psi::CheckedBoundaryExecution::HostedPrimitive { operation, .. } = execution
+    else {
+        return Err("primitive publisher has no exact hosted operation");
+    };
+    if typed.symbols.sealed_intrinsic(symbol)
+        != Some(language_core::sealed_intrinsics::SealedIntrinsic::HostedPrimitive(operation))
+    {
+        return Err("primitive publisher lost its exact catalog custody");
+    }
+    let mut requirements = typed
+        .machine_trait_conformances(machine)
+        .iter()
+        .map(|edge| typed_trees::machine::resolve_satisfied_declaration(typed, machine, edge));
+    let requirement = requirements
+        .next()
+        .flatten()
+        .ok_or("primitive has no exact satisfied requirement")?;
+    if requirements.next().is_some() {
+        return Err("primitive has multiple satisfied requirements");
+    }
+    let (service, declared) = typed
+        .trait_machine_signature(requirement.symbol())
+        .filter(|(owner, required)| owner.is_boundary && required.symbol == requirement.symbol())
+        .ok_or("primitive requirement has no exact declaring service")?;
+    if typed
+        .symbols
+        .sealed_member_intrinsic(service.symbol, declared.name.as_str())
+        != Some(language_core::sealed_intrinsics::SealedIntrinsic::HostedRequirement(operation))
+    {
+        return Err("primitive operation differs from its declared service requirement");
+    }
+    let service_declaration = service_declaration_commitment(typed, service)?;
     let sources =
         source::source_identity::toolchain_source_identities(typed.symbols.source_files())
             .map_err(|_| "primitive source has no exact identity")?;
@@ -943,6 +1012,7 @@ fn primitive_boundary(
     Ok((
         owner,
         terminal_psi::CheckedBoundaryCallable {
+            service_declaration,
             source,
             execution,
             method_arguments: Vec::new(),

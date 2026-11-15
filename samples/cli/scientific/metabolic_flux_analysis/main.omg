@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 0 for input.txt; exact rational / HiGHS oracle in validation/.
 use domain::input;
 use domain::solver;
@@ -6,7 +7,7 @@ use omega::language::core::narrow_i64_to_i32_wrapping;
 use omega_language_std::Console;
 
 data Application { reader: Reader; solver: Solver; }
-machine Application::main(application: &mut Application) reaches Console crashes Trap {
+machine Application::main(application: &mut Application) reaches ProcessExit + Console crashes Trap {
     let metabolites: Number = block number(&mut application.reader);
     let reactions: Number = block number(&mut application.reader);
     let biomass: Number = block number(&mut application.reader);
@@ -18,7 +19,7 @@ machine Application::main(application: &mut Application) reaches Console crashes
         _ -> invalid(application)
     }
     machine invalid(application: &mut Application) {
-        Console::write_line("ERROR input"); Console::exit_process(10);
+        Console::write_line("ERROR input"); ProcessExit::exit_process(10);
     }
     machine configure(application: &mut Application, metabolites: i64 in Wrapping, reactions: i64 in Wrapping, biomass: i64 in Wrapping) {
         application.solver.metabolites = narrow_i64_to_i32_wrapping((metabolites / 1000000000) as i64) as i32 in Wrapping;
@@ -66,7 +67,7 @@ machine Application::main(application: &mut Application) reaches Console crashes
         transition application.solver.found { true -> optimal(application) _ -> infeasible(application) }
     }
     machine infeasible(application: &mut Application) {
-        Console::write_line("INFEASIBLE"); Console::exit_process(11);
+        Console::write_line("INFEASIBLE"); ProcessExit::exit_process(11);
     }
     machine optimal(application: &mut Application) {
         Console::write_line("OPTIMAL");
@@ -103,11 +104,11 @@ machine Application::main(application: &mut Application) reaches Console crashes
         rational(&mut application.reader, "residual_pico=", sum, application.solver.best_denominator);
         transition { _ -> residual(application, row + 1, 0, 0) }
     }
-    machine done(application: &mut Application) { Console::exit_process(0); }
+    machine done(application: &mut Application) { ProcessExit::exit_process(0); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console crashes Trap {
+machine entry_start() reaches ProcessExit + Console crashes Trap {
     let mut entry_storage: Application;
     block Application::main(&mut entry_storage);
 }

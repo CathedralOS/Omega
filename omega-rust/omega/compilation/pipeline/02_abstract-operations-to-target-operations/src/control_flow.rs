@@ -1461,6 +1461,35 @@ mod terminator {
         Ok(())
     }
 
+    pub(crate) fn validate_external_completion_result(
+        boundary: BoundaryMachineId,
+        completion: semantic_vocabulary::BoundaryCompletion,
+        kind: semantic_vocabulary::ExternalCompletionKind,
+        result: &terminal_psi::BoundaryMachineResult,
+        types: &[terminal_psi::StructuralTypeDeclaration],
+    ) -> Result<(), LoweringError> {
+        if completion != semantic_vocabulary::BoundaryCompletion::External(kind) {
+            return Err(LoweringError::boundary_realization(
+                boundary,
+                "the terminal event differs from the declared completion contract",
+            ));
+        }
+        // The declaration retains Never (or another proved-empty type).
+        // Only its physical result lane is absent.
+        match terminal_semantics::inhabitation::external_result_is_erased(
+            completion,
+            result.structural(),
+            types,
+        ) {
+            Ok(true) => Ok(()),
+            Ok(false) => Err(LoweringError::boundary_realization(
+                boundary,
+                "the declaration still has a normal return",
+            )),
+            Err(reason) => Err(LoweringError::boundary_realization(boundary, reason)),
+        }
+    }
+
     pub(crate) fn lower_terminator(
         operation: &AbstractOperation,
         function: &AbstractFunction,
@@ -1523,23 +1552,37 @@ mod terminator {
                     .get(boundary)
                     .copied()
                     .ok_or(LoweringError::UnknownBoundarySettlement(*boundary))?;
-                // The checked external-completion contract has no physical
-                // receiving result, including when its declared result is an
-                // ordinary empty type. Source and receiving admission own that
-                // result contract; native lowering preserves the terminal ABI.
-                if declaration.completion
-                    != semantic_vocabulary::BoundaryCompletion::External(*kind)
-                    || declaration.scalar_parameters.len() != arguments.len()
-                    || declaration.structural_parameters.len() != structural_arguments.len()
-                {
-                    return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
+                validate_external_completion_result(
+                    *boundary,
+                    declaration.completion,
+                    *kind,
+                    &declaration.result,
+                    structural_types.catalog().as_slice(),
+                )?;
+                if declaration.scalar_parameters.len() != arguments.len() {
+                    return Err(LoweringError::boundary_realization(
+                        *boundary,
+                        "the scalar argument count differs from the declaration",
+                    ));
+                }
+                if declaration.structural_parameters.len() != structural_arguments.len() {
+                    return Err(LoweringError::boundary_realization(
+                        *boundary,
+                        "the structural argument count differs from the declaration",
+                    ));
                 }
                 let shapes = declaration
                     .scalar_parameters
                     .iter()
                     .map(|scalar_type| {
-                        crate::scalar_abi::fixed_native_scalar_shape(*scalar_type)
-                            .ok_or(LoweringError::BoundaryRealizationMismatch(*boundary))
+                        crate::scalar_abi::fixed_native_scalar_shape(*scalar_type).ok_or_else(
+                            || {
+                                LoweringError::boundary_realization(
+                                    *boundary,
+                                    "a scalar parameter has no fixed native representation",
+                                )
+                            },
+                        )
                     })
                     .collect::<Result<Vec<_>, _>>()?;
                 let signature = calling_conventions::CallSignature {
@@ -1577,7 +1620,7 @@ mod terminator {
                             foreign.boundary_entry_plan.clone(),
                             &signature,
                         )
-                        .map_err(LoweringError::AbiPlan)?
+                        .map_err(|reason| LoweringError::boundary_realization(*boundary, format!("the selected calling plan differs from the declared signature: {reason}")))?
                         .plan()
                         .call
                         .clone(),
@@ -1596,11 +1639,17 @@ mod terminator {
                     .map(|(position, ((source, placement), expected))| {
                         let source = super::scalar_sources::source(*source, function, live)?;
                         if source.scalar_type() != *expected {
-                            return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
+                            return Err(LoweringError::boundary_realization(
+                                *boundary,
+                                "a scalar argument differs from its declared type",
+                            ));
                         }
                         Ok(target_operations::TargetUnitScalarCallArgument {
                             parameter_index: u32::try_from(position).map_err(|_| {
-                                LoweringError::BoundaryRealizationMismatch(*boundary)
+                                LoweringError::boundary_realization(
+                                    *boundary,
+                                    "a scalar argument position exceeds the native parameter range",
+                                )
                             })?,
                             source,
                             placement: placement.clone(),
@@ -1980,6 +2029,99 @@ mod terminator {
                 })
             }
             _ => Err(LoweringError::unsupported_control_flow(function.machine)),
+        }
+    }
+
+    #[cfg(test)]
+    mod external_completion_tests {
+        use super::*;
+        use semantic_vocabulary::{BoundaryCompletion, ExternalCompletionKind, Proposition};
+        use terminal_psi::{
+            BoundaryMachineResult, BoundaryStructuralResultDeclaration, StructuralTypeDeclaration,
+            StructuralTypeShape,
+        };
+
+        #[test]
+        fn external_completion_retains_its_exact_empty_logical_result() {
+            let boundary = BoundaryMachineId::new(13).unwrap();
+            let empty = StructuralTypeId::new(1).unwrap();
+            let inhabited = StructuralTypeId::new(2).unwrap();
+            let kind = ExternalCompletionKind::ProcessExit;
+            let completion = BoundaryCompletion::External(kind);
+            let types = [empty, inhabited].map(|id| StructuralTypeDeclaration {
+                id,
+                identity: terminal_psi::TerminalIdentityIndex::ABSENT,
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                copyable: true,
+                no_code_affine_cleanup: false,
+                descriptor_cleanup: false,
+                shape: StructuralTypeShape::Record {
+                    fields: Vec::new(),
+                    storage: terminal_psi::StructuralRecordStorage::Packed,
+                },
+                scalar_restriction: None,
+                requires: if id == empty {
+                    vec![Proposition::Falsehood]
+                } else {
+                    Vec::new()
+                },
+            });
+            let result = |structural_type| {
+                BoundaryMachineResult::Structural(BoundaryStructuralResultDeclaration {
+                    structural_type,
+                    multiplicity: StructuralMultiplicity::Affine,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                })
+            };
+            assert_eq!(
+                validate_external_completion_result(
+                    boundary,
+                    completion,
+                    kind,
+                    &result(empty),
+                    &types
+                ),
+                Ok(())
+            );
+            // Identical zero-byte geometry does not prove the other type empty.
+            assert!(
+                validate_external_completion_result(
+                    boundary,
+                    completion,
+                    kind,
+                    &result(inhabited),
+                    &types
+                )
+                .unwrap_err()
+                .to_string()
+                .contains("not proved uninhabited")
+            );
+            assert!(
+                validate_external_completion_result(
+                    boundary,
+                    completion,
+                    kind,
+                    &BoundaryMachineResult::Unit,
+                    &types
+                )
+                .unwrap_err()
+                .to_string()
+                .contains("logical result")
+            );
+            assert!(
+                validate_external_completion_result(
+                    boundary,
+                    BoundaryCompletion::NormalReturn,
+                    kind,
+                    &result(empty),
+                    &types
+                )
+                .unwrap_err()
+                .to_string()
+                .contains("declared completion contract")
+            );
         }
     }
 }
@@ -2518,6 +2660,7 @@ use operations::lower_operation;
 use row::RowSite;
 use target_operations::{TargetControlBlock, TargetControlGraph, TargetScalarBlockParameter};
 use terminator::lower_terminator;
+pub(crate) use terminator::validate_external_completion_result;
 
 #[derive(Clone)]
 pub(crate) struct ReferenceEdgeStorage {

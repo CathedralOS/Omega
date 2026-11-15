@@ -3602,6 +3602,20 @@ pub mod trait_definition {
                 )
             }
 
+            pub fn package_qualified_type_identity(
+                &self,
+                program: &TypedTrees,
+                reference: TypeReferenceHandle,
+            ) -> NormalizedTypeIdentity {
+                program.scoped_type_identity(
+                    TypeIdentityRequest {
+                        substitutions: &self.substitutions,
+                        ..TypeIdentityRequest::package_qualified(reference)
+                    },
+                    &self.substitution_scope_starts,
+                )
+            }
+
             pub fn argument_reference(
                 &self,
                 program: &TypedTrees,

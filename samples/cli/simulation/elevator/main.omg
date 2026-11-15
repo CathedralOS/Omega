@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Elevator controller. Combines case-payload commands, scalar self-writes,
 // and multi-state FSM transitions.
 //
@@ -49,7 +50,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("elevator: case-payload commands drive a door/floor FSM through 6 scripted steps");
     Main::send(main, Command::GoTo { floor: 2 });
     Main::send(main, Command::OpenDoor);
@@ -82,28 +83,28 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("PASS: ends at floor 1 after 3 moves with the door open (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(70);
+        ProcessExit::exit_process(70);
     }
 
     machine bad_floor(main: &mut Main) {
         Console::write_line("FAIL: final floor != 1 (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(71);
+        ProcessExit::exit_process(71);
     }
 
     machine bad_moves(main: &mut Main) {
         Console::write_line("FAIL: move count != 3 -- door-closed gating wrong (exit 72)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(72);
+        ProcessExit::exit_process(72);
     }
 
     machine bad_door(main: &mut Main) {
         Console::write_line("FAIL: door not open at the end (exit 73)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(73);
+        ProcessExit::exit_process(73);
     }
 }
 
@@ -142,7 +143,7 @@ machine Main::send(main: &mut Main, cmd: Command) {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

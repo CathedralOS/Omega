@@ -83,9 +83,9 @@ fn hash_builtin_scalar_argument(
 pub(crate) fn admitted_provider_boundary_trait_settlement_identity(
     occurrence: &OptimizedBoundaryOccurrence,
     requirement_identity: &str,
-    selected_plan_digest: NativeSelectedProviderPlanDigest,
+    selected_supply: crate::physical::NativeSelectedSupply,
     target: NativeTarget,
-    execution: ProviderExecutionBinding,
+    execution: target_operations::ExternalExecutionBinding,
     boundary_plan_identity: [u8; 32],
     mechanism: &target_operations::NormalizedForeignCallMechanism,
     structural_arguments: &[terminal_psi::StructuralArgument],
@@ -94,11 +94,32 @@ pub(crate) fn admitted_provider_boundary_trait_settlement_identity(
     let mut digest = DomainDigestEncoder::new(b"omega.d41-boundary-trait-settlement.sha256.v7\0");
     digest.raw(&occurrence.identity().bytes());
     hash_bytes(&mut digest, requirement_identity.as_bytes());
-    digest.raw(selected_plan_digest.as_bytes());
+    match selected_supply {
+        crate::physical::NativeSelectedSupply::ProviderPlan(plan) => {
+            digest.byte(0);
+            digest.raw(plan.as_bytes());
+        }
+        crate::physical::NativeSelectedSupply::NativeBinding(binding) => {
+            digest.byte(1);
+            digest.raw(&binding);
+        }
+    }
     hash_target(&mut digest, target);
     digest.byte(2);
-    hash_provider_execution_binding(&mut digest, execution);
+    let mut execution_bytes = Vec::new();
+    legalized_operations::encode_external_execution(&mut execution_bytes, execution);
+    digest.raw(&execution_bytes);
     match mechanism {
+        target_operations::NormalizedForeignCallMechanism::HostedImport {
+            locator,
+            receipt,
+            requirement_identity,
+        } => {
+            digest.byte(5);
+            digest.raw(&locator.identity_digest().as_bytes());
+            digest.raw(receipt);
+            hash_bytes(&mut digest, requirement_identity.as_bytes());
+        }
         target_operations::NormalizedForeignCallMechanism::Table {
             target,
             byte_offset,
@@ -138,8 +159,20 @@ pub(crate) fn admitted_provider_boundary_trait_settlement_identity(
             digest.byte(2);
             hash_bytes(&mut digest, kernel.target.target_name().as_bytes());
             digest.raw(&kernel.number.to_le_bytes());
-            digest.raw(&kernel.provider_plan_report_identity.to_le_bytes());
-            digest.raw(&kernel.provider_plan_commitment);
+            match kernel.execution {
+                target_operations::NormalizedForeignExecution::ProviderPlan {
+                    report,
+                    commitment,
+                } => {
+                    digest.byte(0);
+                    digest.raw(&report.to_le_bytes());
+                    digest.raw(&commitment);
+                }
+                target_operations::NormalizedForeignExecution::NativeBinding(binding) => {
+                    digest.byte(1);
+                    digest.raw(&binding);
+                }
+            }
             hash_bytes(&mut digest, kernel.requirement_identity.as_bytes());
         }
     }

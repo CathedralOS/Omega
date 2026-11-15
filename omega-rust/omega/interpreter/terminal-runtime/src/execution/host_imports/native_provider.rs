@@ -184,7 +184,7 @@ impl<'host> NativeImport<'host> {
         if !native.available() {
             return Ok(None);
         }
-        let Some((locator, _)) = binding.import() else {
+        let Some(locator) = binding.foreign_import_locator() else {
             return Ok(None);
         };
         let missing =
@@ -218,7 +218,6 @@ impl<'host> NativeImport<'host> {
         if declaration.completion != terminal_psi::BoundaryCompletion::NormalReturn
             || !declaration.program_local_root_introductions.is_empty()
             || !binding.has_valid_entry_mechanism()
-            || binding.provider_plan_report_identity() == 0
         {
             return Err(missing(
                 "native sponsor needs a normal exact call without introduced roots".into(),
@@ -226,6 +225,12 @@ impl<'host> NativeImport<'host> {
         }
         let provisions = provisions
             .ok_or_else(|| missing("native adapter lost its producing provisions".into()))?;
+        if !provisions.matches_host_requirement(declaration, binding, &program.module().identities)
+        {
+            return Err(missing(
+                "native adapter changed its admitted boundary or execution".into(),
+            ));
+        }
         let application = provisions
             .host_calling_application(declaration.id)
             .ok_or_else(|| {

@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 use omega::language::core::CompactBinary;
 use omega::language::core::CompactBinary::blob_field;
 use omega::language::core::CompactBinary::decode_record;
@@ -78,7 +79,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("wire_protocol: encodes a nested sensor packet to bytes and decodes it back");
     let msg: SensorPacketValue = SensorPacketValue {
         header: RoomHeaderValue {
@@ -122,21 +123,21 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("PASS: 13 bytes round-tripped with every field intact (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(70);
+        ProcessExit::exit_process(70);
     }
 
     machine bad_sizes(main: &mut Main) {
         Console::write_line("FAIL: encode/decode sizes were not both 13 bytes (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(71);
+        ProcessExit::exit_process(71);
     }
 
     machine bad_fields(main: &mut Main) {
         Console::write_line("FAIL: a decoded field did not match the original packet (exit 72)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(72);
+        ProcessExit::exit_process(72);
     }
 }
 
@@ -218,7 +219,7 @@ machine field_plan(kind: &FieldKind, tag: i64) -> FieldPlan {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

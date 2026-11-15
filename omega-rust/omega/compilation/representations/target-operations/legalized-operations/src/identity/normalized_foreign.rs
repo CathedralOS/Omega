@@ -9,7 +9,7 @@
 // index directly so encode and decode round-trip without consulting the module identity table.
 
 use super::calling::{encode_call_plan, encode_native_place, encode_placement, encode_shape};
-use super::structural::encode_provider_execution;
+use super::structural::encode_external_execution;
 use super::structural_types::{encode_string, encode_target_structural_argument};
 use super::{
     encode_integer, encode_integer_type, encode_layout, encode_len, encode_option,
@@ -24,7 +24,7 @@ use target_operations::{
 
 pub(super) fn encode(bytes: &mut Vec<u8>, call: &LegalizedNormalizedForeignCall) {
     crate::codec_bytes::push_encoded(bytes, call.boundary.get().to_le_bytes());
-    encode_provider_execution(bytes, call.provider_execution);
+    encode_external_execution(bytes, call.provider_execution);
     encode_call_binding(bytes, &call.binding);
     encode_len(bytes, call.scalar_arguments.len());
     for argument in &call.scalar_arguments {
@@ -134,6 +134,19 @@ pub fn encode_machine_function_identity(
 
 pub fn encode_call_binding(bytes: &mut Vec<u8>, binding: &NormalizedForeignCallBinding) {
     let contribution = match &binding.mechanism {
+        target_operations::NormalizedForeignCallMechanism::HostedImport {
+            locator,
+            receipt,
+            requirement_identity,
+        } => {
+            encode_string(bytes, "@hosted");
+            encode_locator(bytes, locator);
+            bytes.extend_from_slice(receipt);
+            encode_string(bytes, requirement_identity);
+            encode_call_plan(bytes, &binding.boundary_entry_plan.call);
+            encode_state_plan_identity(bytes, &binding.boundary_entry_plan.state);
+            return;
+        }
         target_operations::NormalizedForeignCallMechanism::Import {
             locator,
             same_stack_contribution,
@@ -174,11 +187,7 @@ pub fn encode_call_binding(bytes: &mut Vec<u8>, binding: &NormalizedForeignCallB
             encode_string(bytes, "");
             encode_string(bytes, kernel.target.target_name());
             crate::codec_bytes::push_encoded(bytes, kernel.number.to_le_bytes());
-            crate::codec_bytes::push_encoded(
-                bytes,
-                kernel.provider_plan_report_identity.to_le_bytes(),
-            );
-            bytes.extend_from_slice(&kernel.provider_plan_commitment);
+            encode_foreign_execution(bytes, kernel.execution);
             encode_string(bytes, &kernel.requirement_identity);
             encode_call_plan(bytes, &binding.boundary_entry_plan.call);
             encode_state_plan_identity(bytes, &binding.boundary_entry_plan.state);
@@ -194,10 +203,7 @@ pub fn encode_call_binding(bytes: &mut Vec<u8>, binding: &NormalizedForeignCallB
             .to_le_bytes(),
     );
     bytes.extend_from_slice(&contribution.commitment().as_bytes());
-    crate::codec_bytes::push_encoded(
-        bytes,
-        contribution.provider_plan_report_identity().to_le_bytes(),
-    );
+    bytes.extend_from_slice(&contribution.provider_plan_report_identity().to_le_bytes());
     bytes.extend_from_slice(&contribution.provider_plan_commitment().as_bytes());
     crate::codec_bytes::push_encoded(bytes, contribution.requirement_identity().0.to_le_bytes());
     crate::codec_bytes::push_encoded(
@@ -206,6 +212,23 @@ pub fn encode_call_binding(bytes: &mut Vec<u8>, binding: &NormalizedForeignCallB
     );
     crate::codec_bytes::push_encoded(bytes, contribution.bytes().to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, contribution.alignment().to_le_bytes());
+}
+
+pub(super) fn encode_foreign_execution(
+    bytes: &mut Vec<u8>,
+    execution: target_operations::NormalizedForeignExecution,
+) {
+    match execution {
+        target_operations::NormalizedForeignExecution::ProviderPlan { report, commitment } => {
+            bytes.push(0);
+            bytes.extend_from_slice(&report.to_le_bytes());
+            bytes.extend_from_slice(&commitment);
+        }
+        target_operations::NormalizedForeignExecution::NativeBinding(binding) => {
+            bytes.push(1);
+            bytes.extend_from_slice(&binding);
+        }
+    }
 }
 
 pub fn encode_locator(bytes: &mut Vec<u8>, locator: &target::NormalizedForeignLocator) {

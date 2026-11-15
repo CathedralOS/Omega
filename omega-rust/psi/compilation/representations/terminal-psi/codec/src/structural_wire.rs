@@ -1239,10 +1239,10 @@ pub(crate) mod structural_signature_wire {
     use super::CodecError;
     use super::wire::{Reader, Writer};
     use super::wire_fields::{
-        Access, ContentAlgebra, ContentExpression, ContentProjection, CrashRoutes, Field, Flag, Id,
-        Ids, Index, List, MachineDeclaration, Multiplicity, Nominal, Optional, OptionalId,
-        PathQualification, ProjectionIdentity, Proposition, QualificationPath, QualificationSet,
-        ReachArgument, Scalar, Text, U32, U64, wire_enum, wire_record,
+        Access, ContentAlgebra, ContentExpression, ContentProjection, CrashRoutes, Digest, Field,
+        Flag, Id, Ids, Index, List, MachineDeclaration, Multiplicity, Nominal, Optional,
+        OptionalId, PathQualification, ProjectionIdentity, Proposition, QualificationPath,
+        QualificationSet, ReachArgument, Scalar, Text, U32, U64, wire_enum, wire_record,
     };
     use crate::sections::semantic_module::wire::decode_counted;
     use crate::term_table::{TableChildren, TableTerm, decode_term_table, encode_term_table};
@@ -1388,6 +1388,7 @@ pub(crate) mod structural_signature_wire {
             published_synchronous_entries: Ids,
         }
         Callable: CheckedBoundaryCallable {
+            service_declaration: Digest,
             source: MachineDeclaration,
             method_arguments: List<ReachArgument>,
             execution: Execution,

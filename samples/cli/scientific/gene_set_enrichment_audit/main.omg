@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Runtime data is supplied through five bounded newline-terminated rows.
 use omega_language_std::Console;
 use domain::sets;
@@ -6,7 +7,7 @@ use domain::report;
 
 data Main { }
 
-machine Main::main(context: &mut Main) reaches Console {
+machine Main::main(context: &mut Main) reaches ProcessExit + Console {
     let universe: Parsed = block read_set();
     let query: Parsed = block read_set();
     let first: Parsed = block read_set();
@@ -42,9 +43,9 @@ machine Main::main(context: &mut Main) reaches Console {
         result(1, first.mask, intersection(first.mask, query.mask), one, adjusted_one, rank_one);
         result(2, second.mask, intersection(second.mask, query.mask), two, adjusted_two, rank_two);
         result(3, third.mask, intersection(third.mask, query.mask), three, adjusted_three, rank_three);
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
-    machine reject(context: &mut Main) { Console::write_line("INVALID_INPUT"); Console::exit_process(65); }
+    machine reject(context: &mut Main) { Console::write_line("INVALID_INPUT"); ProcessExit::exit_process(65); }
 }
 
 machine ranking(value: Fraction, other: Fraction, last: Fraction, identifier: u64 in Wrapping) -> u64 in Wrapping {
@@ -76,7 +77,7 @@ machine correction(value: Fraction, rank: u64 in Wrapping, other: Fraction, othe
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

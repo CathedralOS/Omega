@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 use omega::language::core::max_i32;
 
 // Expected exit: 0.
@@ -16,7 +17,7 @@ data Instrument {
 }
 // One finite record per iteration. Invalid records never mutate history.
 // The 256-row bound keeps counts and residual sums within signed i32.
-machine Instrument::run(instrument: &mut Instrument) reaches Console {
+machine Instrument::run(instrument: &mut Instrument) reaches ProcessExit + Console {
     Calibration::initialize(&mut instrument.calibration);
     Console::write_line("row stimulus branch prediction observed residual width (response milliunits)");
     transition { _ -> block read(instrument) }
@@ -105,20 +106,20 @@ machine Instrument::run(instrument: &mut Instrument) reaches Console {
         field(instrument.trace.reversals);
         field(instrument.trace.width_max);
         Console::write_line("");
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
     machine invalid(instrument: &mut Instrument) {
         Console::write_line("ERROR malformed input: expected stimulus response LF");
-        Console::exit_process(64);
+        ProcessExit::exit_process(64);
     }
     machine range_error(instrument: &mut Instrument) {
         Console::write_line("ERROR range: stimulus 0..100, response 0..200000, at most 256 rows");
-        Console::exit_process(65);
+        ProcessExit::exit_process(65);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Instrument;
     block Instrument::run(&mut entry_storage);
 }

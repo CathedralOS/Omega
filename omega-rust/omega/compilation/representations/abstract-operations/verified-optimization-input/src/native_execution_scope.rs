@@ -151,6 +151,7 @@ pub struct NativeExecutionScope {
     target_context: terminal_installation::TerminalTargetContext,
     entry: MachineId,
     selected_provider_closure: [u8; 32],
+    source_native_bindings: Option<[u8; 32]>,
     source_provider_selection: effects::SelectedProviderPlanFacts,
     source_checked_entry: Option<terminal_psi::CheckedProgramEntryTerminalReceipt>,
     local_adapters: Vec<SelectedProviderAdapter>,
@@ -243,6 +244,7 @@ impl NativeExecutionScope {
             entry,
             selected_provider_closure: *selected_plans.identity_digest().as_bytes(),
             source_provider_selection: selected_plans.clone(),
+            source_native_bindings: None,
             source_checked_entry: None,
             local_adapters: selected.to_vec(),
             entry_call: entry_call.cloned(),
@@ -468,6 +470,7 @@ impl NativeExecutionScope {
             entry,
             selected_provider_closure: [0; 32],
             source_provider_selection: effects::SelectedProviderPlanFacts::default(),
+            source_native_bindings: None,
             source_checked_entry: None,
             local_adapters: Vec::new(),
             entry_call: None,
@@ -509,6 +512,13 @@ impl NativeExecutionScope {
         self.source_checked_entry = Some(entry.clone());
     }
 
+    pub(crate) fn bind_native_supply(
+        &mut self,
+        native: &provider_admission::RetainedNativeBindings,
+    ) {
+        self.source_native_bindings = Some(native.identity_digest());
+    }
+
     pub(crate) fn require_proposal_context(
         &self,
         artifact: terminal_codec::TerminalArtifactView<'_>,
@@ -519,6 +529,8 @@ impl NativeExecutionScope {
             || self.target_context.target() != proposal.target_profile().target_name()
             || self.source_checked_entry.as_ref() != Some(proposal.program_entry().checked_entry())
             || self.callbacks != proposal.occurrences().callbacks
+            || self.source_native_bindings
+                != Some(proposal.providers().native_bindings.identity_digest())
         {
             return Err(vec![diagnostics::Diagnostic::error(
                 "native execution belongs to another checked proposal context",

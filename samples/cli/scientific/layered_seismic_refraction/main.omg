@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 0 with bounded input.txt; complete numerical oracle in validation/.
 use omega_language_std::Console;
 use io::protocol;
@@ -6,7 +7,7 @@ use omega::language::core::I32::from_f64;
 data Main {
  protocol: Protocol; model: Model; best_time: f64; best_branch: i32 in Wrapping;
 }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
  let valid: bool = block Protocol::read(&mut main.protocol);
  transition valid && main.protocol.position >= 2 { true -> header(main) false -> syntax(main) }
  machine header(main: &mut Main) {
@@ -130,9 +131,9 @@ machine Main::main(main: &mut Main) reaches Console {
   emit(main, "F ", index, identifier, distance, time);
   transition { _ -> offset(main, index + 1) }
  }
- machine success(main: &mut Main) { Console::exit_process(0); }
- machine syntax(main: &mut Main) { Console::write_line("ERROR syntax"); Console::exit_process(64); }
- machine range(main: &mut Main) { Console::write_line("ERROR range"); Console::exit_process(65); }
+ machine success(main: &mut Main) { ProcessExit::exit_process(0); }
+ machine syntax(main: &mut Main) { Console::write_line("ERROR syntax"); ProcessExit::exit_process(64); }
+ machine range(main: &mut Main) { Console::write_line("ERROR range"); ProcessExit::exit_process(65); }
 }
 machine emit(main: &mut Main, prefix: &[u8], index: i32 in Wrapping, identifier: i32 in Wrapping, distance: f64, time: f64) reaches Console {
  Console::write(prefix); Protocol::integer(&mut main.protocol, index);
@@ -143,7 +144,7 @@ machine emit(main: &mut Main, prefix: &[u8], index: i32 in Wrapping, identifier:
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

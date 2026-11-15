@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Conway's Game of Life on a 4x4 flat grid ([i32; 16], row-major).
 //
 // Seed pattern: 2x2 Block (still-life) at rows 1-2, cols 1-2:
@@ -719,7 +720,7 @@ machine Main::checksum(context: &mut Main) -> i32 {
     }
 }
 
-machine Main::main(context: &mut Main) reaches Console {
+machine Main::main(context: &mut Main) reaches ProcessExit + Console {
     Console::write_line("game_of_life: one generation of a 2x2 still-life block on a 4x4 grid");
     // Seed the board with the 2x2 block still-life.
     Main::init_board(context);
@@ -740,19 +741,19 @@ machine Main::main(context: &mut Main) reaches Console {
         Console::write_line("PASS: block still-life preserved, checksum 4 (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut context.pause);
-        Console::exit_process(70);
+        ProcessExit::exit_process(70);
     }
 
     machine bad(context: &mut Main) {
         Console::write_line("FAIL: wrong checksum after one generation (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut context.pause);
-        Console::exit_process(71);
+        ProcessExit::exit_process(71);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

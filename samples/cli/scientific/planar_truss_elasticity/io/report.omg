@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Decimal output separates the integer part from twelve fractional digits.
 // This retains picounit resolution for small displacements without overflowing
 // a scaled i64 when strain energy or work is large.
@@ -5,9 +6,9 @@ use omega_language_std::Console;
 use omega::language::core::I64::from_f64;
 use domain::model;
 public data Output { }
-public machine write_scaled(output: &mut Output, value: f64) reaches Console invokes Console {
+public machine write_scaled(output: &mut Output, value: f64) reaches ProcessExit + Console invokes Console {
     transition value > -1000000000000.0 && value < 1000000000000.0 { true -> sign(output, value) false -> overflow(output) }
-    machine overflow(output: &mut Output) { Console::write_line("ERROR numerical output range"); Console::exit_process(66); }
+    machine overflow(output: &mut Output) { Console::write_line("ERROR numerical output range"); ProcessExit::exit_process(66); }
     machine sign(output: &mut Output, value: f64) {
         transition value < 0.0 { true -> negative(output, value) false -> positive(output, value) }
     }
@@ -51,7 +52,7 @@ public machine write_scaled(output: &mut Output, value: f64) reaches Console inv
     }
     machine done() {}
 }
-public machine report(output: &mut Output, truss: &Truss, result: &Solution) reaches Console invokes Console {
+public machine report(output: &mut Output, truss: &Truss, result: &Solution) reaches ProcessExit + Console invokes Console {
     Console::write_line("planar_truss_elasticity; numeric values in consistent input units");
     transition { _ -> node(output, truss, result, 0) }
     machine node(output: &mut Output, truss: &Truss, result: &Solution, index: u64) {

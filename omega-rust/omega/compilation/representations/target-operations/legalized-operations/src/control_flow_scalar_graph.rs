@@ -1511,7 +1511,7 @@ impl LegalizedScalarArgument {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedNormalizedForeignCall {
     pub boundary: BoundaryMachineId,
-    pub provider_execution: target_operations::ProviderExecutionBinding,
+    pub provider_execution: target_operations::ExternalExecutionBinding,
     pub binding: target_operations::NormalizedForeignCallBinding,
     pub scalar_arguments: Vec<target_operations::NormalizedForeignScalarArgument>,
     pub structural_arguments: Vec<target_operations::NormalizedForeignStructuralArgument>,

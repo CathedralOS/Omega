@@ -688,6 +688,7 @@ pub(crate) mod normalized_foreign {
     ) -> register_model::RegisterConstraintFamily {
         match call.binding.mechanism {
             target_operations::NormalizedForeignCallMechanism::Import { .. }
+            | target_operations::NormalizedForeignCallMechanism::HostedImport { .. }
             | target_operations::NormalizedForeignCallMechanism::Component { .. }
             | target_operations::NormalizedForeignCallMechanism::Table { .. } => {
                 register_model::RegisterConstraintFamily::Call
@@ -819,11 +820,7 @@ pub(crate) mod normalized_foreign {
         let operands = call.binding.operand_placements();
         if call.binding.native_target() != Some(environment.target())
             || !call.binding.has_valid_entry_mechanism()
-            || call.binding.provider_plan_report_identity()
-                != call
-                    .provider_execution
-                    .provider_plan_report_identity()
-                    .get()
+            || !call.binding.matches_execution(call.provider_execution)
         {
             return Err(invalid!());
         }

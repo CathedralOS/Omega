@@ -275,6 +275,7 @@ fn check_publication(through_boundary: bool) {
         entry,
         private_entry_ram: &[],
         providers: ProviderAdmissionRequest {
+            native_bindings: &Default::default(),
             profile,
             bootstrap_entry,
             program_provider_context: None,

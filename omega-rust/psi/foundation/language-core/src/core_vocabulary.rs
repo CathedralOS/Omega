@@ -707,4 +707,20 @@ mod tests {
             None
         );
     }
+    #[test]
+    fn never_recognition_requires_its_unchanged_core_declaration() {
+        let source = core_source!("never.omg");
+        assert_eq!(
+            CoreVocabularyCatalog::classify(site("never.omg", "Never", source)),
+            Some(CoreVocabulary::Never),
+        );
+        assert_eq!(
+            CoreVocabularyCatalog::classify(site("never.omg", "Other", source)),
+            None
+        );
+        assert_eq!(
+            CoreVocabularyCatalog::classify(site("never.omg", "Never", b"public data Never {}")),
+            None
+        );
+    }
 }

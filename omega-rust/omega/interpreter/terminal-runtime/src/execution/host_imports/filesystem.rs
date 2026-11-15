@@ -237,7 +237,7 @@ impl FilesystemContext {
         if let Some(call) = windows::admit(self, program, declaration, binding, layouts)? {
             return Ok(Some(FilesystemCall::Windows(call)));
         }
-        let Some((locator, _)) = binding.import() else {
+        let Some(locator) = binding.foreign_import_locator() else {
             return Ok(None);
         };
         // Linux reaches libc only for `realpath`; every other Linux filesystem

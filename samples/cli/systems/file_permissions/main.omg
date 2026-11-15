@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Unix-style permission bits built and manipulated with the bitwise operators
 // `&`, `|`, `^`. A small but complete demonstration of flag arithmetic:
 //
@@ -21,7 +22,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("file_permissions: unix-style permission bits built with bitwise and/or/xor");
     main.mode = 4i32 | 2;       // READ | WRITE          -> 6
     main.mode = main.mode | 1;  // + EXEC                -> 7
@@ -35,12 +36,12 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("result: the final mode bits r-- +s, 12 for this sequence (the exit code)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(main.mode);
+        ProcessExit::exit_process(main.mode);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

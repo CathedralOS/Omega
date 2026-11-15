@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // A tile-map / dungeon renderer -- the tile-based rendering shape a real game or map viewer uses.
 // A flat array of `Cell` enums (Wall / Floor / Door / Water) is scanned row by row and each cell is
 // classified by matching it DIRECTLY at a runtime index -- `transition main.grid[main.k] { Cell::Wall
@@ -36,7 +37,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("dungeon_render: a 6x4 tile map of enum cells rendered as # . + ~ glyphs");
     main.grid = [
         Cell::Wall,  Cell::Wall,  Cell::Wall,  Cell::Wall,  Cell::Wall,  Cell::Wall,
@@ -92,12 +93,12 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("done: 4 rows rendered -- walls, floor, door and water all classified (exit 0)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

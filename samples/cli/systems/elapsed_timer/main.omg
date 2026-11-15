@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // elapsed_timer: times a real workload with std::time -- the first full
 // consumer of the Instant/Time surface (TASKS_TIME.md rung 8).
 //
@@ -33,7 +34,7 @@ data Main {
     time: Time;
 }
 
-machine Main::main(context: &mut Main) reaches Console {
+machine Main::main(context: &mut Main) reaches ProcessExit + Console {
     Console::write_line("elapsed_timer: times a 50ms workload with std::time");
     let start: Instant = Time::now(&mut context.time);
     let pause: Duration = Duration { seconds: 0, subsecond_nanoseconds: 50000000 };
@@ -69,14 +70,14 @@ machine Main::main(context: &mut Main) reaches Console {
             false -> fail_elapsed(context)
         }
     }
-    machine good(context: &mut Main) { Console::exit_process(70); }
-    machine fail_request(context: &mut Main) { Console::exit_process(1); }
-    machine fail_elapsed(context: &mut Main) { Console::exit_process(2); }
-    machine fail_overflow(context: &mut Main) { Console::exit_process(3); }
+    machine good(context: &mut Main) { ProcessExit::exit_process(70); }
+    machine fail_request(context: &mut Main) { ProcessExit::exit_process(1); }
+    machine fail_elapsed(context: &mut Main) { ProcessExit::exit_process(2); }
+    machine fail_overflow(context: &mut Main) { ProcessExit::exit_process(3); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

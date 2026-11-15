@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 0
 use omega::language::core::float;
 use omega_language_std::Console;
@@ -24,7 +25,7 @@ data Main {
     zero: Complex<f32>;
     exceptional: Complex<f32>;
 }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     main.point = Complex { real: 1.0, imaginary: 0.0 };
     main.rotation = Complex { real: 0.0, imaginary: 1.0 };
     ComplexF32::multiply(&mut main.first, &main.point, &main.rotation);
@@ -98,12 +99,12 @@ machine Main::main(main: &mut Main) reaches Console {
         let outcome: ComplexMagnitude<f32> = ComplexF32::try_magnitude(&main.exceptional);
         transition outcome { ComplexMagnitude::Overflow -> good(main) _ -> bad(main) }
     }
-    machine good(main: &mut Main) { Console::exit_process(0); }
-    machine bad(main: &mut Main) { Console::exit_process(1); }
+    machine good(main: &mut Main) { ProcessExit::exit_process(0); }
+    machine bad(main: &mut Main) { ProcessExit::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     Main::main(&mut entry_storage);
 }

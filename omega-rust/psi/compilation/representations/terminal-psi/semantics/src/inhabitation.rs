@@ -472,6 +472,29 @@ impl Inhabitation {
     }
 }
 
+/// An external completion produces no return value. Erasing its physical result
+/// still requires proof that the exact declared result has no possible value;
+/// an empty storage layout alone does not establish that fact.
+pub fn external_result_is_erased(
+    completion: semantic_vocabulary::BoundaryCompletion,
+    result: Option<StructuralTypeId>,
+    declarations: &[StructuralTypeDeclaration],
+) -> Result<bool, String> {
+    if !matches!(
+        completion,
+        semantic_vocabulary::BoundaryCompletion::External(_)
+    ) {
+        return Ok(false);
+    }
+    let result = result.ok_or("external completion lost its logical result type")?;
+    let query = Inhabitation::prepare(&TerminalContracts::new(declarations.iter()))
+        .map_err(|error| format!("external result type contracts: {error:?}"))?;
+    if query.status(result) != Status::ProvedEmpty {
+        return Err("external completion result is not proved uninhabited".into());
+    }
+    Ok(true)
+}
+
 /// A sorted borrowed catalog; declaration order and shapes stay untouched.
 pub struct TerminalContracts<'a> {
     declarations: Vec<&'a StructuralTypeDeclaration>,
@@ -634,6 +657,36 @@ mod tests {
 
     fn prepare(declarations: &[StructuralTypeDeclaration]) -> Inhabitation {
         Inhabitation::prepare(&TerminalContracts::new(declarations)).unwrap()
+    }
+
+    #[test]
+    fn external_results_erase_only_the_exact_proved_empty_type() {
+        let completion = semantic_vocabulary::BoundaryCompletion::External(
+            semantic_vocabulary::ExternalCompletionKind::ProcessExit,
+        );
+        let declarations = [empty(1), declaration(2, record(&[]))];
+        assert_eq!(
+            external_result_is_erased(completion, Some(id(1)), &declarations),
+            Ok(true)
+        );
+        assert!(
+            external_result_is_erased(completion, Some(id(2)), &declarations)
+                .unwrap_err()
+                .contains("not proved uninhabited")
+        );
+        assert!(
+            external_result_is_erased(completion, None, &declarations)
+                .unwrap_err()
+                .contains("logical result")
+        );
+        assert_eq!(
+            external_result_is_erased(
+                semantic_vocabulary::BoundaryCompletion::NormalReturn,
+                Some(id(1)),
+                &declarations
+            ),
+            Ok(false)
+        );
     }
 
     #[test]

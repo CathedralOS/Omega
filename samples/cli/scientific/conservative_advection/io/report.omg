@@ -1,11 +1,12 @@
+use omega::language::core::ProcessExit;
 module io::report;
 use omega_language_std::Console;
 use omega::language::core::I64::from_f64;
 use io::decimal;
 // Sixteen significant decimal digits with explicit exponent. Normalization bounds integer
 // conversion without imposing an arbitrary application concentration limit.
-public machine number(value:f64) reaches Console invokes Console { scaled(value,0); }
-public machine scaled(value:f64,offset:i64 in Wrapping) reaches Console invokes Console {
+public machine number(value:f64) reaches ProcessExit + Console invokes Console { scaled(value,0); }
+public machine scaled(value:f64,offset:i64 in Wrapping) reaches ProcessExit + Console invokes Console {
  transition value < 0.0 { true -> negative(value,offset) false -> normalize(value,offset) }
  machine negative(value:f64,offset:i64 in Wrapping) { Console::write("-"); transition { _ -> normalize(-value,offset) } }
  machine normalize(value:f64,exponent:i64 in Wrapping) {
@@ -25,7 +26,7 @@ public machine scaled(value:f64,offset:i64 in Wrapping) reaches Console invokes 
   let mantissa:i64=I64::from_f64(scaled);
   io::decimal::number(mantissa as i64 in Wrapping); io::decimal::number(exponent-15);
  }
- machine failure() { Console::write_line("REJECT numeric output"); Console::exit_process(70); }
+ machine failure() { Console::write_line("REJECT numeric output"); ProcessExit::exit_process(70); }
 }
 
 // Decimal formatting may round outside a narrow authored interval. Compare
@@ -36,7 +37,7 @@ use model::scale;
 use model::courant;
 use omega::language::core::narrow_i64_to_u64_saturating;
 use omega::language::core::narrow_u64_to_i64_saturating;
-public machine field(value:f64,power:i32 in Wrapping,lower:u64 in Wrapping,lower_power:i32 in Wrapping,upper:u64 in Wrapping,upper_power:i32 in Wrapping,lower_value:f64,lower_value_power:i32 in Wrapping,upper_value:f64,upper_value_power:i32 in Wrapping) reaches Console invokes Console {
+public machine field(value:f64,power:i32 in Wrapping,lower:u64 in Wrapping,lower_power:i32 in Wrapping,upper:u64 in Wrapping,upper_power:i32 in Wrapping,lower_value:f64,lower_value_power:i32 in Wrapping,upper_value:f64,upper_value_power:i32 in Wrapping) reaches ProcessExit + Console invokes Console {
  let mut parts:model::scale::Scale; model::scale::normalize(value,&mut parts);
  let scaled:f64=parts.mantissa*1000000000000000.0;
  transition scaled == scaled && scaled >= 0.0 && scaled <= 10000000000000000.0 { true -> bounded(scaled,power+parts.exponent-15,lower,lower_power,upper,upper_power,lower_value,lower_value_power,upper_value,upper_value_power) false -> failure() }
@@ -62,5 +63,5 @@ public machine field(value:f64,power:i32 in Wrapping,lower:u64 in Wrapping,lower
   io::decimal::number(narrow_u64_to_i64_saturating(coefficient as u64) as i64 in Wrapping);
   io::decimal::number(power as i64 in Wrapping);
  }
- machine failure() { Console::write_line("REJECT numeric output"); Console::exit_process(70); }
+ machine failure() { Console::write_line("REJECT numeric output"); ProcessExit::exit_process(70); }
 }

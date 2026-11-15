@@ -284,7 +284,7 @@ fn elaborate_source_for<'source>(
     publication: terminal_codec::TerminalPublication,
     captures: NamedCaptures,
 ) -> Checked<PreparedProgram<'source>> {
-    let mut program = read::Program::with_captures(typed, false, captures);
+    let mut program = read::Program::with_captures(typed, false, compilation.purpose, captures);
     program.publication = publication;
     program.declaration_metadata = compilation.declaration_metadata.to_vec();
     let first = MachineId::new(1).expect("1 is nonzero");
@@ -320,11 +320,23 @@ fn elaborate_source_for<'source>(
 pub fn elaborate_closure(typed: &TypedTrees, entry: SymbolHandle) -> Checked<Elaboration> {
     elaborate_form(
         typed,
+        declaration_context(typed, entry),
         entry,
         false,
         named_captures(typed),
         terminal_codec::TerminalPublication::Portable,
     )
+}
+
+/// Single-declaration APIs use that declaration's checked source context.
+/// Source-free representation fixtures retain the Product interpretation.
+fn declaration_context(typed: &TypedTrees, declaration: SymbolHandle) -> source::DependencyScope {
+    typed
+        .symbols
+        .symbol_provenance_source_span(declaration)
+        .and_then(|span| typed.symbols.source_file(span))
+        .map(|source| source.dependency_scope)
+        .unwrap_or(source::DependencyScope::Product)
 }
 
 /// Elaborates the generic check form of `template`, a machine whose generic
@@ -339,6 +351,7 @@ pub fn elaborate_closure(typed: &TypedTrees, entry: SymbolHandle) -> Checked<Ela
 pub fn elaborate_generic(typed: &TypedTrees, template: SymbolHandle) -> Checked<Elaboration> {
     elaborate_form(
         typed,
+        declaration_context(typed, template),
         template,
         true,
         named_captures(typed),
@@ -363,6 +376,7 @@ pub fn elaborate_alternatives(
 ) -> Checked<Vec<Elaboration>> {
     elaborate_alternatives_with_captures(
         typed,
+        declaration_context(typed, template),
         template,
         named_captures(typed),
         terminal_codec::TerminalPublication::Portable,
@@ -371,17 +385,18 @@ pub fn elaborate_alternatives(
 
 fn elaborate_alternatives_with_captures(
     typed: &TypedTrees,
+    purpose: source::DependencyScope,
     template: SymbolHandle,
     captures: NamedCaptures,
     publication: terminal_codec::TerminalPublication,
 ) -> Checked<Vec<Elaboration>> {
     let first = MachineId::new(1).expect("1 is nonzero");
-    let alternatives = read::Program::with_captures(typed, false, captures.clone())
+    let alternatives = read::Program::with_captures(typed, false, purpose, captures.clone())
         .family_alternatives(first, template)?;
     alternatives
         .into_iter()
         .map(|arguments| {
-            let mut program = read::Program::with_captures(typed, false, captures.clone());
+            let mut program = read::Program::with_captures(typed, false, purpose, captures.clone());
             program.publication = publication;
             program.alternative = Some(arguments);
             let entry = program.machine(template)?;
@@ -400,16 +415,23 @@ pub fn elaborate_generic_forms(
     typed: &TypedTrees,
     templates: &[SymbolHandle],
 ) -> Checked<Vec<Elaboration>> {
-    elaborate_generic_forms_with_captures(
-        typed,
-        templates,
-        named_captures(typed),
-        terminal_codec::TerminalPublication::Portable,
-    )
+    let captures = named_captures(typed);
+    let mut forms = Vec::new();
+    for template in templates {
+        forms.extend(elaborate_generic_forms_with_captures(
+            typed,
+            declaration_context(typed, *template),
+            &[*template],
+            captures.clone(),
+            terminal_codec::TerminalPublication::Portable,
+        )?);
+    }
+    Ok(forms)
 }
 
 fn elaborate_generic_forms_with_captures(
     typed: &TypedTrees,
+    purpose: source::DependencyScope,
     templates: &[SymbolHandle],
     captures: NamedCaptures,
     publication: terminal_codec::TerminalPublication,
@@ -417,17 +439,25 @@ fn elaborate_generic_forms_with_captures(
     let mut forms = Vec::new();
     for template in templates {
         if let Some(declared) = typed.trait_definition_by_symbol(*template) {
-            let mut program = read::Program::with_captures(typed, true, captures.clone());
+            let mut program = read::Program::with_captures(typed, true, purpose, captures.clone());
             program.publication = publication;
             program.generic_trait(declared)?;
             forms.push(finish_reading(program, None, IdTable::default())?.program);
             continue;
         }
-        match elaborate_form(typed, *template, true, captures.clone(), publication) {
+        match elaborate_form(
+            typed,
+            purpose,
+            *template,
+            true,
+            captures.clone(),
+            publication,
+        ) {
             Ok(form) => forms.push(form),
             Err(rigid) => {
                 match elaborate_alternatives_with_captures(
                     typed,
+                    purpose,
                     *template,
                     captures.clone(),
                     publication,
@@ -487,6 +517,7 @@ pub fn elaborate_witness(
 ) -> Checked<Elaboration> {
     elaborate_witness_with_captures(
         typed,
+        declaration_context(typed, implementation),
         declaring_trait,
         requirement,
         arguments,
@@ -498,6 +529,7 @@ pub fn elaborate_witness(
 
 fn elaborate_applied_witness(
     typed: &TypedTrees,
+    purpose: source::DependencyScope,
     required: &typed_trees::signature::StateSignature,
     declaring_trait: SymbolHandle,
     requirement: SymbolHandle,
@@ -507,6 +539,7 @@ fn elaborate_applied_witness(
 ) -> Checked<Elaboration> {
     elaborate_witness_with_captures(
         typed,
+        purpose,
         declaring_trait,
         requirement,
         arguments,
@@ -518,6 +551,7 @@ fn elaborate_applied_witness(
 
 fn elaborate_witness_with_captures(
     typed: &TypedTrees,
+    purpose: source::DependencyScope,
     declaring_trait: SymbolHandle,
     requirement: SymbolHandle,
     arguments: &[semantic_vocabulary::ScalarTerm],
@@ -528,7 +562,7 @@ fn elaborate_witness_with_captures(
     let generic = typed
         .machine_by_symbol(implementation)
         .is_some_and(|machine| is_generic_template(typed, machine));
-    let mut program = read::Program::with_captures(typed, generic, captures);
+    let mut program = read::Program::with_captures(typed, generic, purpose, captures);
     let entry = program.witnessed(
         declaring_trait,
         requirement,
@@ -635,12 +669,13 @@ pub(crate) fn callable_refinement_body(required: &body::Signature, call: Express
 
 fn elaborate_form(
     typed: &TypedTrees,
+    purpose: source::DependencyScope,
     entry: SymbolHandle,
     rigid: bool,
     captures: NamedCaptures,
     publication: terminal_codec::TerminalPublication,
 ) -> Checked<Elaboration> {
-    let mut program = read::Program::with_captures(typed, rigid, captures);
+    let mut program = read::Program::with_captures(typed, rigid, purpose, captures);
     program.publication = publication;
     let entry = program.machine(entry)?;
     finish_reading(program, Some(entry), IdTable::default()).map(|prepared| prepared.program)
@@ -1146,6 +1181,7 @@ fn lower_generic_for<'source>(
 }
 
 fn finish_storage(diagnostic: MachineId, elaboration: &mut Elaboration) -> Checked<()> {
+    let names = &elaboration.names;
     let module = &mut elaboration.module;
     let tables = &mut elaboration.tables;
     let sources = &mut elaboration.sources;
@@ -1195,13 +1231,21 @@ fn finish_storage(diagnostic: MachineId, elaboration: &mut Elaboration) -> Check
                     machine: machine.id,
                     concerns,
                     source_span: None,
-                    detail: match (operation, origin) {
-                        (Some(operation), Some(SourceOrigin::Authored(span))) => format!(
-                            "while checking {operation} at source {} bytes {}..{}: {detail}",
-                            span.source_id.0, span.span.start, span.span.end,
-                        ),
-                        (Some(operation), _) => format!("while checking {operation}: {detail}"),
-                        (None, _) => detail.to_owned(),
+                    detail: {
+                        let detail = match (operation, origin) {
+                            (Some(operation), Some(SourceOrigin::Authored(span))) => format!(
+                                "while checking {operation} at source {} bytes {}..{}: {detail}",
+                                span.source_id.0, span.span.start, span.span.end,
+                            ),
+                            (Some(operation), _) => format!("while checking {operation}: {detail}"),
+                            (None, _) => detail.to_owned(),
+                        };
+                        match names.get(machine.id) {
+                            Some(name) => {
+                                format!("while checking storage in `{}`: {detail}", name.machine)
+                            }
+                            None => detail,
+                        }
                     },
                 }
             })?;

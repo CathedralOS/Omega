@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 0
 use omega_language_std::Console;
 use omega::language::core::F64::is_finite;
@@ -17,7 +18,7 @@ data Main {
     real_only: Complex<f64>;
     large: Complex<f64>;
 }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     main.voltage = Complex { real: 3.0, imaginary: 4.0 };
     main.current = Complex { real: -2.0, imaginary: 0.5 };
     ComplexF64::conjugate(&mut main.conjugated, &main.current);
@@ -62,12 +63,12 @@ machine Main::main(main: &mut Main) reaches Console {
             true -> good(main) _ -> bad(main)
         }
     }
-    machine good(main: &mut Main) { Console::exit_process(0); }
-    machine bad(main: &mut Main) { Console::exit_process(1); }
+    machine good(main: &mut Main) { ProcessExit::exit_process(0); }
+    machine bad(main: &mut Main) { ProcessExit::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     Main::main(&mut entry_storage);
 }

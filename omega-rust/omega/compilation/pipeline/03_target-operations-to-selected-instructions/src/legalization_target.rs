@@ -1622,10 +1622,15 @@ pub(crate) mod control_flow {
                             } => {
                                 *call_plan == expected_plan
                                     && plan.function(*callee).is_some_and(|candidate| {
-                                        // Checked provider conformance owns
-                                        // the declared result contract. This
-                                        // terminal call produces no ABI value.
-                                        candidate
+                                        candidate.result.structural().is_some_and(|result| {
+                                            declaration.result.accepts_provider_result(
+                                                &terminal_psi::TerminalMachineResult::Structural(result.clone()),
+                                                declaration.identity,
+                                                declaration.declaration.as_ref().map(|callable| callable.source.semantic_declaration),
+                                                &unit.structural_domains,
+                                            )
+                                        })
+                                            && candidate
                                                 .parameters
                                                 .iter()
                                                 .map(|row| row.scalar_type)
@@ -1652,8 +1657,11 @@ pub(crate) mod control_flow {
                         }
                         && declaration.completion
                             == semantic_vocabulary::BoundaryCompletion::External(*kind)
-                        // External completion has no physical result, including
-                        // when its checked declaration names an empty result.
+                        && terminal_semantics::inhabitation::external_result_is_erased(
+                            declaration.completion,
+                            declaration.result.structural(),
+                            plan.structural_types.as_slice(),
+                        ) == Ok(true)
                         && arguments.len() == expected_arguments.len()
                         && arguments.len() == expected_plan.parameters.len()
                         && structural_arguments.len() == declaration.structural_parameters.len()
@@ -3406,8 +3414,7 @@ pub(crate) mod normalized_foreign {
             || psi_operation != expected_operation
             || boundary != expected_boundary
             || binding.native_target() != Some(native.target)
-            || binding.provider_plan_report_identity()
-                != provider_execution.provider_plan_report_identity().get()
+            || !binding.matches_execution(*provider_execution)
             || !binding.has_valid_entry_mechanism()
             || validated.plan() != &binding.boundary_entry_plan
             || operands.len() != scalar_shapes.len() + structural.len() + private_ordinals.len()

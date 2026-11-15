@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Array lookup driven by a value-returning call result.
 //
 // FRESH COMBINATION: call a value-returning machine to get an index,
@@ -77,7 +78,7 @@ machine Main::read_at(main: &mut Main, idx: i32) -> i32 {
     }
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("array_index_from_call: value-call results drive array-index dispatch (pick -> read_at chains)");
     // Initialize the lookup table.
     main.table[0] = 3;
@@ -107,7 +108,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("FAIL: pick(0) returned wrong index -- expected 0 (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(71);
+        ProcessExit::exit_process(71);
     }
 
     machine check_idx2(main: &mut Main, idx2: i32, v0: i32, v2: i32, v1: i32) {
@@ -121,7 +122,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("FAIL: pick(2) returned wrong index -- expected 4 (exit 72)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(72);
+        ProcessExit::exit_process(72);
     }
 
     machine check_v0(main: &mut Main, v0: i32, v2: i32, v1: i32) {
@@ -135,7 +136,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("FAIL: read_at(idx0) returned wrong value -- expected table[0] == 3 (exit 73)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(73);
+        ProcessExit::exit_process(73);
     }
 
     machine compute_result(main: &mut Main, v0: i32, v2: i32, v1: i32) {
@@ -154,19 +155,19 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("FAIL: v2 + v1 - v0 - 1 != 70 -- lookup arithmetic wrong (exit 74)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(74);
+        ProcessExit::exit_process(74);
     }
 
     machine good(main: &mut Main) {
         Console::write_line("PASS: 60 + 14 - 3 - 1 == 70 from call-driven lookups (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(70);
+        ProcessExit::exit_process(70);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

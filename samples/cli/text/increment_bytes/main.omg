@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Read bytes to EOF, write each byte plus one modulo 256, and exit with the count.
 // ByteRead::Eof is distinct from a zero-valued Byte payload.
 // Expected exit: 0.
@@ -12,7 +13,7 @@ use omega_language_std::ByteRead;
 use omega_language_std::Console;
 
 data Main { }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     transition { _ -> block read_next_byte(0) }
 
     machine read_next_byte(count: i32 in Wrapping) {
@@ -33,12 +34,12 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     machine exit_with_count(count: i32 in Wrapping) {
-        Console::exit_process(count as i32);
+        ProcessExit::exit_process(count as i32);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

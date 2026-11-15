@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // bombe: a Turing/Welchman Bombe attack on an Enigma I crib, table-driven.
 // The program first encrypts the demo plaintext KEINEBESONDERENEREIGNISSE at
 // start REL under plugboard AW ER MT CQ IK, producing the ciphertext
@@ -382,7 +383,7 @@ machine build_edges(main: &mut Main) {
 
 // Demo phase: encrypt the plaintext at REL under AW ER MT CQ IK and check it
 // against the known ciphertext.
-machine demo_press(main: &mut Main) reaches Console {
+machine demo_press(main: &mut Main) reaches ProcessExit + Console {
     main.plug[0] = 22;   // A <-> W
     main.plug[22] = 0;
     main.plug[4] = 17;   // E <-> R
@@ -462,20 +463,20 @@ machine demo_press(main: &mut Main) reaches Console {
     // Each exits through its own state so no merge join forms.
     machine dp_bad(main: &mut Main) {
         Console::write_line("FAIL: an index left its guarded range (exit 4)");
-        Console::exit_process(4);
+        ProcessExit::exit_process(4);
     }
     machine dp_bad2(main: &mut Main) {
         Console::write_line("FAIL: an index left its guarded range (exit 4)");
-        Console::exit_process(4);
+        ProcessExit::exit_process(4);
     }
     machine dp_bad3(main: &mut Main) {
         Console::write_line("FAIL: an index left its guarded range (exit 4)");
-        Console::exit_process(4);
+        ProcessExit::exit_process(4);
     }
 }
 
 // Compare the produced ciphertext against the expected vector.
-machine check_demo(main: &mut Main) reaches Console {
+machine check_demo(main: &mut Main) reaches ProcessExit + Console {
     main.i = 0;
     transition { _ -> dp_cmp(main) }
 
@@ -497,7 +498,7 @@ machine check_demo(main: &mut Main) reaches Console {
     }
     machine dp_fail(main: &mut Main) {
         Console::write_line("FAIL: ciphertext differs from the expected vector (exit 1)");
-        Console::exit_process(1);
+        ProcessExit::exit_process(1);
     }
     machine dp_done(main: &mut Main) {}
 }
@@ -1478,7 +1479,7 @@ machine load_consts(main: &mut Main) {
     main.cseg = [25, 14, 25, 25, 14, 6, 1, 12, 10, 5, 21, 22, 20, 21, 13, 18, 10];
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("bombe: Turing/Welchman attack on Enigma I, rotors I II III, reflector B");
     transition { _ -> m_load(main) }
 
@@ -1513,16 +1514,16 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     machine m_pass(main: &mut Main) {
         Console::write_line("bombe: position SFM recovered with plugboard from the menu (exit 0)");
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
     machine m_fail(main: &mut Main) {
         Console::write_line("FAIL: the true setting was not among the verified stops (exit 1)");
-        Console::exit_process(1);
+        ProcessExit::exit_process(1);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     Main::main(&mut entry_storage);
 }

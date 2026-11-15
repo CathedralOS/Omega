@@ -171,6 +171,23 @@ fn ancestor(root: &Path, source: &str, tip: &str) -> Result<bool, String> {
     }
 }
 
+fn direct_parent(root: &Path, transition: &SourceTransition) -> Result<bool, String> {
+    let commit = git(
+        root,
+        &[
+            "--no-replace-objects",
+            "cat-file",
+            "commit",
+            &transition.source,
+        ],
+    )?;
+    let mut parents = commit
+        .lines()
+        .take_while(|line| !line.is_empty())
+        .filter_map(|line| line.strip_prefix("parent "));
+    Ok(parents.next() == Some(transition.old.as_str()) && parents.next().is_none())
+}
+
 fn adopt(root: &Path, directory: &Path) -> Result<WorkInterval, String> {
     let history = transitions(directory)?;
     let head = git(root, &["rev-parse", "--verify", "HEAD^{commit}"])?;
@@ -254,6 +271,9 @@ fn adopt(root: &Path, directory: &Path) -> Result<WorkInterval, String> {
             }
         } else if !entry.message.starts_with("commit")
             && !entry.message.starts_with("rebase")
+            // A cherry-pick continues this work only when the new commit's
+            // sole parent is the exact HEAD this checkout previously held.
+            && !(entry.message.starts_with("cherry-pick:") && direct_parent(root, entry)?)
             && !(entry.message.starts_with("reset:") && entry.source == entry.old)
         {
             return Err(format!(
@@ -288,4 +308,128 @@ pub(crate) fn since_epoch(root: &Path) -> Result<i64, String> {
     };
     validate(root, &interval)?;
     Ok(interval.started_epoch)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct History {
+        root: PathBuf,
+        worker: PathBuf,
+        picked: String,
+        local: String,
+    }
+
+    impl History {
+        fn new() -> Self {
+            let nonce = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            let root = std::env::temp_dir().join(format!(
+                "omega-work-interval-{}-{nonce}",
+                std::process::id()
+            ));
+            fs::create_dir(&root).unwrap();
+            git(&root, &["init", "--quiet"]).unwrap();
+            for (key, value) in [
+                ("user.name", "Work interval test"),
+                ("user.email", "work-interval@example.invalid"),
+                ("commit.gpgSign", "false"),
+                ("core.hooksPath", ".git/empty-hooks"),
+            ] {
+                git(&root, &["config", key, value]).unwrap();
+            }
+            git(&root, &["commit", "--quiet", "--allow-empty", "-m", "base"]).unwrap();
+            let base = git(&root, &["rev-parse", "HEAD"]).unwrap();
+            fs::write(root.join("picked.txt"), "picked source\n").unwrap();
+            git(&root, &["add", "picked.txt"]).unwrap();
+            git(&root, &["commit", "--quiet", "-m", "picked change"]).unwrap();
+            let picked = git(&root, &["rev-parse", "HEAD"]).unwrap();
+            let worker = root.join("worker");
+            git(
+                &root,
+                &[
+                    "worktree",
+                    "add",
+                    "--quiet",
+                    "--detach",
+                    worker.to_str().unwrap(),
+                    &base,
+                ],
+            )
+            .unwrap();
+            fs::write(worker.join("local.txt"), "local source\n").unwrap();
+            git(&worker, &["add", "local.txt"]).unwrap();
+            git(&worker, &["commit", "--quiet", "-m", "local change"]).unwrap();
+            let local = git(&worker, &["rev-parse", "HEAD"]).unwrap();
+            Self {
+                root,
+                worker,
+                picked,
+                local,
+            }
+        }
+    }
+
+    impl Drop for History {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.root);
+        }
+    }
+
+    #[test]
+    fn direct_parent_cherry_pick_preserves_the_acquired_interval() {
+        let history = History::new();
+        let directory = directory(&history.worker).unwrap();
+        let before = adopt(&history.worker, &directory).unwrap();
+        git(&history.worker, &["cherry-pick", &history.picked]).unwrap();
+        let after = adopt(&history.worker, &directory).unwrap();
+        assert_eq!(after.source, before.source);
+        assert_eq!(after.started_epoch, before.started_epoch);
+        assert_eq!(since_epoch(&history.worker).unwrap(), before.started_epoch);
+        let persisted: WorkInterval =
+            serde_json::from_slice(&fs::read(directory.join(FILE)).unwrap()).unwrap();
+        assert_eq!(persisted.source, before.source);
+        assert_eq!(persisted.started_epoch, before.started_epoch);
+    }
+
+    #[test]
+    fn cherry_pick_label_does_not_authorize_a_nonparent_transition() {
+        let history = History::new();
+        // Let Git record a real source transition with a misleading action.
+        // The picked commit's parent is the base, not this checkout's HEAD.
+        git(
+            &history.worker,
+            &[
+                "update-ref",
+                "-m",
+                "cherry-pick: substituted history",
+                "HEAD",
+                &history.picked,
+                &history.local,
+            ],
+        )
+        .unwrap();
+        let Err(error) = adopt(&history.worker, &directory(&history.worker).unwrap()) else {
+            panic!("the source transition must reject");
+        };
+        assert!(
+            error.contains("ambiguous source transition `cherry-pick:"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn unrelated_checkout_retains_its_existing_source_boundary() {
+        let history = History::new();
+        git(
+            &history.worker,
+            &["checkout", "--quiet", "--detach", &history.picked],
+        )
+        .unwrap();
+        let interval = adopt(&history.worker, &directory(&history.worker).unwrap()).unwrap();
+        assert_eq!(interval.source, history.picked);
+    }
 }

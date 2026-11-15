@@ -31,7 +31,7 @@ impl DescriptorModeImport {
         declaration: &BoundaryMachineDeclaration,
         binding: &NormalizedForeignCallBinding,
     ) -> Result<Option<Self>, TerminalRuntimeError> {
-        let Some((locator, _)) = binding.import() else {
+        let Some(locator) = binding.foreign_import_locator() else {
             return Ok(None);
         };
         if locator.target() != TargetProfile::WindowsX64 {

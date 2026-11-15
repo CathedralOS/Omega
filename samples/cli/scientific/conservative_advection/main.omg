@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 0 with input.txt. Empty stdin exits 64.
 // Expected output contains: ADVECTED
 // W2-03: bounded stdin-driven periodic conservative first-order upwind.
@@ -10,7 +11,7 @@ use model::transport;
 data Main {}
 
 // The explicit entry context is ordinary ZII-valid data; checked Console calls demand its static provider slot.
-machine Main::main(context:&mut Main) reaches Console {
+machine Main::main(context:&mut Main) reaches ProcessExit + Console {
  let mut input:input::Input;
  let mut field:transport::Field;
  let parsed:bool=block io::input::parse(&mut input);
@@ -36,9 +37,9 @@ machine Main::main(context:&mut Main) reaches Console {
   Console::write("CELL "); value(field,index); Console::write_line("");
   transition { _ -> cells(field,index+1) }
  }
- machine done() { Console::write_line("ADVECTED"); Console::exit_process(0); }
- machine bad_input() { Console::write_line("REJECT bounded decimal input"); Console::exit_process(64); }
- machine bad_data() { Console::write_line("REJECT dimensions, finite data, positive spacing/timestep, nonnegative field or stable CFL"); Console::exit_process(65); }
+ machine done() { Console::write_line("ADVECTED"); ProcessExit::exit_process(0); }
+ machine bad_input() { Console::write_line("REJECT bounded decimal input"); ProcessExit::exit_process(64); }
+ machine bad_data() { Console::write_line("REJECT dimensions, finite data, positive spacing/timestep, nonnegative field or stable CFL"); ProcessExit::exit_process(65); }
 }
 
 machine value(field:&model::transport::Field,index:u32 in Saturating) reaches Console {
@@ -53,7 +54,7 @@ machine value(field:&model::transport::Field,index:u32 in Saturating) reaches Co
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

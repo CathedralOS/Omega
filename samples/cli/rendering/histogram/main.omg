@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 4.
 // Histogram: tally how many samples fall in each of four categories, then report
 // the count for category 2. A real counting computation -- the kind that was
@@ -28,7 +29,7 @@ data Main {
     result: i32 in Wrapping;
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("histogram: counting value frequencies into a fixed-bucket array");
     main.histogram[0] = 0;
     main.histogram[1] = 0;
@@ -92,12 +93,12 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("result: the count for category 2, 4 for this dataset (the exit code)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(main.result as i32);
+        ProcessExit::exit_process(main.result as i32);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 module left;
 
 use omega_language_std::Console;
@@ -9,12 +10,12 @@ public ProviderReaderImplementation satisfies Reader {
 
 // Both modules export the same leaf name. The description must retain the
 // exact selected declaration; choosing the sibling changes the exit oracle.
-public machine run() reaches Reader, Console
+public machine run() reaches ProcessExit + Reader, Console
 invokes Reader
 invokes Console
 {
     let value: i32 = Reader::read();
     transition value == 11 { true -> deliver(value) _ -> wrong(value) }
-    machine deliver(observed: i32) { Console::exit_process(observed); }
-    machine wrong(observed: i32) { Console::exit_process(65); }
+    machine deliver(observed: i32) { ProcessExit::exit_process(observed); }
+    machine wrong(observed: i32) { ProcessExit::exit_process(65); }
 }

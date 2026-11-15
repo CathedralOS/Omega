@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Gate-owned black-box lexer/parser harness. The gate package's build root
 // binds `main` as its own product entry; the product compiler
 // closure never includes it. The package lives outside `source/psi`: a package
@@ -65,7 +66,7 @@ public data ParserHarness {
 // Hosted entry has no source arrival parameters. The gate owns its ordinary
 // context storage and passes that borrow explicitly to the harness.
 public machine parser_entry_start()
-reaches Console
+reaches ProcessExit + Console
 invokes Console
 crashes Trap
 blocks
@@ -75,7 +76,7 @@ blocks
 }
 
 public machine main(parser_harness: &mut ParserHarness)
-reaches Console
+reaches ProcessExit + Console
 invokes Console
 crashes Trap
 blocks
@@ -107,7 +108,7 @@ blocks
             length as u64 in Trapping,
             length as u64 in Trapping
         );
-        Console::exit_process(252);
+        ProcessExit::exit_process(252);
     }
 
     machine tokenize(parser_harness: &mut ParserHarness, lexer: &mut Lexer) {
@@ -137,7 +138,7 @@ blocks
         write_machine_tables(parser_harness, output);
         write_declaration_tables(parser_harness, output);
         write_retirement_table(parser_harness, output);
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
 
     machine parse_rejected(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
@@ -145,11 +146,11 @@ blocks
         write_machine_tables(parser_harness, output);
         write_declaration_tables(parser_harness, output);
         write_retirement_table(parser_harness, output);
-        Console::exit_process(250);
+        ProcessExit::exit_process(250);
     }
 
     machine rejected(parser_harness: &mut ParserHarness) {
-        Console::exit_process(251);
+        ProcessExit::exit_process(251);
     }
 }
 

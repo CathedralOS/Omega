@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 10.
 // An infix calculator over standard input. It reads
 // "- ( 3 - 10 ) * 17 % 50 - 3 ^ 2", skips spaces and tabs, tokenizes
@@ -168,7 +169,7 @@ requires main.cursor < main.token_count && main.cursor < 16 {
     main.tokens[main.cursor]
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     main.token_count = 0;
     main.number = 0;
     main.in_number = false;
@@ -666,16 +667,16 @@ machine Main::main(main: &mut Main) reaches Console {
 
     machine report(main: &mut Main) {
         let result: i32 in Wrapping = ValueStack::pop(value_stack(main));
-        Console::exit_process(result as i32);
+        ProcessExit::exit_process(result as i32);
     }
 
     machine malformed() {
-        Console::exit_process(1);
+        ProcessExit::exit_process(1);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

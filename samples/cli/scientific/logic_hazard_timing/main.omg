@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 2. (closed stdin; valid mode oracles are in data/.)
 // Expected output contains: REJECT input: expected one byte 0,1,2,d
 // ADD08: event-driven propagation, pulse cancellation, exhaustive steady truth.
@@ -30,7 +31,7 @@ machine Main::number(main: &mut Main, value: u64) reaches Console {
     Console::write_byte(((value % 10) as i32) + 48);
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("logic_hazard_timing: mode 0=transport1 1=transport4 2=inertial4");
     let input: ByteRead = block Console::read_byte();
     transition input {
@@ -245,14 +246,14 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> failed(main)
         }
     }
-    machine success(main: &mut Main) { Console::write_line("PASS truth=08 steady=1 consensus=1"); Console::exit_process(0); }
-    machine failed(main: &mut Main) { Console::write_line("FAIL oracle"); Console::exit_process(1); }
-    machine bad_input(main: &mut Main) { Console::write_line("REJECT input: expected one byte 0,1,2,d"); Console::exit_process(2); }
-    machine bad_netlist(main: &mut Main) { Console::write_line("REJECT netlist: positive delay <=8 and acyclic valid gates required"); Console::exit_process(3); }
+    machine success(main: &mut Main) { Console::write_line("PASS truth=08 steady=1 consensus=1"); ProcessExit::exit_process(0); }
+    machine failed(main: &mut Main) { Console::write_line("FAIL oracle"); ProcessExit::exit_process(1); }
+    machine bad_input(main: &mut Main) { Console::write_line("REJECT input: expected one byte 0,1,2,d"); ProcessExit::exit_process(2); }
+    machine bad_netlist(main: &mut Main) { Console::write_line("REJECT netlist: positive delay <=8 and acyclic valid gates required"); ProcessExit::exit_process(3); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 use omega::language::core::DirectoryEnumeration;
 use omega::language::core::FilesystemContentRead;
 use omega::language::core::FilesystemContentWrite;
@@ -553,17 +554,17 @@ machine Main::main(main: &mut Main) reaches
     machine closed(main: &mut Main, window: Window) {
         Gui::window_destroy(window);
         Console::write_line("viewer closed -- goodbye (exit 0)");
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
     machine load_failed(main: &mut Main, window: Window) {
         Gui::window_destroy(window);
         Console::write_line("FAIL: could not load imgN.bmp -- run from the image_viewer folder (exit 1)");
-        Console::exit_process(1);
+        ProcessExit::exit_process(1);
     }
     machine bad(main: &mut Main, window: Window) {
         Gui::window_destroy(window);
         Console::write_line("FAIL: window/DC creation failed or a blit failed while alive (exit 1)");
-        Console::exit_process(1);
+        ProcessExit::exit_process(1);
     }
 }
 

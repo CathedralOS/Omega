@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 35.
 // RPN calculator: interpret an encoded postfix program with an operand stack -- a
 // real little bytecode VM. Each token is either a number (push it) or an operator
@@ -35,7 +36,7 @@ requires self.sp >= 0 && self.sp <= 16,
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("rpn_calculator: evaluates the postfix program 3 4 + 5 * on an operand stack");
     main.program[0] = 3;
     main.program[1] = 4;
@@ -182,12 +183,12 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("result: the RPN evaluation, 35 for this program (the exit code)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(main.stack[0] as i32);
+        ProcessExit::exit_process(main.stack[0] as i32);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

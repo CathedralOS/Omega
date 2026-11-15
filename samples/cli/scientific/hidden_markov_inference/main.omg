@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 64 (empty stdin is invalid).
 // Expected numerical outputs are frozen independently in expected.json.
 use omega_language_std::Console;
@@ -42,7 +43,7 @@ requires count >= 1 requires count <= 16 requires window.len == count {
     }
     machine filled() { }
 }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     transition { _ -> block probability(main, 0) }
     machine probability(main: &mut Main, field: u64) requires field < 10 {
         let read: LineReadResult = block Console::read_line(&mut main.line);
@@ -171,13 +172,13 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_byte(main.path_bytes[index] as i32);
         transition { _ -> path_emit(main, count, index + 1) }
     }
-    machine success(main: &mut Main) { Console::write_line(""); Console::exit_process(0); }
-    machine invalid(main: &mut Main) { Console::write_line("INVALID"); Console::exit_process(64); }
-    machine impossible(main: &mut Main) { Console::write_line("IMPOSSIBLE"); Console::exit_process(65); }
+    machine success(main: &mut Main) { Console::write_line(""); ProcessExit::exit_process(0); }
+    machine invalid(main: &mut Main) { Console::write_line("INVALID"); ProcessExit::exit_process(64); }
+    machine impossible(main: &mut Main) { Console::write_line("IMPOSSIBLE"); ProcessExit::exit_process(65); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

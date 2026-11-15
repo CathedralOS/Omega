@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Nested dispatch: outer case-payload dispatch feeds a sub-machine
 // that performs a second (integer-keyed) dispatch from within a sub-state.
 //
@@ -92,7 +93,7 @@ machine Main::apply_command(main: &mut Main, cmd: Command) {
     machine done(main: &mut Main) {}
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("nested_case_payload: case-payload commands feeding a nested integer dispatch");
     Main::apply_command(main, Command::Run { op: 0, n: 10 });
     Main::apply_command(main, Command::Noop);
@@ -112,19 +113,19 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("PASS: accumulator reached 70 after 8 commands (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(70);
+        ProcessExit::exit_process(70);
     }
 
     machine bad(main: &mut Main) {
         Console::write_line("FAIL: wrong accumulator value (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(71);
+        ProcessExit::exit_process(71);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

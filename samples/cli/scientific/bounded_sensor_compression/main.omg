@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 10.
 // Expected output contains: error: input bounds or syntax
 use omega_language_std::Console;
@@ -15,7 +16,7 @@ use domain::report::report;
 data Main { }
 
 // The entry owns input, private codec storage, decoding and certification.
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     let mut input: InputBuffer;
     let success: bool = block read_input(&mut input);
     transition success && input.length > 0 {
@@ -79,13 +80,13 @@ machine Main::main(main: &mut Main) reaches Console {
     machine output(main: &mut Main, stream: &SensorStream, decoded: &SensorBlock, maximum: i32) {
         report(stream, decoded, maximum);
     }
-    machine bad_input(main: &mut Main) { Console::write_line("error: input bounds or syntax"); Console::exit_process(10); }
-    machine bad_stream(main: &mut Main) { Console::write_line("error: malformed sensor stream"); Console::exit_process(12); }
-    machine bad_certificate(main: &mut Main) { Console::write_line("error: reconstruction certificate"); Console::exit_process(13); }
+    machine bad_input(main: &mut Main) { Console::write_line("error: input bounds or syntax"); ProcessExit::exit_process(10); }
+    machine bad_stream(main: &mut Main) { Console::write_line("error: malformed sensor stream"); ProcessExit::exit_process(12); }
+    machine bad_certificate(main: &mut Main) { Console::write_line("error: reconstruction certificate"); ProcessExit::exit_process(13); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

@@ -2,7 +2,7 @@
 //!
 //! Every package-owned service role is resolved, admitted and given permission
 //! the same way, here: find the one exact settled provider plan that serves the
-//! role's schema with an `exit_process` row and belongs to the accepting owner,
+//! role's complete requested method set and belongs to the accepting owner,
 //! then build an `AcceptedSemanticBinding` from that plan's digests and the
 //! sorted terminal-authority rows of the methods the role accepts.
 //!
@@ -54,13 +54,13 @@ fn accepted_classes(method: &str) -> &'static [TerminalAuthorityClass] {
 
 /// Acceptance of a package-owned `Console` provider: the operations the
 /// program resolves decide which terminal-authority classes it admits.
-pub fn console_exit_binding(
+pub fn console_io_binding(
     checked: &CheckedCompilation,
     owner: PackageKeyIdentity,
     accepts_console_output: bool,
     accepts_console_input: bool,
 ) -> Result<AcceptedSemanticBinding, Vec<Diagnostic>> {
-    let mut accepted = vec!["exit_process"];
+    let mut accepted = Vec::new();
     if accepts_console_output {
         accepted.extend_from_slice(&["write", "write_byte", "write_line"]);
     }
@@ -71,7 +71,7 @@ pub fn console_exit_binding(
         checked,
         owner,
         "Console",
-        AcceptedSemanticBindingRole::ConsoleExitProcessI32,
+        AcceptedSemanticBindingRole::ConsoleIo,
         schema_symbol_owner,
         &accepted,
     )
@@ -110,7 +110,9 @@ fn accept(
             plan.schema
                 .identity_text(plan.schema.declaration.trait_name)
                 == trait_name
-                && plan.rows.iter().any(|row| row.method == "exit_process")
+                && accepted_methods
+                    .iter()
+                    .all(|method| plan.rows.iter().any(|row| row.method == *method))
                 && owns(plan, owner)
         })
         .collect::<Vec<_>>();

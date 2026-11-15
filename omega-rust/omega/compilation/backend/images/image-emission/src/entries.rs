@@ -1329,6 +1329,11 @@ pub(crate) mod hosted_entry_storage {
         let stack_bytes = align(
             demand
                 .ceiling_bytes()
+                .ok_or_else(|| {
+                    Diagnostic::error(
+                        "fixed hosted stack needs an admitted finite foreign-stack bound",
+                    )
+                })?
                 .max(16)
                 .checked_add(call_overhead)
                 .ok_or_else(invalid)?,
@@ -1481,7 +1486,12 @@ pub(crate) mod hosted_entry_storage {
             .ok_or_else(invalid)?;
         if partitions.saved_continuation_offset < original_bss_bytes
             || continuation_end > partitions.stack_offset
-            || partitions.stack_byte_count < demand.ceiling_bytes()
+            || partitions.stack_byte_count
+                < demand.ceiling_bytes().ok_or_else(|| {
+                    Diagnostic::error(
+                        "fixed hosted stack cannot replay an unknown foreign-stack demand",
+                    )
+                })?
             || stack_end != partitions.allocation_offset
             || partitions.allocation_offset > partitions.end_offset
             || partitions.end_offset != output.bss_bytes as u64
@@ -3321,6 +3331,162 @@ pub(crate) mod hosted_receiver {
 }
 
 pub(crate) mod hosted_unit_entry {
+    // An ordinary hosted import has no finite foreign-stack bound. Keep the
+    // loader's OS-backed stack for that closure instead of switching onto a
+    // fixed BSS stack sized only for the checked Omega frames.
+    mod loader_stack {
+        use super::{PreparedEntry, UnitEntryForm};
+        use diagnostics::Diagnostic;
+
+        fn invalid(reason: &str) -> Diagnostic {
+            Diagnostic::error(format!("hosted loader-stack entry: {reason}"))
+        }
+
+        fn require_hosted_entry(artifact: &crate::ObjectArtifact) -> Result<(), Diagnostic> {
+            if artifact.profile().is_none_or(|profile| {
+                profile.program_entry_slot().schema != target::ProgramEntrySchema::HostedApplication
+            }) || artifact.physical_entry_binding().is_some()
+                || artifact.hosted_receiver_binding().is_some()
+                || !crate::object::function_fragments::replay::has_free_unit_entry(artifact)?
+            {
+                return Err(invalid("requires the exact free Unit hosted program entry"));
+            }
+            let demand = crate::derive_stack_demand(artifact, artifact.entry)
+                .map_err(|error| invalid(&error.to_string()))?;
+            if !demand.requires_host_stack() || demand.ceiling_bytes().is_some() {
+                return Err(invalid("closure has no hosted foreign-stack demand"));
+            }
+            Ok(())
+        }
+
+        pub(super) fn prepare(
+            artifact: &crate::ObjectArtifact,
+            form: &UnitEntryForm,
+        ) -> Result<PreparedEntry, Diagnostic> {
+            require_hosted_entry(artifact)?;
+            let start = artifact.text_bytes.len();
+            let bytes = encode(
+                artifact.target,
+                start,
+                artifact.entry_function().text_offset,
+            )?;
+            let mut object = artifact.object.clone();
+            let mut text = artifact.text_bytes.clone();
+            let (symbol, offset) =
+                super::install_entry_shim(&mut object, &mut text, &bytes, form.name, &|| {
+                    invalid("entry text section is missing")
+                })?;
+            Ok(PreparedEntry {
+                object,
+                text,
+                relocations: artifact.relocations.clone(),
+                shim: form.surface.shim(symbol, offset),
+            })
+        }
+
+        fn encode(
+            target: target::NativeTarget,
+            start: usize,
+            entry: usize,
+        ) -> Result<Vec<u8>, Diagnostic> {
+            let mut bytes = Vec::new();
+            if target.architecture == target::Architecture::Aarch64 {
+                let returning = target == target::NativeTarget::macos_arm64();
+                if !returning && target != target::NativeTarget::linux_arm64() {
+                    return Err(invalid("unsupported AArch64 hosted target"));
+                }
+                if returning {
+                    // Preserve the loader's frame and return address while the
+                    // checked entry uses the same OS-backed activation stack.
+                    bytes.extend(0xa9bf_7bfd_u32.to_le_bytes());
+                    bytes.extend(0x9100_03fd_u32.to_le_bytes());
+                }
+                let call = start
+                    .checked_add(bytes.len())
+                    .ok_or_else(|| invalid("call offset overflows"))?;
+                let displacement = entry as i128 - call as i128;
+                if !call.is_multiple_of(4)
+                    || displacement % 4 != 0
+                    || !(-134_217_728..134_217_728).contains(&displacement)
+                {
+                    return Err(invalid("entry lies outside the aligned branch range"));
+                }
+                bytes.extend(
+                    (0x9400_0000 | ((displacement / 4) as u32 & 0x03ff_ffff)).to_le_bytes(),
+                );
+                if returning {
+                    bytes.extend(0xa8c1_7bfd_u32.to_le_bytes());
+                    bytes.extend(0x5280_0000_u32.to_le_bytes());
+                    bytes.extend(0xd65f_03c0_u32.to_le_bytes());
+                } else {
+                    bytes.extend(isa_aarch64::encode_hosted_exit_process_i32(target, 0)?);
+                }
+            } else {
+                let adjustment = if target == target::NativeTarget::windows_x64() {
+                    // A loader call leaves an eight-byte return address. The
+                    // outbound call also needs Windows' 32-byte shadow area.
+                    40
+                } else if target == target::NativeTarget::macos_x64() {
+                    8
+                } else if target == target::NativeTarget::linux_x64() {
+                    0
+                } else {
+                    return Err(invalid("unsupported x86-64 hosted target"));
+                };
+                if adjustment != 0 {
+                    bytes.extend([0x48, 0x83, 0xec, adjustment]);
+                }
+                bytes.push(0xe8);
+                let continuation = start
+                    .checked_add(bytes.len())
+                    .and_then(|n| n.checked_add(4))
+                    .ok_or_else(|| invalid("call offset overflows"))?;
+                let displacement = i32::try_from(entry as i128 - continuation as i128)
+                    .map_err(|_| invalid("entry lies outside the relative call range"))?;
+                bytes.extend(displacement.to_le_bytes());
+                if adjustment != 0 {
+                    bytes.extend([0x48, 0x83, 0xc4, adjustment]);
+                }
+                if target == target::NativeTarget::linux_x64() {
+                    bytes.extend(isa_x86_64::encode_hosted_exit_process_i32(0));
+                } else {
+                    bytes.extend([0x31, 0xc0, 0xc3]);
+                }
+            }
+            Ok(bytes)
+        }
+
+        pub(super) fn validate(
+            form: &UnitEntryForm,
+            target: target::NativeTarget,
+            artifact: &crate::ObjectArtifact,
+            object: &object_file::ObjectPlan,
+            text: &[u8],
+            relocations: &object_file::RelocationPlan,
+            shim: super::EntryShim,
+            output: &image::EmittedImageOutput,
+        ) -> Result<(), Diagnostic> {
+            let expected = prepare(artifact, form)?;
+            let (symbol, offset) = shim.symbol_offset();
+            let bytes = expected
+                .text
+                .get(offset..)
+                .ok_or_else(|| invalid("entry span is outside its text"))?;
+            if target != artifact.target
+                || shim != expected.shim
+                || *object != expected.object
+                || text != expected.text
+                || *relocations != expected.relocations
+                || !super::unique_region(object, symbol, offset, bytes.len(), output)
+                || output.final_text_bytes.get(offset..offset + bytes.len()) != Some(bytes)
+                || !(form.header_check)(output, offset, bytes)
+            {
+                return Err(invalid("loader stack, call, return or image entry changed"));
+            }
+            Ok(())
+        }
+    }
+
     mod owned_stack {
         use super::{EntryShim, PreparedEntry, UnitEntryForm};
         use crate::entries::hosted_entry_storage::{HostedEntryPartitions, HostedEntryStorage};
@@ -3895,7 +4061,13 @@ pub(crate) mod hosted_unit_entry {
         let Some(form) = unit_entry_form(artifact.target) else {
             return Ok(None);
         };
-        owned_stack::prepare(artifact, &form).map(Some)
+        let demand = crate::derive_stack_demand(artifact, artifact.entry)
+            .map_err(|error| Diagnostic::error(format!("hosted entry stack demand: {error}")))?;
+        if demand.requires_host_stack() {
+            loader_stack::prepare(artifact, &form).map(Some)
+        } else {
+            owned_stack::prepare(artifact, &form).map(Some)
+        }
     }
 
     pub(crate) fn install_entry_shim(
@@ -3959,16 +4131,29 @@ pub(crate) mod hosted_unit_entry {
         shim: EntryShim,
         output: &image::EmittedImageOutput,
     ) -> Result<(), Diagnostic> {
-        owned_stack::validate(
-            form,
-            target,
-            artifact,
-            object,
-            text,
-            relocations,
-            shim,
-            output,
-        )
+        if shim.surface == EntrySurface::ProvisionedUnit {
+            owned_stack::validate(
+                form,
+                target,
+                artifact,
+                object,
+                text,
+                relocations,
+                shim,
+                output,
+            )
+        } else {
+            loader_stack::validate(
+                form,
+                target,
+                artifact,
+                object,
+                text,
+                relocations,
+                shim,
+                output,
+            )
+        }
     }
 
     pub(crate) fn validate_unit_shim(
@@ -4567,6 +4752,9 @@ pub(crate) mod physical_entry {
         ) -> Result<PhysicalEntryPartitions, Diagnostic> {
             let stack_demand = demand
                 .ceiling_bytes()
+                .ok_or_else(|| {
+                    invalid("private entry requires an admitted finite foreign-stack bound")
+                })?
                 .checked_add(u64::from(bridge.frame_bytes()))
                 .and_then(|bytes| bytes.checked_add(u64::from(bridge.call_stack_bias())))
                 .and_then(|bytes| bytes.checked_add(switch.stack_overhead_bytes()))

@@ -665,7 +665,7 @@ fn machine(
     // downstream obligations."). A declared one holds because every arrival
     // proves it, and the closure is accepted only when every obligation is
     // discharged (`judge`).
-    let declared = joins::prepare(lowered, id, tables, &graph, &context, invariants)?;
+    let declared = joins::prepare(lowered, id, tables, &graph, &context, invariants, &storage)?;
     let weakened_joins = joins::check(
         &joins::Machine {
             module,
@@ -1933,9 +1933,15 @@ fn stated_goal(
             concerns,
             "a published clause is decided from its exits, not proved",
         )),
-        ObligationKind::ArrivalInvariant { edge } => {
-            joins::arrival_goal(lowered, id, obligation, edge, tables)
-        }
+        ObligationKind::ArrivalInvariant { edge } => joins::arrival_goal(
+            lowered,
+            id,
+            obligation,
+            edge,
+            tables,
+            storage,
+            &module.scalar_block_invariants,
+        ),
         ObligationKind::CrashCoverage { site, cause } => {
             crashes::coverage_goal(module, lowered, tables, types, id, obligation, site, cause)
         }

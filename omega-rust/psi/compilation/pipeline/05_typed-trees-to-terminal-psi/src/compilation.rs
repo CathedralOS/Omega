@@ -78,6 +78,7 @@ pub fn prepare_compilation(
             );
             let mut witness = crate::read::logical::projected_arrival(
                 typed,
+                compilation.purpose,
                 required,
                 binding.implementation,
                 &binding.visible_parameters,
@@ -185,9 +186,15 @@ pub fn prepare_compilation(
     if let Some(reason) = selected_failure {
         closure = Err(reason);
     }
-    // A template checked for an invocation must retain its own exact local
-    // declaration to supply the contract of a specialization in that invocation.
-    let forms = prepare_generic_forms(typed, templates, &captures, publication);
+    // Template proof forms retain both the checked source context and the
+    // actual publication mode of the invocation using their captures.
+    let forms = prepare_generic_forms(
+        typed,
+        compilation.purpose,
+        templates,
+        &captures,
+        publication,
+    );
     closure = closure.and_then(|mut elaboration| {
         crate::declare::close_specializations(&forms, prepared_applications, &mut elaboration)
             .map_err(|(owner, reason)| {
@@ -209,6 +216,7 @@ pub fn prepare_compilation(
         let mut witness = match signature {
             Some(signature) => crate::elaborate_applied_witness(
                 typed,
+                compilation.purpose,
                 signature,
                 *declaring_trait,
                 *requirement,
@@ -218,6 +226,7 @@ pub fn prepare_compilation(
             ),
             None => crate::elaborate_witness_with_captures(
                 typed,
+                compilation.purpose,
                 *declaring_trait,
                 *requirement,
                 arguments,
@@ -456,6 +465,7 @@ pub(crate) fn prepare_selected_signatures<'source>(
 
 fn prepare_generic_forms(
     typed: &TypedTrees,
+    purpose: source::DependencyScope,
     mut templates: Vec<SymbolHandle>,
     captures: &crate::NamedCaptures,
     publication: terminal_codec::TerminalPublication,
@@ -466,6 +476,7 @@ fn prepare_generic_forms(
         let template = templates[next];
         let elaborated = crate::elaborate_generic_forms_with_captures(
             typed,
+            purpose,
             &[template],
             captures.clone(),
             publication,

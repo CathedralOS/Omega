@@ -1180,7 +1180,6 @@ pub struct TypedTrees {
     /// Requests no pass served, on the declarations that hold them, ordered
     /// by declaration (`deferred_refusals.rs`).
     pub deferred_refusals: Vec<deferred_refusals::DeferredRefusal>,
-    pub boundary_completion_declarations: Arena<BoundaryCompletionDeclaration>,
     pub evidence_forwardings: Vec<EvidenceForwarding>,
     pub proof_output_calls: Vec<ProofOutputCall>,
     pub declaration_indexes: declaration_index::DeclarationIndexes,
@@ -1192,16 +1191,6 @@ pub struct TypedTrees {
     pub constant_recipe_closure: constant_recipes::ConstantRecipeClosure,
     pub callable_identities: OwnedInterner<crate::type_identity::CallableIdentityTable>,
     pub type_identities: crate::type_identity::TypeIdentityTable,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
-pub struct BoundaryCompletionDeclaration {
-    pub package: Option<semantic_vocabulary::PackageKeyIdentity>,
-    pub owner: symbols::SymbolHandle,
-    pub owner_path: String,
-    pub requirement: symbols::SymbolHandle,
-    pub requirement_path: String,
-    pub completion: semantic_vocabulary::BoundaryCompletion,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
@@ -1454,7 +1443,6 @@ impl TypedTrees {
             data_implementation_applications: Arena::new(),
             target_machine_families: Vec::new(),
             deferred_refusals: Vec::new(),
-            boundary_completion_declarations: Arena::default(),
             evidence_forwardings: Vec::new(),
             proof_output_calls: Vec::new(),
             declaration_indexes: declaration_index::DeclarationIndexes::default(),

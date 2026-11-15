@@ -23,9 +23,19 @@ pub(super) fn replay_provider_executions(
     foreign_calls: &[ObjectForeignCall],
     selected_provider_plans: &[NativeSelectedProviderPlan],
     provider_executions: &[NativeProviderExecution],
+    native_bindings: &provider_admission::RetainedNativeBindings,
+    native_calling: &[calling_conventions::BoundaryCallingApplication],
 ) -> Result<(), ProviderExecutionReplayError> {
     let mut required_executions = BTreeSet::new();
     for installed in boundary_settlements {
+        if matches!(
+            installed.settlement.execution,
+            machine_code::BoundaryExecutionRecord::NativeBinding(_)
+        ) {
+            return Err(ProviderExecutionReplayError::Shared(
+                "native binding cannot replace builtin settlement custody",
+            ));
+        }
         let boundary =
             find_boundary_machine(&module.boundary_machines, installed.settlement.boundary)
                 .ok_or(ProviderExecutionReplayError::AbsentSettlementBoundary)?;
@@ -95,7 +105,20 @@ pub(super) fn replay_provider_executions(
                 "native external invocation changed its completion contract",
             ));
         }
-        let execution = foreign.provider_execution;
+        let execution = match foreign.provider_execution {
+            machine_code::ExternalExecutionRecord::Provider(provider) => provider,
+            machine_code::ExternalExecutionRecord::NativeBinding(_) => {
+                rejoin_native_foreign_execution(
+                    module,
+                    boundary_id,
+                    foreign,
+                    native_bindings,
+                    native_calling,
+                )
+                .map_err(ProviderExecutionReplayError::Shared)?;
+                continue;
+            }
+        };
         let requirement = module
             .identities
             .text(boundary.identity)
@@ -118,17 +141,22 @@ pub(super) fn replay_provider_executions(
     .map_err(ProviderExecutionReplayError::Shared)
 }
 
-pub(super) fn validate_foreign_provider_binding(
+pub(crate) fn validate_foreign_provider_binding(
     requirement: &str,
     foreign: &ObjectForeignCall,
     selected_provider_plans: &[NativeSelectedProviderPlan],
     _identities: &terminal_psi::TerminalIdentityTable,
 ) -> Result<(), &'static str> {
+    let machine_code::ExternalExecutionRecord::Provider(execution) = foreign.provider_execution
+    else {
+        return Err("native binding cannot supply provider execution reports");
+    };
+    if foreign.binding.native_binding_receipt().is_some() {
+        return Err("provider execution cannot use native-binding backing");
+    }
     let selected_plan = selected_provider_plans
         .iter()
-        .find(|plan| {
-            plan.report_identity == foreign.provider_execution.provider_plan_report_identity
-        })
+        .find(|plan| plan.report_identity == execution.provider_plan_report_identity)
         .ok_or("native external call names an unselected provider plan")?;
     let binding_identities = selected_plan.identities();
     let selected_requirement = selected_plan.selected_requirement_identity(requirement);
@@ -140,7 +168,7 @@ pub(super) fn validate_foreign_provider_binding(
     if let Some(contribution) = foreign.binding.same_stack_contribution() {
         validate_foreign_stack_contribution(
             requirement,
-            foreign.provider_execution,
+            execution,
             binding_identities
                 .text(contribution.requirement_identity())
                 .unwrap_or_default(),
@@ -150,9 +178,12 @@ pub(super) fn validate_foreign_provider_binding(
         )?;
     } else if let Some(kernel) = foreign.binding.system_call() {
         if !selected_provider_plans.iter().any(|plan| {
-            plan.report_identity == kernel.provider_plan_report_identity
-                && plan.report_identity == foreign.provider_execution.provider_plan_report_identity
-                && *plan.plan_digest.as_bytes() == kernel.provider_plan_commitment
+            kernel.execution
+                == target_operations::NormalizedForeignExecution::ProviderPlan {
+                    report: plan.report_identity,
+                    commitment: *plan.plan_digest.as_bytes(),
+                }
+                && plan.report_identity == execution.provider_plan_report_identity
                 && plan
                     .requirement_identities
                     .binary_search_by(|candidate| candidate.as_str().cmp(requirement))
@@ -168,6 +199,65 @@ pub(super) fn validate_foreign_provider_binding(
         }
     }
     Ok(())
+}
+
+/// Rejoin an emitted native leaf with the evaluated Build receipt, complete
+/// requirement schema and exact calling application retained by admission.
+pub(crate) fn rejoin_native_foreign_execution(
+    module: &terminal_psi::TerminalModule,
+    boundary: semantic_vocabulary::BoundaryMachineId,
+    foreign: &ObjectForeignCall,
+    retained: &provider_admission::RetainedNativeBindings,
+    calling: &[calling_conventions::BoundaryCallingApplication],
+) -> Result<target_operations::NativeBindingExecution, &'static str> {
+    let machine_code::ExternalExecutionRecord::NativeBinding(execution) =
+        foreign.provider_execution
+    else {
+        return Err("native binding has provider execution custody");
+    };
+    let mut rows = retained.rows.iter().filter(|row| row.boundary == boundary);
+    let row = rows
+        .next()
+        .filter(|_| rows.next().is_none())
+        .ok_or("native call has no unique retained Build binding")?;
+    let abi = module
+        .calling_abi_identity(boundary)
+        .map_err(|_| "native call has no exact declared ABI")?;
+    let mut applications = calling.iter().filter(|application| application.abi == abi);
+    let application = applications
+        .next()
+        .filter(|_| applications.next().is_none())
+        .ok_or("native call has no unique retained calling application")?;
+    let checked = provider_admission::native_bindings::validate_native_binding_realization(
+        row,
+        &retained.identities,
+        module,
+        row.binding.target(),
+        application,
+        &foreign.binding,
+    )
+    .map_err(
+        |_| "native call changed its evaluated receipt, complete schema or calling application",
+    )?;
+    if checked != execution
+        || application.plan.plan() != &foreign.binding.boundary_entry_plan
+        || foreign.binding.native_target() != Some(row.binding.target().native_target())
+        || !foreign.binding.has_valid_entry_mechanism()
+        || !foreign.binding.matches_execution(
+            target_operations::ExternalExecutionBinding::NativeBinding(execution),
+        )
+    {
+        return Err("native call changed its execution, target or normalized calling plan");
+    }
+    if foreign.binding.system_call().is_some()
+        && (foreign.x86_floating_control.is_some() || foreign.aarch64_floating_control.is_some())
+    {
+        return Err("native syscall carries user-space control custody");
+    }
+    if !foreign.callback_addresses.is_empty() {
+        return Err("native Build binding has no admitted callback custody");
+    }
+    Ok(execution)
 }
 
 pub(super) enum ProviderExecutionReplayError {

@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // RUN CANARY (exit 70, WINDOWS-HOST ONLY) -- the WRAPPER canonicalize
 // contract on windows (windows session slices 4a/4d): msvcrt has no realpath,
 // so the windows_x86_64 impl composes CreateFileA(FILE_FLAG_BACKUP_SEMANTICS),
@@ -55,7 +56,7 @@ data Main {
     canon: [u8; 1024];
 }
 
-machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     main.unit_result = block Filesystem::write_all(&mut main.fs, "omega_wcanon_probe.txt", "canon");
     transition main.unit_result { UnitResult::Ok -> block resolve(main) _ -> bad(main, 71) }
     machine resolve(main: &mut Main) {
@@ -94,8 +95,8 @@ machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + Fi
         main.unit_result = block Filesystem::remove_dir(&mut main.fs, "omega_wcanon_dir");
         transition { _ -> good(main) }
     }
-    machine good(main: &mut Main) { Console::exit_process(70); }
-    machine bad(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine good(main: &mut Main) { ProcessExit::exit_process(70); }
+    machine bad(main: &mut Main, code: i32) { ProcessExit::exit_process(code); }
 }
 
 // A hosted native canonical path is absolute in its selected OS spelling.
@@ -107,7 +108,7 @@ macos_x86_64 machine canonical_prefix_is_valid(byte: u8) -> bool { byte == 47 }
 windows_x86_64 machine canonical_prefix_is_valid(byte: u8) -> bool { byte == 92 || byte == 111 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
+machine entry_start() reaches ProcessExit + Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

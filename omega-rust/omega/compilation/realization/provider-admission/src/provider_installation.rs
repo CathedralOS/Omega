@@ -51,6 +51,12 @@ pub enum ProviderInstallationError {
         invocation_site: InvocationSite,
         boundary: semantic_vocabulary::BoundaryMachineId,
     },
+    ExternalCompletionResultMismatch {
+        caller: MachineId,
+        invocation_site: InvocationSite,
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        reason: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

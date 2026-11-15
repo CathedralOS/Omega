@@ -183,25 +183,6 @@ fn prepare_and_judge(
         layout_selection_authority: pass.package_inputs.map(|inputs| {
             Arc::new(inputs.clone()) as Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
         }),
-        completion: match pass.package_inputs.and_then(|inputs| {
-            inputs.accepted_semantic_binding(
-                package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
-            )
-        }) {
-            Some(binding) => {
-                typed_trees::boundary_completions::SourceCompletionAdmission::AcceptedProcessExit {
-                    package: binding.package(),
-                    declaration_path: binding.declaration_path(),
-                }
-            }
-            None if pass
-                .package_inputs
-                .is_some_and(PackageCompilationInputs::semantic_role_discovery) =>
-            {
-                typed_trees::boundary_completions::SourceCompletionAdmission::DiscoverProcessExit
-            }
-            None => typed_trees::boundary_completions::SourceCompletionAdmission::None,
-        },
         representations: source_compiler::ProductRepresentationInput {
             activation: pass.computed_build_config.selected_build_machine_symbol,
             declared: &pass.computed_build_config.declared_product_selections,
@@ -313,6 +294,7 @@ fn prepare_and_judge(
     let judgment = crate::checked::judge_supplied_product(crate::checked::ProductSupplySource {
         publication: terminal_publication,
         build: &build.provider_selections,
+        native_bindings: &build.native_bindings,
         defaults: &provider_defaults,
         layout_deferred: &build.default_provider_selections,
         layout_prepared: chosen_defaults,

@@ -1167,6 +1167,7 @@ impl Inputs {
 
 pub(crate) fn projected_arrival(
     typed: &TypedTrees,
+    purpose: source::DependencyScope,
     required: &StateSignature,
     supplied: SymbolHandle,
     projection: &[ParameterOccurrence],
@@ -1234,7 +1235,7 @@ pub(crate) fn projected_arrival(
             Unserved::Contract("incomplete logical callable inventory"),
         ));
     }
-    let mut program = Program::with_captures(typed, false, captures);
+    let mut program = Program::with_captures(typed, false, purpose, captures);
     if program.result_type(entry, required.return_type)?.is_some()
         || program.result_type(callee, state.return_type)?.is_some()
     {

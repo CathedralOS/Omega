@@ -12,8 +12,6 @@ use semantic_vocabulary::PackageKeyIdentity;
 /// permitted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct ConsoleUse {
-    /// `exit_process`.
-    pub exit: bool,
     /// `write`, `write_byte` or `write_line`.
     pub output: bool,
     /// `read_byte` or `read_line`.
@@ -22,7 +20,7 @@ pub struct ConsoleUse {
 
 impl ConsoleUse {
     pub const fn is_empty(self) -> bool {
-        !(self.exit || self.output || self.input)
+        !(self.output || self.input)
     }
 }
 

@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Complete bounded CLI: choose a fixture with one ASCII digit and LF.
 use omega_language_std::Console;
 use omega_language_std::LineReadResult;
@@ -20,7 +21,7 @@ machine number(main: &mut Main, value: i32 in Wrapping) reaches Console {
 machine fraction(main: &mut Main, numerator: i32 in Wrapping, denominator: i32 in Wrapping) reaches Console {
     number(main, numerator); Console::write("/"); number(main, denominator); Console::write(" ");
 }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("LANDCOVER exact planar area; enter fixture 1..6 (7..9 invalid)");
     let read: LineReadResult = block Console::read_line(&mut main.input);
     transition read {
@@ -115,14 +116,14 @@ machine Main::main(main: &mut Main) reaches Console {
         number(main, urban); Console::write(" "); number(main, nodata); Console::write(" ");
         number(main, outside); Console::write(" "); number(main, total_area); Console::write_line("");
         Console::write_line("AUDIT PASS: class conservation and full-area closure; tolerance=0");
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
-    machine invalid(main: &mut Main) { Console::write_line("INVALID: bounded fixture input or model admission"); Console::exit_process(64); }
-    machine failed(main: &mut Main) { Console::write_line("AUDIT FAIL"); Console::exit_process(1); }
+    machine invalid(main: &mut Main) { Console::write_line("INVALID: bounded fixture input or model admission"); ProcessExit::exit_process(64); }
+    machine failed(main: &mut Main) { Console::write_line("AUDIT FAIL"); ProcessExit::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 0.
 // Expected output contains: molecular_pair_distribution
 use omega_language_std::Console;
@@ -6,7 +7,7 @@ use io::output;
 use domain::model;
 use domain::distribution;
 
-machine main() reaches Console invokes Console blocks crashes Trap {
+machine main() reaches ProcessExit + Console invokes Console blocks crashes Trap {
     let mut reader: InputReader;
     reader.remaining = 32768; reader.exhausted = false;
     let mut distribution: Distribution;
@@ -101,7 +102,7 @@ machine main() reaches Console invokes Console blocks crashes Trap {
     machine calculate(distribution: &mut Distribution) {
         histogram(distribution);
         report(distribution);
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
-    machine invalid() { Console::write_line("INVALID molecular input"); Console::exit_process(2); }
+    machine invalid() { Console::write_line("INVALID molecular input"); ProcessExit::exit_process(2); }
 }

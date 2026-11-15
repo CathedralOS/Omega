@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 0 (valid input).
 use domain::input;
 use domain::report;
@@ -15,7 +16,7 @@ data Application {
     index: i32 in Wrapping; start: i32 in Wrapping; segments: i32 in Wrapping;
     energy: f64; width: i32 in Wrapping; group: i32 in Wrapping; butterfly: i32 in Wrapping;
 }
-machine Application::main(application: &mut Application) reaches Console crashes Trap {
+machine Application::main(application: &mut Application) reaches ProcessExit + Console crashes Trap {
     let sampling: Number = block number(&mut application.reader);
     let gain: Number = block number(&mut application.reader);
     let offset: Number = block number(&mut application.reader);
@@ -27,7 +28,7 @@ machine Application::main(application: &mut Application) reaches Console crashes
         true -> block options(application, sampling.value, gain.value, offset.value, size.value, overlap.value, window.value, length.value)
         _ -> invalid(application)
     }
-    machine invalid(application: &mut Application) { Console::write_line("ERROR input or options"); Console::exit_process(10); }
+    machine invalid(application: &mut Application) { Console::write_line("ERROR input or options"); ProcessExit::exit_process(10); }
     machine options(application: &mut Application, sampling: f64, gain: f64, offset: f64, size: f64, overlap: f64, window: f64, length: f64) {
         transition sampling > 0.0 && gain > 0.0 && gain <= 10000.0 && (size == 8.0 || size == 16.0 || size == 32.0 || size == 64.0) && overlap >= 0.0 && overlap < size && (window == 0.0 || window == 1.0) && length >= size && length <= 64.0 {
             true -> block configure(application, sampling, gain, offset, size, overlap, window, length)
@@ -186,7 +187,7 @@ machine Application::main(application: &mut Application) reaches Console crashes
         application.index = application.index + 1;
         transition { _ -> bin(application) }
     }
-    machine done(application: &mut Application) { Console::exit_process(0); }
+    machine done(application: &mut Application) { ProcessExit::exit_process(0); }
 }
 machine reverse_bits(value: i32 in Wrapping, size: i32 in Wrapping) -> i32 in Wrapping {
     transition { _ -> bits(value, size, 0) }
@@ -196,7 +197,7 @@ machine reverse_bits(value: i32 in Wrapping, size: i32 in Wrapping) -> i32 in Wr
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console crashes Trap {
+machine entry_start() reaches ProcessExit + Console crashes Trap {
     let mut entry_storage: Application;
     block Application::main(&mut entry_storage);
 }

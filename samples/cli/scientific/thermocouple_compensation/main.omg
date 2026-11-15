@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Complete supplied-calibration compensation application; see README for units.
 use domain::input;
 use domain::model;
@@ -7,7 +8,7 @@ use omega_language_std::Console;
 
 data Application { reader: Reader; }
 
-machine Application::main(application: &mut Application) reaches Console {
+machine Application::main(application: &mut Application) reaches ProcessExit + Console {
     let value_0: Number = block number(&mut application.reader);
     let value_1: Number = block number(&mut application.reader);
     let value_2: Number = block number(&mut application.reader);
@@ -28,7 +29,7 @@ machine Application::main(application: &mut Application) reaches Console {
         true -> calibrate(application, Segment { low: value_0.value, high: value_1.value, a: value_2.value, b: value_3.value, c: value_4.value }, Segment { low: value_5.value, high: value_6.value, a: value_7.value, b: value_8.value, c: value_9.value }, value_10.value, value_11.value, value_12.value, value_13.value, value_14.value)
         _ -> malformed(application)
     }
-    machine malformed(application: &mut Application) { Console::write_line("ERROR input"); Console::exit_process(10); }
+    machine malformed(application: &mut Application) { Console::write_line("ERROR input"); ProcessExit::exit_process(10); }
     // Exact boundary voltage differences have a 1e-9 mV quantum from
     // 0.001-scaled coefficients/temperature. The midpoint 9.5e-9 admits
     // every permitted difference <=9e-9 and rejects every >=1e-8 despite
@@ -40,21 +41,21 @@ machine Application::main(application: &mut Application) reaches Console {
             _ -> calibration_error(application)
         }
     }
-    machine calibration_error(application: &mut Application) { Console::write_line("ERROR calibration"); Console::exit_process(11); }
+    machine calibration_error(application: &mut Application) { Console::write_line("ERROR calibration"); ProcessExit::exit_process(11); }
     machine cold_junction(application: &mut Application, first: Segment, second: Segment, measured: f64, cold: f64, reference: f64, low: f64, high: f64) {
         transition inside(first, cold) { true -> compensate(application, first, second, measured + voltage(first, cold), reference, low, high) _ -> cold_second(application, first, second, measured, cold, reference, low, high) }
     }
     machine cold_second(application: &mut Application, first: Segment, second: Segment, measured: f64, cold: f64, reference: f64, low: f64, high: f64) {
         transition inside(second, cold) { true -> compensate(application, first, second, measured + voltage(second, cold), reference, low, high) _ -> cold_error(application) }
     }
-    machine cold_error(application: &mut Application) { Console::write_line("ERROR cold junction"); Console::exit_process(12); }
+    machine cold_error(application: &mut Application) { Console::write_line("ERROR cold junction"); ProcessExit::exit_process(12); }
     machine compensate(application: &mut Application, first: Segment, second: Segment, compensated: f64, reference: f64, low: f64, high: f64) {
         transition low < high && low >= first.low && high <= second.high {
             true -> invert(application, first, second, compensated, reference, low, high)
             _ -> bracket_error(application)
         }
     }
-    machine bracket_error(application: &mut Application) { Console::write_line("ERROR bracket"); Console::exit_process(13); }
+    machine bracket_error(application: &mut Application) { Console::write_line("ERROR bracket"); ProcessExit::exit_process(13); }
     machine invert(application: &mut Application, first: Segment, second: Segment, compensated: f64, reference: f64, low: f64, high: f64) {
         let estimate: Estimate = enumerate(first, second, compensated, low, high);
         field(&mut application.reader, "brackets=", F64::from_i32(estimate.count));
@@ -63,20 +64,20 @@ machine Application::main(application: &mut Application) reaches Console {
     machine no_unique(application: &mut Application, count: i32) {
         transition count == 0 { true -> absent(application) _ -> ambiguous(application) }
     }
-    machine absent(application: &mut Application) { Console::write_line("ERROR no root"); Console::exit_process(14); }
-    machine ambiguous(application: &mut Application) { Console::write_line("ERROR ambiguous"); Console::exit_process(15); }
+    machine absent(application: &mut Application) { Console::write_line("ERROR no root"); ProcessExit::exit_process(14); }
+    machine ambiguous(application: &mut Application) { Console::write_line("ERROR ambiguous"); ProcessExit::exit_process(15); }
     machine success(application: &mut Application, compensated: f64, reference: f64, estimate: Estimate) {
         field(&mut application.reader, "temperature_mC=", estimate.temperature * 1000.0);
         field(&mut application.reader, "error_mC=", (estimate.temperature - reference) * 1000.0);
         field(&mut application.reader, "compensated_nV=", compensated * 1000000.0);
         field(&mut application.reader, "residual_nV=", estimate.residual * 1000000.0);
         Console::write_line("OK");
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Application;
     block Application::main(&mut entry_storage);
 }

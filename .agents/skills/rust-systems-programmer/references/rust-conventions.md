@@ -155,6 +155,8 @@ mod tests {
 
 Test reusable logic near its implementation using `#[cfg(test)]`, and test command/adapter integration through the destination's existing test harness. Prefer deterministic input buffers or mocked I/O over live processes for library tests. Test frontend behavior when the change concerns that frontend; command tests alone do not establish UI behavior.
 
+Place inline test modules after all production items in their enclosing module, including helper functions. This keeps tests beside their owner without triggering Clippy's `items_after_test_module` check.
+
 Cover the changed success path and relevant failure or boundary cases. When changing scheduling or result collection, test deliberately reordered completions with explicit synchronization, preserving result identity/order, complete result delivery, and the existing error or panic propagation contract; do not rely on timing sleeps. For a bug fix, leave a regression test that fails on the original behavior. If a test cannot run, state the limitation and what would enable it; never substitute an empty passing test for evidence.
 
 Remove newly unused imports and dead helpers, run formatting and relevant tests/checks using the destination's toolchain, and inspect the diff. Report what was actually verified and any untested platform or runtime behavior. Follow the destination's rules for task notes and commits; this skill does not impose Squalr's session workflow on another repository.

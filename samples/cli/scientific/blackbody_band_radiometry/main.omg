@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 0.
 // Expected output contains: emitted_W,ambient_W,net_W,emission_fraction
 use io::protocol;
@@ -14,7 +15,7 @@ data Main {
     protocol: Protocol;
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     let parsed: bool = block Protocol::read(&mut main.protocol);
     transition parsed { true -> finite(main, 0) false -> invalid(main) }
     machine finite(main: &mut Main, index: u64) {
@@ -59,16 +60,16 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write(",");
         Protocol::number(&mut main.protocol, fraction);
         Console::write_line("");
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
     machine invalid(main: &mut Main) {
         Console::write_line("ERROR invalid input");
-        Console::exit_process(64);
+        ProcessExit::exit_process(64);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Parse an integer from a `[u8;N] in Utf8` carrier string (`atoi`) -- a core
 // text-processing primitive. It walks the digits, bounded by the string's
 // runtime `.len`, accumulating `result = result*10 + (digit - '0')`:
@@ -64,7 +65,7 @@ machine parse_decimal(text: &[u8; 3] in Utf8) -> i32 in Wrapping {
 }
 
 data Main { }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("parse_int: atoi over a text carrier, digit by digit");
     let text: [u8; 3] in Utf8 = "150";
     let result: i32 in Wrapping = parse_decimal(&text);
@@ -72,11 +73,11 @@ machine Main::main(main: &mut Main) reaches Console {
     Console::write_line("[press Enter to close]");
     let mut pause: [u8; 256];
     _ = block Console::read_line(&mut pause);
-    Console::exit_process(result as i32);
+    ProcessExit::exit_process(result as i32);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

@@ -696,8 +696,10 @@ fn normalized_foreign_structural_signature_requires_the_exact_admitted_lane() {
                     target: target::TargetProfile::LinuxX64,
                     number: 0,
                     requirement_identity: "test-only::operand-view".to_owned(),
-                    provider_plan_report_identity: 7,
-                    provider_plan_commitment: [7; 32],
+                    execution: target_operations::NormalizedForeignExecution::ProviderPlan {
+                        report: 7,
+                        commitment: [7; 32],
+                    },
                 },
             ),
         }
@@ -1035,9 +1037,9 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
         admitted_provider_boundary_trait_settlement_identity(
             occurrence,
             "Input::read",
-            NativeSelectedProviderPlanDigest::from_digest([7; 32]),
+            NativeSelectedProviderPlanDigest::from_digest([7; 32]).into(),
             NativeTarget::linux_x64(),
-            execution,
+            execution.into(),
             [9; 32],
             &mechanism(&locator, [11; 32]),
             arguments,
@@ -1109,9 +1111,9 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
                     OptimizedBoundaryOccurrenceIdentity::from_canonical_bytes(b"other occurrence"),
                 ),
                 "Input::read",
-                NativeSelectedProviderPlanDigest::from_digest([7; 32]),
+                NativeSelectedProviderPlanDigest::from_digest([7; 32]).into(),
                 NativeTarget::linux_x64(),
-                execution,
+                execution.into(),
                 [9; 32],
                 &mechanism(&locator, [11; 32]),
                 &structural_arguments,
@@ -1120,9 +1122,9 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
             1 => admitted_provider_boundary_trait_settlement_identity(
                 occurrence,
                 "Input::other",
-                NativeSelectedProviderPlanDigest::from_digest([7; 32]),
+                NativeSelectedProviderPlanDigest::from_digest([7; 32]).into(),
                 NativeTarget::linux_x64(),
-                execution,
+                execution.into(),
                 [9; 32],
                 &mechanism(&locator, [11; 32]),
                 &structural_arguments,
@@ -1131,9 +1133,9 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
             2 => admitted_provider_boundary_trait_settlement_identity(
                 occurrence,
                 "Input::read",
-                NativeSelectedProviderPlanDigest::from_digest([8; 32]),
+                NativeSelectedProviderPlanDigest::from_digest([8; 32]).into(),
                 NativeTarget::linux_x64(),
-                execution,
+                execution.into(),
                 [9; 32],
                 &mechanism(&locator, [11; 32]),
                 &structural_arguments,
@@ -1142,9 +1144,9 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
             3 => admitted_provider_boundary_trait_settlement_identity(
                 occurrence,
                 "Input::read",
-                NativeSelectedProviderPlanDigest::from_digest([7; 32]),
+                NativeSelectedProviderPlanDigest::from_digest([7; 32]).into(),
                 NativeTarget::windows_x64(),
-                execution,
+                execution.into(),
                 [9; 32],
                 &mechanism(&locator, [11; 32]),
                 &structural_arguments,
@@ -1153,7 +1155,7 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
             4 => admitted_provider_boundary_trait_settlement_identity(
                 occurrence,
                 "Input::read",
-                NativeSelectedProviderPlanDigest::from_digest([7; 32]),
+                NativeSelectedProviderPlanDigest::from_digest([7; 32]).into(),
                 NativeTarget::linux_x64(),
                 target_operations::ProviderExecutionBinding::from_execution_record(
                     target_operations::ProviderPlanReportIdentity::new(7).unwrap(),
@@ -1162,7 +1164,8 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
                     17,
                     29,
                 )
-                .unwrap(),
+                .unwrap()
+                .into(),
                 [9; 32],
                 &mechanism(&locator, [11; 32]),
                 &structural_arguments,
@@ -1171,9 +1174,9 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
             5 => admitted_provider_boundary_trait_settlement_identity(
                 occurrence,
                 "Input::read",
-                NativeSelectedProviderPlanDigest::from_digest([7; 32]),
+                NativeSelectedProviderPlanDigest::from_digest([7; 32]).into(),
                 NativeTarget::linux_x64(),
-                execution,
+                execution.into(),
                 [10; 32],
                 &mechanism(&locator, [11; 32]),
                 &structural_arguments,
@@ -1182,9 +1185,9 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
             6 => admitted_provider_boundary_trait_settlement_identity(
                 occurrence,
                 "Input::read",
-                NativeSelectedProviderPlanDigest::from_digest([7; 32]),
+                NativeSelectedProviderPlanDigest::from_digest([7; 32]).into(),
                 NativeTarget::linux_x64(),
-                execution,
+                execution.into(),
                 [9; 32],
                 &mechanism(&locator, [12; 32]),
                 &structural_arguments,
@@ -1193,9 +1196,9 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
             _ => admitted_provider_boundary_trait_settlement_identity(
                 occurrence,
                 "Input::read",
-                NativeSelectedProviderPlanDigest::from_digest([7; 32]),
+                NativeSelectedProviderPlanDigest::from_digest([7; 32]).into(),
                 NativeTarget::linux_x64(),
-                execution,
+                execution.into(),
                 [9; 32],
                 &mechanism(
                     &target::normalize_foreign_locator(
@@ -1218,16 +1221,18 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
         target: target::TargetProfile::LinuxX64,
         number: 0,
         requirement_identity: "Input::read".to_owned(),
-        provider_plan_report_identity: 7,
-        provider_plan_commitment: [7; 32],
+        execution: target_operations::NormalizedForeignExecution::ProviderPlan {
+            report: 7,
+            commitment: [7; 32],
+        },
     };
     let kernel_identity = |kernel| {
         admitted_provider_boundary_trait_settlement_identity(
             occurrence,
             "Input::read",
-            NativeSelectedProviderPlanDigest::from_digest([7; 32]),
+            NativeSelectedProviderPlanDigest::from_digest([7; 32]).into(),
             NativeTarget::linux_x64(),
-            execution,
+            execution.into(),
             [9; 32],
             &target_operations::NormalizedForeignCallMechanism::SystemCall(kernel),
             &structural_arguments,
@@ -1245,8 +1250,23 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
             0 => changed.target = target::TargetProfile::LinuxArm64,
             1 => changed.number = 211,
             2 => changed.requirement_identity = "Input::other".to_owned(),
-            3 => changed.provider_plan_report_identity += 1,
-            _ => changed.provider_plan_commitment[0] ^= 1,
+            3 => {
+                if let target_operations::NormalizedForeignExecution::ProviderPlan {
+                    report, ..
+                } = &mut changed.execution
+                {
+                    *report += 1;
+                }
+            }
+            _ => {
+                if let target_operations::NormalizedForeignExecution::ProviderPlan {
+                    commitment,
+                    ..
+                } = &mut changed.execution
+                {
+                    commitment[0] ^= 1;
+                }
+            }
         }
         assert_ne!(
             kernel_expected,
@@ -1334,7 +1354,7 @@ fn physical_child_identity_binds_every_retained_field() {
                     ),
                 ),
                 requirement_identity: "Process::exit".to_owned(),
-                selected_plan_digest: NativeSelectedProviderPlanDigest::from_digest([7; 32]),
+                selected_supply: NativeSelectedProviderPlanDigest::from_digest([7; 32]).into(),
                 target: NativeTarget::linux_x64(),
                 role: BoundaryTraitSettlementRole::CompilerBuiltin {
                     catalog: NativeCompilerBuiltinCatalogIdentity::HostedV1,
@@ -1586,7 +1606,7 @@ fn physical_child_identity_binds_the_normalized_foreign_relocation() {
         BoundaryTraitSettlementParts {
             occurrence: projection.boundary_occurrences()[0],
             requirement_identity: "Process::exit".to_owned(),
-            selected_plan_digest: NativeSelectedProviderPlanDigest::from_digest([7; 32]),
+            selected_supply: NativeSelectedProviderPlanDigest::from_digest([7; 32]).into(),
             target: NativeTarget::linux_x64(),
             role: BoundaryTraitSettlementRole::CompilerBuiltin {
                 catalog: NativeCompilerBuiltinCatalogIdentity::HostedV1,

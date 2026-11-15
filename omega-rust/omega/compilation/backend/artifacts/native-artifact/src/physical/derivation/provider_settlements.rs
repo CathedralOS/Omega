@@ -203,7 +203,7 @@ pub(crate) fn derive_admitted_provider_settlement_child(
         BoundaryTraitSettlementParts {
             occurrence: *occurrence,
             requirement_identity: requirement_identity.to_owned(),
-            selected_plan_digest: selected_plan.plan_digest(),
+            selected_supply: selected_plan.plan_digest().into(),
             target,
             role,
             identity: parent_identity,
