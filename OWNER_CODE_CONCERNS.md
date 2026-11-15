@@ -122,13 +122,6 @@ framework or a list of features that remain unimplemented.
 - Cost: The recycled slot cannot start its Rust checks through the ordinary command. Reconnect or discard only the stale worktree-local cache link when reacquiring a slot, and preserve live caches.
 - Reported: 2026-11-14, Codex, while validating scoped case resolution
 
-### Worktree and claim status panic when the output reader closes
-- Category: one idea, several implementations
-- Where: [worktree status output](tools/xtask/src/worktree.rs#L675), [claim status output](tools/xtask/src/claims.rs)
-- Saw: The xtask built at both `149d359085d` and `f5ed845ea2f` exits 101 with a Rust `Broken pipe` panic for both `worktree status` and `claims status` when the consumer closes stdout before the command writes. Each command exits 0 when its reader consumes the output.
-- Cost: Reading a prefix of either status output can fail a pipeline because the writer panics. Use the same fallible stdout handling for both commands, and keep genuine output errors visible.
-- Reported: 2026-11-14, Codex, while inspecting available worktree slots
-
 ### Writes to immutable owned bindings are reported as unavailable
 - Category: a verdict with nothing behind it
 - Where: [assignment reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/statements.rs#L83), [projected store reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/statements.rs#L182)
@@ -226,3 +219,17 @@ framework or a list of features that remain unimplemented.
 - Saw: at `c06ddb0f570`, the entryless `fractional_integer_landing` fixture stops during preparation at `DarwinTimespec` on `linux_arm64`, where `c_abi_fields::append` requires unsupported clause arithmetic. The [explicitly demanded scalar layout](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs#L1203) at `59b8d53b729` reaches the same arithmetic refusal on `linux_x86_64` before checking size 24, alignment 8 and offsets `[0, 8, 16]`. (The earlier alias refusal at the same field, "selected type alias has no retained source declaration", was a separate defect in extension resolution and is fixed.)
 - Cost: a program that never demands the macOS layout is refused for it, against [demand-driven layout formation](wiki/spec/build/configuration.md#multi-target-compilation); may be the same uncalled-library refusal as "A whole-program stage refuses every program for a library construct nobody calls"
 - Reported: 2026-11-15, Claude Code, while removing the product gate's duplicate review pass
+
+### Receiving a selected result loses its missing lifetime evidence reason
+- Category: a verdict with nothing behind it
+- Where: [public result lifetime lookup](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references/selected_results.rs#L50), [descriptor graph invocation](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors.rs#L13861)
+- Saw: At `1a5fd676246` the published selected `Chosen::hand` control accepts with one public header and complete lifetime groups. Keep that operation header, its invocation row and the selected method tuple. Remove only the method's `result_lifetimes`. The public semantic query reports `selected reference result has an unresolved declared lifetime frontier`. The receiving judgment still refuses, but reports that descriptor storage flow cannot be reconstructed at the call.
+- Cost: The receiver drops the exact missing public evidence when the descriptor graph takes the query's optional result. Keep the existing failure reason and the actual call site through the receiving judgment.
+- Reported: 2026-11-14, Codex, while auditing the selected reference public contract after #3351
+
+### The worktree ownership test miscounts a checkout under a symlinked temp path
+- Category: tests that pin the bug
+- Where: [offline worktree ownership test](tools/xtask/src/worktree.rs), [worktree roster](tools/xtask/src/worktree.rs#L554)
+- Saw: On macOS arm64 the worktree ownership test expects only the retained offline checkout but counts two. Its scratch repository uses the temporary path through `/var`, while `git worktree list --porcelain` reports the primary checkout through `/private/var`. The roster removes the primary checkout by exact path, and the test passes the uncanonicalized path directly.
+- Cost: The test stops at the roster size before checking that the offline registration retains its topic and lock. Exercise the same canonical repository path as the command's normal entry point.
+- Reported: 2026-11-14, Codex, while verifying closed status pipes

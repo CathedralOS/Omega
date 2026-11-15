@@ -38,8 +38,22 @@ mod source_closure;
 mod sweep;
 mod worktree;
 
+use std::io::{self, Write};
 use std::path::PathBuf;
 use std::process::ExitCode;
+
+/// A status consumer may stop after reading a prefix of the output.
+fn write_status(render: impl FnOnce(&mut dyn Write) -> io::Result<()>) -> Result<(), u8> {
+    let mut output = io::stdout().lock();
+    match render(&mut output).and_then(|()| output.flush()) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::BrokenPipe => Ok(()),
+        Err(error) => {
+            let _ = writeln!(io::stderr(), "xtask: could not write status: {error}");
+            Err(1)
+        }
+    }
+}
 
 pub(crate) fn repo_root() -> Result<PathBuf, u8> {
     repository::current().map_err(|error| {

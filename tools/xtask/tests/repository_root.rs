@@ -142,3 +142,47 @@ fn claims_preflight_does_not_read_git_metadata() {
         );
     }
 }
+
+#[test]
+fn status_commands_accept_a_closed_output_reader() {
+    use std::io;
+    use std::process::Stdio;
+
+    let invocation = Invocation::new(true);
+    for arguments in [
+        &["init"][..],
+        &["init", "--bare", "registry.git"],
+        &["remote", "add", "origin", "registry.git"],
+    ] {
+        let output = Command::new("git")
+            .args(arguments)
+            .current_dir(&invocation.0)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {arguments:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    for arguments in [
+        ["worktree", "status"],
+        ["worktree", "list"],
+        ["claims", "status"],
+    ] {
+        let (reader, writer) = io::pipe().unwrap();
+        drop(reader);
+        let output = Command::new(env!("CARGO_BIN_EXE_xtask"))
+            .args(arguments)
+            .current_dir(&invocation.0)
+            .stdin(Stdio::null())
+            .stdout(writer)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{arguments:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}
