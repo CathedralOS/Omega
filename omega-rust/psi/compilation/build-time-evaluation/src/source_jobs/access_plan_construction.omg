@@ -66,7 +66,7 @@ machine construct_observed_plan<'text>(
 machine transport_observed_plan<'schema, 'text>(schema: reflect::TypeSchema<'schema>, plan: AccessPlan<'text>) -> AccessPlan<'text> { plan }
 
 
-data PlanLookalike { schema: reflect::TypeSchema; }
-machine construct_lookalike(schema: reflect::TypeSchema) -> PlanLookalike {
+data PlanLookalike<'text> { schema: reflect::TypeSchema<'text>; }
+machine construct_lookalike<'text>(schema: reflect::TypeSchema<'text>) -> PlanLookalike<'text> {
     PlanLookalike { schema: schema }
 }

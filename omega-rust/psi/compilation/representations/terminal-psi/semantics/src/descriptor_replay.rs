@@ -3502,11 +3502,12 @@ pub(crate) mod contents_queries {
                     after.contents_invalidated = true;
                 }
             }
-            // The value transfer has already rebased its known descendants.
-            // Installing the matching root value must carry those rows too;
-            // otherwise replacing the header discards the element loans just
-            // transported with it. A different or unknown replacement still
-            // clears descendants through ordinary installation.
+            // A matching value transfer already installed the root and its
+            // descendant facts. Installing that same root again would erase
+            // those facts. Omit only proven redundant replacements; other
+            // writes retain the ordinary descendant-clearing behavior.
+            let mut derivations = derivations.iter().collect::<Vec<_>>();
+            derivations.sort_unstable();
             for transfer in transfers {
                 let (Some(source), Some(destination)) = (
                     transfer.source.exact_location(),
@@ -3514,11 +3515,14 @@ pub(crate) mod contents_queries {
                 ) else {
                     continue;
                 };
-                if !derivations
-                    .iter()
-                    .any(|(actual_source, actual_destination)| {
-                        *actual_source == source && *actual_destination == destination
+                if derivations
+                    .binary_search_by(|actual| {
+                        actual
+                            .0
+                            .cmp(&source)
+                            .then_with(|| actual.1.cmp(&destination))
                     })
+                    .is_err()
                 {
                     continue;
                 }
@@ -3526,18 +3530,10 @@ pub(crate) mod contents_queries {
                 let Some(Some(incoming)) = replacements.get(&target) else {
                     continue;
                 };
-                if after.slots.get(&destination).and_then(Option::as_ref) != Some(incoming) {
-                    continue;
-                }
-                for (location, value) in after.slots.iter() {
-                    if location != &destination
-                        && let Some(original) = location.transported(&destination, &source)
-                        && before.slots.contains_key(&original)
-                    {
-                        replacements
-                            .entry(DescriptorPayloadTarget::current(location.clone()))
-                            .or_insert_with(|| value.clone());
-                    }
+                if !incoming.is_empty()
+                    && after.slots.get(&destination).and_then(Option::as_ref) == Some(incoming)
+                {
+                    replacements.remove(&target);
                 }
             }
             Self::install_contents(after, replacements);
