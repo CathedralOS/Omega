@@ -7,7 +7,7 @@ use omega::language::core::narrow_i64_to_i32_wrapping;
 use omega_language_std::Console;
 
 data Application { reader: Reader; solver: Solver; }
-machine Application::main(application: &mut Application) reaches ProcessExit + Console crashes Trap {
+machine main(application: &mut Application) reaches ProcessExit + Console crashes Trap {
     let metabolites: Number = block number(&mut application.reader);
     let reactions: Number = block number(&mut application.reader);
     let biomass: Number = block number(&mut application.reader);
@@ -110,5 +110,5 @@ machine Application::main(application: &mut Application) reaches ProcessExit + C
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console crashes Trap {
     let mut entry_storage: Application;
-    block Application::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

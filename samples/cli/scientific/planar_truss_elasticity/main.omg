@@ -8,7 +8,7 @@ use io::report;
 use domain::model;
 use domain::solver;
 data Main { input: Input; output: Output; truss: Truss; result: Solution; }
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     block read_input(&mut main.input);
     transition main.input.valid { true -> decode_input(main) false -> invalid(main) }
     machine decode_input(main: &mut Main) {
@@ -33,5 +33,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

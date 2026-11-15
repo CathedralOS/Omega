@@ -41,7 +41,7 @@ public machine cell_count(mask: i32 in Wrapping) -> i32 in Wrapping {
     }
 }
 
-public machine Cavity::valid(cavity: &Cavity) -> bool {
+public machine valid(cavity: &Cavity) -> bool {
     cavity.gates != 0 && (cavity.walls & (cavity.gates | cavity.vents)) == 0
         && (cavity.gates & cavity.vents) == 0 && cavity.budget >= cell_count(cavity.gates)
         && cavity.budget >= 0 && cavity.budget <= 16
@@ -50,13 +50,13 @@ public machine Cavity::valid(cavity: &Cavity) -> bool {
         && cavity.vents >= 0 && cavity.vents <= 65535
 }
 
-machine Cavity::classify(cavity: &mut Cavity) {
+machine classify(cavity: &mut Cavity) {
     let air: i32 in Wrapping = 65535 & ~(cavity.walls | cavity.filled | cavity.trapped);
     cavity.vented = air_closure(air, cavity.vents);
     cavity.trapped = cavity.trapped | (air & ~cavity.vented);
 }
 
-public machine Cavity::simulate(cavity: &mut Cavity) {
+public machine cavity_simulate(cavity: &mut Cavity) {
     cavity.filled = cavity.gates;
     cavity.trapped = 0;
     cavity.vented = 0;
@@ -81,7 +81,7 @@ public machine Cavity::simulate(cavity: &mut Cavity) {
         transition { _ -> initialize(cavity, index + 1, bit << 1) }
     }
     machine round(cavity: &mut Cavity) {
-        Cavity::classify(cavity);
+        classify(cavity);
         let candidates: i32 in Wrapping = neighbours(cavity.filled) & cavity.vented;
         transition cavity.used < cavity.budget && candidates != 0 {
             true -> begin_batch(cavity, candidates)
@@ -121,7 +121,7 @@ public machine Cavity::simulate(cavity: &mut Cavity) {
 
 // This check is a postcondition on reported physical partitions, rather than
 // an expected checksum of one fixture. Whole-map byte oracles are external.
-public machine Cavity::balanced(cavity: &Cavity) -> bool {
+public machine balanced(cavity: &Cavity) -> bool {
     let partition: i32 in Wrapping = cavity.walls | cavity.filled | cavity.trapped | cavity.vented;
     let total: i32 in Wrapping = cell_count(cavity.walls) + cell_count(cavity.filled)
         + cell_count(cavity.trapped) + cell_count(cavity.vented);

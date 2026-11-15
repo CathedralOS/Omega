@@ -16,7 +16,7 @@ data Main {
     decision: i32;
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("IND22 offline laboratory protocol; deadline=5; capacity=64");
     transition { _ -> block read(main) }
     machine read(main: &mut Main) {
@@ -75,11 +75,11 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     }
     machine interpret(main: &mut Main, final: bool) {
         let argument: i32 in Saturating = (main.second - 48) as i32 in Saturating;
-        main.decision = protocol::model::Laboratory::apply(&mut main.laboratory, main.first, argument);
+        main.decision = protocol::model::apply(&mut main.laboratory, main.first, argument);
         transition { _ -> block report(main, final) }
     }
     machine report(main: &mut Main, final: bool) {
-        protocol::report::Report::row(&main.laboratory, main.decision);
+        protocol::report::row(&main.laboratory, main.decision);
         main.length = 0;
         transition final {
             true -> done(main)
@@ -99,5 +99,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

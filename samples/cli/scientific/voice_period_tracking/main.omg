@@ -25,7 +25,7 @@ data Main {
 
 // Newline-separated windows, each 1..32 ASCII digits, at most 16 windows.
 // EOF closes a final unterminated record. Empty records and CR reject.
-machine Main::main(main: &mut Main) reaches ProcessExit + Console crashes Trap {
+machine main(main: &mut Main) reaches ProcessExit + Console crashes Trap {
     main.length = 0;
     main.frame = 0;
     main.previous = 0;
@@ -197,5 +197,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console crashes Trap {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console crashes Trap {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

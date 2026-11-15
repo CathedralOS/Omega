@@ -62,7 +62,7 @@ its own executable identity. Its ordinary mode requires the normal accepted
 lock and uses the native report's retained Terminal artifact and admitted
 provisions. Each request has fresh finite stdin and an isolated containing
 domain. It does not disable custody or authority checks or supply fixture trust.
-`Build::bind` explicitly selects `Main::main`. Its ordinary mutable `Main` context is ZII-valid and contains no service routing fields. I/O helpers call `Console::operation(arguments)` through the exact static Console slot; published helpers retain explicit Console invocation ceilings. Provider selection and normal package/runtime admission remain required. The sample requests std Console and no filesystem or subprocess authority.
+`Build::bind` explicitly selects `main`. Its ordinary mutable `Main` context is ZII-valid and contains no service routing fields. I/O helpers call `Console::operation(arguments)` through the exact static Console slot; published helpers retain explicit Console invocation ceilings. Provider selection and normal package/runtime admission remain required. The sample requests std Console and no filesystem or subprocess authority.
 Source-risk disclosure never grants host access.
 
 The original 39 cases remain frozen. Three additional independent convolution

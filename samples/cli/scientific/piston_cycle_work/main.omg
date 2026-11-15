@@ -25,7 +25,7 @@ data Application {
 }
 
 data Main { }
-machine Main::main(main: &mut Main) reaches ProcessExit + Console
+machine main(main: &mut Main) reaches ProcessExit + Console
 crashes Trap
 {
     let mut application: Application;
@@ -167,5 +167,5 @@ machine entry_start() reaches ProcessExit + Console
 crashes Trap
 {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

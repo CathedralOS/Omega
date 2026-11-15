@@ -14,7 +14,7 @@ machine calculate(flag: bool, value: u64 in Wrapping) -> u64 in Wrapping {
     }
 }
 data Main { }
-machine Main::main(context: &mut Main) reaches ProcessExit + Console {
+machine main(context: &mut Main) reaches ProcessExit + Console {
     let byte: ByteRead = block Console::read_byte();
     transition byte {
         ByteRead::Eof -> finish(context, 7)
@@ -32,5 +32,5 @@ machine Main::main(context: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

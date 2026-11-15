@@ -6,7 +6,7 @@ use input::numbers;
 use report::render;
 use omega_language_std::Console;
 
-machine Application::main(application: &mut Application) reaches ProcessExit + Console {
+machine main(application: &mut Application) reaches ProcessExit + Console {
     let count: Parsed = block read_number();
     let budget: Parsed = block read_number();
     let deadline: Parsed = block read_number();
@@ -67,5 +67,5 @@ machine Application::main(application: &mut Application) reaches ProcessExit + C
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Application;
-    block Application::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

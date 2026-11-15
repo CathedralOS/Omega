@@ -11,7 +11,7 @@ use reporting::ledger;
 use data::fixtures;
 use data::expectations;
 data Main {lab:Lab; choice:i32;}
-machine Main::main(main:&mut Main) reaches ProcessExit + Console {
+machine main(main:&mut Main) reaches ProcessExit + Console {
  let input:ByteRead=block Console::read_byte();
  transition input {ByteRead::Byte{value} -> choice(main,value) _ -> invalid(main)}
  machine choice(main:&mut Main,value:i32) {
@@ -76,5 +76,5 @@ machine Main::main(main:&mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

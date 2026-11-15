@@ -5,26 +5,26 @@ use protocol::model;
 
 public data Report { }
 
-public machine Report::row(laboratory: &protocol::model::Laboratory, decision: i32) reaches Console
+public machine row(laboratory: &protocol::model::Laboratory, decision: i32) reaches Console
 invokes Console
 {
-    Report::decision(decision);
+    decision(decision);
     Console::write(" owner=");
-    Report::number(laboratory.owner as i32 in Saturating);
+    number(laboratory.owner as i32 in Saturating);
     Console::write(" phase=");
-    Report::number(laboratory.phase as i32 in Saturating);
+    number(laboratory.phase as i32 in Saturating);
     Console::write(" lid=");
-    Report::lid(laboratory.closed);
+    report_lid(laboratory.closed);
     Console::write(" tick=");
-    Report::number(laboratory.elapsed);
+    number(laboratory.elapsed);
     Console::write(" completed=");
-    Report::number(laboratory.completed);
+    number(laboratory.completed);
     Console::write(" aborted=");
-    Report::number(laboratory.aborted);
+    number(laboratory.aborted);
     Console::write_line("");
 }
 
-machine Report::number(value: i32 in Saturating) reaches Console {
+machine number(value: i32 in Saturating) reaches Console {
     transition value >= 0 && value <= 99 {
         true -> digits(value)
         false -> invalid()
@@ -40,7 +40,7 @@ machine Report::number(value: i32 in Saturating) reaches Console {
     }
 }
 
-machine Report::lid(closed: bool) reaches Console {
+machine report_lid(closed: bool) reaches Console {
     transition closed {
         true -> shut()
         false -> open()
@@ -49,7 +49,7 @@ machine Report::lid(closed: bool) reaches Console {
     machine open() { Console::write("open"); }
 }
 
-machine Report::decision(decision: i32) reaches Console {
+machine decision(decision: i32) reaches Console {
     transition decision {
         0 -> acquired()
         1 -> loaded()

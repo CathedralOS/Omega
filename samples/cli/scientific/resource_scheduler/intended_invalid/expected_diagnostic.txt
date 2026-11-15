@@ -1,1 +1,1 @@
-cannot prove requires contract for call validate_start from Main::main
+cannot prove requires contract for call validate_start from main

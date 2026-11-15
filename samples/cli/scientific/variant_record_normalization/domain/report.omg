@@ -60,7 +60,7 @@ invokes Console
         }
     }
     machine read(sequence: &Sequence, index: u64 in Wrapping) {
-        let value: u64 in Wrapping = Sequence::base(sequence, index);
+        let value: u64 in Wrapping = sequence_base(sequence, index);
         transition value {
             1 -> write(sequence, index, 65)
             2 -> write(sequence, index, 67)

@@ -6,7 +6,7 @@ data Invalid { }
 machine unchecked_base(reference: &[u8; 8], position: u64) -> u8 {
     reference[position]
 }
-machine Invalid::main(entry: &mut Invalid) reaches ProcessExit + Console {
+machine main(entry: &mut Invalid) reaches ProcessExit + Console {
     let mut input: [u8; 8];
     let observed: ByteRead = block Console::read_byte();
     transition observed {
@@ -24,5 +24,5 @@ machine Invalid::main(entry: &mut Invalid) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Invalid;
-    block Invalid::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

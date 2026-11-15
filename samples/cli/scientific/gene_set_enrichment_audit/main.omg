@@ -7,7 +7,7 @@ use domain::report;
 
 data Main { }
 
-machine Main::main(context: &mut Main) reaches ProcessExit + Console {
+machine main(context: &mut Main) reaches ProcessExit + Console {
     let universe: Parsed = block read_set();
     let query: Parsed = block read_set();
     let first: Parsed = block read_set();
@@ -79,5 +79,5 @@ machine correction(value: Fraction, rank: u64 in Wrapping, other: Fraction, othe
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

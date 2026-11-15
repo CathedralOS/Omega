@@ -14,7 +14,7 @@ public data Laboratory [copy] {
 // Decisions: 0 acquired, 1 loaded, 2 started, 3 advanced, 4 completed,
 // 5 cancelled, 6 recovered, 7 lid changed, 8 conflict, 9 wrong phase,
 // 10 open interlock, 11 timeout, 12 invalid input, 13 emergency interlock.
-public machine Laboratory::apply(laboratory: &mut Laboratory, operation: i32, argument: i32 in Saturating) -> i32 {
+public machine apply(laboratory: &mut Laboratory, operation: i32, argument: i32 in Saturating) -> i32 {
     transition argument >= 0 && argument <= 9 {
         true -> dispatch(laboratory, operation, argument)
         false -> invalid()

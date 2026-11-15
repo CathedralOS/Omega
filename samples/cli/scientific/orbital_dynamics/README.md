@@ -95,6 +95,6 @@ work. It never substitutes source interpretation or reconstructed grants.
 bound contract with `1000001.0`. It must be rejected because that precondition is
 disproved. This package-free control cannot pass on a package-review diagnostic.
 The runtime parser's index and input-envelope guards remain separately checked.
-The build explicitly binds `Main::main` for Linux x86-64, macOS ARM64/x86-64 and
+The build explicitly binds `main` for Linux x86-64, macOS ARM64/x86-64 and
 Windows x86-64. Execution evidence is qualified on the actual host, not inferred
 for other targets.

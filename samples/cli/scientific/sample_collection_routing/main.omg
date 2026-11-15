@@ -15,8 +15,8 @@ data Collection {
     certificate: Certificate;
 }
 
-machine Collection::main(collection: &mut Collection) reaches ProcessExit + Console {
-    let read: LineReadResult = block Console::read_line(&mut collection.input);
+machine main(collection: &mut Collection) reaches ProcessExit + Console {
+    let read: LineReadResult = block Console::read_line(&mut collection.input[..]);
     transition read {
         LineReadResult::LineComplete { count } -> newline(collection, count)
         LineReadResult::EndOfInput { count } -> eof(collection, count)
@@ -54,5 +54,5 @@ machine Collection::main(collection: &mut Collection) reaches ProcessExit + Cons
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Collection;
-    block Collection::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }
