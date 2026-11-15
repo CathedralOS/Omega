@@ -5,9 +5,9 @@
 data Narrow { value: i32; }
 data Wide { value: u64; }
 
-boundary trait Required { machine get() -> u32 reaches ensures result <= 7; }
-boundary trait Middle { machine get() -> u32 reaches; }
-boundary trait Supplied { machine get() -> u32 reaches; }
+boundary trait Required { machine get() -> u32 reaches ensures result <= 7 crashes none; }
+boundary trait Middle { machine get() -> u32 reaches crashes none; }
+boundary trait Supplied { machine get() -> u32 reaches crashes none; }
 Actual satisfies Supplied { machine get() -> u32 { 7 } }
 
 machine main() reaches Required crashes Trap {

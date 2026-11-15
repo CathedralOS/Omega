@@ -16,7 +16,7 @@ use omega_language_std::CallingPolicy;
 use omega_language_std::Calling;
 public data Box<Element> { value: Element; }
 boundary trait ValuePlan {
-    machine plan(signature: BoundarySignature, allow_vectors: bool, width: u64) -> BoundaryPlanResult reaches;
+    machine plan(signature: BoundarySignature, allow_vectors: bool, width: u64) -> BoundaryPlanResult reaches crashes none;
 }
 SysVValuePlan satisfies ValuePlan {
     machine plan(signature: BoundarySignature, allow_vectors: bool, width: u64) -> BoundaryPlanResult {
@@ -61,7 +61,7 @@ public GenericPolicy<Element, const Width: u64> satisfies CallingPolicy {
 }
 public const PolicyWidth: u64 = 8;
 public boundary trait LocalEntry: Calling<GenericPolicy<Box<u64>, PolicyWidth>> {
-    machine value() -> u64 reaches;
+    machine value() -> u64 reaches crashes none;
 }
 LocalMap satisfies LocalEntry {
     machine value() -> u64 { 42 }

@@ -4,7 +4,7 @@
 boundary trait Choosing {
     machine choose<Value, machine Callback>(value: &Value, number: u64) -> bool reaches
     requires machine Callback(argument: &Value, count: u64) -> bool requires count <= 512;
-    requires number <= 64;
+    requires number <= 64 crashes none;
 }
 
 ArmChoice satisfies Choosing {

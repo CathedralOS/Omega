@@ -16,7 +16,7 @@ data Counter<'a> { slot: &'a mut u64; }
 
 boundary trait CodecProbe {
     machine probe(chosen: &mut u64, other: &mut u64, items: &[u8; 4]) -> u8
-        reaches requires chosen < 4 && other < 4;
+        reaches requires chosen < 4 && other < 4 crashes none;
 }
 
 StoredCursorProbe satisfies CodecProbe {

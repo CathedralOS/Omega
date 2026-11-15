@@ -1,5 +1,5 @@
 public boundary trait Reading {
-    machine read() -> u32 reaches;
+    machine read() -> u32 reaches crashes none;
 }
 public Reader satisfies Reading {
     machine read() -> u32 { 42 }

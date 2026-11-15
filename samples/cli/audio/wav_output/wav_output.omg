@@ -19,7 +19,7 @@ public boundary trait WavOutput {
         reaches WavOutput + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
         blocks
         invokes PosixFilesystemHost
-        invokes WindowsFilesystemHost;
+        invokes WindowsFilesystemHost crashes none;
 }
 
 PosixWavOutput satisfies WavOutput {

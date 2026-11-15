@@ -26,8 +26,8 @@ machine make() -> LayoutStorage<Pair, PairLayout> {
     value
 }
 boundary trait Delivery {
-    machine value() -> LayoutStorage<Pair, PairLayout> reaches terminates;
-    machine marker() -> u64 reaches terminates;
+    machine value() -> LayoutStorage<Pair, PairLayout> reaches terminates crashes none;
+    machine marker() -> u64 reaches terminates crashes none;
 }
 FirstDelivery satisfies Delivery {
     machine value() -> LayoutStorage<Pair, PairLayout> { make() }

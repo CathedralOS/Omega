@@ -24,7 +24,9 @@ requires machine Valid(accepted: bool, table: &Table) -> bool reaches none termi
 {
     machine validate(table: &Table) -> bool
     reaches none
-    ensures Valid(result, table);
+    ensures Valid(result, table)
+    // A validator may index the table it judges; `install` admits only Trap.
+    crashes Trap;
 }
 
 // Ordinary work runs inside the installation's retained backing loans.

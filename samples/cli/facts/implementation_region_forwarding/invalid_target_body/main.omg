@@ -9,7 +9,7 @@ machine observed<'environment, 'storage, const N: u64>(value: Holder<Choice<'env
 
 // Place: target_body. The complete forwarded carrier enters an ordinary Build-selected named implementation.
 boundary trait SelectedInspect {
-    machine inspect<'selected, 'resident>(environment: &'selected u64, storage: &'resident u64, value: Holder<Choice<'selected, 7u64> >) -> u64 reaches;
+    machine inspect<'selected, 'resident>(environment: &'selected u64, storage: &'resident u64, value: Holder<Choice<'selected, 7u64> >) -> u64 reaches crashes none;
 }
 LinuxX8664Inspect satisfies SelectedInspect {
     machine inspect<'selected, 'resident>(environment: &'selected u64, storage: &'resident u64, value: Holder<Choice<'selected, 7u64> >) -> u64 { value.value }

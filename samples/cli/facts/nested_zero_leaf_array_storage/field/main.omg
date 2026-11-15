@@ -2,8 +2,8 @@
 // Expected exit: 0
 public data Packet [copy] { before: u64; empty: [[[u8; 0]; 512]; 512]; after: u64; }
 public boundary trait ZeroLeafProvider {
- machine make() -> Packet reaches;
- machine shift(packet: Packet) -> Packet reaches;
+ machine make() -> Packet reaches crashes none;
+ machine shift(packet: Packet) -> Packet reaches crashes none;
 }
 
 machine empty_row(row: &[u8; 0]) -> bool {

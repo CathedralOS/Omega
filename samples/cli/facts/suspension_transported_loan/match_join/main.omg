@@ -1,6 +1,6 @@
 // Fact: A loan transported into a record before a possible suspension keeps its original backing, so the record reads 73 after the call.
 // Expected exit: 0
-public boundary trait Scheduler { machine park() reaches suspends; }
+public boundary trait Scheduler { machine park() reaches suspends crashes none; }
 public Immediate satisfies Scheduler { machine park() {} }
 data Cell { value: i32; }
 data Message<'view> { left: i32; body: &'view Cell; right: i32; }

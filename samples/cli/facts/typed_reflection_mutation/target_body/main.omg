@@ -8,7 +8,7 @@ requires Kind == u64
     value = ((value as u64 in Wrapping) + (1u64 as u64 in Wrapping)) as u64;
     count = ((count as u64 in Wrapping) + (1u64 as u64 in Wrapping)) as u64;
 }
-boundary trait Edit { machine apply(value: &mut Subject, count: &mut u64) reaches; }
+boundary trait Edit { machine apply(value: &mut Subject, count: &mut u64) reaches crashes none; }
 WindowsEdit satisfies Edit { machine apply(value: &mut Subject, count: &mut u64) { reflect::visit_runtime_fields_mut<Subject, increment>(value, count); } }
 LinuxX86Edit satisfies Edit { machine apply(value: &mut Subject, count: &mut u64) { reflect::visit_runtime_fields_mut<Subject, increment>(value, count); } }
 MacEdit satisfies Edit { machine apply(value: &mut Subject, count: &mut u64) { reflect::visit_runtime_fields_mut<Subject, increment>(value, count); } }

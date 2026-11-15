@@ -13,7 +13,7 @@ requires self.start >= 0 && self.start <= self.end,
 public boundary trait RestorationValue {
     machine identity(value: u32) -> u32
     ensures result == value
-    reaches;
+    reaches crashes none;
 }
 SelectedRestoration satisfies RestorationValue {
     machine identity(value: u32) -> u32 ensures result == value { value }
