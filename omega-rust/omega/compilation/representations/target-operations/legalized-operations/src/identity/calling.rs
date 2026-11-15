@@ -331,6 +331,13 @@ pub fn encode_boundary_execution_identity(
             bytes.push(0);
             super::structural::encode_provider_execution(bytes, provider);
         }
+        BoundaryExecutionBinding::NativeBinding(native) => {
+            bytes.push(11);
+            super::structural::encode_external_execution(
+                bytes,
+                target_operations::ExternalExecutionBinding::NativeBinding(native),
+            );
+        }
         BoundaryExecutionBinding::CompilerBuiltin(
             CompilerBuiltinExecution::HostedExitProcessI32,
         ) => bytes.push(1),

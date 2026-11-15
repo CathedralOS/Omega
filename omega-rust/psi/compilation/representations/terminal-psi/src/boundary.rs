@@ -888,6 +888,7 @@ pub(crate) mod declarations {
 
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct CheckedBoundaryCallable {
+        pub service_declaration: [u8; 32],
         pub source: crate::CheckedMachineDeclaration,
         pub execution: CheckedBoundaryExecution,
         pub method_arguments: Vec<crate::ClosedReachArgument>,
@@ -959,6 +960,7 @@ pub(crate) mod declarations {
         ) -> bool {
             self.source
                 .same_identity_as(identities, &other.source, other_identities)
+                && self.service_declaration == other.service_declaration
                 && self.execution == other.execution
                 && self.method_arguments.len() == other.method_arguments.len()
                 && self

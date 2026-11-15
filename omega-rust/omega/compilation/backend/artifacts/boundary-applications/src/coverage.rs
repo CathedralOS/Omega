@@ -88,7 +88,13 @@ fn coverage_identity(
     );
     hash_bytes(&mut digest, demand.requirement().overload().as_bytes());
     encode_application(&mut digest, demand.application());
-    digest.raw(companion.selected_plan_digest());
+    match companion.selected_plan_digest() {
+        Some(plan) => {
+            digest.byte(0);
+            digest.raw(plan);
+        }
+        None => digest.byte(1),
+    }
     encode_realization(&mut digest, companion.realization());
     BoundaryApplicationCoverageIdentity(digest.finish())
 }
@@ -135,6 +141,16 @@ fn encode_realization(
     realization: &BoundaryApplicationRealization,
 ) {
     match realization {
+        BoundaryApplicationRealization::NativeBinding {
+            receipt,
+            contract,
+            calling,
+        } => {
+            digest.byte(3);
+            digest.raw(receipt);
+            digest.raw(contract);
+            digest.raw(calling);
+        }
         BoundaryApplicationRealization::NongenericCheckedBody {
             realization_machine,
             realization_state,

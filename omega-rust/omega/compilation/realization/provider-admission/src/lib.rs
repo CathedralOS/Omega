@@ -43,3 +43,9 @@ pub use admission_source::{
     AdmissionSource, AdmittedInstalledEntryExecution, AdmittedProgramEntryCall, ComponentCallFacts,
 };
 pub use lowering_facts::{AdmittedInstalledInterruptCohort, AdmittedNativeCallbackCohort};
+
+pub mod native_bindings;
+pub use native_bindings::{
+    NativeBindingInput, RetainedNativeBinding, RetainedNativeBindings,
+    validate_native_binding_execution, validate_native_binding_realization, validate_receipt,
+};

@@ -324,7 +324,16 @@ pub fn collect_captured(
             ));
         }
         let target = dependency.map_or(supplier, |(_, package)| package);
-        if program.symbols.symbol_product_package_identity(selected) != Some(target)
+        // Rejoin has authenticated the complete source and declaration above.
+        // Public toolchain Product declarations have no ordinary package owner;
+        // they remain visible without inventing a dependency or package identity.
+        let source = declaration.requirement.source();
+        let public_toolchain_product = dependency.is_none()
+            && owner.is_public
+            && source.origin == source::SourceOrigin::Toolchain
+            && source.dependency_scope == source::DependencyScope::Product;
+        if !(program.symbols.symbol_product_package_identity(selected) == Some(target)
+            || public_toolchain_product)
             || dependency.is_some() && !owner.is_public
             || !source::SourceMap::captured_reference_can_see_stratum(
                 supplier,
@@ -382,6 +391,10 @@ pub fn collect_captured(
     }
     Ok(selections)
 }
+
+#[cfg(test)]
+#[path = "native_bindings_tests.rs"]
+mod tests;
 
 /// The boundary trait that declares `symbol` as one of its requirements. A
 /// boundary with static parameters is bound only as a complete application.

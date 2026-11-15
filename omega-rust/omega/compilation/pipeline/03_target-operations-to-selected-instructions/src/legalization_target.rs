@@ -3263,8 +3263,7 @@ pub(crate) mod normalized_foreign {
             || psi_operation != expected_operation
             || boundary != expected_boundary
             || binding.native_target() != Some(native.target)
-            || binding.provider_plan_report_identity()
-                != provider_execution.provider_plan_report_identity().get()
+            || !binding.matches_execution(*provider_execution)
             || !binding.has_valid_entry_mechanism()
             || validated.plan() != &binding.boundary_entry_plan
             || operands.len() != scalar_shapes.len() + structural.len() + private_ordinals.len()

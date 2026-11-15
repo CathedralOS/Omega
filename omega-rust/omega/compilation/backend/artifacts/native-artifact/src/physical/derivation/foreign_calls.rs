@@ -36,7 +36,6 @@ use calling_conventions::NativePlace;
 use calling_conventions::ValuePlacement;
 use calling_conventions::validate_boundary_entry_plan;
 use image_emission::{ObjectCodeAttribution, ObjectForeignCall, ObjectFunction};
-use installation_evidence::ProviderExecutionEvidence;
 use machine_code::CallbackAddressDestination;
 use object_file::RelocationKind;
 use object_file::SectionKind;
@@ -46,9 +45,6 @@ use semantic_vocabulary::ScalarType;
 use sha2::{Digest, Sha256};
 use target::Architecture;
 use target::NativeTarget;
-use target_operations::NormalizedForeignCallMechanism;
-use target_operations::ProviderExecutionBinding;
-use target_operations::ProviderPlanReportIdentity;
 use target_operations::TargetBoundaryResult;
 use terminal_psi::BoundaryMachineResult;
 use terminal_psi::OperationKind;
@@ -60,7 +56,9 @@ pub(crate) fn derive_normalized_foreign_child(
     occurrence: &OptimizedBoundaryOccurrence,
     projection: NativeOptimizationProjectionIdentity,
     requirement_identity: &str,
-    selected_plan: &NativeSelectedProviderPlan,
+    selected_plan: Option<&NativeSelectedProviderPlan>,
+    native_bindings: &provider_admission::RetainedNativeBindings,
+    native_calling: &[calling_conventions::BoundaryCallingApplication],
     provider_executions: &[NativeProviderExecution],
     target: NativeTarget,
     module: &terminal_psi::TerminalModule,
@@ -530,72 +528,45 @@ pub(crate) fn derive_normalized_foreign_child(
         .binding
         .boundary_entry_plan
         .contract_commitment_digest();
-    let selected_requirement = selected_plan.selected_requirement_identity(requirement_identity);
-    if foreign.binding.native_target() != Some(target)
-        || !foreign.binding.has_valid_entry_mechanism()
-        || foreign
-            .binding
-            .requirement_identity(selected_plan.identities())
-            != Some(selected_requirement)
-        || foreign.binding.provider_plan_report_identity() != selected_plan.report_identity()
-    {
-        return Err("normalized external child changed its binding or boundary plan");
-    }
-    let commitment = match &foreign.binding.mechanism {
-        NormalizedForeignCallMechanism::Import {
-            same_stack_contribution,
-            ..
+    let (selected_supply, execution) = match foreign.provider_execution {
+        machine_code::ExternalExecutionRecord::Provider(record) => {
+            let selected_plan =
+                selected_plan.ok_or("normalized call has no selected checked provider plan")?;
+            crate::native_artifact::provider_execution::validate_foreign_provider_binding(
+                requirement_identity,
+                foreign,
+                std::slice::from_ref(selected_plan),
+                &module.identities,
+            )?;
+            let execution = super::provider_custody::rejoin_admitted_provider_execution(
+                requirement_identity,
+                selected_plan,
+                provider_executions,
+                record,
+            )?;
+            (
+                crate::physical::NativeSelectedSupply::ProviderPlan(selected_plan.plan_digest()),
+                target_operations::ExternalExecutionBinding::Provider(execution),
+            )
         }
-        | NormalizedForeignCallMechanism::Component {
-            same_stack_contribution,
-            ..
+        machine_code::ExternalExecutionRecord::NativeBinding(_) => {
+            if selected_plan.is_some() {
+                return Err("native binding also names a selected provider plan");
+            }
+            let execution =
+                crate::native_artifact::provider_execution::rejoin_native_foreign_execution(
+                    module,
+                    *boundary,
+                    foreign,
+                    native_bindings,
+                    native_calling,
+                )?;
+            (
+                crate::physical::NativeSelectedSupply::NativeBinding(execution.receipt()),
+                target_operations::ExternalExecutionBinding::NativeBinding(execution),
+            )
         }
-        | NormalizedForeignCallMechanism::Table {
-            same_stack_contribution,
-            ..
-        } => same_stack_contribution
-            .provider_plan_commitment()
-            .as_bytes(),
-        NormalizedForeignCallMechanism::SystemCall(kernel) => kernel.provider_plan_commitment,
     };
-    if commitment != *selected_plan.plan_digest().as_bytes() {
-        return Err("normalized external child changed its selected provider commitment");
-    }
-
-    let execution_record = foreign.provider_execution;
-    if execution_record.provider_plan_report_identity != selected_plan.report_identity() {
-        return Err("normalized foreign D41 child names the wrong selected provider plan");
-    }
-    let matching_executions = provider_executions
-        .iter()
-        .filter(|execution| {
-            execution.requirement_identity() == selected_requirement
-                && execution.provider_plan_report_identity()
-                    == execution_record.provider_plan_report_identity
-                && execution.provider_execution_report_identity()
-                    == execution_record.provider_execution_report_identity
-                && execution.provider_execution_report_fingerprint()
-                    == execution_record.provider_execution_report_fingerprint
-                && execution.normalized_root_report_identity()
-                    == execution_record.normalized_root_report_identity
-                && execution.boundary_contract_report_fingerprint()
-                    == execution_record.boundary_contract_report_fingerprint
-        })
-        .count();
-    if matching_executions != 1 {
-        return Err("normalized foreign D41 child cannot rejoin one retained provider execution");
-    }
-    let plan_report_identity =
-        ProviderPlanReportIdentity::new(execution_record.provider_plan_report_identity)
-            .ok_or("normalized foreign D41 child has a zero provider-plan report identity")?;
-    let execution = ProviderExecutionBinding::from_execution_record(
-        plan_report_identity,
-        execution_record.provider_execution_report_identity,
-        execution_record.provider_execution_report_fingerprint,
-        execution_record.normalized_root_report_identity,
-        execution_record.boundary_contract_report_fingerprint,
-    )
-    .ok_or("normalized foreign D41 child has an invalid provider execution")?;
 
     let matching_image_calls = object
         .foreign_calls()
@@ -635,7 +606,7 @@ pub(crate) fn derive_normalized_foreign_child(
         Architecture::X86_64 => RelocationKind::X86_64Relative32,
         Architecture::Aarch64 => RelocationKind::Aarch64Branch26,
     };
-    let (mutable_intervals, relocation) = if foreign.binding.symbolic_import().is_none() {
+    let (mutable_intervals, relocation) = if foreign.binding.import_locator().is_none() {
         if fragment_rejoin.is_none_or(|rejoin| rejoin.import.is_some()) {
             return Err("kernel entry lacks independently replayed fragment custody");
         }
@@ -650,9 +621,9 @@ pub(crate) fn derive_normalized_foreign_child(
             PhysicalRelocationDisposition::DirectInstructionBytes,
         )
     } else {
-        let (locator, _) = foreign
+        let locator = foreign
             .binding
-            .symbolic_import()
+            .import_locator()
             .ok_or("normalized external call has no entry mechanism")?;
         if let Some((field_record, import)) = fragment_rejoin.and_then(|rejoin| rejoin.import) {
             let plan = publication
@@ -1009,14 +980,14 @@ pub(crate) fn derive_normalized_foreign_child(
     )?;
 
     let realization = foreign.binding.clone();
-    let role = BoundaryTraitSettlementRole::AdmittedProvider {
+    let role = BoundaryTraitSettlementRole::External {
         execution,
         realization,
     };
     let parent_identity = admitted_provider_boundary_trait_settlement_identity(
         occurrence,
         requirement_identity,
-        selected_plan.plan_digest(),
+        selected_supply,
         target,
         execution,
         boundary_plan_identity,
@@ -1028,7 +999,7 @@ pub(crate) fn derive_normalized_foreign_child(
         BoundaryTraitSettlementParts {
             occurrence: *occurrence,
             requirement_identity: requirement_identity.to_owned(),
-            selected_plan_digest: selected_plan.plan_digest(),
+            selected_supply,
             target,
             role,
             identity: parent_identity,
@@ -1280,7 +1251,7 @@ impl CoveredInvocationIntervals {
                 usize::try_from(placed.byte_count).map_err(|_| "foreign call size overflow")?,
             )
         } else {
-            if foreign.binding.symbolic_import().is_none() {
+            if foreign.binding.import_locator().is_none() {
                 return Err("kernel entry lacks retained instruction custody");
             }
             match architecture {

@@ -211,7 +211,7 @@ impl ServiceSchema {
     }
 
     pub fn declaration_identity_digest(&self) -> ServiceSchemaDigest {
-        self.digest_with_calling(false)
+        ServiceSchemaDigest::from_digest(self.declaration.declaration_commitment())
     }
 
     fn digest_with_calling(&self, include_calling: bool) -> ServiceSchemaDigest {
@@ -387,6 +387,15 @@ impl compiler_storage::Record for ProviderPlanDigest {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn checked_surface_commitment_matches_the_complete_declaration_encoding() {
+        let schema = schema("Parent", 1, false);
+        assert_eq!(
+            schema.declaration_identity_digest(),
+            schema.digest_with_calling(false)
+        );
+    }
 
     #[test]
     fn distinct_phantom_applications_share_a_requirement_without_collapsing() {

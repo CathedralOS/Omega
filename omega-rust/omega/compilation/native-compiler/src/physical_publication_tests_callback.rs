@@ -431,6 +431,7 @@ fn check_callback_publication(retain_body_source: bool) {
         boundary_application_coverage: Some(&coverage),
         behavior_exclusions: &exclusions,
         providers: ProviderAdmissionRequest {
+            native_bindings: &Default::default(),
             profile: target::TargetProfile::WindowsX64,
             bootstrap_entry: MachineId::new(1).unwrap(),
             program_provider_context: None,
@@ -472,6 +473,7 @@ fn check_callback_publication(retain_body_source: bool) {
     let body_request = NativeAdmissionRequest {
         entry: TargetMachineCallable::Machine(MachineId::new(2).unwrap()),
         providers: ProviderAdmissionRequest {
+            native_bindings: &Default::default(),
             program_provider_context: Some(&program_context),
             ..request.providers
         },

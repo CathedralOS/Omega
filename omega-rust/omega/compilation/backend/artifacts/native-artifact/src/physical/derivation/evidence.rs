@@ -75,6 +75,8 @@ pub(crate) fn derive_physical_evidence(
     final_image_symbol_digest: [u8; 32],
     selected_provider_plans: &[NativeSelectedProviderPlan],
     provider_executions: &[NativeProviderExecution],
+    native_bindings: &provider_admission::RetainedNativeBindings,
+    native_calling: &[calling_conventions::BoundaryCallingApplication],
     boundary_application_coverage: Option<&TerminalBoundaryApplicationCoverage>,
 ) -> Result<NativePhysicalEvidenceDerivation, &'static str> {
     derive_object_physical_evidence(
@@ -88,6 +90,8 @@ pub(crate) fn derive_physical_evidence(
         final_image_symbol_digest,
         selected_provider_plans,
         provider_executions,
+        native_bindings,
+        native_calling,
         boundary_application_coverage,
     )
 }
@@ -103,6 +107,8 @@ fn derive_object_physical_evidence(
     final_image_symbol_digest: [u8; 32],
     selected_provider_plans: &[NativeSelectedProviderPlan],
     provider_executions: &[NativeProviderExecution],
+    native_bindings: &provider_admission::RetainedNativeBindings,
+    native_calling: &[calling_conventions::BoundaryCallingApplication],
     boundary_application_coverage: Option<&TerminalBoundaryApplicationCoverage>,
 ) -> Result<NativePhysicalEvidenceDerivation, &'static str> {
     if matches!(scope, NativePhysicalEvidenceScope::Unavailable) {
@@ -261,12 +267,30 @@ fn derive_object_physical_evidence(
                     .is_ok()
             })
             .collect::<Vec<_>>();
-        let [selected_plan] = matching_plans.as_slice() else {
-            return Err("native physical evidence cannot rejoin one exact selected provider plan");
+        let native = foreign.is_some_and(|foreign| {
+            matches!(
+                foreign.provider_execution,
+                machine_code::ExternalExecutionRecord::NativeBinding(_)
+            )
+        });
+        let selected_plan = if native {
+            if !matching_plans.is_empty() {
+                return Err("native physical occurrence has competing checked supply");
+            }
+            None
+        } else {
+            let [selected] = matching_plans.as_slice() else {
+                return Err(
+                    "native physical evidence cannot rejoin one exact selected provider plan",
+                );
+            };
+            selected.validate_external_requirement_applications()?;
+            Some(*selected)
         };
-        selected_plan.validate_external_requirement_applications()?;
         match (installed, foreign) {
             (Some(installed), None) => {
+                let selected_plan = selected_plan
+                    .ok_or("native binding cannot supply a builtin or provider-only settlement")?;
                 if let Some(builtin) = hosted_builtin_settlement(&installed.settlement) {
                     children.push(derive_hosted_builtin_child(
                         pass,
@@ -310,6 +334,8 @@ fn derive_object_physical_evidence(
                     projection.identity(),
                     requirement,
                     selected_plan,
+                    native_bindings,
+                    native_calling,
                     provider_executions,
                     target,
                     module,
@@ -338,7 +364,7 @@ fn derive_object_physical_evidence(
                     occurrence,
                     projection.identity(),
                     requirement,
-                    selected_plan,
+                    selected_plan.ok_or("native binding cannot supply a checked internal call")?,
                     target,
                     fragment_publication,
                 )? {
@@ -482,6 +508,8 @@ fn derive_object_physical_evidence(
             final_image_symbol_digest,
             selected_provider_plans,
             provider_executions,
+            native_bindings,
+            native_calling,
             Some(source.coverage()),
         )?;
         let NativePhysicalEvidenceDerivation::Complete(mut body_evidence) = derived else {

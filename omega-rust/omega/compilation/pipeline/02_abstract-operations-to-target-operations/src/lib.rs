@@ -482,6 +482,9 @@ pub(crate) mod provider_evidence {
                     settlement.boundary,
                 ))?;
                 let execution = match settlement.execution {
+                    AdmittedBoundaryExecution::NativeBinding { execution, .. } => {
+                        target_operations::BoundaryExecutionBinding::NativeBinding(execution)
+                    }
                     AdmittedBoundaryExecution::Provider(provider_execution) => {
                         let provider_plan = target_operations::ProviderPlanReportIdentity::new(
                             provider_execution.provider_plan_report_identity(),

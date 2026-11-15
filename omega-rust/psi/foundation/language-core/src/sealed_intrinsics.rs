@@ -208,36 +208,6 @@ const fn row(
     }
 }
 
-/*
-    Each hosted target bundles one console and one process-exit realization
-    file in std. The rows name the target so a provider plan for one target
-    can never take custody through another target's realization.
-*/
-macro_rules! hosted_target_rows {
-    ($target:literal) => {
-        [row(
-            concat!("targets/", $target, "/process_exit_impl.omg"),
-            concat!($target, "_process_exit"),
-            bundled!(concat!("std/targets/", $target, "/process_exit_impl.omg")),
-            SealedIntrinsic::HostedRealization {
-                operation: HostedOperation::ProcessExit,
-                target: $target,
-            },
-        )]
-    };
-}
-
-const HOSTED_LINUX_ARM64: [SealedIntrinsicRow; 1] = hosted_target_rows!("linux_arm64");
-const HOSTED_LINUX_X86_64: [SealedIntrinsicRow; 1] = hosted_target_rows!("linux_x86_64");
-const HOSTED_MACOS_ARM64: [SealedIntrinsicRow; 1] = hosted_target_rows!("macos_arm64");
-const HOSTED_MACOS_X86_64: [SealedIntrinsicRow; 1] = hosted_target_rows!("macos_x86_64");
-const HOSTED_REALIZATIONS: [&[SealedIntrinsicRow]; 4] = [
-    &HOSTED_LINUX_ARM64,
-    &HOSTED_LINUX_X86_64,
-    &HOSTED_MACOS_ARM64,
-    &HOSTED_MACOS_X86_64,
-];
-
 const fn member_row(
     file: &'static str,
     owner: &'static str,
@@ -605,7 +575,6 @@ impl SealedIntrinsicCatalog {
     /// when no row matches every part of the site.
     pub fn classify(site: SealedDeclarationSite<'_>) -> Option<SealedIntrinsic> {
         ROWS.iter()
-            .chain(HOSTED_REALIZATIONS.into_iter().flatten())
             .find(|row| {
                 site.file == Path::new(row.file)
                     && row.declaration.matches(site.declaration)
@@ -695,12 +664,9 @@ mod tests {
                 "linux_x86_64_process_exit",
                 linux
             )),
-            Some(SealedIntrinsic::HostedRealization {
-                operation: HostedOperation::ProcessExit,
-                target: "linux_x86_64",
-            })
+            None
         );
-        // One target's realization bytes never stand in for another target's file.
+        // Retired target leaves have no compiler custody, even with bundled bytes.
         assert_eq!(
             SealedIntrinsicCatalog::classify(site(
                 "targets/linux_arm64/process_exit_impl.omg",

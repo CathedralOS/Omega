@@ -103,8 +103,8 @@ impl IntegerAbsoluteImport {
             || application.commitment == [0; 32]
             || !application.opaque_applications.is_empty()
             || binding
-                .import()
-                .is_none_or(|(locator, _)| application.target != locator.target().native_target())
+                .foreign_import_locator()
+                .is_none_or(|locator| application.target != locator.target().native_target())
         {
             return Err(invalid(
                 "abs calling application differs from its admitted target and plan",

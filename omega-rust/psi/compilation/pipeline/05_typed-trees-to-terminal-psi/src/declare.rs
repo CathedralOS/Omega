@@ -620,6 +620,16 @@ pub(crate) fn boundary(
     let sources =
         source::source_identity::toolchain_source_identities(typed.symbols.source_files())
             .map_err(|_| "a boundary toolchain source has no exact identity")?;
+    let service_declaration = typed_trees::service_declarations::projection::from_typed(
+        typed_trees::provider_declarations::ProviderPlanningContext::new(
+            typed,
+            source::DependencyScope::Product,
+        ),
+        owner,
+    )
+    .ok_or("boundary declaration has no complete service contract")?
+    .declaration
+    .declaration_commitment();
     let (owner, source, method_arguments) = trait_requirement(
         typed,
         &sources,
@@ -631,6 +641,7 @@ pub(crate) fn boundary(
     Ok((
         owner,
         terminal_psi::CheckedBoundaryCallable {
+            service_declaration,
             source,
             execution: terminal_psi::CheckedBoundaryExecution::Provider,
             method_arguments,

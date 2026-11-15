@@ -1,9 +1,10 @@
 /*
 We encode and decode the self-authenticating `FixedViewCopyPlan` artifact
-(`OMGFCV\0\0`, version 100), binding the source selected-instruction, live-range,
+(`OMGFCV\0\0`, version 101), binding the source selected-instruction, live-range,
 and legality roots, the required segment-home evidence, the inserted
 fixed-view copies, and the authenticated transformed `SelectedInstructionPlan`
-payload. Version 100 retains empty-place elimination as its own terminal
+payload. Version 101 distinguishes native-binding execution and hosted imports
+from finite provider stack contributions. Version 100 retains empty-place elimination as its own terminal
 control, distinct from authored crashes and normal returns.
 
 The evidence always names the fixed intervals, split requirements and segment
@@ -52,7 +53,7 @@ use super::selected_blocks::{decode_block, encode_block};
 use super::structural_contracts::{decode_contracts, encode_contracts};
 
 const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
-pub(super) const VERSION: u32 = 100;
+pub(super) const VERSION: u32 = 101;
 pub(super) const ENVELOPE: Envelope = Envelope::new(MAGIC, VERSION);
 const ENVELOPE_DOMAIN: &[u8] = b"omega-fixed-view-copy-envelope-v60\0";
 

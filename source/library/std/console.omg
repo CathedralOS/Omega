@@ -82,10 +82,12 @@ boundary trait ConsoleHost {
 // Build owns the actual read/write locator for each target.
 boundary trait PosixConsoleIo {
     machine read(descriptor: i32, buffer: &mut i32, count: u64) -> i64
+    requires descriptor == 0 && count <= 4
     reaches Console
     blocks
     crashes none;
     machine write(descriptor: i32, buffer: &mut i32, count: u64) -> i64
+    requires descriptor == 1 && count <= 4
     reaches Console
     crashes none;
 }

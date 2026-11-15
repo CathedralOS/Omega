@@ -192,8 +192,8 @@ fn select_binding(
         runtime_abi::descriptor_system_call(system_call.target, system_call.number)
     } else {
         binding
-            .import()
-            .and_then(|(locator, _)| runtime_abi::descriptor_import(locator))
+            .foreign_import_locator()
+            .and_then(runtime_abi::descriptor_import)
     })
 }
 

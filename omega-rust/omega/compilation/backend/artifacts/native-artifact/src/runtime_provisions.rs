@@ -134,9 +134,20 @@ struct RuntimeHostRequirement {
     boundary: BoundaryMachineId,
     boundary_identity: String,
     selected_requirement_identity: String,
-    provider_plan_report_identity: u64,
+    source_contract: [u8; 32],
+    binding: target_operations::NormalizedForeignCallBinding,
     calling_application: Option<calling_conventions::BoundaryCallingApplication>,
     native_adapter: Option<Result<Arc<image_emission::NativeForeignAdapterImage>, String>>,
+}
+
+/// Native receipts and calling applications already supplied to admission.
+/// Runtime capture rejoins them to the same canonical boundary before keeping
+/// an adapter; no nominal provider report is invented for a Build binding.
+#[derive(Clone, Copy)]
+pub struct NativeBindingRuntimeInputs<'a> {
+    pub bindings:
+        &'a terminal_psi_to_abstract_operations::provider_admission::RetainedNativeBindings,
+    pub calling: &'a [BoundaryCallingApplication],
 }
 
 #[derive(Debug, Clone)]
@@ -155,7 +166,8 @@ impl TerminalRuntimeHostProvisions {
         input: &terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput,
         selected: &effects::SelectedProviderPlanFacts,
         external_bindings: &[calling_conventions::ExternalBindingRow],
-    ) -> Result<Self, &'static str> {
+        native: NativeBindingRuntimeInputs<'_>,
+    ) -> Result<Self, String> {
         let boundaries = &input.plan().boundary_machines;
         let module = input.module();
         let identities = &module.identities;
@@ -172,56 +184,88 @@ impl TerminalRuntimeHostProvisions {
             let boundary = matching
                 .next()
                 .ok_or("runtime host provision lost its exact boundary declaration")?;
-            if matching.next().is_some()
-                || !selected.selected_row_matches_requirement(
-                    identities.text(boundary.identity).unwrap_or_default(),
-                    binding
-                        .requirement_identity(selected.identities())
-                        .unwrap_or_default(),
-                    binding.provider_plan_report_identity(),
-                )
-            {
-                return Err("runtime host provision lost its exact selected requirement row");
-            }
-            let requirement = binding
-                .requirement_identity(selected.identities())
-                .ok_or("runtime foreign calling application lost its selected requirement")?;
-            let mut rows = external_bindings.iter().filter(|row| {
-                selected.selected_row_matches_requirement(
-                    &row.requirement_identity,
-                    requirement,
-                    binding.provider_plan_report_identity(),
-                )
-            });
-            let row = rows.next();
-            if rows.next().is_some() {
-                return Err("runtime foreign calling application is ambiguous");
+            if matching.next().is_some() {
+                return Err("runtime host provision repeats its boundary declaration".into());
             }
             let abi = input
                 .optimization_input()
-                .selected_calling_abi_identity(provision.boundary)
-                .map_err(|_| "runtime host provision lost its exact declaration ABI")?;
-            let calling_application = row
-                .and_then(|row| row.calling_application(&abi))
-                .map(|application| {
-                    if Some(application.target) != binding.native_target()
-                        || application.plan.plan() != &binding.boundary_entry_plan
-                        || application.commitment == [0; 32]
-                        || application.recomputed_commitment() != Ok(application.commitment)
-                    {
-                        return Err(
-                            "runtime foreign calling application differs from its admitted row",
-                        );
-                    }
-                    Ok(application.clone())
-                })
-                .transpose()?;
-            if calling_application.is_none() && binding.import().is_some() {
+                .selected_calling_abi_identity(provision.boundary)?;
+            let mut native_rows = native
+                .bindings
+                .rows
+                .iter()
+                .filter(|row| row.boundary == boundary.id);
+            let native_row = native_rows.next();
+            if native_rows.next().is_some() {
+                return Err("runtime host provision has competing native bindings".into());
+            }
+            let calling_application = if let Some(row) = native_row {
+                let profile = input
+                    .target_context()
+                    .ok_or("runtime native binding has no selected target")?;
+                let profile = target::TargetProfile::from_canonical_target_name(profile.target())
+                    .map_err(|error| error.to_string())?;
+                let mut applications = native
+                    .calling
+                    .iter()
+                    .filter(|application| application.abi == abi);
+                let application = applications
+                    .next()
+                    .filter(|_| applications.next().is_none())
+                    .ok_or("runtime native binding lost its unique calling application")?;
+                let execution = terminal_psi_to_abstract_operations::provider_admission::validate_native_binding_execution(
+                    row, &native.bindings.identities, module, profile, application,
+                )?;
+                if !binding.matches_execution(
+                    target_operations::ExternalExecutionBinding::NativeBinding(execution),
+                ) {
+                    return Err(
+                        "runtime native binding changed its admitted execution receipt".into(),
+                    );
+                }
+                Some(application.clone())
+            } else {
+                let requirement = binding
+                    .requirement_identity(selected.identities())
+                    .ok_or("runtime foreign calling application lost its selected requirement")?;
+                if !selected.selected_row_matches_requirement(
+                    identities.text(boundary.identity).unwrap_or_default(),
+                    requirement,
+                    binding.provider_plan_report_identity(),
+                ) {
+                    return Err(
+                        "runtime host provision lost its exact selected requirement row".into(),
+                    );
+                }
+                let mut rows = external_bindings.iter().filter(|row| {
+                    selected.selected_row_matches_requirement(
+                        &row.requirement_identity,
+                        requirement,
+                        binding.provider_plan_report_identity(),
+                    )
+                });
+                let row = rows.next();
+                if rows.next().is_some() {
+                    return Err("runtime foreign calling application is ambiguous".into());
+                }
+                row.and_then(|row| row.calling_application(&abi)).cloned()
+            };
+            if let Some(application) = &calling_application {
+                if Some(application.target) != binding.native_target()
+                    || application.plan.plan() != &binding.boundary_entry_plan
+                    || application.commitment == [0; 32]
+                    || application.recomputed_commitment()? != application.commitment
+                {
+                    return Err(
+                        "runtime foreign calling application differs from its admitted row".into(),
+                    );
+                }
+            } else if binding.foreign_import_locator().is_some() {
                 return Err(
-                    "runtime foreign import lost its complete admitted calling application",
+                    "runtime foreign import lost its complete admitted calling application".into(),
                 );
             }
-            let native_adapter = binding.import().map(|(locator, _)| {
+            let native_adapter = binding.foreign_import_locator().map(|locator| {
                 let application = calling_application.as_ref().ok_or_else(|| {
                     "foreign runtime adapter has no retained complete calling application"
                         .to_owned()
@@ -232,13 +276,21 @@ impl TerminalRuntimeHostProvisions {
                 boundary: boundary.id,
                 boundary_identity: identities
                     .text(boundary.identity)
-                    .unwrap_or_default()
+                    .ok_or("runtime host provision lost its canonical requirement identity")?
                     .to_owned(),
-                selected_requirement_identity: binding
-                    .requirement_identity(selected.identities())
-                    .unwrap_or_default()
+                selected_requirement_identity: module
+                    .boundary_machine(boundary.id)
+                    .and_then(|boundary| boundary.declaration.as_ref())
+                    .and_then(|declaration| identities.text(declaration.source.callable))
+                    .ok_or("runtime host provision lost its declared requirement identity")?
                     .to_owned(),
-                provider_plan_report_identity: binding.provider_plan_report_identity(),
+                source_contract: boundary
+                    .declaration
+                    .as_ref()
+                    .ok_or("runtime host provision lost its checked contract")?
+                    .source
+                    .contract,
+                binding: binding.clone(),
                 calling_application,
                 native_adapter,
             });
@@ -255,8 +307,7 @@ impl TerminalRuntimeHostProvisions {
     pub fn matches_host_requirement(
         &self,
         declaration: &terminal_psi::BoundaryMachineDeclaration,
-        selected_requirement: &str,
-        provider_plan_report_identity: u64,
+        binding: &target_operations::NormalizedForeignCallBinding,
         identities: &terminal_psi::TerminalIdentityTable,
     ) -> bool {
         let mut matching = self
@@ -265,8 +316,17 @@ impl TerminalRuntimeHostProvisions {
             .filter(|row| row.boundary == declaration.id);
         matching.next().is_some_and(|row| {
             identities.text(declaration.identity) == Some(row.boundary_identity.as_str())
-                && row.selected_requirement_identity == selected_requirement
-                && row.provider_plan_report_identity == provider_plan_report_identity
+                && declaration
+                    .declaration
+                    .as_ref()
+                    .and_then(|declaration| identities.text(declaration.source.callable))
+                    == Some(row.selected_requirement_identity.as_str())
+                && declaration
+                    .declaration
+                    .as_ref()
+                    .map(|declaration| declaration.source.contract)
+                    == Some(row.source_contract)
+                && &row.binding == binding
         }) && matching.next().is_none()
     }
 
@@ -585,7 +645,8 @@ impl TerminalRuntimeProvisions {
         host: Vec<TerminalRuntimeHostProvision>,
         selected: &effects::SelectedProviderPlanFacts,
         external_bindings: &[calling_conventions::ExternalBindingRow],
-    ) -> Result<Self, &'static str> {
+        native: NativeBindingRuntimeInputs<'_>,
+    ) -> Result<Self, String> {
         let checked = program_entry
             .checked_entry
             .ok_or("runtime provisions have no checked semantic entry")?;
@@ -599,7 +660,7 @@ impl TerminalRuntimeProvisions {
                 .physical_adapter()
                 .is_some_and(|adapter| adapter.terminal() != checked.terminal_psi_identity())
         {
-            return Err("runtime provisions name another admitted entry");
+            return Err("runtime provisions name another admitted entry".into());
         }
         let scalar_applications = capture_scalar_applications(
             input,
@@ -613,6 +674,7 @@ impl TerminalRuntimeProvisions {
             input,
             selected,
             external_bindings,
+            native,
         )?;
         Ok(Self {
             private_entry_ram: Vec::new(),
@@ -635,16 +697,11 @@ impl TerminalRuntimeProvisions {
     pub fn matches_host_requirement(
         &self,
         declaration: &terminal_psi::BoundaryMachineDeclaration,
-        selected_requirement: &str,
-        provider_plan_report_identity: u64,
+        binding: &target_operations::NormalizedForeignCallBinding,
         identities: &terminal_psi::TerminalIdentityTable,
     ) -> bool {
-        self.host_provisions.matches_host_requirement(
-            declaration,
-            selected_requirement,
-            provider_plan_report_identity,
-            identities,
-        )
+        self.host_provisions
+            .matches_host_requirement(declaration, binding, identities)
     }
 
     pub fn host_calling_application(

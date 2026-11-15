@@ -179,20 +179,9 @@ fn default_calling_abis(
 ) -> Result<Vec<CallingAbiIdentity>, String> {
     let mut keys = Vec::new();
     for declaration in declarations {
-        if !declaration.default_eligible
+        if !default_abi_eligible(declaration)
             || !receiver_accepts(module, plan, requirement, declaration)
                 .map_err(|error| error.message)?
-        {
-            continue;
-        }
-        let formals = declaration
-            .formals
-            .iter()
-            .filter(|formal| formal.callback.is_none());
-        if formals.clone().count() != declaration.operands.len()
-            || !formals.zip(&declaration.operands).all(|(formal, operand)| {
-                formal.ordinal == operand.ordinal && formal.kind == operand.kind
-            })
         {
             continue;
         }
@@ -202,6 +191,108 @@ fn default_calling_abis(
         }
     }
     Ok(keys)
+}
+
+fn default_abi_eligible(declaration: &terminal_psi::CallingAbiDeclaration) -> bool {
+    let formals = declaration
+        .formals
+        .iter()
+        .filter(|formal| formal.callback.is_none());
+    declaration.default_eligible
+        && formals.clone().count() == declaration.operands.len()
+        && formals.zip(&declaration.operands).all(|(formal, operand)| {
+            formal.ordinal == operand.ordinal && formal.kind == operand.kind
+        })
+}
+
+/// Native bindings use the requirement's published ABI and the calling policy
+/// of their actual mechanism. A syscall must not inherit the platform C ABI.
+pub fn native_calling_applications(
+    profile: target::TargetProfile,
+    program: &super::CallingProgram,
+    bindings: &[crate::target_supply::NormalizedNativeSupply],
+) -> Result<Vec<calling_conventions::BoundaryCallingApplication>, Vec<Diagnostic>> {
+    if bindings.is_empty() {
+        return Ok(Vec::new());
+    }
+    let module = program.artifact.semantic_module();
+    let failure = |reason: String| vec![Diagnostic::error(reason)];
+    let mut applications = Vec::new();
+    for supplied in bindings {
+        if supplied.binding.target() != profile {
+            return Err(failure(
+                "native calling application has another target".into(),
+            ));
+        }
+        let declaration = module
+            .boundary_machine(supplied.boundary)
+            .and_then(|boundary| boundary.declaration.as_ref())
+            .ok_or_else(|| {
+                failure("native calling application lost its boundary declaration".into())
+            })?;
+        let requirement = module
+            .identities
+            .text(declaration.source.callable)
+            .filter(|identity| !identity.is_empty())
+            .ok_or_else(|| {
+                failure("native calling application lost its exact callable identity".into())
+            })?;
+        let signature = module
+            .calling_signatures
+            .iter()
+            .find(|signature| signature.boundary == supplied.boundary)
+            .ok_or_else(|| {
+                failure(format!(
+                    "native boundary `{requirement}` has no calling declaration"
+                ))
+            })?;
+        let application = *signature
+            .application
+            .as_ref()
+            .map_err(|reason| failure(reason.clone()))?;
+        let abi = module.calling_abi_signature(application).ok_or_else(|| {
+            failure(format!(
+                "native boundary `{requirement}` lost its declaration ABI"
+            ))
+        })?;
+        if !default_abi_eligible(abi) {
+            return Err(failure(format!(
+                "native boundary `{requirement}` needs its selected custom calling policy"
+            )));
+        }
+        abi.physical_owner
+            .as_ref()
+            .map_err(|reason| failure(reason.clone()))?;
+        let key = abi.identity(&module.identities).map_err(failure)?;
+        let policy = match &supplied.binding {
+            effects::provider_plan::EvaluatedNativeBinding::Import(_) => {
+                calling_conventions::CallingPolicy::native_for_target(profile.native_target())
+            }
+            effects::provider_plan::EvaluatedNativeBinding::Syscall(_) => {
+                calling_conventions::CallingPolicy::native_syscall_for_target(
+                    profile.native_target(),
+                )
+                .ok_or_else(|| failure("native syscall has no target calling policy".into()))?
+            }
+        };
+        for application in super::plan_computation::evaluate_default_calling_applications(
+            program,
+            std::slice::from_ref(&key),
+            profile,
+            policy,
+            0,
+        )
+        .map_err(|reason| {
+            failure(format!(
+                "cannot materialize native calling application for `{requirement}`: {reason}"
+            ))
+        })? {
+            if !applications.contains(&application) {
+                applications.push(application);
+            }
+        }
+    }
+    Ok(applications)
 }
 
 pub(crate) struct SelectedCallingApplications {

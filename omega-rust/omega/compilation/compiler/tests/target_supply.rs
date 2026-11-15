@@ -174,12 +174,14 @@ fn supplied_on(
     let product = compiler::judge_supplied_product(compiler::ProductSupplySource {
         publication: Arc::clone(&original),
         build: &[],
+        native_bindings: &[],
         defaults: &defaults,
     })
     .map_err(first)?;
     let supply = compiler::prepare_supplied_target(compiler::TargetSupplySource {
         publication: &product,
         build: &[],
+        native_bindings: &[],
         defaults: &defaults,
         target: Some(target),
     })
@@ -241,6 +243,7 @@ fn a_publication_judges_its_exact_roster_including_predeclared_supplies() {
     let error = compiler::judge_supplied_product(compiler::ProductSupplySource {
         publication: Arc::new(original),
         build: &[],
+        native_bindings: &[],
         defaults: &defaults,
     })
     .unwrap_err();
@@ -391,6 +394,7 @@ fn a_chosen_provider_the_module_does_not_hold_is_refused() {
         compiler::prepare_supplied_target(compiler::TargetSupplySource {
             publication: &publication,
             build: &[],
+            native_bindings: &[],
             defaults: &defaults,
             target: Some(TARGET),
         })
@@ -405,12 +409,13 @@ fn prepare(
     build: &[ProviderSelection],
     defaults: &[TargetProviderDefaults],
 ) -> Result<PreparedTargetSupply, String> {
-    prepare_for_target(accepted, build, defaults, Some(TARGET))
+    prepare_for_target(accepted, build, &[], defaults, Some(TARGET))
 }
 
 fn prepare_for_target(
     accepted: &AcceptedTerminalSource,
     build: &[ProviderSelection],
+    native_bindings: &[provider_planning::native_bindings::NativeBuildSupply],
     defaults: &[TargetProviderDefaults],
     target: Option<&str>,
 ) -> Result<PreparedTargetSupply, String> {
@@ -431,6 +436,7 @@ fn prepare_for_target(
         declared: &declared,
         roots: &roots,
         judged: &[],
+        native_bindings,
         build,
         defaults,
         target,
@@ -445,6 +451,161 @@ fn settle(supplied: &str, program: &str) -> Result<SettledTargetSupply, String> 
 
 fn first(diagnostics: Vec<diagnostics::Diagnostic>) -> String {
     diagnostics[0].message.clone()
+}
+
+fn native_supply(
+    accepted: &AcceptedTerminalSource,
+    target: language_semantics::declaration_selection::ProductTarget,
+    supplier: semantic_vocabulary::PackageKeyIdentity,
+) -> provider_planning::native_bindings::NativeBuildSupply {
+    use evaluation_accounting::{
+        BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
+        TerminalStorageScheduleIdentity,
+    };
+    let requirement = accepted
+        .boundary_requirements_declared()
+        .unwrap()
+        .into_iter()
+        .find(|requirement| requirement.name == "Service::go")
+        .unwrap();
+    let measurement = EvaluationMeasurementIdentity::TerminalPsi {
+        work_schedule: semantic_vocabulary::WorkScheduleIdentity::new(1).unwrap(),
+        storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
+    };
+    let sponsor = BuildEvaluationSponsor::new_with_measurement(
+        BuildEvaluationSponsorLimits::new(100, 100, 8, 8, 100, 100, 100, 100).unwrap(),
+        measurement,
+    )
+    .unwrap();
+    let usage = *sponsor
+        .begin_invocation(measurement, 100)
+        .unwrap()
+        .snapshot()
+        .unwrap()
+        .record();
+    provider_planning::native_bindings::NativeBuildSupply {
+        selection: build_time_evaluation::native_bindings::NativeBindingSelection {
+            application: None,
+            subject: requirement.slot,
+            requirement: requirement.requirement,
+            target,
+            locator: semantic_vocabulary::NativeBindingLocator::Syscall { number: 39 },
+            producer: language_semantics::declaration_selection::NativeBindingProducer {
+                package: supplier,
+                declaration_path: "build".into(),
+                callable_identity: "build::bind_service".into(),
+            },
+            source_occurrence_digest: [5; 32],
+            supplier_package: supplier,
+            source_span: Default::default(),
+        },
+        evaluation: Arc::new(provider_planning::native_bindings::NativeBuildEvaluation {
+            terminal_code: terminal_psi::TerminalPsiIdentity {
+                vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
+                program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([7; 32]),
+            },
+            usage,
+            observation_digest: [9; 32],
+        }),
+    }
+}
+
+#[test]
+fn a_native_binding_supplies_only_its_reached_requirement() {
+    use language_semantics::declaration_selection::ProductTarget;
+    let (accepted, defaults) = accepted(&format!("{WHOLE_SLOT}{NATIVE_DEFAULT}"), REACHES);
+    let native = native_supply(&accepted, ProductTarget::LinuxX86_64, package());
+    let prepared = prepare_for_target(&accepted, &[], &[native], &defaults, Some(TARGET)).unwrap();
+    assert_eq!(
+        prepared.requirements().len(),
+        1,
+        "the uncalled sibling owes no native binding"
+    );
+    let settled = prepared.settle().unwrap();
+    assert_eq!(
+        settled.requirements()[0].supply.authority,
+        SupplyAuthority::NativeBinding
+    );
+    assert!(
+        plans(&accepted, &settled).unwrap().is_empty(),
+        "a native leaf has no checked-provider plan"
+    );
+    let execution = selected_dispatch::SelectedExecution::settle(
+        Some(target::TargetProfile::LinuxX64),
+        &settled,
+        SupplyPlanning {
+            module: accepted.module(),
+            schemas: &[],
+        },
+    )
+    .unwrap();
+    let normalized = execution.native_bindings();
+    let [row] = normalized.rows.as_slice() else {
+        panic!("the chosen leaf retains one receipt")
+    };
+    let boundary = accepted.module().boundary_machine(row.boundary).unwrap();
+    let callable = boundary.declaration.as_ref().unwrap().source.callable;
+    let origin = row
+        .binding
+        .receipt()
+        .build_origin()
+        .expect("the evaluation keeps its Build origin");
+    assert_eq!(
+        normalized.identities.text(origin.requirement_identity),
+        accepted.module().identities.text(callable)
+    );
+}
+
+#[test]
+fn native_binding_targets_and_supplier_conflicts_are_enforced() {
+    use language_semantics::declaration_selection::ProductTarget;
+    let (accepted, _) = accepted(WHOLE_SLOT, REACHES);
+    let native = native_supply(&accepted, ProductTarget::LinuxArm64, package());
+    let missing = prepare_for_target(&accepted, &[], &[native], &[], Some(TARGET))
+        .unwrap()
+        .settle()
+        .unwrap_err();
+    assert!(first(missing).contains("has no provider"));
+    let native = native_supply(&accepted, ProductTarget::LinuxX86_64, package());
+    let mut other = native.clone();
+    let other_supplier = semantic_vocabulary::PackageKeyIdentity::from_digest([2; 32]).unwrap();
+    other.selection.supplier_package = other_supplier;
+    other.selection.producer.package = other_supplier;
+    let conflict = prepare_for_target(&accepted, &[], &[native, other], &[], Some(TARGET))
+        .unwrap()
+        .settle()
+        .unwrap_err();
+    assert!(first(conflict).contains("conflicting providers"));
+}
+
+#[test]
+fn an_explicit_checked_selection_overrides_a_native_binding() {
+    use language_semantics::declaration_selection::ProductTarget;
+    let (accepted, defaults) = accepted(&format!("{WHOLE_SLOT}{NATIVE_DEFAULT}"), REACHES);
+    let explicit = defaults[0].selections[0].clone();
+    let native = native_supply(&accepted, ProductTarget::LinuxX86_64, package());
+    let settled = prepare_for_target(
+        &accepted,
+        std::slice::from_ref(&explicit),
+        &[native],
+        &defaults,
+        Some(TARGET),
+    )
+    .unwrap()
+    .settle()
+    .unwrap();
+    assert_eq!(
+        settled.requirements()[0].supply.authority,
+        SupplyAuthority::Build
+    );
+    assert_eq!(settled.requirements()[0].supply.checked(), Some(&explicit));
+    assert!(
+        settled
+            .native_bindings(accepted.module())
+            .unwrap()
+            .rows
+            .is_empty()
+    );
 }
 
 fn profile() -> target::TargetProfile {
@@ -609,7 +770,7 @@ fn unscoped_supply_keeps_pure_programs_targetless_and_refuses_provider_demands()
         &format!("{SLOT}{PROVIDERS}{NATIVE_DEFAULT}"),
         REACHES_NOTHING,
     );
-    let prepared = prepare_for_target(&accepted, &[], &defaults, None).unwrap();
+    let prepared = prepare_for_target(&accepted, &[], &[], &defaults, None).unwrap();
     assert_eq!(prepared.target(), None);
     let settled = prepared.settle().unwrap();
     let execution = execution(None, &accepted, &settled).unwrap();
@@ -627,7 +788,7 @@ fn unscoped_supply_keeps_pure_programs_targetless_and_refuses_provider_demands()
 
     let (reached, defaults) =
         self::accepted(&format!("{SLOT}{PROVIDERS}{NATIVE_DEFAULT}"), REACHES);
-    let error = prepare_for_target(&reached, &[], &defaults, None).unwrap_err();
+    let error = prepare_for_target(&reached, &[], &[], &defaults, None).unwrap_err();
     assert!(
         error.contains("requires an explicit deployment target"),
         "{error}"
@@ -655,7 +816,8 @@ fn a_reached_requirement_settles_to_its_one_declared_default() {
     assert_eq!(
         settled.requirements()[0]
             .supply
-            .selection
+            .checked()
+            .unwrap()
             .provider_type
             .authored_path,
         "Native"
@@ -862,7 +1024,8 @@ fn supply_is_ranked_by_authority_and_keyed_by_target() {
     assert_eq!(
         settled.requirements()[0]
             .supply
-            .selection
+            .checked()
+            .unwrap()
             .provider_type
             .authored_path,
         "Other"

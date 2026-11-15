@@ -15,7 +15,6 @@ optimization-core = { path = "../../../foundation/optimization-core" }
 calling-conventions = { path = "../../backend/calling-conventions" }
 runtime-abi = { path = "../../backend/runtime/runtime-abi" }
 backend-plan = { path = "../../backend/plans/backend-plan" }
-component-description = { path = "../../backend/artifacts/component-description" }
 effects = { path = "../../backend/plans/effects" }
 layout = { path = "../../backend/layout" }
 package-compilation = { path = "../../../packages/package-compilation" }

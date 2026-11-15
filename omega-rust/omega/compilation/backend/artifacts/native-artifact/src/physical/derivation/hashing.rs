@@ -132,6 +132,12 @@ pub(crate) fn hash_boundary_settlement_record(
     }
     digest.raw(&settlement.boundary.get().to_le_bytes());
     match settlement.execution {
+        BoundaryExecutionRecord::NativeBinding(native) => {
+            digest.byte(3);
+            digest.raw(&native.receipt());
+            digest.raw(&native.contract());
+            digest.raw(&native.calling());
+        }
         BoundaryExecutionRecord::AdmittedProvider(record) => {
             digest.byte(1);
             digest.raw(&record.provider_plan_report_identity.to_le_bytes());

@@ -28,7 +28,7 @@ pub use normalized_foreign::{
     encode_call_binding, encode_locator, encode_machine_function_identity,
     encode_native_callback_argument,
 };
-pub use structural::encode_provider_execution;
+pub use structural::{encode_external_execution, encode_provider_execution};
 pub use structural_types::{encode_authored_field_storage, encode_structural_place};
 
 use crate::{LegalizedOperationPlan, LegalizedOperationPlanIdentity, LegalizedStructuralContract};

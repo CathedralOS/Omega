@@ -188,6 +188,7 @@ pub(crate) fn check_product_source(
             crate::checked::judge_supplied_product(crate::checked::ProductSupplySource {
                 publication: terminal_publication,
                 build: &build.provider_selections,
+                native_bindings: &build.native_bindings,
                 defaults: &provider_defaults,
             })
             .map_err(|mut diagnostics| {

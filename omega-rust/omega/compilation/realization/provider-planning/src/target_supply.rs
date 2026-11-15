@@ -12,10 +12,9 @@
 //! So the demand of a target is a walk of the module's call graph
 //! (`terminal_installation::SynchronousCallGraph`). It starts at the
 //! Product's entries. Each boundary requirement it meets is demanded and is
-//! paired with the supply declared for the target: the provider selections
-//! the evaluated Build made and the defaults the target package retains.
-//! Both are the same `ProviderSelection`; only the authority that declared
-//! them differs. Where exactly one supply stands at the highest authority,
+//! paired with the supply declared for the target: checked selections,
+//! evaluated native bindings, and target defaults. A native binding ends the
+//! walk at its exact requirement. Where exactly one checked supply stands at the highest authority,
 //! the walk continues into the machine the module holds for that provider
 //! and that requirement, because whatever the chosen provider calls is
 //! demanded too (provider_selection.md: "A selected provider's exact boundary
@@ -73,19 +72,49 @@ pub struct JudgedProvider {
     pub machine: MachineId,
 }
 
-/// Who declared a supply. An explicit Build selection outranks the target
-/// package's default for the same slot.
+/// An explicit checked selection outranks a target-keyed native binding;
+/// either outranks the target package's default.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum SupplyAuthority {
     TargetDefault,
+    NativeBinding,
     Build,
 }
 
-/// One declared provider for a slot on this target.
+/// One declared supply for a requirement on this target.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderSupply {
     pub authority: SupplyAuthority,
-    pub selection: ProviderSelection,
+    pub selection: SupplySelection,
+}
+
+/// A checked implementation has a body to walk; an evaluated native binding
+/// supplies exactly one requirement and ends that demand path.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SupplySelection {
+    Checked(ProviderSelection),
+    Native(crate::native_bindings::NativeBuildSupply),
+}
+
+impl ProviderSupply {
+    pub fn checked(&self) -> Option<&ProviderSelection> {
+        match &self.selection {
+            SupplySelection::Checked(selection) => Some(selection),
+            SupplySelection::Native(_) => None,
+        }
+    }
+
+    fn description(&self) -> String {
+        match &self.selection {
+            SupplySelection::Checked(selection) => {
+                format!("`{}`", selection.provider_type.authored_path)
+            }
+            SupplySelection::Native(supply) => format!(
+                "native binding from `{}`",
+                supply.selection.producer.declaration_path
+            ),
+        }
+    }
 }
 
 /// One boundary requirement the target's entries reach and every supply
@@ -95,7 +124,7 @@ pub struct DemandedRequirement {
     pub reached: ReachedBoundaryRequirement,
     pub supplies: Vec<ProviderSupply>,
     /// The machine the module holds for the one supply settlement would
-    /// choose. `None` when settlement would reject the requirement, and
+    /// choose. `None` for a native leaf, when settlement would reject, and
     /// when the chosen provider has not been judged as a root of the
     /// module yet; the walk did not continue past this requirement then.
     pub realization: Option<MachineId>,
@@ -121,6 +150,9 @@ pub struct TargetSupplyRequest<'a> {
     pub judged: &'a [JudgedProvider],
     /// The evaluated Build's provider selections.
     pub build: &'a [ProviderSelection],
+    /// Exact native requirements and the completed Build evaluations that
+    /// produced their target-specific locators.
+    pub native_bindings: &'a [crate::native_bindings::NativeBuildSupply],
     /// The defaults target packages retain.
     pub defaults: &'a [TargetProviderDefaults],
     /// The selected deployment, or no deployment for targetless checking.
@@ -135,6 +167,7 @@ impl PreparedTargetSupply {
             roots,
             judged,
             build,
+            native_bindings,
             defaults,
             target,
         } = request;
@@ -187,11 +220,7 @@ impl PreparedTargetSupply {
                     )));
                     continue;
                 };
-                if let Err(demand) = unplanned_boundary(module, requirement) {
-                    refusals.push(refuse(target, &format!("{demand} `{}`", requirement.name)));
-                    continue;
-                }
-                let supplies = build
+                let mut supplies = build
                     .iter()
                     .map(|selection| (SupplyAuthority::Build, selection))
                     .chain(
@@ -209,11 +238,32 @@ impl PreparedTargetSupply {
                     })
                     .map(|(authority, selection)| ProviderSupply {
                         authority,
-                        selection: selection.clone(),
+                        selection: SupplySelection::Checked(selection.clone()),
                     })
                     .collect::<Vec<_>>();
+                supplies.extend(
+                    native_bindings
+                        .iter()
+                        .filter(|supply| {
+                            let selected = &supply.selection;
+                            selected.target.canonical_name() == target
+                                && selected.subject == requirement.slot
+                                && selected.requirement == requirement.requirement
+                                && selected.application.is_none()
+                        })
+                        .map(|supply| ProviderSupply {
+                            authority: SupplyAuthority::NativeBinding,
+                            selection: SupplySelection::Native(supply.clone()),
+                        }),
+                );
+                let native = chosen(&supplies)
+                    .is_ok_and(|supply| matches!(&supply.selection, SupplySelection::Native(_)));
+                if let Err(demand) = unplanned_boundary(module, requirement, native) {
+                    refusals.push(refuse(target, &format!("{demand} `{}`", requirement.name)));
+                    continue;
+                }
                 let realization = chosen(&supplies).ok().and_then(|supply| {
-                    let provider = supply.selection.provider_type.symbol;
+                    let provider = supply.checked()?.provider_type.symbol;
                     judged
                         .iter()
                         .find(|row| {
@@ -337,15 +387,14 @@ impl PreparedTargetSupply {
                     reached.name
                 ))),
                 Err(Unchosen::Competing(ranked)) => {
-                    let mut paths = ranked.iter().map(|supply| {
-                        format!("`{}`", supply.selection.provider_type.authored_path)
-                    });
+                    let mut paths = ranked.iter().map(|supply| supply.description());
                     let first = paths.next().unwrap_or_default();
                     rejections.push(Diagnostic::error(format!(
                         "boundary requirement `{}` has conflicting providers on target `{target}`: {} declares {first} and {}",
                         reached.name,
                         match ranked[0].authority {
                             SupplyAuthority::Build => "the Build",
+                            SupplyAuthority::NativeBinding => "native binding suppliers",
                             SupplyAuthority::TargetDefault => "the target package",
                         },
                         paths.collect::<Vec<_>>().join(" and "),
@@ -370,6 +419,56 @@ impl SettledTargetSupply {
 
     pub fn requirements(&self) -> &[SettledRequirement] {
         &self.requirements
+    }
+
+    /// Normalize only selected native leaves, retaining the complete Build
+    /// receipt and its identity table. A row grants no execution permission.
+    pub fn native_bindings(
+        &self,
+        module: &TerminalModule,
+    ) -> Result<NormalizedNativeSupplies, Vec<Diagnostic>> {
+        let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+        let mut rows = Vec::new();
+        for requirement in &self.requirements {
+            let SupplySelection::Native(supply) = &requirement.supply.selection else {
+                continue;
+            };
+            let refuse = |reason| {
+                vec![Diagnostic::error(format!(
+                    "native supply for `{}`: {reason}",
+                    requirement.reached.name
+                ))]
+            };
+            let declaration = module
+                .boundary_machine(requirement.reached.boundary)
+                .and_then(|boundary| boundary.declaration.as_ref())
+                .ok_or_else(|| {
+                    refuse("the accepted module has no exact callable declaration".to_owned())
+                })?;
+            let callable = module
+                .identities
+                .text(declaration.source.callable)
+                .filter(|identity| !identity.is_empty())
+                .ok_or_else(|| {
+                    refuse("the accepted requirement has no complete callable identity".to_owned())
+                })?;
+            let binding =
+                crate::native_bindings::normalize_native_binding(supply, callable, &mut identities)
+                    .map_err(refuse)?;
+            if Some(binding.target().target_name()) != self.target() {
+                return Err(vec![Diagnostic::error(
+                    "normalized native binding changed its settled deployment",
+                )]);
+            }
+            rows.push(NormalizedNativeSupply {
+                boundary: requirement.reached.boundary,
+                binding,
+            });
+        }
+        Ok(NormalizedNativeSupplies {
+            identities: identities.build(),
+            rows,
+        })
     }
 
     /// The provider plans of the chosen supplies, one for each provider
@@ -403,7 +502,9 @@ impl SettledTargetSupply {
         let mut chosen = Vec::<(symbols::SymbolHandle, Vec<&SettledRequirement>)>::new();
         let mut refusals = Vec::new();
         for requirement in &self.requirements {
-            let selection = &requirement.supply.selection;
+            let Some(selection) = requirement.supply.checked() else {
+                continue;
+            };
             let ProviderSelectionSubject::BoundaryTrait(slot) = &selection.subject else {
                 refusals.push(Diagnostic::error(format!(
                     "no product route yet: provider settlement for `{target}`: `{}` is supplied by `{}` through a selection of {}, and a provider plan is formed only for a selection of a whole boundary trait",
@@ -418,8 +519,9 @@ impl SettledTargetSupply {
             };
             match chosen.iter_mut().find(|(known, rows)| {
                 *known == slot.symbol
-                    && rows[0].supply.selection.provider_type.symbol
-                        == selection.provider_type.symbol
+                    && rows[0].supply.checked().is_some_and(|known| {
+                        known.provider_type.symbol == selection.provider_type.symbol
+                    })
             }) {
                 Some((_, rows)) => rows.push(requirement),
                 None => chosen.push((slot.symbol, vec![requirement])),
@@ -437,6 +539,19 @@ impl SettledTargetSupply {
         }
         Ok(plans)
     }
+}
+
+/// Selected native leaves and the identities used by their retained receipts.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NormalizedNativeSupplies {
+    pub identities: terminal_psi::TerminalIdentityTable,
+    pub rows: Vec<NormalizedNativeSupply>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NormalizedNativeSupply {
+    pub boundary: BoundaryMachineId,
+    pub binding: effects::provider_plan::EvaluatedNativeBinding,
 }
 
 /// What the plans of the chosen supplies are formed from.
@@ -470,7 +585,10 @@ fn slot_plan(
     let module = planning.module;
     let text = |identity: terminal_psi::TerminalIdentityIndex| module.identities.text(identity);
     let first = requirements[0];
-    let selection = &first.supply.selection;
+    let selection = first
+        .supply
+        .checked()
+        .ok_or_else(|| Diagnostic::error("checked provider plan received a native binding"))?;
     let provider = &selection.provider_type;
     let refuse =
         |what: String| Diagnostic::error(format!("provider settlement for `{target}`: {what}"));
@@ -679,6 +797,7 @@ fn unplanned_demands(module: &TerminalModule) -> Vec<&'static str> {
 fn unplanned_boundary(
     module: &TerminalModule,
     requirement: &ReachedBoundaryRequirement,
+    native: bool,
 ) -> Result<(), &'static str> {
     let declaration = module
         .boundary_machine(requirement.boundary)
@@ -689,7 +808,7 @@ fn unplanned_boundary(
     if declaration.role != terminal_psi::BoundaryDeclarationRole::Callable {
         return Err("the contract-evidence boundary");
     }
-    if declaration.completion != semantic_vocabulary::BoundaryCompletion::NormalReturn {
+    if !native && declaration.completion != semantic_vocabulary::BoundaryCompletion::NormalReturn {
         return Err("the externally completed boundary");
     }
     if declaration.declaration.as_ref().is_some_and(|callable| {

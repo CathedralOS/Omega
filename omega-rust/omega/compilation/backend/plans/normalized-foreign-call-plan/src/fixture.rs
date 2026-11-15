@@ -200,7 +200,8 @@ pub fn record(
                 3,
                 4,
             )
-            .unwrap(),
+            .unwrap()
+            .into(),
             binding: NormalizedForeignCallBinding {
                 boundary_entry_plan,
                 mechanism: NormalizedForeignCallMechanism::Import {

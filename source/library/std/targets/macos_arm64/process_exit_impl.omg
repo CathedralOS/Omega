@@ -1,9 +1,1 @@
-// Exact compiler-backed process termination for macos_arm64.
-// Catalog matching retains target custody; it does not grant exit authority.
-use omega::language::core::ProcessExit;
-use omega::language::core::Never;
-boundary machine macos_arm64_process_exit(return_code: i32) -> Never
-    satisfies ProcessExit::exit_process
-    reaches ProcessExit
-    crashes none
-    terminates;
+// ProcessExit is supplied by the target binding in std/build.omg.

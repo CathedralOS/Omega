@@ -818,8 +818,21 @@ machine configure_macos_image(builder: &mut Build) {
         } });
 }
 
-// Windows supplies canonical process termination through its admitted DLL ABI.
+// Each hosted target supplies canonical process termination through its native
+// binding. Linux exits the whole process, including any sibling threads.
 machine configure_process_exit(builder: &mut Build) {
+    Build::bind<ProcessExit::exit_process>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 231u64 });
+    Build::bind<ProcessExit::exit_process>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 94u64 });
+    Build::bind<ProcessExit::exit_process>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "__exit"
+        } });
+    Build::bind<ProcessExit::exit_process>(builder, macos_x86_64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "__exit"
+        } });
     Build::bind<ProcessExit::exit_process>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "ExitProcess"

@@ -32,7 +32,7 @@ pub(super) fn select(
         };
         return Ok(Some((ClockNamespace::Linux, implementation)));
     }
-    let Some((locator, _)) = binding.import() else {
+    let Some(locator) = binding.foreign_import_locator() else {
         return Ok(None);
     };
     let target = locator.target();

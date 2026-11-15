@@ -161,7 +161,7 @@ pub fn admit(
     };
     if record.call.boundary != boundary
         || record.call.binding.native_target() != Some(target)
-        || record.call.binding.symbolic_import().is_none()
+        || record.call.binding.import_locator().is_none()
     {
         return Err(Error::OperandViewMismatch);
     }

@@ -91,6 +91,7 @@ pub mod constraints {
         let target = call.binding.native_target()?;
         let expected_family = match call.binding.mechanism {
             NormalizedForeignCallMechanism::Import { .. }
+            | NormalizedForeignCallMechanism::HostedImport { .. }
             | NormalizedForeignCallMechanism::Component { .. }
             | NormalizedForeignCallMechanism::Table { .. } => RegisterConstraintFamily::Call,
             NormalizedForeignCallMechanism::SystemCall(_) => RegisterConstraintFamily::SystemCall,

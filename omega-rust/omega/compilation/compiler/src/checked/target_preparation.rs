@@ -56,6 +56,7 @@ pub struct ProductSupplySource<'a> {
     /// The evaluated Build's provider selections and the target packages'
     /// defaults.
     pub build: &'a [build_time_evaluation::provider_declarations::ProviderSelection],
+    pub native_bindings: &'a [provider_planning::native_bindings::NativeBuildSupply],
     pub defaults: &'a [build_time_evaluation::provider_declarations::TargetProviderDefaults],
 }
 
@@ -120,6 +121,7 @@ impl ModuleDemand {
         &self,
         accepted: &source_compiler::AcceptedTerminalSource,
         build: &[build_time_evaluation::provider_declarations::ProviderSelection],
+        native_bindings: &[provider_planning::native_bindings::NativeBuildSupply],
         defaults: &[build_time_evaluation::provider_declarations::TargetProviderDefaults],
         target: Option<&str>,
     ) -> Result<PreparedTargetSupply, Vec<Diagnostic>> {
@@ -129,6 +131,7 @@ impl ModuleDemand {
             roots: &self.roots,
             judged: &self.judged,
             build,
+            native_bindings,
             defaults,
             target,
         })
@@ -170,6 +173,7 @@ pub fn judge_supplied_product(
             let Ok(supply) = demand.prepare(
                 accepted,
                 source.build,
+                source.native_bindings,
                 source.defaults,
                 Some(profile.target_name()),
             ) else {
@@ -179,7 +183,8 @@ pub fn judge_supplied_product(
                 .requirements()
                 .iter()
                 .filter_map(|requirement| requirement.chosen())
-                .flat_map(|supply| selected_supplies(&supply.selection))
+                .filter_map(|supply| supply.checked())
+                .flat_map(selected_supplies)
             {
                 if !roster.supplies.contains(&chosen) {
                     roster.supplies.push(chosen);
@@ -205,6 +210,7 @@ pub struct TargetSupplySource<'a> {
     /// The evaluated Build's provider selections and the target packages'
     /// defaults.
     pub build: &'a [build_time_evaluation::provider_declarations::ProviderSelection],
+    pub native_bindings: &'a [provider_planning::native_bindings::NativeBuildSupply],
     pub defaults: &'a [build_time_evaluation::provider_declarations::TargetProviderDefaults],
     /// The selected deployment, or no deployment for targetless checking.
     pub target: Option<&'a str>,
@@ -224,6 +230,7 @@ pub fn prepare_supplied_target(
     let supply = ModuleDemand::read(accepted, source.publication.roster()?)?.prepare(
         accepted,
         source.build,
+        source.native_bindings,
         source.defaults,
         source.target,
     )?;
@@ -233,11 +240,12 @@ pub fn prepare_supplied_target(
         .filter(|requirement| requirement.realization.is_none())
         .filter_map(|requirement| {
             let chosen = requirement.chosen()?;
+            let selection = chosen.checked()?;
             Some(Diagnostic::error(format!(
                 "no product route yet: target preparation for `{}`: `{}` is supplied by `{}`, which the accepted module does not hold as a judged provider",
                 source.target.unwrap_or("<unscoped>"),
                 requirement.reached.name,
-                chosen.selection.provider_type.authored_path,
+                selection.provider_type.authored_path,
             )))
         })
         .collect::<Vec<_>>();
@@ -260,6 +268,7 @@ impl PreparedProductTarget {
         let supply = prepare_supplied_target(TargetSupplySource {
             publication: &source.terminal_publication,
             build: &source.computed_build_config.config.provider_selections,
+            native_bindings: &source.computed_build_config.config.native_bindings,
             defaults: &source.provider_defaults,
             target: profile.map(|profile| profile.target_name()),
         })

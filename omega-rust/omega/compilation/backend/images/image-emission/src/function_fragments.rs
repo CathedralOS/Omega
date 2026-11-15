@@ -2570,11 +2570,7 @@ mod imports {
     ) -> Result<RelocationPlan, Error> {
         let import_calls = calls
             .iter()
-            .filter_map(|call| {
-                call.binding
-                    .symbolic_import()
-                    .map(|(locator, _)| (call, locator))
-            })
+            .filter_map(|call| call.binding.import_locator().map(|locator| (call, locator)))
             .collect::<Vec<_>>();
         let fields = &source
             .source()
@@ -2681,11 +2677,7 @@ mod imports {
         let calls = derive_normalized_foreign_call_custody(source).map_err(Error::ForeignCalls)?;
         let import_calls = calls
             .iter()
-            .filter_map(|call| {
-                call.binding
-                    .symbolic_import()
-                    .map(|(locator, _)| (call, locator))
-            })
+            .filter_map(|call| call.binding.import_locator().map(|locator| (call, locator)))
             .collect::<Vec<_>>();
         let fields = &source
             .source()

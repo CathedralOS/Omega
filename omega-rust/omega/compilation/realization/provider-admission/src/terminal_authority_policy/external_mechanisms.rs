@@ -152,12 +152,11 @@ pub(crate) fn conservative_syscall_terminal_mechanism(
     let calls = plan
         .operations()
         .filter_map(|operation| {
-            let abstract_operations::AbstractOperation::BoundaryCall {
-                boundary: called,
-                arguments,
-                structural_arguments,
-                ..
-            } = operation
+            let (abstract_operations::AbstractOperation::BoundaryCall {
+                boundary: called, arguments, structural_arguments, ..
+            } | abstract_operations::AbstractOperation::ExternalCompletion {
+                boundary: called, arguments, structural_arguments, ..
+            }) = operation
             else {
                 return None;
             };

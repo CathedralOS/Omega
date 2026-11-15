@@ -23,6 +23,38 @@ pub struct ProviderExecutionBinding {
     boundary_contract_report_fingerprint: u64,
 }
 
+/// The completed Build evaluation, boundary contract and physical calling
+/// application independently admitted for a native requirement binding.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct NativeBindingExecution {
+    receipt: [u8; 32],
+    contract: [u8; 32],
+    calling: [u8; 32],
+}
+
+impl NativeBindingExecution {
+    pub fn from_commitments(receipt: [u8; 32], contract: [u8; 32], calling: [u8; 32]) -> Option<Self> {
+        if receipt == [0; 32] || contract == [0; 32] || calling == [0; 32] {
+            None
+        } else {
+            Some(Self { receipt, contract, calling })
+        }
+    }
+    pub const fn receipt(self) -> [u8; 32] { self.receipt }
+    pub const fn contract(self) -> [u8; 32] { self.contract }
+    pub const fn calling(self) -> [u8; 32] { self.calling }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ExternalExecutionBinding {
+    Provider(ProviderExecutionBinding),
+    NativeBinding(NativeBindingExecution),
+}
+
+impl From<ProviderExecutionBinding> for ExternalExecutionBinding {
+    fn from(binding: ProviderExecutionBinding) -> Self { Self::Provider(binding) }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum IeeeFloatBinaryOperation {
     Add,
@@ -453,6 +485,7 @@ pub enum CompilerBuiltinExecution {
 pub enum BoundaryExecutionBinding {
     AdmittedProvider(ProviderExecutionBinding),
     CompilerBuiltin(CompilerBuiltinExecution),
+    NativeBinding(NativeBindingExecution),
 }
 
 impl From<ProviderExecutionBinding> for BoundaryExecutionBinding {
@@ -504,5 +537,15 @@ impl ProviderExecutionBinding {
 
     pub const fn boundary_contract_report_fingerprint(self) -> u64 {
         self.boundary_contract_report_fingerprint
+    }
+}
+
+impl BoundaryExecutionBinding {
+    pub const fn external(self) -> Option<ExternalExecutionBinding> {
+        match self {
+            Self::AdmittedProvider(provider) => Some(ExternalExecutionBinding::Provider(provider)),
+            Self::NativeBinding(binding) => Some(ExternalExecutionBinding::NativeBinding(binding)),
+            Self::CompilerBuiltin(_) => None,
+        }
     }
 }

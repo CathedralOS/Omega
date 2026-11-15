@@ -26,6 +26,10 @@ use crate::provider_admission::{
 struct AdmittedMechanismRow<'a> {
     mechanism: TerminalMechanismIdentity,
     foreign: Option<&'a target_operations::NormalizedForeignCallBinding>,
+    native_binding: Option<(
+        target_operations::NativeBindingExecution,
+        effects::provider_plan::ServiceSchemaDigest,
+    )>,
 }
 
 pub(super) struct ReviewContext<'a> {
@@ -83,6 +87,7 @@ impl<'a> ReviewContext<'a> {
                     AdmittedMechanismRow {
                         mechanism: admitted.mechanism,
                         foreign: None,
+                        native_binding: None,
                     },
                 )
                 .is_some()
@@ -97,6 +102,16 @@ impl<'a> ReviewContext<'a> {
         // Carry that association on its row instead of allocating a second
         // boundary-ID inventory or scanning settlements at each use.
         for settlement in settlements {
+            if let crate::AdmittedBoundaryExecution::NativeBinding { execution, schema } =
+                settlement.execution
+            {
+                let row = mechanism_map
+                    .get_mut(&settlement.boundary)
+                    .ok_or("native binding has no independently admitted mechanism")?;
+                if row.native_binding.replace((execution, schema)).is_some() {
+                    return Err("native binding has competing admitted executions".into());
+                }
+            }
             if let target_operations::BoundarySettlementRealization::NormalizedForeignCall(
                 binding,
             ) = &settlement.realization
@@ -159,6 +174,18 @@ impl<'a> ReviewContext<'a> {
         boundary: BoundaryMachineId,
     ) -> Option<&TerminalMechanismIdentity> {
         self.mechanisms.get(&boundary).map(|row| &row.mechanism)
+    }
+
+    pub(super) fn native_binding(
+        &self,
+        boundary: BoundaryMachineId,
+    ) -> Option<(
+        target_operations::NativeBindingExecution,
+        effects::provider_plan::ServiceSchemaDigest,
+    )> {
+        self.mechanisms
+            .get(&boundary)
+            .and_then(|row| row.native_binding)
     }
 
     pub(super) fn target_profile(&self) -> target::TargetProfile {

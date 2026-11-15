@@ -10,7 +10,7 @@ use terminal_psi::{StructuralArgument, StructuralTypeDeclaration};
 
 mod execution;
 pub use execution::{
-    BoundaryExecutionBinding, CompilerBuiltinExecution, IeeeFloatArithmeticOperation,
+    BoundaryExecutionBinding, ExternalExecutionBinding, NativeBindingExecution, CompilerBuiltinExecution, IeeeFloatArithmeticOperation,
     IeeeFloatBinaryOperation, IeeeFloatIntegerCarrier, IeeeFloatRoundingDirection,
     IeeeFloatToIntegerDomain, ProviderExecutionBinding, ProviderPlanReportIdentity,
 };
@@ -20,7 +20,7 @@ pub use realizations::{
     ClaimCompletionOnlyRealization, DirectPortReadU8Realization, ForeignCallOperands,
     HostedExitProcessI32Realization, HostedReadByteRealization, HostedWriteByteI32Realization,
     LinuxWriteLineRealization, MetadataOnlyPortRealization, NearestIeeeFloatArithmeticRealization,
-    NormalizedForeignCallBinding, NormalizedForeignCallMechanism, NormalizedForeignScalarArgument,
+    NormalizedForeignCallBinding, NormalizedForeignCallMechanism, NormalizedForeignExecution, NormalizedForeignScalarArgument,
     NormalizedForeignStructuralArgument, NormalizedSystemCallBinding,
 };
 
