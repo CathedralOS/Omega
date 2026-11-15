@@ -116,13 +116,11 @@ finite fixture input and captures stdout/stderr/status, then publishes that same
 native artifact. It uses neither a tree interpreter nor a synthetic exit. The normal
 CLI `--both` compares exit alone; this driver supplies the separate Terminal trace
 oracle. `validation/run.py` executes the published native image serially and checks
-both streams against the unchanged frozen oracle. Build/link commands and observed
-results are recorded in `VALIDATION.md` once executed. Generated artifacts belong
+both streams against the unchanged frozen oracle. Generated artifacts belong
 under ignored `build/`; a transfer bundle carries evidence separately.
 
 Observed execution status: all 27 fixtures pass on both native and Terminal,
 including 14 invalid runtime inputs. The separate complete bounds control rejects
 only for its intended index proof failure. Package acceptance was explicitly
 authorized and succeeded on the original project; the current-main compiler
-refresh introduced zero new capability decisions. See [VALIDATION.md](VALIDATION.md)
-for exact identities, commands, tolerances and transfer evidence.
+refresh introduced zero new capability decisions.

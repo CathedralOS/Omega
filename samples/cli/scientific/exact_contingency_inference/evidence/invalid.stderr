@@ -1,2 +1,0 @@
-cannot check prepared project: checked compilation failed for package `invalid_contingency_contract` with 1 diagnostic(s)
-  error: cannot prove ensures contract for exit from impossible_weight at statement 0: result.value == 2

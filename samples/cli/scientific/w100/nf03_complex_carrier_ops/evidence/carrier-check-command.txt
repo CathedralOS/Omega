@@ -1,3 +1,0 @@
-cwd=/workspace/Omega/.codex/worktrees/nf03
-OMEGA_LIBRARY_ROOT=/workspace/Omega/.codex/worktrees/nf03/source/library target/release/omega --check --target linux_x86_64 source/library/numerics/complex/complex_carrier_ops.omg
-exit=1; executed outside sandbox filesystem remapping.

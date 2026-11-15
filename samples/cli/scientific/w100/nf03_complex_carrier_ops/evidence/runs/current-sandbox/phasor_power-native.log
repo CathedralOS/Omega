@@ -1,3 +1,0 @@
-$ /workspace/cloud-setup/cache/mbx/targets/v1/a8171fbc4806c91a95612d4c41a5f9117de42c5b068e610133a8b3e3d6acc82a/release/omega run /tmp/nf03-current-sandbox/phasor_power/main.omg
-native compile FAILED:
-  error: cannot open private source resolver storage: git cache entry `/` is invalid: cache custody ancestry is owned by an unrelated user

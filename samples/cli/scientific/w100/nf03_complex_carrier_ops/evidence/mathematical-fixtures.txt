@@ -1,5 +1,0 @@
-Exact rational independent oracle validation: PASS
-V=(3,4), conjugate(I)=(-2,-1/2), V*conjugate(I)=(-4,-19/2).
-Quadrature points=(0,1),(-1,0),(0,-1),(1,0), sum=(0,0), squared norms=1.
-Magnitude identity: 3^2+4^2=5^2, hence scaled magnitudes are 5e200 and 5e20.
-This validates mathematics, not Omega execution or floating-provider accuracy.

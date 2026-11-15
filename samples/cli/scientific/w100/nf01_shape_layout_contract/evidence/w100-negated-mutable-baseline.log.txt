@@ -1,1 +1,0 @@
-compiled 16 source file(s) from /tmp/w100-negated-mutable-call/main.omg; wrote_output=false
