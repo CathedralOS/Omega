@@ -101,14 +101,6 @@ framework or a list of unimplemented features.
 - Cost: The syntax path duplicates part of the ordinary predicate judgment. [EARLY-TERMINAL-JOBS](TASKS.md#early-terminal-jobs) tracks the remaining handoff and its acceptance checks.
 - Reported: 2026-11-15, Codex, while verifying the owner's upstream source-review handoff.
 
-### A narrow installation bound rejects a valid selected child
-- Category: knowledge crossing a boundary
-- Where: [staggered installation source](tests/fixtures/pass/providers/staggered_installation_reach_exit/main.omg), [call reach check](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/ceilings.rs), [installation rule](wiki/spec/build/external_roots.md#installation-bound-reach)
-- Saw: The original fixture retains B's X and C/D's Y in A's selected row. Narrow A to `reaches <= X` and move its C call to `main` after the call to A, leaving the same two writes and target selections. On macOS arm64, `AProvider::visit` at line 13, column 59 still refuses. Source checking charges B's whole X + Y upper bound even though the exact selected B only reaches X.
-- Cost: A caller cannot state the tighter valid bound on a deployment that supplies a narrower child. Carry that containment question to the existing installation closure and preserve the refusal when the selected child actually reaches Y or has no supplier.
-- Reported: 2026-11-15, Codex, while restoring the staggered provider review and manifest.
-
-
 ### Completing selected bodies copies the retained typed program
 - Category: re-deriving
 - Where: [activation](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs), [selected continuation](omega-rust/psi/compilation/source-compiler/src/source_compilation.rs), [retained pages](omega-rust/psi/foundation/arena/src/retained.rs), [source application preparation](omega-rust/psi/compilation/representations/typed-trees/src/references.rs)

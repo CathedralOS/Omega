@@ -539,10 +539,6 @@ impl AcceptedTerminalSource {
     }
 }
 
-/// The advisories of every accepted part: the entry closure and each
-/// generic check form. One authored machine may be judged in more than one
-/// part, and its advisory is the same in each, so an advisory already listed
-/// is not listed again.
 /// The checker must see the same conditional root that publication retains.
 /// All authority comes from the lowered declarations, not a later source read.
 fn retain_installation_reach(
@@ -572,6 +568,10 @@ fn retain_installation_reach(
     Ok(())
 }
 
+/// The advisories of every accepted part: the entry closure and each
+/// generic check form. One authored machine may be judged in more than one
+/// part, and its advisory is the same in each, so an advisory already listed
+/// is not listed again.
 fn advisories(verdicts: &[Result<RouteVerdict, CompilationRefusal>]) -> Vec<Diagnostic> {
     let mut advisories: Vec<Diagnostic> = Vec::new();
     for verdict in verdicts {

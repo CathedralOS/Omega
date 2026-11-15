@@ -1467,8 +1467,9 @@ impl<'t> Program<'t> {
             let arguments = self.conformer_value_arguments(id, machine, requirement)?;
             let (routed, routed_names) = self.requirement_signature(id, requirement, &arguments)?;
             self.same_conformer_shape(id, &signature, &routed, machine.symbol)?;
-            // The executable entry exposes only its requirement. The existing
-            // independent witness checks the member under its own contract.
+            // Calls expose the requirement's contracts. The independent
+            // witness checks the member under its own contract; abstract
+            // reach additionally needs the selected installation below.
             signature.requires = routed.requires;
             signature.ensures = routed.ensures;
             names.requires = routed_names.requires;
