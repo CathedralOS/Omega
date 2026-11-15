@@ -1724,10 +1724,15 @@ pub(crate) mod scalar_graph {
             native: &'a TargetOperationPlan,
             plan: &'a crate::native_geometry::NativePlan<'a>,
             unit: &'a crate::native_geometry::NativeUnit<'a>,
-            targeted: &target_operations::TargetUnitOperation,
+            instruction: &target_operations::TargetInstruction,
         ) -> Result<LegalizedScalarInstruction, LegalizationError> {
-            let (operation, result) =
-                scalar_graph_input::instruction(node).ok_or(Error::custody())?;
+            let source = instruction.source.as_ref().ok_or_else(|| {
+                Error::instruction_metadata(
+                    "ordinary target instruction has no retained source metadata",
+                )
+            })?;
+            let operation = source.operation;
+            let targeted = &instruction.kind;
             let kind = if matches!(
                 targeted,
                 target_operations::TargetUnitOperation::EstablishReference { .. }
@@ -2698,18 +2703,26 @@ pub(crate) mod scalar_graph {
                     _ => return Err(Error::custody()),
                 }
             };
-            Ok(LegalizedScalarInstruction {
-                operation,
-                result: result.map(|value| LegalizedValueDefinition {
-                    value,
-                    scalar_type: node.definitions[0].scalar_type,
-                    definition_site: node.definitions[0].site,
+            Ok(with_metadata(source, kind))
+        }
+
+        /// The instruction owns its already-retained execution and custody annotations.
+        pub(crate) fn with_metadata(
+            source: &target_operations::TargetInstructionSource,
+            kind: LegalizedScalarInstructionKind,
+        ) -> LegalizedScalarInstruction {
+            LegalizedScalarInstruction {
+                operation: source.operation,
+                result: source.result.map(|result| LegalizedValueDefinition {
+                    value: result.value,
+                    scalar_type: result.scalar_type,
+                    definition_site: result.site,
                 }),
                 kind,
-                work: node.work.clone(),
-                effect: node.effect,
-                ownership: node.ownership.clone(),
-            })
+                work: source.metadata.work.clone(),
+                effect: source.metadata.effect,
+                ownership: source.metadata.ownership.clone(),
+            }
         }
     }
     pub(crate) mod structural_case {
@@ -3269,7 +3282,7 @@ pub(crate) mod scalar_graph {
                             .iter()
                             .position(|row| {
                                 matches!(
-                                    row,
+                                    &row.kind,
                                     target_operations::TargetUnitOperation::CleanupCall { .. }
                                 )
                             })
@@ -3281,17 +3294,27 @@ pub(crate) mod scalar_graph {
                 }
                 let mut instructions = Vec::with_capacity(body.len());
                 for (node, row) in body.iter().zip(rows) {
-                    *current_operation =
-                        scalar_graph_input::instruction(node).map(|(operation, _)| operation);
+                    *current_operation = row.source.as_ref().map(|source| source.operation);
                     instructions.push(instruction::project(
                         node, optimized, native, plan, unit, row,
                     )?);
                 }
                 *current_operation = None;
+                let mut parameters = Vec::with_capacity(targeted.parameters.len());
+                for (position, parameter) in targeted.parameters.iter().enumerate() {
+                    parameters.push(optimization_unit::ValueDefinition {
+                        value: parameter.value,
+                        scalar_type: parameter.scalar_type,
+                        site: optimization_unit::ValueDefinitionSite::BlockParameter {
+                            block: targeted.block,
+                            position: u32::try_from(position).map_err(|_| Error::custody())?,
+                        },
+                    });
+                }
                 Ok(LegalizedScalarBlock {
-                    id: block.id,
-                    parameters: block.parameters.clone(),
-                    structural_parameters: block.structural_parameters.clone(),
+                    id: targeted.block,
+                    parameters,
+                    structural_parameters: targeted.structural_parameters.clone(),
                     instructions,
                     terminator: terminator::project(
                         last,

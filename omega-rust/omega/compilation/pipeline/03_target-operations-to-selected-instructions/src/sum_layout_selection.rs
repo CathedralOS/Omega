@@ -38,6 +38,165 @@ use terminal_psi::{
 const HOST: fn() -> NativeTarget = NativeTarget::linux_x64;
 
 #[test]
+fn retained_instruction_metadata_projects_without_a_node_and_rejects_changed_custody() {
+    let integer = u64_type();
+    let plan = plan(
+        TerminalIdentityTableBuilder::default(),
+        Vec::new(),
+        function_with_body(
+            Vec::new(),
+            vec![entry(
+                1,
+                vec![
+                    AbstractOperation::IntegerConstant {
+                        psi_operation: op(1),
+                        result: val(1),
+                        scalar_type: ScalarType::Integer(integer),
+                        value: IntegerValue::Unsigned(7),
+                    },
+                    AbstractOperation::ReturnUnit {
+                        psi_edge: edge(1),
+                        cleanup_actions: Vec::new(),
+                    },
+                ],
+            )],
+        ),
+    );
+    let target = target_plan(
+        &plan,
+        vec![block(
+            1,
+            vec![TargetUnitOperation::IntegerConstant {
+                psi_operation: op(1),
+                result: val(1),
+                scalar_type: integer,
+                value: IntegerValue::Unsigned(7),
+            }],
+            return_unit(1),
+        )],
+    );
+    let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
+        .unwrap();
+    let node = &unit.functions[0].blocks[0].nodes[0];
+    let instruction = &target.functions[0].graph.blocks[0].operations[0];
+    let source = instruction.source.as_ref().unwrap();
+    let projected = crate::legalization_source::scalar_graph::instruction::with_metadata(
+        source,
+        legalized_operations::LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(7)),
+    );
+    assert_eq!(projected.operation, op(1));
+    assert_eq!(projected.result.as_ref().unwrap().value, val(1));
+    assert_eq!(
+        projected.result.as_ref().unwrap().definition_site,
+        node.definitions[0].site
+    );
+    assert_eq!(projected.work, node.work);
+    assert_eq!(projected.effect, node.effect);
+    assert_eq!(projected.ownership, node.ownership);
+    // Exercise nonempty records independently of this constant's empty custody.
+    // Projection transports annotations; it does not issue the claims they name.
+    let mut carrying = source.clone();
+    carrying
+        .metadata
+        .work
+        .push(optimization_unit::WorkSettlement {
+            site: op(1).into(),
+            units: 9,
+        });
+    carrying.metadata.effect = optimization_unit::EffectLink {
+        input: 3,
+        output: 4,
+    };
+    carrying
+        .metadata
+        .ownership
+        .push(optimization_unit::OwnershipEvent::ClaimTransfer(vec![
+            semantic_vocabulary::ClaimId::new(7).unwrap(),
+        ]));
+    let carried = crate::legalization_source::scalar_graph::instruction::with_metadata(
+        &carrying,
+        projected.kind.clone(),
+    );
+    assert_eq!(carried.work, carrying.metadata.work);
+    assert_eq!(carried.effect, carrying.metadata.effect);
+    assert_eq!(carried.ownership, carrying.metadata.ownership);
+    let audit = |instruction: &target_operations::TargetInstruction| {
+        crate::legalization_target::control_flow::validate_instruction_metadata(instruction, node)
+    };
+    audit(instruction).expect("exact instruction metadata");
+    let geometry = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let native_plan = crate::native_geometry::NativeInput::new(&plan, &geometry);
+    let native_unit = crate::native_geometry::NativeInput::new(&unit, &geometry);
+    let mut missing = instruction.clone();
+    missing.source = None;
+    let failure = crate::legalization_source::scalar_graph::instruction::project(
+        node,
+        &unit.functions[0],
+        &target,
+        &native_plan,
+        &native_unit,
+        &missing,
+    )
+    .expect_err("the old body cannot reconstruct missing target metadata");
+    assert!(matches!(
+        failure,
+        crate::LegalizationError::InstructionMetadata {
+            reason: "ordinary target instruction has no retained source metadata",
+            ..
+        }
+    ));
+    for mutation in 0..10 {
+        let mut changed = instruction.clone();
+        if mutation == 0 {
+            changed.source = None;
+        } else {
+            let source = changed.source.as_mut().unwrap();
+            match mutation {
+                1 => source.operation = op(99),
+                2 => source.result = None,
+                3 => source.result.as_mut().unwrap().value = val(99),
+                4 => source.result.as_mut().unwrap().scalar_type = ScalarType::Boolean,
+                5 => {
+                    source.result.as_mut().unwrap().site =
+                        optimization_unit::ValueDefinitionSite::Node {
+                            block: block_id(2),
+                            node: 0,
+                        }
+                }
+                6 => source
+                    .metadata
+                    .work
+                    .push(optimization_unit::WorkSettlement {
+                        site: op(99).into(),
+                        units: 1,
+                    }),
+                7 => source.metadata.effect.input = source.metadata.effect.input.saturating_add(1),
+                8 => {
+                    source.metadata.effect.output = source.metadata.effect.output.saturating_add(1)
+                }
+                _ => source.metadata.ownership.push(
+                    optimization_unit::OwnershipEvent::ClaimTransfer(vec![
+                        semantic_vocabulary::ClaimId::new(99).unwrap(),
+                    ]),
+                ),
+            }
+        }
+        let reason = match mutation {
+            0 => "instruction lost its source annotations",
+            1 => "instruction operation identity differs",
+            2..=5 => "instruction scalar definition differs",
+            6 => "instruction work charge differs",
+            7..=8 => "instruction effect order differs",
+            _ => "instruction custody events differ",
+        };
+        assert!(
+            matches!(audit(&changed), Err(crate::LegalizationError::InstructionMetadata { reason: actual, .. }) if actual == reason),
+            "forged instruction metadata {mutation}"
+        );
+    }
+}
+
+#[test]
 fn function_storage_contract_projects_without_source_and_audits_every_field() {
     let mut names = TerminalIdentityTableBuilder::default();
     let sum = sum_type(1, names.intern("Stored"), &mut names, &[]);
@@ -297,7 +456,7 @@ fn retained_call_descriptor_origins_do_not_need_old_bodies_but_audit_does() {
                     descriptor_origins, ..
                 },
             ..
-        } = &mut changed.functions[0].graph.blocks[0].operations[0]
+        } = &mut changed.functions[0].graph.blocks[0].operations[0].kind
         else {
             panic!("call result")
         };
@@ -430,7 +589,10 @@ fn retained_scalar_store_geometry_is_checked_against_its_source() {
     };
     target.functions[0].graph.blocks[0]
         .operations
-        .push(row.clone());
+        .push(target_operations::TargetInstruction {
+            source: None,
+            kind: row.clone(),
+        });
     let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
         .unwrap();
     let geometry = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
@@ -569,7 +731,10 @@ fn retained_reference_selectors_project_without_bodies_and_audit_exact_geometry(
     };
     target.functions[0].graph.blocks[0]
         .operations
-        .push(row.clone());
+        .push(target_operations::TargetInstruction {
+            source: None,
+            kind: row.clone(),
+        });
     let fact = optimization_unit::AcceptedObligationFact::new(
         plan.psi,
         [6; 32],
@@ -1057,7 +1222,7 @@ fn validate_stored_geometry(
                 *region_byte_size,
             )?;
         }
-        for operation in &block.operations {
+        for operation in block.operations() {
             if let TargetUnitOperation::StructuralCaseMembership {
                 source,
                 path,
@@ -1115,7 +1280,7 @@ fn select(name: &str, plan: &AbstractOperationPlan, target: TargetOperationPlan)
                     for operation in &mut block.operations {
                         if let TargetUnitOperation::StructuralCaseMembership {
                             pointer_slots, ..
-                        } = operation
+                        } = &mut operation.kind
                         {
                             pointer_slots.push(TargetCasePointerSlot {
                                 byte_offset: 0,
@@ -1334,12 +1499,30 @@ fn function_with_body(
 
 fn target_plan(
     plan: &AbstractOperationPlan,
-    blocks: Vec<TargetControlBlock>,
+    mut blocks: Vec<TargetControlBlock>,
 ) -> TargetOperationPlan {
     let layouts = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
     let function = &plan.functions[0];
     let unit = reconstruct_psi_optimization_unit_seed(plan, WorkScheduleIdentity::new(1).unwrap())
         .unwrap();
+    for block in &mut blocks {
+        let source = unit.functions[0].block(block.block).expect("source block");
+        for (position, instruction) in block.operations.iter_mut().enumerate() {
+            if matches!(&instruction.kind, TargetUnitOperation::CleanupCall { .. }) {
+                continue;
+            }
+            let node = &source.nodes[position];
+            instruction.source = Some(target_operations::TargetInstructionSource {
+                operation: node.operation.psi_operation().expect("source instruction"),
+                result: node.definitions.first().copied(),
+                metadata: target_operations::TargetOperationMetadata {
+                    work: node.work.clone(),
+                    effect: node.effect,
+                    ownership: node.ownership.clone(),
+                },
+            });
+        }
+    }
     let shapes = function
         .structural_parameters
         .iter()
@@ -1447,7 +1630,10 @@ fn block(
         block: block_id(id),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
-        operations,
+        operations: operations
+            .into_iter()
+            .map(|kind| target_operations::TargetInstruction { kind, source: None })
+            .collect(),
         terminator,
     }
 }

@@ -2573,8 +2573,20 @@ impl LiveDefinitions {
     }
 }
 
+// Arrival inference may rebuild a block. Attach owned source annotations only
+// after it settles, rather than cloning them on every visit to the fixed point.
+#[derive(Clone)]
+struct PendingControlBlock {
+    block: semantic_vocabulary::BlockId,
+    parameters: Vec<target_operations::TargetScalarBlockParameter>,
+    structural_parameters: Vec<terminal_psi::StructuralParameterDeclaration>,
+    operations: Vec<target_operations::TargetUnitOperation>,
+    terminator: target_operations::TargetControlTerminator,
+}
+
 pub(crate) fn lower(
     function: &AbstractFunction,
+    optimized: &optimization_unit::PsiOptimizationFunction,
     target: NativeTarget,
     profile: Option<target::TargetProfile>,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
@@ -3054,7 +3066,7 @@ pub(crate) fn lower(
                     provenance,
                 )?
             };
-            lowered[position] = Some(TargetControlBlock {
+            lowered[position] = Some(PendingControlBlock {
                 block: entries[position].block,
                 structural_parameters: entries[position].structural_parameters.clone(),
                 parameters: entries[position]
@@ -3103,10 +3115,29 @@ pub(crate) fn lower(
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
     }
-    let blocks = lowered
-        .into_iter()
-        .collect::<Option<Vec<_>>>()
-        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+    let mut blocks = Vec::with_capacity(lowered.len());
+    for block in lowered {
+        let block =
+            block.ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+        let source = optimized
+            .block(block.block)
+            .ok_or(LoweringError::InstructionMetadata {
+                machine: function.machine,
+                block: block.block,
+                reason: "instruction metadata has no source block",
+            })?;
+        blocks.push(TargetControlBlock {
+            block: block.block,
+            parameters: block.parameters,
+            structural_parameters: block.structural_parameters,
+            operations: super::function_contract::instructions(
+                function.machine,
+                source,
+                block.operations,
+            )?,
+            terminator: block.terminator,
+        });
+    }
     let mut provenance = TerminalPsiProvenance::default();
     for block in block_provenance {
         provenance.operations.extend(block.operations);

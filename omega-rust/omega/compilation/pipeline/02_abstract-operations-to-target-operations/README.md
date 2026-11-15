@@ -31,6 +31,12 @@ parameters, place declarations, entry claims, the service ceiling and the result
 beside each function's target ABI. Selection reads that contract without fetching
 the earlier body. Independent source correspondence remains an Omega 03 audit.
 
+Each ordinary target instruction also owns its input operation identity, scalar
+definition, work charge, effect order and custody events. These annotations join
+the settled target block once, after arrival inference; revisiting a block does
+not repeatedly copy them. Compiler-introduced cleanup calls instead retain their
+explicit cleanup owner and have no second input-operation annotation.
+
 Signature preparation, dominance, operation lowering, terminators, and edge
 bindings have separate owners inside the common graph. Unsupported operations,
 qualification transport, cleanup, or ABI relationships reject at their owning

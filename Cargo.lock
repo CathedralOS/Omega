@@ -2296,6 +2296,7 @@ dependencies = [
  "function-identity",
  "installation-evidence",
  "language-core",
+ "optimization-unit",
  "runtime-abi",
  "semantic-vocabulary",
  "target",

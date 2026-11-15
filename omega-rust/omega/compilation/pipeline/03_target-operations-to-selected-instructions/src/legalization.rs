@@ -11,7 +11,7 @@ pub(crate) mod model {
 
     pub(crate) fn legalization_validator_identity() -> OptimizationValidatorIdentity {
         OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.terminal-target-legalization-independent-replay.v61",
+            b"omega.terminal-target-legalization-independent-replay.v63",
         )
     }
 
@@ -99,6 +99,11 @@ pub(crate) mod model {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum LegalizationError {
+        InstructionMetadata {
+            machine: Option<semantic_vocabulary::MachineId>,
+            operation: Option<semantic_vocabulary::OperationId>,
+            reason: &'static str,
+        },
         InstalledInterruptAssociation {
             operation: Option<semantic_vocabulary::OperationId>,
             reason: &'static str,
@@ -171,6 +176,14 @@ pub(crate) mod model {
     impl std::error::Error for LegalizationError {}
 
     impl LegalizationError {
+        pub(crate) fn instruction_metadata(reason: &'static str) -> Self {
+            Self::InstructionMetadata {
+                machine: None,
+                operation: None,
+                reason,
+            }
+        }
+
         #[track_caller]
         pub fn custody() -> Self {
             Self::SourceCustodyMismatch {
@@ -186,6 +199,15 @@ pub(crate) mod model {
             operation: Option<semantic_vocabulary::OperationId>,
         ) -> Self {
             match self {
+                Self::InstructionMetadata {
+                    machine: None,
+                    operation: reported,
+                    reason,
+                } => Self::InstructionMetadata {
+                    machine: Some(machine),
+                    operation: reported.or(operation),
+                    reason,
+                },
                 Self::SourceCustodyMismatch {
                     machine: None,
                     operation: None,
@@ -737,7 +759,7 @@ pub(crate) fn validate_call_descriptor_origins(
             .graph
             .blocks
             .iter()
-            .flat_map(|block| &block.operations)
+            .flat_map(|block| block.operations())
         {
             if let target_operations::TargetUnitOperation::Call {
                 result:

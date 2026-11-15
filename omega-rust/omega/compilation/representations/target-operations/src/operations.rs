@@ -93,6 +93,31 @@ pub struct TargetInstallationCall {
     pub argument: TargetStructuralArgument,
 }
 
+/// Logical work, effect order and custody events retained through target lowering.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetOperationMetadata {
+    pub work: Vec<optimization_unit::WorkSettlement>,
+    pub effect: optimization_unit::EffectLink,
+    pub ownership: Vec<optimization_unit::OwnershipEvent>,
+}
+
+/// One input operation's identity and execution obligations, without its old body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetInstructionSource {
+    pub operation: OperationId,
+    pub result: Option<optimization_unit::ValueDefinition>,
+    pub metadata: TargetOperationMetadata,
+}
+
+/// A target instruction owns both its operation and the obligations it carries.
+/// Only compiler-introduced cleanup calls have no authored instruction source;
+/// their exact cleanup owner remains in the call itself.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetInstruction {
+    pub source: Option<TargetInstructionSource>,
+    pub kind: TargetUnitOperation,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetUnitOperation {
     InstallStaticInterrupt {
