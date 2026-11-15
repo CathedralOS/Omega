@@ -1,6 +1,8 @@
 # Zero-constructed float locals
 
-This witness covers the remaining float-local refusal in
+Declarations without an initializer create positive zero for `f32` and `f64`,
+including fields in records, when the type permits zero. The compiler previously
+refused these valid programs. This covers the float-local requirement of
 **LOWERED-FORM-CHECKER** in [TASKS.md](../../../../../TASKS.md).
 [Default domains and zero initialization](../../../../../wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization)
 distinguish zero construction from assuming that arbitrary uninitialized
