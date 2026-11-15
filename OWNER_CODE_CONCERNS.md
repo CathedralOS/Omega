@@ -80,13 +80,6 @@ framework or a list of features that remain unimplemented.
 - Cost: The resolution suite cannot show that same-named domain families stay separate across Build and Product or that inactive retained bindings stay out of the Product frontier. Trace domain qualification and selected source custody before changing the tests or their oracles.
 - Reported: 2026-11-14, Codex, while attributing resolver test failures during the implicit-entry repair
 
-### The target-body reachability policy has no compiler caller
-- Category: zombie machinery
-- Where: [target_bodies.rs](omega-rust/omega/compilation/realization/provider-selection/src/bodies/target_bodies.rs#L14), [typed direct-call inventory](omega-rust/psi/compilation/representations/typed-trees/src/service_declarations.rs#L90)
-- Saw: `DirectTargetBodyAbsences` and `reject_reached_inert_calls` appear only at their definitions and reexports in the workspace. The inventory's direct-call accessors have only crate tests as customers. Current [target supply](omega-rust/omega/compilation/realization/provider-planning/src/target_supply.rs#L639) refuses a demanded target-machine family by name.
-- Cost: The exported graph and inventory tests can look like evidence that current target preparation resolves these requests. Trace the remaining direct-call projections before retiring the unused path while preserving the active refusal.
-- Reported: 2026-11-14, Codex, while tracing the surviving path from provider choice to publication
-
 ### Malformed reference identity reports a different byte from its diagnostic test
 - Category: tests that pin the bug
 - Where: [language-semantics offset test](omega-rust/psi/foundation/language-semantics/src/tests.rs#L544), [package review visitor](omega-rust/omega/packages/review-evidence/src/encoding/encode/membership/visitor.rs#L73)

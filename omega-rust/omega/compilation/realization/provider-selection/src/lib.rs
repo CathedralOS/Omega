@@ -22,9 +22,8 @@ pub use binding::{
 };
 
 pub use bodies::{
-    CallbackProviderDeclarations, CheckedBodyCandidate, DirectTargetBodyAbsences,
-    SelectedCallbackRow, reject_reached_inert_calls, select_callback_declarations,
-    select_checked_body, selected_external_execution,
+    CallbackProviderDeclarations, CheckedBodyCandidate, SelectedCallbackRow,
+    select_callback_declarations, select_checked_body, selected_external_execution,
 };
 
 pub use boundary::{
