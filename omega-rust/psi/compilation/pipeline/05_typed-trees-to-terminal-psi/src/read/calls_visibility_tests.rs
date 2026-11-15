@@ -344,9 +344,21 @@ fn a_build_boundary_publishes_its_own_complete_service_contract() {
             owner,
         )
     };
+    let refused = project(DependencyScope::Product)
+        .err()
+        .expect("the Product catalog must not claim a Build source instance");
+    assert!(refused.message.contains("Raw"), "{}", refused.message);
     assert!(
-        project(DependencyScope::Product).is_none(),
-        "the Product catalog must not claim a Build source instance"
+        refused
+            .message
+            .contains("outside the Product dependency scope")
+    );
+    assert_eq!(
+        refused.source_span,
+        fixture
+            .typed
+            .symbols
+            .symbol_provenance_source_span(fixture.owner)
     );
     let expected = project(DependencyScope::Build)
         .expect("the Build declaration has a complete schema")

@@ -73,6 +73,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### A saved console program cannot reopen its calling signature
+- Category: knowledge crossing a boundary
+- Where: [console fixture](tests/fixtures/run/providers/default_console_provider_reached/main.omg#L10), [calling signature validation](omega-rust/psi/compilation/representations/terminal-psi/codec/src/foundation_validation.rs#L1528)
+- Saw: On macOS arm64, the console fixture prints `K` and exits 0 in native and Psi with the sum-constant candidate based on `b69c1d4b661`, the service-diagnostics candidate based on `e3225ca05fa`, and the fence candidate based on `0c1f2e23aec`. In all three builds, opening the same run's saved `program.oterm` with `omega psi inspect --artifact` exits 1 with “calling signature substitutes a structural carrier or access.” The native process-ID fixture executes and its saved artifact reopens with the first two binaries.
+- Cost: The running console program's accepted storage can differ from the calling signature saved to Psi. Find the exact boundary parameter and retain its carrier and access through publication. Keep the independent decoder's mismatch check.
+- Reported: 2026-11-15, Codex, while checking that service diagnostics preserve valid Console and native bindings.
+
 ### A fixed-layout record constant loses its target selection
 - Category: knowledge crossing a boundary
 - Where: [constant initializer](samples/cli/facts/fixed_layout_storage/const_name/main.omg#L28), [constant evaluation request](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/constant_jobs.rs#L662), [interpreter layout admission](omega-rust/psi/interpreter/src/embedding.rs#L2398)
@@ -191,13 +198,6 @@ framework or a list of unimplemented features.
 - Saw: The build hashes every `.rs`, `.toml` and `.omg` under `omega-rust`, including integration tests. Changing only a control in `compiler/tests/executed_fixture_discovery.rs` rebuilt `compiler`, `package-manager` and `orchestration` in 18.21 seconds before the filtered test ran. Shipped code had not changed.
 - Cost: Test edits also change the compiler-version key for accepted packages, forcing compilation and review as the test tree grows. Derive the key from production inputs and configuration. Still invalidate uncommitted implementation changes; ignoring required source or using only Git HEAD would miss changes.
 - Reported: 2026-11-14, Codex, while checking actual project publication of native calling metadata
-
-### The service-contract reader hides why it refused a declaration
-- Category: verifying costs more than writing
-- Where: [full service projection](omega-rust/psi/compilation/representations/typed-trees/src/service_declarations.rs#L555), [boundary publication](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/declare.rs#L623)
-- Saw: At `9101613dfcd`, both `native_boundary_supply` and `default_console_provider_reached` stop during source discovery with `boundary declaration has no complete service contract`. The reader returns `None` for a wrong source scope, an unavailable receiver application, or a method it cannot read. This repair fixes the Build-scope lookup; the API still drops the cause and declaring requirement.
-- Cost: Each later failure looks like an unsupported language construct, even when the compiler used the wrong context. Return the reason and declaring requirement from the shared reader so callers can explain the refusal.
-- Reported: 2026-11-14, Codex, while carrying Build native bindings through console execution
 
 ### Instruction selection reconstructs target operands from earlier executable bodies
 - Category: re-deriving
