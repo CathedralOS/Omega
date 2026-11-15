@@ -1401,10 +1401,15 @@ impl Storage<'_> {
                 self.references
                     .borrow_mut()
                     .flow(self.machine)
-                    .ok_or_else(|| {
+                    .map_err(|error| {
                         self.unsupported(
-                            Construct::Machine,
-                            "persistent loans have no complete descriptor flow",
+                            error
+                                .operation(module)
+                                .map(Construct::Operation)
+                                .unwrap_or(Construct::Machine),
+                            error
+                                .detail()
+                                .unwrap_or("persistent loans have no complete descriptor flow"),
                         )
                     })?,
             )

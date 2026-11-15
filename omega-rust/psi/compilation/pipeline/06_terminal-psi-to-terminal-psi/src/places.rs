@@ -728,7 +728,7 @@ impl<'a> Storage<'a> {
             .ok_or_else(|| {
                 self.unsupported(
                     concerns,
-                    "reference use without exact live backing correspondence",
+                    terminal_semantics::descriptor_results::INEXACT_REFERENCE_BACKING,
                 )
             })?;
         let resolved = Lineage {
