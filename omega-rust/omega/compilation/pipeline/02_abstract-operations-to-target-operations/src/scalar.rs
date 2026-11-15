@@ -1711,13 +1711,15 @@ pub(crate) mod element_views {
                 if !observes_measured_length(values, lengths, *length, source, false) {
                     return Err(invalid());
                 }
-                let element_byte_offset = element_leaf_offset(
+                let (element_byte_offset, selectors) = element_leaf_projection(
                     structural_types,
                     view_structural_type,
                     path,
                     result.scalar_type,
                 )
                 .ok_or_else(invalid)?;
+                let indices =
+                    element_leaf_indices(function, structural_types, &backings, selectors)?;
                 let Some(KnownScalar::Integer {
                     scalar_type: index_type,
                     value: index_value,
@@ -1740,6 +1742,7 @@ pub(crate) mod element_views {
                             length: *length,
                             obligation: *obligation,
                             path: path.clone(),
+                            indices: indices.clone(),
                             element_byte_offset,
                         }),
                     },
@@ -1753,6 +1756,7 @@ pub(crate) mod element_views {
                             length: *length,
                             obligation: *obligation,
                             path: path.clone(),
+                            indices,
                             element_byte_offset,
                         },
                     ),
@@ -1804,9 +1808,10 @@ pub(crate) mod element_views {
         if !observes_measured_length(values, lengths, *length, *source, false) {
             return Err(invalid());
         }
-        let element_byte_offset =
-            element_leaf_offset(structural_types, view_type, path, result.scalar_type)
+        let (element_byte_offset, selectors) =
+            element_leaf_projection(structural_types, view_type, path, result.scalar_type)
                 .ok_or_else(invalid)?;
+        let indices = element_leaf_indices(function, structural_types, &backings, selectors)?;
         let Some(KnownScalar::Integer { scalar_type, value }) = values.get(index) else {
             return Err(invalid());
         };
@@ -1824,17 +1829,20 @@ pub(crate) mod element_views {
                 length: *length,
                 obligation: *obligation,
                 path: path.clone(),
+                indices,
                 element_byte_offset,
             },
         )
     }
 
-    fn element_leaf_offset(
+    /// Static byte offset of a scalar leaf inside a view element, and the
+    /// runtime selectors its path crosses inside that element.
+    fn element_leaf_projection(
         structural_types: &StructuralTypeLookup<'_>,
         view_structural_type: StructuralTypeId,
         path: &[StructuralPathSegment],
         scalar: ScalarType,
-    ) -> Option<u32> {
+    ) -> Option<(u32, Vec<crate::structural_layout::RuntimeIndex>)> {
         let StructuralTypeDeclaration {
             shape: StructuralTypeShape::ElementView { element, .. },
             ..
@@ -1842,7 +1850,22 @@ pub(crate) mod element_views {
         else {
             return None;
         };
-        scalar_leaf_offset(structural_types, *element, path, scalar)
+        scalar_leaf_projection(structural_types, *element, path, scalar)
+    }
+
+    /// Lowers the selectors of an element read's leaf path to target operands.
+    fn element_leaf_indices(
+        function: &AbstractFunction,
+        structural_types: &StructuralTypeLookup<'_>,
+        backings: &ElementViewBackings<'_>,
+        selectors: Vec<crate::structural_layout::RuntimeIndex>,
+    ) -> Result<Vec<target_operations::TargetStructuralRuntimeIndex>, LoweringError> {
+        crate::control_flow::scalar_sources::runtime_indices(
+            selectors,
+            function,
+            &backings.selectors,
+            structural_types,
+        )
     }
 
     fn scalar_leaf_offset(
@@ -1851,6 +1874,15 @@ pub(crate) mod element_views {
         path: &[StructuralPathSegment],
         scalar: ScalarType,
     ) -> Option<u32> {
+        scalar_leaf_projection(structural_types, element, path, scalar).map(|(offset, _)| offset)
+    }
+
+    fn scalar_leaf_projection(
+        structural_types: &StructuralTypeLookup<'_>,
+        element: StructuralTypeId,
+        path: &[StructuralPathSegment],
+        scalar: ScalarType,
+    ) -> Option<(u32, Vec<crate::structural_layout::RuntimeIndex>)> {
         if terminal_semantics::element_view_leaf_scalar(
             structural_types.catalog().as_slice(),
             element,
@@ -1860,15 +1892,15 @@ pub(crate) mod element_views {
             return None;
         }
         if path.is_empty() {
-            return Some(0);
+            return Some((0, Vec::new()));
         }
         if let Some((StructuralPathSegment::Field(identity), prefix)) = path.split_last() {
-            let (parent, parent_offset) = if prefix.is_empty() {
-                (element, 0)
+            let (parent, parent_offset, selectors) = if prefix.is_empty() {
+                (element, 0, Vec::new())
             } else {
-                let (parent, _, offset, _) =
+                let (parent, _, offset, selectors) =
                     runtime_projection(element, prefix, structural_types).ok()?;
-                (parent, offset)
+                (parent, offset, selectors)
             };
             let StructuralTypeShape::Record { fields, .. } = &structural_types.get(parent)?.shape
             else {
@@ -1876,16 +1908,18 @@ pub(crate) mod element_views {
             };
             let field = terminal_psi::field_by_identity(fields, *identity)?;
             if field.field_type.scalar_type() == Some(scalar) {
-                return parent_offset.checked_add(
-                    direct_scalar_field_geometry(parent, field.id, scalar, structural_types)
-                        .ok()?
-                        .0,
-                );
+                return parent_offset
+                    .checked_add(
+                        direct_scalar_field_geometry(parent, field.id, scalar, structural_types)
+                            .ok()?
+                            .0,
+                    )
+                    .map(|offset| (offset, selectors));
             }
         }
         runtime_projection(element, path, structural_types)
             .ok()
-            .map(|(_, _, offset, _)| offset)
+            .map(|(_, _, offset, selectors)| (offset, selectors))
     }
 
     pub(crate) fn resolve_element_view(

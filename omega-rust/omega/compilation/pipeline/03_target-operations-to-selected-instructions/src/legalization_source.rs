@@ -717,7 +717,7 @@ pub(crate) mod scalar_graph {
             use crate::legalization::accepted_fact;
             use crate::legalization::scalar_graph_input;
             use crate::structural_inputs::structural_reference_input::{
-                element_leaf_projection, primitive_store, storage_address_geometry,
+                primitive_store, storage_address_geometry,
             };
             use abstract_operations::AbstractOperation;
             use legalized_operations::LegalizedScalarInstructionKind;
@@ -953,22 +953,6 @@ pub(crate) mod scalar_graph {
                         indices,
                     )?,
                 })
-            }
-
-            fn view_indices(
-                optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &crate::native_geometry::NativeUnit<'_>,
-                psi_operation: semantic_vocabulary::OperationId,
-                view: &terminal_psi::StructuralArgument,
-            ) -> Result<Vec<legalized_operations::LegalizedRuntimeIndexOperand>, LegalizationError>
-            {
-                o!(optimized => unit => psi_operation => &scalar_graph_input::element_views::descriptor_geometry(
-                        optimized,
-                        view,
-                        unit.geometry(),
-                    )
-                    .ok_or(LegalizationError::custody())?
-                    .elements)
             }
 
             pub(crate) fn project_subslice(
@@ -1255,127 +1239,242 @@ pub(crate) mod scalar_graph {
                 )
             }
 
+            /// An indexed byte write keeps its destination, index and value
+            /// sources, measured length and proof key on the target row.
             pub(crate) fn project_byte_sequence_write(
-                node: &optimization_unit::OptimizationNode,
-                optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &crate::native_geometry::NativeUnit<'_>,
+                machine: semantic_vocabulary::MachineId,
+                facts: &[optimization_unit::AcceptedObligationFact],
+                targeted: &target_operations::TargetUnitOperation,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-                let AbstractOperation::ByteSequenceWrite {
+                let target_operations::TargetUnitOperation::ByteSequenceWrite {
                     psi_operation,
                     destination,
                     index,
                     value,
-                    length,
-                    obligation,
-                } = &node.operation
-                else {
-                    unreachable!("dispatched project_byte_sequence_write")
-                };
-                Ok(LegalizedScalarInstructionKind::ByteSequenceWrite {
-                    destination: *destination,
-                    index: *index,
-                    value: *value,
-                    length: *length,
-                    obligation: *obligation,
-                    accepted_fact: accepted_fact(unit, optimized, *psi_operation, *obligation)?,
-                })
-            }
-
-            pub(crate) fn project_byte_sequence_read(
-                node: &optimization_unit::OptimizationNode,
-                optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &crate::native_geometry::NativeUnit<'_>,
-            ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-                let AbstractOperation::ByteSequenceRead {
-                    psi_operation,
-                    source,
-                    index,
                     length,
                     obligation,
                     ..
-                } = &node.operation
+                } = targeted
                 else {
-                    unreachable!("dispatched project_byte_sequence_read")
+                    return Err(Error::custody());
                 };
-                Ok(LegalizedScalarInstructionKind::ByteSequenceRead {
-                    source: *source,
-                    index: *index,
+                Ok(LegalizedScalarInstructionKind::ByteSequenceWrite {
+                    destination: *destination,
+                    index: index.source_value(),
+                    value: value.source_value(),
                     length: *length,
                     obligation: *obligation,
-                    accepted_fact: accepted_fact(unit, optimized, *psi_operation, *obligation)?,
+                    accepted_fact: crate::legalization::obligations::retained_fact(
+                        facts,
+                        machine,
+                        *psi_operation,
+                        *obligation,
+                    )?,
                 })
             }
 
+            /// An indexed element write also keeps the selectors that reach
+            /// the view descriptor through its destination path.
             pub(crate) fn project_element_view_write(
-                node: &optimization_unit::OptimizationNode,
-                optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &crate::native_geometry::NativeUnit<'_>,
+                machine: semantic_vocabulary::MachineId,
+                facts: &[optimization_unit::AcceptedObligationFact],
+                targeted: &target_operations::TargetUnitOperation,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-                let AbstractOperation::ElementViewWrite {
+                let target_operations::TargetUnitOperation::ElementViewWrite {
                     path,
                     psi_operation,
                     destination,
+                    indices,
                     index,
                     value,
                     length,
                     obligation,
-                } = &node.operation
+                } = targeted
                 else {
-                    unreachable!("dispatched project_element_view_write")
+                    return Err(Error::custody());
                 };
                 Ok(LegalizedScalarInstructionKind::ElementViewWrite {
                     path: path.clone(),
                     destination: destination.clone(),
-                    indices: view_indices(optimized, unit, *psi_operation, destination)?,
-                    index: *index,
-                    value: *value,
+                    indices: crate::legalization::runtime_indices::retained_operands(
+                        facts,
+                        machine,
+                        *psi_operation,
+                        indices,
+                    )?,
+                    index: index.source_value(),
+                    value: value.source_value(),
                     length: *length,
                     obligation: *obligation,
-                    accepted_fact: accepted_fact(unit, optimized, *psi_operation, *obligation)?,
+                    accepted_fact: crate::legalization::obligations::retained_fact(
+                        facts,
+                        machine,
+                        *psi_operation,
+                        *obligation,
+                    )?,
                 })
             }
 
-            pub(crate) fn project_element_view_read(
-                node: &optimization_unit::OptimizationNode,
-                optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &crate::native_geometry::NativeUnit<'_>,
-            ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-                let AbstractOperation::ElementViewRead {
-                    psi_operation,
-                    source,
-                    index,
-                    length,
-                    obligation,
-                    path,
-                    result,
-                    ..
-                } = &node.operation
-                else {
-                    unreachable!("dispatched project_element_view_read")
+            /// Byte reads, element reads and element-view lengths are scalar
+            /// definitions whose top expression names the observation. The row
+            /// carries every operand selection needs; `None` means the row's
+            /// expression is some other definition.
+            pub(crate) fn project_view_observation(
+                machine: semantic_vocabulary::MachineId,
+                facts: &[optimization_unit::AcceptedObligationFact],
+                operation: semantic_vocabulary::OperationId,
+                targeted: &target_operations::TargetUnitOperation,
+            ) -> Option<Result<LegalizedScalarInstructionKind, LegalizationError>> {
+                use target_operations::{
+                    TargetBooleanExpression as Boolean, TargetIntegerExpression as Integer,
+                    TargetScalarExpression as Scalar,
                 };
-                Ok(LegalizedScalarInstructionKind::ElementViewRead {
-                    source: *source,
-                    index: *index,
-                    length: *length,
-                    obligation: *obligation,
-                    accepted_fact: accepted_fact(unit, optimized, *psi_operation, *obligation)?,
-                    path: path.clone(),
-                    indices: {
-                        let element = scalar_graph_input::byte_views::element_type(
-                            optimized,
-                            *source,
-                            unit.geometry(),
-                        )
-                        .ok_or(Error::custody())?;
-                        let (_, _, elements) = element_leaf_projection(
-                            element,
-                            path,
-                            result.scalar_type,
-                            unit.geometry(),
-                        )
-                        .ok_or(Error::custody())?;
-                        o!(optimized => unit => *psi_operation => &elements)?
-                    },
+                let target_operations::TargetUnitOperation::ScalarDefinition {
+                    result_home,
+                    expression,
+                } = targeted
+                else {
+                    return None;
+                };
+                let read =
+                    |psi_operation: &semantic_vocabulary::OperationId,
+                     source_value: &semantic_vocabulary::ValueId,
+                     index: &Integer,
+                     obligation: &semantic_vocabulary::ObligationId| {
+                        if *psi_operation != operation
+                            || result_home.defining_operation != operation
+                            || result_home.source_value != *source_value
+                        {
+                            return Err(Error::custody());
+                        }
+                        let index = index.operand_value().ok_or_else(Error::custody)?;
+                        let fact = crate::legalization::obligations::retained_fact(
+                            facts,
+                            machine,
+                            operation,
+                            *obligation,
+                        )?;
+                        Ok((index, fact))
+                    };
+                let element_read = |psi_operation,
+                                    source_value,
+                                    source: &semantic_vocabulary::PlaceId,
+                                    index,
+                                    length: &semantic_vocabulary::ValueId,
+                                    obligation,
+                                    path: &Vec<terminal_psi::StructuralPathSegment>,
+                                    indices: &[target_operations::TargetStructuralRuntimeIndex]| {
+                    let (index, accepted_fact) = read(psi_operation, source_value, index, obligation)?;
+                    Ok(LegalizedScalarInstructionKind::ElementViewRead {
+                        source: *source,
+                        index,
+                        length: *length,
+                        obligation: *obligation,
+                        accepted_fact,
+                        path: path.clone(),
+                        indices: crate::legalization::runtime_indices::retained_operands(
+                            facts, machine, operation, indices,
+                        )?,
+                    })
+                };
+                Some(match expression {
+                    Scalar::Integer {
+                        expression:
+                            Integer::ByteSequenceRead {
+                                psi_operation,
+                                source_value,
+                                source,
+                                index,
+                                length,
+                                obligation,
+                                ..
+                            },
+                        ..
+                    } => read(psi_operation, source_value, index, obligation).map(
+                        |(index, accepted_fact)| LegalizedScalarInstructionKind::ByteSequenceRead {
+                            source: *source,
+                            index,
+                            length: *length,
+                            obligation: *obligation,
+                            accepted_fact,
+                        },
+                    ),
+                    Scalar::Integer {
+                        expression:
+                            Integer::ElementViewRead {
+                                psi_operation,
+                                source_value,
+                                source,
+                                index,
+                                length,
+                                obligation,
+                                path,
+                                indices,
+                                ..
+                            },
+                        ..
+                    }
+                    | Scalar::Boolean(Boolean::ElementViewRead {
+                        psi_operation,
+                        source_value,
+                        source,
+                        index,
+                        length,
+                        obligation,
+                        path,
+                        indices,
+                        ..
+                    })
+                    | Scalar::IeeeFloatElementViewRead {
+                        psi_operation,
+                        source_value,
+                        source,
+                        index,
+                        length,
+                        obligation,
+                        path,
+                        indices,
+                        ..
+                    } => element_read(
+                        psi_operation,
+                        source_value,
+                        source,
+                        index,
+                        length,
+                        obligation,
+                        path,
+                        indices,
+                    ),
+                    Scalar::Integer {
+                        expression:
+                            Integer::ElementViewLength {
+                                psi_operation,
+                                source_value,
+                                source,
+                                indices,
+                                length_byte_offset,
+                            },
+                        ..
+                    } => {
+                        if *psi_operation != operation
+                            || result_home.defining_operation != operation
+                            || result_home.source_value != *source_value
+                        {
+                            Err(Error::custody())
+                        } else {
+                            crate::legalization::runtime_indices::retained_operands(
+                                facts, machine, operation, indices,
+                            )
+                            .map(|indices| {
+                                LegalizedScalarInstructionKind::ElementViewLength {
+                                    source: source.clone(),
+                                    indices,
+                                    length_byte_offset: *length_byte_offset,
+                                }
+                            })
+                        }
+                    }
+                    _ => return None,
                 })
             }
 
@@ -1781,6 +1880,31 @@ pub(crate) mod scalar_graph {
                     &unit.accepted_obligation_facts,
                     targeted,
                 )?
+            } else if matches!(
+                targeted,
+                target_operations::TargetUnitOperation::ByteSequenceWrite { .. }
+            ) {
+                storage_instructions::project_byte_sequence_write(
+                    optimized.machine,
+                    &unit.accepted_obligation_facts,
+                    targeted,
+                )?
+            } else if matches!(
+                targeted,
+                target_operations::TargetUnitOperation::ElementViewWrite { .. }
+            ) {
+                storage_instructions::project_element_view_write(
+                    optimized.machine,
+                    &unit.accepted_obligation_facts,
+                    targeted,
+                )?
+            } else if let Some(kind) = storage_instructions::project_view_observation(
+                optimized.machine,
+                &unit.accepted_obligation_facts,
+                operation,
+                targeted,
+            ) {
+                kind?
             } else if matches!(
                 targeted,
                 target_operations::TargetUnitOperation::StructuralLeafCopy { .. }
@@ -2540,12 +2664,6 @@ pub(crate) mod scalar_graph {
                             source: *source,
                         }
                     }
-                    AbstractOperation::ByteSequenceWrite { .. } => {
-                        storage_instructions::project_byte_sequence_write(node, optimized, unit)?
-                    }
-                    AbstractOperation::ByteSequenceRead { .. } => {
-                        storage_instructions::project_byte_sequence_read(node, optimized, unit)?
-                    }
                     AbstractOperation::ByteSequencePredicate {
                         operand, predicate, ..
                     } => LegalizedScalarInstructionKind::ByteSequencePredicate {
@@ -2595,33 +2713,6 @@ pub(crate) mod scalar_graph {
                                 },
                             }
                         }
-                    }
-                    AbstractOperation::ElementViewLength { source, .. } => {
-                        let geometry =
-                            crate::legalization::scalar_graph_input::element_views::length_geometry(
-                                optimized,
-                                source,
-                                unit.geometry(),
-                            )
-                            .ok_or(LegalizationError::custody())?;
-                        LegalizedScalarInstructionKind::ElementViewLength {
-                            source: source.clone(),
-                            indices: crate::legalization::runtime_indices::operands(
-                                optimized,
-                                unit,
-                                node.operation
-                                    .psi_operation()
-                                    .ok_or(LegalizationError::custody())?,
-                                &geometry.elements,
-                            )?,
-                            length_byte_offset: 8,
-                        }
-                    }
-                    AbstractOperation::ElementViewRead { .. } => {
-                        storage_instructions::project_element_view_read(node, optimized, unit)?
-                    }
-                    AbstractOperation::ElementViewWrite { .. } => {
-                        storage_instructions::project_element_view_write(node, optimized, unit)?
                     }
                     AbstractOperation::BooleanNot { operand, .. } => {
                         LegalizedScalarInstructionKind::BooleanNot { operand: *operand }

@@ -389,6 +389,9 @@ pub enum TargetScalarExpression {
         length: semantic_vocabulary::ValueId,
         obligation: semantic_vocabulary::ObligationId,
         path: Vec<terminal_psi::StructuralPathSegment>,
+        /// Selectors inside the element along `path`, with stride, extent and
+        /// proof key; `element_byte_offset` covers only the static part.
+        indices: Vec<crate::TargetStructuralRuntimeIndex>,
         element_byte_offset: u32,
     },
     Boolean(TargetBooleanExpression),
@@ -431,6 +434,9 @@ pub enum TargetBooleanExpression {
         length: ValueId,
         obligation: semantic_vocabulary::ObligationId,
         path: Vec<terminal_psi::StructuralPathSegment>,
+        /// Selectors inside the element along `path`, with stride, extent and
+        /// proof key; `element_byte_offset` covers only the static part.
+        indices: Vec<crate::TargetStructuralRuntimeIndex>,
         element_byte_offset: u32,
     },
     StructuralField {
@@ -514,6 +520,9 @@ pub enum TargetIntegerExpression {
         length: ValueId,
         obligation: semantic_vocabulary::ObligationId,
         path: Vec<terminal_psi::StructuralPathSegment>,
+        /// Selectors inside the element along `path`, with stride, extent and
+        /// proof key; `element_byte_offset` covers only the static part.
+        indices: Vec<crate::TargetStructuralRuntimeIndex>,
         element_byte_offset: u32,
     },
     ElementViewLength {

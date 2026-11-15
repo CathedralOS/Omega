@@ -1106,6 +1106,453 @@ fn retained_storage_copies_stores_and_tag_tests_project_without_bodies() {
 }
 
 #[test]
+fn retained_element_read_leaf_selectors_are_checked_against_their_source() {
+    use target_operations::{
+        TargetElementView, TargetIntegerExpression, TargetScalarExpression,
+        TargetStructuralRuntimeIndex,
+    };
+    // An element read selects `view[i].cells[j]`. Selection takes the `j`
+    // selector from the target row, so the audit must refuse a changed one.
+    let mut names = TerminalIdentityTableBuilder::default();
+    let cells_name = names.intern("cells");
+    let mut word = reference_type(1, names.intern("Word"), ty(1));
+    word.shape = StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(u64_type()));
+    let mut cells = word.clone();
+    cells.id = ty(2);
+    cells.identity = names.intern("Cells");
+    cells.shape = StructuralTypeShape::FixedArray {
+        element: ty(1),
+        length: terminal_psi::ArrayExtent::Literal(4),
+    };
+    let mut item = word.clone();
+    item.id = ty(3);
+    item.identity = names.intern("Item");
+    let mut field = scalar_field(1, cells_name, u64_type());
+    field.field_type = StructuralFieldType::Structural(ty(2));
+    item.shape = StructuralTypeShape::Record {
+        storage: StructuralRecordStorage::Packed,
+        fields: vec![field],
+    };
+    let mut items = word.clone();
+    items.id = ty(4);
+    items.identity = names.intern("Items");
+    items.shape = StructuralTypeShape::ElementView {
+        element: ty(3),
+        access: Some(StructuralAccess::SharedBorrow),
+    };
+    let element_obligation = semantic_vocabulary::ObligationId::new(1).unwrap();
+    let leaf_obligation = semantic_vocabulary::ObligationId::new(2).unwrap();
+    let path = vec![
+        StructuralPathSegment::Field(cells_name),
+        StructuralPathSegment::RuntimeIndex {
+            index: val(2),
+            obligation: leaf_obligation,
+        },
+    ];
+    let constant = |id, value: u128| AbstractOperation::IntegerConstant {
+        psi_operation: op(id),
+        result: val(id),
+        scalar_type: ScalarType::Integer(u64_type()),
+        value: IntegerValue::Unsigned(value),
+    };
+    let read = AbstractOperation::ElementViewRead {
+        psi_operation: op(4),
+        result: AbstractResult {
+            value: val(4),
+            scalar_type: ScalarType::Integer(u64_type()),
+        },
+        source: place(1),
+        index: val(1),
+        length: val(3),
+        obligation: element_obligation,
+        path: path.clone(),
+    };
+    let function = function_with_body(
+        vec![parameter(ty(4))],
+        vec![entry(
+            1,
+            vec![
+                constant(1, 0),
+                constant(2, 1),
+                AbstractOperation::ElementViewLength {
+                    psi_operation: op(3),
+                    result: AbstractResult {
+                        value: val(3),
+                        scalar_type: ScalarType::Integer(u64_type()),
+                    },
+                    source: terminal_psi::StructuralArgument {
+                        place: place(1),
+                        access: StructuralAccess::SharedBorrow,
+                        path: Vec::new(),
+                    },
+                },
+                read.clone(),
+                AbstractOperation::ReturnUnit {
+                    psi_edge: edge(1),
+                    cleanup_actions: Vec::new(),
+                },
+            ],
+        )],
+    );
+    let plan = plan(names, vec![word, cells, item, items], function);
+    let target = target_plan(&plan, vec![block(1, Vec::new(), return_unit(1))]);
+    let immediate = |id, value: u128| TargetUnitScalarArgumentSource::IntegerImmediate {
+        defining_operation: op(id),
+        source_value: val(id),
+        scalar_type: u64_type(),
+        value: IntegerValue::Unsigned(value),
+    };
+    let row = TargetUnitOperation::ScalarDefinition {
+        result_home: target_operations::TargetUnitScalarHomeRequirement {
+            defining_operation: op(4),
+            source_value: val(4),
+            scalar_type: ScalarType::Integer(u64_type()),
+            shape: calling_conventions::ValueShape::integer(8, 8),
+        },
+        expression: TargetScalarExpression::Integer {
+            scalar_type: u64_type(),
+            expression: TargetIntegerExpression::ElementViewRead {
+                psi_operation: op(4),
+                source_value: val(4),
+                source: place(1),
+                view: Box::new(TargetElementView::Parameter {
+                    place: place(1),
+                    placement: target.functions[0].graph.parameters[0].placement.clone(),
+                }),
+                index: Box::new(TargetIntegerExpression::Immediate {
+                    source_value: val(1),
+                    value: IntegerValue::Unsigned(0),
+                }),
+                length: val(3),
+                obligation: element_obligation,
+                path,
+                indices: vec![TargetStructuralRuntimeIndex {
+                    operand: immediate(2, 1),
+                    stride: 8,
+                    extent: Some(4),
+                    obligation: leaf_obligation,
+                }],
+                element_byte_offset: 0,
+            },
+        },
+    };
+    let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
+        .unwrap();
+    let geometry = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let plan_view = crate::native_geometry::NativeInput::new(&plan, &geometry);
+    let unit_view = crate::native_geometry::NativeInput::new(&unit, &geometry);
+    let function_inputs =
+        crate::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
+    let source_inputs = crate::legalization_target::control_flow::sources::SourceInputs::new(
+        &target.functions[0].graph,
+        &unit.functions[0],
+    );
+    let audit = |row: &TargetUnitOperation| {
+        let mut available = source_inputs.available(block_id(1));
+        available.push((val(1), immediate(1, 0)));
+        available.push((val(2), immediate(2, 1)));
+        crate::legalization_target::unit::validate_operation(
+            &target.functions[0],
+            row,
+            &read,
+            &[],
+            &target.functions[0].graph.parameters,
+            &mut available,
+            &Default::default(),
+            &function_inputs,
+            &target,
+            &plan_view,
+            &unit_view,
+        )
+    };
+    audit(&row).expect("retained element read matches its source");
+
+    // Selection builds the same read from the row and the fact list alone.
+    let facts = [element_obligation, leaf_obligation].map(|obligation| {
+        optimization_unit::AcceptedObligationFact::new(
+            plan.psi,
+            [6; 32],
+            machine(),
+            optimization_unit::PsiProvenance::Operation(op(4)),
+            obligation,
+            vec![7],
+        )
+    });
+    let project = |facts: &[optimization_unit::AcceptedObligationFact], row| {
+        crate::legalization_source::scalar_graph::instruction::storage_instructions::project_view_observation(machine(), facts, op(4), row)
+    };
+    let Some(Ok(legalized_operations::LegalizedScalarInstructionKind::ElementViewRead {
+        index,
+        length,
+        accepted_fact,
+        indices,
+        ..
+    })) = project(&facts, &row)
+    else {
+        panic!("element read");
+    };
+    assert_eq!(
+        (index, length, accepted_fact),
+        (val(1), val(3), facts[0].identity)
+    );
+    assert_eq!(
+        (
+            indices[0].operand.value,
+            indices[0].extent,
+            indices[0].accepted_fact
+        ),
+        (val(2), Some(4), facts[1].identity)
+    );
+    assert!(matches!(project(&facts[..1], &row), Some(Err(_))));
+    assert!(matches!(
+        crate::legalization_source::scalar_graph::instruction::storage_instructions::project_view_observation(machine(), &facts, op(9), &row),
+        Some(Err(_))
+    ));
+
+    for mutation in 0..4 {
+        let mut forged = row.clone();
+        let TargetUnitOperation::ScalarDefinition {
+            expression:
+                TargetScalarExpression::Integer {
+                    expression: TargetIntegerExpression::ElementViewRead { indices, .. },
+                    ..
+                },
+            ..
+        } = &mut forged
+        else {
+            panic!("element read");
+        };
+        match mutation {
+            0 => indices[0].extent = Some(5),
+            1 => indices[0].obligation = element_obligation,
+            2 => indices[0].stride = 16,
+            _ => indices.clear(),
+        }
+        assert!(audit(&forged).is_err(), "tampered element read {mutation}");
+    }
+}
+
+#[test]
+fn retained_view_writes_reads_and_lengths_project_without_bodies() {
+    use crate::legalization_source::scalar_graph::instruction::storage_instructions::{
+        project_byte_sequence_write, project_element_view_write, project_view_observation,
+    };
+    use legalized_operations::LegalizedScalarInstructionKind as Kind;
+    use target_operations::{
+        TargetBooleanExpression, TargetByteView, TargetElementView, TargetIntegerExpression,
+        TargetScalarExpression, TargetStructuralRuntimeIndex,
+    };
+    let obligation = semantic_vocabulary::ObligationId::new(1).unwrap();
+    let selector = semantic_vocabulary::ObligationId::new(2).unwrap();
+    let fact = |obligation| {
+        optimization_unit::AcceptedObligationFact::new(
+            psi(),
+            [6; 32],
+            machine(),
+            optimization_unit::PsiProvenance::Operation(op(4)),
+            obligation,
+            vec![7],
+        )
+    };
+    let facts = [fact(obligation), fact(selector)];
+    let operand = |id: u64| TargetUnitScalarArgumentSource::IntegerImmediate {
+        defining_operation: op(id),
+        source_value: val(id),
+        scalar_type: u64_type(),
+        value: IntegerValue::Unsigned(1),
+    };
+    let index = TargetStructuralRuntimeIndex {
+        operand: operand(2),
+        stride: 8,
+        extent: Some(4),
+        obligation: selector,
+    };
+    let argument = terminal_psi::StructuralArgument {
+        place: place(1),
+        access: StructuralAccess::MutableBorrow,
+        path: Vec::new(),
+    };
+    let byte_write = TargetUnitOperation::ByteSequenceWrite {
+        psi_operation: op(4),
+        destination: place(1),
+        view: TargetByteView::Result {
+            psi_operation: op(3),
+            place: place(1),
+            structural_type: ty(1),
+        },
+        index: operand(1),
+        value: operand(5),
+        length: val(3),
+        obligation,
+    };
+    let Ok(Kind::ByteSequenceWrite {
+        index: actual_index,
+        value,
+        accepted_fact,
+        ..
+    }) = project_byte_sequence_write(machine(), &facts, &byte_write)
+    else {
+        panic!("byte write");
+    };
+    assert_eq!(
+        (actual_index, value, accepted_fact),
+        (val(1), val(5), facts[0].identity)
+    );
+    assert!(project_byte_sequence_write(machine(), &facts[1..], &byte_write).is_err());
+
+    let element_write = TargetUnitOperation::ElementViewWrite {
+        path: Vec::new(),
+        psi_operation: op(4),
+        destination: argument.clone(),
+        indices: vec![index.clone()],
+        index: operand(1),
+        value: operand(5),
+        length: val(3),
+        obligation,
+    };
+    let Ok(Kind::ElementViewWrite { indices, value, .. }) =
+        project_element_view_write(machine(), &facts, &element_write)
+    else {
+        panic!("element write");
+    };
+    assert_eq!(
+        (value, indices[0].extent, indices[0].accepted_fact),
+        (val(5), Some(4), facts[1].identity)
+    );
+    assert!(project_element_view_write(machine(), &facts[..1], &element_write).is_err());
+
+    let home = |scalar_type| target_operations::TargetUnitScalarHomeRequirement {
+        defining_operation: op(4),
+        source_value: val(4),
+        scalar_type,
+        shape: calling_conventions::ValueShape::integer(8, 8),
+    };
+    let index_expression = || {
+        Box::new(TargetIntegerExpression::Immediate {
+            source_value: val(1),
+            value: IntegerValue::Unsigned(0),
+        })
+    };
+    let definition = |expression| TargetUnitOperation::ScalarDefinition {
+        result_home: home(ScalarType::Integer(u64_type())),
+        expression,
+    };
+    let byte_read = definition(TargetScalarExpression::Integer {
+        scalar_type: u64_type(),
+        expression: TargetIntegerExpression::ByteSequenceRead {
+            psi_operation: op(4),
+            source_value: val(4),
+            source: place(1),
+            view: Box::new(TargetByteView::Result {
+                psi_operation: op(3),
+                place: place(1),
+                structural_type: ty(1),
+            }),
+            index: index_expression(),
+            length: val(3),
+            obligation,
+        },
+    });
+    assert!(matches!(
+        project_view_observation(machine(), &facts, op(4), &byte_read),
+        Some(Ok(Kind::ByteSequenceRead { index, accepted_fact, .. }))
+            if index == val(1) && accepted_fact == facts[0].identity
+    ));
+    let view = || {
+        Box::new(TargetElementView::Result {
+            psi_operation: op(3),
+            place: place(1),
+            structural_type: ty(1),
+        })
+    };
+    let boolean_read = TargetUnitOperation::ScalarDefinition {
+        result_home: home(ScalarType::Boolean),
+        expression: TargetScalarExpression::Boolean(TargetBooleanExpression::ElementViewRead {
+            psi_operation: op(4),
+            source_value: val(4),
+            source: place(1),
+            view: view(),
+            index: index_expression(),
+            length: val(3),
+            obligation,
+            path: Vec::new(),
+            indices: vec![index.clone()],
+            element_byte_offset: 0,
+        }),
+    };
+    assert!(matches!(
+        project_view_observation(machine(), &facts, op(4), &boolean_read),
+        Some(Ok(Kind::ElementViewRead { indices, .. })) if indices[0].accepted_fact == facts[1].identity
+    ));
+    let float_read = definition(TargetScalarExpression::IeeeFloatElementViewRead {
+        format: semantic_vocabulary::IeeeFloatFormat::Binary64,
+        psi_operation: op(4),
+        source_value: val(4),
+        source: place(1),
+        view: view(),
+        index: index_expression(),
+        length: val(3),
+        obligation,
+        path: Vec::new(),
+        indices: Vec::new(),
+        element_byte_offset: 0,
+    });
+    assert!(matches!(
+        project_view_observation(machine(), &facts, op(4), &float_read),
+        Some(Ok(Kind::ElementViewRead { .. }))
+    ));
+    let length = definition(TargetScalarExpression::Integer {
+        scalar_type: u64_type(),
+        expression: TargetIntegerExpression::ElementViewLength {
+            psi_operation: op(4),
+            source_value: val(4),
+            source: argument,
+            indices: vec![index],
+            length_byte_offset: 8,
+        },
+    });
+    assert!(matches!(
+        project_view_observation(machine(), &facts, op(4), &length),
+        Some(Ok(Kind::ElementViewLength { length_byte_offset: 8, indices, .. }))
+            if indices[0].extent == Some(4)
+    ));
+    // A row from another operation, a recipe in the index position, or an
+    // unrelated scalar definition is not taken as an observation.
+    assert!(matches!(
+        project_view_observation(machine(), &facts, op(9), &length),
+        Some(Err(_))
+    ));
+    let mut recipe = byte_read.clone();
+    let TargetUnitOperation::ScalarDefinition {
+        expression:
+            TargetScalarExpression::Integer {
+                expression: TargetIntegerExpression::ByteSequenceRead { index, .. },
+                ..
+            },
+        ..
+    } = &mut recipe
+    else {
+        panic!("byte read");
+    };
+    **index = TargetIntegerExpression::BitwiseNot {
+        psi_operation: op(3),
+        operand: index_expression(),
+    };
+    assert!(matches!(
+        project_view_observation(machine(), &facts, op(4), &recipe),
+        Some(Err(_))
+    ));
+    let constant = definition(TargetScalarExpression::Integer {
+        scalar_type: u64_type(),
+        expression: TargetIntegerExpression::Immediate {
+            source_value: val(4),
+            value: IntegerValue::Unsigned(3),
+        },
+    });
+    assert!(project_view_observation(machine(), &facts, op(4), &constant).is_none());
+}
+
+#[test]
 fn retained_view_inputs_project_without_bodies_and_keep_independent_custody() {
     use target_operations::{
         TargetByteView, TargetElementView, TargetElementViewRegion, TargetIntegerExpression,

@@ -2649,6 +2649,7 @@ pub(crate) mod expressions {
                 length,
                 obligation,
                 path,
+                indices,
                 element_byte_offset,
             } = expression
             else {
@@ -2669,7 +2670,8 @@ pub(crate) mod expressions {
                         && crate::legalization::scalar_graph_input::byte_views::element_type(self.optimized, *source, self.types)
                             .and_then(|element| crate::structural_inputs::structural_reference_input::element_leaf_projection(
                                 element, path, result.scalar_type, self.types))
-                            .is_some_and(|(offset, _, _)| offset == *element_byte_offset)))
+                            .is_some_and(|(offset, _, elements)| offset == *element_byte_offset
+                                && super::unit::runtime_indices_rejoin(indices, &elements, self.available.unwrap_or(&crate::legalization_target::control_flow::sources::EMPTY)))))
         }
 
         pub(crate) fn expression(
@@ -2705,7 +2707,7 @@ pub(crate) mod expressions {
                             AbstractOperation::ByteSequenceLength { psi_operation: operation, result, source: expected }
                             if operation == psi_operation && result.value == resolved && expected == source))
                 }
-                Expression::ElementViewRead { psi_operation, source_value, source, view, index, length, obligation, path, element_byte_offset } => {
+                Expression::ElementViewRead { psi_operation, source_value, source, view, index, length, obligation, path, indices, element_byte_offset } => {
                     *source_value == resolved
                         && self.element_view(view, *source, aliases)
                         && self.optimized.block_nodes().any(|node| matches!(&node.operation,
@@ -2715,7 +2717,8 @@ pub(crate) mod expressions {
                             && crate::legalization::scalar_graph_input::byte_views::element_type(self.optimized, *source, self.types)
                                 .and_then(|element| crate::structural_inputs::structural_reference_input::element_leaf_projection(
                                     element, path, result.scalar_type, self.types))
-                                .is_some_and(|(offset, _, _)| offset == *element_byte_offset)
+                                .is_some_and(|(offset, _, elements)| offset == *element_byte_offset
+                                && super::unit::runtime_indices_rejoin(indices, &elements, self.available.unwrap_or(&crate::legalization_target::control_flow::sources::EMPTY)))
                             && length == expected_length && obligation == expected_obligation && self.integer_source(index, *expected_index, aliases)))
                 }
                 Expression::ElementViewLength { psi_operation, source_value, source, indices, length_byte_offset } => {
@@ -2835,6 +2838,7 @@ pub(crate) mod expressions {
                 length,
                 obligation,
                 path,
+                indices,
                 element_byte_offset,
             } = expression
             {
@@ -2849,7 +2853,8 @@ pub(crate) mod expressions {
                         && crate::legalization::scalar_graph_input::byte_views::element_type(self.optimized, *source, self.types)
                             .and_then(|element| crate::structural_inputs::structural_reference_input::element_leaf_projection(
                                 element, path, result.scalar_type, self.types))
-                            .is_some_and(|(offset, _, _)| offset == *element_byte_offset)
+                            .is_some_and(|(offset, _, elements)| offset == *element_byte_offset
+                                && super::unit::runtime_indices_rejoin(indices, &elements, self.available.unwrap_or(&crate::legalization_target::control_flow::sources::EMPTY)))
                         && length == expected_length && obligation == expected_obligation && self.integer_source(index, *expected_index, aliases)));
             }
             if let Boolean::BlockParameter(parameter) = expression {
