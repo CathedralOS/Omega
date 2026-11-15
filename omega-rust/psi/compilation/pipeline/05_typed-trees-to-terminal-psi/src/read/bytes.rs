@@ -679,6 +679,7 @@ impl Program<'_> {
                 identity,
                 shape: StorageShape::ByteSequence(carrier),
                 requires: Vec::new(),
+                authored_layout: false,
             });
             self.record_sources.push(RecordSource {
                 declaration: SymbolHandle::invalid(),

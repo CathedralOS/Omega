@@ -263,11 +263,6 @@ impl Program<'_> {
             ExpressionNode::Call(call) if self.is_mathematical_term(expression) => {
                 return self.mathematical_clause(id, scope, call);
             }
-            ExpressionNode::Call(call) => {
-                if let Some(predicate) = self.numeric_comparison_clause(id, scope, call)? {
-                    return Ok(predicate);
-                }
-            }
             ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
                 // A callable predicate is Boolean, including a named input
                 // and its negation. Keep its actual contract input identity;
@@ -277,10 +272,15 @@ impl Program<'_> {
                     conclusion: Box::new(Proposition::Falsehood),
                 });
             }
-            ExpressionNode::Name(_)
+            node @ (ExpressionNode::Name(_)
             | ExpressionNode::Member(_)
             | ExpressionNode::Indexed(_)
-            | ExpressionNode::Call(_) => {
+            | ExpressionNode::Call(_)) => {
+                if let ExpressionNode::Call(call) = node
+                    && let Some(predicate) = self.numeric_comparison_clause(id, scope, call)?
+                {
+                    return Ok(predicate);
+                }
                 let (term, value_type) =
                     self.term(id, scope, expression, Some(ScalarType::Boolean))?;
                 if self.clause_operand_type(id, value_type)? != ScalarType::Boolean {
