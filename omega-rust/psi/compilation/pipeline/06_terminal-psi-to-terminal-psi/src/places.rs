@@ -1943,7 +1943,10 @@ impl<'a> Storage<'a> {
                     return Err(self.foreign(concerns, "a byte read must produce a plain u8"));
                 }
                 (
-                    StructuralArgument::whole(*source, StructuralAccess::SharedBorrow),
+                    StructuralArgument::whole(
+                        *source,
+                        terminal_psi::StructuralAccess::SharedBorrow,
+                    ),
                     *index,
                     *length,
                 )
@@ -1981,7 +1984,10 @@ impl<'a> Storage<'a> {
                     );
                 }
                 (
-                    StructuralArgument::whole(*destination, StructuralAccess::MutableBorrow),
+                    StructuralArgument::whole(
+                        *destination,
+                        terminal_psi::StructuralAccess::MutableBorrow,
+                    ),
                     *index,
                     *length,
                 )
@@ -1993,13 +1999,10 @@ impl<'a> Storage<'a> {
             .locate(ProgramPoint::AfterOperation(operation.id))?;
         let mut expected = self.argument(&source, concerns)?;
         expected.segments.push(Segment::Extent);
-        let measurement = after.checked_sub(2).and_then(|position| {
-            self.lowered
-                .blocks
-                .get(index(block.get()))?
-                .operations
-                .get(position)
-        });
+        let operations = &self.block(block)?.operations;
+        let measurement = after
+            .checked_sub(2)
+            .and_then(|position| operations.get(position));
         let measured = match measurement {
             Some(measurement) => {
                 self.read_leaf(measurement)?.as_ref() == Some(&expected)
