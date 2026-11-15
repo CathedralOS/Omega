@@ -1928,12 +1928,6 @@ fn search_certificate(
 ) -> Checked<CertificateEnvelope> {
     let mut prover = prove::Prover::new(context, assumptions, axioms, values);
     let proof = prover.prove(goal).map_err(|reason| {
-        #[cfg(test)]
-        if std::env::var_os("OMEGA_TRACE_CONTRACT_GOAL").is_some() {
-            eprintln!(
-                "CONTRACT_GOAL_TRACE goal={goal:#?}\nassumptions={assumptions:#?}\naxioms={axioms:#?}\nreason={reason}"
-            );
-        }
         // Classified by the goal's form, not by which search path failed
         // last, so the outcome does not depend on search order: the form as
         // written, and the form of the operations that define the values it

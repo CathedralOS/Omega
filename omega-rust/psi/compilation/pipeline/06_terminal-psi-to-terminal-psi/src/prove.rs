@@ -453,17 +453,17 @@ impl<'a> Prover<'a> {
         } else if let Some(fact) = self.facts.iter().find(|fact| fact.proposition == target) {
             fact.proof.clone()
         } else {
-            // Exact result equations can expose identical open mathematical
-            // terms, such as embed(sum) == embed(a) + embed(b). Reflexivity
-            // proves that equality; the existing transport rule still checks
-            // every cited equation and the exact original goal independently.
+            // Result equations and qualification aliases can expose identical
+            // open expressions. The kernel checks reflexivity without changing
+            // the selected operation, including wrapping or saturating terms;
+            // transport still checks every equation and the original goal.
             // The denotation leaves mathematical arithmetic as written
             // (fact_validity.md: "Open integer relations, mathematical
             // arithmetic, IEEE relations, and storage observations remain
             // unchanged"), so a mathematical comparison whose values are
             // all fixed to literals arrives here closed and not yet
             // decided. The kernel evaluates it.
-            self.reflexive_mathematical(target.clone())
+            self.reflexive(target.clone())
                 .or_else(|| self.closed(target))?
         };
         Some(node(
@@ -535,10 +535,7 @@ impl<'a> Prover<'a> {
         .map(|()| primitive(proposition, PrimitiveJudgment::ClosedIntegerRelation))
     }
 
-    fn reflexive_mathematical(&self, proposition: Proposition) -> Option<ProofNode> {
-        if !matches!(proposition, Proposition::IntegerMathEqual(..)) {
-            return None;
-        }
+    fn reflexive(&self, proposition: Proposition) -> Option<ProofNode> {
         decide_primitive(
             self.context,
             &proposition,
@@ -1047,7 +1044,7 @@ impl<'a> Prover<'a> {
                 self.arithmetic(left, right)
             }
             Proposition::IntegerMathEqual(..) => self
-                .reflexive_mathematical(goal.clone())
+                .reflexive(goal.clone())
                 .or_else(|| self.closed(goal.clone()))
                 .ok_or("non-reflexive mathematical equality over open terms"),
             // Strict mathematical order is evaluated only for closed terms;
