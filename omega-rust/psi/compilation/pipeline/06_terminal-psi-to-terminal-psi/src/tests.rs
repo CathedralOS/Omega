@@ -2059,25 +2059,45 @@ fn a_formal_leaf_reads_as_its_one_entry_content_value() {
             read(place(0, point()), right),
         ))],
     };
+    let entry_content = |tables: &MachineTables, read, field| {
+        let value = read_equals(tables, read).expect("the read's entry content");
+        let ValueOrigin::StorageContent { place, after: None } =
+            tables.values.get(value).unwrap().origin
+        else {
+            panic!("the first read of a field must name its entry value");
+        };
+        assert_eq!(
+            tables.places.get(place).unwrap().origin,
+            PlaceOrigin::Projection {
+                parent: *tables.roots.get(id(1)).unwrap(),
+                segment: Segment::Field(field),
+            }
+        );
+        value
+    };
     let (elaboration, result) = run_places(vec![difference(0, 0)]);
     let tables = elaboration.tables.machines.get(id(1)).unwrap();
     let reads = field_reads(&elaboration);
     let [first, second] = reads.as_slice() else {
         panic!("two reads");
     };
-    let held = read_equals(tables, *first).unwrap();
-    assert_eq!(read_equals(tables, *second), Some(held));
-    assert!(matches!(
-        tables.values.get(held).unwrap().origin,
-        ValueOrigin::StorageContent { .. }
-    ));
+    entry_content(tables, *first, id(1));
+    // The next observation uses the first read's value while the same field
+    // still holds its entry content.
+    assert_eq!(read_equals(tables, *second), Some(first.1));
     let (obligation, verdict) = verdicts(&elaboration, &result, 1, safety)[0];
     assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
 
     let (elaboration, result) = run_places(vec![difference(0, 1)]);
     let tables = elaboration.tables.machines.get(id(1)).unwrap();
     let reads = field_reads(&elaboration);
-    assert_ne!(read_equals(tables, reads[0]), read_equals(tables, reads[1]));
+    let [left, right] = reads.as_slice() else {
+        panic!("two reads");
+    };
+    assert_ne!(
+        entry_content(tables, *left, id(1)),
+        entry_content(tables, *right, id(2))
+    );
     assert_unproved(verdicts(&elaboration, &result, 1, safety)[0].1);
 }
 
