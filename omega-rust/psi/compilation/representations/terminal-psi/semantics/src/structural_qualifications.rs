@@ -1195,14 +1195,14 @@ pub fn caller_matches_machine(
 ) -> Judged<bool> {
     let current = module
         .machine(current)
-        .ok_or_else(|| StructuralQualificationError {
+        .ok_or(StructuralQualificationError {
             machine: Some(current),
             detail: "policy caller is absent from the actual module",
         })?;
     let declaration = current
         .declaration
         .as_ref()
-        .ok_or_else(|| StructuralQualificationError {
+        .ok_or(StructuralQualificationError {
             machine: Some(current.id),
             detail: "policy caller has no checked declaration",
         })?;
