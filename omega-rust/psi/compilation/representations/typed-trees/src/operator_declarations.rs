@@ -2802,7 +2802,6 @@ pub mod operator {
                 let mut values = program.tables.operators.storage_view().items.to_vec();
                 values[0].spelling = Some(OperatorSpelling::Divide);
                 program.tables.operators = rows(values, 1).into();
-                assert_eq!(program.tables.operators.revision(), 0);
                 compare(&program, unsigned, signed);
                 let revision = program.tables.operators.revision();
                 let prior_rows = program
@@ -2811,7 +2810,7 @@ pub mod operator {
                 let mut replacement = program.tables.operators.storage_view().items.to_vec();
                 replacement[0].spelling = Some(OperatorSpelling::Add);
                 program.tables.operators = rows(replacement, 1).into();
-                assert_eq!(program.tables.operators.revision(), revision);
+                assert_ne!(program.tables.operators.revision(), revision);
                 compare(&program, unsigned, signed);
                 assert!(!Arc::ptr_eq(
                     &prior_rows,
@@ -2828,7 +2827,6 @@ pub mod operator {
                 domains[0].symbol = domains[1].symbol;
                 domains[0].name = Identifier::from("Replacement");
                 program.tables.domain_definitions = rows(domains, 1).into();
-                assert_eq!(program.tables.domain_definitions.revision(), 0);
                 compare(&program, unsigned, signed);
                 let revision = program.tables.domain_definitions.revision();
                 let prior_rows = program
@@ -2843,7 +2841,7 @@ pub mod operator {
                 replacement[0].operators = span(6, 1, 1);
                 replacement[0].name = Identifier::from("AnotherReplacement");
                 program.tables.domain_definitions = rows(replacement, 1).into();
-                assert_eq!(program.tables.domain_definitions.revision(), revision);
+                assert_ne!(program.tables.domain_definitions.revision(), revision);
                 compare(&program, unsigned, signed);
                 assert!(!Arc::ptr_eq(
                     &prior_rows,

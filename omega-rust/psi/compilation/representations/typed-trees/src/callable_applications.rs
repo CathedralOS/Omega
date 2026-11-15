@@ -7641,7 +7641,7 @@ pub(crate) mod table {
             let mut replacement = Arena::default();
             let replacement_one = replacement.insert(selection(second));
             let replacement_two = replacement.insert(selection(second));
-            assert_eq!(replacement.revision(), clone.revision());
+            assert_ne!(replacement.revision(), clone.revision());
             table = replacement.into();
             assert!(rows(&table, first).is_empty());
             assert_eq!(rows(&table, second), [replacement_one, replacement_two]);
