@@ -2607,13 +2607,17 @@ pub(crate) mod unit_encoding {
         bytes.bytes(&fact.proof_bundle_fingerprint);
         bytes.id(fact.machine);
         match fact.owner {
-            PsiProvenance::Operation(operation) => {
+            crate::AcceptedObligationOwner::Operation(operation) => {
                 bytes.u8(0);
                 bytes.id(operation);
             }
-            PsiProvenance::Edge(edge) => {
+            crate::AcceptedObligationOwner::Edge(edge) => {
                 bytes.u8(1);
                 bytes.id(edge);
+            }
+            crate::AcceptedObligationOwner::Terminator(block) => {
+                bytes.u8(2);
+                bytes.id(block);
             }
         }
         bytes.id(fact.obligation);
