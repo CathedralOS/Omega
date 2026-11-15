@@ -1684,7 +1684,7 @@ mod tests {
             terminal_check_tables::RefusalReason::Violation(_)
         ));
         assert!(uncovered.detail.contains("does not cover every value"));
-        let record = StructuralTypeId::new(1).unwrap();
+        let record = authority::Opened::constructing(StructuralTypeId::new(1).unwrap());
         let pattern = |guard, head| TableDestructurePattern {
             guard,
             head,
