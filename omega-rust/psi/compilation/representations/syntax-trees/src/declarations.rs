@@ -863,13 +863,6 @@ pub mod item {
             Some(data)
         }
 
-        pub fn as_type_alias(&self) -> Option<&TypeAliasDefinition> {
-            let Item::TypeAlias(alias) = self else {
-                return None;
-            };
-            Some(alias)
-        }
-
         pub fn as_domain(&self) -> Option<&DomainDefinition> {
             let Item::Domain(domain) = self else {
                 return None;
@@ -1260,12 +1253,6 @@ pub mod item {
             self.declaration_storage.data_members.span_or_empty(span)
         }
 
-        pub fn data_members_mut(&mut self, span: HandleSpan<DataMember>) -> &mut [DataMember] {
-            self.declaration_storage
-                .data_members
-                .span_mut_or_empty(span)
-        }
-
         pub fn data_payload_fields(&self, span: HandleSpan<DataField>) -> &[DataField] {
             self.declaration_storage
                 .data_payload_fields
@@ -1445,10 +1432,6 @@ pub mod item {
             debug_assert_eq!(source_span.arena_index(), handle.arena_index());
             debug_assert_eq!(source_span.generation(), handle.generation());
             handle
-        }
-
-        pub fn state_count(&self) -> usize {
-            self.state_storage.states.len()
         }
 
         pub fn machine_count(&self) -> usize {

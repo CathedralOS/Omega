@@ -50,12 +50,6 @@ impl CompileOptions {
                 .unwrap_or_else(|| PathBuf::from("build"))
         })
     }
-
-    pub fn retain_build_dir(&mut self) -> PathBuf {
-        let build_dir = self.build_dir();
-        self.build_dir = Some(build_dir.clone());
-        build_dir
-    }
 }
 
 pub struct CheckedCompileRequest {
@@ -297,30 +291,6 @@ impl CompileRequest {
         self
     }
 
-    pub fn with_bootstrap_assumptions(
-        mut self,
-        inputs: Vec<crate::BootstrapEnvironmentAssumption>,
-    ) -> Self {
-        self.policy.installation_assumptions.extend(
-            inputs
-                .into_iter()
-                .map(crate::InstallationEnvironmentAssumption::Bootstrap),
-        );
-        self
-    }
-
-    pub fn with_interrupt_delivery_assumptions(
-        mut self,
-        inputs: Vec<crate::X86InterruptDeliveryAssumption>,
-    ) -> Self {
-        self.policy.installation_assumptions.extend(
-            inputs
-                .into_iter()
-                .map(crate::InstallationEnvironmentAssumption::InterruptDelivery),
-        );
-        self
-    }
-
     pub fn with_private_entry_ram(mut self, inputs: Vec<PrivateEntryRamInitialization>) -> Self {
         self.policy.private_entry_ram = inputs;
         self
@@ -340,11 +310,6 @@ impl CompileRequest {
         let (source, target) = inputs.into_parts();
         self.shared.package_sources = Some(source);
         self.policy.package_target_inputs = target;
-        self
-    }
-
-    pub fn with_terminal_authority_policy(mut self, policy: TerminalAuthorityPolicy) -> Self {
-        self.policy.terminal_authority_policy = policy;
         self
     }
 

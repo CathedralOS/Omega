@@ -292,48 +292,6 @@ impl VerifiedComponent {
         &self.description.assumptions
     }
 
-    /*
-    The readable meaning a consumer reviews for each roster assumption: the
-    exact identities of the entry, outgoing and custody rows that the
-    verifier accepted as bound by it (for example
-    `port-write:<service>:<port>:<value>`). The digest alone is not a reviewable
-    record, so the acceptance row keeps both.
-    */
-    pub fn assumption_meanings(&self) -> Vec<([u8; 32], Vec<&str>)> {
-        let mut bound: Vec<([u8; 32], &str)> = Vec::new();
-        for entry in &self.description.entries {
-            if let EntryEvidence::AssumptionBound(digest) = entry.evidence {
-                bound.push((digest, entry.identity.as_str()));
-            }
-        }
-        for row in &self.description.outgoing {
-            if let OutgoingEvidence::PhysicalMechanism(digest)
-            | OutgoingEvidence::AssumptionBound(digest) = row.evidence
-            {
-                bound.push((digest, row.identity.as_str()));
-            }
-        }
-        for row in &self.description.custody {
-            if let CustodyEvidence::AssumptionBound(digest) = row.evidence {
-                bound.push((digest, row.identity.as_str()));
-            }
-        }
-        self.description
-            .assumptions
-            .iter()
-            .map(|assumption| {
-                let mut identities: Vec<&str> = bound
-                    .iter()
-                    .filter(|(digest, _)| digest == assumption)
-                    .map(|(_, identity)| *identity)
-                    .collect();
-                identities.sort_unstable();
-                identities.dedup();
-                (*assumption, identities)
-            })
-            .collect()
-    }
-
     pub const fn realization_identity(&self) -> Option<&[u8; 32]> {
         self.description.realization_identity.as_ref()
     }

@@ -95,33 +95,6 @@ impl MaterializedBoundarySignature {
     pub fn direct_callback_parameters(&self) -> &[BoundaryDirectCallbackParameter] {
         &self.direct_callback_parameters
     }
-
-    pub fn opaque_representation_movement(
-        &self,
-        representation: &BoundaryOpaqueRepresentationUse,
-        validated: &ValidatedBoundaryEntryPlan,
-    ) -> Result<BoundaryOpaqueRepresentationMovement, String> {
-        if self
-            .opaque_representations
-            .iter()
-            .filter(|candidate| *candidate == representation)
-            .count()
-            != 1
-        {
-            return Err(
-                "opaque representation use is not one exact materialized-signature occurrence"
-                    .to_owned(),
-            );
-        }
-        BoundaryOpaqueMovementGeometry {
-            shapes: &self.shapes,
-            fields: &self.fields,
-            parameters: &self.parameters,
-            result: self.result,
-            native_parameters: &self.native_parameters,
-        }
-        .movement(representation.shape_root, validated, 0)
-    }
 }
 
 pub(super) struct BoundaryOpaqueMovementGeometry<'geometry> {

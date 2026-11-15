@@ -974,25 +974,6 @@ impl SelectedProviderPlanFacts {
         Ok(resolved)
     }
 
-    pub fn resolve_installation_reach_for_plan(
-        &self,
-        concrete_reach: &[String],
-        requirement_identities: &[String],
-        provider_plan_report_identity: u64,
-    ) -> Result<Vec<String>, String> {
-        let mut resolved = concrete_reach.to_vec();
-        for requirement_identity in requirement_identities {
-            let row = self.resolve_installation_requirement(
-                requirement_identity,
-                provider_plan_report_identity,
-            )?;
-            resolved.extend(row.resolved_row.iter().cloned());
-        }
-        resolved.sort();
-        resolved.dedup();
-        Ok(resolved)
-    }
-
     pub fn resolve_installation_requirement(
         &self,
         requirement_identity: &str,

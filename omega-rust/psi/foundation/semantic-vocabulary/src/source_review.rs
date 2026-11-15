@@ -39,21 +39,6 @@ pub enum IntegerBinaryKind {
     TrappingRemainder,
 }
 
-impl IntegerBinaryKind {
-    pub const fn is_trapping(self) -> bool {
-        matches!(
-            self,
-            Self::TrappingShiftLeft
-                | Self::TrappingShiftRight
-                | Self::TrappingAdd
-                | Self::TrappingSubtract
-                | Self::TrappingMultiply
-                | Self::TrappingDivide
-                | Self::TrappingRemainder
-        )
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, compiler_storage::Record)]
 pub enum SemanticDependencyKind {
     NominalIdentity,

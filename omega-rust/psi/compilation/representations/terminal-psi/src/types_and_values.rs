@@ -470,15 +470,6 @@ pub mod types {
                 }
             }
 
-            pub fn select_rows(rows: &[Self], path: &[StructuralPathSegment]) -> Vec<Self> {
-                let (whole, projected) = Self::select(&[], rows, path);
-                let mut selected = Vec::with_capacity(whole.len() + projected.len());
-                Self::append_under(&whole, &projected, &[], &mut selected);
-                selected.sort();
-                selected.dedup();
-                selected
-            }
-
             pub fn select(
                 whole: &[StructuralDomainId],
                 projected: &[Self],
@@ -1818,24 +1809,6 @@ pub mod values {
         }
 
         impl OperationKind {
-            pub fn structural_observation_source(&self) -> Option<PlaceId> {
-                match self {
-                    Self::ElementViewLength { source }
-                    | Self::ElementViewRead { source, .. }
-                    | Self::ByteSequenceLength { source } => Some(source.place),
-                    Self::PrimitiveScalarRead { source, .. }
-                    | Self::StructuralByteSequenceFieldLength { source, .. }
-                    | Self::StructuralByteSequenceFieldRead { source, .. }
-                    | Self::StructuralCaseMembership { source, .. }
-                    | Self::StructuralLeafCopy { source, .. }
-                    | Self::StructuralCaseLeafCopy { source, .. }
-                    | Self::ByteSequenceRead { source, .. }
-                    | Self::BooleanStructuralField { source, .. }
-                    | Self::ScalarStructuralField { source, .. } => Some(*source),
-                    _ => None,
-                }
-            }
-
             pub fn map_structural_uses(&mut self, map: &mut impl FnMut(PlaceId) -> PlaceId) {
                 self.map_structural_uses_with_access(&mut |place, _| map(place));
             }
@@ -2677,26 +2650,6 @@ pub mod values {
                         .collect(),
                     access: argument.access,
                 }
-            }
-        }
-
-        impl ReferenceOriginSource {
-            pub fn exact_argument(&self) -> Option<StructuralArgument> {
-                if self.extent != semantic_vocabulary::ReferenceOriginExtent::Projected {
-                    return None;
-                }
-                Some(StructuralArgument {
-                    place: self.place,
-                    path: self
-                        .path
-                        .iter()
-                        .map(|projection| match projection {
-                            ReferenceOriginProjection::Exact(segment) => Some(segment.clone()),
-                            ReferenceOriginProjection::Element => None,
-                        })
-                        .collect::<Option<Vec<_>>>()?,
-                    access: self.access,
-                })
             }
         }
     }

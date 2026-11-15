@@ -79,35 +79,6 @@ impl<T, Revision: PartialEq> OwnedIndex<T, Revision> {
         run(&slot.as_ref().expect("index just built").1)
     }
 
-    pub fn with_updated<R>(
-        &self,
-        revision: Revision,
-        update: impl FnOnce(Option<&mut T>) -> Option<T>,
-        run: impl FnOnce(&T) -> R,
-    ) -> R {
-        if let Some((sealed, index)) = &self.sealed
-            && *sealed == revision
-        {
-            return run(index);
-        }
-        let mut slot = self.slot.lock().unwrap_or_else(|error| error.into_inner());
-        match slot.as_mut() {
-            Some((seen, existing)) if *seen == revision => run(existing),
-            Some((seen, existing)) => {
-                if let Some(rebuilt) = update(Some(existing)) {
-                    *existing = rebuilt;
-                }
-                *seen = revision;
-                run(existing)
-            }
-            None => {
-                let built = update(None).expect("fresh index build must return a value");
-                *slot = Some((revision, built));
-                run(&slot.as_ref().expect("index just built").1)
-            }
-        }
-    }
-
     pub fn seal(&mut self) {
         if let Some(built) = self
             .slot

@@ -400,7 +400,6 @@ impl MemoryOrdering {
     }
 }
 
-pub const ATOMIC_CORE_SOURCE: &str = "atomic.omg";
 pub const ATOMIC_FENCE_NAMESPACE: &str = "Atomic";
 pub const ATOMIC_FENCE_NAME: &str = "fence";
 

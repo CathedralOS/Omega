@@ -115,13 +115,6 @@ impl PrimitiveType {
         matches!(self, Self::F32 | Self::F64)
     }
 
-    pub fn from_landed_integer(kind: numerics::literals::LandedIntegerType) -> Self {
-        match kind {
-            numerics::literals::LandedIntegerType::Fixed(carrier) => Self::Integer(carrier),
-            numerics::literals::LandedIntegerType::Addr => Self::Addr,
-        }
-    }
-
     pub fn landed_landing(self) -> Option<numerics::literals::LandedIntegerType> {
         use numerics::literals::LandedIntegerType;
         match self {
@@ -134,13 +127,6 @@ impl PrimitiveType {
     pub fn landed_landing_fixed(self) -> Option<numerics::literals::LandedIntegerType> {
         self.fixed_integer()
             .map(numerics::literals::LandedIntegerType::Fixed)
-    }
-
-    pub fn non_address_landed_integer(kind: numerics::literals::LandedIntegerType) -> Option<Self> {
-        match kind {
-            numerics::literals::LandedIntegerType::Addr => None,
-            kind => Some(Self::from_landed_integer(kind)),
-        }
     }
 }
 
