@@ -87,26 +87,12 @@ framework or a list of unimplemented features.
 - Cost: The early checked computation has no selected provider. Carry the symbolic extent into the existing checked scalar application and target-closure path so the request retains its exact selected realization, result and proof. Keep the original layout query, bound and invalid twin.
 - Reported: 2026-11-15, Codex, while restoring the exact historical layout input inventory. Narrowed after the target-independent field extent ran and reopened.
 
-### Installation-bound reach stops before the provider union
-- Category: knowledge crossing a boundary
-- Where: [staggered provider fixture](tests/fixtures/pass/providers/staggered_installation_reach_exit/main.omg), [union and review checks](omega-rust/omega/compilation/compiler/tests/package_review.rs#L83)
-- Saw: With the kept path on `8329cdc221e`, Psi checking refuses “machine service reach bound by an installation” for `AProvider::visit`, `BProvider::visit`, `CProvider::visit`, and `DProvider::visit`.
-- Cost: The already formulated assertion that A retains both the earlier B and later D contributions cannot run. Carry the original installation-bound declarations into selected reach and the existing review records.
-- Reported: 2026-11-15, Codex, while reconnecting the staggered package-review fixture.
-
 ### Float fixtures stop before target and requirement policy checks
 - Category: tests that pin the bug
 - Where: [rootless conversion](tests/fixtures/pass/float/rootless_target_realization_scope/main.omg), [selected conversion](tests/fixtures/packages/selected-provider-unsupported-target/main.omg), [Float::add owner check](omega-rust/omega/compilation/compiler/tests/package_review.rs#L598)
 - Saw: On `8329cdc221e`, the two conversion fixtures stop at `coordinates::entry::rx` with “call receiver, requirement or coercion call”. The separate kept `Float::add` case stops in `carry` with “numeric primitive has no canonical result contract yet”.
 - Cost: The library and selected UEFI twin never distinguish target capability, and the closed addition never reaches the toolchain owner in recovered policy. Retain each authored operation while completing its canonical call contract.
 - Reported: 2026-11-15, Codex, while replaying kept package-review numeric fixtures.
-
-### A clause-call refusal hides the nonreturning value denotation test
-- Category: tests that pin the bug
-- Where: [nonreturning denotation fixture](tests/fixtures/fail/proofs/ordinary_denotational_call_requires_normal_return/main.omg), [UEFI fixture assertions](omega-rust/omega/compilation/compiler/tests/package_review.rs#L23)
-- Saw: On `8329cdc221e`, the kept negative fixture refuses an unsupported “contract call in a clause term” at the signature of `harmless`. The test expects the specific rejection that the call has no observation-free, reach-free, crash-free value denotation.
-- Cost: The negative never exercises the semantic test for an ordinary call that cannot return normally. Carry the original clause call through its contract reader and preserve the narrow denial.
-- Reported: 2026-11-15, Codex, while reconnecting the reusable-package negative fixtures.
 
 ### The native callback test spends minutes deriving a fixture entry binding
 - Category: verifying costs more than writing
