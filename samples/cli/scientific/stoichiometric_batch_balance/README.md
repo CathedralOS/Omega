@@ -93,15 +93,13 @@ local package files. The review handoff records the exact binary, base, commands
 source hashes, outcomes and any remaining package-review blockers.
 
 The application exposed a current-main arithmetic checking gap: an indexed
-coefficient's positive `requires` fact did not reach division definedness.
-The bounded repair retains the collection and selector as a private ordered
-operand, checks their exact state scope when admitting requirements, and
-invalidates their facts on either write. A scalar local copies the live
-literal bounds and exclusions of its evaluated observation before destination
-invalidation, preserving nonzero facts through dynamic-index hoisting. The application retains its original
-preconditions and divisions. Feature-shaped controls under
-`tests/omega/{pass,fail}/arithmetic/indexed_divisor_*` pin valid contracts,
-state forwarding, storage mutation, selector mutation and different collections.
-The generic CLI comparison verifies Terminal exits only; native stdout is checked
-byte for byte against the frozen fixtures. Terminal stdout comparison is not
-exposed by this CLI route and is not claimed.
+coefficient's positive `requires` fact did not reach division definedness. The
+bounded repair retains the collection and selector as a private ordered operand,
+checks their exact state scope when admitting requirements, and invalidates their
+facts on either write. A scalar local copies the live literal bounds and
+exclusions of its evaluated observation before destination invalidation,
+preserving nonzero facts through dynamic-index hoisting. The application retains
+its original preconditions and divisions. The generic CLI comparison verifies
+Terminal exits only; native stdout is checked byte for byte against the frozen
+fixtures. Terminal stdout comparison is not exposed by this CLI route and is not
+claimed.

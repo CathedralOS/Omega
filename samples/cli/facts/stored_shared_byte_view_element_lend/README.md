@@ -66,18 +66,14 @@ the checker refuses ``cannot prove requires contract`` at the call that lends it
 (`read`, or `observe`, `inspect` and `forward` where the array crosses a machine
 boundary first).
 
-On Windows x86_64, with the optimized producer built from `83ae4b83d7b` plus this
-change, all nine positives report native exit 0 and interpreter exit 0 from
-`omega run --both`, `traits/runtime_dyn_byte_array_result` now agrees, and all
-nine twins reject with the pinned fragment. The same tree with the change
-reverted, built separately and optimized, ran all nine positives natively with
-exit 0 and the Terminal interpreter declined each with the ``prepare byte backing
-loan`` refusal above; the twins rejected identically, since the checker is
-untouched. Pinned fixtures:
-`tests/omega/pass/facts/stored_shared_byte_view_element_lend_through_<place>_exit`
-and `tests/omega/fail/facts/stored_shared_byte_view_element_lend_through_<place>_rejected`.
-Linux, macOS, and QEMU were not run; the other hosted targets are bound, not
-executed, and only the Windows provider of `Observe` executes here.
+On Windows x86_64, with the optimized producer built from `83ae4b83d7b` plus this change,
+all nine positives report native exit 0 and interpreter exit 0 from `omega run --both`,
+`traits/runtime_dyn_byte_array_result` now agrees, and all nine twins reject with the
+pinned fragment. The same tree with the change reverted, built separately and optimized,
+ran all nine positives natively with exit 0 and the Terminal interpreter declined each with
+the ``prepare byte backing loan`` refusal above; the twins rejected identically, since the
+checker is untouched. Linux, macOS, and QEMU were not run; the other hosted targets are
+bound, not executed, and only the Windows provider of `Observe` executes here.
 
 - **Establishment:** the array literal establishes each window's extent and the
   callee's `requires bytes.len == 1` is proved from it at the call. No caller

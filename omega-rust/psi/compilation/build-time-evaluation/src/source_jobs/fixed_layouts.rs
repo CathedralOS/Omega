@@ -58,22 +58,31 @@ pub(super) fn evaluate(
             }
         }
     }
+    // Available target facts do not request geometry. With no computation
+    // roots, retain the declarations' deferred requests without preparing
+    // a whole-program occurrence inventory or running any layout policy.
+    if scopes
+        .iter()
+        .all(|scope| scope.entry_declarations.is_empty() && scope.provider_declarations.is_empty())
+    {
+        return crate::source_frontier::refresh_layout_policy_requests(typed);
+    }
     let occurrences = collect_program_type_occurrences(typed);
     let mut requests = Vec::new();
     for (scope_index, scope) in scopes.iter().enumerate() {
-        let selection = match &scope.entry_declarations {
-            None => DeclarationSelection::all(),
-            Some(entries) => DeclarationSelection::from_computation_roots(
-                typed,
-                entries.iter().copied().chain(
-                    scope
-                        .provider_declarations
-                        .iter()
-                        .map(|row| row.provider_type.symbol),
-                ),
-            )
-            .map_err(|reason| vec![Diagnostic::error(reason)])?,
-        };
+        if scope.entry_declarations.is_empty() && scope.provider_declarations.is_empty() {
+            continue;
+        }
+        let selection = DeclarationSelection::from_computation_roots(
+            typed,
+            scope.entry_declarations.iter().copied().chain(
+                scope
+                    .provider_declarations
+                    .iter()
+                    .map(|row| row.provider_type.symbol),
+            ),
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
         for occurrence in &occurrences {
             if !selection.contains(typed.refusal_declaration(occurrence.lexical_owner)) {
                 continue;
@@ -197,7 +206,19 @@ fn evaluate_application(
         requirement_symbol,
         &[argument, BuildTimeValue::LayoutTarget(facts.clone())],
     )?;
-    if !typed.symbols.symbols().nodes().is_valid(entry.symbol()) {
+    // The receipt owns the body in the accepted invocation, which can be
+    // a capture. The plan belongs to the source that declared the policy.
+    let accepted = entry.accepted_source();
+    let (selected, member, _) = accepted
+        .named_conformance_call_member(entry.call())?
+        .ok_or("layout invocation lost its selected policy member")?;
+    let declared_machine = member.realization_machine;
+    if selected.symbol != policy.symbol
+        || typed.machine_by_symbol(declared_machine).is_none()
+        || accepted
+            .machine_instantiation_path(entry.symbol(), declared_machine)
+            .is_none()
+    {
         return Err("layout policy result lost its original source declaration".into());
     }
     let result = entry.invoke_recorded(
@@ -234,7 +255,7 @@ fn evaluate_application(
         schema_argument: Some(schema_argument),
         target_facts: facts.clone(),
         target: typed_trees::name::Identifier::generated(&scope.target),
-        machine: entry.symbol(),
+        machine: declared_machine,
         geometry,
     };
     // A later target extends this same application, retaining each target's
@@ -276,7 +297,7 @@ fn evaluate_application(
             schema_field_symbols: field_symbols.clone(),
             field_symbols,
             policy_symbol: policy.symbol,
-            policy_plan_machine_symbol: entry.symbol(),
+            policy_plan_machine_symbol: declared_machine,
             schema_argument: None,
             realizations: PlanLaidRealizations::TargetInputs(span),
         });

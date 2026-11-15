@@ -80,15 +80,11 @@ acceptance, is claimed by these Linux observations.
 
 ## Whole-value death after a payload move
 
-At base `c79bb826816316f24b4276e20804420685b2e32a` all nine positives and
-`tests/omega/pass/ownership/runtime_borrowed_match_repeated_repair_exit` were
-refused before execution on every target: `selected whole-owner cleanup has a
-partially transferred occurrence`. The `alias = match first { ... }` arms move
-the selected case's only payload, so the subject `first` reaches its candidate
-death with a payload hole. Continuation selection treated any hole as
-unsupported partial cleanup, although that case had no residual left to
-dispose. The minimal shape is
-`tests/omega/pass/ownership/runtime_match_expression_moves_selected_payload_exit`.
+`selected whole-owner cleanup has a partially transferred occurrence`. The `alias
+= match first { ... }` arms move the selected case's only payload, so the subject
+`first` reaches its candidate death with a payload hole. Continuation selection
+treated any hole as unsupported partial cleanup, although that case had no
+residual left to dispose.
 
 Selection now skips a whole-value death exactly when the type-directed residual
 of the selected case (and common fields) is empty, as for an absent value. A

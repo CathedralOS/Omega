@@ -7,8 +7,7 @@
 // local was captured and passed as an argument to a nested dispatch state within
 // the same machine call (`let slot = count; ... try1(slot, val)` gave wrong slot
 // values on repeated calls). Probe-verified FIXED (native==interp) on 2026-07-01;
-// the field-read style below is retained but no longer load-bearing. (The old
-// tests/omega/pending reference was purged with the pending backlog.)
+// the field-read style below is retained but no longer load-bearing.
 //
 // Transactions (positive=deposit, negative=withdraw):
 //   txns[0] = +500   deposit 500

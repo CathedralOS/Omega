@@ -26,19 +26,16 @@ requirement`. That diagnostic does not depend on the receiving place.
 
 Controls specific to the result edge:
 
-- [Raw host result](controls/raw_native_result/main.omg) and
-  [checked-component laundering](controls/component_launders_raw_result/main.omg)
-  type-check but must reject native admission at `UncheckedFactory::make` with
-  `cannot establish result provenance owned by another issuer`. A real C leaf
-  is not the existing issuer. `tools/ci/compiler_foreign_records.py` runs both.
+- [Raw host result](controls/raw_native_result/main.omg) and [checked-component
+  laundering](controls/component_launders_raw_result/main.omg) type-check but
+  must reject native admission at `UncheckedFactory::make` with `cannot establish
+  result provenance owned by another issuer`. A real C leaf is not the existing
+  issuer.
 - [Import alias](controls/import_alias/main.omg) and
   [renumbered catalog](controls/renumbered_catalog/main.omg) keep the issuer's
   identity when the receiver names or numbers its catalog differently.
 
-The result provenance repair landed in
-[PR #295](https://github.com/CathedralOS/Omega/pull/295). The pinned copies are
-`tests/omega/{pass,fail}/facts/opaque_independent_qualified_result_through_local_*`
-and `opaque_independent_qualified_result_{import_alias,renumbered_catalog}_exit`.
-Before this fold the production carried all nine places; the eight others
-repeated the row's transport, and their twins all reported the same producer
-diagnostic.
+The result provenance repair landed in [PR
+#295](https://github.com/CathedralOS/Omega/pull/295). Before this fold the
+production carried all nine places; the eight others repeated the row's transport,
+and their twins all reported the same producer diagnostic.

@@ -380,6 +380,10 @@ no-oracle/freestanding reporting and positive package-review behavior are unchan
 `mbx xtask sample-gate --facts` limits the run to `samples/cli/facts`.
 `--filter` selects path fragments, and `--cli` uses an existing compiler.
 The unfiltered gate still checks every discovered project.
+`--jobs <n>` verifies that many samples at once (each in its own directory and
+evidence folder; the default is one), and `--out <file.json>` writes one row per
+sample with the gate's verdict (`pass`, `checked`, `rejected`, `no-oracle`,
+`not-host-runnable` or `fail`) and, for a failure, its reason.
 
 The sample gate executes a project carrying `input.txt` beside its entry with
 that file as stdin (absent means an empty stream) and then scores the authored

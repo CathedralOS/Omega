@@ -7,10 +7,8 @@ The program then observes the returned capacity as 2. Array element values do
 not choose a type or an index.
 
 The owning tasks are **STRUCTURAL-GENERIC-MATCHING** and
-**BUILD-OWNED-TARGET-SELECTION** in [TASKS.md](../../../../TASKS.md).
-The canonical nine places below carry this fact. Computed array sizes in named
-constants and trait arguments also have focused regression programs under
-`tests/omega/{pass,fail}/generics`; they do not add another sample row.
+**BUILD-OWNED-TARGET-SELECTION** in [TASKS.md](../../../../TASKS.md). The
+canonical nine places below carry this fact.
 
 ## Places
 
@@ -61,9 +59,8 @@ service effect.
   through ordinary Build selection, array layout, calls and image emission.
   Authored target rows alone do not establish matching-host execution.
 
-Positive and negative nine-place fixtures are pinned under
-`tests/omega/{pass,fail}/facts/inferred_array_equation_call_through_*`.
-The [structural inference contract](../../../../wiki/spec/language/generics.md#structural-type-equations-and-inference)
+The [structural inference
+contract](../../../../wiki/spec/language/generics.md#structural-type-equations-and-inference)
 requires exact declaration-backed structure before ordinary compatibility.
 
 ## Current validation
@@ -81,17 +78,6 @@ also missed computed arguments in `satisfies` clauses. The compiler now retains
 those computations, resolves them in their enclosing declaration, and checks
 the evaluated arguments against the same parameter types and conditions as
 other applications.
-
-The retained regression programs cover the [original named constant](../../../../tests/omega/pass/generics/inferred_equation_typed_const_const_name_exit/main.omg)
-and its [conflicting-size twin](../../../../tests/omega/fail/generics/inferred_equation_typed_const_const_name_conflict/main.omg).
-One [focused positive](../../../../tests/omega/pass/generics/inferred_equation_computed_satisfaction_exit/main.omg)
-also combines an evaluated packet type, a computed satisfaction argument and a
-value-qualified constant. Its [wrong-size twin](../../../../tests/omega/fail/generics/inferred_equation_computed_satisfaction_extent_conflict/main.omg)
-keeps the computed packet size at 2 and changes only the satisfaction argument
-to 3. The [invalid-value control](../../../../tests/omega/fail/generics/inferred_equation_mixed_destination_invalid_value/main.omg)
-changes only the ready constant from 7 to 8, so preserving an unfinished type
-cannot suppress a condition on a completed value. These three projects use six
-new source/Build files altogether.
 
 Optimized compilers built at `35dd60f55878` pass the current selection on all
 four matching hosts: 30 Source positives, 50 intended refusals, and 30 actual

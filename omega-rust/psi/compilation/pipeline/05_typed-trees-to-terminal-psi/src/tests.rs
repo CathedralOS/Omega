@@ -4168,7 +4168,7 @@ mod loops;
 
 #[test]
 fn a_scalar_match_evaluates_its_subject_once_and_tests_each_value_in_authored_order() {
-    // machine 1() -> u32 { match g() { 0 -> 10, 1 -> 20, _ -> 30 } }
+    // Bind the match so each arm arrives at its value join.
     let matched = expression(
         ExpressionKind::Match {
             capture: None,
@@ -4183,8 +4183,14 @@ fn a_scalar_match_evaluates_its_subject_once_and_tests_each_value_in_authored_or
     );
     let (machine, tables) = lower(
         Body {
-            slots: Vec::new(),
-            statements: vec![returns(matched)],
+            slots: scalars(vec![u32_type()]),
+            statements: vec![
+                Statement::Bind {
+                    slot: 0,
+                    value: matched,
+                },
+                returns(slot(0, u32_type())),
+            ],
         },
         vec![
             signature(Vec::new(), Some(u32_type())),

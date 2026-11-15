@@ -47,16 +47,13 @@ stores and forwards both results, then checks the independently expected case,
 array endpoints and implementation marker. A snapshot after the first call
 must be one; the final producer count must be two.
 
-Every twin changes only the narrow branch's selected width from 16 to 32.
-The input still contains 16 bytes, so it cannot satisfy that call's 32-byte
-parameter. Both versions retain the same member bodies and runtime checks.
-The existing rejection pins remain unchanged. A [focused constructor
-control](../../../../tests/omega/fail/generics/runtime_index_carrier_constructor_wrong_payload/main.omg)
-keeps both selected calls valid and changes only the wide output case to
-`Narrow`; its 32-byte result cannot inhabit a case declared to contain 16 bytes.
-The [local positive](local/main.omg) is that control's valid counterpart.
-Each valid program binds the four required hosted targets and expects exit 0;
-the existing target place also retains its optional macOS x86-64 binding.
+Every twin changes only the narrow branch's selected width from 16 to 32. The
+input still contains 16 bytes, so it cannot satisfy that call's 32-byte
+parameter. Both versions retain the same member bodies and runtime checks. The
+existing rejection pins remain unchanged. The [local positive](local/main.omg)
+is that control's valid counterpart. Each valid program binds the four required
+hosted targets and expects exit 0; the existing target place also retains its
+optional macOS x86-64 binding.
 
 ## Requirements proved here
 
@@ -89,8 +86,6 @@ family supply have separate requirements.
 
 ## Validation and remaining scope
 
-All nine current programs and their nine reject twins are mirrored under
-`tests/omega/{pass,fail}/facts/finite_family_static_inline_result/`.
 The current programs return the selected array through the explicit case value
 described above. Their Build declarations and expected exit remain unchanged.
 

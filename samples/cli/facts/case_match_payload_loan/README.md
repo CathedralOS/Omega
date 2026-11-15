@@ -26,9 +26,6 @@ shared; the nested payload's requested mutable access stays unchanged.
 | Another machine | [program](other_machine/main.omg) | [shared descriptor](invalid_other_machine/main.omg) |
 | Another target body | [program](target_body/main.omg) | [shared descriptor](invalid_target_body/main.omg) |
 
-The nine pairs are copied to `tests/omega/{pass,fail}/facts/` as
-`case_match_payload_loan_through_<place>_{exit,rejected}`.
-
 ## Requirement evidence
 
 | Requirement | What this row establishes |

@@ -83,16 +83,6 @@ domain, and the field twin reports it through the field's declared interval
 (`value 4 is outside its declared range 0..=3`). Both are the same obligation
 on the same instance; no twin is rejected for an unrelated reason.
 
-## Pinned Fixtures
-
-- Positives: `tests/omega/pass/facts/scoped_scalar_initializer_through_<place>_exit`
-  (9 places pinned, each byte-identical to `<place>/main.omg` with native exit 0).
-- Reject twins: `tests/omega/fail/facts/scoped_scalar_initializer_through_<place>_rejected`
-  (9 places pinned, each byte-identical to `<place>/invalid/main.omg`, rejecting
-  with their authored diagnostic).
-- Golden corpus registrations pinned in `tests/omega/corpus_outcomes.txt` and
-  `tests/omega/corpus_native_macos_arm64.txt` (commit `098d21972b2` on `origin/main`).
-
 ## Requirements and Evidence
 
 - **Parent outcome:** `STRUCTURAL-GENERIC-MATCHING` ([`TASKS.md`](../../../../TASKS.md)).

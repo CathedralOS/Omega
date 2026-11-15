@@ -1400,7 +1400,7 @@ AccessInitialize, AccessMoveOut and AccessView. Tag 4 names EmptyRunRelease,
 which consumes an empty run and returns its existing vacant backing. Tag 5 names
 AccessRelocate. Tags 6–9 name StaticInterruptInstall, StaticInterruptContext,
 StaticInterruptBeginCompletion and StaticInterruptFinishCompletion, respectively.
-Semantic format marker 273 adds tag 10, HostedPrimitive, followed by a `u8`
+Semantic format marker 274 adds tag 10, HostedPrimitive, followed by a `u8`
 operation (`0` ProcessExit; other operations reject), then the canonical public requirement's `u64` boundary
 id. The primitive is a Machine boundary with its own checked source declaration
 and callable identity; the linked requirement remains a distinct Trait boundary.
@@ -1409,10 +1409,10 @@ complete signature, reach, crash and progress correspondence, and independently
 proves that the actual result type is empty. The link preserves the canonical
 terminal observation without supplying target realization or execution authority.
 Other tags reject. Earlier formats reject at the header, before any table is
-decoded. Marker 273 also retains main's structural qualification rows and the logical
-boundary-result lifetime layout. The incompatible predecessors independently
-used markers 271 and 272; all are refused before payload interpretation. Vocabulary marker 134 and the artifact
-transport envelope remain unchanged.
+decoded. Marker 274 retains the structural qualification rows and marker 273's
+machine-contract account of public result lifetimes. Formats 271, 272 and 273
+are refused before payload interpretation. Vocabulary marker 134 and the
+artifact transport envelope remain unchanged.
 
 A checked-machine declaration encodes `u32` identity-table indices for the
 exact-owner machine, initial state and semantic declaration; counted `u32`
@@ -1427,6 +1427,18 @@ an optional declaration immediately after its machine id; synthetic bodies may
 omit it. A callback body must retain it, and native admission compares it to the
 caller's selected body.
 
+An ordinary machine's parameter and result type identities retain their declared
+lifetime relation in one signature context. Its own lifetime binders use
+`region(owner(schema),ordinal(...))`; elided inputs mint distinct binders and an
+elided result uses the signature's unambiguous relation under
+[returned-view elision](../language/lifetimes.md#returned-views). Captured
+lifetimes retain their portable declaration owner instead of becoming invocation
+binders. Binder names do not affect these identities. The contract commitment
+uses these same complete type identities, so an input-related result promise
+cannot compare equal to a caller-chosen promise merely because the executable
+types have the same layout. These signature descriptions establish no runtime
+region, backing or loan authority.
+
 A boundary's optional checked callable adds its counted closed method arguments
 and the checked boundary execution encoding above. Each compiler access
 declaration requires exactly one matching lifecycle obligation row; deleting
@@ -1440,6 +1452,15 @@ Optional fields use a presence Boolean.
 Identities and commitments are nonempty; candidates are strictly ordered by
 their complete record and duplicates reject. Repeated calls share this catalog;
 target selection does not alter it.
+
+Semantic format marker 273 moves a public requirement's declared result lifetime
+groups from each static method application onto the machine contract, encoded
+as an optional list immediately after the contract's result. A selected call
+reads them from its public header contract and a rigid call from the bodiless
+requirement's own contract, so both routes bind their caller's loans from one
+account. A body's contract leaves the list absent; its actual return origins
+stay in the result's reference-source column. A 272 artifact rejects at the
+header.
 
 Semantic format marker 271 retains a boundary's optional declared result lifetime
 groups separately from its spatial result-reference regions. Each group uses the
@@ -2353,8 +2374,9 @@ subject field as the new representation.
 | realization callable | source callable identity string + machine id + callable result |
 | conformance row | declaring trait identity string + public requirement identity string + counted family tuple strings + requirement identity string + realization identity string + optional realization callable identity string |
 
-From marker 268, each static method application also retains an optional list
-of declared result lifetime groups. Each group contains counted input lifetime
+From marker 273, the public header's machine contract (not the static method
+application) retains an optional list of declared result lifetime groups.
+Each group contains counted input lifetime
 dependencies (the existing referent/stored dependency encoding), followed by
 counted structural result paths. One group shares its complete input set among
 its result paths; the encoding does not expand an input-by-result matrix.
@@ -2368,14 +2390,13 @@ When present, a counted outer lifetime roster, counted complete parameter type
 identities and one complete result type identity follow. The type identities
 bind declared lifetimes to canonical `schema` ordinals; an absent type section
 cannot authorize a selected borrowed result. The receiver derives the input
-union from this original type relation and requires the application groups to
-agree, including after their application commitment is recomputed. Constraint
+union from this original type relation and requires the public header's groups
+to agree. Constraint
 and array-length type arguments do not become stored reference occurrences.
 Unresolved nominal or method-argument frontiers remain unavailable.
 
 These groups come from the original public signature and its complete method
-tuple before lifetime erasure. They are included in the conformance application
-commitment, which describes contents and cannot replace that independent
+tuple before lifetime erasure. No commitment replaces that independent
 declaration check. The implementing body's actual return origins remain separate:
 receiving checks must not replace the public input set with those narrower
 origins. Backing formation, access, source correspondence and loan completion
@@ -2707,7 +2728,7 @@ outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 273 | yes |
+| semantic module | `PSITERM\0` | 274 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
 | optimization execution | `PSIOEXE\0` | 2 | no |

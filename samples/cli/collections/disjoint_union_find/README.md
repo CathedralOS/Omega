@@ -21,6 +21,5 @@ rejected at compile time.
 After ordinary package review on macOS arm64:
 
 ```sh
-python3 tools/sample_native_gate.py --cli build/dev-target/debug/omega --target macos_arm64 --filter collections/disjoint_union_find --jobs 1
 build/dev-target/debug/omega run --both samples/cli/collections/disjoint_union_find/main.omg < /dev/null
 ```

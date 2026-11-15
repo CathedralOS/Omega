@@ -75,11 +75,9 @@ Three additional productions exercise this same owner requirement once:
   changes only the first element's floor to one; representation zero alone
   cannot establish that owner.
 
-The exact programs and reject twins are pinned under
-`tests/omega/{pass,fail}/facts/array_element_default_domain/`. Additional
-single controls retain the signed floor, independent predicate-index formation,
-and selected user index operation; existing write-only and recast controls
-exercise the unchanged access and carrier boundaries.
+Additional single controls retain the signed floor, independent predicate-index
+formation, and selected user index operation; existing write-only and recast
+controls exercise the unchanged access and carrier boundaries.
 
 Qualification requires all nine places and these three productions to agree
 under native and Terminal execution on macOS ARM64, their intended rejects,

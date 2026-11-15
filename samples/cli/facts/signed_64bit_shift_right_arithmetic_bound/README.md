@@ -4,14 +4,6 @@ Fact: a 64-bit signed i64 arithmetic right shift of a bounded input (val >= 300i
 
 The original root reproduction is preserved in [main.omg](main.omg) and [build.omg](build.omg).
 
-## Pinned fixtures
-
-The nine positive places and nine reject twins are pinned as
-`tests/omega/pass/facts/signed_64bit_shift_right_arithmetic_bound_through_<place>`
-and `tests/omega/fail/facts/signed_64bit_shift_right_arithmetic_bound_unproved_at_<place>`.
-Each twin authors `expected.txt` carrying the contract rejection fragment (`cannot prove requires contract` or `cannot prove ensures contract`).
-`tests/omega/corpus_native_windows_x86_64.txt` records nine real `built ... exit:0` rows, one per place.
-
 ## Places
 
 The nine places carry the 64-bit signed arithmetic right shift bound through each language construct,

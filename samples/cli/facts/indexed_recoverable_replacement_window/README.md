@@ -60,10 +60,8 @@ changing non-singleton calls, wrong-element repair and shared mutation reject.
 
 Exact final qualification and independent review passed at source
 `16c48f1c1cbdef61aa60986040ec551f115540d4`; PR #184 landed at
-`257bb9acf31b565a76d6d7d230eb905e7a2b2e95`. All nine positives and twins are
-pinned under `tests/omega/{pass,fail}/facts/`. These Linux observations do not
-claim other-host execution, physical suspension/cancellation, or effectful range
-endpoint coverage. The parent TASKS.md item remains open.
+`257bb9acf31b565a76d6d7d230eb905e7a2b2e95`. The parent TASKS.md item remains
+open.
 
 ## Selector coordinate through lowering
 

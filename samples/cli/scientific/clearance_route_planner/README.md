@@ -33,14 +33,12 @@ absent file. Validation never changes expected data or package decisions.
 
 ## Recovered provenance
 
-The original source candidate was
-`cbecd3b1c30c9961dc195aa8a1104c7add668660`. These application, invalid-control and
-borrow-witness bodies were reconstructed from its retained authoring literals
-and later recorded text substitutions. Their derived hashes are recorded in
-`validation/recovery.json`. The complete original archive's final per-file
-manifest is unavailable, so full archive byte equivalence is not claimed.
-The original reference and scene literals reproduce the independently recorded
-frozen oracle hash exactly.
+The original source candidate was `cbecd3b1c30c9961dc195aa8a1104c7add668660`.
+These application, invalid-control and borrow-witness bodies were reconstructed
+from its retained authoring literals and later recorded text substitutions. The
+complete original archive's final per-file manifest is unavailable, so full
+archive byte equivalence is not claimed. The original reference and scene literals
+reproduce the independently recorded frozen oracle hash exactly.
 
 Historical review, lock, approval commands and holds supplied provenance only.
 Current admission and execution use the ordinary project workflow. The separate

@@ -30,11 +30,9 @@ address. Constants name C constructor inputs, not constant foreign results.
 | Another machine | [forwarding](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) |
 | Target body | [four bodies](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
-Each reject changes only `InternetAddress [copy]` to `InternetAddress` in
-[its producer](producer_invalid/main.omg). Its consuming operation remains
-identical and rejects reuse after transfer. The nine pairs are pinned under
-`tests/omega/{pass,fail}/facts/opaque_independent_copy_through_*` with ordinary
-self-contained package dependencies and all four hosted entry bindings.
+Each reject changes only `InternetAddress [copy]` to `InternetAddress` in [its
+producer](producer_invalid/main.omg). Its consuming operation remains identical
+and rejects reuse after transfer.
 
 Fresh published main `4b80a922ef2f` accepted the source and ran the original
 root natively at zero; Terminal failed because the inet adapter required an

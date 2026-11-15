@@ -10,5 +10,4 @@ omega run samples/cli/collections/selected_window_replacement/main.omg
 ```
 
 An element that is only known to lie in `0..2` does not identify the displaced
-backing. That refusal is pinned by
-`tests/omega/fail/borrows/unproved_window_index_keeps_backing`.
+backing.

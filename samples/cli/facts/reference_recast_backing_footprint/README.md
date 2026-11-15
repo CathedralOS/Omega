@@ -38,14 +38,10 @@ A formation error or unrelated refusal does not count.
 | another machine | [main](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) | Relay forwards both formals to a separate observing machine. |
 | target body | [main](target_body/main.omg) | [invalid](invalid_target_body/main.omg) | Each hosted target body performs the same address comparison and field read. |
 
-Every positive declares `Expected exit: 0`, has native and interpreter exit-0
-oracles, and binds `ProgramEntry` for `windows_x86_64`, `linux_x86_64`,
-`macos_arm64`, and `linux_arm64`. Bindings do not establish execution on those
-hosts. All nine pairs are pinned as
-`tests/omega/pass/facts/reference_recast_backing_footprint_through_<place>_exit`
-and
-`tests/omega/fail/facts/reference_recast_backing_footprint_through_<place>_live_backing_write`.
-Sample and pinned fixture source, Build, and applicable oracles are identical.
+Every positive declares `Expected exit: 0`, has native and interpreter exit-0 oracles, and
+binds `ProgramEntry` for `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`.
+Bindings do not establish execution on those hosts. Sample and pinned fixture source, Build,
+and applicable oracles are identical.
 
 The const place does not store a reference or numeric interpreter identity in
 a portable constant. The call-result place does not return helper-owned
@@ -112,7 +108,6 @@ the successful row does not close either parent capability.
 ```sh
 omega run --both samples/cli/facts/reference_recast_backing_footprint/<place>/main.omg
 omega --check samples/cli/facts/reference_recast_backing_footprint/<place>/invalid/main.omg
-python3 tools/corpus_gate.py --both --filter facts/reference_recast_backing_footprint --runner <actual-runner>
 ```
 
 ## Build-owned target-body migration

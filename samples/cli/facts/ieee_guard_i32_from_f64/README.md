@@ -30,8 +30,7 @@ Every twin omits only the upper bound. It must refuse the unqualified conversion
 `cannot prove unqualified I32::from_f64 operand` (with diagnostic backticks).
 Authored rejection fragments live in each sample.json; the corresponding
 canonical corpus pin also requires the complete diagnostic prefix. No unrelated
-refusal qualifies. The canonical pins are
-`tests/omega/{pass,fail}/facts/ieee_guard_i32_from_f64_<place>{,_invalid}`.
+refusal qualifies.
 
 | Requirement | Evidence |
 | --- | --- |

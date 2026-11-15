@@ -14,6 +14,3 @@ operands would join the core's primitive `==` family.
 boundary declaration fixes `==` to that slot; the Build row supplies only its
 provider and cannot activate or change the token binding.
 
-Without a satisfier, native closure review refuses the program
-(`reachable requirement ... resolves to 0 selected provider rows`), pinned by
-`tests/omega/fail/providers/boundary_operator_without_provider`.

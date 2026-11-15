@@ -51,8 +51,6 @@ target/debug/omega run --both samples/cli/facts/match_join_place_read/const_name
 target/debug/omega run --both samples/cli/facts/match_join_place_read/other_state/main.omg
 target/debug/omega run --both samples/cli/facts/match_join_place_read/other_machine/main.omg
 target/debug/omega run --both samples/cli/facts/match_join_place_read/target_body/main.omg
-python tools/sample_native_gate.py --facts --filter cli/facts/match_join_place_read
-python3 tools/corpus_gate.py --filter facts/match_join_place_read
 ```
 
 ### The oracle discriminates
@@ -86,49 +84,28 @@ requirement fragment named in the twin's `expected.txt`:
 
 ## Pinned Fixtures
 
-The row is pinned by `tests/omega/{pass,fail}/facts/match_join_place_read_through_*`
-fixtures; every positive records native exit 0 and Terminal agreement, and
-every twin records its rejection with the expected fragments. The nine pass
-fixtures are byte-identical copies of their place programs, and the nine fail
-fixtures are byte-identical copies of their twins, so sample and fixture cannot
-drift apart.
+The nine pass fixtures are byte-identical copies of their place programs, and the
+nine fail fixtures are byte-identical copies of their twins, so sample and fixture
+cannot drift apart.
 
 ## Recorded runs
-
-Every positive and reject row above is recorded on all three corpus legs,
-measured with the generation pair built in this worktree at `93038434623`
-(`corpus_runner`, opt_level 1, sha256 `24ef21394030`; sibling `omega` sha256
-`bc33b4787586`) and anchored with the tree at the published base
-`4fba1ca3cd5a`, so each row stamps `@4fba1ca3cd5a+wt`
-(`python3 tools/corpus_gate.py --record --runner <pair>/corpus_runner`, then
-`--native --record`, then `--both --record`, filtered to
-`facts/match_join_multi_variant_bound,facts/match_join_place_read`):
 
 | Leg | Rows | Result |
 | --- | --- | --- |
 | check | `pass/facts/match_join_place_read_through_<place>_exit` | `checked`, `check-target:macos_arm64` |
 | check twins | `fail/facts/match_join_place_read_through_<place>_rejected` | `rejected`, `expected`; 0 rejected without the expected fragment |
-| native | the same nine in `corpus_native_macos_arm64.txt` | `built`, `exit:0` |
-| both | the same nine in `corpus_both_macos_arm64.txt` | `built`, `exit:0`, `interpreter-exit:0`, `interpreter:agrees` |
-
-The three golden diffs are additions only: +36 keys and +24 continuation lines
-in `corpus_outcomes.txt` (both match-join rows), +18 rows each in
-`corpus_native_macos_arm64.txt` and `corpus_both_macos_arm64.txt`, 0 deletions
-in all three.
+| native |  | `built`, `exit:0` |
+| both |  | `built`, `exit:0`, `interpreter-exit:0`, `interpreter:agrees` |
 
 Direct runs with the same pair's CLI (opt_level 1, stdin closed, macOS arm64):
 all nine places exit 0 through `omega run --both` (`native exit 0`, `interp
 exit: 0`), and the nine twins exit 1 with the pinned ``cannot prove requires
-contract for call read_field`` and `place.other == 17` fragments. Over both
-rows `tools/sample_gate.py --cli` reads 37/37 checked with 18 intended
-rejection controls matched and `tools/sample_native_gate.py --facts --cli`
-reads 19/19 samples at their documented oracle on macos_arm64 with 18/18
-intended-invalid controls. Earlier sweeps with the coordinator's shared
-generation pairs (`9d9ba4fb625`, `595562a958b`) and the shared
-`.codex/worktrees/factsr1-producer` CLI at `9ff26a87021` measured the same 9/9
-positives and 9/9 twins; those runs preceded the `.rs` movement that moved the
-generation past `93038434623` and the record above is the measurement that
-supersedes them.
+contract for call read_field`` and `place.other == 17` fragments. Earlier
+sweeps with the coordinator's shared generation pairs (`9d9ba4fb625`,
+`595562a958b`) and the shared `.codex/worktrees/factsr1-producer` CLI at
+`9ff26a87021` measured the same 9/9 positives and 9/9 twins; those runs
+preceded the `.rs` movement that moved the generation past `93038434623` and
+the record above is the measurement that supersedes them.
 
 ## Requirements and Evidence
 

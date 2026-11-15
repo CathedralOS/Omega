@@ -27,7 +27,4 @@ result: range(8) + clamp(peak,0,25)=25 -> 33 (the exit code)
 [press Enter to close]
 ```
 
-At `4fe634b7c37` on macOS ARM64 the full native oracle passes: package
-review, native compilation and execution print the three lines above and
-exit 33 (`python3 tools/sample_native_gate.py --filter sensor_min_max`).
 Linux and Windows runs remain unverified.

@@ -827,6 +827,57 @@ pub fn verify_sample(
 
 // Compiler errors often put their cause after a heading. Keep those following
 // lines in the report and name the retained command files for further inspection.
+/// One row per sample, in sample order: what the gate found, in its own
+/// words. `result` is the gate's verdict (`pass`, `checked`, `rejected`,
+/// `no-oracle`, `not-host-runnable` or `fail`); `detail` is the rest of its
+/// message, the failure reason for a `fail`.
+fn write_results(
+    out: &Path,
+    repo: &Path,
+    target: &str,
+    projects: &[SampleProject],
+    results: &[Result<String, String>],
+) -> Result<(), String> {
+    let commit = Command::new("git")
+        .args(["rev-parse", "--short=10", "HEAD"])
+        .current_dir(repo)
+        .stdin(Stdio::null())
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_owned())
+        .ok_or("cannot read the commit being checked")?;
+    let rows: Vec<serde_json::Value> = projects
+        .iter()
+        .zip(results)
+        .map(|(project, result)| {
+            let (verdict, detail) = match result {
+                Ok(state) => match state.split_once(' ') {
+                    Some((verdict, rest)) => (verdict.to_owned(), rest.to_owned()),
+                    None => (state.clone(), String::new()),
+                },
+                Err(reason) => ("fail".to_owned(), reason.chars().take(600).collect()),
+            };
+            serde_json::json!({
+                "sample": project.rel_path,
+                "role": project.role,
+                "result": verdict,
+                "detail": detail,
+            })
+        })
+        .collect();
+    let text = serde_json::to_string(&serde_json::json!({
+        "commit": commit,
+        "target": target,
+        "samples": rows,
+    }))
+    .map_err(|error| error.to_string())?;
+    if let Some(parent) = out.parent().filter(|parent| !parent.as_os_str().is_empty()) {
+        fs::create_dir_all(parent).map_err(|error| format!("{}: {error}", parent.display()))?;
+    }
+    fs::write(out, text).map_err(|error| format!("{}: {error}", out.display()))
+}
+
 fn failure_report(sample: &str, reason: &str, evidence: &Path) -> String {
     format!(
         "FAIL\t{sample}\t{reason}\n  command evidence: {}",
@@ -839,6 +890,8 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     let mut filters: Vec<String> = Vec::new();
     let mut facts_only = false;
     let mut programs_only = false;
+    let mut jobs = 1usize;
+    let mut out: Option<PathBuf> = None;
     let mut cli_override: Option<PathBuf> = None;
     let mut target = host_target().to_owned();
 
@@ -847,12 +900,30 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         match args[i].as_str() {
             "-h" | "--help" => {
                 println!(
-                    "usage: cargo xtask sample-gate [--filter <fragments>] [--facts] [--programs-only] [--target <target>] [--cli <path>]"
+                    "usage: cargo xtask sample-gate [--filter <fragments>] [--facts] [--programs-only] [--target <target>] [--cli <path>] [--jobs <n>] [--out <file.json>]"
                 );
                 return Ok(());
             }
             "--facts" => facts_only = true,
             "--programs-only" => programs_only = true,
+            "--jobs" => {
+                i += 1;
+                jobs = args
+                    .get(i)
+                    .and_then(|value| value.parse().ok())
+                    .filter(|jobs: &usize| *jobs > 0)
+                    .ok_or_else(|| {
+                        eprintln!("sample-gate: --jobs requires a positive number");
+                        2u8
+                    })?;
+            }
+            "--out" => {
+                i += 1;
+                out = Some(PathBuf::from(args.get(i).ok_or_else(|| {
+                    eprintln!("sample-gate: --out requires a path");
+                    2u8
+                })?));
+            }
             "--filter" => {
                 i += 1;
                 let val = args.get(i).ok_or_else(|| {
@@ -928,20 +999,54 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     })?;
     let cli = producer.cli.as_path();
 
-    let mut failed = 0usize;
-    for proj in &projects {
-        match verify_sample(cli, proj, &target, &evidence.join(&proj.rel_path)) {
-            Ok(state) => {
-                println!("{state}\t{}", proj.rel_path);
-            }
-            Err(reason) => {
-                eprintln!(
-                    "{}",
-                    failure_report(&proj.rel_path, &reason, &evidence.join(&proj.rel_path))
-                );
-                failed += 1;
-            }
+    // Each sample is verified on its own: its own directory, its own evidence
+    // folder, the shared read-only compiler. `--jobs` runs that many at once;
+    // the results are kept in sample order for `--out`.
+    let results: Vec<std::sync::Mutex<Option<Result<String, String>>>> = projects
+        .iter()
+        .map(|_| std::sync::Mutex::new(None))
+        .collect();
+    let next = std::sync::atomic::AtomicUsize::new(0);
+    std::thread::scope(|scope| {
+        for _ in 0..jobs.min(projects.len()) {
+            scope.spawn(|| {
+                loop {
+                    let index = next.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    let Some(proj) = projects.get(index) else {
+                        break;
+                    };
+                    let outcome = verify_sample(cli, proj, &target, &evidence.join(&proj.rel_path));
+                    match &outcome {
+                        Ok(state) => println!("{state}\t{}", proj.rel_path),
+                        Err(reason) => eprintln!(
+                            "{}",
+                            failure_report(&proj.rel_path, reason, &evidence.join(&proj.rel_path))
+                        ),
+                    }
+                    *results[index].lock().expect("sample result") = Some(outcome);
+                }
+            });
         }
+    });
+    let results: Vec<Result<String, String>> = results
+        .into_iter()
+        .map(|slot| {
+            slot.into_inner()
+                .expect("sample result")
+                .unwrap_or_else(|| Err("not verified".to_owned()))
+        })
+        .collect();
+    let failed = results.iter().filter(|result| result.is_err()).count();
+    if let Some(out) = &out {
+        write_results(out, &repo, &target, &projects, &results).map_err(|e| {
+            eprintln!("sample-gate: {e}");
+            4u8
+        })?;
+        println!(
+            "sample-gate: wrote {} result(s) to {}",
+            results.len(),
+            out.display()
+        );
     }
 
     producer.verify().map_err(|e| {
@@ -1315,5 +1420,54 @@ esac
             output,
             b"# header\ndecision row 0123abcd accept\nother line\n"
         );
+    }
+}
+
+#[cfg(test)]
+mod result_file_tests {
+    use super::*;
+
+    /// `--out` keeps every sample in order with the gate's own verdict word,
+    /// and a failure keeps its reason, so a report can be read without the
+    /// console log.
+    #[test]
+    fn the_results_file_keeps_each_samples_verdict_and_reason() {
+        let repo = repo_root().unwrap();
+        let directory = execution::reserve_directory(&std::env::temp_dir()).unwrap();
+        let sample = |path: &str| SampleProject {
+            directory: repo.join(path),
+            rel_path: path.to_owned(),
+            entry: None,
+            role: "program".to_owned(),
+            source_inputs: Vec::new(),
+            rejection: Vec::new(),
+            rejection_any: Vec::new(),
+            rejection_casefold: false,
+            native_rejection: None,
+        };
+        let projects = [
+            sample("samples/a"),
+            sample("samples/b"),
+            sample("samples/c"),
+        ];
+        let results = [
+            Ok("pass (native exit 0, Psi exit 0)".to_owned()),
+            Err("update failed: not supported yet".to_owned()),
+            Ok("no-oracle".to_owned()),
+        ];
+        let out = directory.join("results.json");
+        write_results(&out, &repo, "windows_x86_64", &projects, &results).unwrap();
+        let written: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&out).unwrap()).unwrap();
+        let rows = written["samples"].as_array().unwrap();
+        let row = |index: usize, key: &str| rows[index][key].as_str().unwrap().to_owned();
+        assert_eq!(written["target"], "windows_x86_64");
+        assert_eq!(row(0, "result"), "pass");
+        assert_eq!(row(0, "detail"), "(native exit 0, Psi exit 0)");
+        assert_eq!(row(1, "result"), "fail");
+        assert_eq!(row(1, "detail"), "update failed: not supported yet");
+        assert_eq!(row(2, "result"), "no-oracle");
+        assert_eq!(row(2, "sample"), "samples/c");
+        fs::remove_dir_all(directory).unwrap();
     }
 }

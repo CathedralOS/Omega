@@ -70,9 +70,6 @@ Restoring the true pre-call sum (`100u64`) restores clean compilation and zero e
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`)
 - **Ticket:** `7a9b4fb00e034587ad28fd21781dfc63`
 - **Pinned fixtures:**
-  - Positive passes: `tests/omega/pass/facts/live_across_call_spill_through_<place>_exit/`
-  - Negative controls: `tests/omega/fail/facts/live_across_call_spill_through_<place>_rejected/`
-
 ### Specification and Lowering Layers
 
 1. **Establishment:** The eight distinct scalar bindings (`v1 = 5u64`, `v2 = 10u64`, `v3 = 12u64`, `v4 = 13u64`, `v5 = 14u64`, `v6 = 15u64`, `v7 = 16u64`, `v8 = 15u64`) and their constant/contractual bounds are statically established in the caller before the interior invocation. `clobber_call` declares contract `requires seed == 1u64 ensures result == 0u64`. All eight scalar values are preserved across the call without relying on any post-hoc caller equality guard (`transition x == 100`) to manufacture or re-establish value facts.
@@ -94,7 +91,7 @@ Producer: the reference `omega` CLI at the landing candidate, `macos_arm64` host
 | `omega run --both` root and nine places | native exit 0, interpreter exit 0, agreeing (10/10) |
 | `sample_native_gate --facts --filter live_across_call_spill` | 10/10 meet their oracle; 18/18 intended-invalid controls match their authored rejection; exit 0 |
 | `corpus_gate --native --filter facts/live_across_call_spill` | clean; 9 fixtures `built`, executed 9, exit codes `{'0': 9}`; exit 0 |
-| `tests/omega/corpus_native_macos_arm64.txt` | nine `built ... exit:0` rows, splice added 9 and removed 0 |
+|  | nine `built ... exit:0` rows, splice added 9 and removed 0 |
 
 Each reject twin refuses with exit 1 and the diagnostic
 `exact arithmetic ... may overflow \`u64\`` (decision 17, exact arithmetic is a

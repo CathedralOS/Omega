@@ -21,9 +21,6 @@ Owning Task: `WRITE-ONLY-BORROW` (`TASKS.md`) — "computed IEEE store/readback"
 
 ## Pinned Fixtures
 
-- `tests/omega/pass/facts/write_only_ieee_store_readback_through_<place>_exit`
-- `tests/omega/fail/facts/write_only_ieee_store_readback_through_<place>_rejected`
-
 Each invalid twin adds one line — the store reads its `&write` referent — and rejects with `reads write-only parameter`; write-only authority is the enabling requirement of the fact's transport.
 
 ## Build-owned target-body migration

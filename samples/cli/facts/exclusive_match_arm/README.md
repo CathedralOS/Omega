@@ -56,8 +56,6 @@ target/debug/omega run --both samples/cli/facts/exclusive_match_arm/const_name/m
 target/debug/omega run --both samples/cli/facts/exclusive_match_arm/other_state/main.omg
 target/debug/omega run --both samples/cli/facts/exclusive_match_arm/other_machine/main.omg
 target/debug/omega run --both samples/cli/facts/exclusive_match_arm/target_body/main.omg
-python tools/sample_native_gate.py --facts --filter cli/facts/exclusive_match_arm
-python3 tools/corpus_gate.py --filter facts/exclusive_match_arm
 ```
 
 ### The oracle discriminates
@@ -90,12 +88,10 @@ of the write through the loan; everything else is identical to its positive
 
 ## Pinned Fixtures
 
-The row is pinned by `tests/omega/{pass,fail}/facts/exclusive_match_arm_through_*`
-fixtures; every positive records native exit 0 and Terminal agreement, and every
-twin records its rejection with the expected fragment. The nine pass fixtures
-are byte-identical copies of their place programs, and the nine fail fixtures
-are byte-identical copies of their twins, so sample and fixture cannot drift.
-The `case_payload` probe is not pinned and never counts toward the row.
+The nine pass fixtures are byte-identical copies of their place programs, and the
+nine fail fixtures are byte-identical copies of their twins, so sample and fixture
+cannot drift. The `case_payload` probe is not pinned and never counts toward the
+row.
 
 ## Requirements and Evidence
 

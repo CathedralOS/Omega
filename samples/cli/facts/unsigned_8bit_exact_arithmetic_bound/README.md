@@ -13,15 +13,15 @@ Every place performs the same operation: bound two 8-bit unsigned operands (`lhs
 | Place | Positive Project | Reject Twin | Pinned Corpus Pass | Pinned Corpus Fail | Transport Mechanism |
 | --- | --- | --- | --- | --- | --- |
 | (root) | [`main.omg`](main.omg) | — | — | — | root 8-bit bounded addition, headroom subtraction, and margin discharge |
-| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | `tests/omega/pass/facts/unsigned_8bit_exact_arithmetic_bound_through_local_exit` | `tests/omega/fail/facts/unsigned_8bit_exact_arithmetic_bound_through_local_rejected` | the 8-bit sum is held in a local variable before discharging the exact subtractions |
-| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | `tests/omega/pass/facts/unsigned_8bit_exact_arithmetic_bound_through_field_exit` | `tests/omega/fail/facts/unsigned_8bit_exact_arithmetic_bound_through_field_rejected` | the sum is stored in and projected from `SumHolder.sum` |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | `tests/omega/pass/facts/unsigned_8bit_exact_arithmetic_bound_through_parameter_exit` | `tests/omega/fail/facts/unsigned_8bit_exact_arithmetic_bound_through_parameter_rejected` | the sum is passed as an explicit machine parameter with its own `requires` |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | `tests/omega/pass/facts/unsigned_8bit_exact_arithmetic_bound_through_call_result_exit` | `tests/omega/fail/facts/unsigned_8bit_exact_arithmetic_bound_through_call_result_rejected` | `add` returns the sum under a `requires`/`ensures` contract |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | `tests/omega/pass/facts/unsigned_8bit_exact_arithmetic_bound_through_match_join_exit` | `tests/omega/fail/facts/unsigned_8bit_exact_arithmetic_bound_through_match_join_rejected` | both match arms yield the sum so the joined binding preserves the interval |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | `tests/omega/pass/facts/unsigned_8bit_exact_arithmetic_bound_through_const_name_exit` | `tests/omega/fail/facts/unsigned_8bit_exact_arithmetic_bound_through_const_name_rejected` | named 8-bit constants (`LHS`, `RHS`, `SUM`) define the sum before discharging exact subtractions |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | `tests/omega/pass/facts/unsigned_8bit_exact_arithmetic_bound_through_other_state_exit` | `tests/omega/fail/facts/unsigned_8bit_exact_arithmetic_bound_through_other_state_rejected` | successor machine `step(sum: u8)` receives the sum under a `requires` and discharges the subtractions |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | `tests/omega/pass/facts/unsigned_8bit_exact_arithmetic_bound_through_other_machine_exit` | `tests/omega/fail/facts/unsigned_8bit_exact_arithmetic_bound_through_other_machine_rejected` | forwarding machine `forward` checks the sum's interval before the verifying machine reads it |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | `tests/omega/pass/facts/unsigned_8bit_exact_arithmetic_bound_through_target_body_exit` | `tests/omega/fail/facts/unsigned_8bit_exact_arithmetic_bound_through_target_body_rejected` | each of four target-scoped machine bodies adds bounded 8-bit operands and discharges the interval |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) |  |  | the 8-bit sum is held in a local variable before discharging the exact subtractions |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) |  |  | the sum is stored in and projected from `SumHolder.sum` |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) |  |  | the sum is passed as an explicit machine parameter with its own `requires` |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) |  |  | `add` returns the sum under a `requires`/`ensures` contract |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) |  |  | both match arms yield the sum so the joined binding preserves the interval |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) |  |  | named 8-bit constants (`LHS`, `RHS`, `SUM`) define the sum before discharging exact subtractions |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) |  |  | successor machine `step(sum: u8)` receives the sum under a `requires` and discharges the subtractions |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) |  |  | forwarding machine `forward` checks the sum's interval before the verifying machine reads it |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) |  |  | each of four target-scoped machine bodies adds bounded 8-bit operands and discharges the interval |
 
 Every positive place and the root `main.omg` probe binds `ProgramEntry` for
 `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` and declares
@@ -58,33 +58,17 @@ Check all nine invalid twins with:
 omega --check samples/cli/facts/unsigned_8bit_exact_arithmetic_bound/<place>/invalid/main.omg
 ```
 
-### Acceptance Gate
-
-```sh
-python tools/sample_native_gate.py --cli /Volumes/Crucial/CathedralOS/Omega/build/swarm/factsr1/producers/gen-5648483032b/omega --filter cli/facts/unsigned_8bit_exact_arithmetic_bound --jobs 4
-```
-
-`sample_native_gate.py` reports on the recording host (macOS arm64): 10/10
-samples meet their documented oracle and 9/9 intended-invalid controls match
-their authored rejection `may overflow \`u8\``.
-
 ## Pinned Fixtures
 
-The row is pinned under `tests/omega/pass/facts/unsigned_8bit_exact_arithmetic_bound_through_<place>_exit` and
-`tests/omega/fail/facts/unsigned_8bit_exact_arithmetic_bound_through_<place>_rejected` across all nine
-places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`,
-`target_body`). Every positive fixture binds `ProgramEntry` for all four hosted targets (`windows_x86_64`,
-`linux_x86_64`, `macos_arm64`, `linux_arm64`) and declares `Expected exit: 0`; every reject fixture carries its
-authored `may overflow \`u8\`` fragment.
+Every positive fixture binds `ProgramEntry` for all four hosted targets
+(`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and declares
+`Expected exit: 0`; every reject fixture carries its authored `may overflow
+\`u8\`` fragment.
 
 Measured on macOS arm64 with the shared generation producer for this base (`gen-5648483032b`, revision
 `5648483032b`, omega sha256 `77ec27e01b1762895702486b0875eb949b4a4a9af8d68b91e7cc4ca68ffeac98`):
 - 10/10 programs (root plus nine places) report `native exit 0` and `interp exit: 0` under `omega run --both`.
 - 9/9 `<place>/invalid` twins reject under `omega --check` with `may overflow \`u8\``.
-- The fixtures record 18 checked / 18 rejected in `tests/omega/corpus_outcomes.txt`, 18 built `exit:0` in
-  `tests/omega/corpus_native_macos_arm64.txt`, and 18 `exit:0` + `interpreter-exit:0` + `interpreter:agrees` in
-  `tests/omega/corpus_both_macos_arm64.txt`; no compiler build was consumed.
-
 ## Requirements and Evidence
 
 - **Parent outcome:** `ARITHMETIC-POLICY-REALIZATION` (`TASKS.md`): "Close remaining numeric-policy realization and full program acceptance" — this row is one customer group's nine-place transport and execution of the settled numeric-policy exact-arithmetic proof obligation; `CANONICALIZE-SCALAR-RANGE-CONTRACTS` owns the proposition-based range-contract spelling (`requires`, `ensures`, guards, locals established from initializers and calls) the carriers use.

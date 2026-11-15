@@ -26,12 +26,9 @@ Only how the `[u8; 3]` actual reaches the call changes.
 | other_machine | [positive](other_machine/main.omg) | [Count 4](invalid_other_machine/main.omg) | `forward` relays to `consume` |
 | target_body | [positive](target_body/main.omg) | [Count 4](invalid_target_body/main.omg) | Build selects `X86Bytes` or `ArmBytes`, each behind a tag check (17 / 29) |
 
-The [root](main.omg) and its [twin](invalid/main.omg) repeat the operation.
-Each positive binds `ProgramEntry` for Windows x86-64, Linux x86-64, macOS ARM64
-and Linux ARM64, selects its `Bytes` provider per target, and declares exit 0.
-The nine places are pinned as
-`tests/omega/pass/facts/method_array_operand_inference_through_<place>_exit` and
-`tests/omega/fail/facts/method_array_operand_inference_through_<place>_rejected`.
+The [root](main.omg) and its [twin](invalid/main.omg) repeat the operation. Each
+positive binds `ProgramEntry` for Windows x86-64, Linux x86-64, macOS ARM64 and
+Linux ARM64, selects its `Bytes` provider per target, and declares exit 0.
 
 ## Baseline and repair
 

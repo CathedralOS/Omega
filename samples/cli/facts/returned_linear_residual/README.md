@@ -39,21 +39,14 @@ projection diagnostic is an acceptable negative oracle.
 | another machine | forwarding helper passes Seed into the operation's owner |
 | another target body | each hosted `across` body forms Seed and performs the operation |
 
-Each place has `main.omg`, `build.omg`, and an `invalid/` twin. Exact copies are pinned as
-`tests/omega/pass/facts/returned_linear_residual_through_<place>_exit` (with
-`build.omg` and authored native exit 0) and
-`tests/omega/fail/facts/returned_linear_residual_through_<place>_rejected` (with
-the twin's automatic-cleanup fragment in `expected.txt`). The root
-plus nine positives bind all four hosted ProgramEntry catalogs and author native
-and Terminal exit 0. Binding targets is not execution on those hosts. Rejects
-retain the automatic-cleanup and drop_receipt diagnostic fragments. Qualification
-records the actual compiler, host, source hashes and engine observations.
+Each place has `main.omg`, `build.omg`, and an `invalid/` twin. The root plus nine
+positives bind all four hosted ProgramEntry catalogs and author native and Terminal exit
+0. Binding targets is not execution on those hosts. Rejects retain the automatic-cleanup
+and drop_receipt diagnostic fragments. Qualification records the actual compiler, host,
+source hashes and engine observations.
 
 ## Pinned Fixtures
 
-The eighteen pins for the nine standard places live at
-`tests/omega/pass/facts/returned_linear_residual_through_<place>_exit` and
-`tests/omega/fail/facts/returned_linear_residual_through_<place>_rejected`.
 Recorded rows: 9 `checked` (`check-target:macos_arm64`), 9 `rejected` carrying
 the expected fragment, 9 native `built ... exit:0`, and 9 both-leg rows reading
 `exit:0 interpreter-exit:0 interpreter:agrees`.

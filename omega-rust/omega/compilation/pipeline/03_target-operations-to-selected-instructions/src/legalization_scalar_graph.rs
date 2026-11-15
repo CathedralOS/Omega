@@ -2864,7 +2864,7 @@ pub(crate) mod cleanup_calls {
     }
 
     pub(crate) fn validate_target(
-        rows: &[TargetUnitOperation],
+        rows: &[target_operations::TargetInstruction],
         operation: &AbstractOperation,
         function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
         native: &TargetOperationPlan,
@@ -2881,10 +2881,13 @@ pub(crate) mod cleanup_calls {
                 callee,
                 call_plan,
                 arguments,
-            } = row
+            } = &row.kind
             else {
                 return Err(LegalizationError::custody());
             };
+            if row.source.is_some() {
+                return Err(LegalizationError::custody());
+            }
             let expected_arguments = call
                 .arguments
                 .iter()
@@ -2973,8 +2976,15 @@ pub(crate) mod control {
                         }
                     }
                     };
-                if structural_type != declared.structural_type
-                    || multiplicity != declared.multiplicity
+                if !structural_types
+                    .declaration(structural_type)
+                    .is_ok_and(|source| {
+                        terminal_semantics::normal_completion::structural_return_carrier_matches(
+                            declared,
+                            source,
+                            multiplicity,
+                        )
+                    })
                     || !trivial_affine_locals.is_empty()
                     || !super::aggregate_results::cleanup(
                         function_inputs,

@@ -28,10 +28,6 @@ Each place establishes that `isolated - 100u64` performs exact subtraction witho
 
 Reject twins in each place weaken the mutated write or target bound (producing a 99u64 sum), causing exact subtraction `isolated - 100u64` to reject at compile time with `exact subtraction underflow` (`exact arithmetic may overflow u64`).
 
-Pinned fixtures:
-- Pass: `tests/omega/pass/facts/stack_frame_slot_isolation_through_<place>_exit/`
-- Fail: `tests/omega/fail/facts/stack_frame_slot_isolation_unproved_<place>/`
-
 ## Run record
 
 Producer revision `952bc99fb970`, rebased onto incoming main `43c5fdff6670`
@@ -49,18 +45,6 @@ execution agree at exit 0 in ten of ten positives. All nine
 `<place>/invalid/main.omg` twins exit 200 with the pinned diagnostic
 `exact arithmetic in machine ... may overflow u64` (`target_body` carries four
 such diagnostics, the others one each).
-
-Gate numbers on this revision:
-
-- `python3 tools/sample_native_gate.py --facts --filter stack_frame_slot_isolation`
-  → `10/10 samples meet their documented oracle on macos_arm64 (0 unscored)`;
-  `18/18 intended-invalid controls match their authored rejection`.
-- `python3 tools/corpus_gate.py --native --filter facts/stack_frame_slot_isolation`
-  → nine `pass/facts/stack_frame_slot_isolation_through_<place>_exit` rows
-  recorded as `built <ms> exit:0` in `tests/omega/corpus_native_macos_arm64.txt`.
-- `python3 tools/corpus_gate.py --filter facts/stack_frame_slot_isolation`
-  → 18 fixtures `{'checked': 9, 'rejected': 9}`, with `0 fail fixtures did not
-  reject` and `0 rejected without their expected fragment`.
 
 ## Discrimination proof
 

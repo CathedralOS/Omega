@@ -100,8 +100,6 @@ the Linux/Windows runs cover the ordered-edge controls and returned-linear row.
 ```sh
 omega run --both samples/cli/facts/borrowed_projection_cleanup/local/main.omg
 omega --check samples/cli/facts/borrowed_projection_cleanup/invalid_local/main.omg
-python3 tools/sample_native_gate.py --facts --filter borrowed_projection_cleanup --cli <omega>
-python3 tools/corpus_gate.py --both --filter borrowed_projection_cleanup_through_
 ```
 
 ## Build-owned target-body migration

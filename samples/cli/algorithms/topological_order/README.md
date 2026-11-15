@@ -24,6 +24,5 @@ An intended-invalid control in `../invalid_topological_order/` marks node `8` (v
 After ordinary package review on macOS arm64:
 
 ```sh
-python3 tools/sample_native_gate.py --cli build/dev-target/debug/omega --target macos_arm64 --filter algorithms/topological_order --jobs 1
 build/dev-target/debug/omega run --both samples/cli/algorithms/topological_order/main.omg < /dev/null
 ```

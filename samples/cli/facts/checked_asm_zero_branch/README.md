@@ -21,12 +21,11 @@ store can satisfy the exit-0 oracle. No caller guard establishes the label fact.
 | another machine | [source](other_machine/main.omg) | [false zero-edge fact](invalid_other_machine/main.omg) |
 | another target body | [source](target_body/main.omg) | [false zero-edge fact](invalid_target_body/main.omg) |
 
-Each twin changes only `done requires eax == 0` to `eax == 1`.
-Additional controls pin [false fallthrough/backedge facts](controls/false_backedge/main.omg),
-[uninitialized ZF](controls/uninitialized_flag/main.omg),
-[omitted clobbers](controls/missing_clobber/main.omg), and
-[invented clobbers](controls/invented_clobber/main.omg).
-Matching fixtures live under `tests/omega/{pass,fail}/facts/checked_asm_zero_branch_*`.
+Each twin changes only `done requires eax == 0` to `eax == 1`. Additional controls pin [false
+fallthrough/backedge facts](controls/false_backedge/main.omg), [uninitialized
+ZF](controls/uninitialized_flag/main.omg), [omitted
+clobbers](controls/missing_clobber/main.omg), and [invented
+clobbers](controls/invented_clobber/main.omg).
 
 ## Requirement coverage
 

@@ -68,11 +68,7 @@ a descriptor sibling does not relocate that field.
 
 Acceptance is `omega run --both <place>/main.omg`, both exits zero and exact
 `ABC\n` output (twice for `match_join`), plus each twin's active-loan rejection.
-The same bytes are pinned under
-`tests/omega/{pass,fail}/facts/foreign_scalar_backing_through_*`.
 
-Historical four-host qualification is recorded in
-[hosted_qualification.json](hosted_qualification.json).
 The actual optimized producer is `6fe58fe64b3825ed91fed6a8fc4e146ae3a9d779`.
 The root and all nine places run on each matching host with exact `ABC\n`
 bytes (eight bytes for `match_join`), native/Terminal exit zero, nine pinned
@@ -95,14 +91,9 @@ into the target's imported `write`/`_write`, followed by reads of that same home
 three fields.
 That bounded native corroboration is retained separately from engine observations.
 
-The three thin-footprint controls are build-only publication-refusal fixtures
-under `tests/omega/pass/host/scalar_reference_{narrow,mixed,mixed_index}_backing_foreign_export`.
-Their logical references are Source-valid; Linux x86_64 native compilation must
-reject for `thin scalar foreign pointer requires the same byte footprint in every backing`.
-The matching native-refusal oracles pin that reason without promising execution;
-compiling them on macOS does not execute a foreign ELF image. The unchanged
-invalid `Token` constant control additionally preserves the constructor's
-specific default-domain refusal.
+The matching native-refusal oracles pin that reason without promising execution; compiling them
+on macOS does not execute a foreign ELF image. The unchanged invalid `Token` constant control
+additionally preserves the constructor's specific default-domain refusal.
 
 Historical producer `5985d0f756fb` qualified only macOS. The original direct-array
 customer and returned reference-sibling control retain their separately recorded

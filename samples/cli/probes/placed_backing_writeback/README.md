@@ -15,6 +15,4 @@ allocate storage, or prove reset and return. Those remain the parent
 The native operation consumes the current accessor reference, whose projection
 already includes the field's container offset. It must neither recover a former
 parent pointer nor add that offset twice. Placement/provider admission and live
-reference custody remain distinct checks. The regression fixture is
-`tests/omega/pass/layouts/runtime_placed_accessor_writeback_exit`; conflicting
-parent access and shared-to-mutable controls remain under `fail/layouts`.
+reference custody remain distinct checks.

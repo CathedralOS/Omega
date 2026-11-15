@@ -41,17 +41,17 @@ Each place is pinned as a pass fixture (a byte copy of the place with both
 execution oracles) and a reject twin fixture (a byte copy of the twin's program
 with its authored fragment):
 
-| Place | Positive fixture | Reject twin fixture |
-| --- | --- | --- |
-| local | [pass/facts/checked_asm_arm_load_through_local_exit](../../../../tests/omega/pass/facts/checked_asm_arm_load_through_local_exit/main.omg) | [fail/facts/checked_asm_arm_load_through_local_rejected](../../../../tests/omega/fail/facts/checked_asm_arm_load_through_local_rejected/main.omg) |
-| field | [pass/facts/checked_asm_arm_load_through_field_exit](../../../../tests/omega/pass/facts/checked_asm_arm_load_through_field_exit/main.omg) | [fail/facts/checked_asm_arm_load_through_field_rejected](../../../../tests/omega/fail/facts/checked_asm_arm_load_through_field_rejected/main.omg) |
-| parameter | [pass/facts/checked_asm_arm_load_through_parameter_exit](../../../../tests/omega/pass/facts/checked_asm_arm_load_through_parameter_exit/main.omg) | [fail/facts/checked_asm_arm_load_through_parameter_rejected](../../../../tests/omega/fail/facts/checked_asm_arm_load_through_parameter_rejected/main.omg) |
-| call result | [pass/facts/checked_asm_arm_load_through_call_result_exit](../../../../tests/omega/pass/facts/checked_asm_arm_load_through_call_result_exit/main.omg) | [fail/facts/checked_asm_arm_load_through_call_result_rejected](../../../../tests/omega/fail/facts/checked_asm_arm_load_through_call_result_rejected/main.omg) |
-| match join | [pass/facts/checked_asm_arm_load_through_match_join_exit](../../../../tests/omega/pass/facts/checked_asm_arm_load_through_match_join_exit/main.omg) | [fail/facts/checked_asm_arm_load_through_match_join_rejected](../../../../tests/omega/fail/facts/checked_asm_arm_load_through_match_join_rejected/main.omg) |
-| const name | [pass/facts/checked_asm_arm_load_through_const_name_exit](../../../../tests/omega/pass/facts/checked_asm_arm_load_through_const_name_exit/main.omg) | [fail/facts/checked_asm_arm_load_through_const_name_rejected](../../../../tests/omega/fail/facts/checked_asm_arm_load_through_const_name_rejected/main.omg) |
-| a nested machine | [pass/facts/checked_asm_arm_load_through_other_state_exit](../../../../tests/omega/pass/facts/checked_asm_arm_load_through_other_state_exit/main.omg) | [fail/facts/checked_asm_arm_load_through_other_state_rejected](../../../../tests/omega/fail/facts/checked_asm_arm_load_through_other_state_rejected/main.omg) |
-| another machine | [pass/facts/checked_asm_arm_load_through_other_machine_exit](../../../../tests/omega/pass/facts/checked_asm_arm_load_through_other_machine_exit/main.omg) | [fail/facts/checked_asm_arm_load_through_other_machine_rejected](../../../../tests/omega/fail/facts/checked_asm_arm_load_through_other_machine_rejected/main.omg) |
-| another target body | [pass/facts/checked_asm_arm_load_through_target_body_exit](../../../../tests/omega/pass/facts/checked_asm_arm_load_through_target_body_exit/main.omg) | [fail/facts/checked_asm_arm_load_through_target_body_rejected](../../../../tests/omega/fail/facts/checked_asm_arm_load_through_target_body_rejected/main.omg) |
+| Place |
+| --- |
+| local |
+| field |
+| parameter |
+| call result |
+| match join |
+| const name |
+| a nested machine |
+| another machine |
+| another target body |
 
 ## Requirements and Evidence
 
@@ -123,14 +123,6 @@ custody checks are unchanged: the false-arrival twin of the reproduction still
 rejects with `cannot prove requires contract for call after`, and the pinned
 countdown / rank-decrease / flag-snapshot checked-asm fixtures keep their
 verdicts.
-
-Fixtures for the repair:
-
-- [pass/asm/scratch_snapshot_survives_input_write_exit](../../../../tests/omega/pass/asm/scratch_snapshot_survives_input_write_exit/main.omg)
-  (checks; the arrival contract asks for the preserved snapshot `eax == 5`).
-- [fail/asm/scratch_snapshot_after_input_write_wrong_value_rejected](../../../../tests/omega/fail/asm/scratch_snapshot_after_input_write_wrong_value_rejected/main.omg)
-  (the same body asks for the rewritten value `eax == 7` and rejects with
-  `cannot prove requires contract for call after`).
 
 Both fixtures bind only the two hosted x86_64 targets, because the checked
 scratch register/flags viewport is the x86 GPR/flags set; their native rows

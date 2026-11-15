@@ -8,8 +8,6 @@ the empty callee does not actually crash.
 
 Baseline 6d0b8da07bd refuses Terminal production because the crash predicate
 reader still classifies qualified fixed arrays as variable-fill byte carriers.
-The matching existing corpus regression is
-`tests/omega/pass/traits/runtime_qualified_byte_crash_equality_exit`.
 
 The repaired pipeline retains a typed proof identity rather than expanding it
 into executable field comparisons. Native and Terminal execution both return

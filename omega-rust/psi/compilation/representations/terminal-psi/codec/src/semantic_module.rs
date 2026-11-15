@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 273`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 274`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -4699,10 +4699,13 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-// Marker 273 combines hosted primitive requirement links with the structural
-// qualification rows from main. Both incompatible predecessors used marker 272;
-// neither may be interpreted as this combined layout. Logical result lifetimes
-// from marker 271 remain present.
+// Marker 274 adds authenticated hosted-primitive requirement links to the
+// machine contract layout retained by marker 273. A 273 artifact has no such
+// execution link and cannot be read as this declaration grammar.
+// Marker 273 moves a public requirement's declared result lifetime groups
+// from each static method tuple onto the machine contract both selected and
+// rigid calls read. A 272 artifact keeps them on the method tuple instead.
+// Marker 271 retains boundary logical result lifetimes independently of spatial regions.
 // Marker 270 removes executable target-family catalogs and portable family heads.
 // Marker 269 retains complete primitive scalar storage types and predicate
 // establishment completions. Earlier catalogs cannot express either judgment.
@@ -4720,7 +4723,7 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Marker 272 retains each structural value's explicit qualification changes
 // (`value as +D`, `value as -D`) and their issuer routes. A 271 artifact has no
 // row a qualified structural parameter could have arrived through.
-pub(crate) const FORMAT_MARKER: u16 = 273;
+pub(crate) const FORMAT_MARKER: u16 = 274;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -5777,7 +5780,7 @@ mod format_marker_tests {
         // of which payload follows their shared legacy marker. Marker 260's finite
         // float conversion ordinal also cannot supply the retained carrier identity.
         for legacy in [
-            250u16, 251, 252, 256, 260, 261, 264, 265, 266, 267, 268, 269, 270, 271, 272,
+            250u16, 251, 252, 256, 260, 261, 264, 265, 266, 267, 268, 269, 270, 271, 272, 273,
         ] {
             for payload in [&[][..], &[0xff, 0xff, 0xff][..]] {
                 let mut bytes = MAGIC.to_vec();

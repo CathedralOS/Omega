@@ -74,7 +74,7 @@ pub(crate) mod scalar_graph {
     use target_operations::TargetOperationPlan;
     pub(crate) mod instruction {
         use super::{Error, TargetOperationPlan};
-        use crate::legalization::runtime_indices::{collection_view, projection};
+        use crate::legalization::runtime_indices::projection;
         use crate::structural_inputs::structural_reference_input::reference_source_geometry;
         use abstract_operations::AbstractOperation;
         use legalized_operations::{
@@ -1087,45 +1087,77 @@ pub(crate) mod scalar_graph {
             }
 
             pub(crate) fn project_subslice(
-                node: &optimization_unit::OptimizationNode,
-                optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &crate::native_geometry::NativeUnit<'_>,
+                machine: semantic_vocabulary::MachineId,
+                facts: &[optimization_unit::AcceptedObligationFact],
+                targeted: &target_operations::TargetUnitOperation,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-                let (AbstractOperation::ByteSequenceSubslice {
-                    psi_operation,
-                    result,
-                    source,
-                    start,
-                    end,
-                    length,
-                    obligation,
-                }
-                | AbstractOperation::ElementViewSubslice {
-                    psi_operation,
-                    result,
-                    source,
-                    start,
-                    end,
-                    length,
-                    obligation,
-                }) = &node.operation
-                else {
+                use target_operations::{TargetByteView, TargetElementView, TargetUnitOperation};
+                let (result, psi_operation, place, source, indices, start, end, length, obligation) =
+                    match targeted {
+                        TargetUnitOperation::ByteSequenceSubslice {
+                            result,
+                            view:
+                                TargetByteView::Subslice {
+                                    psi_operation,
+                                    place,
+                                    source,
+                                    indices,
+                                    start,
+                                    end,
+                                    length,
+                                    obligation,
+                                },
+                        }
+                        | TargetUnitOperation::ElementViewSubslice {
+                            result,
+                            view:
+                                TargetElementView::Subslice {
+                                    psi_operation,
+                                    place,
+                                    source,
+                                    indices,
+                                    start,
+                                    end,
+                                    length,
+                                    obligation,
+                                },
+                        } => (
+                            result,
+                            *psi_operation,
+                            *place,
+                            source,
+                            indices,
+                            start.operand_value().ok_or(Error::custody())?,
+                            end.operand_value().ok_or(Error::custody())?,
+                            *length,
+                            *obligation,
+                        ),
+                        _ => return Err(Error::custody()),
+                    };
+                if place != result.place {
                     return Err(Error::custody());
-                };
-                let indices = view_indices(optimized, unit, *psi_operation, source)?;
-                let accepted_fact = accepted_fact(unit, optimized, *psi_operation, *obligation)?;
-                let kind = if matches!(
-                    node.operation,
-                    AbstractOperation::ElementViewSubslice { .. }
-                ) {
+                }
+                let indices = crate::legalization::runtime_indices::retained_operands(
+                    facts,
+                    machine,
+                    psi_operation,
+                    indices,
+                )?;
+                let accepted_fact = crate::legalization::obligations::retained_fact(
+                    facts,
+                    machine,
+                    psi_operation,
+                    obligation,
+                )?;
+                let kind = if matches!(targeted, TargetUnitOperation::ElementViewSubslice { .. }) {
                     LegalizedScalarInstructionKind::ElementViewSubslice {
                         result: result.clone(),
                         source: source.clone(),
                         indices,
-                        start: *start,
-                        end: *end,
-                        length: *length,
-                        obligation: *obligation,
+                        start,
+                        end,
+                        length,
+                        obligation,
                         accepted_fact,
                     }
                 } else {
@@ -1133,14 +1165,94 @@ pub(crate) mod scalar_graph {
                         result: result.clone(),
                         source: source.clone(),
                         indices,
-                        start: *start,
-                        end: *end,
-                        length: *length,
-                        obligation: *obligation,
+                        start,
+                        end,
+                        length,
+                        obligation,
                         accepted_fact,
                     }
                 };
                 Ok(kind)
+            }
+
+            pub(crate) fn project_established_view(
+                machine: semantic_vocabulary::MachineId,
+                facts: &[optimization_unit::AcceptedObligationFact],
+                targeted: &target_operations::TargetUnitOperation,
+            ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
+                use target_operations::{
+                    TargetElementView, TargetElementViewRegion, TargetUnitOperation,
+                };
+                let TargetUnitOperation::EstablishElementView {
+                    result,
+                    view:
+                        TargetElementView::Established {
+                            psi_operation,
+                            place,
+                            structural_type,
+                            source_argument,
+                            element,
+                            indices,
+                            region,
+                            ..
+                        },
+                } = targeted
+                else {
+                    return Err(Error::custody());
+                };
+                if *place != result.place || *structural_type != result.structural_type {
+                    return Err(Error::custody());
+                }
+                // The source argument and endpoint identities belong to this
+                // view, alongside its physical backing recipe. Never recover
+                // them from the body that happened to produce the view.
+                let region = match region {
+                    TargetElementViewRegion::WholeCollection => {
+                        terminal_psi::ElementViewRegion::WholeCollection
+                    }
+                    TargetElementViewRegion::WholeRepresentation {
+                        source_length,
+                        obligation,
+                    } => terminal_psi::ElementViewRegion::WholeRepresentation {
+                        source_length: *source_length,
+                        obligation: *obligation,
+                    },
+                    TargetElementViewRegion::RepresentationBytes {
+                        start,
+                        end,
+                        obligation,
+                    } => terminal_psi::ElementViewRegion::RepresentationBytes {
+                        start: start.operand_value().ok_or(Error::custody())?,
+                        end: end.operand_value().ok_or(Error::custody())?,
+                        obligation: *obligation,
+                    },
+                };
+                let accepted_fact = match region {
+                    terminal_psi::ElementViewRegion::WholeCollection => None,
+                    terminal_psi::ElementViewRegion::WholeRepresentation { obligation, .. }
+                    | terminal_psi::ElementViewRegion::RepresentationBytes { obligation, .. } => {
+                        Some(crate::legalization::obligations::retained_fact(
+                            facts,
+                            machine,
+                            *psi_operation,
+                            obligation,
+                        )?)
+                    }
+                };
+                Ok(LegalizedScalarInstructionKind::EstablishElementView {
+                    indices: crate::legalization::runtime_indices::retained_operands(
+                        facts,
+                        machine,
+                        *psi_operation,
+                        indices,
+                    )?,
+                    result: result.clone(),
+                    destination: *place,
+                    source: source_argument.clone(),
+                    element: *element,
+                    region,
+                    accepted_fact,
+                })
             }
 
             pub(crate) fn project_structural_byte_sequence_field_byte_store(
@@ -1652,7 +1764,6 @@ pub(crate) mod scalar_graph {
         }
 
         use crate::LegalizationError;
-        use crate::legalization::accepted_fact;
         use crate::legalization::scalar_graph_input;
         use semantic_vocabulary::IntegerValue;
 
@@ -1724,11 +1835,35 @@ pub(crate) mod scalar_graph {
             native: &'a TargetOperationPlan,
             plan: &'a crate::native_geometry::NativePlan<'a>,
             unit: &'a crate::native_geometry::NativeUnit<'a>,
-            targeted: &target_operations::TargetUnitOperation,
+            instruction: &target_operations::TargetInstruction,
         ) -> Result<LegalizedScalarInstruction, LegalizationError> {
-            let (operation, result) =
-                scalar_graph_input::instruction(node).ok_or(Error::custody())?;
+            let source = instruction.source.as_ref().ok_or_else(|| {
+                Error::instruction_metadata(
+                    "ordinary target instruction has no retained source metadata",
+                )
+            })?;
+            let operation = source.operation;
+            let targeted = &instruction.kind;
             let kind = if matches!(
+                targeted,
+                target_operations::TargetUnitOperation::EstablishElementView { .. }
+            ) {
+                storage_instructions::project_established_view(
+                    optimized.machine,
+                    &unit.accepted_obligation_facts,
+                    targeted,
+                )?
+            } else if matches!(
+                targeted,
+                target_operations::TargetUnitOperation::ByteSequenceSubslice { .. }
+                    | target_operations::TargetUnitOperation::ElementViewSubslice { .. }
+            ) {
+                storage_instructions::project_subslice(
+                    optimized.machine,
+                    &unit.accepted_obligation_facts,
+                    targeted,
+                )?
+            } else if matches!(
                 targeted,
                 target_operations::TargetUnitOperation::EstablishReference { .. }
                     | target_operations::TargetUnitOperation::EstablishAccessReference { .. }
@@ -2469,9 +2604,6 @@ pub(crate) mod scalar_graph {
                         structural_type: structural_type.clone(),
                         bytes: bytes.clone(),
                     },
-                    AbstractOperation::ByteSequenceSubslice { .. } => {
-                        storage_instructions::project_subslice(node, optimized, unit)?
-                    }
                     AbstractOperation::StructuralByteSequenceFieldByteStore { .. } => {
                         storage_instructions::project_structural_byte_sequence_field_byte_store(
                             node, optimized, unit, targeted,
@@ -2601,38 +2733,6 @@ pub(crate) mod scalar_graph {
                     AbstractOperation::ElementViewWrite { .. } => {
                         storage_instructions::project_element_view_write(node, optimized, unit)?
                     }
-                    AbstractOperation::ElementViewSubslice { .. } => {
-                        storage_instructions::project_subslice(node, optimized, unit)?
-                    }
-                    AbstractOperation::EstablishElementView {
-                        psi_operation,
-                        result,
-                        destination,
-                        source,
-                        element,
-                        region,
-                    } => {
-                        let accepted_fact = match region {
-                            terminal_psi::ElementViewRegion::WholeCollection => None,
-                            terminal_psi::ElementViewRegion::WholeRepresentation {
-                                obligation,
-                                ..
-                            }
-                            | terminal_psi::ElementViewRegion::RepresentationBytes {
-                                obligation,
-                                ..
-                            } => Some(accepted_fact(unit, optimized, *psi_operation, *obligation)?),
-                        };
-                        LegalizedScalarInstructionKind::EstablishElementView {
-                            indices: collection_view(optimized, unit, *psi_operation, source)?,
-                            result: result.clone(),
-                            destination: *destination,
-                            source: source.clone(),
-                            element: *element,
-                            region: *region,
-                            accepted_fact,
-                        }
-                    }
                     AbstractOperation::BooleanNot { operand, .. } => {
                         LegalizedScalarInstructionKind::BooleanNot { operand: *operand }
                     }
@@ -2698,18 +2798,26 @@ pub(crate) mod scalar_graph {
                     _ => return Err(Error::custody()),
                 }
             };
-            Ok(LegalizedScalarInstruction {
-                operation,
-                result: result.map(|value| LegalizedValueDefinition {
-                    value,
-                    scalar_type: node.definitions[0].scalar_type,
-                    definition_site: node.definitions[0].site,
+            Ok(with_metadata(source, kind))
+        }
+
+        /// The instruction owns its already-retained execution and custody annotations.
+        pub(crate) fn with_metadata(
+            source: &target_operations::TargetInstructionSource,
+            kind: LegalizedScalarInstructionKind,
+        ) -> LegalizedScalarInstruction {
+            LegalizedScalarInstruction {
+                operation: source.operation,
+                result: source.result.map(|result| LegalizedValueDefinition {
+                    value: result.value,
+                    scalar_type: result.scalar_type,
+                    definition_site: result.site,
                 }),
                 kind,
-                work: node.work.clone(),
-                effect: node.effect,
-                ownership: node.ownership.clone(),
-            })
+                work: source.metadata.work.clone(),
+                effect: source.metadata.effect,
+                ownership: source.metadata.ownership.clone(),
+            }
         }
     }
     pub(crate) mod structural_case {
@@ -3279,7 +3387,7 @@ pub(crate) mod scalar_graph {
                             .iter()
                             .position(|row| {
                                 matches!(
-                                    row,
+                                    &row.kind,
                                     target_operations::TargetUnitOperation::CleanupCall { .. }
                                 )
                             })
@@ -3291,17 +3399,27 @@ pub(crate) mod scalar_graph {
                 }
                 let mut instructions = Vec::with_capacity(body.len());
                 for (node, row) in body.iter().zip(rows) {
-                    *current_operation =
-                        scalar_graph_input::instruction(node).map(|(operation, _)| operation);
+                    *current_operation = row.source.as_ref().map(|source| source.operation);
                     instructions.push(instruction::project(
                         node, optimized, native, plan, unit, row,
                     )?);
                 }
                 *current_operation = None;
+                let mut parameters = Vec::with_capacity(targeted.parameters.len());
+                for (position, parameter) in targeted.parameters.iter().enumerate() {
+                    parameters.push(optimization_unit::ValueDefinition {
+                        value: parameter.value,
+                        scalar_type: parameter.scalar_type,
+                        site: optimization_unit::ValueDefinitionSite::BlockParameter {
+                            block: targeted.block,
+                            position: u32::try_from(position).map_err(|_| Error::custody())?,
+                        },
+                    });
+                }
                 Ok(LegalizedScalarBlock {
-                    id: block.id,
-                    parameters: block.parameters.clone(),
-                    structural_parameters: block.structural_parameters.clone(),
+                    id: targeted.block,
+                    parameters,
+                    structural_parameters: targeted.structural_parameters.clone(),
                     instructions,
                     terminator: crate::legalization_control::project(
                         target.machine,

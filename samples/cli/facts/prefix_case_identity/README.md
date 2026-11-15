@@ -56,10 +56,6 @@ zero home is a shared control; this does not claim an uninitialized const form.
   preserve the existing scope restrictions. The mixed row itself places no
   ambiguous outer tombstone.
 
-The nine positives and twins are pinned under
-tests/omega/{pass,fail}/facts/prefix_case_identity_<place>. Controls are pinned
-under tests/omega/{pass,fail}/data/prefix_case_*.
-
 ## Verification
 
 On macOS arm64, the nine positives and three positive controls run with native

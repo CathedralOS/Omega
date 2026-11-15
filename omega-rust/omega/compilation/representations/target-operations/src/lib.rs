@@ -91,8 +91,8 @@ pub use descriptor_input::{
 };
 pub mod operations;
 pub use operations::{
-    NativeCallOrigin, TargetFloatResultPolicy, TargetInstallationCall,
-    TargetStructuralRuntimeIndex, TargetUnitOperation,
+    NativeCallOrigin, TargetFloatResultPolicy, TargetInstallationCall, TargetInstruction,
+    TargetInstructionSource, TargetStructuralRuntimeIndex, TargetUnitOperation,
 };
 pub mod values;
 pub use values::{

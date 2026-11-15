@@ -1,7 +1,10 @@
-//! Selected calls keep every backing source allowed by the public lifetime,
-//! even when the implementing body always returns one input. This is a
-//! borrowed query over the existing header and application, not another
-//! published result or a source of backing permission.
+//! Selected and rigid calls keep every backing source allowed by the public
+//! lifetime, even when an implementing body always returns one input. Both
+//! read the one declared account on the public machine contract
+//! (`MachineContract::result_lifetimes`): a selected call through its public
+//! header, a rigid call through the bodiless requirement itself. This is a
+//! borrowed query over that header, not another published result or a source
+//! of backing permission.
 
 use std::borrow::Cow;
 
@@ -15,11 +18,29 @@ use terminal_psi::{
 
 mod definition;
 
-pub struct SelectedReferenceResult<'module> {
+/// A call's public reference result: the declared lifetime groups of the
+/// contract it invokes, validated against that contract's result frontier.
+pub struct DeclaredReferenceResult<'module> {
     module: &'module TerminalModule,
     contract: &'module MachineContract,
     groups: &'module [DeclaredResultLifetime],
     leaves: usize,
+}
+
+/// The public result of a call when one is declared rather than formed by a
+/// body the caller can see: a selected call (`required` names its public
+/// header) or a rigid call reaching a bodiless requirement. `None` means the
+/// callee's actual body origins govern.
+pub fn public_reference_result(
+    module: &TerminalModule,
+    caller: MachineId,
+    callee: MachineId,
+    required: Option<ContractId>,
+) -> Result<Option<DeclaredReferenceResult<'_>>, &'static str> {
+    match required {
+        Some(required) => selected_reference_result(module, caller, callee, required).map(Some),
+        None => requirement_reference_result(module, callee),
+    }
 }
 
 pub fn selected_reference_result(
@@ -27,7 +48,7 @@ pub fn selected_reference_result(
     caller: MachineId,
     callee: MachineId,
     required: ContractId,
-) -> Result<SelectedReferenceResult<'_>, &'static str> {
+) -> Result<DeclaredReferenceResult<'_>, &'static str> {
     let contract = module
         .invocation_machine_contract(callee, Some(required))
         .ok_or("selected reference call has no exact public header and body association")?;
@@ -38,20 +59,14 @@ pub fn selected_reference_result(
     let applications = crate::closed_conformances::dispatch_applications(module);
     let application =
         crate::closed_conformances::dispatch_application(&applications, caller, dispatch, callee)?;
-    let method = application
-        .static_applications
-        .iter()
-        .find(|method| {
-            method.public_requirement_identity == dispatch.public_requirement_identity
-                && method.realization_identity == dispatch.realization_identity
-                && method.source_callable_identity == dispatch.realization_callable_identity
-                && method.callable == terminal_psi::TargetMachineCallable::Machine(callee)
-        })
-        .ok_or("selected reference call lost its exact declared method tuple")?;
-    let groups = method
-        .result_lifetimes
-        .as_deref()
-        .ok_or("selected reference result has an unresolved declared lifetime frontier")?;
+    if !application.static_applications.iter().any(|method| {
+        method.public_requirement_identity == dispatch.public_requirement_identity
+            && method.realization_identity == dispatch.realization_identity
+            && method.source_callable_identity == dispatch.realization_callable_identity
+            && method.callable == terminal_psi::TargetMachineCallable::Machine(callee)
+    }) {
+        return Err("selected reference call lost its exact declared method tuple");
+    }
     let schema = application
         .schemas
         .iter()
@@ -62,18 +77,84 @@ pub fn selected_reference_result(
                 && schema.realization_identity == dispatch.realization_identity
         })
         .ok_or("selected reference result lost its original public definition")?;
-    if definition::result_lifetimes(module, contract, schema)? != groups {
+    let declared = declared_reference_result(module, contract)?;
+    if definition::result_lifetimes(module, contract, schema)? != declared.groups {
         return Err("selected result lifetimes differ from the original public definition");
     }
+    Ok(declared)
+}
+
+/// `None` when `callee` has a body (its actual origins govern) or returns no
+/// reference. A bodiless requirement in a generic check form has no body
+/// whose return could narrow its declared account.
+pub fn requirement_reference_result(
+    module: &TerminalModule,
+    callee: MachineId,
+) -> Result<Option<DeclaredReferenceResult<'_>>, &'static str> {
+    let machine = module
+        .machine(callee)
+        .ok_or("requirement reference call has no callee declaration")?;
+    if !machine.blocks.is_empty()
+        || !machine.contract.result.structural().is_some_and(|result| {
+            terminal_psi::structural_type_contains_reference_by(
+                |id| module.structural_type(id),
+                result.structural_type,
+            )
+        })
+    {
+        return Ok(None);
+    }
+    let declared = declared_reference_result(module, &machine.contract)?;
+    let result = machine
+        .contract
+        .result
+        .structural()
+        .ok_or("requirement reference result has no structural declaration")?;
+    if crate::borrowed_result_leaves(
+        module.structural_types.iter(),
+        result.structural_type,
+        result.multiplicity,
+        declared.leaves,
+    )?
+    .iter()
+    .any(|leaf| !matches!(leaf.kind, crate::BorrowedResultLeafKind::Reference(_)))
+    {
+        return Err("requirement view result needs its admitted completion resource");
+    }
+    Ok(Some(declared))
+}
+
+fn declared_reference_result<'module>(
+    module: &'module TerminalModule,
+    contract: &'module MachineContract,
+) -> Result<DeclaredReferenceResult<'module>, &'static str> {
+    let groups = contract
+        .result_lifetimes
+        .as_deref()
+        .ok_or("public reference result has an unresolved declared lifetime frontier")?;
     let leaves = validate_result_lifetime_groups(groups)?;
-    let selected = SelectedReferenceResult {
+    let declared = DeclaredReferenceResult {
         module,
         contract,
         groups,
         leaves,
     };
-    selected.validate()?;
-    Ok(selected)
+    declared.validate()?;
+    Ok(declared)
+}
+
+/// A declared lifetime names static leaves or a whole family of elements.
+pub fn declared_lifetime_path_is_static(path: &[StructuralPathSegment]) -> bool {
+    path.iter().all(|segment| {
+        matches!(
+            segment,
+            StructuralPathSegment::Field(_)
+                | StructuralPathSegment::Case(_)
+                | StructuralPathSegment::FixedIndex(_)
+                | StructuralPathSegment::Referent
+                | StructuralPathSegment::AllElements
+        )
+    })
 }
 
 pub(crate) fn validate_result_lifetime_groups(
@@ -82,18 +163,6 @@ pub(crate) fn validate_result_lifetime_groups(
     if groups.windows(2).any(|pair| pair[0] >= pair[1]) {
         return Err("selected result lifetime groups are repeated or not canonical");
     }
-    let path = |path: &[StructuralPathSegment]| {
-        path.iter().all(|segment| {
-            matches!(
-                segment,
-                StructuralPathSegment::Field(_)
-                    | StructuralPathSegment::Case(_)
-                    | StructuralPathSegment::FixedIndex(_)
-                    | StructuralPathSegment::Referent
-                    | StructuralPathSegment::AllElements
-            )
-        })
-    };
     groups.iter().try_fold(0_usize, |count, group| {
         if group.results.is_empty()
             || group.inputs.windows(2).any(|pair| pair[0] >= pair[1])
@@ -101,7 +170,10 @@ pub(crate) fn validate_result_lifetime_groups(
         {
             return Err("selected result lifetime membership is repeated or not canonical");
         }
-        if group.results.iter().any(|result| !path(result))
+        if group
+            .results
+            .iter()
+            .any(|result| !declared_lifetime_path_is_static(result))
             || group.inputs.iter().any(|input| match input {
                 BoundaryLifetimeDependency::Referent { access, .. } => {
                     *access == StructuralAccess::Owned
@@ -110,7 +182,9 @@ pub(crate) fn validate_result_lifetime_groups(
                     access,
                     path: stored,
                     ..
-                } => *access == StructuralAccess::Owned || !path(stored),
+                } => {
+                    *access == StructuralAccess::Owned || !declared_lifetime_path_is_static(stored)
+                }
             })
         {
             return Err("selected result lifetime membership is not a static borrowed frontier");
@@ -121,7 +195,7 @@ pub(crate) fn validate_result_lifetime_groups(
     })
 }
 
-impl SelectedReferenceResult<'_> {
+impl DeclaredReferenceResult<'_> {
     pub fn contract(&self) -> &MachineContract {
         self.contract
     }
@@ -212,11 +286,11 @@ impl SelectedReferenceResult<'_> {
                 Err("nonstructural public result advertises borrowed lifetime leaves")
             };
         };
-        // This column records a checked body's actual origins. A bodyless
-        // requirement uses its independent declared lifetime groups instead;
-        // copying the implementation's narrower row here is not authority.
+        // This column records a checked body's actual origins. A public
+        // header or bodiless requirement uses its declared lifetime groups;
+        // copying an implementation's narrower row here is not authority.
         if !result.reference_sources.is_empty() {
-            return Err("selected public result replaces declared lifetimes with body origins");
+            return Err("public reference result replaces declared lifetimes with body origins");
         }
         let leaves = crate::borrowed_result_leaves(
             self.module.structural_types.iter(),
@@ -271,7 +345,7 @@ impl SelectedReferenceResult<'_> {
 /// One declared lifetime input as the input region a result leaf may borrow.
 /// The region names storage the formal can supply at the leaf's access; it
 /// is a public bound, never the storage a body actually returned.
-pub(crate) fn declared_region(
+fn declared_region(
     module: &TerminalModule,
     contract: &MachineContract,
     input: &BoundaryLifetimeDependency,
@@ -379,7 +453,7 @@ fn region_argument(region: &TerminalDynamicReferenceRegion) -> Result<usize, &'s
 }
 
 /// The public header's result as a call-site shape reads it.
-pub(crate) fn public_result(contract: &MachineContract) -> BoundaryMachineResult {
+fn public_result(contract: &MachineContract) -> BoundaryMachineResult {
     match &contract.result {
         TerminalMachineResult::Unit => BoundaryMachineResult::Unit,
         TerminalMachineResult::Scalar(result) => BoundaryMachineResult::Scalar(result.value_type()),
@@ -394,7 +468,7 @@ pub(crate) fn public_result(contract: &MachineContract) -> BoundaryMachineResult
     }
 }
 
-impl ReferenceResultShape for SelectedReferenceResult<'_> {
+impl ReferenceResultShape for DeclaredReferenceResult<'_> {
     fn result(&self) -> Cow<'_, BoundaryMachineResult> {
         Cow::Owned(public_result(self.contract))
     }

@@ -13898,53 +13898,40 @@ pub mod descriptor_results {
                             });
                             // A selected call reads its public requirement;
                             // a rigid call reaches the bodiless requirement
-                            // itself. Either result is its declared regions,
+                            // itself. Both read one declared lifetime account,
                             // and only a selected body supplies stored effects.
-                            let selected = match operation.required_contract {
-                                Some(required) if returns_reference => Some(
-                                    crate::selected_reference_result(
-                                        module, machine.id, callee, required,
-                                    )
-                                    .inspect_err(|detail| *failure_detail = Some(*detail))
-                                    .ok()?,
-                                ),
-                                _ => None,
-                            };
-                            let requirement = if selected.is_none() && returns_reference {
-                                crate::requirement_reference_result(module, callee)
-                                    .inspect_err(|detail| *failure_detail = Some(*detail))
-                                    .ok()?
+                            let public = if returns_reference {
+                                crate::public_reference_result(
+                                    module,
+                                    machine.id,
+                                    callee,
+                                    operation.required_contract,
+                                )
+                                .inspect_err(|detail| *failure_detail = Some(*detail))
+                                .ok()?
                             } else {
                                 None
                             };
-                            let public_call = match (&selected, &requirement) {
-                                (Some(public), _) => Some((
+                            let implemented = operation.required_contract.is_some();
+                            let public_call = match &public {
+                                Some(public) => Some((
                                     public_invocation(
                                         operation.id,
                                         &module.structural_types,
                                         slot_kind,
                                         public,
-                                        vec![callee],
+                                        if implemented {
+                                            vec![callee]
+                                        } else {
+                                            Vec::new()
+                                        },
                                         structural_arguments,
                                         result,
                                         &graph.place_types,
                                     )?,
-                                    true,
+                                    implemented,
                                 )),
-                                (None, Some(public)) => Some((
-                                    public_invocation(
-                                        operation.id,
-                                        &module.structural_types,
-                                        slot_kind,
-                                        public,
-                                        Vec::new(),
-                                        structural_arguments,
-                                        result,
-                                        &graph.place_types,
-                                    )?,
-                                    false,
-                                )),
-                                (None, None) => None,
+                                None => None,
                             };
                             if let Some((mut call, implemented)) = public_call {
                                 let complete = call.arguments.iter().all(Option::is_some)

@@ -60,37 +60,13 @@ mechanism witnesses:
 | nested machine (`other_state`) | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | Linear `ActivationClaim` carried by the terminal call from `hop(claim)` to `established(claim)`. |
 | other_machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | Cross-machine `Accessor::write_read(bytes)` accesses the borrowed activation slice before release. |
 | target_body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | Target-scoped `target_exercise` bodies across `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`. |
-| `field_transport`, `parameter_committed`, `named_attempt`, `named_bound`, `computed_bound`, `generic_bound`, `zero_bound`, `unsigned_max_request`, `nested_lifo`, `multiple_bounds`, `cleanup_pure`, `page_bound`, `extent_composition` | `<witness>/main.omg` | `tests/omega/fail/facts/bounded_activation_*_rejected` | Specialized mechanism witnesses for generic/computed/page bounds, co-live LIFO claims, bound composition, and pure nominal cleanup hooks. |
+| `field_transport`, `parameter_committed`, `named_attempt`, `named_bound`, `computed_bound`, `generic_bound`, `zero_bound`, `unsigned_max_request`, `nested_lifo`, `multiple_bounds`, `cleanup_pure`, `page_bound`, `extent_composition` | `<witness>/main.omg` |  | Specialized mechanism witnesses for generic/computed/page bounds, co-live LIFO claims, bound composition, and pure nominal cleanup hooks. |
 
 Matching `bounded_activation_*` and `bounded_activation_through_<place>_{exit,rejected}` corpus fixtures pin both engine exits as zero and verify source-check rejections.
 Source assertions check extent and contents; those values are not printed
 measurements. Perturbing a single token in the root oracle (`observed == 37u8` -> `observed == 36u8`) while retaining the store of 37 causes both engines to trap (`interp crash: Trap`, `native exit -1073741795`).
 
 ## Pinned fixtures
-
-- Standard 9-place positive fixtures (9):
-  - `tests/omega/pass/facts/bounded_activation_through_local_exit`
-  - `tests/omega/pass/facts/bounded_activation_through_field_exit`
-  - `tests/omega/pass/facts/bounded_activation_through_parameter_exit`
-  - `tests/omega/pass/facts/bounded_activation_through_call_result_exit`
-  - `tests/omega/pass/facts/bounded_activation_through_match_join_exit`
-  - `tests/omega/pass/facts/bounded_activation_through_const_name_exit`
-  - `tests/omega/pass/facts/bounded_activation_through_other_state_exit`
-  - `tests/omega/pass/facts/bounded_activation_through_other_machine_exit`
-  - `tests/omega/pass/facts/bounded_activation_through_target_body_exit`
-- Standard 9-place reject fixtures (9):
-  - `tests/omega/fail/facts/bounded_activation_through_local_rejected`
-  - `tests/omega/fail/facts/bounded_activation_through_field_rejected`
-  - `tests/omega/fail/facts/bounded_activation_through_parameter_rejected`
-  - `tests/omega/fail/facts/bounded_activation_through_call_result_rejected`
-  - `tests/omega/fail/facts/bounded_activation_through_match_join_rejected`
-  - `tests/omega/fail/facts/bounded_activation_through_const_name_rejected`
-  - `tests/omega/fail/facts/bounded_activation_through_other_state_rejected`
-  - `tests/omega/fail/facts/bounded_activation_through_other_machine_rejected`
-  - `tests/omega/fail/facts/bounded_activation_through_target_body_rejected`
-- Additional mechanism & control fixtures:
-  - `tests/omega/pass/facts/bounded_activation_{main,field_transport,parameter_committed,named_attempt,named_bound,computed_bound,generic_bound,zero_bound,unsigned_max_request,nested_lifo,multiple_bounds,cleanup_pure,cleanup_crossing,page_bound,extent_composition}_exit`
-  - `tests/omega/fail/facts/bounded_activation_{escape,stale_loan,wrong_activation,release_order,extent_composition}_rejected`
 
 | Obligation Class | How This Fact Row Establishes It |
 |---|---|
@@ -103,15 +79,12 @@ measurements. Perturbing a single token in the root oracle (`observed == 37u8` -
 | **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)** | Backend lowering reserves the static bound in the activation frame, composes worst-case stack usage (WCSU) and page probes (`page_bound`), and zero-initializes committed bytes before exposing `&mut [u8]`. |
 | **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)** | Native PE/ELF/Mach-O images emit and execute on `windows_x86_64` and `linux_x86_64` with exit code `0`, agreeing with Terminal Psi (`omega run --both`). |
 
-The four original one-obligation negative controls under `tests/omega/fail/facts` reject
-escape and stale loans during source checking, and wrong activation and non-LIFO
-release during Terminal publication, before either engine executes. The cleanup
-crossing keeps that same fact and changes only the hook from a pure leaf to a
-boundary-reaching machine. On `26348267c99` that crossing was refused during
-Terminal publication with `activation claim cannot remain live across a possible
-suspension in nominal cleanup`. The admitted caller claim now stays in that
-home across the parked hook. Both engines exit 0 and the two byte writes
-produce `AA`. An unselected admission still cannot cross.
+The cleanup crossing keeps that same fact and changes only the hook from a pure leaf to
+a boundary-reaching machine. On `26348267c99` that crossing was refused during Terminal
+publication with `activation claim cannot remain live across a possible suspension in
+nominal cleanup`. The admitted caller claim now stays in that home across the parked
+hook. Both engines exit 0 and the two byte writes produce `AA`. An unselected admission
+still cannot cross.
 
 This establishes the bounded serial path through source checking, checked-to-
 Terminal lowering, current optimized semantics, ordinary calling plans, fixed

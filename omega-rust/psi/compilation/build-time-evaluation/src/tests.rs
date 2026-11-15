@@ -730,6 +730,59 @@ fn an_activated_program_may_keep_a_constant_it_never_reads() {
 }
 
 #[test]
+fn an_owned_selected_program_is_narrowed_without_copying_its_typed_storage() {
+    // A selected-source continuation owns its typed program once its bodies
+    // are typed. Narrowing that program to the selected file reuses its
+    // storage; narrowing a base another retained source still shares copies
+    // it once and leaves the shared base whole. Both give the same program.
+    let (sources, identities, base, _) = typed_base(&[
+        (
+            "program/main.omg",
+            "data Pair { left: u64; right: u64; }\nmachine entry() { }\n",
+        ),
+        ("program/library.omg", "machine unreached() { }\n"),
+    ]);
+    let mut selected = sources.as_ref().clone();
+    selected.retain_selected_sources(|file| file.source_id == identities[0]);
+    let selected = std::sync::Arc::new(selected);
+    let members = &base.typed().tables.data_members;
+    assert!(!members.is_empty(), "the data type stores its fields");
+    let storage = members.storage_slice().as_ptr();
+
+    let retained = base.clone();
+    let copied = retained
+        .clone()
+        .activate_sources(
+            std::sync::Arc::clone(&selected),
+            std::sync::Arc::clone(&sources),
+            Vec::new(),
+        )
+        .expect("a shared base is narrowed from its copy");
+    assert_ne!(
+        copied.typed().tables.data_members.storage_slice().as_ptr(),
+        storage
+    );
+    assert_eq!(machine_names(retained.typed()), ["entry", "unreached"]);
+    drop(retained);
+
+    let narrowed = base
+        .activate_sources(selected, sources, Vec::new())
+        .expect("an owned base is narrowed in place");
+    assert_eq!(
+        narrowed
+            .typed()
+            .tables
+            .data_members
+            .storage_slice()
+            .as_ptr(),
+        storage,
+        "the owned program keeps its typed storage"
+    );
+    assert_eq!(machine_names(narrowed.typed()), ["entry"]);
+    assert_eq!(narrowed.typed(), copied.typed());
+}
+
+#[test]
 fn a_read_of_an_unevaluated_constant_is_refused_by_name() {
     // The machine reads the constant. With the value resolution recorded,
     // the read needs no evaluator. Without a recorded value the same read is

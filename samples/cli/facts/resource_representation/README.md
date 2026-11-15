@@ -87,20 +87,11 @@ Terminal construction uses the same descriptor-transfer rule while checking the
 operand's declared type, multiplicity, backing, predicates and extent. Runtime
 custody stays explicit in every place.
 
-The [renamed-member control](../../../../tests/omega/pass/traits/requirement_evidence_renamed_regions_exit/main.omg)
-keeps a public evidence promise while renaming both invocation lifetimes. Its
-[reject twin](../../../../tests/omega/fail/traits/requirement_evidence_wrong_region/main.omg)
-changes only the provider bound to the other lifetime. Both bodies leave that
-evidence unused, so validation must enforce the public promise independently of
-body calls or the one caller's chosen lifetime arguments.
-
 ## Accepted results
 
 All nine places return **native 0 and Terminal 0 with agreement** on Linux
 x86-64 using the integrated compiler. All nine capacity-only twins reject for
-their intended `emit` requirement. The programs and twins are mirrored under
-`tests/omega/{pass,fail}/facts/resource_representation_buffered_*`. Their actual
-records retain the observed producer revisions.
+their intended `emit` requirement.
 
 [Run 41527523198](https://github.com/CathedralOS/Omega/actions/runs/41527523198)
 used optimized source `0f36ecb1ab02eefdb07fb1ed8b7728eabf1b8381`. It passed ten

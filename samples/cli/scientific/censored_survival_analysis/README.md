@@ -48,6 +48,5 @@ all valid dynamic indexing obligations.
 Qualification uses 25 valid cases and 19 runtime refusals, with 985 numerical
 fields per execution route. Native and actual captured Terminal outputs meet
 1e-9 absolute tolerance; the measured maximum is 6.4e-11. Exact row counts and
-statuses are checked separately. The sample gate also discovers and verifies
-the three source-invalid indexing diagnostics. See `validation/QUALIFICATION.md`
-for producer and evidence provenance.
+statuses are checked separately. The sample gate also discovers and verifies the
+three source-invalid indexing diagnostics.

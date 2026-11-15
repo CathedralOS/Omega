@@ -809,22 +809,16 @@ machine entry() crashes none {
     assert!(
         terminal_semantics::selected_reference_result(module, caller, callee, required).is_ok()
     );
-    let mut erased = 0;
-    for method in module
-        .closed_conformance_applications
+    let header = module
+        .declaration_contracts
         .iter_mut()
-        .flat_map(|application| &mut application.static_applications)
-        .filter(|method| {
-            method.callable == semantic_vocabulary::TargetMachineCallable::Machine(callee)
-        })
-    {
-        erased += usize::from(method.result_lifetimes.take().is_some());
-    }
-    assert_eq!(
-        erased, 1,
-        "erase only the selected method's lifetime groups"
+        .find(|contract| contract.id == required)
+        .expect("the selected call has its public header");
+    assert!(
+        header.result_lifetimes.take().is_some(),
+        "erase only the selected public header's lifetime groups"
     );
-    let reason = "selected reference result has an unresolved declared lifetime frontier";
+    let reason = "public reference result has an unresolved declared lifetime frontier";
     assert_eq!(
         terminal_semantics::selected_reference_result(module, caller, callee, required).err(),
         Some(reason),
@@ -1473,8 +1467,15 @@ Direct satisfies Handoff {
 ";
 
 /// The generic check form of `relay`, whose `Chosen::hand` call reaches the
-/// bodiless requirement, judged against that requirement alone.
-fn rigid_relay(relay: &str) -> (typed_trees_to_terminal_psi::Elaboration, crate::Discharge) {
+/// bodiless requirement, judged against that requirement alone. `edit` may
+/// change the elaborated form before it is judged.
+fn rigid_relay_with(
+    relay: &str,
+    edit: impl FnOnce(&mut typed_trees_to_terminal_psi::Elaboration),
+) -> (
+    typed_trees_to_terminal_psi::Elaboration,
+    Result<crate::Discharge, String>,
+) {
     let typed = super::boundary_calls::typed(&format!("{HANDOFF}{relay}"));
     let symbol = typed
         .machines()
@@ -1483,8 +1484,14 @@ fn rigid_relay(relay: &str) -> (typed_trees_to_terminal_psi::Elaboration, crate:
         .unwrap()
         .symbol;
     let mut form = typed_trees_to_terminal_psi::elaborate_generic(&typed, symbol).unwrap();
-    let discharged = crate::discharge(&mut form).unwrap();
+    edit(&mut form);
+    let discharged = crate::discharge(&mut form).map_err(|refusal| format!("{refusal:?}"));
     (form, discharged)
+}
+
+fn rigid_relay(relay: &str) -> (typed_trees_to_terminal_psi::Elaboration, crate::Discharge) {
+    let (form, discharged) = rigid_relay_with(relay, |_| {});
+    (form, discharged.unwrap())
 }
 
 fn within_source(form: &typed_trees_to_terminal_psi::Elaboration, machine: usize) -> bool {
@@ -1507,21 +1514,36 @@ fn within_source(form: &typed_trees_to_terminal_psi::Elaboration, machine: usize
 #[test]
 fn a_rigid_requirement_call_borrows_its_declared_input_region() {
     // lifetimes.md, "Returned views": `hand` elides its lifetimes, so the
-    // result may be anywhere `source` lends. The requirement has no body,
-    // and its header publishes that declared region; `relay`'s generic form
-    // keeps `source` exclusively lent while `child` is live.
-    let (form, discharged) = rigid_relay(
-        "machine relay<Chosen satisfies Handoff>(source: &mut i64) crashes none {
+    // result may be anywhere `source` lends. The requirement has no body;
+    // its contract carries that declared lifetime, the same account a
+    // selected call reads from its public header, and no body-origin row.
+    // `relay`'s generic form keeps `source` exclusively lent while `child`
+    // is live.
+    const ASSIGN: &str = "machine relay<Chosen satisfies Handoff>(source: &mut i64) crashes none {
     let child: &mut i64 = Chosen::hand(source);
     child = 41;
-}",
-    );
+}";
+    let (form, discharged) = rigid_relay(ASSIGN);
     assert_eq!(form.requirements, vec![id(2)]);
-    assert!(form.module.machines[1].blocks.is_empty());
+    let requirement = &form.module.machines[1];
+    assert!(requirement.blocks.is_empty());
     assert!(
-        within_source(&form, 1),
-        "{:?}",
-        form.module.machines[1].result
+        requirement
+            .result
+            .structural()
+            .unwrap()
+            .reference_sources
+            .is_empty()
+    );
+    assert_eq!(
+        requirement.result_lifetimes,
+        Some(vec![terminal_psi::DeclaredResultLifetime {
+            inputs: vec![terminal_psi::BoundaryLifetimeDependency::Referent {
+                argument_index: 0,
+                access: terminal_psi::StructuralAccess::MutableBorrow,
+            }],
+            results: vec![Vec::new()],
+        }]),
     );
     let relay = discharged.machines.get(id(1)).unwrap();
     assert!(relay.conflicts.is_empty(), "{:?}", relay.conflicts);
@@ -1540,6 +1562,17 @@ fn a_rigid_requirement_call_borrows_its_declared_input_region() {
 }",
     );
     assert!(!discharged.machines.get(id(1)).unwrap().conflicts.is_empty());
+
+    // Without its declared account the rigid call has no origins at all; it
+    // is refused rather than read as an unborrowed result.
+    let (_, discharged) = rigid_relay_with(ASSIGN, |form| {
+        form.module.machines[1].contract.result_lifetimes = None;
+    });
+    let refusal = discharged.expect_err("a rigid call without its account is refused");
+    assert!(
+        refusal.contains("public reference result has an unresolved declared lifetime frontier"),
+        "{refusal}"
+    );
 }
 
 #[test]

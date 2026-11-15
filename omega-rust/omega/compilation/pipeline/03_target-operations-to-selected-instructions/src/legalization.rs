@@ -11,7 +11,7 @@ pub(crate) mod model {
 
     pub(crate) fn legalization_validator_identity() -> OptimizationValidatorIdentity {
         OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.terminal-target-legalization-independent-replay.v62",
+            b"omega.terminal-target-legalization-independent-replay.v67",
         )
     }
 
@@ -99,6 +99,11 @@ pub(crate) mod model {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum LegalizationError {
+        InstructionMetadata {
+            machine: Option<semantic_vocabulary::MachineId>,
+            operation: Option<semantic_vocabulary::OperationId>,
+            reason: &'static str,
+        },
         InstalledInterruptAssociation {
             operation: Option<semantic_vocabulary::OperationId>,
             reason: &'static str,
@@ -171,6 +176,14 @@ pub(crate) mod model {
     impl std::error::Error for LegalizationError {}
 
     impl LegalizationError {
+        pub(crate) fn instruction_metadata(reason: &'static str) -> Self {
+            Self::InstructionMetadata {
+                machine: None,
+                operation: None,
+                reason,
+            }
+        }
+
         #[track_caller]
         pub fn custody() -> Self {
             Self::SourceCustodyMismatch {
@@ -186,6 +199,15 @@ pub(crate) mod model {
             operation: Option<semantic_vocabulary::OperationId>,
         ) -> Self {
             match self {
+                Self::InstructionMetadata {
+                    machine: None,
+                    operation: reported,
+                    reason,
+                } => Self::InstructionMetadata {
+                    machine: Some(machine),
+                    operation: reported.or(operation),
+                    reason,
+                },
                 Self::SourceCustodyMismatch {
                     machine: None,
                     operation: None,
@@ -287,16 +309,15 @@ pub(crate) mod obligations {
     }
 }
 pub(crate) mod runtime_indices {
-    use super::scalar_graph_input::primitive_locals::read_root_type;
     use crate::LegalizationError;
     use crate::legalization::accepted_fact;
     use crate::structural_inputs::structural_reference_input::RuntimeElement;
     use crate::structural_inputs::structural_reference_input::{
-        collection_projection, reference_formation_geometry, runtime_projection_elements,
+        reference_formation_geometry, runtime_projection_elements,
     };
     use legalized_operations::LegalizedRuntimeIndexOperand;
     use optimization_unit::PsiOptimizationFunction;
-    use semantic_vocabulary::{OperationId, ScalarType, StructuralTypeId, ValueId};
+    use semantic_vocabulary::{ScalarType, StructuralTypeId, ValueId};
 
     /// Resolve retained proof keys against the admitted catalog, without reading
     /// an earlier function body or recomputing its structural projection.
@@ -400,30 +421,6 @@ pub(crate) mod runtime_indices {
         operands(optimized, unit, owner, &elements)
     }
 
-    pub(crate) fn collection_view(
-        optimized: &PsiOptimizationFunction,
-        unit: &crate::native_geometry::NativeUnit<'_>,
-        operation: OperationId,
-        source: &terminal_psi::StructuralArgument,
-    ) -> Result<Vec<LegalizedRuntimeIndexOperand>, LegalizationError> {
-        if !source
-            .path
-            .iter()
-            .any(|segment| segment.runtime_index().is_some())
-        {
-            return Ok(Vec::new());
-        }
-        let root = read_root_type(optimized, source.place).ok_or(LegalizationError::custody())?;
-        let path = match source.path.last() {
-            Some(terminal_psi::StructuralPathSegment::FixedRange { .. }) => {
-                &source.path[..source.path.len() - 1]
-            }
-            _ => &source.path,
-        };
-        let (_, _, elements) = collection_projection(root, path, unit.geometry())
-            .ok_or(LegalizationError::custody())?;
-        operands(optimized, unit, operation, &elements)
-    }
     #[cfg(test)]
     mod retained_tests {
         use super::retained_operands;
@@ -736,7 +733,7 @@ pub(crate) fn validate_call_descriptor_origins(
             .graph
             .blocks
             .iter()
-            .flat_map(|block| &block.operations)
+            .flat_map(|block| block.operations())
         {
             if let target_operations::TargetUnitOperation::Call {
                 result:

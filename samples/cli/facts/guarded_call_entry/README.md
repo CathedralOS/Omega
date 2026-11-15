@@ -72,19 +72,17 @@ fact is replaced by a caller equality guard.
 
 The frozen original 36-line reduction rejects its private `parse` contract on
 optimized producer `6c8950d4825` (SHA-256
-`717c3b9f6443bd68d2a2243bdef18fc2ea8f9f716c29af7ad96688ebf24e94c3`).
-The repaired producer has SHA-256
-`b7bc6f1e94027fd92558acdb9a4f8539520f97432616508106b213e81ea5d95d`
-(opt-level 1), built from `ddda30fe17a` plus the compiler changes checkpointed as
-`fec9a6f33b2`. It executes the unchanged reduction and incoming-reference
-composition with native/Terminal exits 0/0. All nine final positives execute with native/Terminal exits 0/0 on macOS ARM64,
-and all nine twins reject `parse`'s positive-work obligation. Eight positives
-refuse that contract on the retained baseline; the parameter place already
-passes source checking and supplies composition coverage. The row is pinned as
-`guarded_call_entry_through_<place>_{exit,rejected}` under
-`tests/omega/{pass,fail}/facts/`, alongside its two safety controls. Scoped row
-records and independent review are retained with the PR and owning claim; authoring syntax failures are
-not baseline defects or acceptance.
+`717c3b9f6443bd68d2a2243bdef18fc2ea8f9f716c29af7ad96688ebf24e94c3`). The repaired
+producer has SHA-256
+`b7bc6f1e94027fd92558acdb9a4f8539520f97432616508106b213e81ea5d95d` (opt-level 1),
+built from `ddda30fe17a` plus the compiler changes checkpointed as `fec9a6f33b2`.
+It executes the unchanged reduction and incoming-reference composition with
+native/Terminal exits 0/0. All nine final positives execute with native/Terminal
+exits 0/0 on macOS ARM64, and all nine twins reject `parse`'s positive-work
+obligation. Eight positives refuse that contract on the retained baseline; the
+parameter place already passes source checking and supplies composition coverage.
+Scoped row records and independent review are retained with the PR and owning
+claim; authoring syntax failures are not baseline defects or acceptance.
 
 WindowDemo clears both source packages and Terminal production on this producer,
 then reaches ordinary package-policy review. Its accepted project policy is

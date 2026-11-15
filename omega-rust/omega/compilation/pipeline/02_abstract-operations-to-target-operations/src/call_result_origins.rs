@@ -26,7 +26,7 @@ pub(crate) fn retain<'a>(
             .graph
             .blocks
             .iter()
-            .flat_map(|block| &block.operations)
+            .flat_map(|block| block.operations())
             .find_map(|operation| {
                 let TargetUnitOperation::Call {
                     result: TargetCallResult::Structural { result, .. },
@@ -103,6 +103,7 @@ pub(crate) fn retain<'a>(
             .blocks
             .iter_mut()
             .flat_map(|block| &mut block.operations)
+            .map(|instruction| &mut instruction.kind)
         {
             let TargetUnitOperation::Call {
                 result:

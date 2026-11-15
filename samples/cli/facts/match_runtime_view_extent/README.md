@@ -35,9 +35,6 @@ constant length, or the wrong backing traps.
 | other machine | [main](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) | `forward` passes the arrays to the top-level `apply` |
 | target body | [main](target_body/main.omg) | [invalid](invalid_target_body/main.omg) | Build selects `X86Apply` or `ArmApply` for `SelectedApply::apply`; each checks its target tag (17 / 29) first |
 
-Pinned fixtures: `tests/omega/pass/facts/match_runtime_view_extent_through_<place>_exit`
-and `tests/omega/fail/facts/match_runtime_view_extent_through_<place>_rejected`.
-
 Each twin replaces the `true` arm's array with `let mut empty: [i64; 0] = [];`
 and `&mut empty`, so one arm records extent 0. The consumer's `selected.len - 1`
 then has no proof and the twin rejects with ``local `last` may overflow `u64`:

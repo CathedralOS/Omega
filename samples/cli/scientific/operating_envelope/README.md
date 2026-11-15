@@ -71,10 +71,7 @@ constants. Generated compiler and validation outputs remain under `build/`.
 
 The complete `evidence/float_reproduction/` application reproduces the original
 main compiler gap: a module-owned float conversion causes 240 early satisfaction
-errors. The candidate includes a general source-scope repair for visible named
-operator families and exact typed satisfaction, with a module result-domain
-fixture and a hidden-signature rejection fixture under `tests/omega/`. It
-changes no core float contracts, custody guards or provider primitives.
+errors.
 
 ## Compiler recovery evidence
 

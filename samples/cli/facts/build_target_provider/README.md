@@ -112,11 +112,10 @@ Repeated equal structural array types from distinct Build rows share capture cod
 - **Omega 07–09:** the authored result is observed after native image emission and
   compared with Terminal interpretation; a wrong provider has a different result.
 
-The row is pinned under `tests/omega/{pass,fail}/facts/build_target_provider_through_*`.
-Producer-bound observations live in the qualification record and commit. Fresh
-runtime observations identify their exact producer and engine. macOS x86-64
-executes under Rosetta on this host; explicit CLI `--target` compilation alone
-is not execution evidence. Windows/Linux Native execution remains unverified.
+Producer-bound observations live in the qualification record and commit. Fresh runtime
+observations identify their exact producer and engine. macOS x86-64 executes under
+Rosetta on this host; explicit CLI `--target` compilation alone is not execution
+evidence. Windows/Linux Native execution remains unverified.
 
 Remaining parent acceptance: retire source prefixes and all family IR/codec/runtime
 paths; migrate their callers, layouts, callbacks, entry and audio witnesses;

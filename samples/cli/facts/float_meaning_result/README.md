@@ -18,7 +18,9 @@ Every invalid twin changes only `F32::minimum` to `F32::maximum`, retaining the 
 | other_machine | [other_machine/main.omg](other_machine/main.omg) | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) |
 | target_body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) |
 
-All positive projects bind `ProgramEntry` for all four hosted targets. Qualification requires native and Terminal Psi exit `0` on each host; the runtime check expects `1.0`. The nine positive fixtures under `tests/omega/pass/facts/float_meaning_result_through_*` retain byte-identical source and Build declarations. The nine invalid samples above exist, but matching `tests/omega/fail/facts/` mirrors are absent.
+All positive projects bind `ProgramEntry` for all four hosted targets.
+Qualification requires native and Terminal Psi exit `0` on each host; the
+runtime check expects `1.0`.
 
 The checks must establish:
 
