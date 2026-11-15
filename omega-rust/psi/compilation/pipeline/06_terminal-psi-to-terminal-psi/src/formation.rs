@@ -3,13 +3,19 @@
 //! logical observations have no runtime representation or transferable receipt;
 //! every partial computation uses the ordinary scalar goal and proof kernel.
 
+use std::borrow::Cow;
+use std::cell::OnceCell;
+use std::collections::BTreeSet;
+
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment as Segment, ContentPlaceVersion as Version, MachineId,
     ObligationId, PlaceId, Proposition, PropositionContext, ScalarTerm, ScalarType,
     StructuralCaseId, StructuralTypeId, ValueId,
 };
 use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
-use terminal_psi::{MachineContract, StructuralAccess, TerminalModule, ValueDeclaration};
+use terminal_psi::{
+    MachineContract, StructuralAccess, StructuralTypeDeclaration, TerminalModule, ValueDeclaration,
+};
 use terminal_semantics::CanonicalScalarGoal;
 use terminal_semantics::substitution::clauses::{ClauseBindings, substitute_clause};
 
@@ -219,11 +225,20 @@ struct Scope<'a> {
     inputs: Vec<ValueDeclaration>,
     result: Option<ValueDeclaration>,
     roots: Vec<Root>,
+    subject_prefix: Vec<Segment>,
     completion: bool,
     facts: Facts,
 }
 
 impl Scope<'_> {
+    fn subject_path<'path>(&self, path: &'path [Segment]) -> Cow<'path, [Segment]> {
+        if self.subject_prefix.is_empty() {
+            Cow::Borrowed(path)
+        } else {
+            Cow::Owned([self.subject_prefix.as_slice(), path].concat())
+        }
+    }
+
     fn observe(
         &mut self,
         observation: Observation,
@@ -327,7 +342,11 @@ impl Scope<'_> {
     /// A clause joins the premises only after all its terms form. Retrying
     /// pending clauses permits independent bounds in either authored order;
     /// a mutually pending cycle supplies no facts and cannot make progress.
-    fn clauses(&mut self, clauses: &[Proposition], owner: &str) -> Checked<()> {
+    fn clauses<'clause>(
+        &mut self,
+        clauses: impl IntoIterator<Item = &'clause Proposition>,
+        owner: &str,
+    ) -> Checked<()> {
         let mut pending = Vec::new();
         for clause in clauses {
             conjuncts(clause, &mut pending);
@@ -402,6 +421,7 @@ impl ClauseBindings for Scope<'_> {
         ty: ScalarType,
     ) -> Result<ScalarTerm, BindingError> {
         let (index, root) = self.root(place)?;
+        let path = self.subject_path(path);
         if version == Version::Entry && !root.has_entry {
             return Err("contract result or data subject has no entry observation".into());
         }
@@ -428,7 +448,7 @@ impl ClauseBindings for Scope<'_> {
         let found = terminal_semantics::canonical_primitive_read_type(
             self.module.structural_types.iter(),
             root.ty,
-            path,
+            &path,
         )
         .ok_or("contract field is not an admitted scalar projection")?;
         if found != ty {
@@ -441,7 +461,7 @@ impl ClauseBindings for Scope<'_> {
         } else {
             Version::Current
         };
-        self.observe(Observation::Field(version, index, path.to_vec()), ty)
+        self.observe(Observation::Field(version, index, path.into_owned()), ty)
     }
 
     fn extent(
@@ -451,10 +471,11 @@ impl ClauseBindings for Scope<'_> {
         ty: semantic_vocabulary::IntegerType,
     ) -> Result<ScalarTerm, BindingError> {
         let (index, root) = self.root(place)?;
+        let path = self.subject_path(path);
         let selected = terminal_semantics::canonical_structural_path_tip(
             self.module.structural_types.iter(),
             root.ty,
-            path,
+            &path,
         )
         .ok_or("contract extent has no exact declared descriptor")?;
         if !matches!(
@@ -469,7 +490,7 @@ impl ClauseBindings for Scope<'_> {
             return Err("completion extent needs its exact storage version".into());
         }
         self.observe(
-            Observation::Extent(index, path.to_vec()),
+            Observation::Extent(index, path.into_owned()),
             ScalarType::Integer(ty),
         )
     }
@@ -576,6 +597,7 @@ pub(crate) fn contract(
             .collect(),
         result: contract.result.scalar(),
         roots: roots(&contract.structural_parameters),
+        subject_prefix: Vec::new(),
         completion: false,
         facts: Facts::default(),
     };
@@ -654,6 +676,7 @@ pub(crate) fn module(module: &TerminalModule) -> Checked<()> {
             })?,
             result: boundary.scalar_contract_result(),
             roots: roots(&boundary.structural_parameters),
+            subject_prefix: Vec::new(),
             completion: false,
             facts: Facts::default(),
         };
@@ -701,6 +724,7 @@ pub(crate) fn module(module: &TerminalModule) -> Checked<()> {
                 }],
                 result: None,
                 roots: Vec::new(),
+                subject_prefix: Vec::new(),
                 completion: false,
                 facts: Facts::default(),
             };
@@ -710,6 +734,160 @@ pub(crate) fn module(module: &TerminalModule) -> Checked<()> {
             )?;
         }
     }
+    Ok(())
+}
+
+struct DataSubject<'a> {
+    carrier: &'a StructuralTypeDeclaration,
+    subject: PlaceId,
+    prefix: Vec<Segment>,
+    clauses: &'a [Proposition],
+}
+
+/// Read the storage coordinates already served by scalar clause binding.
+fn clause_storage(term: &ScalarTerm) -> Option<(Version, PlaceId, &[Segment])> {
+    match term {
+        ScalarTerm::IntegerField {
+            version,
+            root,
+            path,
+            ..
+        }
+        | ScalarTerm::BooleanField {
+            version,
+            root,
+            path,
+        } => Some((*version, *root, path)),
+        ScalarTerm::ViewExtent { root, path, .. } => Some((Version::Current, *root, path)),
+        _ => None,
+    }
+}
+
+impl DataSubject<'_> {
+    fn observed_inline_paths(&self) -> Vec<Vec<Segment>> {
+        let mut paths = Vec::new();
+        for clause in self
+            .clauses
+            .iter()
+            .filter(|clause| self.prefix.is_empty() || self.inline_clause(clause))
+        {
+            clause.visit_scalar_terms(|term| {
+                let Some((Version::Current, root, path)) = clause_storage(term) else {
+                    return;
+                };
+                let owners = if matches!(term, ScalarTerm::ViewExtent { .. }) {
+                    path
+                } else {
+                    path.split_last().map_or(&[][..], |(_, owners)| owners)
+                };
+                if root == self.subject && !owners.is_empty() {
+                    paths.push(owners.to_vec());
+                }
+            });
+        }
+        paths.sort_unstable();
+        paths.dedup();
+        paths
+    }
+
+    fn inline_clause(&self, clause: &Proposition) -> bool {
+        let mut inline = true;
+        clause.visit_scalar_terms(|term| {
+            if let Some((version, place, path)) = clause_storage(term) {
+                // A nested carrier does not establish the contents of
+                // its borrowed backing or any case-local storage here.
+                inline &= place == self.subject
+                    && version == Version::Current
+                    && !path
+                        .iter()
+                        .any(|step| matches!(step, Segment::Referent | Segment::Case(_)))
+                    && !matches!(term, ScalarTerm::ViewExtent { .. });
+            }
+        });
+        inline
+    }
+}
+
+/// Discover only inline values observed by a clause. Their own requirements
+/// are established at those projections, and may themselves observe another
+/// nested value. Form deeper declarations first, before any enclosing clause
+/// can contribute assumptions.
+fn add_projected_defaults<'types>(
+    scope: &mut Scope<'types>,
+    ordered: &OnceCell<Vec<&'types StructuralTypeDeclaration>>,
+    mut pending: Vec<DataSubject<'types>>,
+    default_subject: PlaceId,
+) -> Checked<()> {
+    let types = &scope.module.structural_types;
+    let mut visited = BTreeSet::new();
+    let mut defaults = Vec::new();
+    while let Some(subject) = pending.pop() {
+        // A finite inline value has no type repeated on one storage path.
+        if subject.prefix.len() >= types.len() {
+            return Err(scope.error(
+                "contract projection has a cyclic inline carrier".into(),
+                "data domain",
+            ));
+        }
+        for path in subject.observed_inline_paths() {
+            let declarations = ordered.get_or_init(|| {
+                let mut rows = types.iter().collect::<Vec<_>>();
+                rows.sort_unstable_by_key(|row| row.id);
+                rows
+            });
+            let lookup = |id| {
+                let start = declarations.partition_point(|row| row.id < id);
+                let row = *declarations.get(start)?;
+                (row.id == id && declarations.get(start + 1).is_none_or(|next| next.id != id))
+                    .then_some(row)
+            };
+            let selected = terminal_semantics::visit_canonical_inline_carriers(
+                declarations.iter().copied(),
+                lookup,
+                subject.carrier,
+                &path,
+                |depth, carrier| {
+                    if carrier.requires.is_empty() {
+                        return;
+                    }
+                    let prefix = [subject.prefix.as_slice(), &path[..depth]].concat();
+                    if visited.insert(prefix.clone()) {
+                        pending.push(DataSubject {
+                            carrier,
+                            subject: default_subject,
+                            prefix,
+                            clauses: &carrier.requires,
+                        });
+                    }
+                },
+            );
+            if selected.is_none() {
+                return Err(scope.error(
+                    "contract projection has no exact inline carrier".into(),
+                    "data domain",
+                ));
+            }
+        }
+        if !subject.prefix.is_empty() {
+            defaults.push(subject);
+        }
+    }
+    defaults.sort_unstable_by(|left, right| {
+        right
+            .prefix
+            .len()
+            .cmp(&left.prefix.len())
+            .then_with(|| left.prefix.cmp(&right.prefix))
+    });
+    for mut default in defaults {
+        scope.subject_prefix = std::mem::take(&mut default.prefix);
+        let clauses = default
+            .clauses
+            .iter()
+            .filter(|clause| default.inline_clause(clause));
+        scope.clauses(clauses, "data domain")?;
+    }
+    scope.subject_prefix.clear();
     Ok(())
 }
 
@@ -732,6 +910,8 @@ fn data_domains(module: &TerminalModule, diagnostic: MachineId) -> Checked<()> {
         )
     };
     let mut remaining = predicates.len();
+    let ordered = OnceCell::new();
+    let default_subject = PlaceId::new(1).expect("one is a place");
     for declared in &module.structural_types {
         let first = predicates.partition_point(|row| row.0 < declared.id);
         let end = predicates.partition_point(|row| row.0 <= declared.id);
@@ -745,15 +925,32 @@ fn data_domains(module: &TerminalModule, diagnostic: MachineId) -> Checked<()> {
             inputs: Vec::new(),
             result: None,
             roots: vec![Root {
-                place: PlaceId::new(1).expect("nonzero"),
+                place: default_subject,
                 ty: declared.id,
                 borrowed: false,
                 result: false,
                 has_entry: false,
             }],
+            subject_prefix: Vec::new(),
             completion: false,
             facts: Facts::default(),
         };
+        let subjects = std::iter::once((default_subject, declared.requires.as_slice()))
+            .chain(domains.iter().filter_map(|(_, _, predicate)| {
+                let predicate = predicate.as_ref()?;
+                Some((
+                    predicate.subject,
+                    std::slice::from_ref(&predicate.proposition),
+                ))
+            }))
+            .map(|(subject, clauses)| DataSubject {
+                carrier: declared,
+                subject,
+                prefix: Vec::new(),
+                clauses,
+            })
+            .collect();
+        add_projected_defaults(&mut scope, &ordered, subjects, default_subject)?;
         scope.clauses(&declared.requires, "data domain")?;
         let carrier_facts = std::mem::take(&mut scope.facts);
         for (_, _, predicate) in domains {
