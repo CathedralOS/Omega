@@ -183,7 +183,11 @@ fn available_value(
                 .is_ok_and(|dominates| dominates)
         })
     };
-    match tables.values.get(value).map(|row| (row.origin, row.scalar_type)) {
+    match tables
+        .values
+        .get(value)
+        .map(|row| (row.origin, row.scalar_type))
+    {
         Some((ValueOrigin::MachineParameter { .. }, _)) => true,
         Some((ValueOrigin::StorageContent { place, after: None }, _)) => {
             crate::places::input_content(lowered, tables, place)
