@@ -73,19 +73,19 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### A panic hides the remaining generic fixture verdicts
+- Category: tests that pin the bug
+- Where: [generic fixture compilation lock](omega-rust/omega/compilation/compiler/tests/lowered_route_generics.rs#L21), [fixture runner](omega-rust/omega/compilation/compiler/tests/lowered_route_generics.rs#L52)
+- Saw: The [main post-merge check](https://github.com/CathedralOS/Omega/actions/runs/43663933401) at `c1abef796f6` first failed the actual-refinement verdict count, then five distinct tests stopped at the same mutex with `PoisonError`. The original refinement assertion passed in an isolated rerun on macOS arm64 at `d75251ea39f` after the universe admission repair.
+- Cost: The reported failure count mixes the first compiler failure with fixtures that never obtained a verdict. Preserve serialization while allowing independent assertions to complete after another fixture panics.
+- Reported: 2026-11-14, Codex, while checking main after the codec test-build repair
+
 ### Runtime array index proofs cannot attach to their canonical operations
 - Category: knowledge crossing a boundary
 - Where: [checked index goals](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs#L1770), [seal owner reconstruction](omega-rust/psi/compilation/representations/terminal-psi/codec/src/obligation_evidence.rs#L244)
 - Saw: The [lent indexed record control](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/runtime_indexed_elements.rs#L64) publishes its checked invocation. With a hosted entry, the scalar-policy fix at `3fe15f1a32c` and the provisional universe admission repair, both `omega run --both` and Psi-only execution refuse the in-bounds program at `UnownedSeal`. Bare element types with an explicit saturating add reach the same error. The out-of-bounds twin still rejects each unsafe access.
 - Cost: Checked dynamic reads and writes cannot run through the product path. Stage 06 certifies each runtime path step, while the codec reconstructs only operation-local scalar and byte goals. Reuse each stored path step's exact array extent and obligation in the shared semantic query so several bounds on one operation remain attributable.
 - Reported: 2026-11-14, Codex, while validating mixed policy operands through hosted execution on macOS arm64
-
-### A specialized contract literal loses its const parameter carrier
-- Category: knowledge crossing a boundary
-- Where: [Stage 04 specialization control](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization/tests.rs#L987)
-- Saw: At clean `fc1a8259dc0`, a generated machine for `sized<3>` with declared `const N: u64` keeps the numeral `3` in its copied contract, but the literal records signed 16-bit landing where the test expects `u64`.
-- Cost: The test cannot establish that substitution transports the const parameter's receiving type into the copied contract. Trace the original operand and typed binding separately while preserving the parameter, numeral and contract.
-- Reported: 2026-11-14, Codex, while validating the specialization receipt index
 
 ### Provider-selection fixtures find no authored selection to test
 - Category: tests that pin the bug
