@@ -1016,3 +1016,36 @@ requires count > {minimum} && count <= items.len
         }
     }
 }
+
+#[test]
+fn loop_arrivals_prove_the_selected_views_own_extent() {
+    const SOURCE: &str = r#"
+machine build_entry(bytes: &[u8], other: &[u8], position: u64)
+requires position < bytes.len {
+    let byte: u8 = scan(bytes, other, position);
+}
+machine scan(bytes: &[u8], other: &[u8], position: u64) -> u8
+requires position < bytes.len {
+    transition { _ -> read(bytes, other, position) }
+    machine read(bytes: &[u8], other: &[u8], position: u64) -> u8
+    requires position < bytes.len {
+        transition position > 0 {
+            true -> scan(bytes, other, position - 1)
+            false -> bytes[position]
+        }
+    }
+}
+"#;
+    assert_eq!(verdict(SOURCE), "accepted");
+    let sibling = SOURCE.replacen(
+        "scan(bytes, other, position)",
+        "scan(other, bytes, position)",
+        1,
+    );
+    let refused = judge_build(&sibling).expect("the sibling-view program reaches checking");
+    assert!(
+        matches!(refused, RouteVerdict::Rejected { ref unproved, .. }
+        if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. } | ObligationKind::ArrivalInvariant { .. }))),
+        "the first view's bound cannot establish a bound on its sibling"
+    );
+}

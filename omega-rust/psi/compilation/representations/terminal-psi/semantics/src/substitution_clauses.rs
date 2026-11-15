@@ -45,6 +45,23 @@ pub trait ClauseBindings {
         case: StructuralCaseId,
     ) -> Result<bool, Self::Error>;
 
+    /// Resolve a case predicate, or retain its exact subject when only scalar
+    /// names are being changed within the same machine.
+    fn case_predicate(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        case: StructuralCaseId,
+    ) -> Result<Proposition, Self::Error> {
+        self.case(root, path, case).map(|holds| {
+            if holds {
+                Proposition::Truth
+            } else {
+                Proposition::Falsehood
+            }
+        })
+    }
+
     /// Declaration formation cannot skip a partial term because another
     /// branch already decides its enclosing condition. Ordinary substitution
     /// keeps its existing case-directed projection behavior.
@@ -111,11 +128,7 @@ pub fn substitute_clause<Error: From<&'static str>>(
             bound_mathematical(right, bindings)?,
         ),
         Proposition::StructuralCaseMembership { subject, case } => {
-            if bindings.case(subject.root(), subject.path(), *case)? {
-                Proposition::Truth
-            } else {
-                Proposition::Falsehood
-            }
+            bindings.case_predicate(subject.root(), subject.path(), *case)?
         }
         Proposition::Implication {
             premise,

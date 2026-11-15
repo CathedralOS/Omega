@@ -138,6 +138,9 @@ pub struct ServiceMethod {
     pub requirement_identity: ProviderIdentityId,
     pub parameter_count: usize,
     pub parameter_type_identities: Vec<ProviderIdentityId>,
+    /// Exact declared types retained separately from ordinary surface type
+    /// names, which deliberately erase portable builtin qualification.
+    pub declared_type_signature: [u8; 32],
     pub entry_claims: Vec<ServiceEntryClaim>,
     pub has_result: bool,
     pub result_type_identity: ProviderIdentityId,
@@ -164,6 +167,7 @@ impl ServiceMethod {
             && left_table.text(self.requirement_identity)
                 == right_table.text(other.requirement_identity)
             && self.parameter_count == other.parameter_count
+            && self.declared_type_signature == other.declared_type_signature
             && identity_sequence_eq(
                 &self.parameter_type_identities,
                 left_table,
@@ -464,4 +468,4 @@ impl ProviderSchemaDeclaration {
 }
 
 mod commitment;
-pub use commitment::ServiceContractSink;
+pub use commitment::{ServiceContractSink, declared_type_signature};

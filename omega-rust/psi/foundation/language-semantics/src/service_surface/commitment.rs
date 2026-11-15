@@ -19,14 +19,38 @@ impl ServiceContractSink for Vec<u8> {
     }
 }
 
+/// Bind the ordered, canonical declaration types without interpreting their
+/// spelling. The producer and receiver resolve their own identity tables first.
+pub fn declared_type_signature<Parameter: AsRef<str>>(
+    parameters: impl ExactSizeIterator<Item = Parameter>,
+    result: &str,
+) -> Result<[u8; 32], &'static str> {
+    if result.is_empty() {
+        return Err("declared result type has no exact identity");
+    }
+    let mut digest = DomainDigestEncoder::new(b"omega.service-declared-types.v1\0");
+    digest.len(parameters.len());
+    for parameter in parameters {
+        let parameter = parameter.as_ref();
+        if parameter.is_empty() {
+            return Err("declared parameter type has no exact identity");
+        }
+        digest.len(parameter.len());
+        digest.raw(parameter.as_bytes());
+    }
+    digest.len(result.len());
+    digest.raw(result.as_bytes());
+    Ok(digest.finish())
+}
+
 impl ServiceSurface {
     pub fn declaration_commitment(&self) -> [u8; 32] {
-        let mut digest = DomainDigestEncoder::new(b"omega.service-schema.sha256.v6\0");
+        let mut digest = DomainDigestEncoder::new(b"omega.service-schema.sha256.v7\0");
         self.encode_contract(&mut digest, |_, output| output.len(0));
         digest.finish()
     }
 
-    /// Write the declaration in v6 order. The caller writes its method suffix
+    /// Write the declaration in v7 order. The caller writes its method suffix
     /// at the exact boundary between that method's contract and the next one.
     /// Target-neutral declarations write an empty calling-application count.
     pub fn encode_contract<Output: ServiceContractSink>(
@@ -61,9 +85,16 @@ impl ServiceSurface {
             })
         });
         encoder.len(methods.len());
-        for method in methods {
+        for method in &methods {
             encoder.service_method(method, &self.identities);
             method_suffix(method, encoder.output);
+        }
+        // The v7 trailer pairs each declaration's canonical type signature
+        // with the same sorted method roster as the preceding contract.
+        for method in methods {
+            encoder
+                .output
+                .service_contract_bytes(&method.declared_type_signature);
         }
     }
 }
@@ -71,6 +102,7 @@ impl ServiceSurface {
 struct ContractEncoder<'a, Output> {
     output: &'a mut Output,
 }
+
 impl<Output: ServiceContractSink> ContractEncoder<'_, Output> {
     fn byte(&mut self, value: u8) {
         self.output.service_contract_bytes(&[value]);
@@ -214,5 +246,25 @@ impl<Output: ServiceContractSink> ContractEncoder<'_, Output> {
                 self.string(identities.text(route.requirement_identity));
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod declared_type_tests {
+    use super::declared_type_signature;
+
+    #[test]
+    fn declared_types_keep_owner_order_and_component_boundaries() {
+        let signature = |parameters: &[&str], result| {
+            declared_type_signature(parameters.iter().copied(), result).unwrap()
+        };
+        assert_ne!(signature(&["a", "bc"], "d"), signature(&["ab", "c"], "d"));
+        assert_ne!(signature(&["a"], "bc"), signature(&["ab"], "c"));
+        assert_ne!(signature(&["a", "b"], "c"), signature(&["b", "a"], "c"));
+        let first = format!("nominal(package-owner(32:{}),path(Item))", "01".repeat(32));
+        let second = format!("nominal(package-owner(32:{}),path(Item))", "02".repeat(32));
+        assert_ne!(signature(&[&first], "unit"), signature(&[&second], "unit"));
+        assert!(declared_type_signature([""].into_iter(), "unit").is_err());
+        assert!(declared_type_signature(std::iter::empty::<&str>(), "").is_err());
     }
 }

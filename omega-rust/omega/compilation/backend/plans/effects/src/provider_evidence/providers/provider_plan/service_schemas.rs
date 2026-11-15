@@ -374,7 +374,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn complete_service_contract_encoding_preserves_v6_bytes_and_calling_suffixes() {
+    fn complete_service_contract_v7_retains_type_signatures_and_calling_suffixes() {
         use sha2::{Digest, Sha256};
         let mut schema = schema("Child", 1, false);
         let package = semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]);
@@ -406,6 +406,7 @@ mod tests {
         enter.synchronous_invocations.push("before_return".into());
         enter.may_suspend = true;
         enter.terminates_guarantee = true;
+        enter.declared_type_signature = [31; 32];
         enter.termination_premises.push(ServiceProgressPremise {
             profile: "finite".into(),
             subject: ServiceProgressSubject::Parameter(0),
@@ -420,6 +421,7 @@ mod tests {
             requirement_owner: "Parent".into(),
             requirement_owner_package_identity: package,
             requirement_identity: after,
+            declared_type_signature: [32; 32],
             ..Default::default()
         });
         for receiver in &mut declaration.receiver_applications {
@@ -452,27 +454,50 @@ mod tests {
             }
             text
         };
-        // These independent v6 vectors include inherited receivers, package
-        // identities, claims, carry rules, progress and two different method
-        // calling suffixes. Their placement is part of the byte grammar.
+        // The fixed v6 vectors check the unchanged prefix. The v7 trailer
+        // adds the two declared signatures in canonical method order.
         let declaration_digest = "a66a39489639c6cf8fbc7f63c4234ffd87b436d6daceeda49be8263baabcfab3";
         let calling_digest = "3a55a5fe79f31b50f1c5ea99fa150791d5d394824f3340bdfae513f0b1abea66";
         let mut bytes = Vec::new();
         schema.declaration.encode_contract(&mut bytes, |_, output| {
             output.extend_from_slice(&0u64.to_le_bytes())
         });
-        assert_eq!(bytes.len(), 819);
+        let trailer = [vec![32; 32], vec![31; 32]].concat();
+        assert_eq!(bytes.len(), 819 + trailer.len());
+        assert_eq!(&bytes[819..], trailer.as_slice());
         let mut digest = Sha256::new();
         digest.update(b"omega.service-schema.sha256.v6\0");
-        digest.update(&bytes);
+        digest.update(&bytes[..819]);
         assert_eq!(hexadecimal(digest.finalize().into()), declaration_digest);
+        let mut digest = Sha256::new();
+        digest.update(b"omega.service-schema.sha256.v7\0");
+        digest.update(&bytes);
         assert_eq!(
             hexadecimal(*schema.declaration_identity_digest().as_bytes()),
-            declaration_digest
+            hexadecimal(digest.finalize().into())
+        );
+        let mut encoded = super::ProviderPlanDigestEncoder::for_service_schema_preimage();
+        schema
+            .declaration
+            .encode_contract(&mut encoded, |method, output| {
+                output.calling_applications(
+                    schema.calling_for_requirement(method.requirement_identity),
+                );
+            });
+        let preimage = encoded.finish_preimage();
+        let prefix =
+            &preimage[b"omega.service-schema.sha256.v7\0".len()..preimage.len() - trailer.len()];
+        let mut historical = Sha256::new();
+        historical.update(b"omega.service-schema.sha256.v6\0");
+        historical.update(prefix);
+        assert_eq!(hexadecimal(historical.finalize().into()), calling_digest);
+        assert_eq!(
+            &preimage[preimage.len() - trailer.len()..],
+            trailer.as_slice()
         );
         assert_eq!(
             hexadecimal(*schema.identity_digest().as_bytes()),
-            calling_digest
+            hexadecimal(Sha256::digest(&preimage).into())
         );
     }
 

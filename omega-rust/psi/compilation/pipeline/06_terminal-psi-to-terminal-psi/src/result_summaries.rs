@@ -325,14 +325,6 @@ fn summarize(
         &mut scratch,
         inhabitation,
     )?;
-    let declared_joins = joins::prepare(
-        lowered,
-        id,
-        &mut scratch,
-        &prepared.graph,
-        &prepared.context,
-        &module.scalar_block_invariants,
-    )?;
     let references = prepared.references(&module.structural_types);
     let storage = crate::places::Storage::new(
         id,
@@ -344,6 +336,16 @@ fn summarize(
         &prepared.types,
         &references,
     )?;
+    let declared_joins = joins::prepare(
+        lowered,
+        id,
+        &mut scratch,
+        &prepared.graph,
+        &prepared.context,
+        &module.scalar_block_invariants,
+        &storage,
+    )?;
+
     let beyond = unreached.values(lowered, &scratch);
     let mut decided = (0..scratch.obligations.len())
         .map(|_| None)

@@ -554,6 +554,7 @@ mod providers {
         requirement_identity,
         parameter_count,
         parameter_type_identities,
+        declared_type_signature,
         entry_claims,
         has_result,
         result_type_identity,

@@ -1061,6 +1061,77 @@ impl<'a> Storage<'a> {
         })
     }
 
+    pub(crate) fn arrival(
+        &self,
+        edge: EdgeId,
+        concerns: Construct,
+    ) -> Checked<(BlockId, &'a [ValueId], &'a [StructuralArgument])> {
+        let (source, _) = self.graph.locate(ProgramPoint::Edge(edge))?;
+        let block = self.block(source)?;
+        match &block.terminator {
+            Terminator::Jump {
+                edge: found,
+                target,
+                arguments,
+                structural_arguments,
+                ..
+            } if *found == edge => Ok((*target, arguments, structural_arguments)),
+            Terminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                let successor = [when_true, when_false]
+                    .into_iter()
+                    .find(|successor| successor.edge == edge)
+                    .ok_or_else(|| {
+                        self.foreign(
+                            concerns,
+                            "arrival edge is absent from its source terminator",
+                        )
+                    })?;
+                Ok((
+                    successor.target,
+                    &successor.arguments,
+                    &successor.structural_arguments,
+                ))
+            }
+            _ => Err(self.foreign(concerns, "arrival has no runtime argument telescope")),
+        }
+    }
+
+    pub(crate) fn at_join<'s>(
+        &'s self,
+        tables: &'s MachineTables,
+        formals: &'s [terminal_psi::StructuralParameterDeclaration],
+        arguments: &[StructuralArgument],
+        renaming: &'s [(ValueId, ValueId)],
+        point: ProgramPoint,
+        concerns: Construct,
+    ) -> Checked<AtJoin<'s, 'a>> {
+        if formals.len() != arguments.len() {
+            return Err(self.foreign(concerns, "join structural arguments differ from its header"));
+        }
+        let (block, up_to) = self.graph.locate(point)?;
+        let places = arguments
+            .iter()
+            .map(|argument| self.argument(argument, concerns))
+            .collect::<Checked<Vec<_>>>()?;
+        Ok(AtJoin {
+            inputs: AtCall {
+                storage: self,
+                tables,
+                scalars: Vec::new(),
+                places,
+                callee_formals: formals,
+                block,
+                up_to,
+                concerns,
+            },
+            renaming,
+        })
+    }
+
     /// A normal call guarantee observes the actual returned root after its
     /// producer. Owned input names keep their before-call values; borrowed
     /// reads keep the captured actual place and observe it after this call.
@@ -4432,6 +4503,145 @@ impl crate::Bindings for AtCall<'_, '_> {
         Err(crate::Unbound::Unsupported(
             "a case test in an entry clause",
         ))
+    }
+}
+
+/// Block contracts use the same captured storage reads as call contracts. Their
+/// scalar names are canonical IDs in this machine, rather than a callee lane.
+pub(crate) struct AtJoin<'s, 'a> {
+    inputs: AtCall<'s, 'a>,
+    renaming: &'s [(ValueId, ValueId)],
+}
+
+impl crate::Bindings for AtJoin<'_, '_> {
+    type Error = crate::Unbound;
+
+    fn value(
+        &mut self,
+        value: ValueId,
+        scalar_type: ScalarType,
+    ) -> Result<ScalarTerm, Self::Error> {
+        let value = self
+            .renaming
+            .iter()
+            .find(|(from, _)| *from == value)
+            .map_or(value, |(_, to)| *to);
+        let actual = terminal_check_tables::row(
+            &self.inputs.tables.values,
+            value,
+            self.inputs.storage.machine,
+            self.inputs.concerns,
+        )
+        .map_err(crate::Unbound::Refused)?;
+        if actual.scalar_type != scalar_type {
+            return Err(crate::Unbound::Unsupported(
+                "join argument has another scalar carrier",
+            ));
+        }
+        Ok(ScalarTerm::value(value, scalar_type))
+    }
+
+    fn field(
+        &mut self,
+        version: semantic_vocabulary::ContentPlaceVersion,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        scalar_type: ScalarType,
+    ) -> Result<ScalarTerm, Self::Error> {
+        if self
+            .inputs
+            .callee_formals
+            .iter()
+            .any(|formal| formal.place == root)
+        {
+            return crate::Bindings::field(&mut self.inputs, version, root, path, scalar_type);
+        }
+        // A subject outside the destination header keeps its existing
+        // storage version. It is not a callee input to reread at this edge.
+        Ok(match scalar_type {
+            ScalarType::Integer(scalar_type) => ScalarTerm::IntegerField {
+                version,
+                root,
+                path: path.to_vec(),
+                scalar_type,
+            },
+            ScalarType::Boolean => ScalarTerm::BooleanField {
+                version,
+                root,
+                path: path.to_vec(),
+            },
+            ScalarType::IeeeFloat(_) => {
+                return Err(crate::Unbound::Unsupported(
+                    "join field has no scalar observation",
+                ));
+            }
+        })
+    }
+
+    fn extent(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        scalar_type: semantic_vocabulary::IntegerType,
+    ) -> Result<ScalarTerm, Self::Error> {
+        if self
+            .inputs
+            .callee_formals
+            .iter()
+            .any(|formal| formal.place == root)
+        {
+            crate::Bindings::extent(&mut self.inputs, root, path, scalar_type)
+        } else {
+            Ok(ScalarTerm::ViewExtent {
+                root,
+                path: path.to_vec(),
+                scalar_type,
+            })
+        }
+    }
+
+    fn case(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        case: StructuralCaseId,
+    ) -> Result<bool, Self::Error> {
+        let actual = self.inputs.actual(root, path)?;
+        crate::Bindings::case(
+            &mut self.inputs.held_at(&actual),
+            terminal_check_tables::program::self_place().ok_or(crate::Unbound::Unsupported(
+                "data clause has no self coordinate",
+            ))?,
+            &[],
+            case,
+        )
+    }
+
+    fn case_predicate(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        case: StructuralCaseId,
+    ) -> Result<Proposition, Self::Error> {
+        if self
+            .inputs
+            .callee_formals
+            .iter()
+            .any(|formal| formal.place == root)
+        {
+            self.case(root, path, case).map(|holds| {
+                if holds {
+                    Proposition::Truth
+                } else {
+                    Proposition::Falsehood
+                }
+            })
+        } else {
+            Ok(Proposition::StructuralCaseMembership {
+                subject: semantic_vocabulary::StructuralCaseSubject::new(root, path.to_vec()),
+                case,
+            })
+        }
     }
 }
 

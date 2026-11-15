@@ -637,6 +637,19 @@ pub mod projection {
                         .symbol_package_identity(operator.symbol),
                     requirement_identity,
                     parameter_count: program.operator_parameters(operator).len(),
+                    declared_type_signature:
+                        language_semantics::service_surface::declared_type_signature(
+                            program
+                                .operator_parameters(operator)
+                                .iter()
+                                .map(|parameter| {
+                                    program.package_qualified_type_identity_text(
+                                        parameter.type_reference,
+                                    )
+                                }),
+                            &program.package_qualified_type_identity_text(operator.return_type),
+                        )
+                        .ok()?,
                     parameter_type_identities: program
                         .operator_parameters(operator)
                         .iter()
@@ -737,6 +750,15 @@ pub mod projection {
                     requirement_owner_package_identity: package_identity,
                     requirement_identity: requirement_identity_id,
                     parameter_count: parameters.len(),
+                    declared_type_signature:
+                        language_semantics::service_surface::declared_type_signature(
+                            parameters.iter().map(|parameter| {
+                                program
+                                    .package_qualified_type_identity_text(parameter.type_reference)
+                            }),
+                            &program.package_qualified_type_identity_text(entry.return_type),
+                        )
+                        .ok()?,
                     parameter_type_identities: parameters
                         .iter()
                         .map(|parameter| {
@@ -802,6 +824,29 @@ pub mod projection {
                     .symbol_package_identity(trait_definition.symbol),
                 requirement_identity,
                 parameter_count: program.state_signature_parameters(signature).iter().count(),
+                declared_type_signature:
+                    language_semantics::service_surface::declared_type_signature(
+                        program
+                            .state_signature_parameters(signature)
+                            .iter()
+                            .map(|parameter| {
+                                program
+                                    .type_identity_text(scope.package_qualified_type_identity(
+                                        program,
+                                        parameter.type_reference,
+                                    ))
+                                    .unwrap_or_default()
+                            }),
+                        &program
+                            .type_identity_text(
+                                scope.package_qualified_type_identity(
+                                    program,
+                                    signature.return_type,
+                                ),
+                            )
+                            .unwrap_or_default(),
+                    )
+                    .ok()?,
                 parameter_type_identities: program
                     .state_signature_parameters(signature)
                     .iter()

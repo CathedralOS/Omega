@@ -365,25 +365,69 @@ fn validate_native_contract<'module>(
         .next()
         .filter(|_| methods.next().is_none())
         .ok_or_else(|| "full service schema has no unique exact requirement".to_owned())?;
-    if method.completion != boundary.completion
-        || boundary.unconditional_termination
-            != (method.terminates_guarantee && method.termination_premises.is_empty())
-        || method.may_suspend != declaration.source.published_may_suspend
-        || method.may_block != declaration.source.published_may_block
-        || method.parameter_type_identities.len() != declaration.source.parameter_types.len()
-        || method
-            .parameter_type_identities
-            .iter()
-            .zip(&declaration.source.parameter_types)
-            .any(|(expected, actual)| {
-                module.identities.text(*actual) != Some(row.schema.identity_text(*expected))
-            })
-        || module.identities.text(declaration.source.result_type)
-            != Some(row.schema.identity_text(method.result_type_identity))
-    {
-        return Err("native requirement changes its complete declared schema".into());
+    if method.completion != boundary.completion {
+        return Err("native requirement changes its declared completion".into());
     }
+    if boundary.unconditional_termination
+        != (method.terminates_guarantee && method.termination_premises.is_empty())
+    {
+        return Err("native requirement changes its declared termination guarantee".into());
+    }
+    if method.may_suspend != declaration.source.published_may_suspend {
+        return Err("native requirement changes its declared suspension behavior".into());
+    }
+    if method.may_block != declaration.source.published_may_block {
+        return Err("native requirement changes its declared blocking behavior".into());
+    }
+    validate_native_declared_types(
+        method,
+        &declaration.source.parameter_types,
+        declaration.source.result_type,
+        &boundary.result,
+        &module.identities,
+    )?;
     Ok(boundary)
+}
+
+fn validate_native_declared_types(
+    method: &effects::provider_plan::ServiceMethod,
+    parameter_types: &[terminal_psi::TerminalIdentityIndex],
+    result_type: terminal_psi::TerminalIdentityIndex,
+    result: &terminal_psi::BoundaryMachineResult,
+    identities: &TerminalIdentityTable,
+) -> Result<(), String> {
+    if method.parameter_count != parameter_types.len()
+        || method.parameter_type_identities.len() != method.parameter_count
+    {
+        return Err("native requirement changes its declared parameter roster".into());
+    }
+    if !method.has_result && (!result.is_unit() || method.result_type_identity.is_valid()) {
+        return Err("native requirement with an omitted result must retain exact Unit".into());
+    }
+    let parameters = parameter_types
+        .iter()
+        .enumerate()
+        .map(|(ordinal, identity)| {
+            identities
+                .text(*identity)
+                .filter(|identity| !identity.is_empty())
+                .ok_or_else(|| format!("native parameter {ordinal} lost its exact declared type"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let result = identities
+        .text(result_type)
+        .filter(|identity| !identity.is_empty())
+        .ok_or("native result lost its exact declared type")?;
+    let signature = language_semantics::service_surface::declared_type_signature(
+        parameters.iter().copied(),
+        result,
+    )?;
+    if method.declared_type_signature == [0; 32] || method.declared_type_signature != signature {
+        return Err(format!(
+            "native declared types differ from their authenticated service signature (parameters {parameters:?}, result `{result}`)"
+        ));
+    }
+    Ok(())
 }
 
 pub fn validate_native_binding_execution(
@@ -408,22 +452,10 @@ fn validate_native_calling(
     if application.abi != abi
         || application.target != profile.native_target()
         || application.dispatch_only_parameter_count != 0
-        || application.commitment != application.recomputed_commitment()?
     {
-        return Err(
-            "calling application changed its exact ABI, target, dispatch or commitment".into(),
-        );
+        return Err("calling application changed its exact ABI, target or dispatch".into());
     }
-    let entry = application.plan.plan();
-    let signature = calling_conventions::CallSignature::of_placements(
-        &entry.call.parameters,
-        entry.call.result.as_ref(),
-    );
-    let validated = calling_conventions::validate_boundary_entry_plan(entry.clone(), &signature)
-        .map_err(|error| error.to_string())?;
-    if validated.plan() != entry {
-        return Err("native calling application is not the canonical target plan".into());
-    }
+    validate_native_calling_plan(application)?;
     row.schema
         .validate_calling_applications()
         .map_err(str::to_owned)?;
@@ -467,6 +499,30 @@ fn validate_native_calling(
         application.commitment,
     )
     .ok_or_else(|| "native binding has an incomplete admitted commitment".into())
+}
+
+fn validate_native_calling_plan(
+    application: &calling_conventions::BoundaryCallingApplication,
+) -> Result<(), String> {
+    // Check placements against the declared value geometry. A plan can be
+    // internally valid and still use the wrong width for this requirement.
+    // Recovery already owns that correspondence and the complete commitment.
+    calling_conventions::BoundaryCallingApplicationCandidate {
+        abi: application.abi.clone(),
+        calling_owner_application: application.calling_owner_application.clone(),
+        requirement_identity: application.requirement_identity.clone(),
+        target: application.target,
+        report_fingerprint: application.report_fingerprint,
+        commitment: application.commitment,
+        plan: application.plan.plan().clone(),
+        dispatch_only_parameter_count: application.dispatch_only_parameter_count,
+        signature: application.signature.clone(),
+        opaque_applications: application.opaque_applications.clone(),
+        callback_context: application.callback_context.clone(),
+        callback_context_closed: application.callback_context_closed,
+    }
+    .validate()?;
+    Ok(())
 }
 
 /// Replay the evaluated mechanism as well as its contract and calling plan.
@@ -644,6 +700,166 @@ mod tests {
     use super::*;
     use effects::provider_plan::*;
 
+    #[test]
+    fn native_declared_types_accept_i32_and_reject_a_different_type() {
+        let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+        let i32_type = identities.intern("compiler-type(atom(i32))");
+        let i64_type = identities.intern("compiler-type(atom(i64))");
+        let mut surface_types = ProviderIdentityTable::default();
+        let i32_surface = surface_types.intern("i32");
+        let method = ServiceMethod {
+            parameter_count: 1,
+            parameter_type_identities: vec![i32_surface],
+            has_result: true,
+            result_type_identity: i32_surface,
+            declared_type_signature: language_semantics::service_surface::declared_type_signature(
+                ["compiler-type(atom(i32))"].into_iter(),
+                "compiler-type(atom(i32))",
+            )
+            .unwrap(),
+            ..Default::default()
+        };
+        let result = terminal_psi::BoundaryMachineResult::Scalar(
+            semantic_vocabulary::ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 32)
+                    .unwrap(),
+            )
+            .into(),
+        );
+        validate_native_declared_types(
+            &method,
+            &[i32_type],
+            i32_type,
+            &result,
+            identities.as_table(),
+        )
+        .unwrap();
+        for (parameters, result_type) in [(vec![i64_type], i32_type), (vec![i32_type], i64_type)] {
+            assert!(
+                validate_native_declared_types(
+                    &method,
+                    &parameters,
+                    result_type,
+                    &result,
+                    identities.as_table()
+                )
+                .unwrap_err()
+                .contains("declared types differ")
+            );
+        }
+    }
+
+    #[test]
+    fn native_omitted_unit_result_retains_its_declared_type() {
+        let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+        let unit = identities.intern("unit");
+        let scalar = identities.intern("compiler-type(atom(i32))");
+        let method = ServiceMethod {
+            declared_type_signature: language_semantics::service_surface::declared_type_signature(
+                std::iter::empty::<&str>(),
+                "unit",
+            )
+            .unwrap(),
+            ..Default::default()
+        };
+        validate_native_declared_types(
+            &method,
+            &[],
+            unit,
+            &terminal_psi::BoundaryMachineResult::Unit,
+            identities.as_table(),
+        )
+        .unwrap();
+        assert!(
+            validate_native_declared_types(
+                &method,
+                &[],
+                scalar,
+                &terminal_psi::BoundaryMachineResult::Unit,
+                identities.as_table()
+            )
+            .unwrap_err()
+            .contains("declared types differ")
+        );
+        let structural = terminal_psi::BoundaryMachineResult::Structural(
+            terminal_psi::BoundaryStructuralResultDeclaration {
+                structural_type: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+            },
+        );
+        assert!(
+            validate_native_declared_types(&method, &[], unit, &structural, identities.as_table())
+                .unwrap_err()
+                .contains("omitted result must retain exact Unit")
+        );
+    }
+
+    #[test]
+    fn native_calling_placements_must_match_the_declared_value_width() {
+        use calling_conventions::{
+            BoundaryCallingApplication, BoundarySignatureGeometry, BoundaryValueClass,
+            BoundaryValueShape, CallSignature, CallingPolicy, ValueClass, ValueShape,
+        };
+        let plan_for = |bytes: u16| {
+            calling_conventions::evaluate_ordinary_boundary_entry_plan(
+                CallingPolicy::MicrosoftX64,
+                &CallSignature {
+                    parameters: Vec::new(),
+                    result: Some(ValueShape {
+                        class: ValueClass::Integer,
+                        byte_size: u32::from(bytes),
+                        alignment: bytes,
+                    }),
+                },
+            )
+            .unwrap()
+        };
+        let mut application = BoundaryCallingApplication {
+            abi: semantic_vocabulary::CallingAbiIdentity {
+                requirement_identity: "package::Raw::number".into(),
+                declaring_application: "package::Raw".into(),
+                operands: Vec::new(),
+            },
+            calling_owner_application: None,
+            requirement_identity: "package::Raw::number".into(),
+            target: target::NativeTarget::windows_x64(),
+            report_fingerprint: 1,
+            commitment: [0; 32],
+            plan: plan_for(4),
+            dispatch_only_parameter_count: 0,
+            signature: BoundarySignatureGeometry {
+                shapes: vec![BoundaryValueShape {
+                    class: BoundaryValueClass::Integer,
+                    byte_size: 4,
+                    alignment: 4,
+                }],
+                fields: Vec::new(),
+                parameters: Vec::new(),
+                result: Some(0),
+                native_parameters: Default::default(),
+                native_parameter_rows: Default::default(),
+                callback_layouts: Default::default(),
+                callback_layout_rows: Default::default(),
+                callback_bindings: Default::default(),
+                callback_binding_rows: Default::default(),
+            },
+            opaque_applications: Vec::new(),
+            callback_context: Default::default(),
+            callback_context_closed: false,
+        };
+        application.commitment = application.recomputed_commitment().unwrap();
+        validate_native_calling_plan(&application).unwrap();
+
+        // This is a valid 64-bit plan, with an honestly recomputed commitment,
+        // but the requirement still returns a 32-bit value.
+        application.plan = plan_for(8);
+        application.commitment = application.recomputed_commitment().unwrap();
+        let error = validate_native_calling_plan(&application).unwrap_err();
+        assert!(error.contains("boundary calling plan"), "{error}");
+    }
+
     fn evaluated(with_origin: bool) -> (EvaluatedNativeBinding, TerminalIdentityTable) {
         let mut identities = TerminalIdentityTableBuilder::default();
         let requirement = identities.intern("Raw::number()->u64");
@@ -743,16 +959,17 @@ mod tests {
         let original = ServiceSchema::from_declaration(Arc::new(declaration));
         let checked = original.declaration.declaration_commitment();
         validate_schema_declaration(&original, checked).unwrap();
-        for change in [0, 1, 2] {
+        for change in [0, 1, 2, 3] {
             let mut changed = original.clone();
             let method = &mut Arc::make_mut(&mut changed.declaration).methods[0];
             match change {
                 0 => method.service_reach.push("ProcessExit".into()),
                 1 => method.synchronous_invocations.push("Raw::callback".into()),
-                _ => method.result_claims.push(ServiceResultClaim {
+                2 => method.result_claims.push(ServiceResultClaim {
                     domain: "Granted".into(),
                     effective_carry: Default::default(),
                 }),
+                _ => method.declared_type_signature[0] ^= 1,
             }
             assert!(validate_schema_declaration(&changed, checked).is_err());
         }

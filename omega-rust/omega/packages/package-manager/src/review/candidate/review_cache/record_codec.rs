@@ -1,6 +1,6 @@
 /*
     We encode and decode persisted compiled-review records (`OMGCREV\x01`,
-    version 17). Sequences are `u64` length-prefixed, byte strings are framed,
+    version 18). Sequences are `u64` length-prefixed, byte strings are framed,
     every enum uses a checked tag, and the provider identity table is serialized
     ahead of every service-schema field that indexes into it so recovery
     re-mints identical `ProviderIdentityId`s. Unknown tags, retired versions,
@@ -39,7 +39,7 @@ use review_evidence::record::SemanticBindingReviewCandidate;
 use semantic_vocabulary::PackageKeyIdentity;
 
 const RECORD_MAGIC: &[u8; 8] = b"OMGCREV\x01";
-const RECORD_VERSION: u16 = 17;
+const RECORD_VERSION: u16 = 18;
 const RECORD_SEQUENCES_LIMIT: u64 = 1 << 20;
 
 fn cursor_bool(cursor: &mut ObservationCursor<'_>) -> Option<bool> {
@@ -266,6 +266,7 @@ fn encode_service_method(
     for identity in &method.parameter_type_identities {
         encode_string(identities.text(*identity), out);
     }
+    out.extend_from_slice(&method.declared_type_signature);
     push_count_u64(out, method.entry_claims.len());
     for claim in &method.entry_claims {
         push_encoded(out, (claim.parameter_index as u64).to_le_bytes());
@@ -394,6 +395,7 @@ fn recover_service_method(
     let parameter_type_identities = cursor_vec(cursor, |cursor| {
         cursor_string(cursor).map(|text| identities.intern(text))
     })?;
+    let declared_type_signature = cursor_digest(cursor)?;
     let entry_claims = cursor_vec(cursor, |cursor| {
         let parameter_index = usize::try_from(cursor.u64()?).ok()?;
         let carrier_identity = identities.intern(cursor_string(cursor)?);
@@ -484,6 +486,7 @@ fn recover_service_method(
             requirement_identity,
             parameter_count,
             parameter_type_identities,
+            declared_type_signature,
             entry_claims,
             has_result,
             result_type_identity,
@@ -1101,6 +1104,7 @@ mod tests {
                 requirement_identity,
                 parameter_count: 1,
                 parameter_type_identities: vec![u32_type_identity],
+                declared_type_signature: [19; 32],
                 has_result: true,
                 result_type_identity: u32_type_identity,
                 terminates_guarantee: true,

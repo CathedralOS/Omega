@@ -87,8 +87,15 @@ impl ProviderPlanDigestEncoder {
 
     pub(crate) fn for_service_schema() -> Self {
         let mut digest = Sha256::new();
-        digest.update(b"omega.service-schema.sha256.v6\0");
+        digest.update(b"omega.service-schema.sha256.v7\0");
         Self(digest, None)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn for_service_schema_preimage() -> Self {
+        let mut encoder = Self::for_service_schema();
+        encoder.1 = Some(b"omega.service-schema.sha256.v7\0".to_vec());
+        encoder
     }
 
     pub(crate) fn finish(self) -> [u8; 32] {

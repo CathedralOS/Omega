@@ -2,10 +2,9 @@ use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 
 // Expected exit: 0. Expected stdout: "K\n".
-// The Build selects no provider, so the two console calls run through the
-// provider the standard library's provider-default machine chooses for each
-// target. A check keeps that machine only for a boundary trait the program
-// reaches. ProcessExit is separate and requires its own admitted authority.
+// The application's Build selects no provider. The standard library's Build
+// supplies Console and its private byte provider for the selected target.
+// ProcessExit is separate and requires its own admitted authority.
 data Main { }
 machine main(root: &mut Main) reaches ProcessExit + Console {
     Console::write_byte(75);

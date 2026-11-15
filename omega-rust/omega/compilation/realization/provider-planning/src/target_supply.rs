@@ -1,44 +1,20 @@
-//! What one target must supply for a Product, decided by what the Product's
-//! accepted Terminal module demands on that target.
+//! Select the implementations and native bindings this program needs on one target.
 //!
-//! A program needs a provider for a boundary requirement on a target only
-//! when its entry reaches that requirement there. The accepted module is one
-//! target-neutral module: beside the entry's closure it holds the providers
-//! chosen for every target, so the requirements it declares are more than
-//! any one target demands. A Linux provider's raw system-call requirement is
-//! declared in the module a Windows product is made from, and Windows must
-//! not be asked to supply it.
+//! The module can contain implementations for several targets. Follow calls
+//! from the program's entries so a Windows build does not require a Linux
+//! implementation's system calls. At each boundary call, apply the declared
+//! precedence: an explicit checked selection, then a native binding, then a
+//! target default. A native binding ends that path. A checked selection adds
+//! its implementation's calls to the walk.
 //!
-//! So the demand of a target is a walk of the module's call graph
-//! (`terminal_installation::SynchronousCallGraph`). It starts at the
-//! Product's entries. Each boundary requirement it meets is demanded and is
-//! paired with the supply declared for the target: checked selections,
-//! evaluated native bindings, and target defaults. A native binding ends the
-//! walk at its exact requirement. Where exactly one checked supply stands at the highest authority,
-//! the walk continues into the machine the module holds for that provider
-//! and that requirement, because whatever the chosen provider calls is
-//! demanded too (provider_selection.md: "A selected provider's exact boundary
-//! calls create static transitive provider dependencies. Provider planning
-//! closes those rows under target selection"). A requirement that has no
-//! such supply, or whose chosen provider the module does not hold yet, ends
-//! the walk there and is still reported as demanded.
+//! Missing or conflicting selections remain required but are not followed;
+//! settlement rejects them. Preparation must never choose a body that
+//! settlement would reject. Programs with no boundary calls need no supply,
+//! and unsupported supply kinds refuse only programs that reach them.
 //!
-//! A module whose entries reach nothing prepares an empty supply, and that
-//! is a finding about the artifact rather than a skipped stage. A module that
-//! demands a kind of supply nothing here can plan yet is refused by the name
-//! of what it demands, so the refusal reaches only programs that need it.
-//!
-//! Preparation follows a choice only where settlement would make it.
-//! Settlement rejects: each demanded requirement must have exactly one
-//! supply at the highest authority that declared any, and a requirement with
-//! none or with several rejects the program
-//! (wiki/spec/build/provider_selection.md, "Missing, duplicate, incompatible,
-//! or unadmitted selected supply rejects rather than choosing a body by
-//! spelling or source order"). Each chosen provider then forms one provider
-//! plan for the slot it supplies (`SettledTargetSupply::plans`): a checked
-//! adapter row for every requirement of the slot's schema, each naming the
-//! machine the accepted module states as that provider's candidate for that
-//! requirement.
+//! Settlement builds one plan per chosen provider. Each plan names the checked
+//! implementation of every requirement in its slot's schema. See
+//! `wiki/spec/build/provider_selection.md` for selection and dependency rules.
 
 use build_time_evaluation::provider_declarations::{
     ProviderSelection, ProviderSelectionSubject, TargetProviderDefaults,

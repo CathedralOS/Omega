@@ -111,14 +111,6 @@ fn describe_calls(
         inhabitation,
     )?;
     let lowered = terminal_machine(&elaboration.module.machines, id, id)?;
-    let declared = joins::prepare(
-        lowered,
-        id,
-        &mut tables,
-        &prepared.graph,
-        &prepared.context,
-        &elaboration.module.scalar_block_invariants,
-    )?;
     let references = prepared.references(&elaboration.module.structural_types);
     let storage = crate::places::Storage::new(
         id,
@@ -130,6 +122,16 @@ fn describe_calls(
         &prepared.types,
         &references,
     )?;
+    let declared = joins::prepare(
+        lowered,
+        id,
+        &mut tables,
+        &prepared.graph,
+        &prepared.context,
+        &elaboration.module.scalar_block_invariants,
+        &storage,
+    )?;
+
     let mut decided = (0..tables.obligations.len())
         .map(|_| None)
         .collect::<Vec<_>>();
