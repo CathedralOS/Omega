@@ -54,7 +54,9 @@ mbx xtask claims release --ticket TICKET
 (`omega-claim-tickets`, never committed). `renew` with no `--ticket` renews
 every claim that worktree took; repeat `--ticket` to name claims instead.
 `note` requires one ticket and nonempty text, appends a UTC-stamped note and
-renews that claim. `release` removes the claim and forgets its ticket. Release
+renews that claim. A note lasts only as long as its claim, so it is a status
+line, not a record: put findings, custody and continuation state in the pull
+request, the commits, `TASKS.md` or `OWNER_CODE_CONCERNS.md`. `release` removes the claim and forgets its ticket. Release
 your claim when the work completes or the session stops. Expiry is not evidence
 that the work finished or its owner stopped; reconcile actual in-flight work
 before taking it over, and do not release another session's claim merely for
@@ -64,8 +66,13 @@ overlap.
 
 The wire format remains `omega-claims-v1`. Every write republishes the whole
 record, so a write also drops ended claims and the notes of any ticket without a
-visible claim; nothing reads either. The stored record therefore holds what
-status shows. Fields a write does not understand stay intact.
+visible claim. The stored record therefore holds what status shows. Fields a
+write does not understand stay intact. Pruning does not rewrite the
+reference's history: each earlier record is the message of an earlier commit,
+so a dropped note can still be read with
+`git fetch --depth=<n> origin refs/coordination/omega-claims/main` and
+`git show -s --format=%B <commit>`. The last record before pruning began is
+commit `c5e5deebd226ac4eb3b35065eed81607c06d97f1`.
 
 Help and malformed requests are handled before workspace discovery or Git access.
 A help flag after the subcommand is supported too. A consumed value, such as
