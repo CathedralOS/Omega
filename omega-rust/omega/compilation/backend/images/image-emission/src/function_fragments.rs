@@ -10427,6 +10427,12 @@ mod source {
                             },
                         ) => psi_edge == actual,
                         (
+                            AbstractOperation::EliminateEmpty { psi_edge, .. },
+                            TargetControlTerminator::EliminateEmpty {
+                                psi_edge: actual, ..
+                            },
+                        ) => psi_edge == actual,
+                        (
                             AbstractOperation::Crash { psi_edge, .. },
                             TargetControlTerminator::Crash {
                                 psi_edge: actual, ..
@@ -10541,6 +10547,18 @@ mod source {
                         && requirement_obligations == actual_obligations
                         && frontier_lower_bound == actual_frontier
                 }
+                (
+                    AbstractOperation::EliminateEmpty {
+                        psi_edge,
+                        source,
+                        path,
+                    },
+                    TargetControlTerminator::EliminateEmpty {
+                        psi_edge: actual_edge,
+                        source: actual_source,
+                        path: actual_path,
+                    },
+                ) => psi_edge == actual_edge && source == actual_source && path == actual_path,
                 (
                     AbstractOperation::Crash {
                         psi_edge,
@@ -10967,6 +10985,56 @@ mod source {
                             terminator,
                         }],
                     },
+                }
+            }
+
+            #[test]
+            fn empty_elimination_inspection_retains_its_exact_semantic_edge_and_source() {
+                use abstract_operations::AbstractOperation;
+                use target_operations::TargetControlTerminator;
+                let edge = EdgeId::new(3).unwrap();
+                let root = PlaceId::new(1).unwrap();
+                let case = semantic_vocabulary::StructuralCaseId::new(2).unwrap();
+                let path = vec![StructuralPathSegment::Case(case)];
+                let source = AbstractOperation::EliminateEmpty {
+                    psi_edge: edge,
+                    source: root,
+                    path: path.clone(),
+                };
+                let terminator = TargetControlTerminator::EliminateEmpty {
+                    psi_edge: edge,
+                    source: root,
+                    path,
+                };
+                assert!(retained(&source, &target(terminator.clone())));
+                for mutation in 0..4 {
+                    let mut changed = terminator.clone();
+                    let TargetControlTerminator::EliminateEmpty {
+                        psi_edge,
+                        source: actual_source,
+                        path: actual_path,
+                    } = &mut changed
+                    else {
+                        unreachable!()
+                    };
+                    match mutation {
+                        0 => *psi_edge = EdgeId::new(4).unwrap(),
+                        1 => *actual_source = PlaceId::new(2).unwrap(),
+                        2 => {
+                            actual_path[0] = StructuralPathSegment::Case(
+                                semantic_vocabulary::StructuralCaseId::new(1).unwrap(),
+                            )
+                        }
+                        _ => {
+                            changed = TargetControlTerminator::Crash {
+                                psi_edge: edge,
+                                cause: terminal_psi::CrashCause::Trap,
+                                site_guard: Vec::new(),
+                                frontier_lower_bound: Vec::new(),
+                            }
+                        }
+                    }
+                    assert!(!retained(&source, &target(changed)), "mutation {mutation}");
                 }
             }
 
@@ -19082,6 +19150,7 @@ mod source {
                         || placed_scalar_retained(operation, targeted, selected)
                         || selected.calls.iter().any(|row| row.owner == target_operations::CallSiteOwner::Operation(*psi_operation) && matches!(row.call.source, legalized_operations::NativeCallOrigin::InstalledProvider { .. } | legalized_operations::NativeCallOrigin::TargetFamily { .. } | legalized_operations::NativeCallOrigin::ProgramEntry { .. }))
                         || selected.normalized_foreign_calls.iter().any(|row| row.invocation_site == semantic_vocabulary::InvocationSite::Operation(*psi_operation)),
+                    AbstractOperation::EliminateEmpty { .. } => control_flow::retained(operation, targeted),
                     AbstractOperation::Crash { .. } => control_flow::retained(operation, targeted),
                     AbstractOperation::InvokeNoNormal {
                         psi_edge, callee, arguments, structural_arguments, claim_transfers,
