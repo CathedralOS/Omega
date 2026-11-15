@@ -175,21 +175,16 @@ pub(crate) mod call_foundations {
         }
     }
 
-    fn boolean_actual(
+    fn scalar_actual(
         value: ValueId,
         scalar_index: &terminal_semantics::MachineScalarIndex<'_>,
         sources: &terminal_semantics::normal_completion::ReturnSources<'_>,
-    ) -> Option<bool> {
-        if sources.scalar_type(value) != Some(ScalarType::Boolean) {
-            return None;
-        }
-        match terminal_semantics::scalar_constant_value(value, |value| {
+    ) -> Option<(ScalarType, IntegerValue)> {
+        let expected = sources.scalar_type(value)?;
+        let known = terminal_semantics::scalar_constant_value(value, |value| {
             scalar_index.constant_origin(value)
-        })? {
-            (ScalarType::Boolean, IntegerValue::Unsigned(0)) => Some(false),
-            (ScalarType::Boolean, IntegerValue::Unsigned(1)) => Some(true),
-            _ => None,
-        }
+        })?;
+        (known.0 == expected).then_some(known)
     }
 
     fn published_postcondition_is_false(
@@ -199,7 +194,9 @@ pub(crate) mod call_foundations {
         scalar_index: &terminal_semantics::MachineScalarIndex<'_>,
         sources: &terminal_semantics::normal_completion::ReturnSources<'_>,
     ) -> Result<bool, CodecError> {
-        use terminal_semantics::inhabitation::{boolean_value_with, predicates_are_false_with};
+        use terminal_semantics::inhabitation::{
+            known_scalar_value_with, predicates_are_false_with,
+        };
 
         if contract.parameters.len() != arguments.len()
             || contract.erased_scalar_formals.len() != erased_arguments.len()
@@ -210,29 +207,25 @@ pub(crate) mod call_foundations {
         // Looking a callee result/foreign ID up directly in the caller's
         // constant index would let coincident numeric IDs invent a promise.
         // Bind once, then borrow each retained clause without copying trees.
-        let mut booleans = Vec::with_capacity(arguments.len() + erased_arguments.len());
+        let mut known_actuals = Vec::with_capacity(arguments.len() + erased_arguments.len());
         for (formal, actual) in contract.parameters.iter().zip(arguments) {
             if sources.scalar_type(*actual) != Some(formal.scalar_type) {
                 return malformed("no-normal invocation has no exact scalar argument source");
             }
-            let known = (formal.scalar_type == ScalarType::Boolean)
-                .then(|| boolean_actual(*actual, scalar_index, sources))
-                .flatten();
-            booleans.push((formal.id, known));
+            let known = scalar_actual(*actual, scalar_index, sources);
+            known_actuals.push((formal.id, known));
         }
         for (formal, actual) in contract.erased_scalar_formals.iter().zip(erased_arguments) {
             if actual.scalar_type() != formal.scalar_type {
                 return malformed("no-normal invocation erased argument has the wrong carrier");
             }
-            let known = (formal.scalar_type == ScalarType::Boolean)
-                .then(|| {
-                    boolean_value_with(actual, |value| boolean_actual(value, scalar_index, sources))
-                })
-                .flatten();
-            booleans.push((formal.id, known));
+            let known = known_scalar_value_with(actual, |value| {
+                scalar_actual(value, scalar_index, sources)
+            });
+            known_actuals.push((formal.id, known));
         }
-        booleans.sort_unstable_by_key(|(formal, _)| *formal);
-        if booleans.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+        known_actuals.sort_unstable_by_key(|(formal, _)| *formal);
+        if known_actuals.windows(2).any(|pair| pair[0].0 == pair[1].0) {
             return malformed("no-normal invocation repeats a scalar formal identity");
         }
         Ok(contract.ensures.iter().any(|clause| {
@@ -244,10 +237,10 @@ pub(crate) mod call_foundations {
                 {
                     None
                 } else {
-                    booleans
+                    known_actuals
                         .binary_search_by_key(&value, |(formal, _)| *formal)
                         .ok()
-                        .and_then(|index| booleans[index].1)
+                        .and_then(|index| known_actuals[index].1)
                 }
             })
         }))

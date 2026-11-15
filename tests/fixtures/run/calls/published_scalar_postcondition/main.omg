@@ -1,0 +1,28 @@
+use omega::language::core::Never;
+use omega::language::core::ProcessExit;
+
+public trait Answer {
+    machine answer(fatal: u32) -> u32
+    reaches ProcessExit
+    crashes none
+    terminates
+    ensures fatal == 0;
+}
+public Stops satisfies Answer {
+    machine answer(fatal: u32) -> u32
+    reaches ProcessExit
+    crashes none
+    terminates
+    ensures fatal == 0 {
+        transition fatal == 0 {
+            true -> 7u32
+            false -> ProcessExit::exit_process(0)
+        }
+    }
+}
+public machine finish() -> Never reaches ProcessExit crashes none terminates {
+    Stops::answer(1);
+}
+machine entry_start() reaches ProcessExit crashes none terminates {
+    let unreachable_value: u32 = finish();
+}

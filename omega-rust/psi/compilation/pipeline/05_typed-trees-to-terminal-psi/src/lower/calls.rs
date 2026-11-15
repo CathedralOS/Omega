@@ -477,14 +477,13 @@ impl Lowering<'_> {
         })
     }
 
-    /// Only actual Boolean formals enter this substitution. In particular a
-    /// callee result ID cannot acquire a caller constant with the same number.
+    /// Bind genuine scalar formals once, with their exact declared carriers.
+    /// A callee result ID cannot acquire a caller constant with the same number.
     fn published_postcondition_is_false(
         &self,
         signature: &crate::body::Signature,
         arguments: &Arguments,
     ) -> Checked<bool> {
-        use semantic_vocabulary::ScalarType;
         if signature.ensures.is_empty() {
             return Ok(false);
         }
@@ -497,23 +496,23 @@ impl Lowering<'_> {
                 let term = erased
                     .next()
                     .ok_or_else(|| self.internal("missing erased call actual"))?;
-                terminal_semantics::inhabitation::boolean_value_with(term, |id| {
-                    self.known_boolean(id)
+                terminal_semantics::inhabitation::known_scalar_value_with(term, |id| {
+                    self.known_scalar(id)
                 })
             } else {
                 let actual = relevant
                     .next()
                     .ok_or_else(|| self.internal("missing call actual"))?;
                 match actual {
-                    Actual::Value(value) => self.known_boolean(*value),
+                    Actual::Value(value) => self.known_scalar(*value),
                     Actual::Place(_) => None,
                 }
             };
-            if matches!(ty, ValueType::Scalar(ScalarType::Boolean, _))
+            if let ValueType::Scalar(expected, _) = ty
                 && signature.borrowed(position).is_none()
                 && let Some(id) = ids[position]
             {
-                bindings.push((id, known));
+                bindings.push((id, known.filter(|(actual, _)| actual == expected)));
             }
         }
         if relevant.next().is_some() || erased.next().is_some() {
@@ -531,9 +530,15 @@ impl Lowering<'_> {
         ))
     }
 
-    fn known_boolean(&self, value: ValueId) -> Option<bool> {
+    fn known_scalar(
+        &self,
+        value: ValueId,
+    ) -> Option<(
+        semantic_vocabulary::ScalarType,
+        semantic_vocabulary::IntegerValue,
+    )> {
         let row = self.tables.values.get(value)?;
-        if row.scalar_type != semantic_vocabulary::ScalarType::Boolean || row.rigid.is_some() {
+        if row.rigid.is_some() {
             return None;
         }
         let terminal_check_tables::values::ValueOrigin::Operation(operation) = row.origin else {
@@ -541,14 +546,8 @@ impl Lowering<'_> {
         };
         let (block, ordinal) = self.operation_locations.get(operation)?.as_ref()?;
         let operation = self.blocks.get(*block)?.operations.get(*ordinal)?;
-        let (ty, literal) = terminal_semantics::scalar_operation_literal(operation, value)?;
-        match (ty, literal) {
-            (
-                semantic_vocabulary::ScalarType::Boolean,
-                semantic_vocabulary::IntegerValue::Unsigned(value @ 0..=1),
-            ) => Some(value != 0),
-            _ => None,
-        }
+        let known = terminal_semantics::scalar_operation_literal(operation, value)?;
+        (known.0 == row.scalar_type).then_some(known)
     }
 
     fn call_routes(

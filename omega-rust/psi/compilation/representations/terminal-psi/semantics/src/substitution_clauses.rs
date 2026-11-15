@@ -226,23 +226,60 @@ fn bound_mathematical<Error: From<&'static str>>(
         IntegerMathTerm::embed(term)
             .ok_or(Error::from("clause embeds a term that is not an integer"))
     };
-    match term {
-        IntegerMathTerm::IntegerLiteral(_) => Ok(term.clone()),
-        IntegerMathTerm::MathValue { source_type, value } => {
-            embedded(bindings.value(*value, ScalarType::Integer(*source_type))?)
-        }
-        IntegerMathTerm::Embed(scalar) => embedded(substitute_clause_term(scalar, bindings)?),
-        IntegerMathTerm::Add(..)
-        | IntegerMathTerm::Subtract(..)
-        | IntegerMathTerm::Multiply(..)
-        | IntegerMathTerm::ShiftLeft { .. } => {
-            let mut bound_term = term.clone();
-            for operand in bound_term.operands_mut() {
-                *operand = bound_mathematical(operand, bindings)?;
-            }
-            Ok(bound_term)
-        }
+    enum Pending {
+        Visit(IntegerMathTerm),
+        Complete(IntegerMathTerm, usize),
     }
+    let mut pending = vec![Pending::Visit(term.clone())];
+    let mut completed = Vec::new();
+    while let Some(step) = pending.pop() {
+        let resolved = match step {
+            Pending::Complete(mut term, count) => {
+                if completed.len() < count {
+                    return Err(Error::from("mathematical clause lost a resolved operand"));
+                }
+                for operand in term.operands_mut().into_iter().rev() {
+                    *operand = completed
+                        .pop()
+                        .ok_or(Error::from("mathematical clause lost a resolved operand"))?;
+                }
+                term
+            }
+            Pending::Visit(term) => match term {
+                IntegerMathTerm::IntegerLiteral(_) => term,
+                IntegerMathTerm::MathValue { source_type, value } => {
+                    embedded(bindings.value(value, ScalarType::Integer(source_type))?)?
+                }
+                IntegerMathTerm::Embed(scalar) => {
+                    embedded(substitute_clause_term(&scalar, bindings)?)?
+                }
+                mut term => {
+                    // Clone the tree once, then move every owned operand once.
+                    // Re-cloning each mathematical subtree grows with depth.
+                    let first = pending.len();
+                    let operands = term.operands_mut();
+                    let count = operands.len();
+                    for operand in operands.into_iter().rev() {
+                        pending.push(Pending::Visit(std::mem::replace(
+                            operand,
+                            IntegerMathTerm::literal(semantic_vocabulary::IntegerValue::Unsigned(
+                                0,
+                            )),
+                        )));
+                    }
+                    pending.insert(first, Pending::Complete(term, count));
+                    continue;
+                }
+            },
+        };
+        completed.push(resolved);
+    }
+    if completed.len() != 1 {
+        return Err(Error::from("mathematical clause did not produce one term"));
+    }
+    completed
+        .pop()
+        .ok_or(Error::from("mathematical clause did not produce one term"))
 }
 
 /// A conjunction (`conjunction`) or disjunction under substitution. The
@@ -373,6 +410,52 @@ mod tests {
         assert_eq!(
             substitute_clause(&Proposition::LessThan(value(1), value(2)), &mut Inputs),
             Ok(Proposition::LessThan(value(2), value(1)))
+        );
+    }
+
+    #[test]
+    fn mathematical_substitution_preserves_operand_order_and_simultaneous_names() {
+        let integer = scalar_type().as_integer().unwrap();
+        let value = |raw| IntegerMathTerm::MathValue {
+            source_type: integer,
+            value: ValueId::new(raw).unwrap(),
+        };
+        let expression = |left, right| {
+            IntegerMathTerm::Subtract(
+                Box::new(value(left)),
+                Box::new(IntegerMathTerm::Embed(Box::new(
+                    ScalarTerm::ExactIntegerAdd {
+                        scalar_type: integer,
+                        left: Box::new(ScalarTerm::value(
+                            ValueId::new(right).unwrap(),
+                            scalar_type(),
+                        )),
+                        right: Box::new(ScalarTerm::Integer {
+                            scalar_type: integer,
+                            value: IntegerValue::Unsigned(1),
+                        }),
+                    },
+                ))),
+            )
+        };
+        let clause = Proposition::IntegerMathEqual(
+            expression(1, 2),
+            IntegerMathTerm::literal(IntegerValue::Unsigned(0)),
+        );
+        assert_eq!(
+            substitute_clause(&clause, &mut Inputs),
+            Ok(Proposition::IntegerMathEqual(
+                expression(2, 1),
+                IntegerMathTerm::literal(IntegerValue::Unsigned(0))
+            ))
+        );
+        let foreign = Proposition::IntegerMathEqual(
+            expression(1, 99),
+            IntegerMathTerm::literal(IntegerValue::Unsigned(0)),
+        );
+        assert_eq!(
+            substitute_clause(&foreign, &mut Inputs),
+            Err("unbound value")
         );
     }
 
