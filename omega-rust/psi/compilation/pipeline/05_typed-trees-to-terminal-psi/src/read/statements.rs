@@ -13,10 +13,12 @@ local.
 
 use semantic_vocabulary::MachineId;
 use terminal_check_tables::{Checked, Construct};
+use terminal_psi::StructuralAccess;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::{TableAssignment, TableLocalData};
 
 use super::authority::Access;
+use super::references::reference_access_violation;
 use super::{Program, Slot};
 use crate::body::{ExpressionKind, Statement, ValueType};
 use crate::{SourceOrigin, Unserved, refuse, reject};
@@ -48,16 +50,23 @@ impl Program<'_> {
         };
         let source = SourceOrigin::of(self.typed.expression_table.source_span(assignment.target));
         let write_refusal = |slot: &Slot, unsupported| {
-            // An owned binding's mutability already settles whether this
-            // write is legal. Borrowed and erased slots have separate rules.
-            if slot.borrowed.is_some() || slot.erased {
-                unserved(unsupported)
-            } else {
-                reject(
+            // A borrowed formal's slot names its referent directly, so the
+            // path has no explicit descriptor crossing to check its access.
+            match (slot.erased, slot.borrowed) {
+                (false, Some(language_core::ReferenceAccess::Shared)) => {
+                    reference_access_violation(
+                        id,
+                        source,
+                        StructuralAccess::MutableBorrow,
+                        StructuralAccess::SharedBorrow,
+                    )
+                }
+                (false, None) => reject(
                     id,
                     source,
                     "writing to an immutable owned binding requires `mut`",
-                )
+                ),
+                _ => unserved(unsupported),
             }
         };
         match self.node(id, assignment.target)? {

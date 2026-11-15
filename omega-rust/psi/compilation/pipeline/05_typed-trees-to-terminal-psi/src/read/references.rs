@@ -4,12 +4,12 @@
 
 use crate::body::{Qualification, RecordType, StorageShape, ValueType};
 use semantic_vocabulary::MachineId;
-use terminal_check_tables::{Checked, Construct};
+use terminal_check_tables::{Checked, Construct, Refusal};
 use terminal_psi::StructuralAccess;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use super::{Program, places::RecordSource};
-use crate::{Unserved, refuse};
+use crate::{SourceOrigin, Unserved, refuse};
 
 impl Program<'_> {
     pub(super) fn reference_type(
@@ -449,16 +449,11 @@ impl Program<'_> {
                     // place asked for more than the reference it is reached
                     // through grants is wrong in every program.
                     if !requested.admits_referent(access) {
-                        return Err(crate::reject(
+                        return Err(reference_access_violation(
                             machine,
                             projection.source,
-                            format!(
-                                "this place requires {} source access, and the reference it \
-                                 is reached through grants {} access only: a reference admits \
-                                 no child with access it does not itself hold",
-                                access_named(requested),
-                                access_named(access),
-                            ),
+                            requested,
+                            access,
                         ));
                     }
                     crossed = true;
@@ -488,7 +483,26 @@ impl Program<'_> {
     }
 }
 
-/// An access as source spells it, for the rejection above.
+/// The positioned rule for a place whose reference grants insufficient access.
+pub(super) fn reference_access_violation(
+    machine: MachineId,
+    source: SourceOrigin,
+    requested: StructuralAccess,
+    granted: StructuralAccess,
+) -> Refusal {
+    crate::reject(
+        machine,
+        source,
+        format!(
+            "this place requires {} source access, and the reference it is reached through grants \
+             {} access only: a reference admits no child with access it does not itself hold",
+            access_named(requested),
+            access_named(granted),
+        ),
+    )
+}
+
+/// An access as source spells it in a rejection.
 const fn access_named(access: StructuralAccess) -> &'static str {
     match access {
         StructuralAccess::SharedBorrow => "shared",
