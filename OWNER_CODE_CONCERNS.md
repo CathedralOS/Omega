@@ -150,12 +150,19 @@ framework or a list of features that remain unimplemented.
 - Cost: The fixtures cannot check nested sequence transport or live bounds. Trace the ordinary callee's result slots through Build-time preparation while preserving both the borrowed-transport and invalid-index cases.
 - Reported: 2026-11-14, Codex, while comparing Build-time evaluator tests
 
-### Provider supply ignores named implementations' selection rows
+### Provider body admission requires a second satisfaction edge
 - Category: a fact with no owner
-- Where: [provider realization](omega-rust/psi/compilation/representations/typed-trees/src/product_and_trait_declarations.rs#L1618), [provider declaration identity](omega-rust/psi/compilation/representations/typed-trees/src/service_declarations.rs#L212)
-- Saw: At `7fca4c49c98` the Stage 06 supply harness finds one typed reference row for `Native satisfies Service { Service::go = provider_go; }`, and that row retains the exact `provider_go` machine. Nominating `Native` for `Service::go` or for the whole `Service` still refuses with `provider does not give the supplied requirement exactly one machine`. The inline implementation of the same contract passes and publishes.
-- Cost: Provider admission looks for a machine owned by the implementation. A selection row keeps the existing machine's original declaration. Resolve the named implementation's exact row and check its body against the nominated requirement.
-- Reported: 2026-11-14, Codex, while restoring the Stage 06 provider-supply controls
+- Where: [provider body admission](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/machine.rs#L396), [routed entry contract](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/machine.rs#L1418)
+- Saw: With supply lookup reading the exact named row, `Native satisfies Service { Service::go = provider_go; }` retains a Reference row to `provider_go`. Removing only the machine's duplicate `satisfies Service::go` clause leaves that row intact. Both the exact requirement and whole-trait supplies then refuse with `machine provider body needs its exact supplied requirement`.
+- Cost: A named implementation explicitly selects the machine for its slot. Provider body admission gets the advertised requirement only from an edge or row the machine owns. Route the selected entry under the named row's requirement and retain the independent check of the machine's own contract and body.
+- Reported: 2026-11-14, Codex, while checking named provider selection rows
+
+### Native application assembly refuses settled provider plans
+- Category: a fact with no owner
+- Where: [native Product assembly](omega-rust/omega/compilation/compiler/src/terminal/native_product.rs#L56), [boundary settlement](omega-rust/omega/compilation/representations/abstract-operations/verified-optimization-input/src/settlement.rs#L13)
+- Saw: On macOS arm64, a Build that selects a named provider for `Service::go` passes source checking. Both the referenced `provider_go` realization and an inline realization with the same contract stop before execution with `executable providers need their canonical row realizations and package permissions`.
+- Cost: Native assembly refuses a nonempty settled plan before supplying the existing boundary settlement with canonical row execution provenance and admitted package permissions. Join those existing inputs for the exact selected plan and application before trying to execute it.
+- Reported: 2026-11-14, Codex, while comparing the referenced and inline provider controls
 
 ### The selected reference result control stops before checking its public contract
 - Category: tests that pin the bug
