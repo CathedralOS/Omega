@@ -85,10 +85,10 @@ use terminal_check_tables::{
     Checked, Construct, ExactPlaceId, IdTable, MachineTables, ProgramPoint, RefusalReason,
 };
 use terminal_psi::{
-    Block, Operation, OperationKind, StructuralArgument, StructuralCaseDeclaration,
-    StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
-    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalMachineResult,
-    Terminator, ValueDeclaration,
+    Block, Operation, OperationKind, StructuralAccess, StructuralArgument,
+    StructuralCaseDeclaration, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
+    TerminalMachineResult, Terminator, ValueDeclaration,
 };
 
 use crate::graph::Graph;
@@ -1467,7 +1467,14 @@ impl<'a> Storage<'a> {
                     if !shape.is_borrowed_byte_view()
                         && !matches!(
                             shape,
-                            StructuralTypeShape::FixedArray {
+                            StructuralTypeShape::ElementView {
+                                access: None
+                                    | Some(
+                                        StructuralAccess::SharedBorrow
+                                            | StructuralAccess::MutableBorrow
+                                    ),
+                                ..
+                            } | StructuralTypeShape::FixedArray {
                                 length: terminal_psi::ArrayExtent::Literal(_),
                                 ..
                             }
@@ -1475,7 +1482,7 @@ impl<'a> Storage<'a> {
                     {
                         return Err(self.foreign(
                             concerns,
-                            "an extent names neither a byte view nor a closed array",
+                            "an extent requires a readable descriptor or a closed array",
                         ));
                     }
                     Shape::Scalar(ScalarType::Integer(
@@ -1720,7 +1727,8 @@ impl<'a> Storage<'a> {
     fn read_leaf(&self, operation: &Operation) -> Checked<Option<Lineage>> {
         let concerns = Construct::Operation(operation.id);
         let leaf = match &operation.kind {
-            OperationKind::ByteSequenceLength { source } => Some(self.argument(source, concerns)?),
+            OperationKind::ByteSequenceLength { source }
+            | OperationKind::ElementViewLength { source } => Some(self.argument(source, concerns)?),
             OperationKind::StructuralByteSequenceFieldLength {
                 source,
                 path,
@@ -1732,7 +1740,7 @@ impl<'a> Storage<'a> {
             _ => None,
         };
         if let Some(leaf) = leaf {
-            return self.byte_length_leaf(operation, leaf).map(Some);
+            return self.descriptor_length_leaf(operation, leaf).map(Some);
         }
         match &operation.kind {
             OperationKind::ScalarStructuralField {
@@ -1792,21 +1800,28 @@ impl<'a> Storage<'a> {
 
     /// Whole and stored descriptors expose the same extent leaf. Keeping
     /// one observation rule lets guards and later indexed reads agree on it.
-    fn byte_length_leaf(&self, operation: &Operation, mut leaf: Lineage) -> Checked<Lineage> {
+    fn descriptor_length_leaf(&self, operation: &Operation, mut leaf: Lineage) -> Checked<Lineage> {
         let concerns = Construct::Operation(operation.id);
+        let element_count = matches!(operation.kind, OperationKind::ElementViewLength { .. });
         let descriptor = match self.shape(&leaf, concerns)? {
-            Shape::View => true,
-            Shape::Typed(owner) => self
-                .declaration(owner, concerns)?
-                .shape
-                .is_borrowed_byte_view(),
+            Shape::View => !element_count,
+            Shape::Typed(owner) => {
+                let shape = &self.declaration(owner, concerns)?.shape;
+                if element_count {
+                    matches!(shape, StructuralTypeShape::ElementView { .. })
+                } else {
+                    shape.is_borrowed_byte_view()
+                }
+            }
             _ => false,
         };
         if !descriptor {
-            return Err(self.foreign(
-                concerns,
-                "a byte length operation requires a byte descriptor",
-            ));
+            let reason = if element_count {
+                "an element length operation requires an element descriptor"
+            } else {
+                "a byte length operation requires a byte descriptor"
+            };
+            return Err(self.foreign(concerns, reason));
         }
         leaf.segments.push(Segment::Extent);
         let Shape::Scalar(scalar_type) = self.shape(&leaf, concerns)? else {
