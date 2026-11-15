@@ -714,7 +714,7 @@ fn application_bindings_commitment(
                         .text(identity)
                         .ok_or("an application's callable identity is absent from its table")?,
                 )?;
-                if let Some(prepared) = &mut prepared {
+                if let Some(prepared) = prepared.as_mut() {
                     let contract = typed
                         .retained_static_machine_contract(binding.parameter)
                         .ok_or("an application's callable binder lost its requirement")?;
