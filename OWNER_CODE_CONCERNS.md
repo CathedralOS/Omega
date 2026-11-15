@@ -73,6 +73,13 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### A deferred type-expression refusal omits its declaration location
+- Category: a verdict with nothing behind it
+- Where: [Build-time source requests](omega-rust/psi/compilation/build-time-evaluation/src/source_frontier.rs#L76), [Stage 05 deferred refusal](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/machine.rs#L838)
+- Saw: On macOS arm64, clean `1142e7b6650e2eb573624b0acce1a3d35a8115fd` exits 200 for `omega run --both main.omg` with `machine main() { }` and the unchanged hosted Build from [the trapping fixture](tests/fixtures/run/arithmetic/trapping_primitives/build.omg). The diagnostic says `declaration using a type written as an expression, which no pass evaluates yet` without a source location or declaration name. Build-time evaluation records the declaration span, but the Stage 05 unavailable-judgment branch does not forward it. At `b3b8010cece` the same program reaches the macOS entry adapter.
+- Cost: A program with no authored type expression cannot reach either engine, and its author has no location to identify which admitted declaration triggered the refusal. Trace the request and its owning declaration through package admission before changing the guard or the fixture.
+- Reported: 2026-11-14, Codex, while reproducing the macOS entry adapter proof failure
+
 ### Stage 06 refusal controls omit the declaration context now emitted by Stage 05
 - Category: tests that pin the bug
 - Where: [example diagnostic assertions](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/address_bounds.rs)
@@ -93,13 +100,6 @@ framework or a list of features that remain unimplemented.
 - Saw: At production base `af9510104ca` with the test-constructor compatibility repair, the read/write acceptance test expects `accepted` and receives `MalformedStructuralFoundation("ordinary scalar operation cannot establish a declared domain")` from scalar-qualification validation.
 - Cost: The ordinary indexed-element route cannot show that a value taken from lent storage keeps its declared scalar qualification. Trace the selected array element type through the emitted operation and its validator before changing the fixture.
 - Reported: 2026-11-14, Codex, while restoring downstream checker test compilation on macOS arm64
-
-### The macOS entry adapter exhausts proof search before running a Unit program
-- Category: verifying costs more than writing
-- Where: [macOS arm64 entry Calling policy](source/library/std/targets/macos_arm64/entry.omg#L38), `physical_indices`
-- Saw: On macOS arm64, the compiler built from clean `a70ae5ad39e56fd0b94f412321050e7b5c891361` exits 200 on `omega run --both` for a plain Unit `main` with the trapping fixture's unchanged hosted Build. The bundled Calling policy reports exhausted bounded disjunction search for operation safety in `physical_indices`, before either engine runs.
-- Cost: Hosted native acceptance can stop in the standard library independently of the program being checked. Trace the conjunction of array-index bounds and preserve each index guard and its invalid control when repairing the proof path. Other targets were unmeasured.
-- Reported: 2026-11-14, Codex, while validating native execution of suffixed arithmetic
 
 ### The target-body reachability policy has no compiler caller
 - Category: zombie machinery
