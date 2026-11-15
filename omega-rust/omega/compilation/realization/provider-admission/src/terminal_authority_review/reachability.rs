@@ -160,7 +160,7 @@ impl<'a> AuthorityGraph<'a> {
                         self.target_profile.target_name(),
                     ));
                 }
-                for operation in &function.operations {
+                for operation in function.operations() {
                     if self.installed_scopes.is_some()
                         && let AbstractOperation::BoundaryCall {
                             boundary,
