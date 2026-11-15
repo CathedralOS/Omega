@@ -70,9 +70,40 @@ impl Storage<'_> {
         path: &[StructuralPathSegment],
         concerns: Construct,
     ) -> Checked<StructuralTypeShape> {
+        let place = root;
         let root = self.root_type(root, concerns)?;
         terminal_semantics::runtime_structural_path_tip(self.types.iter(), root, path)
-            .map(|declaration| declaration.shape.clone())
+            .map(|declaration| match declaration.shape {
+                // A direct byte window's formal carries the canonical view
+                // and keeps its access on the parameter. Its bytes are judged
+                // as the view that access grants, exactly like the
+                // access-bearing view the caller lent.
+                StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { access: None },
+                ) => terminal_semantics::structural_projection_authority(
+                    self.lowered,
+                    self.types,
+                    &terminal_psi::StructuralArgument {
+                        place,
+                        path: path.to_vec(),
+                        access: StructuralAccess::SharedBorrow,
+                    },
+                )
+                .filter(|access| {
+                    matches!(
+                        access,
+                        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                    )
+                })
+                .map_or(declaration.shape.clone(), |access| {
+                    StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView {
+                            access: Some(access),
+                        },
+                    )
+                }),
+                _ => declaration.shape.clone(),
+            })
             .or_else(|| {
                 terminal_semantics::runtime_structural_field(self.types.iter(), root, path)
                     .and_then(|field| field.field_type.byte_sequence_carrier())
