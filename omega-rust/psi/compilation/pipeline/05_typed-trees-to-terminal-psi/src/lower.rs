@@ -22,7 +22,7 @@ Obligations are created, never discharged:
   "one exact obligation for every callee `requires` clause").
 - `NormalGuarantee` per `ensures` clause per normal exit (control_flow.md:
   "All normal returns ... must establish the published guarantees.").
-- `ArrivalInvariant` per edge that passes scalar arguments to a block
+- `ArrivalInvariant` per edge that passes scalar or structural arguments to a block
   (control_flow.md: a block invariant has "one obligation for every actual
   incoming edge"). Short-circuit joins are the blocks that take them.
 - `CrashCoverage` per crash site and cause (calls_and_outcomes.md: "The
@@ -1149,9 +1149,9 @@ impl<'a> Lowering<'a> {
         obligation
     }
 
-    /// One `ArrivalInvariant` per edge that passes scalar arguments to a
-    /// block, at that edge. control_flow.md: a block invariant has "one
-    /// obligation for every actual incoming edge", and fact_validity.md:
+    /// A scalar or structural argument-passing edge owes `ArrivalInvariant`
+    /// at that edge. control_flow.md requires "one obligation for every
+    /// actual incoming edge", and fact_validity.md requires:
     /// "Every arrival must check before the destination predicate can justify
     /// downstream obligations." Only a `Jump` or a `Conditional` successor
     /// passes arguments; a dispatch arm's parameters are bound from the
@@ -1160,42 +1160,10 @@ impl<'a> Lowering<'a> {
     fn arrivals(&mut self) -> Checked<()> {
         let mut arrivals = Vec::new();
         for (_, draft) in self.blocks.iter() {
-            let successors: Vec<(EdgeId, BlockId, bool)> = match &draft.terminator {
-                Some(Terminator::Jump {
-                    edge,
-                    target,
-                    arguments,
-                    structural_arguments,
-                    ..
-                }) => vec![(
-                    *edge,
-                    *target,
-                    !arguments.is_empty() || !structural_arguments.is_empty(),
-                )],
-                Some(Terminator::Conditional {
-                    when_true,
-                    when_false,
-                    ..
-                }) => vec![
-                    (
-                        when_true.edge,
-                        when_true.target,
-                        !when_true.arguments.is_empty()
-                            || !when_true.structural_arguments.is_empty(),
-                    ),
-                    (
-                        when_false.edge,
-                        when_false.target,
-                        !when_false.arguments.is_empty()
-                            || !when_false.structural_arguments.is_empty(),
-                    ),
-                ],
-                _ => Vec::new(),
+            let Some(terminator) = &draft.terminator else {
+                continue;
             };
-            for (edge, target, passes) in successors {
-                if !passes {
-                    continue;
-                }
+            for (edge, target) in terminator.successors_with_runtime_arguments() {
                 let source = *self
                     .sources
                     .edges
