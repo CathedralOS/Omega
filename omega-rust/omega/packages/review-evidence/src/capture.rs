@@ -9,6 +9,7 @@ mod declarations;
 mod input;
 mod package_review;
 mod policy;
+mod providers;
 mod runtime_permissions;
 mod semantic_bindings;
 

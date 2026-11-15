@@ -73,9 +73,8 @@ pub fn project_package_review(
     if policy_canonical_bytes > maximum_policy_canonical_bytes {
         return Err(Error::PolicyBudget);
     }
-    // The projection presently refuses every owned boundary declaration.
-    // Consequently it can describe no service/hosted binding nomination;
-    // accepted dependency decisions remain the exact supplied input rows.
+    // Checked local providers do not nominate a service or hosted binding.
+    // Accepted dependency decisions remain the exact supplied input rows.
     Ok(PackageReviewEvidence {
         source_consumption_commitment,
         selected_build_machine_identity,

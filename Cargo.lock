@@ -1796,6 +1796,8 @@ dependencies = [
 name = "review-evidence"
 version = "0.1.0"
 dependencies = [
+ "backend-plan",
+ "build-time-evaluation",
  "calling-conventions",
  "diagnostics",
  "effects",

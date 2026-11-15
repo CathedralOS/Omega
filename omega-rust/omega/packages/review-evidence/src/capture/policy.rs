@@ -30,15 +30,14 @@ pub(super) fn project(
         ));
     }
     let declarations = input;
-    require_supported_inventory(&declarations, package)?;
+    let providers = declarations.selected_providers(package, target)?;
+    require_supported_inventory(&declarations, package, &providers.slots)?;
     // The owned declaration census above refuses unserved admission claims,
     // including unused private claims. The provider inventory's separate
     // root-grant census also contains unrelated imported toolchain claims;
     // it cannot substitute for this package's own review subject.
     let config = &checked.build().config;
-    if !checked.execution().plans().plans().is_empty()
-        || !checked.execution().plans().assumed_bindings().is_empty()
-        || !config.provider_selections.is_empty()
+    if !checked.execution().plans().assumed_bindings().is_empty()
         || !config.default_provider_selections.is_empty()
         || !config.assumed_bindings.is_empty()
         || !config.native_bindings.is_empty()
@@ -58,10 +57,7 @@ pub(super) fn project(
         ));
     }
     let module = input.module()?;
-    if !module.services.is_empty()
-        || !module.boundary_machines.is_empty()
-        || !module.external_providers.is_empty()
-        || !module.provider_candidates.is_empty()
+    if !module.external_providers.is_empty()
         || !module.provider_instance_requirements.is_empty()
         || !module.boundary_application_candidates.is_empty()
         || !module.boundary_application_demands.is_empty()
@@ -99,6 +95,9 @@ pub(super) fn project(
         operators: Vec::new(),
         data: declarations.public_data(package)?,
     };
+    let mut callables = declarations.callables(package)?;
+    callables.extend(providers.callables);
+    callables.sort_by(|left, right| left.identity.cmp(&right.identity));
     let policy = PackagePolicyBaseline {
         package,
         target,
@@ -106,12 +105,12 @@ pub(super) fn project(
         callables: PackagePolicyCallables {
             package,
             target,
-            callables: declarations.callables(package)?,
+            callables,
         },
         selected_providers: PackagePolicySelectedProviders {
             package,
             target,
-            plans: Vec::new(),
+            plans: providers.plans,
             families: Vec::new(),
         },
         terminal_permissions: PackagePolicyTerminalPermissions {
@@ -153,6 +152,7 @@ pub(super) fn project(
 fn require_supported_inventory(
     declarations: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
+    reviewed_boundary_slots: &[symbols::SymbolHandle],
 ) -> Result<(), Vec<Diagnostic>> {
     let typed = declarations.typed();
     let owned = |symbol| {
@@ -205,7 +205,16 @@ fn require_supported_inventory(
         }
     }
     for declaration in typed.traits() {
-        if owned(declaration.symbol)? && (declaration.is_public || declaration.is_boundary) {
+        if owned(declaration.symbol)?
+            && (declaration.is_public
+                || declaration.is_boundary
+                    && reviewed_boundary_slots
+                        .binary_search_by_key(
+                            &super::providers::symbol_key(declaration.symbol),
+                            |symbol| super::providers::symbol_key(*symbol),
+                        )
+                        .is_err())
+        {
             return Err(unavailable("trait and boundary declaration contracts"));
         }
     }
