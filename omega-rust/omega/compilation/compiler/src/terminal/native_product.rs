@@ -192,21 +192,15 @@ pub(crate) fn prepare(
     };
     let plans = checked.execution().plans().plans();
     let mut calling_applications = vec![semantic.clone(), physical.clone()];
-    let provider_plans = plans.iter().collect::<Vec<_>>();
-    for application in provider_planning::calling_policy_plans::component_calling_applications(
+    // Checked providers in this product use their authenticated local machine
+    // installations and ordinary Omega calls. Their private home layouts do
+    // not become public foreign ABIs. Independent components, rejected above,
+    // require their own admitted cross-artifact calling applications.
+    for application in provider_planning::calling_policy_plans::native_calling_applications(
         profile,
         &calling_program,
-        &provider_plans,
-        &[],
-    )?
-    .into_iter()
-    .chain(
-        provider_planning::calling_policy_plans::native_calling_applications(
-            profile,
-            &calling_program,
-            &native_supplies.rows,
-        )?,
-    ) {
+        &native_supplies.rows,
+    )? {
         if !calling_applications.contains(&application) {
             calling_applications.push(application);
         }

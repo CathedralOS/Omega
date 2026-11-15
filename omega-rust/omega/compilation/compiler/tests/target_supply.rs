@@ -1114,6 +1114,100 @@ fn a_whole_slot_keeps_each_members_exact_calling_declaration() {
     );
 }
 
+/// Local checked calls keep the sum's actual tag and every payload. That
+/// private layout does not authorize passing the same type to foreign code.
+#[test]
+fn a_local_checked_provider_keeps_case_results_without_a_foreign_abi() {
+    let supplied = format!(
+        r#"
+public data Outcome {{
+    case Empty;
+    case Count(value: u64);
+    case Byte(value: u8);
+}}
+public boundary trait Service {{
+    machine go() -> Outcome reaches none crashes none;
+    machine stop() -> Outcome reaches none crashes none;
+}}
+Native satisfies Service {{
+    machine go() -> Outcome reaches none crashes none {{ Outcome::Count {{ value: 7u64 }} }}
+    machine stop() -> Outcome reaches none crashes none {{ Outcome::Byte {{ value: 9u8 }} }}
+}}
+data NativeDefaults {{}}
+{NATIVE_DEFAULT}
+"#
+    );
+    let target = supplied_target(
+        &supplied,
+        "machine main() { let result: Outcome = Service::go(); }",
+    )
+    .expect("the local provider and its uncalled member check");
+    assert_eq!(target.supply.requirements().len(), 1);
+    let accepted = target.publication.accepted().unwrap();
+    let settled = target.supply.settle().unwrap();
+    let execution = execution(Some(profile()), accepted, &settled).unwrap();
+    let artifact = produced(accepted);
+    let proposal = execution
+        .provider_proposal(
+            artifact.view(),
+            optimization_core::OptimizationSelections::default().identity(),
+        )
+        .unwrap();
+    let selection = proposal.selection.as_ref().unwrap();
+    let installed = selection
+        .admit(artifact.view(), TARGET)
+        .expect("all local members have exact checked installations");
+    assert_eq!(installed.providers().count(), 2);
+    assert_eq!(check_conditions(&artifact, &proposal), Ok(()));
+
+    let module = artifact.semantic_module();
+    let terminal_psi::BoundaryMachineResult::Structural(result) =
+        &module.boundary_machines[0].result
+    else {
+        panic!("the result keeps its logical case type")
+    };
+    let geometry =
+        calling_conventions::terminal_layout::NativeGeometry::new(&module.structural_types)
+            .unwrap();
+    let layout = geometry.sum_layout(result.structural_type).unwrap();
+    assert_eq!(
+        layout.tag_shape,
+        calling_conventions::ValueShape::integer(4, 4)
+    );
+    assert_eq!(
+        layout.shape,
+        calling_conventions::ValueShape::integer(16, 8)
+    );
+    assert_eq!(layout.cases.len(), 3);
+    assert!(layout.cases[0].fields.is_empty());
+    assert_eq!(
+        layout.cases[1].fields[0].shape,
+        calling_conventions::ValueShape::integer(8, 8)
+    );
+    assert_eq!(
+        layout.cases[2].fields[0].shape,
+        calling_conventions::ValueShape::integer(1, 1)
+    );
+    assert_eq!(layout.cases[1].fields[0].byte_offset, 8);
+    assert_eq!(layout.cases[2].fields[0].byte_offset, 8);
+
+    let no_extents = |_| panic!("this closed case type has no evaluated extent");
+    let mut foreign = layout::TerminalBoundaryRecipes::new(module, TARGET, &no_extents);
+    let refused = foreign.value(result.structural_type).unwrap_err();
+    assert!(
+        refused.contains("case data is not yet classifiable as a boundary value"),
+        "{refused}"
+    );
+
+    let mut changed = selection.clone();
+    changed.checked_candidates[0].candidate = changed.checked_candidates[1].candidate;
+    let refused = changed.admit(artifact.view(), TARGET).unwrap_err();
+    assert!(
+        refused.contains("complete canonical selected-provider roster"),
+        "{refused}"
+    );
+}
+
 /// The twins of the plan. A module that states no candidate of the provider
 /// for one requirement of the slot forms no plan, and the refusal names that
 /// requirement although the program never reaches it. A plan whose adapter
