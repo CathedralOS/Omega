@@ -1639,6 +1639,70 @@ impl<'a> Lowering<'a> {
         Ok((place, exact))
     }
 
+    /// The value a join parameter of `multiplicity` receives from `place`.
+    /// A fresh `EstablishReference` result is an affine loan carrier even
+    /// though its reference type is copyable, while the join of a value
+    /// `match` holds the type's unrestricted copy. Such an arrival passes a
+    /// copy, just as an arm naming a reference local does, and ordinary
+    /// affine cleanup ends the arm's own root. A view's descriptor already
+    /// crosses the join as its affine root and keeps doing so.
+    pub(super) fn join_arrival(
+        &mut self,
+        place: PlaceId,
+        record: StructuralTypeId,
+        qualification: Qualification,
+        multiplicity: StructuralMultiplicity,
+        source: SourceOrigin,
+    ) -> Checked<PlaceId> {
+        if !matches!(
+            self.record_type(record)?.shape,
+            StorageShape::Reference { .. }
+        ) {
+            return Ok(place);
+        }
+        let Some((StructuralPlaceKind::OperationResult { producer, .. }, _)) =
+            self.roots.get(place).copied()
+        else {
+            return Ok(place);
+        };
+        // A fresh formation is produced in the arm's own block, where the
+        // arrival jumps from; a value made earlier is found in its block.
+        let arm = self.current()?;
+        let produced = self
+            .blocks
+            .get(arm)
+            .into_iter()
+            .chain(self.blocks.values())
+            .flat_map(|draft| &draft.operations)
+            .find(|operation| operation.id == producer)
+            .and_then(|operation| match &operation.result {
+                OperationResult::Structural(result) if result.place == place => {
+                    Some(result.multiplicity)
+                }
+                _ => None,
+            })
+            .ok_or_else(|| self.internal("a match arrival has no producing operation"))?;
+        if produced == multiplicity || multiplicity != StructuralMultiplicity::Unrestricted {
+            return Ok(place);
+        }
+        let operation = self.operation_identity(source);
+        let (copy, exact) = self.produce_qualified(
+            operation,
+            record,
+            qualification,
+            OperationKind::StructuralLeafCopy {
+                source: place,
+                path: Vec::new(),
+            },
+        )?;
+        self.write(
+            exact,
+            ProgramPoint::AfterOperation(operation),
+            Content::Overwritten,
+        )?;
+        Ok(copy)
+    }
+
     /// A call's record result holds values this machine cannot name.
     pub(super) fn unknown_contents(
         &mut self,
