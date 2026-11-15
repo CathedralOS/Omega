@@ -1147,19 +1147,15 @@ pub enum ExpressionKind {
     /// policy, so no operation is emitted and the operand keeps the
     /// operations its own type chose.
     Requalify(Box<Expression>),
-    /// `value as +D` for a domain with predicates: the operand, whose value
-    /// is the result, and the predicates the cast proves of it
-    /// (`read/predicates.rs`), each over the one value `ValueId(1)` for a
-    /// scalar, or over the one structural subject `self_place()` for an
-    /// array, a record or a reference. domains.md, "Domain-only casts":
-    /// "Has predicates | Prove them for this value." Lowering continues in
-    /// a block whose parameter is the result and whose invariant is the
-    /// clauses, so the edge into it owes them and everything after knows
-    /// them.
+    /// Establish predicates of this operand before continuing. A domain
+    /// addition proves its declared conditions; exact narrowing proves a
+    /// same-format conversion roundtrip. Clauses name one formal ValueId(1)
+    /// and ordinary simultaneous substitution binds the actual operand.
+    /// Every incoming edge owes the predicate before it becomes available.
     Establish {
         operand: Box<Expression>,
         clauses: Vec<Proposition>,
-        /// The domain and its predicates as written, for a diagnostic.
+        /// The condition the cast must establish, for a diagnostic.
         stated: String,
     },
     /// `&&` when `conjunction`, else `||`: the right operand runs only when

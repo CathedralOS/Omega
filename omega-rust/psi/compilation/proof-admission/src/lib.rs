@@ -299,7 +299,9 @@ pub(crate) mod admission {
 
             #[test]
             fn proof_system_marker_has_no_compatibility_ladder() {
-                assert_eq!(ProofSystemMarker::new(6), Some(ProofSystemMarker::CURRENT));
+                assert_eq!(ProofSystemMarker::new(7), Some(ProofSystemMarker::CURRENT));
+                assert!(ProofSystemMarker::new(8).is_none());
+                assert!(ProofSystemMarker::new(6).is_none());
                 assert!(ProofSystemMarker::new(5).is_none());
                 assert!(ProofSystemMarker::new(4).is_none());
                 assert_eq!(ProofSystemMarker::new(0), None);
@@ -312,6 +314,7 @@ pub(crate) mod admission {
 }
 mod classicality;
 mod closed_proposition;
+mod float_meaning;
 mod ieee_float_rules;
 mod integer_rules;
 mod kernel;
@@ -369,6 +372,7 @@ pub use admission::evidence::{
 };
 pub use classicality::ProofRuleFoundation;
 pub use closed_proposition::{closed_guard, closed_guard_with};
+pub use float_meaning::{FloatMeaningNormalizationError, check_float_meaning_normalization};
 pub use integer_rules::closed_integer::{
     ClosedIntegerEvaluationError, ClosedIntegerEvaluator, big_integer_literal,
     compare_integer_math_terms,
