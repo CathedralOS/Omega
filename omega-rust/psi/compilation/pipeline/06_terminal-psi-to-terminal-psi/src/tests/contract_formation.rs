@@ -218,6 +218,66 @@ machine build_entry() { let value: u8 = packed(9, 9); }
 }
 
 #[test]
+fn a_record_domain_uses_its_carrier_default_but_not_another_named_domain() {
+    const SOURCE: &str = r#"
+data Reading requires number >= 1 { number: u32; }
+domain Reading::First requires self.number >= 1, self.number - 1 <= 4294967295u32;
+domain Reading::Second requires self.number - 1 <= 4294967295u32;
+machine build_entry() { let reading: Reading = Reading { number: 1 }; }
+"#;
+    executed_source(SOURCE);
+
+    let verdict = source_result(&SOURCE.replace(" requires number >= 1", ""));
+    let RouteVerdict::Rejected { violations, .. } = verdict else {
+        panic!("an unrelated named domain supplied the lower bound: {verdict:?}");
+    };
+    let [violation] = violations.as_slice() else {
+        panic!("expected a single formation violation: {violations:?}");
+    };
+    assert!(
+        violation
+            .statement
+            .contains("data domain: contract arithmetic is not proved total before its condition"),
+        "{violation:?}"
+    );
+}
+
+#[test]
+fn a_record_domains_subject_uses_the_same_carrier_observations() {
+    let mut accepted = accepted_source(
+        r#"
+data Reading requires number >= 1 { number: u32; }
+domain Reading::Nonzero requires self.number - 1 <= 4294967295u32;
+machine build_entry() {}
+"#,
+    );
+    let module = &mut accepted.elaboration.module;
+    let predicate = module.structural_domains[0].predicate.as_mut().unwrap();
+    let number_field = ScalarTerm::integer_field_path(
+        id(7),
+        vec![CanonicalStructuralPathSegment::Field(id(1))],
+        integer_type(IntegerSign::Unsigned),
+    );
+    predicate.subject = id(7);
+    predicate.proposition =
+        Proposition::LessOrEqual(subtract(number_field, number(1)), number(u32::MAX.into()));
+    crate::formation::module(module).unwrap();
+
+    module.structural_domains[0]
+        .predicate
+        .as_mut()
+        .unwrap()
+        .subject = id(8);
+    let refusal = crate::formation::module(module).unwrap_err();
+    assert_eq!(refusal.reason, RefusalReason::Unsupported);
+    assert!(
+        refusal
+            .detail
+            .contains("contract field has no declared root")
+    );
+}
+
+#[test]
 fn a_bound_on_one_field_does_not_form_its_neighbors_subtraction() {
     const SOURCE: &str = r#"
 data Pair [copy] { first: u32; second: u32; }

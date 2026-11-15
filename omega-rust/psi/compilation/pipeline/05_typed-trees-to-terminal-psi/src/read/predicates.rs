@@ -58,175 +58,6 @@ struct Predicate {
 }
 
 impl Program<'_> {
-    /// A record's use-site predicates cannot establish safety for every
-    /// carrier value. Retain its generic theory and issuance restrictions
-    /// for formation; scalar domains use the shared Qualifications owner.
-    pub(crate) fn publish_structural_domains(
-        &self,
-        diagnostic: MachineId,
-        module: &mut terminal_psi::TerminalModule,
-    ) -> Checked<()> {
-        use semantic_vocabulary::{DomainSemanticId, StructuralDomainId};
-        use terminal_psi::{StructuralDomainDeclaration, StructuralDomainPredicate};
-        if self
-            .declared_domains
-            .iter()
-            .all(|(_, carrier)| matches!(carrier, ValueType::Scalar(..)))
-        {
-            return Ok(());
-        }
-        let sources =
-            source::source_identity::toolchain_source_identities(self.typed.symbols.source_files())
-                .map_err(|reason| terminal_check_tables::Refusal {
-                    reason: terminal_check_tables::RefusalReason::ForeignIdentity,
-                    machine: diagnostic,
-                    concerns: Construct::Machine,
-                    source_span: None,
-                    detail: format!("domain declaration source identity: {reason}"),
-                })?;
-        let mut identities = std::mem::take(&mut module.identities).into_builder();
-        let unavailable =
-            |what| refuse(diagnostic, Construct::Machine, Unserved::Declaration(what));
-        for (position, (symbol, carrier)) in self.declared_domains.iter().enumerate() {
-            let (carrier, regions) = match *carrier {
-                ValueType::Record(carrier, _, regions) => (carrier, regions),
-                ValueType::Scalar(..) => continue,
-                ValueType::Rigid(_) => {
-                    return Err(unavailable("domain retains an unresolved carrier"));
-                }
-            };
-            let definition = self
-                .typed
-                .domain_definition(*symbol)
-                .ok_or_else(|| unavailable("retained domain lost its declaration"))?;
-            let identity = crate::declare::nominal(self.typed, &sources, *symbol, &mut identities)
-                .map_err(unavailable)?;
-            let semantic_domain = DomainSemanticId::new(position as u64 + 1)
-                .ok_or_else(|| unavailable("domain identity overflow"))?;
-            let establishment_routes =
-                self.domain_routes(diagnostic, definition, &sources, &mut identities)?;
-            let domains = crate::body::DomainSet::EMPTY
-                .with(*symbol)
-                .ok_or_else(|| unavailable("retained domain has no exact symbol"))?;
-            let qualification = Qualification {
-                policy: None,
-                domains,
-            };
-            let clauses = self.field_predicates(
-                diagnostic,
-                &[],
-                ValueType::Record(carrier, qualification, regions),
-            )?;
-            let id = StructuralDomainId::new(module.structural_domains.len() as u64 + 1)
-                .ok_or_else(|| unavailable("structural domain identity overflow"))?;
-            module.structural_domains.push(StructuralDomainDeclaration {
-                required_memberships: Some(Vec::new()),
-                complete_predicate_theory: true,
-                predicate: Some(StructuralDomainPredicate {
-                    subject: crate::body::self_place().expect("nonzero"),
-                    proposition: Proposition::Conjunction(clauses),
-                }),
-                id,
-                semantic_domain,
-                identity,
-                carrier,
-                content_projection: None,
-                byte_predicate: None,
-                establishment_routes,
-            });
-        }
-        module.identities = identities.build();
-        Ok(())
-    }
-
-    fn domain_routes(
-        &self,
-        diagnostic: MachineId,
-        definition: &typed_trees::domain::DomainDefinition,
-        sources: &[(source::SourceId, [u8; 32])],
-        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-    ) -> Checked<Option<Vec<terminal_psi::ScalarDomainEstablishmentRoute>>> {
-        use language_semantics::DomainEstablishmentRoute as Source;
-        use terminal_psi::{NominalDeclarationIdentity, ScalarDomainEstablishmentRoute as Route};
-        use typed_trees::domain::DomainIssuance;
-        let routes = match definition.issuance() {
-            DomainIssuance::Unrestricted => return Ok(None),
-            // The existing reader cannot evaluate an access plan. Such a
-            // declaration supplies no admitted issuer, never unrestricted
-            // issuance. Source use sites retain their existing refusal.
-            DomainIssuance::Planned(_) => return Ok(Some(Vec::new())),
-            DomainIssuance::Only(routes) => routes,
-        };
-        let unavailable =
-            |what| refuse(diagnostic, Construct::Machine, Unserved::Declaration(what));
-        let mut result = Vec::with_capacity(routes.len());
-        for route in routes {
-            let (symbol, boundary) = match *route {
-                Source::ExactMachine { machine } => {
-                    let machine = self
-                        .typed
-                        .machine_by_symbol(machine)
-                        .ok_or_else(|| unavailable("domain issuer lost its exact machine"))?;
-                    let identity = self
-                        .typed
-                        .machine_callable_identity_text(machine)
-                        .ok_or_else(|| unavailable("domain issuer lost its callable identity"))?;
-                    let declaration = NominalDeclarationIdentity::new(
-                        crate::declare::nominal(self.typed, sources, machine.symbol, identities)
-                            .map_err(unavailable)?,
-                    );
-                    result.push(Route::ExactMachine {
-                        declaration,
-                        machine_identity: identities.intern(&identity),
-                    });
-                    continue;
-                }
-                Source::CheckedRequirement {
-                    trait_definition,
-                    requirement,
-                } => ((trait_definition, requirement), false),
-                Source::BoundaryRequirement {
-                    boundary_trait,
-                    requirement,
-                } => ((boundary_trait, requirement), true),
-            };
-            let (owner, requirement) = self
-                .typed
-                .trait_machine_signature(symbol.1)
-                .filter(|(owner, requirement)| {
-                    owner.symbol == symbol.0
-                        && requirement.symbol == symbol.1
-                        && owner.is_boundary == boundary
-                })
-                .ok_or_else(|| unavailable("domain issuer lost its exact requirement"))?;
-            let identity = self
-                .typed
-                .trait_requirement_callable_identity_text(owner, requirement);
-            if identity.is_empty() {
-                return Err(unavailable("domain issuer lost its callable identity"));
-            }
-            let declaration = NominalDeclarationIdentity::new(
-                crate::declare::nominal(self.typed, sources, requirement.symbol, identities)
-                    .map_err(unavailable)?,
-            );
-            let requirement_identity = identities.intern(&identity);
-            result.push(if boundary {
-                Route::BoundaryRequirement {
-                    declaration,
-                    requirement_identity,
-                }
-            } else {
-                Route::CheckedRequirement {
-                    declaration,
-                    requirement_identity,
-                }
-            });
-        }
-        result.sort();
-        result.dedup();
-        Ok(Some(result))
-    }
-
     /// The predicates of every declared domain in `qualification`, in the
     /// domains' order and each domain's authored order. A clause that says
     /// nothing (`requires true`) is left out.
@@ -494,26 +325,30 @@ impl Program<'_> {
         }
         let carrier = self.value_type(id, definition.target_type)?;
         self.declared_domain(id, definition.symbol, carrier)?;
-        let Some(domains) = crate::body::DomainSet::EMPTY.with(definition.symbol) else {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Declaration("domain identity"),
-            ));
-        };
-        let qualification = Qualification {
-            policy: None,
-            domains,
-        };
         match carrier {
-            ValueType::Scalar(scalar_type, _) => self
-                .cast_predicates(id, qualification, scalar_type)
-                .map(|_| ()),
-            // A record's clauses name its fields beneath `self`, read as
-            // they are for a field of an owner in the domain.
-            ValueType::Record(record, _, regions) => self
-                .field_predicates(id, &[], ValueType::Record(record, qualification, regions))
-                .map(|_| ()),
+            ValueType::Scalar(scalar_type, _) => {
+                let domains = crate::body::DomainSet::EMPTY
+                    .with(definition.symbol)
+                    .ok_or_else(|| {
+                        refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Declaration("domain identity"),
+                        )
+                    })?;
+                self.cast_predicates(
+                    id,
+                    Qualification {
+                        policy: None,
+                        domains,
+                    },
+                    scalar_type,
+                )
+                .map(|_| ())
+            }
+            // Registration requires Qualifications to read the generic
+            // predicate before the module can reach the lowered checker.
+            ValueType::Record(..) => Ok(()),
             ValueType::Rigid(_) => Err(refuse(
                 id,
                 Construct::Machine,
@@ -522,10 +357,9 @@ impl Program<'_> {
         }
     }
 
-    /// What a field's domains add to the `requires` of the data type that
-    /// declares it: each predicate over the field at `path` beneath the
-    /// owner's `self`.
-    pub(super) fn field_predicates(
+    /// Instantiate domain clauses at a field path under `self`. An empty
+    /// path gives the declaration's own predicate over its plain carrier.
+    pub(crate) fn field_predicates(
         &self,
         id: MachineId,
         path: &[CanonicalStructuralPathSegment],

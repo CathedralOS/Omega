@@ -845,7 +845,6 @@ fn lower_generic_for<'source>(
     module.structural_types = declared.structural_types;
     module.native_layouts = declared.native_layouts;
     if let Some(source) = declarations {
-        source.publish_structural_domains(diagnostic, &mut module)?;
         source.publish_services(diagnostic, &mut module)?;
     } else if !signatures.boundaries.is_empty() {
         return Err(refuse(
