@@ -2068,6 +2068,20 @@ pub(crate) mod primitive_place {
         .is_some()
     }
 
+    /// Returns the exact declared descriptor stored at an inline path.
+    /// The storage of a borrowed view belongs to its carrier. Its elements do not.
+    pub fn inline_descriptor_type<'a>(
+        declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+        path: &[StructuralPathSegment],
+    ) -> Option<&'a StructuralTypeDeclaration> {
+        if !projection_stays_in_inline_storage(declarations.clone(), root, path) {
+            return None;
+        }
+        runtime_structural_path_tip(declarations, root, path)
+            .filter(|declaration| declaration.shape.is_borrowed_descriptor())
+    }
+
     pub fn inline_backing_container(
         declarations: &[StructuralTypeDeclaration],
         root: StructuralTypeId,
@@ -3371,6 +3385,10 @@ pub(crate) mod static_path {
                     }
                     let child = match &field.field_type {
                         StructuralFieldType::Structural(child) => *child,
+                        leaf if leaf.byte_sequence_carrier().is_some() => {
+                            // The carrier row on this field identifies the stored descriptor.
+                            crate::inline_carrier_declaration(types.clone(), field)?.id
+                        }
                         leaf => {
                             leaf.canonical_leaf_type()?
                                 .leaf_declaration(types.clone())?

@@ -951,17 +951,15 @@ impl Storage<'_> {
             return Err(self.unsupported(concerns,
                 "reference release through borrowed storage needs its exact restoration and child closure"));
         }
-        let super::Shape::Typed(row) = self.shape(&place, concerns)? else {
+        let root_type = self.root_type(source, concerns)?;
+        if terminal_semantics::inline_descriptor_type(
+            self.module.structural_types.iter(),
+            root_type,
+            path,
+        )
+        .is_none()
+        {
             return Err(self.foreign(concerns, "reference release names no descriptor"));
-        };
-        if !matches!(
-            self.declaration(row, concerns)?.shape,
-            terminal_psi::StructuralTypeShape::Reference { .. }
-        ) {
-            return Err(self.foreign(
-                concerns,
-                "reference release names a different value constructor",
-            ));
         }
         match self.root_kind(source, concerns)? {
             StructuralPlaceKind::Parameter { .. } | StructuralPlaceKind::OperationResult { .. } => {

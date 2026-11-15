@@ -130,7 +130,7 @@ machine build_entry<'storage>(left: &'storage Cell, right: &'storage Cell) {{
 
 /// The Product `text` judged from its `entry`, published and run in the Psi
 /// interpreter: `Ok` with how it ended, or what the checker said instead.
-fn run(text: &str) -> Result<terminal_interpreter::TerminalExecutionStatus, String> {
+pub(super) fn run(text: &str) -> Result<terminal_interpreter::TerminalExecutionStatus, String> {
     let typed = super::boundary_calls::typed(text);
     let entry = super::boundary_calls::entry(&typed);
     let elaborated = typed_trees_to_terminal_psi::elaborate_for(

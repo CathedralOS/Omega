@@ -7155,9 +7155,8 @@ impl DescriptorSlotKind {
             Self::References => find_structural_type(types, ty).is_some_and(|declaration| {
                 matches!(declaration.shape, StructuralTypeShape::Reference { .. })
             }),
-            Self::BorrowedStorage => {
-                Self::Views.is_slot(types, ty) || Self::References.is_slot(types, ty)
-            }
+            Self::BorrowedStorage => find_structural_type(types, ty)
+                .is_some_and(|declaration| declaration.shape.is_borrowed_descriptor()),
         }
     }
 

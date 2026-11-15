@@ -50,7 +50,7 @@ impl Error {
 }
 
 pub fn candidates(module: &TerminalModule) -> Result<IdTable<MachineId, Candidates>, Error> {
-    let has_references = |machine: &terminal_psi::TerminalMachine| {
+    let has_borrowed_storage = |machine: &terminal_psi::TerminalMachine| {
         machine
             .structural_parameters
             .iter()
@@ -62,7 +62,7 @@ pub fn candidates(module: &TerminalModule) -> Result<IdTable<MachineId, Candidat
                     .map(|result| result.structural_type)
             }))
             .any(|ty| {
-                terminal_psi::structural_type_contains_reference_by(
+                terminal_psi::structural_type_has_borrowed_storage_by(
                     |id| module.structural_type(id),
                     ty,
                 )
@@ -73,7 +73,7 @@ pub fn candidates(module: &TerminalModule) -> Result<IdTable<MachineId, Candidat
         module
             .machines
             .iter()
-            .filter(|machine| has_references(machine) && !machine.blocks.is_empty())
+            .filter(|machine| has_borrowed_storage(machine) && !machine.blocks.is_empty())
             .map(|machine| machine.id),
         &[],
     )
@@ -83,7 +83,7 @@ pub fn candidates(module: &TerminalModule) -> Result<IdTable<MachineId, Candidat
         DescriptorAnalysis::with_borrowed_storage_slots(&module.structural_types, &graph);
     let mut result = IdTable::default();
     for machine in &module.machines {
-        let candidates = if machine.blocks.is_empty() || !has_references(machine) {
+        let candidates = if machine.blocks.is_empty() || !has_borrowed_storage(machine) {
             Candidates::new()
         } else {
             let prepared = graph
@@ -128,7 +128,7 @@ fn machine_candidates(
         .iter()
         .filter(|parameter| parameter.access == StructuralAccess::Owned)
     {
-        let slots = DescriptorSlotKind::References
+        let slots = DescriptorSlotKind::BorrowedStorage
             .owned_slots(
                 &module.structural_types,
                 parameter.place,
@@ -154,7 +154,7 @@ fn machine_candidates(
             let Some(output) = operation.result.as_structural() else {
                 continue;
             };
-            let slots = DescriptorSlotKind::References
+            let slots = DescriptorSlotKind::BorrowedStorage
                 .owned_slots(
                     &module.structural_types,
                     output.place,
@@ -210,7 +210,10 @@ fn machine_candidates(
             }
             for slot in slots {
                 let lifetime = descriptor_location_lifetime(flow, birth, &slot);
-                if let terminal_psi::OperationKind::EstablishReference { source, .. } =
+                if let terminal_psi::OperationKind::EstablishReference { source, .. }
+                | terminal_psi::OperationKind::EstablishAccessReference { source, .. }
+                | terminal_psi::OperationKind::EstablishElementView { source, .. }
+                | terminal_psi::OperationKind::EstablishMutableElementView { source, .. } =
                     &operation.kind
                 {
                     add_dependencies(
@@ -298,10 +301,7 @@ fn machine_candidates(
                     "reference disposition lost its leaf type",
                 ));
             };
-            if !matches!(
-                tip.shape,
-                terminal_psi::StructuralTypeShape::Reference { .. }
-            ) {
+            if !tip.shape.is_borrowed_descriptor() {
                 continue;
             }
             for (position, segment) in location.path.iter().enumerate() {
@@ -424,7 +424,7 @@ fn add_dependencies(
         captured.path.truncate(crossing);
         vec![captured]
     } else {
-        DescriptorSlotKind::References
+        DescriptorSlotKind::BorrowedStorage
             .owned_slots(&module.structural_types, source.place, source_type)
             .ok_or("reference parent has no finite descriptor inventory")?
             .into_iter()
