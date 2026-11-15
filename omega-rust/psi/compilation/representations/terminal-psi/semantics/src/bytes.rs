@@ -1134,7 +1134,7 @@ pub(crate) mod byte_sequence_predicates {
                 Complete(ValueId, ScalarConstantOrigin),
             }
             let mut pending = vec![Step::Visit(value)];
-            let mut active = Vec::new();
+            let mut active: Vec<usize> = Vec::new();
             let mut remaining = 8192usize;
             while let Some(step) = pending.pop() {
                 let Some(next) = remaining.checked_sub(1) else {
