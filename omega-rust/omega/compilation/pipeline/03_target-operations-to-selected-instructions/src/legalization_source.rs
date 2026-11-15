@@ -713,9 +713,7 @@ pub(crate) mod scalar_graph {
             use crate::LegalizationError;
             use crate::legalization::accepted_fact;
             use crate::legalization::scalar_graph_input;
-            use crate::structural_inputs::structural_reference_input::{
-                element_leaf_projection, storage_address_geometry,
-            };
+            use crate::structural_inputs::structural_reference_input::storage_address_geometry;
             use abstract_operations::AbstractOperation;
             use legalized_operations::LegalizedScalarInstructionKind;
             use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType};
@@ -1498,47 +1496,98 @@ pub(crate) mod scalar_graph {
             }
 
             pub(crate) fn project_element_view_read(
-                node: &optimization_unit::OptimizationNode,
-                optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &crate::native_geometry::NativeUnit<'_>,
-            ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-                let AbstractOperation::ElementViewRead {
-                    psi_operation,
-                    source,
-                    index,
-                    length,
-                    obligation,
-                    path,
-                    result,
-                    ..
-                } = &node.operation
-                else {
-                    unreachable!("dispatched project_element_view_read")
+                machine: semantic_vocabulary::MachineId,
+                facts: &[optimization_unit::AcceptedObligationFact],
+                operation: semantic_vocabulary::OperationId,
+                targeted: &target_operations::TargetUnitOperation,
+            ) -> Result<Option<LegalizedScalarInstructionKind>, LegalizationError> {
+                use target_operations::{
+                    TargetBooleanExpression, TargetIntegerExpression, TargetScalarExpression,
+                    TargetUnitOperation,
                 };
-                Ok(LegalizedScalarInstructionKind::ElementViewRead {
+                use terminal_psi::StructuralPathSegment;
+
+                let TargetUnitOperation::ScalarDefinition {
+                    result_home,
+                    expression,
+                } = targeted
+                else {
+                    return Ok(None);
+                };
+                let (owner, result, source, index, length, obligation, path) = match expression {
+                    TargetScalarExpression::Integer {
+                        expression:
+                            TargetIntegerExpression::ElementViewRead {
+                                psi_operation,
+                                source_value,
+                                source,
+                                index,
+                                length,
+                                obligation,
+                                path,
+                                ..
+                            },
+                        ..
+                    }
+                    | TargetScalarExpression::Boolean(TargetBooleanExpression::ElementViewRead {
+                        psi_operation,
+                        source_value,
+                        source,
+                        index,
+                        length,
+                        obligation,
+                        path,
+                        ..
+                    })
+                    | TargetScalarExpression::IeeeFloatElementViewRead {
+                        psi_operation,
+                        source_value,
+                        source,
+                        index,
+                        length,
+                        obligation,
+                        path,
+                        ..
+                    } => (
+                        psi_operation,
+                        source_value,
+                        source,
+                        index,
+                        length,
+                        obligation,
+                        path,
+                    ),
+                    _ => return Ok(None),
+                };
+                // A checked by-value read may choose a runtime element of the
+                // slice, but the scalar leaf inside that element is static.
+                if *owner != operation
+                    || result_home.defining_operation != operation
+                    || result_home.source_value != *result
+                    || result_home.scalar_type != expression.scalar_type()
+                    || !path.iter().all(|segment| {
+                        matches!(
+                            segment,
+                            StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+                        )
+                    })
+                {
+                    return Err(Error::custody());
+                }
+                Ok(Some(LegalizedScalarInstructionKind::ElementViewRead {
                     source: *source,
-                    index: *index,
+                    index: index.operand_value().ok_or(Error::custody())?,
                     length: *length,
                     obligation: *obligation,
-                    accepted_fact: accepted_fact(unit, optimized, *psi_operation, *obligation)?,
+                    accepted_fact: crate::legalization::obligations::retained_fact(
+                        facts,
+                        machine,
+                        operation,
+                        *obligation,
+                    )?,
                     path: path.clone(),
-                    indices: {
-                        let element = scalar_graph_input::byte_views::element_type(
-                            optimized,
-                            *source,
-                            unit.geometry(),
-                        )
-                        .ok_or(Error::custody())?;
-                        let (_, _, elements) = element_leaf_projection(
-                            element,
-                            path,
-                            result.scalar_type,
-                            unit.geometry(),
-                        )
-                        .ok_or(Error::custody())?;
-                        o!(optimized => unit => *psi_operation => &elements)?
-                    },
-                })
+                    indices: Vec::new(),
+                }))
             }
 
             pub(crate) fn project_byte_sequence_concatenation(
@@ -2204,6 +2253,10 @@ pub(crate) mod scalar_graph {
                     indices,
                     operand: operand.map(|source| source.source_value()),
                 }
+            } else if let Some(read) = storage_instructions::project_element_view_read(
+                optimized.machine, &unit.accepted_obligation_facts, operation, targeted,
+            )? {
+                read
             } else {
                 match &node.operation {
                     AbstractOperation::RegisterAccess { service, event, .. } => {
@@ -2728,9 +2781,6 @@ pub(crate) mod scalar_graph {
                         storage_instructions::project_sequence_length(
                             optimized.machine, &unit.accepted_obligation_facts, operation, targeted,
                         )?
-                    }
-                    AbstractOperation::ElementViewRead { .. } => {
-                        storage_instructions::project_element_view_read(node, optimized, unit)?
                     }
                     AbstractOperation::ElementViewWrite { .. } => {
                         storage_instructions::project_element_view_write(node, optimized, unit)?
