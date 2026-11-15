@@ -73,11 +73,11 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### The bounded concat probe describes an operation its source no longer uses
-- Category: the documents disagree
-- Where: [probe guide](samples/cli/probes/bounded_concat/README.md#L5), [explicit copies](samples/cli/probes/bounded_concat/main.omg#L45), [fixed-array rule](wiki/spec/language/domains.md#domains-and-qualification)
-- Saw: The guide advertises direct bounded concatenation and a green check. Since `c7ae4c207c2`, the source uses two explicit copies into fixed array storage. At `d0e4a8657962` on macOS arm64, checking exits 1 and paired execution exits 200. The retained probe reaches unresolved ASCII declarations or memberships and a retired data-attached `Main::main`.
-- Cost: The probe supplies no concatenation evidence and currently cannot check the explicit-copy result. Restore its current explicit storage and live-length oracle through ordinary source owners, and describe the operation the probe actually exercises.
+### The bounded-copy probe stops before its byte and length checks
+- Category: knowledge crossing a boundary
+- Where: [explicit copies](samples/cli/probes/bounded_concat/main.omg#L45), [borrowed field twins](samples/cli/facts/borrowed_result_field_domains/), [byte predicate selection](omega-rust/psi/compilation/representations/typed-trees/src/evidence_and_inspection.rs#L49), [fixed-array view formation](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/arrays.rs#L106)
+- Saw: On macOS arm64 at `93f7c2a52bf`, the unchanged probe exits 1 from check and 200 from paired execution. Its fixed-array ASCII predicate is treated as an undeclared call, including in the sibling borrowed-result and indexed-write probes. The same predicate on a borrowed byte field accepts ASCII and rejects a non-ASCII twin.
+- Cost: The two copies, exact ASCII preservation, and live-length oracle remain unverified. Equivalent ordinary fixed-array clauses distinguish valid and invalid construction, but lending that qualified array still fails at the plain-array gate. Carry the existing byte predicate and exact backing through fixed-array storage, its writes and borrowed windows, then migrate the retired machine attachment and replay both copies.
 - Reported: 2026-11-15, Codex, while tracing retained byte-sequence target operands.
 
 ### An affine-view refusal hides the source sequence bounds test
