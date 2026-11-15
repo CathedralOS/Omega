@@ -213,12 +213,12 @@ framework or a list of features that remain unimplemented.
 - Cost: a library or program author learns that the clause is missing only when some caller is refused, and 30 library requirements with no provider and no caller carry `crashes Trap crashes Abort` because nothing in the repository says what narrower ceiling their owner intends
 - Reported: 2026-11-13, Claude Code, while writing the bundled library's crash ceilings
 
-### Build selection calls are found and published by the spelling of their protocol operation
-- Category: one idea built twice
-- Where: `03_symbol-resolved-trees-to-typed-trees/src/call_and_product_selections.rs` (finds `BuildBindingOperations` and `bind_native` by name); `terminal-production/src/build_companions.rs` (`binding`, matches the same names again)
-- Saw: typing picks the protocol operation of a Build selection by comparing strings, and publication recovers which operation a boundary call is by comparing the requirement's name a second time. The typed call also carries no static application, so `bind_native<Locator>` reaches the checker as an open requirement although typing knows the locator argument it was written with
-- Cost: the host row's operation is decided twice from text, and the native binding cannot be closed at its locator type by the pass that closes every other application until typing records that application on the call
-- Reported: 2026-11-13, Claude Code, while closing boundary requirements at the types their calls apply
+### Two Build companion tests still type against a superseded test prelude
+- Category: misleading tests
+- Where: `omega-rust/psi/compilation/terminal-production/tests/build_companions.rs` (`product_queries_keep_their_selected_operation_in_value_positions`, `a_case_value_pattern_cannot_discard_its_applied_type`)
+- Saw: the first writes `BuildProduct::entry(product)` against a test prelude whose `BuildProduct` data owns the query, which the real prelude no longer declares (queries go through `builder.product.entry`), and is refused as a call naming no declaration; the second looks for a `MatchPattern::Value` arm in the target conversion helper and finds none. Both fail on `372860cf534b` before and after the selection-operation repair; the other eighteen tests in the file pass once the test prelude has the `module Build` unit and `build_selection_receiver` the real prelude has
+- Cost: the publication of Product query rows and the applied-case-pattern refusal have no passing test, so a regression in either is invisible
+- Reported: 2026-11-15, Claude Code, while repairing Build selection operation identity
 
 ### Every product gate is refused at a macOS layout alias while building for Linux
 - Category: a verdict with nothing behind it

@@ -363,6 +363,50 @@ pub mod build_requests {
     /// designated operands (`Build::bind`, `Build::select_provider`, ...).
     pub const SELECTION_PROTOCOL: &str = "BuildBindingOperations";
 
+    /// One requirement of the selection protocol, as typing chose it for a
+    /// generated call. Typing decides the operation from the request it
+    /// lowers and records it beside that request; publication and the
+    /// Build host read the recorded operation, so the requirement's
+    /// declared name is consulted once, here, to find its declaration.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+    pub enum SelectionProtocolOperation {
+        /// Lends the Build value to the activation and returns its ticket.
+        Prepare,
+        /// Lends the Build's `tests` facet for test-group registration.
+        PrepareTests,
+        AwaitProvider,
+        /// `Build::bind(builder, slot, entry)` with an authored entry path.
+        Bind,
+        /// `Build::bind(builder, slot, description)` with an entry value.
+        BindDescription,
+        BindNative,
+        Select,
+        SelectProvider,
+        Exclude,
+    }
+
+    impl SelectionProtocolOperation {
+        /// The requirement of `BuildBindingOperations` this operation calls.
+        pub const fn requirement_name(self) -> &'static str {
+            match self {
+                Self::Prepare => "prepare",
+                Self::PrepareTests => "prepare_tests",
+                Self::AwaitProvider => "await_provider",
+                Self::Bind => "bind",
+                Self::BindDescription => "bind_description",
+                Self::BindNative => "bind_native",
+                Self::Select => "select",
+                Self::SelectProvider => "select_provider",
+                Self::Exclude => "exclude",
+            }
+        }
+
+        /// Whether this is the call that lends the Build before a commit.
+        pub const fn prepares(self) -> bool {
+            matches!(self, Self::Prepare | Self::PrepareTests)
+        }
+    }
+
     pub fn is_build_protocol(
         symbols: &symbols::SymbolTable,
         declaration: symbols::SymbolHandle,
