@@ -538,3 +538,104 @@ machine entry(path: &mut [u16; 8] in Terminated) -> u16 { path[7] }
         "{refusal:?}"
     );
 }
+
+/// A record's own `requires` may remove a field's domain to compare it,
+/// exactly as a machine's clause does (domains.md, "Operands": a qualified
+/// operand "is cast first"). The cast's operand is the field, typed at the
+/// type the record declares for it, and the clause is the record's
+/// invariant: a reader of the field may rely on it.
+#[test]
+fn a_record_clause_casts_its_own_qualified_field() {
+    let source = |bound: i64| {
+        format!(
+            r#"
+domain i64::Handle requires self != -1;
+data Opened
+requires (root as -Handle) != {bound}
+{{
+    root: i64 in Handle;
+}}
+machine entry(opened: Opened) -> i64
+ensures result != 0
+{{
+    opened.root as -Handle
+}}
+"#
+        )
+    };
+    let accepted = judge(invocation(&source(0))).unwrap();
+    assert!(
+        matches!(accepted, RouteVerdict::Accepted(_)),
+        "{accepted:?}"
+    );
+    let elsewhere = judge(invocation(&source(5))).unwrap();
+    assert!(
+        matches!(elsewhere, RouteVerdict::Rejected { ref unproved, .. }
+        if unproved.iter().any(|row| matches!(row.kind, ObligationKind::NormalGuarantee { .. }))),
+        "{elsewhere:?}"
+    );
+}
+
+/// A field that is a shared reference carries the domain of what it lends:
+/// `buffer: &'s [u16; 4] in Terminated` owes `self.buffer[3] == 0`, a fact
+/// about the referent, read through one `Referent` step. A shared referent
+/// cannot change while it is lent, so the fact holds while the record does.
+#[test]
+fn a_record_clause_reads_through_a_stored_shared_reference() {
+    let source = |element: u32| {
+        format!(
+            r#"
+domain [u16; 4]::Terminated requires self[{element}] == 0;
+data Named<'s> {{ buffer: &'s [u16; 4] in Terminated; }}
+machine entry(named: &Named) -> u16
+ensures result == 0
+{{
+    named.buffer[3]
+}}
+"#
+        )
+    };
+    let accepted = judge(invocation(&source(3))).unwrap();
+    assert!(
+        matches!(accepted, RouteVerdict::Accepted(_)),
+        "{accepted:?}"
+    );
+    let elsewhere = judge(invocation(&source(2))).unwrap();
+    assert!(
+        matches!(elsewhere, RouteVerdict::Rejected { ref unproved, .. }
+        if unproved.iter().any(|row| matches!(row.kind, ObligationKind::NormalGuarantee { .. }))),
+        "{elsewhere:?}"
+    );
+}
+
+/// Building such a record means establishing the domain on the lent array
+/// (`&text as +Terminated`), and a cast that adds a predicated domain to a
+/// value that is not a scalar is still refused by name. So no value of the
+/// record exists without its predicate proved, whatever the array holds.
+#[test]
+fn a_stored_referents_domain_is_not_established_without_its_cast() {
+    let source = |last: u16| {
+        format!(
+            r#"
+domain [u16; 4]::Terminated requires self[3] == 0;
+data Named<'s> {{ buffer: &'s [u16; 4] in Terminated; }}
+machine last(named: &Named) -> u16 {{ named.buffer[3] }}
+machine entry() -> u16 {{
+    let text: [u16; 4] = [7, 8, 9, {last}];
+    let named: Named = Named {{ buffer: &text as +Terminated }};
+    last(&named)
+}}
+"#
+        )
+    };
+    for last in [0, 5] {
+        let refused = invocation(&source(last)).unwrap_err();
+        assert_eq!(refused.reason, RefusalReason::Unsupported);
+        assert!(
+            refused.detail.contains(
+                "cast that adds a domain with predicates to a value that is not a scalar"
+            ),
+            "{refused:?}"
+        );
+    }
+}

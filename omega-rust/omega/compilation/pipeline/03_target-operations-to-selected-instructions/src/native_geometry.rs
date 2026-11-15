@@ -365,4 +365,77 @@ mod tests {
         let prepared = NativeGeometry::new(&declarations).unwrap();
         assert!(geometry::project(root, &path, &prepared).is_none());
     }
+
+    #[test]
+    fn native_descriptor_projection_resolves_an_exact_inline_carrier() {
+        use semantic_vocabulary::{AuthoredFieldStorage, StructuralFieldId};
+        use terminal_psi::{
+            BindingRelevance, ByteSequenceCarrier, StructuralAccess, StructuralFieldDeclaration,
+            StructuralFieldType, StructuralPathSegment,
+        };
+
+        let root = StructuralTypeId::new(1).unwrap();
+        let authored = StructuralTypeId::new(2).unwrap();
+        let ownerless = StructuralTypeId::new(3).unwrap();
+        let wrong = StructuralTypeId::new(4).unwrap();
+        let identity = TerminalIdentityIndex(5);
+        let path = [StructuralPathSegment::Field(identity)];
+        let borrowed = ByteSequenceCarrier::BorrowedView {
+            access: Some(StructuralAccess::SharedBorrow),
+        };
+        let mut declarations = [
+            declaration(
+                1,
+                StructuralTypeShape::Record {
+                    fields: vec![StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(1).unwrap(),
+                        identity,
+                        relevance: BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::ByteSequence(borrowed),
+                        inline_carrier: Some(authored),
+                        storage: Some(AuthoredFieldStorage::Direct { byte_offset: 8 }),
+                    }],
+                    storage: StructuralRecordStorage::Authored(AuthoredRecordStorage {
+                        byte_size: 24,
+                        byte_alignment: 8,
+                    }),
+                },
+            ),
+            declaration(2, StructuralTypeShape::ByteSequence(borrowed)),
+            declaration(
+                3,
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: None,
+                }),
+            ),
+            declaration(
+                4,
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
+                    access: Some(StructuralAccess::SharedBorrow),
+                    capacity: 5,
+                }),
+            ),
+        ];
+
+        for (inline_carrier, expected) in [
+            (Some(authored), Some(authored)),
+            (None, Some(ownerless)),
+            (Some(wrong), None),
+        ] {
+            let StructuralTypeShape::Record { fields, .. } = &mut declarations[0].shape else {
+                unreachable!()
+            };
+            fields[0].inline_carrier = inline_carrier;
+            let prepared = NativeGeometry::new(&declarations).unwrap();
+            let projection = geometry::descriptor_source_geometry(root, &path, &prepared);
+            assert_eq!(
+                projection.as_ref().map(|geometry| geometry.selected),
+                expected
+            );
+            if let Some(geometry) = projection {
+                assert_eq!(geometry.byte_offset, 8);
+                assert!(geometry.readable);
+            }
+        }
+    }
 }

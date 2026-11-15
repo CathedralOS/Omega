@@ -73,33 +73,12 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### Psi cannot run until native lowering succeeds
-- Category: knowledge crossing a boundary
-- Where: [runtime admission](omega-rust/omega/compilation/native-compiler/src/realization.rs#L152), [borrowed-storage layout extraction](omega-rust/omega/compilation/native-compiler/src/realization/object_emission.rs#L30)
-- Saw: At `2669589de8a`, both `omega run --both` and `omega run --engine psi` refuse the unchanged console program with the same native target-lowering error. Neither executes guest code. Runtime admission calls `lower_borrowed_storage_layouts`, which lowers the whole guest program before taking its borrowed-storage descriptions. These runs do not measure that step's time.
-- Cost: A backend gap prevents Psi from running checked code. Have the layout stage supply the exact borrowed-storage descriptions directly. Preserve native binding, layout, authority and provider checks, and keep full native lowering for image production.
-- Reported: 2026-11-15, Codex, while checking the console's interpreter and native paths
-
-### Test edits change the production compiler identity
-- Category: verifying costs more than writing
-- Where: [compiler build-input collection](omega-rust/omega/compilation/compiler/build.rs#L32), [recursive input scan](omega-rust/omega/compilation/compiler/build.rs#L98)
-- Saw: The build hashes every `.rs`, `.toml` and `.omg` under `omega-rust`, including integration tests. Changing only a control in `compiler/tests/executed_fixture_discovery.rs` rebuilt `compiler`, `package-manager` and `orchestration` in 18.21 seconds before the filtered test ran. Shipped code had not changed.
-- Cost: Test edits also change the compiler-version key for accepted packages, forcing compilation and review as the test tree grows. Derive the key from production inputs and configuration. Still invalidate uncommitted implementation changes; ignoring required source or using only Git HEAD would miss changes.
-- Reported: 2026-11-14, Codex, while checking actual project publication of native calling metadata
-
-### The service-contract reader hides why it refused a declaration
-- Category: verifying costs more than writing
-- Where: [full service projection](omega-rust/psi/compilation/representations/typed-trees/src/service_declarations.rs#L555), [boundary publication](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/declare.rs#L623)
-- Saw: At `9101613dfcd`, both `native_boundary_supply` and `default_console_provider_reached` stop during source discovery with `boundary declaration has no complete service contract`. The reader returns `None` for a wrong source scope, an unavailable receiver application, or a method it cannot read. This repair fixes the Build-scope lookup; the API still drops the cause and declaring requirement.
-- Cost: Each later failure looks like an unsupported language construct, even when the compiler used the wrong context. Return the reason and declaring requirement from the shared reader so callers can explain the refusal.
-- Reported: 2026-11-14, Codex, while carrying Build native bindings through console execution
-
-### Named map checks ask for portable template identities
-- Category: knowledge crossing a boundary
-- Where: [check form preparation](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/compilation.rs), [application closure](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/declare.rs), [named-map controls](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/boundary_calls.rs)
-- Saw: All seven `generic_named_map_*` Stage06 checks pass on clean `4d76bebd83e` and fail on clean macOS arm64 `781f2f5cb50`. The complete invocation closure refuses “a specialization's template check form has no exact contract.” Its anonymous template cannot supply a portable identity. The independently published named-map artifact can still be reloaded.
-- Cost: The closure and its generic check forms need to use the same identity scope. Preserve the published capture and its arguments, and recover the original weaker body, requirement, reach and owner verdicts in the invocation checks.
-- Reported: 2026-11-15, Codex, while comparing Stage06 collection validation against clean source.
+### The record-domain catalog test has no declared predicate subject
+- Category: tests that pin the bug
+- Where: [catalog fixture](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read.rs#L638), [subject requirement](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/predicates.rs#L408)
+- Saw: On clean `cdd086553fa` on macOS arm64, `a_record_domain_catalog_keeps_the_declared_predicate_and_its_presence` fails with `spelling domain predicate without a subject symbol`. Its hand-built false and true predicate declarations leave the subject at its invalid default, so lowering never reaches the catalog assertions.
+- Cost: The control cannot distinguish false, true and absent record-domain predicates. Supply the same declaration-owned subject that real source retains, and preserve all three catalog assertions.
+- Reported: 2026-11-15, Codex, while verifying named-map invocation contracts.
 
 ### A descriptor length premise cannot cross the loop join
 - Category: knowledge crossing a boundary
@@ -164,13 +143,6 @@ framework or a list of unimplemented features.
 - Cost: The imported-package acceptance and copied-owner rejection are never exercised. Use the existing Build and package admission route for the actual entry, with both captured sources and the original nominal-type controls intact.
 - Reported: 2026-11-15, Codex, while verifying named-map artifact reload.
 
-### Native lowering loses a stored byte view's length
-- Category: knowledge crossing a boundary
-- Where: [native byte-length operation](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_source.rs#L2671), [projected descriptor geometry](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_scalar_graph.rs#L3257)
-- Saw: On macOS arm64 with the byte-domain predicate repair on `6730ae09229`, a machine stores `"no plan"` in `report.reason: &[u8]` and checks that `report.reason.len` equals 7. Psi exits 0. Native refuses machine 1, operation 5 with `SourceCustodyMismatch` when the byte-length operation asks for its geometry at `legalization_source.rs:2687`. Qualifying the same field with the UTF-8 domain yields the same Psi and native outcomes. Measuring the literal through a direct local byte view exits 0 in both engines.
-- Cost: A byte view can be stored in a record and read by Psi, yet that field's length cannot reach native execution. Rejoin the exact projected descriptor source and its access to the existing byte-length geometry query, keeping the ordinary local and invalid backing controls.
-- Reported: 2026-11-15, Codex, while checking stored byte domains in both engines.
-
 ### An owned record-sequence literal stops at native target lowering
 - Category: knowledge crossing a boundary
 - Where: [native structural construction](omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/control_flow_storage.rs#L3397), [Psi immutable backing](omega-rust/psi/interpreter/src/storage_records_and_arrays.rs)
@@ -205,6 +177,27 @@ framework or a list of unimplemented features.
 - Saw: On macOS arm64 at `c55c52f59b1`, below the workstation's 45.0 GiB free-space floor, mbx 1.29.2 deleted assigned `worker-8`'s target between commands. The next test build compiled from cold in 3m 12s. In two isolated checkouts, `MBX_TARGET_EVICT_FIRST` changed one collector's choice under a one-target budget. An independent collector reverted to oldest-first. With a zero budget and simulated low disk, both a running `mbx run` lease and an explicit `MBX_TARGET_KEEP` kept the view. Once the command ended, the same scratch view could be collected unless explicitly kept.
 - Cost: Worktree assignments outlast mbx command leases. A per-command eviction hint cannot protect the next check from an independent collector, and a hard keep can exceed the disk budget. Add an advisory priority for managed views to mbx and set it from the pool’s existing assignment state. Respect explicit operator rules and running-command locks, and still let assigned views be reclaimed under disk pressure.
 - Reported: 2026-11-15, Codex, while validating const-index record arguments
+
+### Psi cannot run until native lowering succeeds
+- Category: knowledge crossing a boundary
+- Where: [runtime admission](omega-rust/omega/compilation/native-compiler/src/realization.rs#L152), [borrowed-storage layout extraction](omega-rust/omega/compilation/native-compiler/src/realization/object_emission.rs#L30)
+- Saw: At `2669589de8a`, both `omega run --both` and `omega run --engine psi` refuse the unchanged console program with the same native target-lowering error. Neither executes guest code. Runtime admission calls `lower_borrowed_storage_layouts`, which lowers the whole guest program before taking its borrowed-storage descriptions. These runs do not measure that step's time.
+- Cost: A backend gap prevents Psi from running checked code. Have the layout stage supply the exact borrowed-storage descriptions directly. Preserve native binding, layout, authority and provider checks, and keep full native lowering for image production.
+- Reported: 2026-11-15, Codex, while checking the console's interpreter and native paths
+
+### Test edits change the production compiler identity
+- Category: verifying costs more than writing
+- Where: [compiler build-input collection](omega-rust/omega/compilation/compiler/build.rs#L32), [recursive input scan](omega-rust/omega/compilation/compiler/build.rs#L98)
+- Saw: The build hashes every `.rs`, `.toml` and `.omg` under `omega-rust`, including integration tests. Changing only a control in `compiler/tests/executed_fixture_discovery.rs` rebuilt `compiler`, `package-manager` and `orchestration` in 18.21 seconds before the filtered test ran. Shipped code had not changed.
+- Cost: Test edits also change the compiler-version key for accepted packages, forcing compilation and review as the test tree grows. Derive the key from production inputs and configuration. Still invalidate uncommitted implementation changes; ignoring required source or using only Git HEAD would miss changes.
+- Reported: 2026-11-14, Codex, while checking actual project publication of native calling metadata
+
+### The service-contract reader hides why it refused a declaration
+- Category: verifying costs more than writing
+- Where: [full service projection](omega-rust/psi/compilation/representations/typed-trees/src/service_declarations.rs#L555), [boundary publication](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/declare.rs#L623)
+- Saw: At `9101613dfcd`, both `native_boundary_supply` and `default_console_provider_reached` stop during source discovery with `boundary declaration has no complete service contract`. The reader returns `None` for a wrong source scope, an unavailable receiver application, or a method it cannot read. This repair fixes the Build-scope lookup; the API still drops the cause and declaring requirement.
+- Cost: Each later failure looks like an unsupported language construct, even when the compiler used the wrong context. Return the reason and declaring requirement from the shared reader so callers can explain the refusal.
+- Reported: 2026-11-14, Codex, while carrying Build native bindings through console execution
 
 ### Instruction selection reconstructs target operands from earlier executable bodies
 - Category: re-deriving

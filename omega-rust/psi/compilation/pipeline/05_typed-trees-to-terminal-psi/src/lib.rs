@@ -324,6 +324,7 @@ pub fn elaborate_closure(typed: &TypedTrees, entry: SymbolHandle) -> Checked<Ela
         entry,
         false,
         named_captures(typed),
+        terminal_codec::TerminalPublication::Portable,
     )
 }
 
@@ -354,6 +355,7 @@ pub fn elaborate_generic(typed: &TypedTrees, template: SymbolHandle) -> Checked<
         template,
         true,
         named_captures(typed),
+        terminal_codec::TerminalPublication::Portable,
     )
 }
 
@@ -377,6 +379,7 @@ pub fn elaborate_alternatives(
         declaration_context(typed, template),
         template,
         named_captures(typed),
+        terminal_codec::TerminalPublication::Portable,
     )
 }
 
@@ -385,6 +388,7 @@ fn elaborate_alternatives_with_captures(
     purpose: source::DependencyScope,
     template: SymbolHandle,
     captures: NamedCaptures,
+    publication: terminal_codec::TerminalPublication,
 ) -> Checked<Vec<Elaboration>> {
     let first = MachineId::new(1).expect("1 is nonzero");
     let alternatives = read::Program::with_captures(typed, false, purpose, captures.clone())
@@ -393,6 +397,7 @@ fn elaborate_alternatives_with_captures(
         .into_iter()
         .map(|arguments| {
             let mut program = read::Program::with_captures(typed, false, purpose, captures.clone());
+            program.publication = publication;
             program.alternative = Some(arguments);
             let entry = program.machine(template)?;
             finish_reading(program, Some(entry), IdTable::default())
@@ -418,6 +423,7 @@ pub fn elaborate_generic_forms(
             declaration_context(typed, *template),
             &[*template],
             captures.clone(),
+            terminal_codec::TerminalPublication::Portable,
         )?);
     }
     Ok(forms)
@@ -428,16 +434,25 @@ fn elaborate_generic_forms_with_captures(
     purpose: source::DependencyScope,
     templates: &[SymbolHandle],
     captures: NamedCaptures,
+    publication: terminal_codec::TerminalPublication,
 ) -> Checked<Vec<Elaboration>> {
     let mut forms = Vec::new();
     for template in templates {
         if let Some(declared) = typed.trait_definition_by_symbol(*template) {
             let mut program = read::Program::with_captures(typed, true, purpose, captures.clone());
+            program.publication = publication;
             program.generic_trait(declared)?;
             forms.push(finish_reading(program, None, IdTable::default())?.program);
             continue;
         }
-        match elaborate_form(typed, purpose, *template, true, captures.clone()) {
+        match elaborate_form(
+            typed,
+            purpose,
+            *template,
+            true,
+            captures.clone(),
+            publication,
+        ) {
             Ok(form) => forms.push(form),
             Err(rigid) => {
                 match elaborate_alternatives_with_captures(
@@ -445,6 +460,7 @@ fn elaborate_generic_forms_with_captures(
                     purpose,
                     *template,
                     captures.clone(),
+                    publication,
                 ) {
                     Ok(alternatives) => forms.extend(alternatives),
                     Err(_) => return Err(rigid),
@@ -657,8 +673,10 @@ fn elaborate_form(
     entry: SymbolHandle,
     rigid: bool,
     captures: NamedCaptures,
+    publication: terminal_codec::TerminalPublication,
 ) -> Checked<Elaboration> {
     let mut program = read::Program::with_captures(typed, rigid, purpose, captures);
+    program.publication = publication;
     let entry = program.machine(entry)?;
     finish_reading(program, Some(entry), IdTable::default()).map(|prepared| prepared.program)
 }

@@ -186,7 +186,15 @@ pub fn prepare_compilation(
     if let Some(reason) = selected_failure {
         closure = Err(reason);
     }
-    let forms = prepare_generic_forms(typed, compilation.purpose, templates, &captures);
+    // Template proof forms retain both the checked source context and the
+    // actual publication mode of the invocation using their captures.
+    let forms = prepare_generic_forms(
+        typed,
+        compilation.purpose,
+        templates,
+        &captures,
+        publication,
+    );
     closure = closure.and_then(|mut elaboration| {
         crate::declare::close_specializations(&forms, prepared_applications, &mut elaboration)
             .map_err(|(owner, reason)| {
@@ -460,6 +468,7 @@ fn prepare_generic_forms(
     purpose: source::DependencyScope,
     mut templates: Vec<SymbolHandle>,
     captures: &crate::NamedCaptures,
+    publication: terminal_codec::TerminalPublication,
 ) -> Vec<GenericForms> {
     let mut forms = Vec::new();
     let mut next = 0;
@@ -470,6 +479,7 @@ fn prepare_generic_forms(
             purpose,
             &[template],
             captures.clone(),
+            publication,
         );
         let mut applies = Some(Vec::new());
         for form in elaborated.iter().flatten() {
