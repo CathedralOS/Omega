@@ -1,0 +1,32 @@
+// Zero-constructible f32/f64 locals start at positive IEEE zero.
+// Expected rejection: zero does not satisfy Defaults.narrow > 0.0f32.
+data Defaults [copy] requires narrow > 0.0f32 && wide >= 0.0f64 {
+    before: u64;
+    narrow: f32;
+    wide: f64;
+    after: u64;
+}
+machine positive_zero32(value: f32) -> bool requires true {
+    value == 0.0f32 && 1.0f32 / value > 0.0f32
+}
+machine positive_zero64(value: f64) -> bool requires true {
+    value == 0.0f64 && 1.0f64 / value > 0.0f64
+}
+machine probe() -> bool requires true {
+    let mut defaults: Defaults;
+    let narrow: f32;
+    let wide: f64;
+    defaults.before = 37u64;
+    defaults.after = 91u64;
+    positive_zero32(narrow) && positive_zero64(wide)
+        && positive_zero32(defaults.narrow) && positive_zero64(defaults.wide)
+        && defaults.before == 37u64 && defaults.after == 91u64
+        && positive_zero32(-0.0f32) == false && positive_zero64(-0.0f64) == false
+        && positive_zero32(1.0f32) == false && positive_zero64(1.0f64) == false
+        && positive_zero32(narrow / narrow) == false && positive_zero64(wide / wide) == false
+}
+machine main() crashes Trap {
+    transition probe() { true -> done() _ -> bad() }
+    machine done() { }
+    machine bad() { crash Trap; }
+}
