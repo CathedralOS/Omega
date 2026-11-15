@@ -44,7 +44,7 @@ use std::cmp::Ordering;
 use proof_admission::{
     IntegerAffineWitness, PrimitiveJudgment, ProofNode, ProofRule, check_integer_affine_witness,
     check_value_equality_denotation, compare_integer_math_terms, decide_primitive,
-    map_integer_affine_bound,
+    lift_exact_integer_order, map_integer_affine_bound,
 };
 use semantic_vocabulary::{
     IdTable, IntegerCarrier, IntegerMathTerm, IntegerType, IntegerValue, Proposition,
@@ -1334,7 +1334,23 @@ impl<'a> Prover<'a> {
                 let bound = self.bound(*id, direction).ok_or("value has no bound")?;
                 Ok((bound.literal, Some(bound.proof)))
             }
-            _ => Err("comparison term outside the scalar subset"),
+            _ => {
+                let Some(Proposition::IntegerMathLessOrEqual(expression, _)) =
+                    lift_exact_integer_order(&Proposition::LessOrEqual(term.clone(), term.clone()))
+                else {
+                    return Err("comparison term outside the scalar subset");
+                };
+                let relation = self.arithmetic_image(&expression, direction)?;
+                let equality = self
+                    .reflexive_mathematical(Proposition::IntegerMathEqual(
+                        expression.clone(),
+                        expression,
+                    ))
+                    .ok_or("the kernel refuses the expression identity")?;
+                let bound = Self::carrier_bound_from_image(term, relation, equality, direction)
+                    .ok_or("the image bound is outside the comparison carrier")?;
+                Ok((bound.literal, Some(bound.proof)))
+            }
         }
     }
 
@@ -1489,30 +1505,12 @@ impl<'a> Prover<'a> {
                     return None;
                 };
                 let image = self.arithmetic_image(expression, direction).ok()?;
-                let (limit, endpoint) = match (&image.conclusion, direction) {
-                    (Proposition::IntegerMathLessOrEqual(_, limit), Direction::Upper) => (limit, 0),
-                    (Proposition::IntegerMathLessOrEqual(limit, _), Direction::Lower) => (limit, 1),
-                    _ => return None,
-                };
-                let IntegerMathTerm::IntegerLiteral(limit) = limit else {
-                    return None;
-                };
-                let literal = limit.as_integer_value(integer)?;
-                Some(Bound {
-                    literal,
-                    proof: node(
-                        Self::oriented(
-                            subject,
-                            ScalarTerm::integer(integer, literal).ok()?,
-                            direction,
-                        ),
-                        ProofRule::IntegerOrderSubstitution {
-                            relation: Box::new(image),
-                            equality: Box::new(self.facts[index].proof(&self.facts)),
-                            endpoint,
-                        },
-                    ),
-                })
+                Self::carrier_bound_from_image(
+                    subject,
+                    image,
+                    self.facts[index].proof(&self.facts),
+                    direction,
+                )
             }
             // Direct bounds.
             (Proposition::LessOrEqual(left, literal), Direction::Upper)
@@ -1819,6 +1817,41 @@ impl<'a> Prover<'a> {
         self.transported(axiom, *id, integer, image, direction)
     }
 
+    /// Restate a checked mathematical image at its exact carrier endpoint.
+    fn carrier_bound_from_image(
+        subject: &ScalarTerm,
+        image: ProofNode,
+        equality: ProofNode,
+        direction: Direction,
+    ) -> Option<Bound> {
+        let (limit, endpoint) = match (&image.conclusion, direction) {
+            (Proposition::IntegerMathLessOrEqual(_, limit), Direction::Upper) => (limit, 0),
+            (Proposition::IntegerMathLessOrEqual(limit, _), Direction::Lower) => (limit, 1),
+            _ => return None,
+        };
+        let IntegerMathTerm::IntegerLiteral(limit) = limit else {
+            return None;
+        };
+        let integer = subject.scalar_type().as_integer()?;
+        let literal = limit.as_integer_value(integer)?;
+        let goal = Self::oriented(
+            subject,
+            ScalarTerm::integer(integer, literal).ok()?,
+            direction,
+        );
+        Some(Bound {
+            literal,
+            proof: node(
+                goal,
+                ProofRule::IntegerOrderSubstitution {
+                    relation: Box::new(image),
+                    equality: Box::new(equality),
+                    endpoint,
+                },
+            ),
+        })
+    }
+
     /// The output `output` of the result equation `axiom` bounded by
     /// `image`, the kernel's bound on the equation's mathematical term:
     /// the bound carried through the equation (`ValueEqualityTransport`)
@@ -1838,23 +1871,13 @@ impl<'a> Prover<'a> {
             | (Proposition::IntegerMathLessOrEqual(limit, _), Direction::Lower) => limit.clone(),
             _ => return None,
         };
-        let IntegerMathTerm::IntegerLiteral(literal) = &limit else {
-            return None;
-        };
-        let literal = literal.as_integer_value(integer)?;
         let output = IntegerMathTerm::MathValue {
             source_type: integer,
             value: output,
         };
-        let (on_output, endpoint) = match direction {
-            Direction::Upper => (
-                Proposition::IntegerMathLessOrEqual(output.clone(), limit),
-                0,
-            ),
-            Direction::Lower => (
-                Proposition::IntegerMathLessOrEqual(limit, output.clone()),
-                1,
-            ),
+        let on_output = match direction {
+            Direction::Upper => Proposition::IntegerMathLessOrEqual(output.clone(), limit),
+            Direction::Lower => Proposition::IntegerMathLessOrEqual(limit, output.clone()),
         };
         let equation = node(
             self.axioms.get(axiom)?.clone(),
@@ -1874,22 +1897,7 @@ impl<'a> Prover<'a> {
             Proposition::IntegerMathEqual(output.clone(), output),
             PrimitiveJudgment::ReflexiveEquality,
         );
-        let conclusion = Self::oriented(
-            subject,
-            ScalarTerm::integer(integer, literal).ok()?,
-            direction,
-        );
-        Some(Bound {
-            literal,
-            proof: node(
-                conclusion,
-                ProofRule::IntegerOrderSubstitution {
-                    relation: Box::new(transported),
-                    equality: Box::new(unchanged),
-                    endpoint,
-                },
-            ),
-        })
+        Self::carrier_bound_from_image(subject, transported, unchanged, direction)
     }
 
     /// The kernel's image of the operands' bounds through `target`, an exact

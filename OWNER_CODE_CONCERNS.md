@@ -73,6 +73,55 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### The local-loan escape fixture no longer reads its rejection evidence
+- Category: tests that pin the bug
+- Where: [local borrow negative](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/loan_regions.rs#L109)
+- Saw: On clean `1a5fd676246` on macOS arm64, `a_loan_of_a_local_is_not_returned_for_a_lifetime_of_the_machine` reaches a rule violation naming the current invocation's local storage and the result field's declared lifetime. The test expects the earlier unavailable verdict and panics before comparing that exact rejection, which currently carries no source span.
+- Cost: The original escape witness cannot pin its current rejection or its authored location. Read the precise rule evidence and preserve the escape and legal argument-backed controls.
+- Reported: 2026-11-14, Codex, while verifying the shared-window completion repair
+
+### Existing match and reference controls reach obligations with no lowered owner
+- Category: knowledge crossing a boundary
+- Where: [owned match results](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/owned_match_results.rs), [loan-region negative](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/loan_regions.rs#L237), [obligation roster check](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/minted.rs#L752)
+- Saw: On clean `f5ed845ea2f` on macOS arm64, all three owned-match controls and the two-origin reference negative refuse with `an obligation row that nothing in the lowered form owes`. The same tests passed on the earlier `59b8d53b729` Stage 06 run. The two-owned-arm and early-ended-arm positive cases never reach their consuming call. On `1a5fd676246`, the new literal-window match also refuses at this roster check, and its companion stops before examining the selected literal establishment.
+- Cost: The compiler stops at obligation ownership before checking either valid value transfer or the specific invalid use. Match each generated obligation to its exact lowered arrival, operation or edge and preserve the original ownership judgments.
+- Reported: 2026-11-14, Codex, while attributing Stage 06 failures after the ranked-loop changes
+
+### A literal view loses its descriptor during a crashing transfer
+- Category: a verdict with nothing behind it
+- Where: [crashing transfer fixture](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/collection_members.rs#L366)
+- Saw: On clean `f5ed845ea2f` on macOS arm64, the Stage 06 witness `machine entry() crashes Trap { fail("x"); }` refuses its input loan because `descriptor snapshots cannot be reconstructed` at block 1, operation 2. At `59b8d53b729` this control publishes and its interpreter reaches the asserted `Trap`.
+- Cost: A valid shared literal argument loses its known backing before the call reaches its declared crash. Keep the staged descriptor's loan tied to that exact transfer.
+- Reported: 2026-11-14, Codex, while attributing Stage 06 failures after the ranked-loop changes
+
+### Storing a shared reborrow falsely conflicts with its parent loan
+- Category: a verdict with nothing behind it
+- Where: [stored shared-reborrow fixture](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/stored_references.rs#L363)
+- Saw: On clean `f5ed845ea2f` on macOS arm64, `let view: View = View { cell: exclusive };` followed by reads of the three cell fields rejects `ChangeWhileBorrowed` instead of completing with Unit. The same source passes at `59b8d53b729`. The source reborrows an exclusive parent as shared and writes only the new record descriptor.
+- Cost: The checker treats a valid shared descendant as a conflicting change to its backing. Trace the exact conflict site and retain the sibling and access-strengthening controls.
+- Reported: 2026-11-14, Codex, while attributing Stage 06 failures after the ranked-loop changes
+
+### Repeated reads of an untouched formal field disagree about its entry identity
+- Category: tests that pin the bug
+- Where: [formal leaf observation test](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests.rs#L2046)
+- Saw: On clean `f5ed845ea2f` on macOS arm64, the two reads of `p.x` in the shaped `p.x - p.x` control cite `ValueId(5)` and `ValueId(2)` before any intervening write. The fixture previously observed the one entry content value on `59b8d53b729`. This assertion stops before the same-field and distinct-field proof outcomes.
+- Cost: The test can no longer verify which stable observation justifies the subtraction. Trace the retained identities and keep the two-same-leaf positive and different-leaf negative.
+- Reported: 2026-11-14, Codex, while attributing Stage 06 failures after the ranked-loop changes
+
+### A recycled worktree retains a dangling Rust target directory
+- Category: verifying costs more than writing
+- Where: [worktree acquisition](tools/xtask/src/worktree.rs#L417), [worktree cache rules](tools/docs/build_slot.md)
+- Saw: At `7c1e8d6b2b3`, acquiring pool slot `worker-11` left its `target` symlink pointing at a missing mbx cache directory. Both focused `mbx test` invocations failed immediately with `failed to create directory …/worker-11/target: Not a directory (os error 20)`. A separate target path started the same compiler build.
+- Cost: The recycled slot cannot start its Rust checks through the ordinary command. Reconnect or discard only the stale worktree-local cache link when reacquiring a slot, and preserve live caches.
+- Reported: 2026-11-14, Codex, while validating scoped case resolution
+
+### Worktree and claim status panic when the output reader closes
+- Category: one idea, several implementations
+- Where: [worktree status output](tools/xtask/src/worktree.rs#L675), [claim status output](tools/xtask/src/claims.rs)
+- Saw: The xtask built at both `149d359085d` and `f5ed845ea2f` exits 101 with a Rust `Broken pipe` panic for both `worktree status` and `claims status` when the consumer closes stdout before the command writes. Each command exits 0 when its reader consumes the output.
+- Cost: Reading a prefix of either status output can fail a pipeline because the writer panics. Use the same fallible stdout handling for both commands, and keep genuine output errors visible.
+- Reported: 2026-11-14, Codex, while inspecting available worktree slots
+
 ### Writes to immutable owned bindings are reported as unavailable
 - Category: a verdict with nothing behind it
 - Where: [assignment reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/statements.rs#L83), [projected store reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/statements.rs#L182)
@@ -93,13 +142,6 @@ framework or a list of features that remain unimplemented.
 - Saw: On `ef7d7a17936` with the shared-view range repair, both unchanged positives and their authored source twins with bound entries still refuse `&items[0..3]` with `partial array views need their endpoint and window correspondence` on macOS arm64. Here `items` is a fixed `[u8; 4]`. Each sample's dynamic range over an existing view proceeds through ordinary range checking.
 - Cost: A checked direct array window cannot reach its last-byte check. Use the fixed storage's exact extent and projected window when checking a direct range and establishing its loan.
 - Reported: 2026-11-14, Codex, while restoring the post-merge runtime sample
-
-### A shared byte window loses its completion observation across a length call
-- Category: a verdict with nothing behind it
-- Where: [length result sample](samples/cli/facts/length/call_result/main.omg#L11), [forwarded length sample](samples/cli/facts/length/other_machine/main.omg#L14), [completion observation reader](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs#L3851)
-- Saw: On `ef7d7a17936` with the shared-view range repair, both unchanged positives stop on macOS arm64 at `borrowed completion storage has no post-call observation`. Their shared view already passed formation, and each length call's result guarantee names the view given as input. The nested state control keeps the matching length and executes.
-- Cost: Code cannot use the result guarantee to index the same existing shared window after an ordinary call. Keep the unchanged actual observation attached to the shared parameter in the ordinary completion mechanism.
-- Reported: 2026-11-14, Codex, while checking length transport through a borrowed byte window
 
 ### Instruction selection reconstructs target operands from earlier executable bodies
 - Category: re-deriving
