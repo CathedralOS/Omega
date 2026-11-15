@@ -6,8 +6,11 @@ A reference can keep a loan live after the operation that formed it. The
 existing descriptor flow supplies its transported homes and lifetime; all
 reads, writes and later loans resolve the same captured backing. Missing
 immediate-parent or returned-call correspondence remains unavailable rather
-than being treated as a call-duration loan. A checked call result retains its
-actual input loan across every transported result descriptor.
+than being treated as a call-duration loan. A checked call result retains the
+input storage its published origin names across every transported result
+descriptor: the argument's own loan when the origin is the whole argument,
+otherwise a second `Loan` row of the same call capturing the narrower source
+path, while the argument's own loan ends when the call returns.
 
 A call-duration loan is a call's structural argument with a borrowed access: the call lends
 the place the argument names, for the call's duration, and the place is the
@@ -28,8 +31,9 @@ chain"): the transfer's edge consumes it, and nothing of this machine runs
 after to use the lent place again.
 
 The rows are recomputed from the lowered form, as every other row is
-(`minted`): one `Loan` per borrowed argument of each call, created at the
-point before the call, whose captured place is the invocation row's actual
+(`minted`): one `Loan` per borrowed argument of each call, plus one per
+narrower region a returned reference retains, created at the point before the
+call, whose captured place is the invocation row's actual
 at that position and is the place the argument's storage path names. A row
 the lowered form does not owe, or owes elsewhere or of another kind, is a
 defect of the route (`ForeignIdentity`).
@@ -114,6 +118,9 @@ struct Formed {
     /// A call-duration argument has no retained descriptor after its call.
     at: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
     lifetime: Option<terminal_semantics::descriptor_lifetimes::DescriptorLifetime>,
+    /// For the narrower region a returned reference retains, the call that
+    /// formed it. That call's own argument loans cover it only for the call.
+    returned_by: Option<InvocationId>,
 }
 
 #[derive(Clone, Copy)]
@@ -549,10 +556,7 @@ impl Storage<'_> {
         (concerns, before): (Construct, ProgramPoint),
         arguments: &[terminal_psi::StructuralArgument],
         call: Option<(InvocationSite, terminal_psi::TargetMachineCallable)>,
-        retained: Vec<(
-            usize,
-            terminal_semantics::descriptor_lifetimes::DescriptorLifetime,
-        )>,
+        retained: Vec<terminal_semantics::RetainedCallLoan>,
         claimed: &mut [bool],
         formed: &mut Vec<Formed>,
     ) -> Checked<()> {
@@ -662,46 +666,93 @@ impl Storage<'_> {
                 ));
             }
             claimed[index(obligation.get())] = true;
-            let lifetime = if retained
-                .peek()
-                .is_some_and(|(input, _)| *input == structural_position)
-            {
-                Some(
-                    retained
-                        .next()
-                        .ok_or_else(|| {
-                            self.foreign(concerns, "retained result loan lifetime disappeared")
-                        })?
-                        .1,
+            // The argument's own loan is retained only when the result keeps
+            // its whole place; a narrower retained region gets its own row.
+            let lifetime = retained
+                .next_if(|loan| loan.position == structural_position && loan.path == argument.path)
+                .map(|loan| loan.lifetime);
+            let resource = self.borrowed_resource(parameter.structural_type);
+            let cut = {
+                let (block, before) = self.graph.locate(before)?;
+                (
+                    block,
+                    u32::try_from(before).map_err(|_| {
+                        self.foreign(concerns, "loan cut exceeds descriptor coordinates")
+                    })?,
                 )
-            } else {
-                None
             };
             formed.push(Formed {
                 obligation,
                 invocation: Some(invocation),
                 position,
                 access,
-                lineage: {
-                    let (block, before) = self.graph.locate(before)?;
-                    self.borrow_backing(
-                        &lent,
-                        (
-                            block,
-                            u32::try_from(before).map_err(|_| {
-                                self.foreign(concerns, "loan cut exceeds descriptor coordinates")
-                            })?,
-                        ),
-                        concerns,
-                    )?
-                },
+                lineage: self.borrow_backing(&lent, cut, concerns)?,
                 parent,
                 lender,
                 from,
                 permitted,
                 at: self.loan_position(before, concerns)?,
                 lifetime,
+                returned_by: None,
             });
+            while let Some(narrower) = retained.next_if(|loan| loan.position == structural_position)
+            {
+                if !narrower.path.starts_with(&argument.path) {
+                    return Err(
+                        self.foreign(concerns, "a retained call region lies outside its argument")
+                    );
+                }
+                let region = terminal_psi::StructuralArgument {
+                    place: argument.place,
+                    path: narrower.path,
+                    access: argument.access,
+                };
+                let raw = self.argument(&region, concerns)?;
+                let captured = self.interned(tables, &raw, concerns)?.ok_or_else(|| {
+                    self.foreign(concerns, "a retained call region has no captured place row")
+                })?;
+                let (expected_lender, parent, from, permitted) =
+                    self.source_lender(&raw, &region.path, access, resource, concerns)?;
+                let (obligation, row) = tables
+                    .obligations
+                    .iter()
+                    .find(|(id, row)| {
+                        matches!(row.kind, ObligationKind::Loan { captured: place, access: borrowed, .. }
+                            if place == captured && borrowed == access)
+                            && row.created_at == before
+                            && !claimed[index(id.get())]
+                    })
+                    .ok_or_else(|| {
+                        self.foreign(
+                            concerns,
+                            "a retained call region has no exact occurrence row",
+                        )
+                    })?;
+                let ObligationKind::Loan { lender, .. } = row.kind else {
+                    unreachable!()
+                };
+                if expected_lender.is_some_and(|expected| expected != lender) {
+                    return Err(self.foreign(
+                        concerns,
+                        "retained call region lender does not match its actual source resource",
+                    ));
+                }
+                claimed[index(obligation.get())] = true;
+                formed.push(Formed {
+                    obligation,
+                    invocation: None,
+                    position,
+                    access,
+                    lineage: self.borrow_backing(&raw, cut, concerns)?,
+                    parent,
+                    lender,
+                    from,
+                    permitted,
+                    at: self.loan_position(before, concerns)?,
+                    lifetime: Some(narrower.lifetime),
+                    returned_by: Some(invocation),
+                });
+            }
         }
         if retained.next().is_some() {
             return Err(self.foreign(
@@ -932,6 +983,7 @@ impl Storage<'_> {
             permitted,
             at,
             lifetime: Some(lifetime),
+            returned_by: None,
         });
         Ok(())
     }
@@ -1648,6 +1700,7 @@ impl Storage<'_> {
                         permitted,
                         at,
                         lifetime: Some(lifetime),
+                        returned_by: None,
                     });
                 }
             }
@@ -1876,6 +1929,14 @@ impl Storage<'_> {
                 // lifetimes determine overlap across calls and block order;
                 // arena ordering is not lifetime ordering.
                 for earlier in formed[..at].iter().filter(|earlier| {
+                    // A retained region and the loans of the call that
+                    // returned it: those loans end as the region begins.
+                    let returned = |region: &Formed, call: &Formed| {
+                        region.returned_by.is_some() && region.returned_by == call.invocation
+                    };
+                    if returned(loan, earlier) || returned(earlier, loan) {
+                        return false;
+                    }
                     (earlier.invocation.is_some() && earlier.invocation == loan.invocation)
                         || earlier.lifetime.as_ref().is_some_and(|life| {
                             life.surviving
