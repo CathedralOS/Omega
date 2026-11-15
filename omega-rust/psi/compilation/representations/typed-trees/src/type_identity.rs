@@ -4184,6 +4184,7 @@ pub(crate) mod package_policy_reading_tests {
                     .program
                     .exact_owner_type_identity(ExactOwnerTypeIdentityRequest {
                         type_reference: reference,
+                        lifetime_scope: None,
                         binders,
                         substitutions,
                         exact_toolchain_sources: &self.toolchain,
@@ -7683,6 +7684,10 @@ impl TypeIdentityRequest<'_> {
 #[derive(Clone, Copy)]
 pub struct ExactOwnerTypeIdentityRequest<'a> {
     pub type_reference: TypeReferenceHandle,
+    /// The actual lexical declaration and its retained binder roster let
+    /// unresolved lifetime names use the same exact scope as resolved IDs.
+    /// Absence keeps the existing carrier-only identity request.
+    pub lifetime_scope: Option<(SymbolHandle, &'a [(LifetimeParameterIdentity, usize)])>,
     pub binders: &'a [(SymbolHandle, String)],
     pub substitutions: &'a [(SymbolHandle, TypeReferenceHandle)],
     pub exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
@@ -8587,11 +8592,30 @@ impl TypedTrees {
         request: ExactOwnerTypeIdentityRequest<'_>,
     ) -> Option<NormalizedTypeIdentity> {
         let missing_exact_nominal_owner = Cell::new(false);
+        let invalid = Cell::new(false);
+        let (lifetime_owner, lifetime_binders) = request
+            .lifetime_scope
+            .unwrap_or((SymbolHandle::invalid(), &[]));
+        if request.lifetime_scope.is_some() && !lifetime_owner.is_valid() {
+            return None;
+        }
+        if request.lifetime_scope.is_some_and(|(_, binders)| {
+            binders
+                .iter()
+                .any(|(region, _)| lifetime_parameter_name(self, *region).is_none())
+        }) {
+            return None;
+        }
         let identity = normalize_type_identity(
             self,
             request.type_reference,
             &TypeIdentityContext {
                 binders: request.binders,
+                application_owner: lifetime_owner,
+                application_argument_owner: lifetime_owner,
+                lifetime_binders,
+                invalid_application: request.lifetime_scope.map(|_| &invalid),
+                encountered_elided_regions: request.lifetime_scope.map(|_| &invalid),
                 substitutions: request.substitutions,
                 substitution_semantics: SubstitutionSemantics::Transitive,
                 active_const_substitutions: &[],
@@ -8601,7 +8625,7 @@ impl TypedTrees {
                 ..TypeIdentityContext::default()
             },
         );
-        (!missing_exact_nominal_owner.get()).then_some(identity)
+        (!missing_exact_nominal_owner.get() && !invalid.get()).then_some(identity)
     }
 
     pub fn exact_owner_nominal_identity(

@@ -11,6 +11,7 @@ pub(crate) use dependency_trust::{
     encode_opaque_occurrence, encode_representation_target, encode_value_placement,
 };
 
+pub(crate) use super::type_identity as encode_type_identity;
 pub(crate) use conformances::encode_conformance_bound;
 #[allow(
     unused_imports,
@@ -18,7 +19,7 @@ pub(crate) use conformances::encode_conformance_bound;
 )]
 pub(crate) use data::{
     encode_data_field, encode_data_member, encode_data_properties, encode_optional_u64,
-    encode_relevance, encode_type_identity,
+    encode_relevance,
 };
 #[allow(
     unused_imports,

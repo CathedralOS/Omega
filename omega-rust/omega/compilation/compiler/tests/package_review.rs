@@ -1420,8 +1420,27 @@ fn captured_review_compilation(
         false,
     )
     .unwrap();
-    let project = workspace.path().join("project");
-    std::fs::create_dir(&project).unwrap();
+    let (session, checked) = captured_review_compilation_at(
+        &workspace.path().join("project"),
+        &workspace.path().join("session"),
+        main_source,
+        build_source,
+    );
+    (workspace, session, checked)
+}
+
+// Each revision gets a fresh accepted Product while its package keeps the
+// same project identity. Reusing a judgment would hide declaration changes.
+fn captured_review_compilation_at(
+    project: &std::path::Path,
+    session_path: &std::path::Path,
+    main_source: &str,
+    build_source: &str,
+) -> (
+    orchestration::BuildSession,
+    Result<products::CheckedCompilation, Vec<diagnostics::Diagnostic>>,
+) {
+    std::fs::create_dir_all(project).unwrap();
     std::fs::write(project.join("main.omg"), main_source).unwrap();
     std::fs::write(project.join("build.omg"), build_source).unwrap();
     let target = target::TargetProfile::host_if_supported().expect("host Product target");
@@ -1432,8 +1451,7 @@ fn captured_review_compilation(
     )
     .unwrap()
     .expect("ordinary captured project");
-    let mut session =
-        orchestration::BuildSession::create(&workspace.path().join("session")).unwrap();
+    let mut session = orchestration::BuildSession::create(session_path).unwrap();
     let resolved = orchestration::resolve_project_sources(
         &mut session,
         orchestration::ProjectSourceRequest {
@@ -1469,7 +1487,83 @@ fn captured_review_compilation(
                 .collect::<Vec<_>>()
         );
     }
-    (workspace, session, checked)
+    (session, checked)
+}
+
+/// Review keeps which lifetime backs each public field. Renaming binders
+/// preserves that relation; tying both fields to one input changes the API.
+#[test]
+fn accepted_package_review_keeps_public_data_lifetime_bindings() {
+    let workspace = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "public-data-lifetime-review",
+        false,
+    )
+    .unwrap();
+    let project = workspace.path().join("project");
+    let original = r#"
+public data Text<'view> [copy] { bytes: &'view [u8]; }
+public data Message<'first, 'second> [copy] {
+    left: Text<'first>; right: &'second [u8];
+}
+machine main() {}
+"#;
+    let renamed = original
+        .replace("'first", "'alpha")
+        .replace("'second", "'beta");
+    let rebound = renamed.replace("right: &'beta", "right: &'alpha");
+    let mut package = None;
+    let mut shapes = Vec::new();
+    for (ordinal, source) in [original, renamed.as_str(), rebound.as_str()]
+        .into_iter()
+        .enumerate()
+    {
+        let (_session, checked) = captured_review_compilation_at(
+            &project,
+            &workspace.path().join(format!("session-{ordinal}")),
+            source,
+            REVIEW_BUILD_SOURCE,
+        );
+        let checked =
+            checked.unwrap_or_else(|diagnostics| panic!("Product judgment: {diagnostics:?}"));
+        let identity = checked.sources().package_identity().unwrap();
+        if let Some(prior) = package {
+            assert_eq!(
+                prior, identity,
+                "source revisions must keep the actual project identity"
+            );
+        } else {
+            package = Some(identity);
+        }
+        let target = checked.execution().target_profile().unwrap();
+        let reviewed =
+            review_evidence::project_package_review(&checked, identity, target, usize::MAX)
+                .unwrap_or_else(|error| panic!("public lifetime data review: {error:?}"));
+        reviewed
+            .policy
+            .validate_package_membership(
+                |package| package == identity,
+                review_evidence::encoding::PackagePolicyMembershipLimits::default(),
+            )
+            .expect("declared field lifetimes must survive normal lock membership");
+        assert_eq!(reviewed.policy.public_data().len(), 2);
+        let shape = reviewed
+            .policy
+            .public_data()
+            .iter()
+            .find(|shape| shape.lifetime_parameter_count() == 2)
+            .expect("the actual two-binder Message declaration must be retained");
+        assert_eq!(shape.lifetime_parameter_count(), 2);
+        assert_eq!(shape.members().len(), 2);
+        shapes.push(shape.clone());
+    }
+    assert_eq!(
+        shapes[0], shapes[1],
+        "binder spelling must not change the data API"
+    );
+    assert_ne!(
+        shapes[1], shapes[2],
+        "field lifetime correspondence must remain visible"
+    );
 }
 
 #[test]

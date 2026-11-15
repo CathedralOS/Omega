@@ -787,6 +787,11 @@ pub(crate) fn prepare_value_invocation(
         } else {
             value
         };
+        // Retain the checked argument's actual type on its existing expression
+        // row, so receipt consumers need not reconstruct the public signature.
+        probe
+            .expression_table
+            .set_constructed_value_type_reference(actual, destination);
         actuals.push(actual);
     }
     if materialized && !call.machine_arguments.is_empty() {

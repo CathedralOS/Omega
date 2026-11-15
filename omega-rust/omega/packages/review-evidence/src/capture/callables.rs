@@ -271,6 +271,7 @@ impl PackageReviewInput<'_> {
             source
                 .exact_owner_type_identity(
                     typed_trees::type_identity::ExactOwnerTypeIdentityRequest {
+                        lifetime_scope: None,
                         type_reference: reference,
                         binders: &[],
                         substitutions: &[],

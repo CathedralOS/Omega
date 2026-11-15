@@ -360,3 +360,57 @@ fn a_selected_access_plan_returns_its_declared_route_element_lifetimes() {
             .expect("complete invocation usage");
     }
 }
+
+#[test]
+fn ordinary_lifetime_invocation_keeps_schema_images_and_refuses_local_escape() {
+    let source = r#"
+        use omega::language::core::reflect;
+        data Cell { value: u32; }
+        machine describe() -> reflect::TypeSchema { reflect::schema<Cell>() }
+        machine carry<'text>(schema: reflect::TypeSchema<'text>) -> reflect::TypeSchema<'text> { schema }
+        machine local_escape<'text>() -> &'text [u8] {
+            let bytes: [u8; 1] = [7u8];
+            let view: &[u8] = &bytes[..];
+            view
+        }
+    "#;
+    let typed = typed_source(source);
+    let prepared = PreparedBuildMachineProgram::prepare(&typed, None).unwrap();
+    let facts = facts();
+    let mut accounting = SourceCompletionAccounting::default();
+    let schema = reflected_schema(
+        &typed,
+        &prepared,
+        "describe",
+        target(&facts),
+        &mut accounting,
+    );
+    let carry = typed.realized_machine_named("carry").unwrap().symbol;
+    let returned = prepared
+        .entry(carry, carry, &[schema.value().clone()])
+        .unwrap()
+        .invoke_recorded(target(&facts), &mut accounting)
+        .unwrap();
+    assert_eq!(
+        returned.value(),
+        schema.value(),
+        "the real query image survives the ordinary lifetime-bound call"
+    );
+    let local_escape = typed.realized_machine_named("local_escape").unwrap().symbol;
+    let before = accounting.receipts().len();
+    let error = prepared
+        .entry(local_escape, local_escape, &[])
+        .err()
+        .expect("a fresh call lifetime cannot retain this callee's local array");
+    assert!(error.contains("lifetime"), "{error}");
+    assert!(
+        !error.contains("not supported yet"),
+        "the actual local-storage contract must reject: {error}"
+    );
+    assert_eq!(
+        accounting.receipts().len(),
+        before,
+        "no evaluation of the escaping local borrow"
+    );
+    accounting.validate_charges().unwrap();
+}

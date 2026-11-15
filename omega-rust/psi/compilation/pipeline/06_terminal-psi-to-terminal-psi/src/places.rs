@@ -1719,39 +1719,22 @@ impl<'a> Storage<'a> {
     /// operation.
     fn read_leaf(&self, operation: &Operation) -> Checked<Option<Lineage>> {
         let concerns = Construct::Operation(operation.id);
+        let leaf = match &operation.kind {
+            OperationKind::ByteSequenceLength { source } => Some(self.argument(source, concerns)?),
+            OperationKind::StructuralByteSequenceFieldLength {
+                source,
+                path,
+                field,
+            } => Some(self.argument(
+                &self.byte_field_argument(*source, path, *field, concerns)?,
+                concerns,
+            )?),
+            _ => None,
+        };
+        if let Some(leaf) = leaf {
+            return self.byte_length_leaf(operation, leaf).map(Some);
+        }
         match &operation.kind {
-            OperationKind::ByteSequenceLength { source } => {
-                let mut leaf = self.argument(source, concerns)?;
-                let descriptor = match self.shape(&leaf, concerns)? {
-                    Shape::View => true,
-                    Shape::Typed(owner) => self
-                        .declaration(owner, concerns)?
-                        .shape
-                        .is_borrowed_byte_view(),
-                    _ => false,
-                };
-                if !descriptor {
-                    return Err(self.foreign(
-                        concerns,
-                        "a byte length operation requires a byte descriptor",
-                    ));
-                }
-                leaf.segments.push(Segment::Extent);
-                let Shape::Scalar(scalar_type) = self.shape(&leaf, concerns)? else {
-                    return Err(self.foreign(concerns, "an extent has no scalar carrier"));
-                };
-                if operation
-                    .result
-                    .scalar_ref()
-                    .is_none_or(|result| result.scalar_type != scalar_type)
-                {
-                    return Err(self.foreign(
-                        concerns,
-                        "a length result has another scalar carrier than its descriptor extent",
-                    ));
-                }
-                Ok(Some(leaf))
-            }
             OperationKind::ScalarStructuralField {
                 source,
                 path,
@@ -1807,6 +1790,41 @@ impl<'a> Storage<'a> {
         Ok(Some(at))
     }
 
+    /// Whole and stored descriptors expose the same extent leaf. Keeping
+    /// one observation rule lets guards and later indexed reads agree on it.
+    fn byte_length_leaf(&self, operation: &Operation, mut leaf: Lineage) -> Checked<Lineage> {
+        let concerns = Construct::Operation(operation.id);
+        let descriptor = match self.shape(&leaf, concerns)? {
+            Shape::View => true,
+            Shape::Typed(owner) => self
+                .declaration(owner, concerns)?
+                .shape
+                .is_borrowed_byte_view(),
+            _ => false,
+        };
+        if !descriptor {
+            return Err(self.foreign(
+                concerns,
+                "a byte length operation requires a byte descriptor",
+            ));
+        }
+        leaf.segments.push(Segment::Extent);
+        let Shape::Scalar(scalar_type) = self.shape(&leaf, concerns)? else {
+            return Err(self.foreign(concerns, "an extent has no scalar carrier"));
+        };
+        if operation
+            .result
+            .scalar_ref()
+            .is_none_or(|result| result.scalar_type != scalar_type)
+        {
+            return Err(self.foreign(
+                concerns,
+                "a length result has another scalar carrier than its descriptor extent",
+            ));
+        }
+        Ok(leaf)
+    }
+
     fn operation(&self, id: OperationId, concerns: Construct) -> Checked<&'a Operation> {
         let (block, after) = self.graph.locate(ProgramPoint::AfterOperation(id))?;
         self.lowered
@@ -1854,6 +1872,9 @@ impl<'a> Storage<'a> {
                     obligation: owned, ..
                 }
                 | OperationKind::ByteSequenceWrite {
+                    obligation: owned, ..
+                }
+                | OperationKind::StructuralByteSequenceFieldRead {
                     obligation: owned, ..
                 } = &operation.kind
                 {
@@ -1940,13 +1961,37 @@ impl<'a> Storage<'a> {
                 length,
                 ..
             } => {
-                self.readable_byte_view(operation, *source)?;
+                self.readable_byte_view(operation, *source, &[])?;
                 if operation.result.scalar_ref().is_none_or(|result| {
                     result.scalar_type != byte || result.qualifications != Default::default()
                 }) {
                     return Err(self.foreign(concerns, "a byte read must produce a plain u8"));
                 }
-                (*source, *index, *length)
+                (
+                    StructuralArgument::whole(
+                        *source,
+                        terminal_psi::StructuralAccess::SharedBorrow,
+                    ),
+                    *index,
+                    *length,
+                )
+            }
+            OperationKind::StructuralByteSequenceFieldRead {
+                source,
+                path,
+                field,
+                index,
+                length,
+                ..
+            } => {
+                let source = self.byte_field_argument(*source, path, *field, concerns)?;
+                self.readable_byte_view(operation, source.place, &source.path)?;
+                if operation.result.scalar_ref().is_none_or(|result| {
+                    result.scalar_type != byte || result.qualifications != Default::default()
+                }) {
+                    return Err(self.foreign(concerns, "a byte read must produce a plain u8"));
+                }
+                (source, *index, *length)
             }
             OperationKind::ByteSequenceWrite {
                 destination,
@@ -1963,24 +2008,36 @@ impl<'a> Storage<'a> {
                         self.foreign(concerns, "a byte store requires a u8 value and Unit result")
                     );
                 }
-                (*destination, *index, *length)
+                (
+                    StructuralArgument::whole(
+                        *destination,
+                        terminal_psi::StructuralAccess::MutableBorrow,
+                    ),
+                    *index,
+                    *length,
+                )
             }
             _ => return Err(self.foreign(concerns, "byte bounds requested for another operation")),
         };
         let (block, after) = self
             .graph
             .locate(ProgramPoint::AfterOperation(operation.id))?;
-        let measured = after
+        let mut expected = self.argument(&source, concerns)?;
+        expected.segments.push(Segment::Extent);
+        let operations = &self.block(block)?.operations;
+        let measurement = after
             .checked_sub(2)
-            .and_then(|position| self.block(block).ok()?.operations.get(position))
-            .is_some_and(|measurement| {
-                matches!(&measurement.kind, OperationKind::ByteSequenceLength { source: measured }
-                    if measured.place == source && measured.path.is_empty())
+            .and_then(|position| operations.get(position));
+        let measured = match measurement {
+            Some(measurement) => {
+                self.read_leaf(measurement)?.as_ref() == Some(&expected)
                     && measurement
                         .result
                         .scalar_ref()
                         .is_some_and(|result| result.id == length)
-            });
+            }
+            None => false,
+        };
         if !measured {
             return Err(self.unsupported(
                 concerns,
@@ -3040,6 +3097,15 @@ impl<'a> Storage<'a> {
                 destination: source,
                 ..
             } => Ok(vec![self.stored_at(*source, &[], concerns)?]),
+            OperationKind::StructuralByteSequenceFieldRead {
+                source,
+                path,
+                field,
+                ..
+            } => Ok(vec![self.argument(
+                &self.byte_field_argument(*source, path, *field, concerns)?,
+                concerns,
+            )?]),
             // Each compared view is read whole through its own descriptor.
             OperationKind::ByteSequenceEqual { left, right } => [left, right]
                 .into_iter()
@@ -3210,7 +3276,11 @@ impl<'a> Storage<'a> {
 
     fn operation_read_effects(&self, operation: &Operation) -> Checked<Vec<StorageEffect>> {
         let payloads = self.call_payload_arguments(operation, false)?;
-        let indexed = matches!(operation.kind, OperationKind::ByteSequenceRead { .. });
+        let indexed = matches!(
+            operation.kind,
+            OperationKind::ByteSequenceRead { .. }
+                | OperationKind::StructuralByteSequenceFieldRead { .. }
+        );
         Ok(self
             .operation_uses(operation)?
             .into_iter()

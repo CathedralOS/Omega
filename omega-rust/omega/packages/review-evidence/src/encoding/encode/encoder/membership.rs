@@ -29,9 +29,13 @@ impl<'identity> Encoder<'identity> {
     pub(crate) fn observe_type_identity(
         &mut self,
         identity: &str,
+        declared_lifetimes: Option<usize>,
     ) -> Result<(), PackageReviewEncodingError> {
         if let Some(observer) = &mut self.membership {
-            let result = observer.type_identity(identity);
+            let result = match declared_lifetimes {
+                Some(count) => observer.declared_type_identity(identity, count),
+                None => observer.type_identity(identity),
+            };
             self.record_membership_result(result);
         }
         self.check()
