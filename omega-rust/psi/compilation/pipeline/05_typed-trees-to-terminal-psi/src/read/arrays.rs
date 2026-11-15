@@ -623,7 +623,7 @@ impl Program<'_> {
     }
 }
 
-fn physical_source(reference: TypeReferenceHandle) -> RecordSource {
+pub(super) fn physical_source(reference: TypeReferenceHandle) -> RecordSource {
     RecordSource {
         declaration: SymbolHandle::invalid(),
         application: Some(typed_trees::SourceTypeApplication {

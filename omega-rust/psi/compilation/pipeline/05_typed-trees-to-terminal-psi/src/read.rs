@@ -23,6 +23,7 @@ serve is refused when it is set, never ignored.
 */
 
 mod arrays;
+mod atomics;
 mod authority;
 pub(crate) use authority::has_predicates;
 mod bytes;

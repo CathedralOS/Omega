@@ -105,7 +105,7 @@ impl Storage<'_> {
                     )
                 })?,
             Shape::View => return Ok(vec![region.clone()]),
-            Shape::Scalar(_) | Shape::Payload(_) => return Ok(Vec::new()),
+            Shape::Scalar(_) | Shape::Atomic(_) | Shape::Payload(_) => return Ok(Vec::new()),
         };
         if slots.is_empty() {
             return Ok(Vec::new());

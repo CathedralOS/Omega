@@ -1,6 +1,7 @@
-//! Build runs under its own judgment before Product is prepared. Read that
-//! retained owner, and rejoin its original declaration to the final package;
-//! Product syntax or configuration values cannot supply checked Build facts.
+//! Review keeps the contracts of the declarations the package judgment accepted.
+//! Build retains its separate invocation judgment; public functions and
+//! requirements borrow Product's accepted module. Neither owner may infer a
+//! body for a declaration supplied elsewhere.
 
 use super::PackageReviewInput;
 use super::declarations::{nominal_identity, unavailable};
@@ -17,6 +18,12 @@ use diagnostics::Diagnostic;
 use semantic_vocabulary::{MachineId, PackageKeyIdentity, ServiceId, TargetMachineCallable};
 use terminal_check_tables::edges::Callee;
 use terminal_psi::{CrashRouteGuard, MachineContract, TerminalModule};
+
+struct CallableInventory<'a> {
+    accepted: &'a source_compiler::AcceptedTerminalSource,
+    exact_sources: &'a [(source::SourceId, [u8; 32])],
+    service_names: Vec<(ServiceId, PackageReviewNominalIdentity)>,
+}
 
 impl PackageReviewInput<'_> {
     pub(super) fn build_callable(
@@ -73,11 +80,119 @@ impl PackageReviewInput<'_> {
                 "a selected Build owned by the reviewed package",
             ));
         }
+        let exact_sources =
+            source::source_identity::toolchain_source_identities(source.symbols.source_files())
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let service_names = service_identities(accepted, &exact_sources)?;
+        validate_body_effect_inventory(accepted.module())?;
+        self.callable(
+            &CallableInventory {
+                accepted,
+                exact_sources: &exact_sources,
+                service_names,
+            },
+            *original,
+            identity,
+            PackagePolicyCallableRole::Build,
+            PackageReviewCallableSupply::CheckedBody,
+            Some(entry),
+        )
+        .map(Some)
+    }
+
+    pub(super) fn callables(
+        &self,
+        package: PackageKeyIdentity,
+    ) -> Result<Vec<PackagePolicyCallable>, Vec<Diagnostic>> {
+        let mut rows: Vec<_> = self.build_callable(package)?.into_iter().collect();
+        let accepted = self.compilation().terminal_publication().accepted()?;
+        let exact_sources = self.compilation().sources().exact_toolchain_sources();
+        let mut inventory = None;
+        let mut effects_validated = false;
+        let mut bodies: Vec<_> = accepted
+            .closure()
+            .elaboration
+            .machines
+            .iter()
+            .map(|(entry, original)| (*original, entry))
+            .collect();
+        let key = |symbol: symbols::SymbolHandle| (symbol.arena_index(), symbol.generation());
+        bodies.sort_unstable_by_key(|(original, _)| key(*original));
+        for declaration in self.typed().machines() {
+            if !self.owns(declaration.symbol, package)?
+                || (!declaration.is_public && declaration.supplies_checked_body())
+            {
+                continue;
+            }
+            let (role, supply) = match declaration.supply_mode {
+                language_semantics::MachineSupplyMode::CheckedBody => (
+                    PackagePolicyCallableRole::Public,
+                    PackageReviewCallableSupply::CheckedBody,
+                ),
+                language_semantics::MachineSupplyMode::Requirement => (
+                    PackagePolicyCallableRole::Public,
+                    PackageReviewCallableSupply::Requirement,
+                ),
+                language_semantics::MachineSupplyMode::TopLevelRequirement => (
+                    PackagePolicyCallableRole::Boundary,
+                    PackageReviewCallableSupply::TopLevelRequirement,
+                ),
+                _ => return Err(unavailable("this callable's supply and authority contract")),
+            };
+            let body = if declaration.supplies_checked_body() {
+                let first = bodies
+                    .partition_point(|(original, _)| key(*original) < key(declaration.symbol));
+                let end = bodies
+                    .partition_point(|(original, _)| key(*original) <= key(declaration.symbol));
+                let [(original, entry)] = &bodies[first..end] else {
+                    return Err(unavailable("an unambiguous public callable application"));
+                };
+                debug_assert_eq!(*original, declaration.symbol);
+                Some(*entry)
+            } else {
+                None
+            };
+            if inventory.is_none() {
+                inventory = Some(CallableInventory {
+                    accepted,
+                    exact_sources,
+                    service_names: service_identities(accepted, exact_sources)?,
+                });
+            }
+            if body.is_some() && !effects_validated {
+                validate_body_effect_inventory(accepted.module())?;
+                effects_validated = true;
+            }
+            rows.push(self.callable(
+                inventory.as_ref().expect("prepared callable inventory"),
+                declaration.symbol,
+                self.nominal(declaration.symbol)?,
+                role,
+                supply,
+                body,
+            )?);
+        }
+        rows.sort_by(|a, b| a.identity.cmp(&b.identity));
+        Ok(rows)
+    }
+
+    fn callable(
+        &self,
+        inventory: &CallableInventory<'_>,
+        original: symbols::SymbolHandle,
+        identity: PackageReviewNominalIdentity,
+        role: PackagePolicyCallableRole,
+        supply: PackageReviewCallableSupply,
+        body: Option<MachineId>,
+    ) -> Result<PackagePolicyCallable, Vec<Diagnostic>> {
+        let accepted = inventory.accepted;
+        let exact_sources = inventory.exact_sources;
+        let service_names = &inventory.service_names;
+        let source = accepted.source();
         let declaration = source
-            .machine(*original)
-            .ok_or_else(|| unavailable("Build's admitted source machine"))?;
-        if !declaration.supplies_checked_body()
-            || !declaration.type_parameters.is_empty()
+            .machine(original)
+            .ok_or_else(|| unavailable("the callable's admitted source machine"))?;
+        if !declaration.type_parameters.is_empty()
             || !declaration.conformance_bounds.is_empty()
             || !declaration.satisfies.is_empty()
             || !declaration.lifetime_parameters.is_empty()
@@ -86,44 +201,86 @@ impl PackageReviewInput<'_> {
             || declaration.target_family_interface
         {
             return Err(unavailable(
-                "this Build's complete generic or target contract",
+                "the callable's complete generic or target contract",
             ));
         }
         let state = source
             .machine_states(declaration)
             .first()
-            .ok_or_else(|| unavailable("Build's source entry signature"))?;
-        let header = accepted
-            .module()
-            .machine(entry)
-            .ok_or_else(|| unavailable("Build's checked body"))?;
-        if source.state_parameters(state).len() != header.parameter_order.len()
-            || !header.requires.is_empty()
-            || !header.source_checked_requires.is_empty()
-            || !header.ensures.is_empty()
-            || !header.outcome_specific_ensures.is_empty()
-        {
+            .ok_or_else(|| unavailable("the callable's source entry signature"))?;
+        let header = match body {
+            Some(entry) => {
+                &accepted
+                    .module()
+                    .machine(entry)
+                    .ok_or_else(|| unavailable("the accepted callable body"))?
+                    .contract
+            }
+            None => {
+                let exact = source
+                    .exact_owner_nominal_identity(
+                        original,
+                        self.compilation().sources().exact_toolchain_sources(),
+                    )
+                    .and_then(|identity| source.type_identity_text(identity))
+                    .ok_or_else(|| unavailable("a bodyless callable's exact identity"))?;
+                let mut matching =
+                    accepted
+                        .module()
+                        .declaration_contracts
+                        .iter()
+                        .filter(|header| {
+                            header.declaration.as_ref().is_some_and(|declaration| {
+                                accepted
+                                    .module()
+                                    .identities
+                                    .text(declaration.machine.identity())
+                                    == Some(exact.as_str())
+                            })
+                        });
+                let header = matching
+                    .next()
+                    .ok_or_else(|| unavailable("the accepted bodyless contract"))?;
+                if matching.next().is_some() {
+                    return Err(unavailable("an unambiguous bodyless contract application"));
+                }
+                header
+            }
+        };
+        if source.state_parameters(state).len() != header.parameter_order.len() {
             return Err(unavailable(
-                "Build's complete checked parameter/contract clauses",
+                "the callable's complete checked parameter/contract clauses",
             ));
         }
-        let exact_sources =
-            source::source_identity::toolchain_source_identities(source.symbols.source_files())
-                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let contracts = if role == PackagePolicyCallableRole::Build {
+            if !header.requires.is_empty()
+                || !header.source_checked_requires.is_empty()
+                || !header.ensures.is_empty()
+                || !header.outcome_specific_ensures.is_empty()
+            {
+                return Err(unavailable("Build's complete checked clauses"));
+            }
+            Vec::new()
+        } else {
+            self.callable_contracts(declaration, state)?
+        };
         let type_identity = |reference| {
+            if role != PackagePolicyCallableRole::Build {
+                return self.type_identity(reference);
+            }
             source
                 .exact_owner_type_identity(
                     typed_trees::type_identity::ExactOwnerTypeIdentityRequest {
                         type_reference: reference,
                         binders: &[],
                         substitutions: &[],
-                        exact_toolchain_sources: &exact_sources,
+                        exact_toolchain_sources: exact_sources,
                     },
                 )
                 .and_then(|identity| source.type_identity_text(identity))
                 .filter(|identity| !identity.is_empty())
                 .map(|canonical| PackageReviewTypeIdentity { canonical })
-                .ok_or_else(|| unavailable("an exact Build signature type"))
+                .ok_or_else(|| unavailable("an exact callable signature type"))
         };
         let parameters = source
             .state_parameters(state)
@@ -137,41 +294,32 @@ impl PackageReviewInput<'_> {
                 })
             })
             .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-        let service_names = service_identities(accepted, &exact_sources)?;
-        let ([reach, entries], [checked_may_suspend, checked_may_block]) =
-            body_effects(accepted, entry)?;
-        let realized_reach = reviewed_services(&service_names, &reach)?;
-        let realized_entries = reviewed_services(&service_names, &entries)?
+        let ([reach, entries], [checked_may_suspend, checked_may_block]) = match body {
+            Some(entry) => body_effects(accepted, entry)?,
+            None => ([Vec::new(), Vec::new()], [false; 2]),
+        };
+        let realized_reach = reviewed_services(service_names, &reach)?;
+        let realized_entries = reviewed_services(service_names, &entries)?
             .into_iter()
             .map(PackageReviewSynchronousInvocation::Service)
             .collect();
         let declared_service_reach = header
             .declared_service_reach
             .as_deref()
-            .map(|row| reviewed_services(&service_names, row))
+            .map(|row| reviewed_services(service_names, row))
             .transpose()?;
         let declared_synchronous_invocations = header
             .declared_synchronous_entries
             .as_deref()
             .map(|row| {
-                reviewed_services(&service_names, row).map(|row| {
+                reviewed_services(service_names, row).map(|row| {
                     row.into_iter()
                         .map(PackageReviewSynchronousInvocation::Service)
                         .collect()
                 })
             })
             .transpose()?;
-        let mutation = match &header.published_writes {
-            None => PackagePolicyMutation {
-                completeness: PackageReviewWriteFrameCompleteness::Opaque,
-                paths: Vec::new(),
-            },
-            Some(paths) if paths.is_empty() => PackagePolicyMutation {
-                completeness: PackageReviewWriteFrameCompleteness::Complete,
-                paths: Vec::new(),
-            },
-            Some(_) => return Err(unavailable("Build's nonempty checked write frame")),
-        };
+        let mutation = mutation(accepted.module(), header)?;
         let declared_termination = declaration
             .termination_plan
             .interface
@@ -187,14 +335,14 @@ impl PackageReviewInput<'_> {
                         premises: Vec::new(),
                     })
                 }
-                _ => Err(unavailable("Build's progress premises")),
+                _ => Err(unavailable("the callable's progress premises")),
             })
             .transpose()?;
-        Ok(Some(PackagePolicyCallable {
+        Ok(PackagePolicyCallable {
             target_context: PackagePolicyTargetContext::TargetIndependent,
-            role: PackagePolicyCallableRole::Build,
+            role,
             identity,
-            supply: PackageReviewCallableSupply::CheckedBody,
+            supply,
             spelling: declaration.spelling,
             lifetime_parameter_count: 0,
             type_parameters: Vec::new(),
@@ -208,25 +356,50 @@ impl PackageReviewInput<'_> {
             conformances: Vec::new(),
             operator_realizations: Vec::new(),
             requirement_realizations: Vec::new(),
-            contracts: Vec::new(),
+            contracts,
             declared_service_reach,
             service_reach_dependency: PackagePolicyServiceReachDependency {
-                concrete: realized_reach.clone(),
+                concrete: if body.is_some() {
+                    realized_reach.clone()
+                } else {
+                    reviewed_services(service_names, &header.published_service_ceiling)?
+                },
                 parameters: Vec::new(),
             },
-            checked_service_reach: PackageReviewCheckedServiceReach::CheckedBody {
-                realized: realized_reach.clone(),
-                concrete: realized_reach,
+            checked_service_reach: if body.is_some() {
+                PackageReviewCheckedServiceReach::CheckedBody {
+                    realized: realized_reach.clone(),
+                    concrete: realized_reach,
+                }
+            } else {
+                PackageReviewCheckedServiceReach::NoCheckedBody
             },
             unresolved_installation_reaches: Vec::new(),
-            declared_synchronous_invocations,
+            declared_synchronous_invocations: if role == PackagePolicyCallableRole::Build {
+                declared_synchronous_invocations
+            } else {
+                Some(
+                    reviewed_services(service_names, &header.published_synchronous_entries)?
+                        .into_iter()
+                        .map(PackageReviewSynchronousInvocation::Service)
+                        .collect(),
+                )
+            },
             realized_synchronous_invocations: realized_entries,
             capability_flows: Vec::new(),
             reachable_capability_flows: Vec::new(),
             checked_may_suspend,
             checked_may_block,
-            declared_may_suspend: header.declared_suspension,
-            declared_may_block: header.declared_blocking,
+            declared_may_suspend: if role == PackagePolicyCallableRole::Build {
+                header.declared_suspension
+            } else {
+                Some(header.published_may_suspend)
+            },
+            declared_may_block: if role == PackagePolicyCallableRole::Build {
+                header.declared_blocking
+            } else {
+                Some(header.published_may_block)
+            },
             declared_termination,
             checked_termination: match header.termination {
                 semantic_vocabulary::Termination::NoGuarantee => {
@@ -238,9 +411,79 @@ impl PackageReviewInput<'_> {
                     }
                 }
             },
-            checked_crash: crashes(&header.contract)?,
+            checked_crash: crashes(header)?,
             mutation,
-        }))
+        })
+    }
+    fn callable_contracts(
+        &self,
+        declaration: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+    ) -> Result<Vec<crate::record::PackageReviewCallableContract>, Vec<Diagnostic>> {
+        use crate::record::{
+            PackageReviewCallableContract, PackageReviewContractFact, PackageReviewContractKind,
+            PackageReviewResultCaseIdentity,
+        };
+        use typed_trees::signature::SignatureContractKind;
+        let typed = self.typed();
+        let mut rows = Vec::new();
+        for clause in typed
+            .machine_contracts(declaration)
+            .iter()
+            .chain(typed.state_contracts(state))
+        {
+            let (kind, result_case) = match clause.kind {
+                SignatureContractKind::Requires => (PackageReviewContractKind::Requires, None),
+                SignatureContractKind::Ensures => (PackageReviewContractKind::Ensures, None),
+                SignatureContractKind::EnsuresForResultCase {
+                    result_data,
+                    result_case,
+                } => (
+                    PackageReviewContractKind::Ensures,
+                    Some(PackageReviewResultCaseIdentity {
+                        result_data: self.nominal(result_data)?,
+                        result_case: self.nominal(result_case)?,
+                    }),
+                ),
+                SignatureContractKind::Crashes { .. } => continue,
+            };
+            let scope = super::declarations::ContractScope {
+                owner: state.symbol,
+                subject: None,
+                parameters: typed.state_parameters(state),
+                result: (kind == PackageReviewContractKind::Ensures).then_some(state.return_type),
+            };
+            let facts = typed
+                .proof_facts
+                .span(clause.facts)
+                .ok_or_else(|| unavailable("a callable clause's retained facts"))?;
+            for fact in facts {
+                let fact = match fact {
+                    typed_trees::domain::ProofFact::Expression(expression) => {
+                        PackageReviewContractFact::Expression(self.scoped_expression(
+                            *expression,
+                            scope,
+                            0,
+                        )?)
+                    }
+                    _ => {
+                        return Err(unavailable(
+                            "this callable clause's membership or proposition binding",
+                        ));
+                    }
+                };
+                rows.push(PackageReviewCallableContract {
+                    kind,
+                    result_case: result_case.clone(),
+                    binding: clause.binding.as_ref().map(|name| name.as_str().to_owned()),
+                    evidence_lane_position: None,
+                    fact,
+                });
+            }
+        }
+        rows.sort();
+        rows.dedup();
+        Ok(rows)
     }
 }
 
@@ -267,7 +510,7 @@ fn service_identities(
             .ok_or_else(|| unavailable("a service's original boundary declaration"))?;
         if !source.symbols.symbols().nodes().is_valid(original) {
             return Err(unavailable(
-                "a stale boundary declaration in Build's service inventory",
+                "a stale boundary declaration in the accepted module's service inventory",
             ));
         }
         let owner = source.symbols.get(original).parent;
@@ -345,11 +588,9 @@ fn reviewed_services(
     Ok(projected)
 }
 
-fn body_effects(
-    accepted: &source_compiler::AcceptedTerminalSource,
-    machine: MachineId,
-) -> Result<([Vec<ServiceId>; 2], [bool; 2]), Vec<Diagnostic>> {
-    let module = accepted.module();
+// These authority inventories belong to the accepted module, so inspect them
+// once before projecting its checked bodies rather than once per public helper.
+fn validate_body_effect_inventory(module: &TerminalModule) -> Result<(), Vec<Diagnostic>> {
     if !module
         .root_service_reach
         .installation_dependencies
@@ -358,15 +599,9 @@ fn body_effects(
         || !module.dynamic_dispatch.tables.is_empty()
     {
         return Err(unavailable(
-            "Build's unresolved installation or dynamic effects",
+            "the accepted module's unresolved installation or dynamic effects",
         ));
     }
-    let body = module
-        .machine(machine)
-        .ok_or_else(|| unavailable("Build's effect body"))?;
-    let original = module
-        .unoptimized_machine_behavior(machine)
-        .ok_or_else(|| unavailable("Build's original checked behavior inventory"))?;
     if module
         .unoptimized_behavior
         .iter()
@@ -388,15 +623,29 @@ fn body_effects(
                 )
             })
     {
-        return Err(unavailable("Build's instruction authority"));
+        return Err(unavailable("the accepted module's instruction authority"));
     }
+    Ok(())
+}
+
+fn body_effects(
+    accepted: &source_compiler::AcceptedTerminalSource,
+    machine: MachineId,
+) -> Result<([Vec<ServiceId>; 2], [bool; 2]), Vec<Diagnostic>> {
+    let module = accepted.module();
+    let body = module
+        .machine(machine)
+        .ok_or_else(|| unavailable("the callable's effect body"))?;
+    let original = module
+        .unoptimized_machine_behavior(machine)
+        .ok_or_else(|| unavailable("the callable's original checked behavior inventory"))?;
     let tables = accepted
         .closure()
         .elaboration
         .tables
         .machines
         .get(machine)
-        .ok_or_else(|| unavailable("Build's checked call inventory"))?;
+        .ok_or_else(|| unavailable("the callable's checked call inventory"))?;
     let mut rows = [Vec::new(), Vec::new()];
     let mut operational = [false; 2];
     let mut include = |callee, required| -> Result<(), Vec<Diagnostic>> {
@@ -409,7 +658,7 @@ fn body_effects(
     };
     for (_, call) in tables.invocations.iter() {
         let Callee::Declared(callee) = call.callee else {
-            return Err(unavailable("Build's indirect call effects"));
+            return Err(unavailable("the callable's indirect call effects"));
         };
         include(callee, call.required_contract)?;
     }
@@ -442,7 +691,7 @@ fn contribution(
         TargetMachineCallable::Machine(machine) => {
             let header = module
                 .invocation_machine_contract(machine, required)
-                .ok_or_else(|| unavailable("a Build call's exact public contract"))?;
+                .ok_or_else(|| unavailable("a call's exact public contract"))?;
             Ok((
                 [
                     &header.published_service_ceiling,
@@ -457,11 +706,11 @@ fn contribution(
             }
             let header = module
                 .boundary_machine(boundary)
-                .ok_or_else(|| unavailable("a Build call's boundary contract"))?;
+                .ok_or_else(|| unavailable("a call's boundary contract"))?;
             let declaration = header
                 .declaration
                 .as_ref()
-                .ok_or_else(|| unavailable("Build's checked boundary operational contract"))?;
+                .ok_or_else(|| unavailable("the checked boundary operational contract"))?;
             // A boundary contributes its public rows, not its owning trait
             // name. This is the same rule as the accepted ceiling judgment.
             Ok((
@@ -476,6 +725,94 @@ fn contribution(
             ))
         }
     }
+}
+
+/// Write frames use module-local field numbers. Review retains the formal's
+/// authored position and the exact type/field identities instead, so another
+/// compilation's numbering cannot change which sibling storage may be written.
+fn mutation(
+    module: &TerminalModule,
+    header: &MachineContract,
+) -> Result<PackagePolicyMutation, Vec<Diagnostic>> {
+    let Some(written) = &header.published_writes else {
+        return Ok(PackagePolicyMutation {
+            completeness: PackageReviewWriteFrameCompleteness::Opaque,
+            paths: Vec::new(),
+        });
+    };
+    header.validate_parameter_order().map_err(unavailable)?;
+    let mut paths = Vec::with_capacity(written.len());
+    for (ordinal, fields) in written {
+        let position = usize::try_from(*ordinal)
+            .map_err(|_| unavailable("a write frame's structural formal ordinal"))?;
+        let formal = header
+            .structural_parameters
+            .get(position)
+            .ok_or_else(|| unavailable("a write frame's structural formal"))?;
+        let authored_position = header
+            .parameter_order
+            .iter()
+            .enumerate()
+            .filter(|(_, kind)| **kind == terminal_psi::BoundaryParameterKind::Structural)
+            .nth(position)
+            .map(|(position, _)| position)
+            .ok_or_else(|| unavailable("a write frame's authored parameter position"))?;
+        let mut path = String::new();
+        crate::record::write_framed_identity(
+            &mut path,
+            "parameter",
+            [authored_position.to_string().as_str()],
+        )
+        .map_err(|_| unavailable("a write frame's parameter identity"))?;
+        let mut tip = Some(formal.structural_type);
+        for (position, field) in fields.iter().enumerate() {
+            let owner = terminal_psi::unique_structural_declaration(
+                &module.structural_types,
+                tip.ok_or_else(|| unavailable("a write frame traversing a scalar leaf"))?,
+                &[],
+            )
+            .ok_or_else(|| unavailable("a write frame's unique field owner"))?;
+            let candidates = owner
+                .shape
+                .direct_fields()
+                .ok_or_else(|| unavailable("a write frame's declared record fields"))?;
+            let mut matching = candidates
+                .iter()
+                .filter(|candidate| candidate.id == *field && !candidate.relevance.is_erased());
+            let member = matching
+                .next()
+                .ok_or_else(|| unavailable("a write frame's live declared field"))?;
+            if matching.next().is_some() {
+                return Err(unavailable("an ambiguous write-frame field"));
+            }
+            let owner_identity = module
+                .identities
+                .text(owner.identity)
+                .filter(|text| !text.is_empty())
+                .ok_or_else(|| unavailable("a write frame's owner identity"))?;
+            let field_identity = module
+                .identities
+                .text(member.identity)
+                .filter(|text| !text.is_empty())
+                .ok_or_else(|| unavailable("a write frame's field identity"))?;
+            crate::record::write_framed_identity(
+                &mut path,
+                "field",
+                [owner_identity, field_identity],
+            )
+            .map_err(|_| unavailable("a write frame's field identity"))?;
+            if position + 1 < fields.len() {
+                tip = member.field_type.as_structural().or(member.inline_carrier);
+            }
+        }
+        paths.push(path);
+    }
+    paths.sort();
+    paths.dedup();
+    Ok(PackagePolicyMutation {
+        completeness: PackageReviewWriteFrameCompleteness::Complete,
+        paths,
+    })
 }
 
 fn crashes(header: &MachineContract) -> Result<PackagePolicyCrash, Vec<Diagnostic>> {
@@ -501,7 +838,9 @@ fn crashes(header: &MachineContract) -> Result<PackagePolicyCrash, Vec<Diagnosti
     let mut published = Vec::new();
     for route in declared {
         if route.alternatives.as_slice() != [CrashRouteGuard::Truth] {
-            return Err(unavailable("Build's conditional published crash guards"));
+            return Err(unavailable(
+                "the callable's conditional published crash guards",
+            ));
         }
         published.push(PackagePolicyCrashRoute {
             cause: cause(route.cause),

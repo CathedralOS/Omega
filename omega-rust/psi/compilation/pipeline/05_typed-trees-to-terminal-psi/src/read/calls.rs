@@ -2540,6 +2540,19 @@ fn mentions<'a>(
     )>,
 ) -> Checked<bool> {
     match &expression.kind {
+        ExpressionKind::Atomic {
+            place, operands, ..
+        } => {
+            if mentions(id, place, slots, captures)? {
+                return Ok(true);
+            }
+            for operand in operands {
+                if mentions(id, operand, slots, captures)? {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
+        }
         ExpressionKind::Slot(slot) => Ok(slots.contains(slot)),
         ExpressionKind::SavedSubject(_) => {
             Ok(root_slot(id, expression, captures)?.is_some_and(|root| slots.contains(&root)))

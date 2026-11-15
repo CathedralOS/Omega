@@ -106,7 +106,7 @@ pub(super) fn project(
         callables: PackagePolicyCallables {
             package,
             target,
-            callables: declarations.build_callable(package)?.into_iter().collect(),
+            callables: declarations.callables(package)?,
         },
         selected_providers: PackagePolicySelectedProviders {
             package,
@@ -268,10 +268,13 @@ fn require_supported_inventory(
             .compilation()
             .build()
             .selected_build_machine_symbol;
-        if (declaration.is_public && Some(declaration.symbol) != selected_build)
-            || !declaration.supplies_checked_body()
+        if Some(declaration.symbol) != selected_build
+            && !declarations.owns(declaration.symbol, package)?
+            && (declaration.is_public || !declaration.supplies_checked_body())
         {
-            return Err(unavailable("public or bodyless callable contracts"));
+            return Err(unavailable(
+                "Build-scope public or bodyless callable contracts",
+            ));
         }
     }
     Ok(())

@@ -211,12 +211,33 @@ impl Lowering<'_> {
         Ok(())
     }
 
+    /// A return or tail arrival leaves every enclosing computed match.
+    /// Retain their real owner roots until the result/arguments are captured;
+    /// the ordinary affine partition disposes only the unmoved remainder.
+    fn selected_temporary_cleanup(&self) -> Vec<terminal_psi::TerminalAffineCleanupAction> {
+        let mut homes = Vec::new();
+        for home in self
+            .selected
+            .iter()
+            .rev()
+            .filter_map(|chosen| chosen.temporary())
+        {
+            if !homes.contains(&home) {
+                homes.push(home);
+            }
+        }
+        homes
+            .into_iter()
+            .map(terminal_psi::TerminalAffineCleanupAction::RetireHome)
+            .collect()
+    }
+
     fn return_value(&mut self, value: ValueId, source: SourceOrigin) -> Checked<()> {
         let edge = self.edge(Destination::Return, source)?;
         self.terminate(Terminator::Return {
             edge,
             value,
-            cleanup_actions: Vec::new(),
+            cleanup_actions: self.selected_temporary_cleanup(),
         })?;
         self.guarantee(edge, source)
     }
@@ -247,7 +268,7 @@ impl Lowering<'_> {
             edge,
             source: source_root,
             returned_claims: Vec::new(),
-            cleanup_actions: Vec::new(),
+            cleanup_actions: self.selected_temporary_cleanup(),
         })?;
         if no_normal_value {
             Ok(())
@@ -260,7 +281,7 @@ impl Lowering<'_> {
         let edge = self.edge(Destination::Return, source)?;
         self.terminate(Terminator::ReturnUnit {
             edge,
-            cleanup_actions: Vec::new(),
+            cleanup_actions: self.selected_temporary_cleanup(),
         })?;
         self.guarantee(edge, source)
     }
@@ -439,7 +460,7 @@ impl Lowering<'_> {
                 default.as_deref(),
                 expression.source,
                 *capture,
-                |lowering, value| {
+                |lowering, value, _temporary| {
                     lowering.complete_value(value)?;
                     lowering.slots.clone_from(&bound);
                     Ok(())
@@ -448,11 +469,16 @@ impl Lowering<'_> {
             return Ok(());
         }
         if let Some((member, arguments)) = self.loops(expression) {
-            let (values, structural, cleanup) =
+            let (values, structural, mut cleanup) =
                 match self.tail_arguments(member, arguments, expression.source)? {
                     Reached::Value(arguments) => arguments,
                     Reached::Ended(_) => return Ok(()),
                 };
+            for action in self.selected_temporary_cleanup() {
+                if !cleanup.contains(&action) {
+                    cleanup.push(action);
+                }
+            }
             return self.arrive(
                 member,
                 values,
@@ -587,7 +613,7 @@ impl Lowering<'_> {
             default,
             source,
             capture,
-            |lowering, value| lowering.arm(value, &mut arrivals),
+            |lowering, value, temporary| lowering.arm(value, &mut arrivals, temporary),
         )? {
             arrivals.ended = Some(call);
         }
@@ -604,7 +630,7 @@ impl Lowering<'_> {
         default: Option<&Expression>,
         source: SourceOrigin,
         capture: Option<arena::Handle<typed_trees::expression::CompletedValueCapture>>,
-        mut finish: impl FnMut(&mut Self, &Expression) -> Checked<()>,
+        mut finish: impl FnMut(&mut Self, &Expression, Option<PlaceId>) -> Checked<()>,
     ) -> Evaluation<()> {
         if let Some(ValueType::Scalar(subject_type, _)) = subject.result {
             return self.scalar_match(subject, subject_type, arms, default, finish);
@@ -628,8 +654,9 @@ impl Lowering<'_> {
         for (value, (block, chosen)) in bodies {
             self.authored_arm(block, decided_in, value.source, value.source);
             self.enter(block);
+            let temporary = chosen.temporary();
             self.selected.push(chosen);
-            let reached = finish(self, value);
+            let reached = finish(self, value, temporary);
             self.selected.pop();
             reached?;
         }
@@ -645,7 +672,7 @@ impl Lowering<'_> {
         subject_type: ScalarType,
         arms: &[(Selector, Expression)],
         default: Option<&Expression>,
-        mut finish: impl FnMut(&mut Self, &Expression) -> Checked<()>,
+        mut finish: impl FnMut(&mut Self, &Expression, Option<PlaceId>) -> Checked<()>,
     ) -> Evaluation<()> {
         let Some(default) = default else {
             return Err(self.internal("a scalar match without a default arm"));
@@ -681,7 +708,7 @@ impl Lowering<'_> {
                 pattern.source,
             )?;
             self.enter(arm);
-            finish(self, value)?;
+            finish(self, value, None)?;
             self.enter(rest);
             decided_in = Some(here);
         }
@@ -689,7 +716,7 @@ impl Lowering<'_> {
             let block = self.current()?;
             self.authored_arm(block, decided_in, default.source, default.source);
         }
-        finish(self, default)?;
+        finish(self, default, None)?;
         Ok(Reached::Value(()))
     }
 
@@ -712,12 +739,21 @@ impl Lowering<'_> {
 
     /// One arm of a value-position `match`, lowered in the open block: its
     /// value and where it arrives from, or the call at which it ended.
-    fn arm(&mut self, value: &Expression, arrivals: &mut Arrivals) -> Checked<()> {
+    fn arm(
+        &mut self,
+        value: &Expression,
+        arrivals: &mut Arrivals,
+        temporary: Option<PlaceId>,
+    ) -> Checked<()> {
+        let source = value.source;
         self.joining += 1;
         let value = self.expression(value);
         self.joining -= 1;
         match value? {
             Reached::Value(value) => {
+                if let Some(home) = temporary {
+                    self.retire_homes(&[home], source)?;
+                }
                 arrivals.values.push((self.current()?, self.here()?, value));
             }
             Reached::Ended(call) => arrivals.ended = Some(call),

@@ -858,6 +858,9 @@ impl Storage<'_> {
                     super::Shape::Scalar(scalar) => {
                         expected.shape == StructuralTypeShape::PrimitiveScalar(scalar)
                     }
+                    super::Shape::Atomic(cell) => {
+                        expected.shape == StructuralTypeShape::AtomicCell(cell)
+                    }
                     super::Shape::Typed(actual) => actual == referent,
                     super::Shape::View | super::Shape::Payload(_) => false,
                 }
@@ -1064,6 +1067,10 @@ impl Storage<'_> {
                         return Ok(Some((concerns, LoanConflict::ObserveWhileExclusive)));
                     }
                 }
+                let atomic_change = matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::AtomicAccess { .. }
+                );
                 for effect in self.operation_changes(operation)? {
                     let (place, backing) = match effect {
                         super::StorageEffect::Payload(place) => {
@@ -1083,11 +1090,15 @@ impl Storage<'_> {
                     if competing_borrows(
                         loan.access,
                         &loan.lineage,
-                        ReferenceAccess::Mutable,
+                        if atomic_change {
+                            ReferenceAccess::Shared
+                        } else {
+                            ReferenceAccess::Mutable
+                        },
                         &backing,
                     )
                     .is_some()
-                        && (!loan.access.is_exclusive()
+                        && ((!atomic_change && !loan.access.is_exclusive())
                             || !self.authorized_reference(loan, &place, at, formed)?)
                     {
                         return Ok(Some((concerns, LoanConflict::ChangeWhileBorrowed)));

@@ -13,7 +13,6 @@ use typed_trees::expression::{
 };
 
 use super::authority::Access;
-use super::storage_path::names_storage;
 use super::{Program, Slot, symbol_kind};
 use crate::body::{Expression, ExpressionKind, Policy, Selector, Strict, ValueType};
 use crate::{SourceOrigin, Unserved, refuse, reject};
@@ -488,7 +487,7 @@ impl<'t> Program<'t> {
             ExpressionNode::ArrayLiteral(elements) => {
                 return self.array_literal(id, slots, *elements, expected, source);
             }
-            ExpressionNode::Atomic(_) => return unserved("atomic"),
+            ExpressionNode::Atomic(atomic) => return self.atomic_load(id, slots, atomic, source),
             ExpressionNode::Cast(cast) => return self.cast(id, slots, cast, source),
             ExpressionNode::Float(_) => return unserved("float literal"),
             ExpressionNode::UndeterminedNaN(_) => return unserved("undetermined NaN"),
@@ -612,10 +611,10 @@ impl<'t> Program<'t> {
         self.observed(id, value, expected)
     }
 
-    /// Value-position `match` over a sum with scalar arms. The subject must
-    /// name storage (a slot or a path beneath one), so observing it in the
-    /// dispatch and again in each arm's payload members evaluates nothing
-    /// twice. Each arm is a case pattern or the wildcard, which must be
+    /// A match retains one completed subject capture. Lowering evaluates a
+    /// computed subject once and keeps its owned storage through the selected
+    /// arm, just as a stored subject keeps its exact projected place. Each
+    /// arm is a case pattern or the wildcard, which must be
     /// last; an arm for a case an earlier arm selects can never run and is
     /// refused. Coverage is not decided here: lowering builds the
     /// terminator from the declaration's case table and reports a missing
@@ -633,9 +632,6 @@ impl<'t> Program<'t> {
         let Some(record) = self.opened(id, subject.result, Access::Read)? else {
             return self.scalar_match(id, slots, matched, subject, expected, source);
         };
-        if !names_storage(&subject) {
-            return Err(unserved("match on a subject that is not a place"));
-        }
         if !self
             .typed
             .expression_table
@@ -1434,7 +1430,8 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                     }
             }
             (
-                ExpressionKind::SavedSubject(_)
+                ExpressionKind::Atomic { .. }
+                | ExpressionKind::SavedSubject(_)
                 | ExpressionKind::Integer(_)
             | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::CollectionMeasure { .. }
