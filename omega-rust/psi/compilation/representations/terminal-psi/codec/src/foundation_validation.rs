@@ -4696,6 +4696,33 @@ pub(crate) mod scalar_applications {
         for condition in conditions.predicates() {
             validate_subject(module, &condition.subject)?;
         }
+        let pending = scope
+            .pending_evaluation_conditions
+            .iter()
+            .map(|(_, owner)| *owner)
+            .collect::<std::collections::BTreeSet<_>>();
+        for machine in &module.machines {
+            for (_, expected) in module
+                .layout_call_conditions(machine)
+                .map_err(CodecError::MalformedStructuralFoundation)?
+            {
+                let ScalarConditionSubject::Declaration(owner) = expected.subject else {
+                    return malformed("layout call condition has no exact declaration owner");
+                };
+                if !pending.contains(&owner)
+                    || conditions
+                        .predicates()
+                        .iter()
+                        .filter(|condition| **condition == expected)
+                        .count()
+                        != 1
+                {
+                    return malformed(
+                        "layout call requirement lost its exact pending target condition",
+                    );
+                }
+            }
+        }
         for observation in conditions.observations() {
             match observation {
                 ScalarRangeObservation::Missing => {
@@ -4809,6 +4836,110 @@ pub(crate) mod scalar_applications {
             ProofCallableAssociation, ProofDeclarationId, ProofScopeDeclaration,
             TerminalIdentityIndex,
         };
+
+        #[test]
+        fn ground_layout_call_replays_its_exact_pending_condition() {
+            use semantic_vocabulary::{
+                IntegerType, IntegerValue, ObligationId, OperationId, Proposition, ScalarTerm,
+                ValueId,
+            };
+            use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
+
+            let caller = MachineId::new(1).unwrap();
+            let callee = MachineId::new(2).unwrap();
+            let evaluator = MachineId::new(3).unwrap();
+            let mut module = TerminalModule::for_entry(caller);
+            module.identities = identity_table(5);
+            for (position, id) in [(1, caller), (2, callee)] {
+                let mut body = unit_machine(id);
+                let declaration = body.declaration.as_mut().unwrap();
+                declaration.semantic_declaration = TerminalIdentityIndex(3);
+                declaration.callable = TerminalIdentityIndex(4);
+                declaration.result_type = TerminalIdentityIndex(5);
+                module
+                    .scalar_applications
+                    .proof_scope
+                    .declarations
+                    .insert(ProofScopeDeclaration::Callable(declaration.clone()));
+                module.scalar_applications.proof_scope.callables.insert(
+                    ProofCallableAssociation::Callable {
+                        declaration: ProofDeclarationId(position),
+                        callable: TargetMachineCallable::Machine(id),
+                    },
+                );
+                module.machines.push(body);
+            }
+            let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+            let scalar_type = ScalarType::Integer(integer);
+            let mut body = unit_machine(evaluator);
+            body.contract.result = terminal_psi::TerminalMachineResult::Scalar(ValueDeclaration {
+                id: ValueId::new(1).unwrap(),
+                scalar_type,
+                qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+            });
+            module.machines.push(body);
+            let application = module
+                .scalar_applications
+                .insert(ScalarApplication::Evaluate {
+                    entry: TargetMachineCallable::Machine(evaluator),
+                    scalar_type,
+                })
+                .unwrap();
+            let at_least = |minimum| {
+                Proposition::LessOrEqual(
+                    ScalarTerm::integer(integer, IntegerValue::Unsigned(minimum)).unwrap(),
+                    ScalarTerm::Application {
+                        application,
+                        scalar_type,
+                    },
+                )
+            };
+            module.machines[1].contract.requires.push(at_least(8));
+            module.machines[0].blocks[0]
+                .operations
+                .push(Operation::unsuspended(
+                    OperationId::new(1).unwrap(),
+                    OperationResult::Unit,
+                    OperationKind::CallUnit {
+                        callee,
+                        arguments: Vec::new(),
+                        erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
+                        structural_arguments: Vec::new(),
+                        claim_transfers: Vec::new(),
+                        requirement_obligations: vec![ObligationId::new(1).unwrap()],
+                        crash_continuations: Vec::new(),
+                    },
+                ));
+
+            let refusal = |module: &TerminalModule| {
+                assert!(matches!(
+                    validate(module),
+                    Err(CodecError::MalformedStructuralFoundation(
+                        "layout call requirement lost its exact pending target condition"
+                    ))
+                ));
+            };
+            refusal(&module);
+            let [(_, condition)] = module
+                .layout_call_conditions(&module.machines[0])
+                .unwrap()
+                .try_into()
+                .unwrap();
+            module
+                .scalar_applications
+                .conditions
+                .insert_predicate(condition);
+            refusal(&module);
+            module
+                .scalar_applications
+                .proof_scope
+                .pending_evaluation_conditions
+                .insert(ProofDeclarationId(1));
+            validate(&module).unwrap();
+            module.machines[1].contract.requires[0] = at_least(17);
+            refusal(&module);
+        }
 
         #[test]
         fn proof_scope_refuses_swapped_same_nominal_callable_descriptions() {

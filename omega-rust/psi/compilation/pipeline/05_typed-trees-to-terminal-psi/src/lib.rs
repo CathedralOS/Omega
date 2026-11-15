@@ -796,6 +796,7 @@ fn finish_reading_into<'source>(
         let body = program.body(next)?;
         bodies.push(body);
     }
+    program.prepare_domain_predicates(diagnostic)?;
     program.finish_declarations(diagnostic)?;
     let components = components::components(&bodies, &mut program.signatures)?;
     let private_inputs = program.private_input_contracts(entry, diagnostic)?;
@@ -1156,20 +1157,13 @@ fn lower_generic_for<'source>(
         source.designated.push(lowered.designated);
         source.calls.push(lowered.calls);
     }
-    // Production publishes only layout observations; their proof scope and
-    // conditions are attached by later owners (`proof_scope`).
-    let proof_scope = std::mem::take(&mut module.scalar_applications.proof_scope);
-    let conditions = std::mem::take(&mut module.scalar_applications.conditions);
-    if !module.scalar_applications.declarations().is_empty() {
-        return Err(refuse(
-            diagnostic,
-            Construct::Machine,
-            Unserved::Declaration("scalar applications published before machine lowering"),
-        ));
+    if let Some(source) = declarations {
+        let proof_scope = std::mem::take(&mut module.scalar_applications.proof_scope);
+        let conditions = std::mem::take(&mut module.scalar_applications.conditions);
+        module.scalar_applications = source.scalar_applications.clone();
+        module.scalar_applications.proof_scope = proof_scope;
+        module.scalar_applications.conditions = conditions;
     }
-    module.scalar_applications = std::mem::take(&mut qualifications.scalar_applications);
-    module.scalar_applications.proof_scope = proof_scope;
-    module.scalar_applications.conditions = conditions;
     module.identities = qualifications.identities.build();
     module.scalar_qualifications = qualifications.catalog;
     module.structural_domains = qualifications.structural;
