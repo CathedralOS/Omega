@@ -3665,6 +3665,23 @@ mod routed_scalar_tests {
         module
     }
 
+    // A qualified input carries its domain predicate in the ordinary entry
+    // contract, independently of whether this machine may establish membership.
+    fn qualify_input(module: &mut TerminalModule) {
+        let qualifications = module.scalar_qualifications.sets[0].id;
+        let mut predicate = module.scalar_qualifications.domains[0]
+            .predicate
+            .as_ref()
+            .unwrap()
+            .proposition
+            .clone();
+        let machine = &mut module.machines[0];
+        let input = &mut machine.parameters[0];
+        input.qualifications = qualifications;
+        predicate.remap_value_ids(|_| input.id);
+        machine.requires.push(predicate);
+    }
+
     #[test]
     fn routed_scalar_result_round_trips_and_commits_predicate_and_origin() {
         let module = module();
@@ -3810,9 +3827,35 @@ mod routed_scalar_tests {
         returned.result = machine.result.scalar().unwrap().id;
         returned.origins = vec![ScalarReturnOrigin::Forwarded];
         module.scalar_qualifications.returns.push(returned);
+        let mut predicate = module.scalar_qualifications.domains[0]
+            .predicate
+            .as_ref()
+            .unwrap()
+            .proposition
+            .clone();
+        predicate.remap_value_ids(|_| destination);
+        module
+            .scalar_block_invariants
+            .push(terminal_psi::ScalarBlockInvariant {
+                machine: module.machines[0].id,
+                header: semantic_vocabulary::BlockId::new(2).unwrap(),
+                predicate,
+                arrivals: vec![terminal_psi::ScalarBlockInvariantArrival {
+                    edge: EdgeId::new(1).unwrap(),
+                    obligation: ObligationId::new(2).unwrap(),
+                }],
+            });
         assert_eq!(
             decode_module(&encode_module(&module).unwrap()).unwrap(),
             module
+        );
+        let mut missing_predicate = module.clone();
+        missing_predicate.scalar_block_invariants.clear();
+        assert_eq!(
+            decode_module(&encode_raw(&missing_predicate).unwrap()),
+            Err(crate::CodecError::MalformedStructuralFoundation(
+                "scalar establishment completion lost its declared predicate obligation",
+            ))
         );
         for mutation in 0..5 {
             let mut malformed = module.clone();
@@ -3924,12 +3967,19 @@ mod routed_scalar_tests {
     #[test]
     fn routed_scalar_forwarding_preserves_membership_without_issuer_status() {
         let mut module = module();
-        module.machines[0].parameters[0].qualifications = ScalarQualificationSetId::new(1);
+        qualify_input(&mut module);
         module.machines[0].declaration.as_mut().unwrap().callable = TerminalIdentityIndex(2);
         module.scalar_qualifications.returns[0].origins = vec![ScalarReturnOrigin::Forwarded];
         assert_eq!(
             decode_module(&encode_module(&module).unwrap()).unwrap(),
             module
+        );
+        module.machines[0].requires.clear();
+        assert_eq!(
+            decode_module(&encode_raw(&module).unwrap()),
+            Err(crate::CodecError::MalformedStructuralFoundation(
+                "scalar signature lost its declared domain predicate",
+            ))
         );
     }
 
@@ -3951,7 +4001,7 @@ mod routed_scalar_tests {
             "{error:?}"
         );
 
-        denied.machines[0].parameters[0].qualifications = ScalarQualificationSetId::new(1);
+        qualify_input(&mut denied);
         denied.machines[0].declaration.as_mut().unwrap().callable = TerminalIdentityIndex(2);
         denied.scalar_qualifications.returns[0].origins = vec![ScalarReturnOrigin::Forwarded];
         assert_eq!(
@@ -3990,7 +4040,6 @@ mod routed_scalar_tests {
         public.declaration.as_mut().unwrap().parameter_types = vec![TerminalIdentityIndex(3)];
         public.declaration.as_mut().unwrap().result_type = TerminalIdentityIndex(3);
         public.requires = vec![Proposition::Truth];
-        public.ensures.clear();
         public.termination = semantic_vocabulary::Termination::Terminates;
         module.declaration_contracts.push(public);
         let decoded = decode_module(&encode_module(&module).unwrap()).unwrap();
@@ -3999,17 +4048,23 @@ mod routed_scalar_tests {
             decoded.declaration_contract(required).unwrap().requires,
             [Proposition::Truth]
         );
-        assert!(
-            decoded
-                .declaration_contract(required)
-                .unwrap()
-                .ensures
-                .is_empty()
+        assert_eq!(
+            decoded.declaration_contract(required).unwrap().ensures,
+            decoded.machines[0].contract.ensures,
         );
         assert_eq!(decoded.machines[0].contract.ensures.len(), 1);
         assert_eq!(
             decoded.declaration_contract(required).unwrap().termination,
             semantic_vocabulary::Termination::Terminates
+        );
+
+        let mut missing_predicate = module.clone();
+        missing_predicate.declaration_contracts[0].ensures.clear();
+        assert_eq!(
+            decode_module(&encode_raw(&missing_predicate).unwrap()),
+            Err(crate::CodecError::MalformedStructuralFoundation(
+                "scalar signature lost its declared domain predicate",
+            ))
         );
 
         let mut executable_requirement = module.clone();
