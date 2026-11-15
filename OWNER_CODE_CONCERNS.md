@@ -73,12 +73,19 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
-### Build invocations lose closed data applications during argument construction
+### Build-time returned views keep their caller loans past last use
 - Category: knowledge crossing a boundary
-- Where: [host argument declaration lookup](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/invocation.rs#L45), [closed data declarations](omega-rust/psi/compilation/representations/typed-trees/src/type_identity.rs#L7731)
-- Saw: Clean `a225808b7c9` on macOS arm64 passes 124 of 129 Build-time evaluation tests. The fixed and generic Pair policies, C scalar layout policy, unselected applied collection, and equal const-index storage all refuse “invocation value has no exact closed data application” while binding the layout schema, shelf, or storage value.
-- Cost: Checked host argument preparation cannot use the closed record that its declaration selects. Find which occurrence loses the retained application and use the existing applied declaration owner while binding the value, keeping the new shared typed-view controls and exact missing or wrong application refusals.
-- Reported: 2026-11-15, Codex, while validating copyable record constants against the repaired main tree.
+- Where: [shared returned-view control](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/borrowed_views.rs#L576), [exclusive returned-view control](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/borrowed_views.rs#L631)
+- Saw: On clean `781f2f5cb50` on macOS arm64, the shared positive refuses its write after `see(view)` as a conflicting loan. The exclusive positive refuses its array read after `fill(view)` as observation outside a live exclusive reference. The controls call `run()` with no host inputs and both passed on clean `a225808b7c9`.
+- Cost: Build-time source judgment cannot reuse the backing after these returned references' last use. Keep the exact call result origin and end its loan at the existing caller frontier. The twins that use the view after accessing the backing must still refuse.
+- Reported: 2026-11-15, Codex, while verifying closed Build-time arguments against current main.
+
+### Fixed-layout negative samples still expect retired range wording
+- Category: tests that pin the bug
+- Where: [local oracle](samples/cli/facts/fixed_layout_storage/invalid_local/expected.txt#L1), [field oracle](samples/cli/facts/fixed_layout_storage/invalid_field/expected.txt#L1), [literal diagnostic check](tools/xtask/src/samples.rs#L510)
+- Saw: On macOS arm64 with the closed-application repair at `ca02a870855`, both unchanged negative programs exit 200 at `41u64 as +Delivered` on line 24, column 25. The checker cites `u64::Delivered` and `self >= 42 && self <= 42`, while both expectation files still require the literal `expected 42..=42`.
+- Cost: The sample gate calls the correct cast refusal a mismatch. Replay the other pinned placements and update the oracles to identify the refused cast, exact domain and unchanged bound.
+- Reported: 2026-11-15, Codex, while validating closed Build-time layout arguments.
 
 ### The bundled atomic fence still uses a retired attached declaration
 - Category: zombie machinery
@@ -200,9 +207,9 @@ framework or a list of features that remain unimplemented.
 - Cost: The wire sample cannot check its codec policy against the numbered fields. Use the existing applied callable contract to check the selected visitor and its exact arguments before emitting ordinary per-member calls. The callback must satisfy the published binder, including when the application's concrete inputs would happen to satisfy a narrower callback.
 - Reported: 2026-11-15, Codex, macOS arm64, with the precheck repair based on `8f2ba3e8ea6`.
 
-### The scalar C-layout control is refused at judgment after its layout succeeds
-- Category: a test that fails on `main`
-- Where: [C-layout control](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs) (`the_library_c_layout_policy_keeps_its_existing_scalar_record`)
-- Saw: once build-time invocations form views for unviewed data applications, the library C policy lays out the scalar `Record` with the expected size 24, alignment 8 and offsets 0/8/16. `AcceptedTerminalSource::judge` then refuses the same program: "not supported yet: declaration holding a call whose name resolves to no declaration while reading the signature of `main`". Before that repair, the control stopped earlier, at "constant argument `schema`: invocation value has no exact closed data application".
-- Cost: the only control for the library C layout policy cannot reach publication, so a regression in C-layout publication goes unseen. Find which call in `main`'s signature the lowered-form checker cannot resolve and support it there; do not change the control's program.
-- Reported: 2026-11-15, Claude Code, linux_x86_64, while repairing default-provider layout demand
+### The scalar C layout program loses field identity at checked publication
+- Category: knowledge crossing a boundary
+- Where: [C scalar source](samples/cli/facts/c_layout_scalar_record/local/main.omg#L18), [field-symbol check](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/places.rs#L795), [C control](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs) (`the_library_c_layout_policy_keeps_its_existing_scalar_record`)
+- Saw: On macOS arm64 at `fd26884075d` over `781f2f5cb50`, the real C policy computes size 24, alignment 8 and offsets `[0, 8, 16]`. After #3465, Product judgment refuses `main` with “spelling member without a field symbol.” A typed-source probe of the same program found the three fields unresolved on the owned `record`, its local copy and the mapped reference.
+- Cost: The exact C-layout control reaches its geometry assertions and still stops before publication. Carry the selected record's authored field symbols through the existing projection path for the `CLayout<Record>` alias and its reference. Keep the test source and byte oracle.
+- Reported: 2026-11-15, Claude Code, while repairing default-provider layout demand. Narrowed 2026-11-15, Codex, after selected layout observations landed.

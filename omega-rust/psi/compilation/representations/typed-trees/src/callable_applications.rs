@@ -9341,6 +9341,11 @@ impl TypedTrees {
             .ok_or("input member lost its closed data application")?;
         let declaration = definition.symbol;
         let parameters = definition.lifetime_parameters.clone();
+        if parameters.is_empty() {
+            // The retained member already has its static arguments applied.
+            // With no enclosing lifetimes to bind, keep that occurrence.
+            return Ok(original);
+        }
         let application = self
             .type_reference_table
             .unconstrained_type_reference(application);

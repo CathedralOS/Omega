@@ -944,6 +944,40 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn layout_schema_members_keep_their_applied_type_without_lifetime_bindings() {
+        // Every repeated schema field uses the same closed Optional<u64>.
+        // Its enclosing SchemaField has no lifetime arguments to apply.
+        let mut source = with_reflection(
+            "use omega::language::core::SchemaField;
+             machine retain_schema_member_type(field: SchemaField) {}",
+        );
+        let machine = source
+            .realized_machine_named("retain_schema_member_type")
+            .unwrap();
+        let [entry] = source.machine_states(machine) else {
+            panic!("one entry state");
+        };
+        let [field] = source.state_parameters(entry) else {
+            panic!("one schema field parameter");
+        };
+        let enclosing = field.type_reference;
+        let schema = source.closed_data_definition(enclosing).unwrap();
+        let identity = source
+            .data_members(schema)
+            .iter()
+            .filter_map(typed_trees::data::DataMember::as_field)
+            .find(|field| field.name.as_str() == "identity")
+            .unwrap()
+            .type_reference;
+        assert!(source.closed_data_definition(identity).is_some());
+
+        let applied = source
+            .instantiate_data_member_type(identity, enclosing)
+            .unwrap();
+        assert_eq!(applied, identity);
+    }
+
+    #[test]
     fn source_jobs_transport_only_the_issued_layout_context() {
         // Passing the opaque input through another checked call must return
         // that actual input. Neither a record with its name nor target facts
