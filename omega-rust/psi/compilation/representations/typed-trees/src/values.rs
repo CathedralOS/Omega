@@ -5,7 +5,6 @@ copying in `TypedTrees`.
 */
 
 pub(crate) mod captures {
-    use crate::expression::ExpressionHandle;
 
     impl crate::TypedTrees {
         pub fn saved_value_source(
@@ -44,26 +43,6 @@ pub(crate) mod captures {
                 && source == capture.subject
                 && table.expression_is_valid(source))
             .then_some(source)
-        }
-
-        pub fn saved_argument_source(
-            &self,
-            expression: ExpressionHandle,
-        ) -> Option<ExpressionHandle> {
-            let crate::expression::ExpressionNode::SavedSubject(saved) =
-                self.expression_table.expression(expression)
-            else {
-                return None;
-            };
-            if !self.expression_table.contains_value_capture(saved.capture)
-                || matches!(
-                    self.expression_table.value_capture(saved.capture).owner,
-                    crate::expression::ValueCaptureOwner::Match
-                )
-            {
-                return None;
-            }
-            self.saved_value_source(saved)
         }
     }
 }
@@ -107,26 +86,6 @@ pub mod const_integer {
                 _ => Some(ConstIntegerExpression::Open),
             },
         )
-    }
-
-    pub fn is_integer_expression(
-        expressions: &ExpressionTable,
-        expression: ExpressionHandle,
-        is_binder: &impl Fn(SymbolHandle, &str) -> bool,
-    ) -> bool {
-        fold(
-            expressions,
-            expression,
-            &|leaf| match leaf {
-                IntegerLeaf::Literal(_) => Some(()),
-                IntegerLeaf::Name { symbol, spelling } => ((!symbol.is_valid()
-                    && spelling.parse::<i128>().is_ok())
-                    || is_binder(symbol, spelling))
-                .then_some(()),
-            },
-            &|_, (), ()| Some(()),
-        )
-        .is_some()
     }
 
     enum IntegerLeaf<'expression> {
@@ -430,22 +389,6 @@ pub mod expression {
                 self.table
                     .expression((self.displayed_expression)(expression))
                     .write_display_name_with(self, rendered);
-            }
-        }
-
-        impl ExpressionTable {
-            pub(crate) fn display_name_resolving(
-                &self,
-                expression: ExpressionHandle,
-                displayed_expression: &dyn Fn(ExpressionHandle) -> ExpressionHandle,
-            ) -> String {
-                let mut rendered = String::new();
-                ExpressionDisplay {
-                    table: self,
-                    displayed_expression,
-                }
-                .write_display_name(expression, &mut rendered);
-                rendered
             }
         }
 
@@ -1714,18 +1657,6 @@ pub mod expression {
                 }
             }
 
-            pub fn copy_expression_handles_from_slice(
-                &mut self,
-                source: &ExpressionTable,
-                expressions: &[ExpressionHandle],
-            ) -> HandleSpan<ExpressionHandle> {
-                self.copy_expression_list(
-                    CopySource::Table(source),
-                    expressions,
-                    &retain_every_field,
-                )
-            }
-
             /// Copy the existing call inputs and application into this table.
             /// The caller assigns the new invocation owner and judges it; the
             /// original application's tuple and scope remain untouched.
@@ -1811,23 +1742,6 @@ pub mod expression {
                 self.copy_subtree_with_occurrences(
                     source,
                     expression,
-                    retain,
-                    &mut CopyGraph::default(),
-                )
-            }
-
-            fn copy_expression_list<RetainField>(
-                &mut self,
-                source: CopySource<'_>,
-                expressions: &[ExpressionHandle],
-                retain: &RetainField,
-            ) -> HandleSpan<ExpressionHandle>
-            where
-                RetainField: Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
-            {
-                self.copy_expression_list_with_occurrences(
-                    source,
-                    expressions,
                     retain,
                     &mut CopyGraph::default(),
                 )
@@ -3323,14 +3237,6 @@ pub mod expression {
             self.completed_values.is_valid(capture)
         }
 
-        pub fn set_value_anchor(
-            &mut self,
-            capture: Handle<CompletedValueCapture>,
-            anchor: ExpressionHandle,
-        ) {
-            self.completed_values.get_mut(capture).value_anchor = anchor;
-        }
-
         pub fn saved_subject_source(&self, saved: &TableSavedSubject) -> Option<ExpressionHandle> {
             if !self.contains_value_capture(saved.capture) {
                 return None;
@@ -3404,38 +3310,6 @@ pub mod expression {
             self.match_arms(arms)
                 .iter()
                 .all(|arm| visit(arm.pattern, arm.value))
-        }
-
-        pub fn match_deep_all(
-            &self,
-            dispatch: &TableMatchExpression,
-            mut visit: impl FnMut(ExpressionHandle) -> bool,
-        ) -> bool {
-            visit(dispatch.subject)
-                && self.match_arms_all(dispatch.arms, |pattern, value| {
-                    self.match_pattern_dependencies(pattern).all(&mut visit) && visit(value)
-                })
-        }
-
-        pub fn match_deep_any(
-            &self,
-            dispatch: &TableMatchExpression,
-            mut visit: impl FnMut(ExpressionHandle) -> bool,
-        ) -> bool {
-            visit(dispatch.subject)
-                || self.match_arms(dispatch.arms).iter().any(|arm| {
-                    self.match_pattern_dependencies(arm.pattern).any(&mut visit) || visit(arm.value)
-                })
-        }
-
-        pub fn match_pending(&self, dispatch: &TableMatchExpression) -> Vec<ExpressionHandle> {
-            let mut pending = Vec::new();
-            for arm in self.match_arms(dispatch.arms).iter().rev() {
-                pending.push(arm.value);
-                pending.extend(self.match_pattern_dependencies(arm.pattern));
-            }
-            pending.push(dispatch.subject);
-            pending
         }
 
         pub fn new() -> Self {
@@ -3968,21 +3842,6 @@ pub mod expression {
             self.metadata_mut(handle).authored_selection_occurrences = retained;
         }
 
-        /// Hands an expression's authored selection occurrences to the
-        /// expression that now holds its operation, so a rewrite that wraps
-        /// an authored operator keeps one owner for each occurrence.
-        pub fn move_authored_selection_occurrences(
-            &mut self,
-            from: ExpressionHandle,
-            to: ExpressionHandle,
-        ) {
-            let moved = std::mem::replace(
-                &mut self.metadata_mut(from).authored_selection_occurrences,
-                HandleSpan::empty(),
-            );
-            self.metadata_mut(to).authored_selection_occurrences = moved;
-        }
-
         pub fn authored_selection_occurrences(
             &self,
             handle: ExpressionHandle,
@@ -4077,17 +3936,6 @@ pub mod expression {
             &self.expressions.get(stored_expression_handle(handle)).node
         }
 
-        pub fn peeled_expression_handle(&self, mut handle: ExpressionHandle) -> ExpressionHandle {
-            while let ExpressionNode::Borrow(inner) = self.expression(handle) {
-                handle = inner.target;
-            }
-            handle
-        }
-
-        pub fn peeled_expression(&self, handle: ExpressionHandle) -> &ExpressionNode {
-            self.expression(self.peeled_expression_handle(handle))
-        }
-
         expression_node_accessors! {
             name_path_node(Name) -> TableNamePath;
 
@@ -4119,10 +3967,6 @@ pub mod expression {
 
         }
 
-        pub fn indexed_on_range(&self, indexed: &TableIndexedExpression) -> bool {
-            matches!(self.expression(indexed.index), ExpressionNode::Range(_))
-        }
-
         #[inline]
         pub fn expression_is_valid(&self, handle: ExpressionHandle) -> bool {
             self.expressions.is_valid(stored_expression_handle(handle))
@@ -4136,17 +3980,6 @@ pub mod expression {
                 return None;
             };
             Some(borrow)
-        }
-
-        pub fn expression_at_depth(
-            &self,
-            handle: ExpressionHandle,
-            depth: usize,
-        ) -> Option<&ExpressionNode> {
-            if depth >= 128 || !self.expression_is_valid(handle) {
-                return None;
-            }
-            Some(self.expression(handle))
         }
 
         pub fn authored_length_receiver(
@@ -4184,14 +4017,6 @@ pub mod expression {
             self.expression_roots
                 .iter()
                 .map(|(_, handle)| (*handle, self.expression(*handle)))
-        }
-
-        pub fn iter_backing_expressions(
-            &self,
-        ) -> impl Iterator<Item = (ExpressionHandle, &ExpressionNode)> {
-            self.expressions
-                .iter()
-                .map(|(handle, row)| (expression_handle(handle), &row.node))
         }
 
         pub fn iter_expressions_from(
@@ -4264,28 +4089,6 @@ pub mod expression {
             span: HandleSpan<Identifier>,
         ) -> Option<&[Identifier]> {
             self.name_path_members.span(span)
-        }
-
-        pub fn respell_single_member_names(&mut self, symbol: SymbolHandle, member: &Identifier) {
-            let spans: Vec<HandleSpan<Identifier>> = self
-                .iter_backing_expressions()
-                .filter_map(|(_, node)| match node {
-                    ExpressionNode::Name(path)
-                        if !path.static_application.is_valid()
-                            && path.symbol == symbol
-                            && path.head_symbol == symbol
-                            && self.name_path_members(path.members).len() == 1 =>
-                    {
-                        Some(path.members)
-                    }
-                    _ => None,
-                })
-                .collect();
-            for span in spans {
-                for existing in self.name_path_members.span_mut_or_empty(span) {
-                    *existing = member.clone();
-                }
-            }
         }
 
         #[inline]
@@ -5263,18 +5066,6 @@ pub mod expression {
             self.reserved_result_of = SymbolHandle::invalid();
         }
 
-        pub fn push_resolved(&mut self, member: Identifier, symbol: SymbolHandle) {
-            let mut members = self.members.iter().cloned().collect::<Vec<_>>();
-            members.push(member);
-            self.members = Arc::from(members.into_boxed_slice());
-
-            let mut member_symbols = self.member_symbols.iter().copied().collect::<Vec<_>>();
-            member_symbols.push(symbol);
-            self.member_symbols = Arc::from(member_symbols.into_boxed_slice());
-            self.symbol = symbol;
-            self.reserved_result_of = SymbolHandle::invalid();
-        }
-
         pub fn extend_from_slice(&mut self, members: &[Identifier]) {
             let mut path = self.members.iter().cloned().collect::<Vec<_>>();
             path.extend_from_slice(members);
@@ -5392,10 +5183,6 @@ pub mod expression {
                 BinaryOperator::GreaterOrEqual => left >= right,
                 _ => return None,
             })
-        }
-
-        pub fn mirrored_comparison(self) -> Option<BinaryOperator> {
-            self.complement().map(|_| self.mirrored())
         }
 
         pub fn mirrored(self) -> BinaryOperator {
@@ -5588,20 +5375,6 @@ pub mod expression {
         Value(Expression),
         Wildcard,
     }
-
-    pub fn ieee_float_value(
-        literal: &numerics::literals::FloatLiteral,
-        format: numerics::literals::FloatFormat,
-    ) -> semantic_vocabulary::IeeeFloatValue {
-        match format {
-            numerics::literals::FloatFormat::F32 => {
-                semantic_vocabulary::IeeeFloatValue::Binary32(literal.f32_bits())
-            }
-            numerics::literals::FloatFormat::F64 => {
-                semantic_vocabulary::IeeeFloatValue::Binary64(literal.value_f64().to_bits())
-            }
-        }
-    }
 }
 mod pattern_components {
     //! A case view keeps its decomposition contract when a reference aliases it.
@@ -5735,18 +5508,6 @@ pub mod subtrees {
     impl SubtreeEdges {
         pub const VALUES: Self = Self {
             saved_sources: false,
-            atomic_results: false,
-            pattern_dependencies: false,
-        };
-
-        pub const STRUCTURAL: Self = Self {
-            saved_sources: false,
-            atomic_results: true,
-            pattern_dependencies: false,
-        };
-
-        pub const SAVED_SOURCES: Self = Self {
-            saved_sources: true,
             atomic_results: false,
             pattern_dependencies: false,
         };

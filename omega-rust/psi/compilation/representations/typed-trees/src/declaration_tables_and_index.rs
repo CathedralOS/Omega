@@ -531,7 +531,6 @@ pub mod declaration_index {
         pub(crate) struct DataMemberIndex {
             fields: SymbolRows<(u32, u32, u32)>,
             variants: SymbolRows<(u32, u32)>,
-            variant_names: Vec<(Box<str>, (u32, u32))>,
         }
 
         impl DataMemberIndex {
@@ -559,7 +558,6 @@ pub mod declaration_index {
                     self.data_member_scope(),
                     || {
                         let (mut fields, mut variants) = (Vec::new(), Vec::new());
-                        let mut variant_names: Vec<(Box<str>, (u32, u32))> = Vec::new();
                         // A partial field relation cannot prove uniqueness;
                         // malformed storage refuses the complete query family.
                         let Some(definitions) = self
@@ -581,8 +579,6 @@ pub mod declaration_index {
                                         .push((field.symbol, (position.0, position.1, u32::MAX))),
                                     DataMember::Variant(variant) => {
                                         variants.push((variant.symbol, position));
-                                        variant_names
-                                            .push((variant.name.as_str().into(), position));
                                         let Some(payload) =
                                             self.tables.data_payload_fields.span(variant.payload)
                                         else {
@@ -599,11 +595,9 @@ pub mod declaration_index {
                                 }
                             }
                         }
-                        variant_names.sort_by(|left, right| left.0.cmp(&right.0));
                         DataMemberIndex {
                             fields: SymbolRows::new(fields),
                             variants: SymbolRows::new(variants),
-                            variant_names,
                         }
                     },
                     run,
@@ -659,21 +653,6 @@ pub mod declaration_index {
                 symbol: SymbolHandle,
             ) -> Option<(u32, u32)> {
                 self.with_data_members(|index| index.variants.first(symbol).copied())
-            }
-
-            pub fn data_variant_positions_for_name(&self, name: &str) -> Vec<(u32, u32)> {
-                self.with_data_members(|index| {
-                    let start = index
-                        .variant_names
-                        .partition_point(|(candidate, _)| candidate.as_ref() < name);
-                    let end = index
-                        .variant_names
-                        .partition_point(|(candidate, _)| candidate.as_ref() <= name);
-                    index.variant_names[start..end]
-                        .iter()
-                        .map(|(_, position)| *position)
-                        .collect()
-                })
             }
         }
 
@@ -813,15 +792,6 @@ pub mod declaration_index {
                     index.rows.first(symbol).copied()
                 })?;
                 Some(self.applied_callable_signatures.get(handle))
-            }
-
-            pub(crate) fn closed_requirement_instance_handles_for_template(
-                &self,
-                template: SymbolHandle,
-            ) -> Vec<Handle<AppliedCallableSignature>> {
-                self.with_requirement_application_index(|index| {
-                    index.by_template.get(template).to_vec()
-                })
             }
         }
     }
@@ -1577,18 +1547,6 @@ pub mod declaration_index {
             self.with_state_positions_for_symbol(symbol, |positions| positions.to_vec())
         }
 
-        /// The first machine, in table order, that declares a state named
-        /// `state`: the answer a scan of every machine's states would give,
-        /// read from the state index instead. Index rows keep table order.
-        pub fn machine_containing_state(&self, state: SymbolHandle) -> Option<&machine::Machine> {
-            let position = self.with_state_position_index(|index| {
-                index
-                    .first(state)
-                    .map(|(machine_position, _)| *machine_position)
-            })?;
-            Some(&self.machines()[position as usize])
-        }
-
         /// Every machine declared as `symbol`, in table order. A symbol can
         /// name several rows (a template and its requirement, say), so callers
         /// that also test supply mode or parameters filter this instead of
@@ -1775,13 +1733,6 @@ pub mod declaration_index {
             )
         }
 
-        pub fn data_selects_cleanup(&self, data_symbol: SymbolHandle) -> bool {
-            data_symbol.is_valid()
-                && self
-                    .unique_data_definition_by_symbol(data_symbol)
-                    .is_some_and(|data| data.cleanup_selection.is_some())
-        }
-
         pub fn with_call_target_index<R>(&self, run: impl FnOnce(&CallTargetIndex) -> R) -> R {
             self.declaration_indexes.call_targets.with(
                 self.call_target_scope(),
@@ -1866,22 +1817,12 @@ pub mod declaration_index {
                 |index| run(index),
             )
         }
-
-        pub fn with_isolation_verdicts<R>(
-            &self,
-            revision: u64,
-            run: impl FnOnce(&mut IsolationVerdicts) -> R,
-        ) -> R {
-            self.declaration_indexes
-                .isolation
-                .with_mut(revision, IsolationVerdicts::default, run)
-        }
     }
 }
 
 pub(crate) mod declaration_tables {
     use crate::ClosedConformanceApplicationSite::Occurrence;
-    use crate::machine::Machine;
+
     use crate::mathematical::MathematicalDefinition;
     use crate::name::Identifier;
     use crate::static_applications::StaticMachineApplicationHandle;
@@ -1967,19 +1908,6 @@ pub(crate) mod declaration_tables {
             rows.next().is_none().then_some((implementation, row))
         }
 
-        /// Whether `machine` is the inline member of a conformance row whose
-        /// requirement wrote `crashes none`.
-        pub fn realizes_crash_free_requirement(&self, machine: symbols::SymbolHandle) -> bool {
-            let Some((_, row)) = self.owned_conformance_realization(machine) else {
-                return false;
-            };
-            self.trait_definition_by_symbol(row.declaring_trait)
-                .and_then(|declaring| {
-                    self.trait_machine_signature_by_symbol(declaring, row.requirement)
-                })
-                .is_some_and(|requirement| requirement.declares_no_crash_route)
-        }
-
         pub fn owned_conformance_requirement_scope(
             &self,
             realization: symbols::SymbolHandle,
@@ -2045,20 +1973,6 @@ pub(crate) mod declaration_tables {
                 }
             }
             live
-        }
-
-        pub fn closed_conformance_application_sites(&self) -> Vec<ConformanceSite<'_>> {
-            self.closed_conformance_application_sites_matching(|_| true, None)
-        }
-
-        pub fn closed_conformance_application_sites_for_owners(
-            &self,
-            owners: &[symbols::SymbolHandle],
-        ) -> Vec<ConformanceSite<'_>> {
-            self.closed_conformance_application_sites_matching(
-                |owner| owners.contains(&owner),
-                None,
-            )
         }
 
         pub(crate) fn closed_conformance_application_sites_from_occurrences(
@@ -2162,45 +2076,6 @@ pub(crate) mod declaration_tables {
             sites
         }
 
-        pub fn closed_conformance_application_at_mut(
-            &mut self,
-            site: crate::ClosedConformanceApplicationSite,
-        ) -> Option<&mut crate::ClosedConformanceApplication> {
-            match site {
-                crate::ClosedConformanceApplicationSite::ProductOperand(handle) => self
-                    .product_operand_applications
-                    .get_mut(handle)
-                    .implementation
-                    .as_mut(),
-                crate::ClosedConformanceApplicationSite::DataArgument(handle) => Some(
-                    &mut self
-                        .data_implementation_applications
-                        .get_mut(handle)
-                        .application,
-                ),
-                crate::ClosedConformanceApplicationSite::TraitArgument(handle) => Some(
-                    &mut self
-                        .trait_implementation_applications
-                        .get_mut(handle)
-                        .application,
-                ),
-                crate::ClosedConformanceApplicationSite::Invocation {
-                    specialization,
-                    application,
-                } => self
-                    .machine_specializations
-                    .conformance_applications_mut(specialization)?
-                    .get_mut(application),
-                Occurrence(handle) => self
-                    .expression_table
-                    .static_machine_application_mut(handle)
-                    .conformance_selection
-                    .as_mut()?
-                    .application
-                    .as_deref_mut(),
-            }
-        }
-
         pub fn retain_live_trait_implementation_applications(
             &mut self,
             removed: impl Fn(symbols::SymbolHandle) -> bool,
@@ -2288,14 +2163,6 @@ pub(crate) mod declaration_tables {
             self.trait_implementation_applications = applications;
         }
 
-        pub fn closed_application_selected_machines(
-            &self,
-            application: &crate::ClosedConformanceApplication,
-        ) -> &[crate::expression::StaticMachineArgument] {
-            self.expression_table
-                .static_machine_application_selected_machines(application.callable_application)
-        }
-
         pub fn specialization_binding(
             &self,
             specialization: &crate::MachineSpecialization,
@@ -2307,18 +2174,6 @@ pub(crate) mod declaration_tables {
                 .filter(|binding| binding.parameter == parameter);
             let selected = bindings.next()?;
             bindings.next().is_none().then_some(&selected.value)
-        }
-
-        pub fn callable_body_has_open_parameters(&self, machine: &Machine) -> bool {
-            machine.has_specialization_parameters()
-                || self.conformances().iter().any(|conformance| {
-                    (!self.conformance_type_parameters(conformance).is_empty()
-                        || !conformance.lifetime_parameters.is_empty())
-                        && conformance.rows.iter().any(|row| {
-                            row.source.owns_realization()
-                                && row.realization_machine == machine.symbol
-                        })
-                })
         }
 
         pub fn executable_application_template(
@@ -2348,161 +2203,6 @@ pub(crate) mod declaration_tables {
                 return Ok(None);
             };
             application.entry_template(self, callable).map(Some)
-        }
-
-        pub fn machine_invokes_declaration(
-            &self,
-            mut callable: symbols::SymbolHandle,
-            declaration: symbols::SymbolHandle,
-        ) -> Result<bool, &'static str> {
-            for _ in 0..=self.machines().len() {
-                if callable == declaration {
-                    return Ok(true);
-                }
-                if self.target_machine_families.iter().any(|family| {
-                    family.canonical == declaration
-                        && family
-                            .members
-                            .iter()
-                            .any(|member| member.machine == callable)
-                }) {
-                    return Ok(true);
-                }
-                let template = match self.executable_application_template(callable)? {
-                    Some(template) => template,
-                    None => {
-                        let Some(machine) = self.machine(callable) else {
-                            return Ok(false);
-                        };
-                        machine.generic_data_template
-                    }
-                };
-                if !template.is_valid() {
-                    return Ok(false);
-                }
-                if template == callable {
-                    return Err("executable application has cyclic template ownership");
-                }
-                callable = template;
-            }
-            Err("executable application template chain exceeds retained declarations")
-        }
-
-        pub fn realization_entry_template(
-            &self,
-            entry: symbols::SymbolHandle,
-            application: &crate::ClosedConformanceApplication,
-        ) -> Option<(symbols::SymbolHandle, symbols::SymbolHandle)> {
-            self.realization_entry_lineage(entry, application)?
-                .last()
-                .copied()
-        }
-
-        pub fn realization_entry_lineage(
-            &self,
-            entry: symbols::SymbolHandle,
-            application: &crate::ClosedConformanceApplication,
-        ) -> Option<Vec<(symbols::SymbolHandle, symbols::SymbolHandle)>> {
-            self.entry_lineage_with(entry, None, |capture| {
-                self.closed_conformance_applications_match(
-                    &capture.conformance_application,
-                    application,
-                ) && self
-                    .conformance_by_symbol(application.declaration)
-                    .is_some_and(|selecting| {
-                        selecting.rows.iter().any(|row| {
-                            row.source.owns_realization()
-                                && row.realization_machine == capture.template
-                        })
-                    })
-            })
-        }
-
-        pub fn requirement_realization_entry_lineage(
-            &self,
-            entry: symbols::SymbolHandle,
-            requirement: symbols::SymbolHandle,
-            selecting: symbols::SymbolHandle,
-            realization: symbols::SymbolHandle,
-        ) -> Option<Vec<(symbols::SymbolHandle, symbols::SymbolHandle)>> {
-            let provider = self.machine_holding_state(entry)?;
-            if !self.requirement_realization_matches(requirement, realization, provider.symbol) {
-                return None;
-            }
-            let lineage = self.entry_lineage_with(entry, Some(realization), |capture| {
-                capture.conformance_application.declaration == selecting
-                    && self
-                        .conformance_by_symbol(selecting)
-                        .is_some_and(|declaration| {
-                            declaration.rows.iter().any(|row| {
-                                row.source.owns_realization()
-                                    && row.realization_machine == capture.template
-                            })
-                        })
-                    && capture
-                        .conformance_application
-                        .trait_scope
-                        .scope(self)
-                        .is_some_and(|scope| {
-                            self.requirement_application_matches_scope(requirement, &scope)
-                        })
-            })?;
-            (lineage.last()?.0 == realization).then_some(lineage)
-        }
-
-        fn entry_lineage_with(
-            &self,
-            mut entry: symbols::SymbolHandle,
-            stop: Option<symbols::SymbolHandle>,
-            capture_matches: impl Fn(&crate::CapturedMachineApplication) -> bool,
-        ) -> Option<Vec<(symbols::SymbolHandle, symbols::SymbolHandle)>> {
-            let mut visited = Vec::new();
-            loop {
-                let machine = self.machine_containing_state(entry)?;
-                if visited.iter().any(|(symbol, _)| *symbol == machine.symbol) {
-                    return None;
-                }
-                visited.push((machine.symbol, entry));
-                if stop == Some(machine.symbol) {
-                    return Some(visited);
-                }
-                let invocations = self
-                    .machine_specializations
-                    .for_instance(machine.symbol)
-                    .collect::<Vec<_>>();
-                let captures = self
-                    .captured_machine_applications
-                    .iter()
-                    .filter(|(_, capture)| capture.instance == machine.symbol)
-                    .map(|(_, capture)| capture)
-                    .collect::<Vec<_>>();
-                if invocations.len() + captures.len() > 1 {
-                    return None;
-                }
-                if let [invocation] = invocations.as_slice() {
-                    let ordinal = self
-                        .machine_states(machine)
-                        .iter()
-                        .position(|state| state.symbol == entry)?;
-                    let template = self.machine_by_symbol(invocation.template)?;
-                    entry = self.machine_states(template).get(ordinal)?.symbol;
-                    continue;
-                }
-                if let [capture] = captures.as_slice() {
-                    if !capture_matches(capture) {
-                        return None;
-                    }
-                    let states = self.captured_machine_states.span_or_empty(capture.states);
-                    let mut states = states.iter().filter(|state| state.instance == entry);
-                    let template = states.next()?.template;
-                    if states.next().is_some() {
-                        return None;
-                    }
-                    entry = template;
-                    continue;
-                }
-                return Some(visited);
-            }
         }
 
         pub fn lifetime_declaration_owner(
@@ -2784,29 +2484,10 @@ pub(crate) mod declaration_tables {
                 .is_some_and(|view| view.is_closed)
         }
 
-        pub fn data_definition_by_name(&self, name: &Identifier) -> Option<&data::DataDefinition> {
-            self.data_definitions()
-                .iter()
-                .find(|definition| definition.name == *name)
-        }
-
         pub fn data_definition_by_name_str(&self, name: &str) -> Option<&data::DataDefinition> {
             self.data_definitions()
                 .iter()
                 .find(|definition| definition.name.as_str() == name)
-        }
-
-        pub fn attached_data_definition(&self, machine: &Machine) -> Option<&data::DataDefinition> {
-            if machine.attached_data_symbol.is_valid() {
-                return self.data_definition_by_symbol(machine.attached_data_symbol);
-            }
-            let attached = machine.attached_data.as_ref()?;
-            let mut matches = self
-                .data_definitions()
-                .iter()
-                .filter(|definition| definition.name.as_str() == attached.as_str());
-            let first = matches.next()?;
-            matches.next().is_none().then_some(first)
         }
 
         crate::declaration_columns! {
@@ -2858,70 +2539,6 @@ pub(crate) mod declaration_tables {
             ) = operator_path_members.name;
         }
 
-        pub fn data_value_parameter_fields<'a>(
-            &'a self,
-            definition: &data::DataDefinition,
-        ) -> impl Iterator<Item = (&'a data::TypeParameter, &'a data::DataField)> + 'a {
-            self.data_type_parameters(definition)
-                .iter()
-                .filter(|parameter| matches!(parameter.kind, data::TypeParameterKind::Value { .. }))
-                .zip(self.data_members(definition))
-                .filter_map(|(parameter, member)| {
-                    let data::DataMember::Field(field) = member else {
-                        return None;
-                    };
-                    (parameter.name == field.name).then_some((parameter, field))
-                })
-        }
-
-        pub fn data_application_value_fields(
-            &self,
-            reference: TypeReferenceHandle,
-        ) -> Vec<(&data::TypeParameter, &data::DataField, TypeReferenceHandle)> {
-            use crate::types::TypeReferenceNode;
-            let table = &self.type_reference_table;
-            let reference = table.peeled_type_reference(reference);
-            let concrete = match table.type_reference(reference) {
-                TypeReferenceNode::Named { symbol, .. } => {
-                    self.unique_data_definition_by_symbol(*symbol)
-                }
-                _ => None,
-            };
-            let application = concrete
-                .and_then(|data| data.generic_instance)
-                .unwrap_or(reference);
-            let TypeReferenceNode::Generic {
-                base_symbol,
-                arguments,
-                ..
-            } = table.type_reference(application)
-            else {
-                return Vec::new();
-            };
-            let Some(template) = self.unique_data_definition_by_symbol(*base_symbol) else {
-                return Vec::new();
-            };
-            let parameters = self.data_type_parameters(template);
-            let arguments = table.type_reference_handles(*arguments);
-            if parameters.len() != arguments.len() {
-                return Vec::new();
-            }
-            let represented = self
-                .data_application_definition(reference)
-                .or(concrete)
-                .unwrap_or(template);
-            self.data_value_parameter_fields(template)
-                .enumerate()
-                .filter_map(|(ordinal, (binder, _))| {
-                    let position = parameters
-                        .iter()
-                        .position(|parameter| parameter.symbol == binder.symbol)?;
-                    let field = self.data_members(represented).get(ordinal)?.as_field()?;
-                    Some((binder, field, arguments[position]))
-                })
-                .collect()
-        }
-
         pub fn data_member_fields<'a>(
             &'a self,
             members: &'a [data::DataMember],
@@ -2930,67 +2547,6 @@ pub(crate) mod declaration_tables {
                 data::DataMember::Field(field) => std::slice::from_ref(field),
                 data::DataMember::Variant(variant) => self.data_payload_fields(variant),
             })
-        }
-
-        pub fn live_data_fields<'a>(
-            &'a self,
-            members: &'a [data::DataMember],
-        ) -> impl Iterator<Item = &'a data::DataField> + 'a {
-            members.iter().filter_map(|member| match member {
-                data::DataMember::Field(field) if !field.relevance.is_erased() => Some(field),
-                _ => None,
-            })
-        }
-
-        pub fn data_construction_fields<'a>(
-            &'a self,
-            members: &'a [data::DataMember],
-            selected_case: Option<symbols::SymbolHandle>,
-        ) -> Vec<&'a data::DataField> {
-            let mut fields: Vec<&data::DataField> = Vec::new();
-            for member in members {
-                match member {
-                    data::DataMember::Field(field) => fields.push(field),
-                    data::DataMember::Variant(variant) if selected_case == Some(variant.symbol) => {
-                        fields.extend(self.data_payload_fields(variant));
-                    }
-                    _ => {}
-                }
-            }
-            fields
-        }
-
-        pub fn exact_named_data_definition(
-            &self,
-            field_label: &str,
-            type_reference: TypeReferenceHandle,
-        ) -> Result<Option<&data::DataDefinition>, String> {
-            if self.primitive_type_reference(type_reference).is_some() {
-                return Ok(None);
-            }
-            let crate::types::TypeReferenceNode::Named { symbol, name } =
-                self.type_reference_table.type_reference(type_reference)
-            else {
-                return Ok(None);
-            };
-            if !symbol.is_valid() {
-                return Err(format!(
-                    "{field_label} `{name}` has no exact nominal identity"
-                ));
-            }
-            let mut matches = self
-                .data_definitions()
-                .iter()
-                .filter(|definition| definition.symbol == *symbol);
-            let Some(data) = matches.next() else {
-                return Ok(None);
-            };
-            if matches.next().is_some() || data.name.as_str() != name.as_str() {
-                return Err(format!(
-                    "{field_label} `{name}` has ambiguous or mismatched nominal identity"
-                ));
-            }
-            Ok(Some(data))
         }
 
         pub fn data_field(
@@ -3003,60 +2559,6 @@ pub(crate) mod declaration_tables {
                     return None;
                 };
                 (field.symbol == symbol).then_some(field)
-            })
-        }
-
-        pub fn any_field_owner(
-            &self,
-            symbol: symbols::SymbolHandle,
-        ) -> Option<(&data::DataDefinition, &data::DataField)> {
-            if let Some(&(data_position, member_position, payload_position)) =
-                self.data_field_positions_for_symbol(symbol).first()
-            {
-                let definition = self.data_definitions().get(data_position as usize)?;
-                let member = self
-                    .data_members(definition)
-                    .get(member_position as usize)?;
-                let field = if payload_position == u32::MAX {
-                    let data::DataMember::Field(field) = member else {
-                        return None;
-                    };
-                    field
-                } else {
-                    let data::DataMember::Variant(variant) = member else {
-                        return None;
-                    };
-                    self.data_payload_fields(variant)
-                        .get(payload_position as usize)?
-                };
-                return Some((definition, field));
-            }
-            None
-        }
-
-        pub fn data_variant(
-            &self,
-            definition: &data::DataDefinition,
-            symbol: symbols::SymbolHandle,
-        ) -> Option<&data::DataVariant> {
-            self.data_members(definition).iter().find_map(|member| {
-                let data::DataMember::Variant(variant) = member else {
-                    return None;
-                };
-                (variant.symbol == symbol).then_some(variant)
-            })
-        }
-
-        pub fn data_field_named(
-            &self,
-            definition: &data::DataDefinition,
-            name: &str,
-        ) -> Option<&data::DataField> {
-            self.data_members(definition).iter().find_map(|member| {
-                let data::DataMember::Field(field) = member else {
-                    return None;
-                };
-                (field.name.as_str() == name).then_some(field)
             })
         }
 
@@ -3134,15 +2636,6 @@ pub(crate) mod declaration_tables {
             let index = proof_fact_source_span_index(handle);
             self.tables.proof_fact_source_spans.resize(index + 1, None);
             self.tables.proof_fact_source_spans[index] = Some(source_span);
-        }
-
-        pub fn proposition_definition_by_symbol(
-            &self,
-            symbol: symbols::SymbolHandle,
-        ) -> Option<&proposition::PropositionDefinition> {
-            self.propositions()
-                .iter()
-                .find(|definition| definition.symbol == symbol)
         }
 
         pub fn push_mathematical_definition(&mut self, definition: MathematicalDefinition) {
@@ -4058,42 +3551,13 @@ pub(crate) mod table_reads {
 
 pub(crate) mod trait_and_machine_tables {
     use crate::TypedTrees;
-    use crate::name::Identifier;
+
     use crate::state::state_by_symbol;
-    use crate::statement::StatementNode::LocalData;
+
     use crate::{data, machine, signature, trait_definition};
     use symbols::SymbolHandle;
 
     impl TypedTrees {
-        pub fn target_family_member(
-            &self,
-            head: SymbolHandle,
-            target: &str,
-        ) -> Option<&machine::Machine> {
-            let family = self
-                .target_machine_families
-                .iter()
-                .find(|family| family.canonical == head)?;
-            let member = family
-                .members
-                .iter()
-                .find(|member| member.target.as_str() == target)?;
-            self.machine_by_symbol(member.machine)
-        }
-
-        pub fn machine_for_target<'program>(
-            &'program self,
-            machine: &'program machine::Machine,
-            target: &str,
-        ) -> Option<&'program machine::Machine> {
-            if machine.target_family_interface {
-                return self.target_family_member(machine.symbol, target);
-            }
-            self.machine_authored_target(machine)
-                .is_none_or(|declared| declared == target)
-                .then_some(machine)
-        }
-
         crate::typed_tree_table! {
             traits => traits(trait_definition::TraitDefinition) [push_trait_definition];
             conformances => conformances(trait_definition::Conformance) [push_conformance];
@@ -4375,59 +3839,6 @@ pub(crate) mod trait_and_machine_tables {
                 [push_state_signature_contract];
         }
 
-        pub fn trait_machine_instances<'program>(
-            &'program self,
-            trait_definition: &'program trait_definition::TraitDefinition,
-        ) -> impl Iterator<Item = &'program signature::StateSignature> {
-            self.trait_machine_signatures(trait_definition)
-                .iter()
-                .flat_map(|signature| self.requirement_machine_instances(signature))
-        }
-
-        pub fn requirement_machine_instances<'program>(
-            &'program self,
-            signature: &'program signature::StateSignature,
-        ) -> impl Iterator<Item = &'program signature::StateSignature> {
-            let instances = self.closed_requirement_instance_handles_for_template(signature.symbol);
-            let has_instances = !instances.is_empty();
-            std::iter::once(signature)
-                .filter(move |_| !has_instances)
-                .chain(
-                    instances.into_iter().map(move |handle| {
-                        self.applied_callable_signatures.get(handle).signature()
-                    }),
-                )
-        }
-
-        pub fn executable_trait_machine_instances<'program>(
-            &'program self,
-            definition: &'program trait_definition::TraitDefinition,
-        ) -> impl Iterator<Item = &'program signature::StateSignature> {
-            self.trait_machine_instances(definition)
-                .filter(|signature| self.executable_requirement_telescope(signature))
-        }
-
-        pub fn executable_requirement_machine_instances<'program>(
-            &'program self,
-            signature: &'program signature::StateSignature,
-        ) -> impl Iterator<Item = &'program signature::StateSignature> {
-            self.requirement_machine_instances(signature)
-                .filter(|signature| self.executable_requirement_telescope(signature))
-        }
-
-        fn executable_requirement_telescope(&self, signature: &signature::StateSignature) -> bool {
-            self.state_signature_type_parameters(signature)
-                .iter()
-                .all(|parameter| {
-                    !matches!(
-                        parameter.kind,
-                        data::TypeParameterKind::Type
-                            | data::TypeParameterKind::Const { .. }
-                            | data::TypeParameterKind::Value { .. }
-                    )
-                })
-        }
-
         pub fn trait_machine_signature_by_symbol(
             &self,
             trait_definition: &trait_definition::TraitDefinition,
@@ -4545,12 +3956,6 @@ pub(crate) mod trait_and_machine_tables {
             self.machine_by_symbol(symbol)
         }
 
-        pub fn machine_by_name_str(&self, name: &str) -> Option<&machine::Machine> {
-            self.machines()
-                .iter()
-                .find(|machine| machine.name.as_str() == name)
-        }
-
         pub fn machine_state(
             &self,
             machine_symbol: SymbolHandle,
@@ -4616,127 +4021,6 @@ pub(crate) mod trait_and_machine_tables {
                 _ => None,
             }
             .unwrap_or_default()
-        }
-
-        pub fn machine_kind_type_parameters<'a>(
-            &'a self,
-            machine: &'a machine::Machine,
-        ) -> impl Iterator<Item = &'a data::TypeParameter> + 'a {
-            self.machine_type_parameters(machine)
-                .iter()
-                .filter(|parameter| {
-                    matches!(parameter.kind, data::TypeParameterKind::Machine { .. })
-                })
-        }
-
-        pub fn machine_declaration_scope(
-            &self,
-            machine: &machine::Machine,
-            same_type_parameter: impl Fn(&data::TypeParameter, &data::TypeParameter) -> bool,
-        ) -> (Vec<data::TypeParameter>, Vec<Identifier>) {
-            let mut type_parameters = self.machine_type_parameters(machine).to_vec();
-            let mut lifetime_parameters = machine.lifetime_parameters.clone();
-            let mut enclosing = self.declaration_scope_parent(machine.symbol);
-            while enclosing.is_valid() {
-                if let Some(declaration) = self.machine_declaration_for_lexical_scope(enclosing) {
-                    for parameter in self.machine_type_parameters(declaration) {
-                        if !type_parameters
-                            .iter()
-                            .any(|existing| same_type_parameter(existing, parameter))
-                        {
-                            type_parameters.push(parameter.clone());
-                        }
-                    }
-                    for parameter in &declaration.lifetime_parameters {
-                        if !lifetime_parameters.contains(parameter) {
-                            lifetime_parameters.push(parameter.clone());
-                        }
-                    }
-                }
-                if let Some(conformance) = self.conformance_by_symbol(enclosing) {
-                    for parameter in self.conformance_type_parameters(conformance) {
-                        if !type_parameters
-                            .iter()
-                            .any(|existing| same_type_parameter(existing, parameter))
-                        {
-                            type_parameters.push(parameter.clone());
-                        }
-                    }
-                    for parameter in &conformance.lifetime_parameters {
-                        if !lifetime_parameters.contains(parameter) {
-                            lifetime_parameters.push(parameter.clone());
-                        }
-                    }
-                }
-                enclosing = self.declaration_scope_parent(enclosing);
-            }
-            if machine.attached_data_symbol.is_valid()
-                && let Some(definition) =
-                    self.data_definition_by_symbol(machine.attached_data_symbol)
-            {
-                for parameter in self.data_type_parameters(definition) {
-                    if !type_parameters
-                        .iter()
-                        .any(|existing| same_type_parameter(existing, parameter))
-                    {
-                        type_parameters.push(parameter.clone());
-                    }
-                }
-                for parameter in &definition.lifetime_parameters {
-                    if !lifetime_parameters
-                        .iter()
-                        .any(|existing| existing == parameter)
-                    {
-                        lifetime_parameters.push(parameter.clone());
-                    }
-                }
-            }
-            (type_parameters, lifetime_parameters)
-        }
-
-        pub fn machine_type_reference_scope(
-            &self,
-            machine: &machine::Machine,
-            same_type_parameter: impl Fn(&data::TypeParameter, &data::TypeParameter) -> bool,
-        ) -> (Vec<data::TypeParameter>, Vec<Identifier>) {
-            let (type_parameters, mut lifetime_parameters) =
-                self.machine_declaration_scope(machine, same_type_parameter);
-            let mut owner = machine.symbol;
-            for _ in 0..self.machine_specializations.len() {
-                let Some(specialization) = self.machine_specializations.for_instance(owner).next()
-                else {
-                    break;
-                };
-                if !specialization.binding_application.is_valid() {
-                    break;
-                }
-                let lexical_owner = self
-                    .static_machine_application(specialization.binding_application)
-                    .lexical_owner;
-                if lexical_owner == owner {
-                    break;
-                }
-                let captured = self
-                    .machine_declaration_for_lexical_scope(lexical_owner)
-                    .map(|machine| &machine.lifetime_parameters)
-                    .or_else(|| {
-                        self.data_definition_by_symbol(lexical_owner)
-                            .map(|definition| &definition.lifetime_parameters)
-                    })
-                    .or_else(|| {
-                        self.conformance_by_symbol(lexical_owner)
-                            .map(|conformance| &conformance.lifetime_parameters)
-                    });
-                if let Some(captured) = captured {
-                    for parameter in captured {
-                        if !lifetime_parameters.contains(parameter) {
-                            lifetime_parameters.push(parameter.clone());
-                        }
-                    }
-                }
-                owner = lexical_owner;
-            }
-            (type_parameters, lifetime_parameters)
         }
 
         pub fn machine_parameter_signature_in(
@@ -4819,63 +4103,6 @@ pub(crate) mod trait_and_machine_tables {
             })
         }
 
-        pub fn machine_owned_data_by_symbol(
-            &self,
-            machine: &machine::Machine,
-            symbol: symbols::SymbolHandle,
-        ) -> Option<&machine::OwnedData> {
-            self.machine_owned_data(machine)
-                .iter()
-                .find(|candidate| candidate.symbol == symbol)
-        }
-
-        pub fn for_each_machine_state_contract_frame(
-            &self,
-            mut visit: impl FnMut(
-                &machine::Machine,
-                &crate::state::State,
-                Vec<&signature::SignatureContract>,
-                String,
-            ),
-        ) {
-            for machine in self.machines() {
-                for (state_index, state) in self.machine_states(machine).iter().enumerate() {
-                    let mut contracts = self.state_contracts(state).iter().collect::<Vec<_>>();
-                    if state_index == 0 {
-                        contracts.extend(self.machine_contracts(machine));
-                    }
-                    let label = if state_index == 0 {
-                        machine.name.to_string()
-                    } else {
-                        format!("{}::{}", machine.name, state.name)
-                    };
-                    visit(machine, state, contracts, label);
-                }
-            }
-        }
-
-        pub fn contract_facts<'a>(
-            &'a self,
-            contracts: impl Iterator<Item = &'a signature::SignatureContract> + 'a,
-            kind: signature::SignatureContractKind,
-        ) -> impl Iterator<Item = &'a crate::domain::ProofFact> + 'a {
-            contracts
-                .filter(move |contract| contract.kind == kind)
-                .flat_map(|contract| self.proof_facts.span_or_empty(contract.facts))
-        }
-
-        pub fn contract_expressions<'a>(
-            &'a self,
-            contracts: impl Iterator<Item = &'a signature::SignatureContract> + 'a,
-            kind: signature::SignatureContractKind,
-        ) -> impl Iterator<Item = crate::expression::ExpressionHandle> + 'a {
-            self.contract_facts(contracts, kind)
-                .filter_map(|fact| match fact {
-                    crate::domain::ProofFact::Expression(expression) => Some(*expression),
-                    _ => None,
-                })
-        }
-
         /*
             A machine's `crashes` clause is a ceiling its body and calls are
             checked against, instead of a request to infer the routes, when
@@ -4887,29 +4114,6 @@ pub(crate) mod trait_and_machine_tables {
             held to that empty ceiling too: generics.md, "`crashes none`
             admitting only crash-free members".
         */
-        pub fn machine_publishes_crash_ceiling(&self, machine: &machine::Machine) -> bool {
-            machine.is_public
-                || machine.declares_no_crash_route
-                || self.realizes_crash_free_requirement(machine.symbol)
-                || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-                || self.machine_contracts(machine).iter().any(|contract| {
-                    matches!(
-                        contract.kind,
-                        signature::SignatureContractKind::Crashes { .. }
-                    )
-                })
-        }
-
-        pub fn state_flow_site(
-            &self,
-            machine_symbol: SymbolHandle,
-            state_symbol: SymbolHandle,
-        ) -> Option<(&machine::Machine, &crate::state::State)> {
-            let machine = self.machine_by_symbol(machine_symbol)?;
-            let state = self.state_in_machine(machine, state_symbol)?;
-            Some((machine, state))
-        }
-
         pub fn state_in_machine(
             &self,
             machine: &machine::Machine,
@@ -4924,82 +4128,6 @@ pub(crate) mod trait_and_machine_tables {
             machine: &machine::Machine,
         ) -> &mut [crate::state::State] {
             self.machine_states.span_mut_or_empty(machine.states)
-        }
-
-        pub fn data_binding_parameter<'parameters>(
-            &self,
-            machine: &machine::Machine,
-            parameters: &'parameters [signature::StateParameter],
-        ) -> Option<&'parameters signature::StateParameter> {
-            self.data_binding_position(machine.attached_data_symbol, parameters)
-                .map(|index| &parameters[index])
-        }
-
-        pub fn state_data_binding(
-            &self,
-            machine: &machine::Machine,
-            state: &crate::state::State,
-        ) -> Option<&Identifier> {
-            self.data_binding_parameter(machine, self.state_parameters(state))
-                .map(|parameter| &parameter.name)
-        }
-
-        pub fn machine_data_binding(&self, machine: &machine::Machine) -> Option<&Identifier> {
-            let entry = self.machine_states(machine).first()?;
-            self.state_data_binding(machine, entry)
-        }
-
-        pub fn parameter_declares_attached_data(
-            &self,
-            machine: &machine::Machine,
-            parameter: &signature::StateParameter,
-        ) -> bool {
-            self.type_reference_names_attached_data(
-                parameter.type_reference,
-                machine.attached_data_symbol,
-            )
-        }
-
-        pub fn data_binding_position(
-            &self,
-            attached_data_symbol: SymbolHandle,
-            parameters: &[signature::StateParameter],
-        ) -> Option<usize> {
-            if !attached_data_symbol.is_valid() {
-                return None;
-            }
-            let mut declared = parameters.iter().enumerate().filter(|(_, parameter)| {
-                self.type_reference_names_attached_data(
-                    parameter.type_reference,
-                    attached_data_symbol,
-                )
-            });
-            let (index, _) = declared.next()?;
-            declared.next().is_none().then_some(index)
-        }
-
-        pub(crate) fn type_reference_names_attached_data(
-            &self,
-            type_reference: crate::types::TypeReferenceHandle,
-            attached_data_symbol: SymbolHandle,
-        ) -> bool {
-            if !type_reference.is_valid() {
-                return false;
-            }
-            match self.type_reference_table.type_reference(type_reference) {
-                crate::types::TypeReferenceNode::Reference { referee, .. } => {
-                    self.type_reference_names_attached_data(*referee, attached_data_symbol)
-                }
-                crate::types::TypeReferenceNode::Constrained { base_type, .. } => {
-                    self.type_reference_names_attached_data(*base_type, attached_data_symbol)
-                }
-                crate::types::TypeReferenceNode::Named { symbol, .. }
-                | crate::types::TypeReferenceNode::Generic {
-                    base_symbol: symbol,
-                    ..
-                } => *symbol == attached_data_symbol,
-                _ => false,
-            }
         }
 
         pub fn machine_holding_state(
@@ -5052,31 +4180,6 @@ pub(crate) mod trait_and_machine_tables {
                 .find(|parameter| parameter.symbol == symbol)
         }
 
-        pub fn public_state_parameters<'a>(
-            &'a self,
-            state: &'a crate::state::State,
-        ) -> impl Iterator<Item = &'a signature::StateParameter> + 'a {
-            self.state_parameters(state)
-                .iter()
-                .filter(|parameter| !parameter.is_const)
-        }
-
-        pub fn machine_declares_crash(&self, machine: &machine::Machine) -> bool {
-            self.machine_contracts(machine)
-                .iter()
-                .chain(
-                    self.machine_states(machine)
-                        .iter()
-                        .flat_map(|state| self.state_contracts(state)),
-                )
-                .any(|contract| {
-                    matches!(
-                        contract.kind,
-                        signature::SignatureContractKind::Crashes { .. }
-                    )
-                })
-        }
-
         pub fn immutable_local_initializer(
             &self,
             symbol: SymbolHandle,
@@ -5100,23 +4203,6 @@ pub(crate) mod trait_and_machine_tables {
                 return None;
             }
             local.ordinary_value_initializer()
-        }
-
-        pub fn immutable_scalar_locals_before(
-            &self,
-            state: &crate::state::State,
-            statement_index: usize,
-        ) -> usize {
-            self.statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .take(statement_index)
-                .filter(|statement| {
-                    matches!(statement, LocalData(local)
-                    if !local.is_mutable
-                        && self.primitive_type_reference(local.type_reference).is_some())
-                })
-                .count()
         }
     }
 
@@ -5571,12 +4657,11 @@ pub(crate) mod type_parameters {
 }
 
 pub(crate) mod type_reference_queries {
-    use crate::access_views::named_type_reference_through_shells;
+
     use crate::{
-        AccessFieldPlan, AccessViewPlan, StaticConstArgumentValue, TypedTrees,
-        static_const_argument_value,
+        AccessViewPlan, StaticConstArgumentValue, TypedTrees, static_const_argument_value,
     };
-    use crate::{expression, name, types};
+    use crate::{expression, types};
 
     pub(crate) mod application_indices {
         use crate::TypedTrees;
@@ -5882,53 +4967,12 @@ pub(crate) mod type_reference_queries {
             })
         }
 
-        pub fn erased_scalar_observation_type(
-            &self,
-            reference: types::TypeReferenceHandle,
-        ) -> Option<types::PrimitiveType> {
-            if let Some(primitive) = self.primitive_type_reference(reference) {
-                return Some(primitive);
-            }
-            if !reference.is_valid() {
-                return None;
-            }
-            let types::TypeReferenceNode::Reference {
-                access, referee, ..
-            } = self.type_reference_table.type_reference(reference)
-            else {
-                return None;
-            };
-            if *access != language_core::ReferenceAccess::Shared {
-                return None;
-            }
-            let primitive = self.primitive_type_reference(*referee)?;
-            (primitive != types::PrimitiveType::Addr).then_some(primitive)
-        }
-
         /*
             A nominal whose values a contract can name field by field: a
             checked-shape, non-generic declaration with no quotient and no laid
             layout, access view or wire schema that would give its fields a
             representation the proof side cannot read structurally.
         */
-        pub fn closed_contract_nominal(&self, definition: &crate::data::DataDefinition) -> bool {
-            definition.supply_mode == language_core::DataSupplyMode::CheckedShape
-                && definition.quotient.is_none()
-                && self.data_type_parameters(definition).is_empty()
-                && !self
-                    .plan_laid_layouts
-                    .iter()
-                    .any(|plan| plan.data_symbol == definition.symbol)
-                && !self
-                    .access_view_plans
-                    .iter()
-                    .any(|plan| plan.data_symbol == definition.symbol)
-                && !self
-                    .wire_schemas()
-                    .iter()
-                    .any(|schema| schema.name == definition.name)
-        }
-
         /*
             The erased scalar lanes of one erased binding type, in declaration
             order. A primitive, or a shared reference to one, is a single lane
@@ -5944,121 +4988,10 @@ pub(crate) mod type_reference_queries {
             parameter plans and call-site actuals all index the lanes it
             returns; none re-derives the leaf order.
         */
-        pub fn erased_scalar_lanes(
-            &self,
-            reference: types::TypeReferenceHandle,
-        ) -> Vec<crate::proof_only::ErasedScalarLane> {
-            if let Some(primitive_type) = self.erased_scalar_observation_type(reference) {
-                return vec![crate::proof_only::ErasedScalarLane {
-                    fields: Vec::new(),
-                    primitive_type,
-                }];
-            }
-            if !reference.is_valid() {
-                return Vec::new();
-            }
-            let record = match self.type_reference_table.type_reference(reference) {
-                types::TypeReferenceNode::Reference {
-                    access: language_core::ReferenceAccess::Shared,
-                    referee,
-                    ..
-                } => *referee,
-                types::TypeReferenceNode::Reference { .. } => return Vec::new(),
-                _ => reference,
-            };
-            let mut lanes = Vec::new();
-            let mut prefix = Vec::new();
-            let mut visiting = Vec::new();
-            if self.collect_erased_record_lanes(record, &mut prefix, &mut visiting, &mut lanes) {
-                lanes
-            } else {
-                Vec::new()
-            }
-        }
-
-        fn collect_erased_record_lanes(
-            &self,
-            reference: types::TypeReferenceHandle,
-            prefix: &mut Vec<symbols::SymbolHandle>,
-            visiting: &mut Vec<symbols::SymbolHandle>,
-            lanes: &mut Vec<crate::proof_only::ErasedScalarLane>,
-        ) -> bool {
-            if !reference.is_valid() {
-                return false;
-            }
-            let types::TypeReferenceNode::Named { symbol, .. } =
-                self.type_reference_table.type_reference(reference)
-            else {
-                return false;
-            };
-            if visiting.contains(symbol) {
-                return false;
-            }
-            let Some(definition) = self.data_definition_by_symbol(*symbol) else {
-                return false;
-            };
-            let members = self.data_members(definition);
-            if !self.closed_contract_nominal(definition)
-                || crate::data::DataDefinition::shape_kind_from_members(members)
-                    != crate::data::DataShapeKind::Record
-            {
-                return false;
-            }
-            visiting.push(*symbol);
-            let mut admitted = true;
-            for member in members {
-                let crate::data::DataMember::Field(field) = member else {
-                    admitted = false;
-                    break;
-                };
-                if field.relevance.is_erased() {
-                    admitted = false;
-                    break;
-                }
-                prefix.push(field.symbol);
-                if let Some(primitive_type) = self.primitive_type_reference(field.type_reference) {
-                    if primitive_type == types::PrimitiveType::Addr {
-                        admitted = false;
-                    } else {
-                        lanes.push(crate::proof_only::ErasedScalarLane {
-                            fields: prefix.clone(),
-                            primitive_type,
-                        });
-                    }
-                } else {
-                    admitted = self.collect_erased_record_lanes(
-                        field.type_reference,
-                        prefix,
-                        visiting,
-                        lanes,
-                    );
-                }
-                prefix.pop();
-                if !admitted {
-                    break;
-                }
-            }
-            visiting.pop();
-            admitted
-        }
-
         /*
             Dense index of the first erased scalar lane owned by the parameter at
             `position`: the lanes of every erased formal authored before it.
         */
-        pub fn erased_scalar_lane_base(
-            &self,
-            parameters: &[crate::signature::StateParameter],
-            position: usize,
-        ) -> usize {
-            parameters
-                .iter()
-                .take(position)
-                .filter(|parameter| parameter.relevance.is_erased())
-                .map(|parameter| self.erased_scalar_lanes(parameter.type_reference).len())
-                .sum()
-        }
-
         pub fn display_type_reference(&self, type_reference: types::TypeReferenceHandle) -> String {
             self.type_reference_table.display_name(type_reference)
         }
@@ -6275,14 +5208,6 @@ pub(crate) mod type_reference_queries {
                 })
         }
 
-        pub fn access_field_plan_for_type_reference(
-            &self,
-            type_reference: types::TypeReferenceHandle,
-        ) -> Option<&AccessFieldPlan> {
-            self.access_view_field_plan_for_type_reference(type_reference)
-                .map(|(_, field)| field)
-        }
-
         pub fn access_view_plan_for_type_reference(
             &self,
             type_reference: types::TypeReferenceHandle,
@@ -6308,47 +5233,9 @@ pub(crate) mod type_reference_queries {
             self.access_view_plan_for_type_reference(*referee)
         }
 
-        pub fn access_view_field_plan_for_type_reference(
-            &self,
-            type_reference: types::TypeReferenceHandle,
-        ) -> Option<(&AccessViewPlan, &AccessFieldPlan)> {
-            let accessor_type =
-                named_type_reference_through_shells(&self.type_reference_table, type_reference)?;
-            self.access_view_plans.iter().find_map(|view| {
-                view.fields
-                    .iter()
-                    .find(|field| {
-                        self.type_reference_table
-                            .type_reference(accessor_type)
-                            .as_named_symbol()
-                            == Some(field.accessor_data_symbol)
-                            && (field.accessor_type == accessor_type
-                                || field.scalar_projection_leaf(self).is_ok_and(|(_, leaf)| {
-                                    self.normalized_type_identity(leaf)
-                                        == self.normalized_type_identity(accessor_type)
-                                }))
-                    })
-                    .map(|field| (view, field))
-            })
-        }
-
-        pub fn named_type_reference(
-            &self,
-            type_reference: types::TypeReferenceHandle,
-        ) -> Option<&name::Identifier> {
-            self.type_reference_table.named_type(type_reference)
-        }
-
         pub fn is_borrowed_byte_slice(&self, type_reference: types::TypeReferenceHandle) -> bool {
             self.type_reference_table
                 .is_borrowed_byte_slice(type_reference, &self.symbols)
-        }
-
-        pub fn arithmetic_domain_for_type_reference(
-            &self,
-            type_reference: types::TypeReferenceHandle,
-        ) -> numerics::arithmetic::ArithmeticDomain {
-            self.type_reference_table.arithmetic_domain(type_reference)
         }
 
         pub fn type_multiplicity(

@@ -102,22 +102,6 @@ pub mod closed_numeric {
     }
 
     impl TypedTrees {
-        pub fn closed_integer_expression_value(
-            &self,
-            expression: ExpressionHandle,
-        ) -> Option<BigInt> {
-            self.closed_integer_expression_value_in(expression, symbols::SymbolHandle::invalid())
-        }
-
-        pub fn closed_integer_range_endpoint(
-            &self,
-            expression: ExpressionHandle,
-            end_inclusive: bool,
-        ) -> Option<BigInt> {
-            let value = self.closed_integer_expression_value(expression)?;
-            Some(canonical_integer_range_endpoint(value, end_inclusive))
-        }
-
         pub fn closed_integer_expression_value_in(
             &self,
             expression: ExpressionHandle,
@@ -148,32 +132,6 @@ pub mod closed_numeric {
                 primitive: value.primitive,
                 type_reference: value.type_reference,
             })
-        }
-
-        pub fn integer_expression_value_with_bindings(
-            &self,
-            expression: ExpressionHandle,
-            machine: symbols::SymbolHandle,
-            binding: &mut impl FnMut(ExpressionHandle) -> Option<(BigInt, TypeReferenceHandle)>,
-        ) -> Option<BigInt> {
-            evaluate_value::<true>(
-                self,
-                expression,
-                &[],
-                Some(machine),
-                &mut |expression| has_anonymous_operator_meaning(self, expression),
-                binding,
-            )?
-            .value
-            .to_integer_exact()
-        }
-    }
-
-    pub fn canonical_integer_range_endpoint(value: BigInt, end_inclusive: bool) -> BigInt {
-        if end_inclusive {
-            value
-        } else {
-            value.sub(&BigInt::from_u64(1))
         }
     }
 
@@ -646,31 +604,6 @@ pub(crate) mod type_predicates {
                 _ => None,
             }
         }
-
-        pub fn static_type_predicate_value(&self, expression: ExpressionHandle) -> Option<bool> {
-            self.static_type_predicate_value_in(expression, expression)
-        }
-
-        pub fn static_type_predicate_value_in(
-            &self,
-            expression: ExpressionHandle,
-            context: ExpressionHandle,
-        ) -> Option<bool> {
-            let (left, right, negate) = self.static_type_predicate_operands(expression)?;
-            let left = self.statically_refined_type_reference(context, left);
-            let right = self.statically_refined_type_reference(context, right);
-            if !self.type_reference_table.contains_type_reference(left)
-                || !self.type_reference_table.contains_type_reference(right)
-                || !index_argument_is_closed(self, left)
-                || !index_argument_is_closed(self, right)
-            {
-                return None;
-            }
-            Some(
-                (self.normalized_type_identity(left) == self.normalized_type_identity(right))
-                    != negate,
-            )
-        }
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
@@ -734,15 +667,6 @@ pub(crate) mod type_predicates {
             result.unwrap_or(reference)
         }
 
-        pub fn is_unreachable(&self, expression: ExpressionHandle) -> bool {
-            self.rows
-                .binary_search_by_key(
-                    &(expression.arena_index(), expression.generation()),
-                    |(owned, _)| (owned.arena_index(), owned.generation()),
-                )
-                .is_ok_and(|index| self.rows[index].1.is_empty())
-        }
-
         pub fn agree(&self, left: ExpressionHandle, right: ExpressionHandle) -> bool {
             let default = [TypeWorld::default()];
             let worlds = |expression: ExpressionHandle| {
@@ -754,24 +678,6 @@ pub(crate) mod type_predicates {
                     .map_or(default.as_slice(), |index| self.rows[index].1.as_slice())
             };
             worlds(left) == worlds(right)
-        }
-
-        fn case_membership(
-            &self,
-            expression: ExpressionHandle,
-        ) -> Option<&CaseMembershipTypeFacts> {
-            self.case_memberships
-                .binary_search_by_key(
-                    &(expression.arena_index(), expression.generation()),
-                    |facts| {
-                        (
-                            facts.membership.arena_index(),
-                            facts.membership.generation(),
-                        )
-                    },
-                )
-                .ok()
-                .map(|index| &self.case_memberships[index])
         }
     }
 
@@ -850,218 +756,7 @@ pub(crate) mod type_predicates {
         }
     }
 
-    fn contains_type_predicate(
-        program: &TypedTrees,
-        expression: ExpressionHandle,
-        active: &mut Vec<ExpressionHandle>,
-    ) -> bool {
-        if !program.expression_table.expression_is_valid(expression) || active.contains(&expression)
-        {
-            return false;
-        }
-        if program.static_type_predicate_operands(expression).is_some()
-            || program
-                .static_type_contexts
-                .case_membership(expression)
-                .is_some()
-        {
-            return true;
-        }
-        active.push(expression);
-        let result = match program.expression_table.expression(expression) {
-            ExpressionNode::Binary(binary)
-                if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
-                    || program
-                        .static_type_contexts
-                        .boolean_equalities
-                        .contains(&expression) =>
-            {
-                contains_type_predicate(program, binary.left, active)
-                    || contains_type_predicate(program, binary.right, active)
-            }
-            ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
-                contains_type_predicate(program, unary.operand, active)
-            }
-            ExpressionNode::Name(path) => program
-                .immutable_local_initializer(path.symbol)
-                .is_some_and(|initializer| contains_type_predicate(program, initializer, active)),
-            _ => false,
-        };
-        active.pop();
-        result
-    }
-
-    fn condition_inner(
-        program: &TypedTrees,
-        worlds: &[TypeWorld],
-        expression: ExpressionHandle,
-        holds: bool,
-    ) -> Vec<TypeWorld> {
-        if !program.expression_table.expression_is_valid(expression) {
-            return worlds.to_vec();
-        }
-        if let Some((left, right, negate)) = program.static_type_predicate_operands(expression) {
-            return worlds
-                .iter()
-                .cloned()
-                .filter_map(|world| world.constrain(program, left, right, holds != negate))
-                .collect();
-        }
-        match program.expression_table.expression(expression) {
-            ExpressionNode::Name(path) => {
-                if let Some(initializer) = program.immutable_local_initializer(path.symbol) {
-                    condition_inner(program, worlds, initializer, holds)
-                } else {
-                    worlds.to_vec()
-                }
-            }
-            ExpressionNode::Binary(_)
-                if program
-                    .static_type_contexts
-                    .case_membership(expression)
-                    .is_some() =>
-            {
-                let facts = program.static_type_contexts.case_membership(expression);
-                match facts {
-                    Some(facts) if holds && facts.impossible => Vec::new(),
-                    Some(facts) if holds => worlds
-                        .iter()
-                        .cloned()
-                        .filter_map(|world| {
-                            facts
-                                .equations
-                                .iter()
-                                .try_fold(world, |world, (left, right)| {
-                                    world.constrain(program, *left, *right, true)
-                                })
-                        })
-                        .collect(),
-                    _ => worlds.to_vec(),
-                }
-            }
-            ExpressionNode::Binary(binary)
-                if binary.operator == BinaryOperator::CaseMembership
-                    || program
-                        .static_type_contexts
-                        .boolean_equalities
-                        .binary_search_by_key(
-                            &(expression.arena_index(), expression.generation()),
-                            |handle| (handle.arena_index(), handle.generation()),
-                        )
-                        .is_ok() =>
-            {
-                let wrapped = match (
-                    program.expression_table.expression(binary.left),
-                    program.expression_table.expression(binary.right),
-                ) {
-                    (_, ExpressionNode::Boolean(value)) => Some((binary.left, *value)),
-                    (ExpressionNode::Boolean(value), _) => Some((binary.right, *value)),
-                    _ => None,
-                };
-                if let Some((subject, value)) = wrapped {
-                    condition_inner(
-                        program,
-                        worlds,
-                        subject,
-                        holds == (value != (binary.operator == BinaryOperator::NotEqual)),
-                    )
-                } else {
-                    worlds.to_vec()
-                }
-            }
-            ExpressionNode::Boolean(value) => {
-                if *value == holds {
-                    worlds.to_vec()
-                } else {
-                    Vec::new()
-                }
-            }
-            ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
-                condition_inner(program, worlds, unary.operand, !holds)
-            }
-            ExpressionNode::Binary(binary)
-                if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) =>
-            {
-                let conjunction = binary.operator == BinaryOperator::And;
-                if holds == conjunction {
-                    condition_inner(
-                        program,
-                        &condition_inner(program, worlds, binary.left, holds),
-                        binary.right,
-                        holds,
-                    )
-                } else {
-                    let mut alternatives = condition_inner(program, worlds, binary.left, holds);
-                    alternatives.extend(condition_inner(
-                        program,
-                        &condition_inner(program, worlds, binary.left, !holds),
-                        binary.right,
-                        holds,
-                    ));
-                    alternatives
-                }
-            }
-            _ => worlds.to_vec(),
-        }
-    }
-
     impl TypedTrees {
-        pub fn static_statement_type_context_is_unreachable(
-            &self,
-            statement: crate::statement::StatementHandle,
-        ) -> bool {
-            self.static_type_contexts
-                .statement_rows
-                .binary_search_by_key(
-                    &(statement.arena_index(), statement.generation()),
-                    |(owned, _)| (owned.arena_index(), owned.generation()),
-                )
-                .is_ok_and(|position| {
-                    self.static_type_contexts.statement_rows[position]
-                        .1
-                        .is_empty()
-                })
-        }
-
-        pub fn static_transition_type_context_is_unreachable(
-            &self,
-            target: crate::statement::TransitionTargetHandle,
-        ) -> bool {
-            self.static_type_contexts
-                .transition_rows
-                .binary_search_by_key(
-                    &(target.arena_index(), target.generation()),
-                    |(owned, _)| (owned.arena_index(), owned.generation()),
-                )
-                .is_ok_and(|index| {
-                    self.static_type_contexts.transition_rows[index]
-                        .1
-                        .is_empty()
-                })
-        }
-
-        pub fn statically_refined_transition_type_reference(
-            &self,
-            target: crate::statement::TransitionTargetHandle,
-            reference: TypeReferenceHandle,
-        ) -> TypeReferenceHandle {
-            let Ok(index) = self
-                .static_type_contexts
-                .transition_rows
-                .binary_search_by_key(
-                    &(target.arena_index(), target.generation()),
-                    |(owned, _)| (owned.arena_index(), owned.generation()),
-                )
-            else {
-                return reference;
-            };
-            StaticTypeContexts::refined_in_worlds(
-                self,
-                reference,
-                &self.static_type_contexts.transition_rows[index].1,
-            )
-        }
-
         pub fn statically_refined_type_reference(
             &self,
             expression: ExpressionHandle,
@@ -1069,121 +764,6 @@ pub(crate) mod type_predicates {
         ) -> TypeReferenceHandle {
             self.static_type_contexts
                 .refined_reference(self, expression, reference)
-        }
-        pub fn static_type_requirement_entailed(
-            &self,
-            predicate: ExpressionHandle,
-            context: ExpressionHandle,
-            substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
-        ) -> bool {
-            let Ok(position) = self.static_type_contexts.rows.binary_search_by_key(
-                &(context.arena_index(), context.generation()),
-                |(expression, _)| (expression.arena_index(), expression.generation()),
-            ) else {
-                return false;
-            };
-            self.static_type_requirement_entailed_in_worlds(
-                predicate,
-                &self.static_type_contexts.rows[position].1,
-                substitutions,
-            )
-        }
-
-        pub fn static_type_requirement_entailed_at_statement(
-            &self,
-            predicate: ExpressionHandle,
-            context: crate::statement::StatementHandle,
-            substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
-        ) -> bool {
-            let Ok(position) = self
-                .static_type_contexts
-                .statement_rows
-                .binary_search_by_key(
-                    &(context.arena_index(), context.generation()),
-                    |(statement, _)| (statement.arena_index(), statement.generation()),
-                )
-            else {
-                return false;
-            };
-            self.static_type_requirement_entailed_in_worlds(
-                predicate,
-                &self.static_type_contexts.statement_rows[position].1,
-                substitutions,
-            )
-        }
-
-        fn static_type_requirement_entailed_in_worlds(
-            &self,
-            predicate: ExpressionHandle,
-            worlds: &[TypeWorld],
-            substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
-        ) -> bool {
-            if !self.expression_table.expression_is_valid(predicate)
-                || !contains_type_predicate(self, predicate, &mut Vec::new())
-            {
-                return false;
-            }
-            let substitutions = substitutions
-                .iter()
-                .copied()
-                .filter(|(formal, actual)| {
-                    !matches!(self.type_reference_table.type_reference(*actual),
-                crate::types::TypeReferenceNode::Named { symbol, .. } if symbol == formal)
-                })
-                .collect::<Vec<_>>();
-            let substitutions = substitutions.as_slice();
-            let formals = substitutions
-                .iter()
-                .map(|(formal, _)| *formal)
-                .collect::<Vec<_>>();
-            if formals
-                .iter()
-                .enumerate()
-                .any(|(position, formal)| formals[..position].contains(formal))
-            {
-                return false;
-            }
-            if substitutions.iter().any(|(formal, actual)| {
-                !formal.is_valid()
-                    || self.symbols.get(*formal).kind != symbols::SymbolKind::TypeParameter
-                    || crate::references::collect_type_symbol_dependencies(self, *actual)
-                        .iter()
-                        .any(|symbol| formals.contains(symbol))
-            }) {
-                return false;
-            }
-            for world in worlds {
-                if world
-                    .bindings
-                    .iter()
-                    .chain(&world.exclusions)
-                    .any(|(binder, actual)| {
-                        formals.contains(binder)
-                            || crate::references::collect_type_symbol_dependencies(self, *actual)
-                                .iter()
-                                .any(|symbol| formals.contains(symbol))
-                    })
-                {
-                    return false;
-                }
-                let mut applied = world.clone();
-                applied.bindings.extend_from_slice(substitutions);
-                if !condition_inner(self, &[applied], predicate, false).is_empty() {
-                    return false;
-                }
-            }
-            true
-        }
-
-        pub fn static_type_context_is_unreachable(&self, expression: ExpressionHandle) -> bool {
-            self.static_type_contexts.is_unreachable(expression)
-        }
-        pub fn static_type_contexts_agree(
-            &self,
-            left: ExpressionHandle,
-            right: ExpressionHandle,
-        ) -> bool {
-            self.static_type_contexts.agree(left, right)
         }
     }
 
@@ -1301,43 +881,6 @@ pub(crate) mod type_predicates {
                         .1
                         .as_slice()
                 })
-        }
-
-        pub fn common_static_type_reference(
-            &self,
-            values: &[(ExpressionHandle, TypeReferenceHandle)],
-        ) -> Option<TypeReferenceHandle> {
-            let &(first_expression, _) = values.first()?;
-            let mut candidates = Vec::new();
-            if let Ok(position) = self.static_type_contexts.rows.binary_search_by_key(
-                &(
-                    first_expression.arena_index(),
-                    first_expression.generation(),
-                ),
-                |(expression, _)| (expression.arena_index(), expression.generation()),
-            ) {
-                for world in &self.static_type_contexts.rows[position].1 {
-                    for &(symbol, _) in &world.bindings {
-                        for (reference, node) in self.type_reference_table.type_reference_rows() {
-                            if matches!(node, crate::types::TypeReferenceNode::Named { symbol: formal, .. } if *formal == symbol)
-                                && !candidates.contains(&reference)
-                            {
-                                candidates.push(reference);
-                            }
-                        }
-                    }
-                }
-            }
-            candidates.into_iter().find(|&candidate| {
-                values.iter().all(|&(expression, reference)| {
-                    self.static_type_context_is_unreachable(expression)
-                        || self.normalized_type_identity(
-                            self.statically_refined_type_reference(expression, candidate),
-                        ) == self.normalized_type_identity(
-                            self.statically_refined_type_reference(expression, reference),
-                        )
-                })
-            })
         }
     }
 }
@@ -3012,16 +2555,6 @@ pub mod types {
             self.type_references.get(handle)
         }
 
-        pub fn dereferenced_type_reference(
-            &self,
-            mut handle: TypeReferenceHandle,
-        ) -> TypeReferenceHandle {
-            while let TypeReferenceNode::Reference { referee, .. } = self.type_reference(handle) {
-                handle = *referee;
-            }
-            handle
-        }
-
         pub fn peeled_type_reference(
             &self,
             mut handle: TypeReferenceHandle,
@@ -3047,18 +2580,6 @@ pub mod types {
                 return None;
             }
             name.as_str().parse::<usize>().ok()
-        }
-
-        pub fn closed_nominal_symbol(&self, handle: TypeReferenceHandle) -> Option<SymbolHandle> {
-            match self.type_reference(handle) {
-                TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
-                TypeReferenceNode::Generic {
-                    base_symbol,
-                    arguments,
-                    ..
-                } if self.type_reference_handles(*arguments).is_empty() => Some(*base_symbol),
-                _ => None,
-            }
         }
 
         pub fn unconstrained_type_reference(
@@ -3094,17 +2615,6 @@ pub mod types {
             self.type_references.is_valid(handle)
         }
 
-        pub fn fixed_array_lengths(
-            &self,
-        ) -> impl Iterator<Item = (TypeReferenceHandle, &FixedArrayLength)> {
-            self.type_references
-                .iter()
-                .filter_map(|(handle, node)| match node {
-                    TypeReferenceNode::FixedArray { length, .. } => Some((handle, length)),
-                    _ => None,
-                })
-        }
-
         pub fn references(
             &self,
         ) -> impl Iterator<Item = (TypeReferenceHandle, &TypeReferenceNode)> + '_ {
@@ -3125,19 +2635,6 @@ pub mod types {
         ) -> impl Iterator<Item = (TypeReferenceHandle, SymbolHandle, &str)> + '_ {
             self.type_references
                 .iter()
-                .filter_map(|(handle, node)| match node {
-                    TypeReferenceNode::Named { symbol, name } => {
-                        Some((handle, *symbol, name.as_str()))
-                    }
-                    _ => None,
-                })
-        }
-
-        pub fn named_references_from(
-            &self,
-            start_arena_index: usize,
-        ) -> impl Iterator<Item = (TypeReferenceHandle, SymbolHandle, &str)> + '_ {
-            self.references_from(start_arena_index)
                 .filter_map(|(handle, node)| match node {
                     TypeReferenceNode::Named { symbol, name } => {
                         Some((handle, *symbol, name.as_str()))
@@ -3206,21 +2703,6 @@ pub mod types {
             self.constraints.span_or_empty(span)
         }
 
-        pub fn constrained_type_references(
-            &self,
-        ) -> Vec<(TypeReferenceHandle, HandleSpan<TypeConstraintNode>)> {
-            self.type_references
-                .iter()
-                .filter_map(|(_, node)| match node {
-                    TypeReferenceNode::Constrained {
-                        base_type,
-                        constraints,
-                    } => Some((*base_type, *constraints)),
-                    _ => None,
-                })
-                .collect()
-        }
-
         pub fn constrained_type_reference_sites(
             &self,
         ) -> Vec<(
@@ -3235,16 +2717,6 @@ pub mod types {
                         base_type,
                         constraints,
                     } => Some((handle, *base_type, *constraints)),
-                    _ => None,
-                })
-                .collect()
-        }
-
-        pub fn const_expression_sites(&self) -> Vec<(TypeReferenceHandle, ExpressionHandle)> {
-            self.type_references
-                .iter()
-                .filter_map(|(handle, node)| match node {
-                    TypeReferenceNode::ConstExpression(expression) => Some((handle, *expression)),
                     _ => None,
                 })
                 .collect()
