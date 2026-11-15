@@ -3114,6 +3114,7 @@ pub(crate) fn lower(
         nominal_cleanup_subject: function.nominal_cleanup_subject,
         scalar_abi: None,
         mixed_structural_scalar_abi: None,
+        structural_contract: None,
         provenance,
         graph: TargetControlGraph {
             structural_types: structural_types.catalog().clone(),

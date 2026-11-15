@@ -44,6 +44,13 @@ retains these fields as part of the call argument.
 Direct-call construction accepts only its machine ID, target row and admitted
 fact slice; the earlier function and unit bodies are not inputs to that API.
 
+Function headers likewise consume the retained target storage contract, scalar
+ABI parameters and entry block. Scalar definition sites follow their parameter
+ordinals. The independent audit compares the complete structural contract to
+the source, including claims and service ceilings. Remaining instruction and
+terminator construction still uses earlier bodies; this header handoff does
+not claim that dependency is fully removed.
+
 Every target function contains its `TargetControlGraph` directly. This stage
 does not convert flat bodies or whole-function expression trees. Unit, scalar,
 and aggregate results share construction and independent replay; projected

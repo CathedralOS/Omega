@@ -1242,6 +1242,9 @@ pub(crate) mod control_flow {
         let plan = descriptor_inputs.plan();
         let unit = descriptor_inputs.unit();
         let optimized = function_inputs.function();
+        crate::legalization::scalar_graph_input::validate_structural_contract(
+            function, abstracted, optimized, plan,
+        )?;
         if (function.attachment != optimized.attachment
             || function.nominal_cleanup_subject != optimized.nominal_cleanup_subject)
             || graph.structural_types != plan.structural_types

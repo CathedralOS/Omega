@@ -656,6 +656,7 @@ pub(crate) fn lower_to_target_operations_with_settlements_and_installation(
             })
             .collect::<Result<Vec<_>, _>>()?,
     };
+    super::function_contract::retain(plan, unit, &mut target_plan)?;
     super::call_result_origins::retain(
         plan,
         unit,
