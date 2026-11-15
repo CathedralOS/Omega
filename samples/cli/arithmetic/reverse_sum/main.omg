@@ -35,7 +35,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     main.nums[3] = 20;
     main.nums[4] = 25;
     main.i = 4;
-    main.acc = 0;
+    main.acc = 0 as +Wrapping;
 
     transition {
         _ -> block scan(main)

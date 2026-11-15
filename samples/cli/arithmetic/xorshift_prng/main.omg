@@ -24,7 +24,7 @@ data Main {
 
 machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("xorshift_prng: one xorshift32 step from Marsaglia's classic seed");
-    main.state = 2463534242;
+    main.state = 2463534242 as +Wrapping;
 
     main.scratch = main.state << 13;
     main.state = main.state ^ main.scratch;

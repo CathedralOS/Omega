@@ -20,13 +20,13 @@
 // Expected exit: 0
 
 machine main() {
-    transition { _ -> outer_(1, 0) }
+    transition { _ -> outer_(1 as +Wrapping, 0 as +Wrapping) }
 
     machine outer_(start: u64 in Wrapping, best: u64 in Wrapping) {
         transition start <= 100000 { true -> begin_start(start, best) _ -> done() }
     }
     machine begin_start(start: u64 in Wrapping, best: u64 in Wrapping) {
-        transition { _ -> inner_(start, best, start, 0) }
+        transition { _ -> inner_(start, best, start, 0 as +Wrapping) }
     }
     machine inner_(start: u64 in Wrapping, best: u64 in Wrapping, n: u64 in Wrapping, steps: u64 in Wrapping) {
         transition n != 1 && steps < 10000 {

@@ -22,7 +22,7 @@
 // Expected exit: 0
 
 machine main() crashes Trap {
-    transition { _ -> loop_(0, 1) }
+    transition { _ -> loop_(0 as +Wrapping, 1 as +Wrapping) }
 
     machine loop_(acc: u64 in Wrapping, i: u64 in Wrapping) {
         transition i <= 2000000 { true -> step(acc, i) _ -> done(acc) }

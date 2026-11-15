@@ -60,10 +60,10 @@ terminates by s -> Slice::Length
 machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("recursive_sum: recursive slice sum + count via value-returning machines");
     // Initialize the array elements.
-    main.arr[0] = 5;
-    main.arr[1] = 10;
-    main.arr[2] = 15;
-    main.arr[3] = 20;
+    main.arr[0] = 5 as +Wrapping;
+    main.arr[1] = 10 as +Wrapping;
+    main.arr[2] = 15 as +Wrapping;
+    main.arr[3] = 20 as +Wrapping;
 
     // Compute sum via recursive value-returning call.
     let s: &[i32 in Wrapping] = &main.arr[..];

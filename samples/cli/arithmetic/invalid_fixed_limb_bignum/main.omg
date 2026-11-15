@@ -14,5 +14,5 @@ data Main {
 }
 
 machine main(main: &mut Main) {
-    store_overflow_carry(&mut main.value, 1);
+    store_overflow_carry(&mut main.value, 1 as +Wrapping);
 }
