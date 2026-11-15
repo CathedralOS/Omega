@@ -3,15 +3,17 @@
 //! granting permission to install another provider.
 
 use super::PackageReviewInput;
+use super::callables::reviewed_services;
 use super::declarations::unavailable;
 use crate::record::{
     PackagePolicyCallable, PackagePolicyCallableRole, PackagePolicyCrash,
     PackagePolicyInferredCrash, PackagePolicyMutation, PackagePolicyProviderBinding,
     PackagePolicyProviderPlan, PackagePolicyProviderRow, PackagePolicyServiceAuthority,
     PackagePolicyServiceMethod, PackagePolicyServiceReachDependency, PackagePolicyServiceSignature,
-    PackagePolicyTargetContext, PackagePolicyTermination, PackageReviewCallableSupply,
-    PackageReviewCheckedServiceReach, PackageReviewCrashInterface, PackageReviewNominalIdentity,
-    PackageReviewSignatureParameter, PackageReviewWriteFrameCompleteness,
+    PackagePolicyTargetContext, PackagePolicyTermination, PackagePolicyTraitRequirement,
+    PackagePolicyTraitShape, PackageReviewCallableSupply, PackageReviewCheckedServiceReach,
+    PackageReviewCrashInterface, PackageReviewNominalIdentity, PackageReviewSignatureParameter,
+    PackageReviewWriteFrameCompleteness,
 };
 use backend_plan::SelectedCheckedInvocationRow;
 use build_time_evaluation::provider_declarations::{
@@ -33,6 +35,7 @@ pub(super) struct ReviewedProviders {
     pub slots: Vec<SymbolHandle>,
     pub callables: Vec<PackagePolicyCallable>,
     pub plans: Vec<PackagePolicyProviderPlan>,
+    pub public_traits: Vec<PackagePolicyTraitShape>,
     boundaries: Vec<BoundaryMachineId>,
     services: Vec<ServiceId>,
 }
@@ -61,10 +64,15 @@ struct SelectedDeclarations<'module> {
     boundaries: Vec<&'module BoundaryMachineDeclaration>,
     bodies: Vec<&'module TerminalMachine>,
     behaviors: Vec<&'module UnoptimizedMachineBehavior>,
+    authored_reach_owners: Vec<SymbolHandle>,
+    service_names: &'module [(ServiceId, PackageReviewNominalIdentity)],
 }
 
 impl<'module> SelectedDeclarations<'module> {
-    fn new(accepted: &'module source_compiler::AcceptedTerminalSource) -> Self {
+    fn new(
+        accepted: &'module source_compiler::AcceptedTerminalSource,
+        service_names: &'module [(ServiceId, PackageReviewNominalIdentity)],
+    ) -> Self {
         let module = accepted.module();
         let mut boundaries = module.boundary_machines.iter().collect::<Vec<_>>();
         boundaries.sort_unstable_by_key(|boundary| boundary.id);
@@ -72,12 +80,28 @@ impl<'module> SelectedDeclarations<'module> {
         bodies.sort_unstable_by_key(|body| body.id);
         let mut behaviors = module.unoptimized_behavior.iter().collect::<Vec<_>>();
         behaviors.sort_unstable_by_key(|body| body.machine);
+        let mut authored_reach_owners = accepted
+            .source()
+            .authored_service_reach_rows
+            .iter()
+            .map(|row| row.owner)
+            .collect::<Vec<_>>();
+        authored_reach_owners.sort_unstable_by_key(|symbol| symbol_key(*symbol));
+        authored_reach_owners.dedup();
         Self {
             accepted,
             boundaries,
             bodies,
             behaviors,
+            authored_reach_owners,
+            service_names,
         }
+    }
+
+    fn has_authored_reach(&self, owner: SymbolHandle) -> bool {
+        self.authored_reach_owners
+            .binary_search_by_key(&symbol_key(owner), |symbol| symbol_key(*symbol))
+            .is_ok()
     }
 }
 
@@ -86,6 +110,8 @@ impl PackageReviewInput<'_> {
         &self,
         package: PackageKeyIdentity,
         target: TargetProfile,
+        service_origins: &[(ServiceId, SymbolHandle)],
+        service_names: &[(ServiceId, PackageReviewNominalIdentity)],
     ) -> Result<ReviewedProviders, Vec<Diagnostic>> {
         let checked = self.compilation();
         let selected = checked.execution().plans();
@@ -95,6 +121,7 @@ impl PackageReviewInput<'_> {
             slots: Vec::new(),
             callables: Vec::new(),
             plans: Vec::new(),
+            public_traits: Vec::new(),
             boundaries: Vec::new(),
             services: Vec::new(),
         };
@@ -104,6 +131,7 @@ impl PackageReviewInput<'_> {
             && selected.plans().is_empty()
             && checked.build().config.provider_selections.is_empty()
         {
+            self.project_memberless_services(package, &mut review)?;
             return Ok(review);
         }
         super::callables::validate_body_effect_inventory(module)?;
@@ -118,7 +146,7 @@ impl PackageReviewInput<'_> {
                 "the complete selected installation reach or native supply",
             ));
         }
-        let declarations = SelectedDeclarations::new(accepted);
+        let declarations = SelectedDeclarations::new(accepted, service_names);
         if accepted.closure().elaboration.boundaries.len() != declarations.boundaries.len() {
             return Err(unavailable(
                 "the accepted module's complete boundary inventory",
@@ -169,6 +197,17 @@ impl PackageReviewInput<'_> {
             .sort_unstable_by_key(|symbol| symbol_key(*symbol));
         supplied_slots.sort_unstable_by_key(|symbol| symbol_key(*symbol));
         supplied_slots.dedup();
+        // A declared service can be reviewed without an installation. It
+        // cannot account for a provider choice made by the actual Build.
+        if supplied_slots.iter().any(|slot| {
+            review
+                .slots
+                .binary_search_by_key(&symbol_key(*slot), |symbol| symbol_key(*symbol))
+                .is_err()
+        }) {
+            return Err(unavailable("the exact Build provider selection custody"));
+        }
+        self.project_memberless_services(package, &mut review)?;
         // Unrelated declarations and unreviewed authority still refuse. A
         // Product can keep alternate checked bodies for other deployments;
         // their exact Build selections travel in the handoff separately.
@@ -178,27 +217,52 @@ impl PackageReviewInput<'_> {
             .copied()
             .eq(declarations.boundaries.iter().map(|boundary| boundary.id))
             || review.boundaries.windows(2).any(|pair| pair[0] == pair[1])
-            || module.services.len() != review.services.len()
-            || module.services.iter().any(|row| {
-                review.services.binary_search(&row.id).is_err() || !row.parents.is_empty()
+            || module.services.iter().any(|row| !row.parents.is_empty())
+            || service_origins.iter().any(|(service, owner)| {
+                review.services.binary_search(service).is_err()
+                    && review
+                        .slots
+                        .binary_search_by_key(&symbol_key(*owner), |slot| symbol_key(*slot))
+                        .is_err()
             })
         {
             return Err(unavailable(
                 "the accepted module's complete boundary/service inventory",
             ));
         }
-        if supplied_slots.iter().any(|slot| {
-            review
-                .slots
-                .binary_search_by_key(&symbol_key(*slot), |symbol| symbol_key(*symbol))
-                .is_err()
-        }) {
-            return Err(unavailable("the exact Build provider selection custody"));
-        }
         review
             .plans
             .sort_by(PackagePolicyProviderPlan::compare_canonical);
         Ok(review)
+    }
+
+    fn project_memberless_services(
+        &self,
+        package: PackageKeyIdentity,
+        review: &mut ReviewedProviders,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let typed = self.typed();
+        for declaration in typed.traits() {
+            if !closed_service(typed, declaration)
+                || !typed.trait_machine_signatures(declaration).is_empty()
+                || !self.owns(declaration.symbol, package)?
+            {
+                continue;
+            }
+            review.slots.push(declaration.symbol);
+            if declaration.is_public {
+                review
+                    .public_traits
+                    .push(service_trait(self.nominal(declaration.symbol)?, Vec::new()));
+            }
+        }
+        review
+            .slots
+            .sort_unstable_by_key(|symbol| symbol_key(*symbol));
+        review
+            .public_traits
+            .sort_by(|left, right| left.identity.cmp(&right.identity));
+        Ok(())
     }
 
     fn authored_providers(
@@ -262,10 +326,7 @@ impl PackageReviewInput<'_> {
         let package = plan
             .origin_package_identity
             .ok_or_else(|| unavailable("the selected provider's package"))?;
-        if !service.lifetime_parameters.is_empty()
-            || !service.conformance_bounds.is_empty()
-            || !source.trait_type_parameters(service).is_empty()
-            || !source.trait_requirements(service).is_empty()
+        if !closed_service(source, service)
             || methods.len() != plan.schema.declaration.methods.len()
             || methods.len() != plan.rows.len()
             || !self.owns(service.symbol, package)?
@@ -290,6 +351,7 @@ impl PackageReviewInput<'_> {
         }
         let schema_declaration = self.nominal(service.symbol)?;
         let mut projected_methods = Vec::new();
+        let mut public_requirements = Vec::new();
         let mut rows = Vec::new();
         for method in &plan.schema.declaration.methods {
             let canonical = plan.schema.identity_text(method.requirement_identity);
@@ -329,6 +391,7 @@ impl PackageReviewInput<'_> {
                 plan,
                 selected.row,
                 candidate.candidate,
+                boundary,
                 requirement.clone(),
             )?;
             let (projected, callable) = self.checked_method(
@@ -339,12 +402,22 @@ impl PackageReviewInput<'_> {
                 plan,
                 requirement,
                 schema_declaration.clone(),
+                declarations,
             )?;
+            if service.is_public {
+                public_requirements.push(service_requirement(&callable));
+            }
             projected_methods.push(projected);
             review.callables.push(callable);
             rows.push(row);
             review.boundaries.push(boundary.id);
             review.services.push(service_id);
+        }
+        if service.is_public {
+            review.public_traits.push(service_trait(
+                schema_declaration.clone(),
+                public_requirements,
+            ));
         }
         rows.sort_by(|left, right| left.requirement.cmp(&right.requirement));
         Ok(PackagePolicyProviderPlan {
@@ -366,6 +439,7 @@ impl PackageReviewInput<'_> {
         plan: &ProviderPlan,
         row: &ProviderPlanRow,
         candidate: MachineId,
+        boundary: &BoundaryMachineDeclaration,
         requirement: PackageReviewNominalIdentity,
     ) -> Result<PackagePolicyProviderRow, Vec<Diagnostic>> {
         let ProviderBinding::CheckedAdapter {
@@ -392,11 +466,25 @@ impl PackageReviewInput<'_> {
             body,
             declarations.behaviors[index],
         )?;
+        let realization = *declarations
+            .accepted
+            .closure()
+            .elaboration
+            .machines
+            .get(candidate)
+            .ok_or_else(|| unavailable("the selected provider's original declaration"))?;
+        // A checked realization with no authored reach clause can carry
+        // its governing requirement's ceiling in the execution contract.
+        // The method row already publishes that ceiling, and the checked
+        // body still owes its own empty reach in this projection.
+        let unrepresented_ceiling = !body.contract.published_service_ceiling.is_empty()
+            && (body.contract.published_service_ceiling != boundary.published_service_ceiling
+                || declarations.has_authored_reach(realization));
         if !reach.is_empty()
             || !invocations.is_empty()
             || may_suspend
             || may_block
-            || !body.contract.published_service_ceiling.is_empty()
+            || unrepresented_ceiling
             || !body.contract.published_synchronous_entries.is_empty()
             || !body.contract.crash_routes.is_empty()
             || body.contract.published_may_block
@@ -407,13 +495,6 @@ impl PackageReviewInput<'_> {
                 "the selected provider's complete effect or calling policy",
             ));
         }
-        let realization = *declarations
-            .accepted
-            .closure()
-            .elaboration
-            .machines
-            .get(candidate)
-            .ok_or_else(|| unavailable("the selected provider's original declaration"))?;
         Ok(PackagePolicyProviderRow {
             method: row.method.clone(),
             requirement,
@@ -441,6 +522,7 @@ impl PackageReviewInput<'_> {
         plan: &ProviderPlan,
         requirement: PackageReviewNominalIdentity,
         requirement_owner: PackageReviewNominalIdentity,
+        declarations: &SelectedDeclarations<'_>,
     ) -> Result<(PackagePolicyServiceMethod, PackagePolicyCallable), Vec<Diagnostic>> {
         let source = self.typed();
         let declared_service = source
@@ -464,7 +546,10 @@ impl PackageReviewInput<'_> {
             })
             || method.completion != boundary.completion
             || method.terminates_guarantee != boundary.unconditional_termination
-            || !boundary.published_service_ceiling.is_empty()
+            || boundary
+                .published_service_ceiling
+                .iter()
+                .any(|id| Some(*id) != boundary.owning_service)
             || !boundary.published_synchronous_entries.is_empty()
             || !boundary.structural_parameters.is_empty()
             || !boundary.requires.is_empty()
@@ -486,8 +571,8 @@ impl PackageReviewInput<'_> {
                 .is_some_and(|rows| !rows.is_empty())
             || !method.entry_claims.is_empty()
             || !method.result_claims.is_empty()
-            // The selected service schema includes its own service. The
-            // callable's published reach above describes additional services.
+            // The schema always names its slot. Here every written effect is
+            // already covered by that same exact service identity.
             || method.service_reach.as_slice() != [declared_service.name.as_str()]
             || !method.synchronous_invocations.is_empty()
             || method.may_suspend
@@ -523,6 +608,15 @@ impl PackageReviewInput<'_> {
         } else {
             PackagePolicyTermination::NoGuarantee
         };
+        if !declarations.has_authored_reach(signature.symbol) {
+            return Err(unavailable(
+                "the selected requirement's authored service ceiling",
+            ));
+        }
+        let declared_reach = reviewed_services(
+            declarations.service_names,
+            &boundary.published_service_ceiling,
+        )?;
         let callable = PackagePolicyCallable {
             target_context: PackagePolicyTargetContext::TargetIndependent,
             role: PackagePolicyCallableRole::Boundary,
@@ -538,9 +632,9 @@ impl PackageReviewInput<'_> {
             operator_realizations: Vec::new(),
             requirement_realizations: Vec::new(),
             contracts: Vec::new(),
-            declared_service_reach: Some(Vec::new()),
+            declared_service_reach: Some(declared_reach.clone()),
             service_reach_dependency: PackagePolicyServiceReachDependency {
-                concrete: Vec::new(),
+                concrete: declared_reach,
                 parameters: Vec::new(),
             },
             checked_service_reach: PackageReviewCheckedServiceReach::NoCheckedBody,
@@ -612,5 +706,56 @@ impl PackageReviewInput<'_> {
             calling: Vec::new(),
         };
         Ok((selected, callable))
+    }
+}
+
+fn closed_service(source: &typed_trees::TypedTrees, service: &TraitDefinition) -> bool {
+    service.is_boundary
+        && service.lifetime_parameters.is_empty()
+        && service.conformance_bounds.is_empty()
+        && source.trait_type_parameters(service).is_empty()
+        && source.trait_requirements(service).is_empty()
+        && service.refines.is_none()
+        && service.refinement_clauses.is_empty()
+}
+
+fn service_trait(
+    identity: PackageReviewNominalIdentity,
+    requirements: Vec<PackagePolicyTraitRequirement>,
+) -> PackagePolicyTraitShape {
+    PackagePolicyTraitShape {
+        identity,
+        is_boundary: true,
+        lifetime_parameter_count: 0,
+        type_parameters: Vec::new(),
+        conformance_bounds: Vec::new(),
+        parents: Vec::new(),
+        requirements,
+    }
+}
+
+fn service_requirement(callable: &PackagePolicyCallable) -> PackagePolicyTraitRequirement {
+    PackagePolicyTraitRequirement {
+        identity: callable.identity.clone(),
+        spelling: callable.spelling,
+        has_default_realization: false,
+        lifetime_parameter_count: callable.lifetime_parameter_count,
+        type_parameters: callable.type_parameters.clone(),
+        conformance_bounds: callable.conformance_bounds.clone(),
+        parameters: callable.parameters.clone(),
+        return_type: callable.return_type.clone(),
+        contracts: callable.contracts.clone(),
+        published_crash: callable.checked_crash.published.clone(),
+        service_reach: callable.declared_service_reach.clone().unwrap_or_default(),
+        service_reach_is_installation_bound: false,
+        synchronous_invocations: callable
+            .declared_synchronous_invocations
+            .clone()
+            .unwrap_or_default(),
+        suspends: false,
+        blocks: false,
+        termination: callable.checked_termination.clone(),
+        returned_borrow_origins: Vec::new(),
+        parameter_qualification_preconditions: Vec::new(),
     }
 }

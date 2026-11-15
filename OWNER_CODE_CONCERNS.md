@@ -73,19 +73,40 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### Three diagnostic tests still expect ordinary float literals to be refused
-- Category: tests that pin the bug
-- Where: [grouped machine diagnostics](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/every_refusal.rs) (`THREE_HELPERS`)
-- Saw: The three Stage06 tests for individual, grouped and direct body refusal still use valid `f64` local literals as the source of each error. Since [float literals began to compile](https://github.com/CathedralOS/Omega/pull/3520), the clean `dcc251db7f2` macOS arm64 suite reaches a successful elaboration and no refusals for those bodies. The tests for a refused signature and unplanned lowering in the same module still pass.
-- Cost: This fixture no longer checks whether each body yields the same diagnostic alone and in a group, or whether the direct reader stops at the first. Use a body form that still produces the intended refusal and keep the ordering and identity assertions.
-- Reported: 2026-11-15, Codex, while running the Stage06 suite for typed slice indexing.
+### The ownership walk refuses the kept array-view attenuation case
+- Category: knowledge crossing a boundary
+- Where: [array_view fixture](tests/fixtures/pass/borrows/exclusive_formation_attenuation/main.omg#L11), [compiler ownership oracle](omega-rust/omega/compilation/compiler/tests/lowered_route_ownership.rs#L431), [ownership reconstruction](omega-rust/omega/compilation/representations/abstract-operations/optimization-unit-semantics/src/unit_validation.rs#L18472)
+- Saw: On `1f997b9cbe7` with the three independent fixture initializers repaired, the full and isolated exclusive-formation test reaches accepted Psi publication and verified Omega 01, then receives `StructuralCatalogMismatch { machine: Some(MachineId(5)) }` from ownership reconstruction. A diagnostic-only trace identifies machine 5 as `array_view` in the unchanged positive fixture.
+- Cost: The case cannot reach its byte-value oracle or the paired overlap checks. Preserve the checked shared and exclusive array-view relationships through the existing structural catalog and independent ownership walk.
+- Reported: 2026-11-15, Codex, while restoring the compiler ownership integration build.
 
-### The float equality refusal test never selects its IEEE comparison
+### A float literal loses its type in a transition comparison
+- Category: branch per shape
+- Where: [binary operand selection](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/expressions.rs#L1290)
+- Saw: On macOS arm64 at `93a8e980316`, after binding `chosen: f64` from an ordinary identity call, the transition comparison `chosen == 2.5f64` refuses with “typing operand types” at the generated transition binding. Binding the same literal to an explicitly typed local first, or returning it from the identity call, makes the same comparison and branch run with native and Psi exit 0.
+- Cost: An explicitly suffixed float literal needs an extra binding or call to reach ordinary IEEE equality. Preserve its carrier through the existing operator selection and keep typed-operand and mismatched-format controls.
+- Reported: 2026-11-15, Codex, while checking typed slice reads
+
+### Product declaration requests rescan the source roster
+- Category: re-deriving
+- Where: [Product path and author resolution](omega-rust/psi/compilation/representations/typed-trees/src/product_and_trait_declarations.rs#L1241), [exact source matcher](omega-rust/psi/foundation/symbols/src/table.rs#L2041), [Build declaration formations](omega-rust/psi/compilation/source-compiler/src/source_compilation.rs#L589)
+- Saw: Forming each service-audit operand rebuilds its boundary candidate and token-bound machine lists, then scans them for the path. Each executed event also searches all typed machines for its authored span. The source continuation searches all collected occurrences for each formation.
+- Cost: A batch pays for the same source inventory repeatedly. Prepare the role, name and original occurrence lookups in their existing source owners. Keep the exact package alias and visibility, source stratum, qualified-path precedence, ambiguity, and lexical author checks for audit, provider and native selection.
+- Reported: 2026-11-15, Codex, while reviewing the authored service audit admission.
+
+### Package review cannot retain the audit driver's unsupplied boundary
+- Category: knowledge crossing a boundary
+- Where: [Driver's public contract](tests/fixtures/pass/effects/root_service_audit/driver/main.omg#L5), [review inventory](omega-rust/omega/packages/review-evidence/src/capture/providers.rs)
+- Saw: The unchanged `root_service_audit` project at tested `df9b4619a87` produces exit 1 from `omega packages audit --project … --details`. macOS arm64 reports that `audit_driver` cannot retain the complete boundary/service inventory. That package declares a public `Driver::drive` boundary without selecting its implementation.
+- Cost: The consumer cannot inspect the dependency's authored reach or its audit findings. Project the existing reviewed requirement as an interface without granting an installation or weakening the unrelated-boundary denial. The [archived inferred reach probe](#the-inferred-reach-review-probe-lost-its-support-package) also reaches this inventory gate after source migration.
+- Reported: 2026-11-15, Codex, while verifying authored reach slack.
+
+### The root service-audit controls refer to retired source paths
 - Category: tests that pin the bug
-- Where: [float clause test](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/floats.rs#L99), [contract comparison reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/contracts.rs)
-- Saw: With only the Stage06 fixture constructors repaired on `696be2f33d1`, `what_is_not_computed_with_a_float_is_refused_by_name` reaches “contract IEEE comparison without its selected declaration” for `need(value: f32) requires value == value`. Its oracle still expects the pre-#3544 blanket comparison refusal. The test never reaches the original question of whether an unconstrained float can be assumed equal to itself.
-- Cost: The regression no longer exercises IEEE equality for a value that may be NaN. Select the checked comparison through the ordinary source route and preserve the negative proof that a caller cannot assume the equality without evidence.
-- Reported: 2026-11-15, Codex, when the lowered checker suite resumed after the record-layout fixture repair.
+- Where: [direct root example](omega-rust/omega/compilation/compiler/examples/package_batch_sources.rs#L47), [authored import](tests/fixtures/pass/effects/root_service_audit/main.omg#L1), [denial guide](tests/fixtures/pass/effects/root_service_audit/README.md#L13)
+- Saw: On `df9b4619a87`, the kept `package_batch_sources --service-audits` example refuses `audit_driver::main` at line 1, column 5 because the import selects no declaration or module. The guide's `tests/omega/fail/build/service_audit_requires_boundary` path is absent.
+- Cost: The direct check cannot prove exact delegated `MotorControl` custody, idempotence, or the absence of untaken and dependency registrations. Migrate the import and reconnect the ordinary-trait denial while retaining those exact assertions.
+- Reported: 2026-11-15, Codex, while replaying the kept audit controls.
 
 ### A computed array extent blocks a layout constant before target evaluation
 - Category: knowledge crossing a boundary
@@ -128,13 +149,6 @@ framework or a list of unimplemented features.
 - Saw: With the kept path on `8329cdc221e`, Psi checking refuses “machine service reach bound by an installation” for `AProvider::visit`, `BProvider::visit`, `CProvider::visit`, and `DProvider::visit`.
 - Cost: The already formulated assertion that A retains both the earlier B and later D contributions cannot run. Carry the original installation-bound declarations into selected reach and the existing review records.
 - Reported: 2026-11-15, Codex, while reconnecting the staggered package-review fixture.
-
-### Build refuses the authored reach-slack policy before review
-- Category: tests that pin the bug
-- Where: [slack fixture Build](tests/fixtures/pass/effects/optional_reach_declared_slack_exit/build.omg), [authored reach assertions](omega-rust/omega/compilation/compiler/tests/package_review.rs#L222)
-- Saw: The existing slack fixture on `8329cdc221e` reaches “no product route yet: Build product declaration admission” with the authored `Build::audit_service<Unused>` still present. The kept independent empty-reach fixture completes the same ordinary review and recovery route.
-- Cost: The probe cannot compare its two declared services with its one realized service. Admit the original audit through the existing Product policy owner so its exact slack stays observable.
-- Reported: 2026-11-15, Codex, while replaying package-review reach cases.
 
 ### Review refuses the original opaque native binding
 - Category: knowledge crossing a boundary
@@ -231,7 +245,7 @@ framework or a list of unimplemented features.
 ### Instruction selection reconstructs target operands from earlier executable bodies
 - Category: re-deriving
 - Where: [ordinary native selection](omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L110), [paired instruction projection](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_source.rs) (`instruction::project`), [body-derived runtime indices](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization.rs) (`runtime_indices::operands`, `runtime_indices::projection`)
-- Saw: Ordinary Omega 03 still pairs target instructions with optimized operation nodes. Whole byte-sequence copies and concatenation, element-view reads and writes, bounded-owned byte-field writes, storage addresses, accessor and access-lifecycle operations, static interrupts and descriptor-table setup still read operand or selector geometry from the earlier body. Boundary and normalized foreign calls still read the abstract operation. A folded byte length still uses its earlier opcode to identify the immediate row. The body-reading `successor` is reachable only in the independent audit.
+- Saw: Ordinary Omega 03 still pairs target instructions with optimized operation nodes. Whole byte-sequence copies and concatenation, element-view writes, bounded-owned byte-field writes, storage addresses, accessor and access-lifecycle operations, static interrupts and descriptor-table setup still read operand or selector geometry from the earlier body. Boundary and normalized foreign calls still read the abstract operation. A folded byte length still uses its earlier opcode to identify the immediate row. The body-reading `successor` is reachable only in the independent audit.
 - Cost: Changing one of these operations can require matching recognizers across stages. Move the remaining operands to the retained target row and keep source reconstruction in the audit. Acceptance: ordinary `instruction::project` takes no optimized node or function, and `TargetSelectionInput` drops `source` and `unit` except for the independent validator. The native publication tests exercise the independent target audit on compiled programs. Explicit compiler validator requests still lack a route to that audit.
 - Reported: 2026-11-15, Codex, while verifying representation handoffs after the IR cleanup; static source and caller-chain evidence only. Narrowed 2026-11-15, Claude Code, after moving leaf copies, field stores and case membership to retained target rows.
 

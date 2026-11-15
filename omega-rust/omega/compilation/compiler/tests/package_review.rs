@@ -239,7 +239,33 @@ fn review_policy_round_trip_preserves_authored_reach_slack() {
         .expect("checked body");
     assert_eq!(declared.len(), 2);
     assert_eq!(realized.len(), 1);
+    assert_eq!(realized[0].path(), "Mark");
+    let requirement = recovered
+        .callables()
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path() == "Mark::read")
+        .expect("the exact boundary requirement");
+    assert_eq!(requirement.declared_service_reach(), Some(realized));
+    assert_eq!(requirement.service_reach_dependency().concrete(), realized);
+    let [audited] = recovered.service_audits() else {
+        panic!("one executed service audit");
+    };
+    assert_eq!(audited.path(), "Unused");
+    assert!(declared.contains(audited));
     assert_eq!(callable.published_service_reach(), Some(declared));
+    assert!(recovered.slack_uses().iter().any(|row| {
+        row.callable() == callable.identity()
+            && row.service() == audited
+            && row.class()
+                == review_evidence::record::PackageReviewDangerousAuthorityClass::ConsumerAudit
+    }));
+    let service = recovered
+        .public_traits()
+        .iter()
+        .find(|declaration| declaration.identity() == audited)
+        .expect("the exact authored service remains a public trait");
+    assert!(service.requirements().is_empty());
 }
 
 #[test]
