@@ -143,13 +143,15 @@ impl Program<'_> {
                 self.fixed_inputs.push(machine);
             } else if self.data_declaration(*symbol).is_some() {
                 self.record(entry, *symbol)?;
-            } else if typed
+            } else if let Some((_, requirement)) = typed
                 .trait_machine_signature(*symbol)
-                .is_some_and(|(owner, requirement)| {
-                    owner.is_boundary && requirement.symbol == *symbol
-                })
+                .filter(|(owner, requirement)| owner.is_boundary && requirement.symbol == *symbol)
             {
-                self.boundary_declaration(entry, *symbol)?;
+                if requirement.type_parameters.is_empty() {
+                    self.boundary_declaration(entry, *symbol)?;
+                } else {
+                    self.applied_boundaries(entry, *symbol)?;
+                }
             } else if let Some(owner) = typed
                 .trait_definition_by_symbol(*symbol)
                 .filter(|owner| owner.is_boundary)
@@ -164,6 +166,37 @@ impl Program<'_> {
                     ),
                 ));
             }
+        }
+        Ok(())
+    }
+
+    /// A native binding's claim of a requirement with value parameters, such
+    /// as `utf8<const Units: u64, const Bytes: u64>`. Such a requirement has
+    /// no one contract to read: an array formal `&[u16; Units]` has a length
+    /// only once `Units` is a literal. Each closed application stage 04 made
+    /// for a call (`utf8<4096, 12288>`) is a boundary with its own literal
+    /// contract, and that is what the binding supplies. So the claim reads
+    /// every one of them through the same reader their calls take, and a
+    /// claim of a requirement nothing applies is refused rather than left
+    /// unread.
+    fn applied_boundaries(&mut self, entry: MachineId, requirement: SymbolHandle) -> Checked<()> {
+        let applications: Vec<SymbolHandle> = self
+            .typed
+            .closed_requirement_applications()
+            .filter(|application| application.template == requirement)
+            .map(|application| application.signature.symbol)
+            .collect();
+        if applications.is_empty() {
+            return Err(refuse(
+                entry,
+                Construct::Machine,
+                Unserved::Declaration(
+                    "native binding of a requirement with value parameters that nothing applies",
+                ),
+            ));
+        }
+        for application in applications {
+            self.boundary_declaration(entry, application)?;
         }
         Ok(())
     }
