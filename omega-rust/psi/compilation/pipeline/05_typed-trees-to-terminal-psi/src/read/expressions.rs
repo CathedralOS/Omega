@@ -1453,6 +1453,72 @@ mod tests {
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap())
     }
 
+    #[test]
+    fn suffix_policy_belongs_to_the_operation_not_its_values() {
+        let source = SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
+        let plain = ValueType::plain(carrier());
+        let operand = |slot, result| Expression {
+            call_context: None,
+            kind: ExpressionKind::Slot(slot),
+            result: Some(result),
+            source,
+        };
+        let suffixed = |operator, policy, left, right| {
+            binary_expression(
+                MachineId::new(1).unwrap(),
+                operator,
+                operand(0, left),
+                operand(1, right),
+                (false, false),
+                Some(policy),
+                source,
+            )
+        };
+        for operator in [
+            BinaryOperator::Add,
+            BinaryOperator::Subtract,
+            BinaryOperator::Multiply,
+            BinaryOperator::Divide,
+            BinaryOperator::Modulo,
+            BinaryOperator::ShiftLeft,
+            BinaryOperator::ShiftRight,
+        ] {
+            let mut operations = Vec::new();
+            for policy in [Policy::Wrapping, Policy::Saturating, Policy::Trapping] {
+                let expression = suffixed(operator, policy, plain, plain).unwrap();
+                assert_eq!(expression.result, Some(plain));
+                let ExpressionKind::Strict {
+                    policy: selected,
+                    left,
+                    right,
+                    ..
+                } = &expression.kind
+                else {
+                    panic!("a suffix must select a strict operation");
+                };
+                assert_eq!(*selected, Some(policy));
+                assert_eq!(left.result, Some(plain));
+                assert_eq!(right.result, Some(plain));
+                assert!(matches!(left.kind, ExpressionKind::Slot(0)));
+                assert!(matches!(right.kind, ExpressionKind::Slot(1)));
+                assert!(same_computation(&expression, &expression.clone()));
+                for previous in &operations {
+                    assert!(!same_computation(previous, &expression));
+                }
+                operations.push(expression);
+
+                let qualified = ValueType::Scalar(carrier(), Qualification::of_policy(policy));
+                // A shift count is an operand too: no suffix removes its domain.
+                for (left, right) in [(qualified, plain), (plain, qualified)] {
+                    assert_eq!(
+                        suffixed(operator, policy, left, right).unwrap_err().detail,
+                        crate::policy::QUALIFIED_OPERAND,
+                    );
+                }
+            }
+        }
+    }
+
     /// The type `operator` gives two operands of these types, or why it is
     /// refused. `anonymous` says which operand is a literal in the source.
     fn typed(
