@@ -298,7 +298,8 @@ fn sink_requirement(frozen: &typed_trees::FrozenTypedTrees) -> symbols::SymbolHa
 /// numeric_values.md, "Integer equality and order": integers of different
 /// types compare by their exact values, in contracts too. A native binding
 /// claims each closed application of a value-generic requirement, because
-/// only those have a contract with literal array lengths.
+/// only those have a contract with literal array lengths, and claims nothing
+/// when nothing applies it.
 #[test]
 fn a_value_generic_boundary_is_claimed_and_judged_at_each_application() {
     let applied = value_generic_boundary("Sink::take<4>(&buffer, 3)");
@@ -321,15 +322,11 @@ fn a_value_generic_boundary_is_claimed_and_judged_at_each_application() {
         "{verdict:?}"
     );
 
-    // With no application, nothing gives the requirement a contract to read.
+    // With no application there is no contract to read, so the claim
+    // publishes no boundary; a consumer's call would close its own.
     let unapplied = value_generic_boundary("7u32");
-    let refused = claimed(&unapplied, sink_requirement(&unapplied)).unwrap_err();
-    assert!(
-        refused
-            .detail
-            .contains("native binding of a requirement with value parameters that nothing applies"),
-        "{refused:?}"
-    );
+    let elaboration = claimed(&unapplied, sink_requirement(&unapplied)).unwrap();
+    assert!(elaboration.module.boundary_machines.is_empty());
 }
 
 #[test]
