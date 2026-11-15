@@ -214,7 +214,8 @@ fn an_effect_statement_discards_only_an_actual_normal_result() {
     // separate statement-only prediction of the call's outcome.
     let stopped = accepted(
         "public machine stop() -> u32 ensures false crashes Trap { crash Trap; } \
-         machine main() crashes Trap { stop(); }",
+         public machine relay() -> u32 ensures false crashes Trap { stop(); } \
+         machine main() crashes Trap { relay(); }",
     );
     assert!(
         stopped

@@ -3024,13 +3024,6 @@ impl<'t> Program<'t> {
             body.push(read);
             position += 1;
         }
-        if !completed && signature.result.is_some() {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Completion("value machine can fall off its end"),
-            ));
-        }
         if let Some(names) = self.names.get_mut(id) {
             for statement in &body {
                 bindings(statement, &slot_names, &mut names.bindings);

@@ -932,7 +932,11 @@ impl<'a> Lowering<'a> {
                     self.return_unit(SourceOrigin::Unpositioned(Unpositioned::ImplicitReturn))?
                 }
                 Some(_) => {
-                    return Err(self.internal("a value machine fell off its last statement"));
+                    return Err(refuse(
+                        self.id,
+                        Construct::Machine,
+                        Unserved::Completion("value machine can fall off its end"),
+                    ));
                 }
             }
         }
