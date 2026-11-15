@@ -73,6 +73,13 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### Service contract projection loses the reason and declaration behind a refusal
+- Category: verifying costs more than writing
+- Where: [full service projection](omega-rust/psi/compilation/representations/typed-trees/src/service_declarations.rs#L555), [boundary publication](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/declare.rs#L623)
+- Saw: Producer `9101613dfcd` refuses both `native_boundary_supply` and `default_console_provider_reached` during source discovery with `boundary declaration has no complete service contract`. The projection returns the same `None` for a wrong source scope, an unavailable receiver application, or a method it cannot project. The current repair fixes the Build-scope lookup; the shared API still discards the cause and declaring requirement.
+- Cost: A later projection failure looks like another unsupported language construct, even when the compiler supplied the wrong metadata context. Carry a specific failure and declaration through this shared projection so callers can explain the refusal without retracing every branch.
+- Reported: 2026-11-14, Codex, while carrying Build native bindings through console execution
+
 ### An indexed dispatch discriminator has no canonical seal owner
 - Category: knowledge crossing a boundary
 - Where: [terminator path ownership](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lower/places.rs#L2384), [native proof provenance](omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/graph.rs#L20)

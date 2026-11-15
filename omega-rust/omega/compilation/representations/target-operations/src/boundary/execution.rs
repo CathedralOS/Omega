@@ -33,16 +33,30 @@ pub struct NativeBindingExecution {
 }
 
 impl NativeBindingExecution {
-    pub fn from_commitments(receipt: [u8; 32], contract: [u8; 32], calling: [u8; 32]) -> Option<Self> {
+    pub fn from_commitments(
+        receipt: [u8; 32],
+        contract: [u8; 32],
+        calling: [u8; 32],
+    ) -> Option<Self> {
         if receipt == [0; 32] || contract == [0; 32] || calling == [0; 32] {
             None
         } else {
-            Some(Self { receipt, contract, calling })
+            Some(Self {
+                receipt,
+                contract,
+                calling,
+            })
         }
     }
-    pub const fn receipt(self) -> [u8; 32] { self.receipt }
-    pub const fn contract(self) -> [u8; 32] { self.contract }
-    pub const fn calling(self) -> [u8; 32] { self.calling }
+    pub const fn receipt(self) -> [u8; 32] {
+        self.receipt
+    }
+    pub const fn contract(self) -> [u8; 32] {
+        self.contract
+    }
+    pub const fn calling(self) -> [u8; 32] {
+        self.calling
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -52,7 +66,9 @@ pub enum ExternalExecutionBinding {
 }
 
 impl From<ProviderExecutionBinding> for ExternalExecutionBinding {
-    fn from(binding: ProviderExecutionBinding) -> Self { Self::Provider(binding) }
+    fn from(binding: ProviderExecutionBinding) -> Self {
+        Self::Provider(binding)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

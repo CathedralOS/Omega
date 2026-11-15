@@ -10,9 +10,10 @@ use terminal_psi::{StructuralArgument, StructuralTypeDeclaration};
 
 mod execution;
 pub use execution::{
-    BoundaryExecutionBinding, ExternalExecutionBinding, NativeBindingExecution, CompilerBuiltinExecution, IeeeFloatArithmeticOperation,
-    IeeeFloatBinaryOperation, IeeeFloatIntegerCarrier, IeeeFloatRoundingDirection,
-    IeeeFloatToIntegerDomain, ProviderExecutionBinding, ProviderPlanReportIdentity,
+    BoundaryExecutionBinding, CompilerBuiltinExecution, ExternalExecutionBinding,
+    IeeeFloatArithmeticOperation, IeeeFloatBinaryOperation, IeeeFloatIntegerCarrier,
+    IeeeFloatRoundingDirection, IeeeFloatToIntegerDomain, NativeBindingExecution,
+    ProviderExecutionBinding, ProviderPlanReportIdentity,
 };
 mod realizations;
 pub use realizations::{
@@ -20,8 +21,9 @@ pub use realizations::{
     ClaimCompletionOnlyRealization, DirectPortReadU8Realization, ForeignCallOperands,
     HostedExitProcessI32Realization, HostedReadByteRealization, HostedWriteByteI32Realization,
     LinuxWriteLineRealization, MetadataOnlyPortRealization, NearestIeeeFloatArithmeticRealization,
-    NormalizedForeignCallBinding, NormalizedForeignCallMechanism, NormalizedForeignExecution, NormalizedForeignScalarArgument,
-    NormalizedForeignStructuralArgument, NormalizedSystemCallBinding,
+    NormalizedForeignCallBinding, NormalizedForeignCallMechanism, NormalizedForeignExecution,
+    NormalizedForeignScalarArgument, NormalizedForeignStructuralArgument,
+    NormalizedSystemCallBinding,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

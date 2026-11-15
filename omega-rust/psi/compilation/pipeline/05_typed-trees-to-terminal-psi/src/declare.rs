@@ -586,6 +586,25 @@ fn application(
     })
 }
 
+pub(crate) fn service_declaration_scope(
+    typed: &TypedTrees,
+    owner: SymbolHandle,
+) -> Result<source::DependencyScope, &'static str> {
+    if typed.symbols.source_files().next().is_none() {
+        // Without source files there are no scoped source instances to choose.
+        return Ok(source::DependencyScope::default());
+    }
+    let span = typed
+        .symbols
+        .symbol_provenance_source_span(owner)
+        .ok_or("boundary declaration lost its retained source provenance")?;
+    let file = typed
+        .symbols
+        .source_file(span)
+        .ok_or("boundary declaration provenance has no retained source file")?;
+    Ok(file.dependency_scope)
+}
+
 /// A bodyless trait method retains its actual nominal owner and signature.
 /// There is no executable state to invent: the owning trait and requirement
 /// occupy the existing owner/entry coordinates of the declaration record.
@@ -620,11 +639,12 @@ pub(crate) fn boundary(
     let sources =
         source::source_identity::toolchain_source_identities(typed.symbols.source_files())
             .map_err(|_| "a boundary toolchain source has no exact identity")?;
+    // Metadata belongs to the declaration's checked source instance. A Build
+    // boundary has the same complete contract custody as a Product boundary;
+    // reading either declaration grants no call or installation permission.
+    let declaration_scope = service_declaration_scope(typed, owner.symbol)?;
     let service_declaration = typed_trees::service_declarations::projection::from_typed(
-        typed_trees::provider_declarations::ProviderPlanningContext::new(
-            typed,
-            source::DependencyScope::Product,
-        ),
+        typed_trees::provider_declarations::ProviderPlanningContext::new(typed, declaration_scope),
         owner,
     )
     .ok_or("boundary declaration has no complete service contract")?
