@@ -1507,8 +1507,10 @@ mod statement_nodes {
         let receiver = if members.is_empty() {
             ExpressionHandle::invalid()
         } else {
+            let member_symbols = expression_table.reserve_name_path_member_symbols(members.count());
             expression_table.insert(ExpressionNode::Name(TableNamePath {
                 members,
+                member_symbols,
                 ..Default::default()
             }))
         };

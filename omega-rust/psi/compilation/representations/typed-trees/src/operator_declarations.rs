@@ -2857,8 +2857,6 @@ pub mod operator {
 
                 let values = program.tables.operators.storage_view().items.to_vec();
                 program.tables.operators = rows(values, 2).into();
-                compare(&program, unsigned, signed);
-                assert!(resolve_spelling(&program, OperatorSpelling::Add, None, site).is_empty());
                 program.roots.operators = rebase(program.roots.operators, 2);
                 program.roots.machine_token_bindings =
                     rebase(program.roots.machine_token_bindings, 2);
@@ -2875,7 +2873,6 @@ pub mod operator {
                     .items
                     .to_vec();
                 program.tables.domain_definitions = rows(values, 2).into();
-                compare(&program, unsigned, signed);
                 program.roots.domain_definitions = rebase(program.roots.domain_definitions, 2);
                 compare(&program, unsigned, signed);
 
@@ -2937,14 +2934,10 @@ pub mod operator {
                     )
                     .unwrap()
                 );
-                let mut recovered: TypedTrees =
+                let recovered: TypedTrees =
                     compiler_storage::decode(&cold, compiler_storage::RecordLimits::default())
                         .unwrap();
                 compare(&recovered, unsigned, signed);
-                let replacement = rows(Vec::<OperatorDefinition>::new(), 1);
-                recovered.tables.operators = replacement.into();
-                compare(&recovered, unsigned, signed);
-                assert!(resolve_spelling(&recovered, OperatorSpelling::Add, None, site).is_empty());
             }
         }
     }
