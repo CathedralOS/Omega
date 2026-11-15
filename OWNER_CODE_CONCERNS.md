@@ -73,6 +73,34 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### A fixed-layout record constant loses its target selection
+- Category: knowledge crossing a boundary
+- Where: [constant initializer](samples/cli/facts/fixed_layout_storage/const_name/main.omg#L28), [constant evaluation request](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/constant_jobs.rs#L662), [interpreter layout admission](omega-rust/psi/interpreter/src/embedding.rs#L2398)
+- Saw: On clean `15145194c7d` on macOS arm64, the kept `fixed_layout_storage/const_name` sample fails package review at `SAVED` with `source invocation demands: TargetLayoutSelectionMissing(LayoutApplicationId(1))`. The `call_result` placement of the same selected record layout exits 0 in native and Psi. The invalid constant independently reaches the exact `Delivered` cast refusal.
+- Cost: The constant never reaches checking or execution of its original value and layout assertions. Carry the selected layout through the existing constant invocation when that evaluation requires it. Preserve exact target custody and the invalid cast.
+- Reported: 2026-11-15, Codex, while replaying the fixed-layout cast oracles.
+
+### Fixed-layout record fields stop affine checking before the cast verdict
+- Category: knowledge crossing a boundary
+- Where: [field sample](samples/cli/facts/fixed_layout_storage/field/main.omg#L28), [invalid field sample](samples/cli/facts/fixed_layout_storage/invalid_field/main.omg#L24), [canonical affine region](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/plain_affine.rs#L2456)
+- Saw: On clean `15145194c7d` on macOS arm64, `fixed_layout_storage/field` fails package review with `affine projection outside the static structural vocabulary`. `invalid_field` gives the same unjudged refusal during `--check`, before the checker can decide the `Delivered` cast. Both store the selected `LayoutStorage<Pair, PairLayout>` value in `Holder.value`.
+- Cost: The field placement cannot check either the authored byte offsets or the invalid 41 cast. Make the existing affine projection check recognize the field's exact selected storage path. Once the negative reaches the cast, verify and refresh its `expected.txt` and `sample.json`, which still use the earlier range wording.
+- Reported: 2026-11-15, Codex, while replaying the fixed-layout cast oracles.
+
+### A failed constant cast loses its original location
+- Category: knowledge crossing a boundary
+- Where: [failing cast in make](samples/cli/facts/fixed_layout_storage/invalid_const_name/main.omg#L24), [constant error wrapper](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/constant_jobs.rs#L699)
+- Saw: On clean `15145194c7d` on macOS arm64, `--check` reports the `Delivered` cast in `make` for `invalid_const_name` but prints `source-unit 241, bytes 1336..1341`, the span of the `SAVED` identifier at 28:7. The `invalid_call_result` control reports the same failure at its authored cast at 24:25.
+- Cost: Reading the diagnostic takes the user to the constant name without locating the failing operation. Keep the checked error's original location alongside the constant declaration context.
+- Reported: 2026-11-15, Codex, while replaying the fixed-layout cast oracles.
+
+### Package review refuses the fixed-layout target-body boundary
+- Category: knowledge crossing a boundary
+- Where: [Delivery boundary](samples/cli/facts/fixed_layout_storage/target_body/main.omg#L28), [review capture](omega-rust/omega/packages/review-evidence/src/capture/policy.rs#L209)
+- Saw: On clean `15145194c7d` on macOS arm64, `fixed_layout_storage/target_body` reaches package review projection and refuses with `package review cannot retain trait and boundary declaration contracts from the accepted declaration`. Its invalid twin reaches the authored `Delivered` cast under `--check`.
+- Cost: Package review stops execution before the original provider markers and byte offsets can be observed. Retain the accepted `Delivery` contract in the existing review record and keep incomplete contracts refused.
+- Reported: 2026-11-15, Codex, while replaying the fixed-layout cast oracles.
+
 ### The Build host site test omits its checked receiver helper
 - Category: tests that pin the bug
 - Where: [test prelude and two call sites](omega-rust/omega/build-system/build-settings/src/host/bindings/tests.rs#L8), [helper selection](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/call_and_product_selections.rs#L293), [bundled helper](omega-rust/omega/packages/build-declarations/src/prelude.rs#L144)
@@ -107,13 +135,6 @@ framework or a list of unimplemented features.
 - Saw: On clean `781f2f5cb50` on macOS arm64, the shared positive refuses its write after `see(view)` as a conflicting loan. The exclusive positive refuses its array read after `fill(view)` as observation outside a live exclusive reference. The controls call `run()` with no host inputs and both passed on clean `a225808b7c9`.
 - Cost: Build-time source judgment cannot reuse the backing after these returned references' last use. Keep the exact call result origin and end its loan at the existing caller frontier. The twins that use the view after accessing the backing must still refuse.
 - Reported: 2026-11-15, Codex, while verifying closed Build-time arguments against current main.
-
-### Fixed-layout negative samples still expect retired range wording
-- Category: tests that pin the bug
-- Where: [local oracle](samples/cli/facts/fixed_layout_storage/invalid_local/expected.txt#L1), [field oracle](samples/cli/facts/fixed_layout_storage/invalid_field/expected.txt#L1), [literal diagnostic check](tools/xtask/src/samples.rs#L510)
-- Saw: On macOS arm64 with the closed-application repair at `ca02a870855`, both unchanged negative programs exit 200 at `41u64 as +Delivered` on line 24, column 25. The checker cites `u64::Delivered` and `self >= 42 && self <= 42`, while both expectation files still require the literal `expected 42..=42`.
-- Cost: The sample gate calls the correct cast refusal a mismatch. Replay the other pinned placements and update the oracles to identify the refused cast, exact domain and unchanged bound.
-- Reported: 2026-11-15, Codex, while validating closed Build-time layout arguments.
 
 ### A constant snapshot loses a checked element qualification
 - Category: knowledge crossing a boundary
