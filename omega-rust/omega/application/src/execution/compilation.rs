@@ -52,6 +52,7 @@ pub(super) fn compile(
         None => BuildTargets::Host,
     };
     let outcomes = orchestration::build(BuildRequest {
+        stage_validators: Default::default(),
         root_path: options.root_path,
         build_directory: options.build_dir,
         targets,

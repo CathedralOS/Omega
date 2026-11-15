@@ -466,6 +466,93 @@ fn function_storage_contract_projects_without_source_and_audits_every_field() {
 }
 
 #[test]
+fn selection_honors_the_stored_call_plan_without_recomputing_it() {
+    use calling_conventions::{MachineRegister, ValueLocation};
+    // The stored plan passes both u64 arguments in the opposite registers from
+    // the plan `evaluate_call_plan` produces. Selection checks the arguments
+    // against the stored plan and accepts it; it never recomputes the plan.
+    // Comparing the stored plan with the callee's own plan is the independent
+    // audit's job (`direct_calls` in legalization_target.rs).
+    let policy = CallingPolicy::native_for_target(HOST());
+    let shape = calling_conventions::ValueShape::for_integer(u64_type()).unwrap();
+    let evaluated = calling_conventions::evaluate_call_plan(
+        policy,
+        &CallSignature {
+            parameters: vec![shape, shape],
+            result: None,
+        },
+    )
+    .unwrap();
+    let register = |register| calling_conventions::ValuePlacement {
+        shape,
+        locations: vec![ValueLocation::Register {
+            register,
+            value_byte_offset: 0,
+            byte_size: shape.byte_size,
+        }],
+    };
+    let mut stored = evaluated.clone();
+    stored.parameters = vec![
+        register(MachineRegister::X86Rsi),
+        register(MachineRegister::X86Rdi),
+    ];
+    assert_ne!(
+        stored, evaluated,
+        "the stored plan is not the recomputed one"
+    );
+    let argument = |position: u32| target_operations::TargetUnitScalarCallArgument {
+        parameter_index: position,
+        source: TargetUnitScalarArgumentSource::IntegerImmediate {
+            defining_operation: op(1),
+            source_value: val(u64::from(position) + 1),
+            scalar_type: u64_type(),
+            value: IntegerValue::Unsigned(u128::from(position)),
+        },
+        placement: stored.parameters[position as usize].clone(),
+    };
+    let row = TargetUnitOperation::Call {
+        psi_operation: op(2),
+        origin: target_operations::NativeCallOrigin::Authored,
+        target: target_operations::NativeCallTarget::Machine(MachineId::new(2).unwrap()),
+        call_plan: stored.clone(),
+        result: target_operations::TargetCallResult::Unit,
+        scalar_arguments: vec![argument(0), argument(1)],
+        arguments: Vec::new(),
+        access_bindings: Vec::new(),
+        claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+    };
+    let legalized_operations::LegalizedScalarInstructionKind::Call(call) =
+        crate::legalization_source::scalar_graph::instruction::call_instructions::project_call(
+            machine(),
+            &[],
+            &row,
+        )
+        .unwrap()
+    else {
+        panic!("call");
+    };
+    assert_eq!(call.call_plan, stored);
+    assert!(crate::selection_call_abi::stored_plan_placements(policy, &call).is_some());
+    // An argument placed somewhere the stored plan does not put it is refused,
+    // even where that placement is what a recomputed plan would choose.
+    let mut moved = call.clone();
+    let legalized_operations::LegalizedScalarArgument::Scalar { placement, .. } =
+        &mut moved.arguments[0]
+    else {
+        panic!("scalar argument");
+    };
+    *placement = evaluated.parameters[0].clone();
+    assert!(crate::selection_call_abi::stored_plan_placements(policy, &moved).is_none());
+    let mut missing = call.clone();
+    missing.arguments.pop();
+    assert!(crate::selection_call_abi::stored_plan_placements(policy, &missing).is_none());
+    let foreign = CallingPolicy::native_for_target(NativeTarget::linux_arm64());
+    assert!(crate::selection_call_abi::stored_plan_placements(foreign, &call).is_none());
+}
+
+#[test]
 fn scalar_parameter_projection_uses_retained_abi_without_a_source_function() {
     let plan = plan(
         TerminalIdentityTableBuilder::default(),

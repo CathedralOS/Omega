@@ -585,6 +585,7 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
     fn produce(root: &Path, target_name: &str, product: ProjectProduct) -> compiler::CompileReport {
         let profile = target::TargetProfile::from_canonical_target_name(target_name).unwrap();
         let outcomes = orchestration::build(BuildRequest {
+            stage_validators: Default::default(),
             root_path: root.to_path_buf(),
             build_directory: Some(std::env::temp_dir().join(format!(
                 "omega-layout-closure-{}-{target_name}",

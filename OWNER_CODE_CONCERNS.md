@@ -94,6 +94,13 @@ framework or a list of unimplemented features.
 - Cost: Equality maintains another model of relationships already resolved upstream. Carry exact value, type/application and requirement-row identities through preparation, keeping names for diagnostics. Check same-leaf imported types, aliased fields and generated/applied types; unrelated declaration order or diagnostic spelling must not change selection. Preserve recursive-equality rejection using the traversed identities.
 - Reported: 2026-11-15, Codex, while verifying the owner's upstream source-review handoff.
 
+### Selection recomputes the plan for a call's indirect result
+- Category: re-deriving
+- Where: [indirect result check](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/selection_inputs.rs#L1492) (`aggregate_result_input::indirect_result`)
+- Saw: Selection decides whether a call returns through a caller-supplied result pointer by running `calling_conventions::evaluate_call_plan` on a result-only signature and comparing its result placement with the stored one. Borrowed and owned call arguments now take their placements from the stored plan, and the independent audit compares that plan with the callee's own plan. This check still recomputes the plan.
+- Cost: Every call whose result comes back through a result pointer runs the calling convention a second time in default compilation. Read the register from the stored placement's shape and location, and leave the plan comparison to the audit. A live claim (call_contract_repair domain enforcement) lists this file.
+- Reported: 2026-11-15, Claude Code, while removing the recomputed plan from borrowed and owned call arguments
+
 ### Literal declaration validation still judges selected predicates in syntax
 - Category: one idea, several implementations
 - Where: [production constant validation](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/constant.rs#L569), [literal predicate discharge](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_const_evaluation.rs#L3570), [operator applicability](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_const_evaluation.rs#L197), [checked destination handoff](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_data.rs#L3704)

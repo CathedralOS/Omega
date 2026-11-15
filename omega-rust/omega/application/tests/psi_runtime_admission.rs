@@ -117,6 +117,7 @@ machine main() crashes Trap {
 
 fn compile(project: &Path, destination: NativeDestination) -> Result<BuildReport, BuildError> {
     let outcomes = build(BuildRequest {
+        stage_validators: Default::default(),
         root_path: project.join("main.omg"),
         build_directory: None,
         targets: BuildTargets::Single(target::TargetProfile::MacosArm64),

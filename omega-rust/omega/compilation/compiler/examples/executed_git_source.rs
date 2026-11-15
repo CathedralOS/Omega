@@ -148,6 +148,7 @@ fn execute_workspace_fixture() {
     }
     let profile = target::TargetProfile::host_if_supported().unwrap();
     let request = orchestration::BuildRequest {
+        stage_validators: Default::default(),
         root_path: project.join("main.omg"),
         build_directory: Some(directory.join("output")),
         targets: orchestration::BuildTargets::Single(profile),
