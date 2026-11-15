@@ -504,16 +504,6 @@ fn process_exit_retains_its_external_demand_and_requires_supply() {
             .type_identity_text(scope.portable_application_identity(&typed).unwrap())
             .unwrap()
     };
-    let canonical_service_name = |name: &String| {
-        let mut declarations = typed
-            .service_reaches
-            .definitions()
-            .iter()
-            .filter(|declaration| declaration.name == *name);
-        let symbol = declarations.next().unwrap().symbol;
-        assert!(declarations.next().is_none());
-        service_application(symbol)
-    };
     let mut expected = source_schema.as_ref().clone();
     expected.trait_name = expected
         .identities
@@ -536,18 +526,35 @@ fn process_exit_retains_its_external_demand_and_requires_supply() {
     method.result_type_identity = expected
         .identities
         .intern(&typed.package_qualified_type_identity_text(source_requirement.return_type));
-    method.service_reach = method
-        .service_reach
+    // Distinct source instances can display the same service name. Follow this
+    // declaration's exact authored row, never a whole-program name lookup.
+    let mut reached = Vec::new();
+    for service in typed
+        .service_reach_rows
+        .services(source_requirement.service_reach_row)
+    {
+        typed.service_reaches.extend_closure(*service, &mut reached);
+    }
+    reached.sort_unstable_by_key(|service| service.0);
+    reached.dedup();
+    let definitions = reached
         .iter()
-        .map(canonical_service_name)
+        .map(|service| typed.service_reaches.definition(*service).unwrap())
+        .collect::<Vec<_>>();
+    let mut displayed = definitions
+        .iter()
+        .map(|declaration| declaration.name.clone())
+        .collect::<Vec<_>>();
+    displayed.sort_unstable();
+    displayed.dedup();
+    assert_eq!(method.service_reach, displayed);
+    method.service_reach = definitions
+        .iter()
+        .map(|declaration| service_application(declaration.symbol))
         .collect();
     method.service_reach.sort_unstable();
-    method.synchronous_invocations = method
-        .synchronous_invocations
-        .iter()
-        .map(canonical_service_name)
-        .collect();
-    method.synchronous_invocations.sort_unstable();
+    method.service_reach.dedup();
+    assert!(method.synchronous_invocations.is_empty());
     assert_eq!(
         projected.declaration.as_ref(),
         &expected,
