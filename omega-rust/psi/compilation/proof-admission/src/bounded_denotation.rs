@@ -7153,6 +7153,7 @@ mod elaboration {
                         }
                         Children::slice(children)
                     }
+                    IeeeFloatOrderChain(children) => Children::slice(children),
                     ConjunctionElimination {
                         conjunction,
                         conjunct: _,
@@ -7721,6 +7722,19 @@ mod elaboration {
             operands: &mut walk::ChildEvidence<'_>,
         ) -> Result<TermHandle, BoundedDenotationError> {
             match &proof.rule {
+                ProofRule::IeeeFloatOrderChain(premises) => {
+                    crate::ieee_float_rules::check_chain(
+                        &proof.conclusion,
+                        premises.iter().map(|premise| &premise.conclusion),
+                    )
+                    .map_err(|error| certificate!(error))?;
+                    for premise in premises {
+                        let _ = operands.take(premise);
+                    }
+                    Err(BoundedDenotationError::Unsupported(
+                        "IEEE ordered relations in the mathematical core",
+                    ))
+                }
                 ProofRule::Primitive(judgment) => {
                     decide_primitive(self.context, &proof.conclusion, *judgment)
                         .map_err(|error| certificate!(ProofError::PrimitiveJudgment(error)))?;

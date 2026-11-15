@@ -11,10 +11,11 @@
     `wiki/spec/terminal-psi/fact_validity.md` leaves IEEE relations unchanged
     in the bounded predicate-denotation conversion. `normalize`,
     `check_predicate_denotations`, and `verify_obligation` do not call this
-    module. A float literal is decided here only while evaluating a crash
-    guard, and only when both operands carry that comparison's declared IEEE
-    format. A binary32 literal beside a binary64 literal stays unknown.
-    Formation rejects that mismatch before admission calls this walk.
+    module. The shared IEEE leaf decides only operands in that comparison's exact
+    declared format. The certificate kernel uses that leaf through its explicit
+    closed-IEEE primitive judgment; it never uses this guard walk as a proof.
+    A binary32 literal beside a binary64 literal stays unknown. Formation
+    rejects that mismatch before admission calls this walk.
 
     The walk lives in this crate because both callers already depend on it and
     the decision needs `ClosedIntegerEvaluator`, which this crate owns.
@@ -22,10 +23,9 @@
     cycle.
 */
 
-use numerics::float_semantics::{FloatMeaning, FloatSemantics};
-use semantic_vocabulary::{
-    IeeeFloatComparisonKind, IeeeFloatValue, Proposition, ScalarTerm, ScalarType,
-};
+#[cfg(test)]
+use semantic_vocabulary::ScalarTerm;
+use semantic_vocabulary::{Proposition, ScalarType};
 
 use crate::integer_rules::closed_integer::{ClosedIntegerEvaluationError, ClosedIntegerEvaluator};
 
@@ -85,39 +85,8 @@ fn closed_leaf(
     Ok(match proposition {
         Proposition::Truth => Some(true),
         Proposition::Falsehood => Some(false),
-        Proposition::ScalarIeeeFloatComparison {
-            kind,
-            format,
-            left,
-            right,
-        } => {
-            let (ScalarTerm::IeeeFloatLiteral(left), ScalarTerm::IeeeFloatLiteral(right)) =
-                (left, right)
-            else {
-                return Ok(None);
-            };
-            // A declared format is part of the relation. Mixed binary32 and
-            // binary64 operands are not a comparison the Crash section decides.
-            if left.format() != *format || right.format() != *format {
-                return Ok(None);
-            }
-            let meaning = |value: IeeeFloatValue| match value {
-                IeeeFloatValue::Binary32(bits) => FloatMeaning::from_f32(f32::from_bits(bits)),
-                IeeeFloatValue::Binary64(bits) => FloatMeaning::from_f64(f64::from_bits(bits)),
-            };
-            let (left, right) = (meaning(*left), meaning(*right));
-            Some(match kind {
-                IeeeFloatComparisonKind::Equal => FloatSemantics::equal(&left, &right),
-                IeeeFloatComparisonKind::NotEqual => FloatSemantics::not_equal(&left, &right),
-                IeeeFloatComparisonKind::LessThan => FloatSemantics::less(&left, &right),
-                IeeeFloatComparisonKind::LessOrEqual => {
-                    FloatSemantics::less_or_equal(&left, &right)
-                }
-                IeeeFloatComparisonKind::NotLessThan => !FloatSemantics::less(&left, &right),
-                IeeeFloatComparisonKind::NotLessOrEqual => {
-                    !FloatSemantics::less_or_equal(&left, &right)
-                }
-            })
+        Proposition::ScalarIeeeFloatComparison { .. } => {
+            crate::ieee_float_rules::closed_relation(proposition)
         }
         Proposition::Equal(left, right) if left.scalar_type() == ScalarType::Boolean => left
             .boolean_value()

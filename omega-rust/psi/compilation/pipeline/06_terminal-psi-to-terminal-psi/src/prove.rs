@@ -51,6 +51,8 @@ use semantic_vocabulary::{
     PropositionContext, ScalarTerm, ScalarType, ValueId,
 };
 
+#[path = "prove/ieee_float_order.rs"]
+mod ieee_float_order;
 #[path = "prove/ranges.rs"]
 mod ranges;
 #[path = "prove/reach.rs"]
@@ -103,6 +105,7 @@ fn covered(
     }
     match goal {
         Proposition::Truth | Proposition::Falsehood => true,
+        Proposition::ScalarIeeeFloatComparison { .. } => true,
         Proposition::Conjunction(parts) | Proposition::Disjunction(parts) => {
             parts.iter().all(|part| covered(part, fixed, width))
         }
@@ -593,13 +596,17 @@ impl<'a> Prover<'a> {
     }
 
     fn closed(&self, proposition: Proposition) -> Option<ProofNode> {
-        decide_primitive(
-            self.context,
-            &proposition,
-            PrimitiveJudgment::ClosedIntegerRelation,
-        )
-        .ok()
-        .map(|()| primitive(proposition, PrimitiveJudgment::ClosedIntegerRelation))
+        let judgment = if matches!(proposition, Proposition::ScalarIeeeFloatComparison { .. })
+            || matches!(&proposition, Proposition::Implication { premise, conclusion }
+                if **conclusion == Proposition::Falsehood && matches!(**premise, Proposition::ScalarIeeeFloatComparison { .. }))
+        {
+            PrimitiveJudgment::ClosedIeeeFloatRelation
+        } else {
+            PrimitiveJudgment::ClosedIntegerRelation
+        };
+        decide_primitive(self.context, &proposition, judgment)
+            .ok()
+            .map(|()| primitive(proposition, judgment))
     }
 
     fn reflexive(&self, proposition: Proposition) -> Option<ProofNode> {
@@ -1163,11 +1170,14 @@ impl<'a> Prover<'a> {
                 .ok_or("mathematical strict order over open terms"),
             Proposition::Atom(_)
             | Proposition::IeeeFloatComparison { .. }
-            | Proposition::ScalarIeeeFloatComparison { .. }
             | Proposition::ByteSequenceEqual { .. }
             | Proposition::StructuralIdentity { .. }
             | Proposition::StructuralCaseMembership { .. }
             | Proposition::ContentConservation(_) => Err("goal form outside this prover"),
+            Proposition::ScalarIeeeFloatComparison { .. } => self
+                .closed(goal.clone())
+                .or_else(|| self.ieee_float_order(goal))
+                .ok_or("the IEEE order premises do not establish this comparison"),
             Proposition::Implication {
                 premise,
                 conclusion,

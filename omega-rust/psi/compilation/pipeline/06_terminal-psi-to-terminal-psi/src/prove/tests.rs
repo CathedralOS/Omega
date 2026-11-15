@@ -45,3 +45,73 @@ fn a_later_named_result_can_bound_the_same_expression_more_tightly() {
     proof_admission::accept_certificate(&context, &goal, &assumptions, &axioms, &proof.unwrap())
         .unwrap();
 }
+
+#[test]
+fn ieee_order_search_uses_only_connected_ordered_premises() {
+    use semantic_vocabulary::{IeeeFloatComparisonKind as Kind, IeeeFloatFormat, IeeeFloatValue};
+    let format = IeeeFloatFormat::Binary64;
+    let scalar = ScalarType::IeeeFloat(format);
+    let mut values = IdTable::default();
+    let id = values.push(ValueRow {
+        scalar_type: scalar,
+        origin: ValueOrigin::MachineParameter { position: 0 },
+        rigid: None,
+    });
+    let value = ScalarTerm::value(id, scalar);
+    let literal = |bits| ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary64(bits));
+    let relation = |kind, left, right| Proposition::ScalarIeeeFloatComparison {
+        kind,
+        format,
+        left,
+        right,
+    };
+    let premise = relation(
+        Kind::LessOrEqual,
+        value.clone(),
+        literal(0x3fd0_0000_0000_0000),
+    );
+    let goal = relation(
+        Kind::LessOrEqual,
+        value.clone(),
+        literal(0x3fe0_0000_0000_0000),
+    );
+    let context = PropositionContext::from_value_types([(id, scalar)]).unwrap();
+    let assumptions = [premise.clone()];
+    let proof = Prover::new(&context, &assumptions, &[], &values)
+        .prove(&goal)
+        .unwrap();
+    proof_admission::accept_certificate(&context, &goal, &assumptions, &[], &proof).unwrap();
+    assert!(
+        Prover::new(&context, &[], &[], &values)
+            .prove(&goal)
+            .is_err()
+    );
+    let complement = relation(
+        Kind::NotLessThan,
+        literal(0x3fd0_0000_0000_0000),
+        value.clone(),
+    );
+    assert!(
+        Prover::new(&context, &[complement], &[], &values)
+            .prove(&goal)
+            .is_err()
+    );
+    let nan_bound = relation(
+        Kind::LessOrEqual,
+        value.clone(),
+        literal(0x7ff8_0000_0000_0042),
+    );
+    assert!(
+        Prover::new(&context, &[nan_bound], &[], &values)
+            .prove(&goal)
+            .is_err()
+    );
+    let negative_zero = literal(0x8000_0000_0000_0000);
+    let zero_bound = relation(Kind::LessOrEqual, value.clone(), literal(0));
+    let zero_goal = relation(Kind::LessOrEqual, value, negative_zero);
+    let assumptions = [zero_bound];
+    let proof = Prover::new(&context, &assumptions, &[], &values)
+        .prove(&zero_goal)
+        .unwrap();
+    proof_admission::accept_certificate(&context, &zero_goal, &assumptions, &[], &proof).unwrap();
+}

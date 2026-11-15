@@ -178,6 +178,7 @@ pub(crate) mod admission {
                 PrimitiveJudgment::Truth,
                 PrimitiveJudgment::ReflexiveEquality,
                 PrimitiveJudgment::ClosedIntegerRelation,
+                PrimitiveJudgment::ClosedIeeeFloatRelation,
                 PrimitiveJudgment::IntegerCarrierBound,
             ]
             .into_iter()
@@ -298,7 +299,8 @@ pub(crate) mod admission {
 
             #[test]
             fn proof_system_marker_has_no_compatibility_ladder() {
-                assert_eq!(ProofSystemMarker::new(5), Some(ProofSystemMarker::CURRENT));
+                assert_eq!(ProofSystemMarker::new(6), Some(ProofSystemMarker::CURRENT));
+                assert!(ProofSystemMarker::new(5).is_none());
                 assert!(ProofSystemMarker::new(4).is_none());
                 assert_eq!(ProofSystemMarker::new(0), None);
                 assert_eq!(ProofSystemMarker::new(1), None);
@@ -310,6 +312,7 @@ pub(crate) mod admission {
 }
 mod classicality;
 mod closed_proposition;
+mod ieee_float_rules;
 mod integer_rules;
 mod kernel;
 mod mathematical_core;

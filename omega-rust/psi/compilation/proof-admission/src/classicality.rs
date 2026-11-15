@@ -38,6 +38,7 @@ impl AcceptedProofRule {
             | Self::IntegerStrictOrderTransitivity
             | Self::IntegerOrderSubstitution => ProofRuleFoundation::Constructive,
             Self::PredicateDenotation
+            | Self::IeeeFloatOrderChain
             | Self::IntegerOrderDiscreteness
             | Self::IntegerSubtractOrder
             | Self::IntegerAddOrder
@@ -66,6 +67,7 @@ impl AcceptedProofRule {
             Self::IntegerRemainderWithinDividend
                 | Self::IntegerQuotientAtMostDividend
                 | Self::IntegerPowerOfTwoOrder
+                | Self::IeeeFloatOrderChain
         )
     }
 
@@ -88,7 +90,8 @@ impl AcceptedProofRule {
 mod tests {
     use super::{AcceptedProofRule, ProofRuleFoundation};
 
-    const ALL: [AcceptedProofRule; 31] = [
+    const ALL: [AcceptedProofRule; 32] = [
+        AcceptedProofRule::IeeeFloatOrderChain,
         AcceptedProofRule::Primitive,
         AcceptedProofRule::SemanticAxiom,
         AcceptedProofRule::Assumption,
@@ -175,6 +178,7 @@ mod tests {
                     AcceptedProofRule::IntegerRemainderWithinDividend
                         | AcceptedProofRule::IntegerQuotientAtMostDividend
                         | AcceptedProofRule::IntegerPowerOfTwoOrder
+                        | AcceptedProofRule::IeeeFloatOrderChain
                 ),
                 "{rule:?} provisional marking changed"
             );

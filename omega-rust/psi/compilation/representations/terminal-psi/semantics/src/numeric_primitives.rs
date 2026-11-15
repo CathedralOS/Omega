@@ -6,44 +6,86 @@
 use language_semantics::numeric_intrinsics::{NumericIntrinsic, PrimitiveFloatBinaryOperation};
 use semantic_vocabulary::{IeeeFloatComparisonKind, Proposition, ScalarTerm, ScalarType, ValueId};
 
+/// One semantic relation serves a comparison's full result contract and its
+/// use as a source predicate. Selection has already authenticated the exact
+/// declaration; this description neither resolves a spelling nor grants execution.
+struct Comparison {
+    kind: IeeeFloatComparisonKind,
+    format: semantic_vocabulary::IeeeFloatFormat,
+    reverse_operands: bool,
+}
+
+impl Comparison {
+    fn from_meaning(meaning: NumericIntrinsic) -> Result<Self, &'static str> {
+        use PrimitiveFloatBinaryOperation as Operation;
+        let NumericIntrinsic::FloatBinary { operation, format } = meaning else {
+            return Err("numeric primitive has no canonical result contract yet");
+        };
+        let format = match format {
+            numerics::literals::FloatFormat::F32 => semantic_vocabulary::IeeeFloatFormat::Binary32,
+            numerics::literals::FloatFormat::F64 => semantic_vocabulary::IeeeFloatFormat::Binary64,
+        };
+        let (kind, reverse_operands) = match operation {
+            Operation::Equal => (IeeeFloatComparisonKind::Equal, false),
+            Operation::NotEqual => (IeeeFloatComparisonKind::NotEqual, false),
+            Operation::Less => (IeeeFloatComparisonKind::LessThan, false),
+            Operation::LessOrEqual => (IeeeFloatComparisonKind::LessOrEqual, false),
+            Operation::Greater => (IeeeFloatComparisonKind::LessThan, true),
+            Operation::GreaterOrEqual => (IeeeFloatComparisonKind::LessOrEqual, true),
+            _ => return Err("numeric primitive has no canonical result contract yet"),
+        };
+        Ok(Self {
+            kind,
+            format,
+            reverse_operands,
+        })
+    }
+
+    fn predicate(
+        self,
+        mut left: ScalarTerm,
+        mut right: ScalarTerm,
+    ) -> Result<Proposition, &'static str> {
+        let operand = ScalarType::IeeeFloat(self.format);
+        if left.scalar_type() != operand || right.scalar_type() != operand {
+            return Err("numeric predicate changes its declared operand format");
+        }
+        if self.reverse_operands || (self.kind.is_symmetric() && left > right) {
+            std::mem::swap(&mut left, &mut right);
+        }
+        Ok(Proposition::ScalarIeeeFloatComparison {
+            kind: self.kind,
+            format: self.format,
+            left,
+            right,
+        })
+    }
+}
+
+/// The truth of an authenticated Boolean comparison call, with exact actuals.
+/// IEEE comparison remains distinct from structural equality of stored bits.
+pub fn comparison_predicate(
+    meaning: NumericIntrinsic,
+    left: ScalarTerm,
+    right: ScalarTerm,
+) -> Result<Proposition, &'static str> {
+    Comparison::from_meaning(meaning)?.predicate(left, right)
+}
+
 /// The full normal-result contract of the supported closed primitive. Inputs
 /// occupy values 1 and 2 and the normal result occupies value 3, just as an
 /// ordinary scalar callable does. Unsupported numeric operations refuse.
 pub fn ensures(meaning: NumericIntrinsic) -> Result<Vec<Proposition>, &'static str> {
-    use PrimitiveFloatBinaryOperation as Operation;
-    let NumericIntrinsic::FloatBinary { operation, format } = meaning else {
-        return Err("numeric primitive has no canonical result contract yet");
-    };
-    let format = match format {
-        numerics::literals::FloatFormat::F32 => semantic_vocabulary::IeeeFloatFormat::Binary32,
-        numerics::literals::FloatFormat::F64 => semantic_vocabulary::IeeeFloatFormat::Binary64,
-    };
-    let (kind, swap) = match operation {
-        Operation::Equal => (IeeeFloatComparisonKind::Equal, false),
-        Operation::NotEqual => (IeeeFloatComparisonKind::NotEqual, false),
-        Operation::Less => (IeeeFloatComparisonKind::LessThan, false),
-        Operation::LessOrEqual => (IeeeFloatComparisonKind::LessOrEqual, false),
-        Operation::Greater => (IeeeFloatComparisonKind::LessThan, true),
-        Operation::GreaterOrEqual => (IeeeFloatComparisonKind::LessOrEqual, true),
-        _ => return Err("numeric primitive has no canonical result contract yet"),
-    };
+    let comparison = Comparison::from_meaning(meaning)?;
     let input = |raw| {
         ScalarTerm::value(
             ValueId::new(raw).expect("fixed scalar formal"),
-            ScalarType::IeeeFloat(format),
+            ScalarType::IeeeFloat(comparison.format),
         )
     };
-    let mut operands = [input(1), input(2)];
-    if swap {
-        operands.swap(0, 1);
-    }
-    let [left, right] = operands;
-    let predicate = Proposition::ScalarIeeeFloatComparison {
-        kind,
-        format,
-        left,
-        right,
-    };
+    let left = input(1);
+    let right = input(2);
+    let predicate = comparison.predicate(left, right)?;
     let result = Proposition::Equal(
         ScalarTerm::value(
             ValueId::new(3).expect("fixed scalar result"),

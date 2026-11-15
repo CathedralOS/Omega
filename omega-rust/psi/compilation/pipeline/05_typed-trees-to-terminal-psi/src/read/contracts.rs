@@ -263,6 +263,11 @@ impl Program<'_> {
             ExpressionNode::Call(call) if self.is_mathematical_term(expression) => {
                 return self.mathematical_clause(id, scope, call);
             }
+            ExpressionNode::Call(call) => {
+                if let Some(predicate) = self.numeric_comparison_clause(id, scope, call)? {
+                    return Ok(predicate);
+                }
+            }
             ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
                 // A callable predicate is Boolean, including a named input
                 // and its negation. Keep its actual contract input identity;
@@ -435,6 +440,9 @@ impl Program<'_> {
                 Unserved::Typing("clause operand types differ"),
             ));
         }
+        if matches!(left_type, ScalarType::IeeeFloat(_)) {
+            return unserved("IEEE comparison without its selected declaration");
+        }
         let ordered = matches!(left_type, ScalarType::Integer(_));
         match comparison {
             BinaryOperator::Equal => canonical::equal(left, right, id),
@@ -458,6 +466,83 @@ impl Program<'_> {
             .map(Proposition::Disjunction),
             _ => unserved("comparison"),
         }
+    }
+
+    /// A selected pure comparison denotes its canonical IEEE predicate. Its
+    /// full result contract states equivalence, so this is the same Boolean
+    /// meaning rather than a consequence guessed from an operator token.
+    fn numeric_comparison_clause(
+        &self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        call: &typed_trees::expression::TableCallExpression,
+    ) -> Checked<Option<Proposition>> {
+        if self.typed.symbols.sealed_intrinsic(call.target_symbol)
+            != Some(language_core::sealed_intrinsics::SealedIntrinsic::FloatOperationRequirement)
+        {
+            return Ok(None);
+        }
+        let unavailable = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        self.direct_selection(
+            id,
+            call.target_symbol,
+            call.authored_call_selection,
+            call.authored_call_binding,
+        )?;
+        self.applies_nothing(
+            id,
+            call.target_symbol,
+            call.authored_machine_application,
+            &call.machine_arguments,
+        )?;
+        if call.receiver.is_valid()
+            || !call.evidence_arguments.is_empty()
+            || call.requirement_application.is_valid()
+            || call.exact_coercion_target.is_valid()
+            || call.build_selection.is_valid()
+            || call.static_machine_parameter.is_valid()
+            || call.static_requirement_dispatch.is_some()
+            || call.quotient_operation.is_some()
+            || call.private_layout_operation.is_some()
+            || call.installed_interrupt_operation.is_some()
+            || call.layout_query.is_some()
+            || call.native_code_layout.is_some()
+            || call.operational_acknowledgement.acknowledges_suspend
+            || call.operational_acknowledgement.acknowledges_block
+        {
+            return Err(unavailable(
+                "float comparison in a contract cannot use a receiver, evidence arguments or another call selection",
+            ));
+        }
+        let meaning = self
+            .typed
+            .numeric_intrinsic_execution(call.target_symbol)
+            .ok_or_else(|| unavailable("numeric predicate lost its exact declaration meaning"))?;
+        let signature = meaning
+            .signature()
+            .ok_or_else(|| unavailable("numeric predicate has no complete scalar signature"))?;
+        let operand = signature
+            .operand
+            .scalar_type()
+            .filter(|operand| matches!(operand, ScalarType::IeeeFloat(_)))
+            .ok_or_else(|| unavailable("numeric predicate has no permanent float format"))?;
+        let arguments = self
+            .typed
+            .expression_table
+            .expression_handles(call.arguments);
+        let [left, right] = arguments else {
+            return Err(unavailable("float comparison needs exactly two arguments"));
+        };
+        let (left, left_type) = self.term(id, scope, *left, Some(operand))?;
+        let (right, right_type) = self.term(id, scope, *right, Some(operand))?;
+        if left_type != ValueType::plain(operand) || right_type != ValueType::plain(operand) {
+            return Err(unavailable(
+                "numeric predicate changes its selected carrier or qualification",
+            ));
+        }
+        terminal_semantics::numeric_primitives::comparison_predicate(meaning, left, right)
+            .map(Some)
+            .map_err(unavailable)
     }
 
     /// A clause's authored text, each formal left open by position, for
@@ -500,11 +585,14 @@ impl Program<'_> {
             // statement of the clause names its own argument there.
             ExpressionNode::Call(call)
                 if self.embeds(call)
-                    || self.builtin_call(call, symbols::BuiltinFunction::ContentOld) =>
+                    || self.builtin_call(call, symbols::BuiltinFunction::ContentOld)
+                    || self.typed.symbols.sealed_intrinsic(call.target_symbol)
+                        == Some(language_core::sealed_intrinsics::SealedIntrinsic::FloatOperationRequirement) =>
             {
                 text.push_text(call.target.as_str());
                 text.push_text("(");
-                for argument in table.expression_handles(call.arguments) {
+                for (position, argument) in table.expression_handles(call.arguments).iter().enumerate() {
+                    if position != 0 { text.push_text(", "); }
                     self.write_clause_text(slots, *argument, text);
                 }
                 text.push_text(")");
@@ -525,16 +613,6 @@ impl Program<'_> {
 
     fn clause_operand_type(&self, id: MachineId, value_type: ValueType) -> Checked<ScalarType> {
         match value_type {
-            // structural_predicates.md, "Equality expansion": "IEEE leaves
-            // retain the exact format and IEEE comparison kind: NaN is not
-            // reflexive and signed zeros compare equal. Do not replace them
-            // with mathematical equality." A clause comparison here is the
-            // mathematical one, so a float operand has no reader yet.
-            ValueType::Scalar(ScalarType::IeeeFloat(_), _) => Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Contract("comparison of floats in a clause"),
-            )),
             ValueType::Scalar(scalar, qualification) if qualification.domains.is_empty() => {
                 Ok(scalar)
             }
@@ -671,7 +749,10 @@ impl Program<'_> {
                             },
                             ValueType::Scalar(scalar_type, qualification),
                         )),
-                        ScalarType::IeeeFloat(_) => unserved("float field in a clause"),
+                        ScalarType::IeeeFloat(format) => Ok((
+                            ScalarTerm::ieee_float_field_path(root, Vec::new(), format),
+                            ValueType::Scalar(scalar_type, qualification),
+                        )),
                     };
                 }
                 // A record formal is a place, not a scalar value: a clause
@@ -763,6 +844,26 @@ impl Program<'_> {
             ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
                 unserved("clause that projects a formal or result")
             }
+            ExpressionNode::Integer(literal)
+                if literal.landing().is_none()
+                    && matches!(expected, Some(ScalarType::IeeeFloat(_))) =>
+            {
+                let Some(ScalarType::IeeeFloat(format)) = expected else {
+                    unreachable!("float landing selected this arm")
+                };
+                let value = self.anonymous_float(id, expression, format)?;
+                Ok((
+                    ScalarTerm::IeeeFloatLiteral(value),
+                    ValueType::plain(ScalarType::IeeeFloat(format)),
+                ))
+            }
+            ExpressionNode::Float(literal) => {
+                let value = self.float_literal(id, literal, expected)?;
+                Ok((
+                    ScalarTerm::IeeeFloatLiteral(value),
+                    ValueType::plain(ScalarType::IeeeFloat(value.format())),
+                ))
+            }
             ExpressionNode::Integer(literal) => {
                 let (value, integer) = self.literal(id, literal, expected)?;
                 Ok((
@@ -771,6 +872,19 @@ impl Program<'_> {
                         value,
                     },
                     ValueType::plain(ScalarType::Integer(integer)),
+                ))
+            }
+            ExpressionNode::Binary(_)
+                if self.wholly_anonymous(expression)
+                    && matches!(expected, Some(ScalarType::IeeeFloat(_))) =>
+            {
+                let Some(ScalarType::IeeeFloat(format)) = expected else {
+                    unreachable!("float landing selected this arm")
+                };
+                let value = self.anonymous_float(id, expression, format)?;
+                Ok((
+                    ScalarTerm::IeeeFloatLiteral(value),
+                    ValueType::plain(ScalarType::IeeeFloat(format)),
                 ))
             }
             ExpressionNode::Binary(_) if self.wholly_anonymous(expression) => {
@@ -858,7 +972,9 @@ impl Program<'_> {
         };
         let mut term = self.term(id, &inputs, argument, expected)?;
         let is_input = match &mut term.0 {
-            ScalarTerm::IntegerField { version, .. } | ScalarTerm::BooleanField { version, .. } => {
+            ScalarTerm::IntegerField { version, .. }
+            | ScalarTerm::BooleanField { version, .. }
+            | ScalarTerm::IeeeFloatField { version, .. } => {
                 *version = semantic_vocabulary::ContentPlaceVersion::Entry;
                 true
             }
@@ -1259,10 +1375,10 @@ impl Program<'_> {
                 },
                 ValueType::Scalar(ScalarType::Boolean, qualification),
             )),
-            ValueType::Scalar(ScalarType::IeeeFloat(_), Qualification::NONE) => {
-                unserved("float field in a clause")
-            }
-            ValueType::Scalar(..) => unserved("float field in a clause"),
+            ValueType::Scalar(ScalarType::IeeeFloat(format), qualification) => Ok((
+                ScalarTerm::ieee_float_field_path(root, path, format),
+                ValueType::Scalar(ScalarType::IeeeFloat(format), qualification),
+            )),
             ValueType::Record(_, _, _) => unserved("data value compared whole in a clause"),
         }
     }
