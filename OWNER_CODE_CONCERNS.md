@@ -80,13 +80,6 @@ framework or a list of unimplemented features.
 - Cost: The Windows route stops when the existing import owner checks demand. Preserve the selected Windows Console bindings and carry their admitted call stack through target settlement. The fixture has no Windows image or execution receipt from these runs.
 - Reported: 2026-11-15, Codex, while cross-emitting the unchanged Console fixture.
 
-### The ownership walk refuses the kept array-view attenuation case
-- Category: knowledge crossing a boundary
-- Where: [array_view fixture](tests/fixtures/pass/borrows/exclusive_formation_attenuation/main.omg#L11), [compiler ownership oracle](omega-rust/omega/compilation/compiler/tests/lowered_route_ownership.rs#L431), [ownership reconstruction](omega-rust/omega/compilation/representations/abstract-operations/optimization-unit-semantics/src/unit_validation.rs#L18472)
-- Saw: On `1f997b9cbe7` with the three independent fixture initializers repaired, the full and isolated exclusive-formation test reaches accepted Psi publication and verified Omega 01, then receives `StructuralCatalogMismatch { machine: Some(MachineId(5)) }` from ownership reconstruction. A diagnostic-only trace identifies machine 5 as `array_view` in the unchanged positive fixture.
-- Cost: The case cannot reach its byte-value oracle or the paired overlap checks. Preserve the checked shared and exclusive array-view relationships through the existing structural catalog and independent ownership walk.
-- Reported: 2026-11-15, Codex, while restoring the compiler ownership integration build.
-
 ### Fixture review stops even when a project has no dangerous service
 - Category: fake gates
 - Where: [fixture discovery call](omega-rust/omega/compilation/compiler/tests/support/fixture_package_inputs.rs#L709), [service discovery](omega-rust/omega/compilation/compiler/tests/support/dangerous_service_acceptance.rs#L47)
