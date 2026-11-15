@@ -76,8 +76,7 @@ mod installed_provider_calls {
             .iter()
             .flat_map(|function| {
                 function
-                    .operations
-                    .iter()
+                    .operations()
                     .filter_map(move |operation| match operation {
                         AbstractOperation::BoundaryCall {
                             psi_operation,

@@ -8736,26 +8736,13 @@ pub(crate) fn match_input(
     };
     if optimized.blocks.is_empty()
         || optimized.entry != abstracted.entry
-        || abstracted.block_entries.len() != optimized.blocks.len()
-        || abstracted.block_entries[0].operation_offset != 0
+        || abstracted.blocks.len() != optimized.blocks.len()
     {
         return Err(LegalizationError::custody());
     }
     let function_inputs = crate::legalization_function_inputs::FunctionInputs::new(optimized);
-    for (position, (entry, block)) in abstracted
-        .block_entries
-        .iter()
-        .zip(&optimized.blocks)
-        .enumerate()
-    {
-        let end = abstracted
-            .block_entries
-            .get(position + 1)
-            .map_or(abstracted.operations.len(), |next| next.operation_offset);
-        let operations = abstracted
-            .operations
-            .get(entry.operation_offset..end)
-            .ok_or(LegalizationError::custody())?;
+    for (entry, block) in abstracted.blocks.iter().zip(&optimized.blocks) {
+        let operations = &entry.operations;
         if entry.block != block.id
             || entry.structural_parameters != block.structural_parameters
             || entry.parameters.len() != block.parameters.len()

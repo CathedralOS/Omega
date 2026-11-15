@@ -186,7 +186,7 @@ pub(crate) mod borrowed_calls {
             let (defining_operation, home_result) = home
                 .operation_result()
                 .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-            if !function.operations.iter().any(|operation| {
+            if !function.operations().any(|operation| {
                 matches!(operation,
             AbstractOperation::EstablishPrimitiveLocal { psi_operation, result, .. }
             if *psi_operation == defining_operation && result == home_result)
@@ -539,7 +539,7 @@ pub(crate) mod borrowed_calls {
             || live.owned_arrivals.contains(&argument.place)
         {
             let (entry, parameter) = function
-                .block_entries
+                .blocks
                 .iter()
                 .find_map(|entry| {
                     entry
@@ -674,7 +674,7 @@ pub(crate) mod byte_arguments {
                     parameter.placement.clone().into()
                 } else if live.address_joins.contains(&argument.place) {
                     let block = function
-                        .block_entries
+                        .blocks
                         .iter()
                         .find(|block| {
                             block
