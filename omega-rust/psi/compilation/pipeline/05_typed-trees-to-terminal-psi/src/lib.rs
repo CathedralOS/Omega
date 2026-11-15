@@ -177,8 +177,7 @@ pub enum Unserved {
     Typing(&'static str),
     /// A name or type the typed trees hold only as a spelling.
     Spelling(&'static str),
-    /// A completion rule of the machine body (a value machine that can fall
-    /// off its last statement, a statement after an unconditional arm).
+    /// A completion or control-flow form the route cannot judge yet.
     Completion(&'static str),
     /// A declaration the check claims and the route does not judge: a
     /// subject declaration or a Build selection of any kind other than a

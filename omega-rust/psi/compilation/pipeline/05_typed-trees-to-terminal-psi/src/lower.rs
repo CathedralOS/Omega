@@ -1012,9 +1012,9 @@ impl<'a> Lowering<'a> {
                     self.return_unit(SourceOrigin::Unpositioned(Unpositioned::ImplicitReturn))?
                 }
                 Some(_) => {
-                    // An open block reaches the end without a value. This is
-                    // invalid for every declared value result, including an
-                    // empty type whose body must never complete normally.
+                    // Only a Unit result permits implicit Unit completion.
+                    // An unfinished value body supplies neither a result nor
+                    // a checked non-returning completion.
                     return Err(reject(
                         self.id,
                         SourceOrigin::Unpositioned(Unpositioned::ImplicitReturn),
