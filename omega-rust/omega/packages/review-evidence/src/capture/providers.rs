@@ -15,7 +15,7 @@ use crate::record::{
     PackageReviewCheckedServiceReach, PackageReviewCrashInterface, PackageReviewInstallationReach,
     PackageReviewNominalIdentity, PackageReviewNominalOwner,
     PackageReviewSelectedInstallationReach, PackageReviewSignatureParameter,
-    PackageReviewWriteFrameCompleteness,
+    PackageReviewSynchronousInvocation, PackageReviewWriteFrameCompleteness,
 };
 use backend_plan::SelectedCheckedInvocationRow;
 use build_time_evaluation::provider_declarations::{
@@ -121,6 +121,29 @@ impl<'module> AcceptedDeclarations<'module> {
         self.authored_reach_owners
             .binary_search_by_key(&symbol_key(owner), |symbol| symbol_key(*symbol))
             .is_ok()
+    }
+
+    fn source_service_names<'source, Name: Ord>(
+        &'source self,
+        services: &[ServiceId],
+        name: impl Fn(&'source TraitDefinition) -> Name,
+    ) -> Result<Vec<Name>, Vec<Diagnostic>> {
+        let source = self.accepted.source();
+        let mut names = services
+            .iter()
+            .map(|service| {
+                let index = self
+                    .service_origins
+                    .binary_search_by_key(service, |(id, _)| *id)
+                    .map_err(|_| unavailable("the selected service's exact source"))?;
+                source
+                    .trait_definition_by_symbol(self.service_origins[index].1)
+                    .map(&name)
+                    .ok_or_else(|| unavailable("the selected service's authored name"))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        names.sort_unstable();
+        Ok(names)
     }
 }
 
@@ -581,6 +604,9 @@ impl PackageReviewInput<'_> {
             review.boundaries.push(boundary.id);
             review.services.push(service_id);
             review.services.extend(&boundary.published_service_ceiling);
+            review
+                .services
+                .extend(&boundary.published_synchronous_entries);
         }
         if local_service && service.is_public {
             review.public_traits.push(service_trait(
@@ -705,40 +731,33 @@ impl PackageReviewInput<'_> {
             .machines
             .get(candidate)
             .ok_or_else(|| unavailable("the selected provider's original declaration"))?;
-        // A checked realization with no authored reach clause can carry
-        // its governing requirement's ceiling in the execution contract.
-        // The method row already publishes that ceiling, and the checked
-        // body still owes its own empty reach in this projection.
+        // The selected method publishes both ceilings. The exact checked
+        // realization may use a subset of each, regardless of whether the
+        // reach ceiling is fixed or settled at installation.
         let installation_reach =
             self.checked_installation_reach(declarations, plan, row, boundary)?;
-        let unrepresented_reach = if installation_reach.is_some() {
-            reach.iter().any(|service| {
+        let outside_reach = reach
+            .iter()
+            .chain(&body.contract.published_service_ceiling)
+            .any(|service| {
                 boundary
                     .published_service_ceiling
                     .binary_search(service)
                     .is_err()
-            }) || body
-                .contract
-                .published_service_ceiling
-                .iter()
-                .any(|service| {
-                    boundary
-                        .published_service_ceiling
-                        .binary_search(service)
-                        .is_err()
-                })
-        } else {
-            !reach.is_empty()
-                || (!body.contract.published_service_ceiling.is_empty()
-                    && (body.contract.published_service_ceiling
-                        != boundary.published_service_ceiling
-                        || declarations.has_authored_reach(realization)))
-        };
-        if unrepresented_reach
-            || !invocations.is_empty()
+            });
+        let outside_invocations = invocations
+            .iter()
+            .chain(&body.contract.published_synchronous_entries)
+            .any(|service| {
+                boundary
+                    .published_synchronous_entries
+                    .binary_search(service)
+                    .is_err()
+            });
+        if outside_reach
+            || outside_invocations
             || may_suspend
             || may_block
-            || !body.contract.published_synchronous_entries.is_empty()
             || !body.contract.crash_routes.is_empty()
             || body.contract.published_may_block
             || body.contract.published_may_suspend
@@ -798,30 +817,21 @@ impl PackageReviewInput<'_> {
         let authority = reviewed_services(declarations.service_names, &reach)?;
         // The plan stores source names. Resolve those from the same checked
         // coordinates, even when the nominal identities have qualified paths.
-        let source = declarations.accepted.source();
-        let mut names = reach
-            .iter()
-            .map(|service| {
-                let index = declarations
-                    .service_origins
-                    .binary_search_by_key(service, |(id, _)| *id)
-                    .map_err(|_| unavailable("the selected service's exact source"))?;
-                source
-                    .trait_definition_by_symbol(declarations.service_origins[index].1)
-                    .map(|declaration| declaration.name.as_str())
-                    .ok_or_else(|| unavailable("the selected service's authored name"))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        names.sort_unstable();
-        let ceiling_matches = names
+        let ceiling_matches = declarations
+            .source_service_names(&reach, |declaration| declaration.name.as_str())?
             .into_iter()
             .eq(method.service_reach.iter().map(String::as_str));
+        let invocations = &boundary.published_synchronous_entries;
+        let source = declarations.accepted.source();
+        let invocations_match = declarations.source_service_names(invocations, |declaration| {
+            source.trait_declaration_path(declaration)
+        })? == method.synchronous_invocations;
         if method.completion != boundary.completion
             || method.terminates_guarantee != boundary.unconditional_termination
             || !ceiling_matches
             || !method.entry_claims.is_empty()
             || !method.result_claims.is_empty()
-            || !method.synchronous_invocations.is_empty()
+            || !invocations_match
             || boundary.declaration.as_ref().is_none_or(|declaration| {
                 method.may_suspend != declaration.source.published_may_suspend
                     || method.may_block != declaration.source.published_may_block
@@ -834,6 +844,10 @@ impl PackageReviewInput<'_> {
         }
         let callable =
             self.checked_requirement(signature, boundary, requirement.clone(), declarations)?;
+        let invocation_authority = callable
+            .declared_synchronous_invocations
+            .clone()
+            .ok_or_else(|| unavailable("the selected requirement's synchronous entry ceiling"))?;
         let selected = service_method_policy(
             method,
             schema,
@@ -853,7 +867,7 @@ impl PackageReviewInput<'_> {
             },
             PackagePolicyServiceAuthority {
                 service_reach: authority,
-                synchronous_invocations: Vec::new(),
+                synchronous_invocations: invocation_authority,
                 progress_premises: Vec::new(),
             },
         );
@@ -888,7 +902,6 @@ impl PackageReviewInput<'_> {
             || boundary.role != BoundaryDeclarationRole::Callable
             || declaration.execution != CheckedBoundaryExecution::Provider
             || !declaration.method_arguments.is_empty()
-            || !boundary.published_synchronous_entries.is_empty()
             || boundary.structural_parameters.iter().any(|parameter| {
                 !parameter.is_unqualified_root()
                     || !parameter.additional_input_qualifications.is_empty()
@@ -983,7 +996,15 @@ impl PackageReviewInput<'_> {
             },
             checked_service_reach: PackageReviewCheckedServiceReach::NoCheckedBody,
             unresolved_installation_reaches,
-            declared_synchronous_invocations: Some(Vec::new()),
+            declared_synchronous_invocations: Some(
+                reviewed_services(
+                    declarations.service_names,
+                    &boundary.published_synchronous_entries,
+                )?
+                .into_iter()
+                .map(PackageReviewSynchronousInvocation::Service)
+                .collect(),
+            ),
             realized_synchronous_invocations: Vec::new(),
             capability_flows: Vec::new(),
             reachable_capability_flows: Vec::new(),

@@ -293,7 +293,6 @@ Write each item so any agent can start from it alone: current state, files and e
 <a id="normalized-abi-lowering"></a>
 
 - **NORMALIZED-ABI-LOWERING.** (covers **OPAQUE-BY-VALUE-BOUNDARY-ABI**, **FOREIGN-RETAINED-ARGUMENT-BACKING**) Complete [calling plans](wiki/spec/build/calling_plans.md) and [outbound custody](wiki/spec/build/foreign_storage.md#outbound-custody) (`boundary_signatures.rs`, `retained_borrow_custody.rs`).
-  - Restore the [owned C affine record result](samples/cli/facts/foreign_indirect_float_record_result/README.md) on macOS arm64. On clean `d897503cd19` and candidate `02cd253f7b6`, `CGAffineTransformMake` exits 200 at [native admission](omega-rust/omega/compilation/realization/provider-admission/src/native_bindings.rs#L610) before instruction selection with “native owned aggregate needs complete canonical field calling correspondence” for the 48-byte result of six `f64` fields. Compare the retained calling application's field carriers and placement with the canonical record layout. Require native/Psi agreement for the six fields across calls and copies, and retain refusal for mismatched field carriers, layouts, and copies without permission.
 
 - **PROOF-KERNEL-CORE.** (covers **PROOF-CONTRACT-MIGRATION**, **QUOTIENT-THEOREM-LIFT**, **PSI-CLAIM-ADMISSION**) Complete [source proofs](wiki/spec/proofs/foundation.md) and [Psi preparation](wiki/drafts/designs/psi_claim_admission.md). Emit code 36.
 
