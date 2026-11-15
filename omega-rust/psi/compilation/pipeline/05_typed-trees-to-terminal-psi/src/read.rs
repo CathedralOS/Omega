@@ -704,7 +704,7 @@ mod tests {
                 .map(|symbol| (symbol, ValueType::record(carrier))),
         );
         let bodies = semantic_vocabulary::IdTable::default();
-        let components = crate::components::components(&bodies, &program.signatures).unwrap();
+        let components = crate::components::components(&bodies, &mut program.signatures).unwrap();
         let elaboration = crate::lower_generic_for(
             None,
             &bodies,
