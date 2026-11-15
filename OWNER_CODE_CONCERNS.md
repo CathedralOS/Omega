@@ -73,6 +73,13 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### The shared typed-view Build-time control stops before its mutable twin
+- Category: tests that pin the bug
+- Where: [shared typed-view control](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/sequence_values.rs#L253), [original borrow lookup](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references.rs#L239)
+- Saw: At `6c485f370e4` `echo(items: &[Item]) -> &[Item] { items }` refuses preparing its entry with `call the view's original incoming borrow cannot be identified`, so the test never reaches the returned-backing consumer or the `&mut [Item]` refusal it exists to check.
+- Cost: Nothing checks that a host-supplied shared typed view keeps its backing through a returned view, or that immutable host values cannot supply an exclusive one. Identify the probe caller's actual view argument as the borrow `echo` returns.
+- Reported: 2026-11-15, Claude Code, while repairing the Build-time sequence controls
+
 ### The local-loan escape fixture no longer reads its rejection evidence
 - Category: tests that pin the bug
 - Where: [local borrow negative](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/loan_regions.rs#L109)
@@ -143,12 +150,12 @@ framework or a list of features that remain unimplemented.
 - Cost: Target operands remain dependent on earlier executable histories and their matching operation roster, so adding a value form or changing target operations can require synchronized recognizers across stages. Fix the producer to complete the needed runtime-index evidence and descriptor-origin records in the target representation, retaining shared immutable catalogs rather than copying them; have ordinary selection consume that product and keep earlier bodies available to independent correspondence validation. Acceptance: selection constructs the same instructions from target operations and their explicit catalogs/evidence without reading earlier executable bodies, while the independent validator still rejects changed operands or evidence.
 - Reported: 2026-11-15, Codex, while verifying representation handoffs after the IR cleanup; static source and caller-chain evidence only
 
-### The Build-time sequence fixtures stop at reference result correspondence
+### The Build-time access-plan control stops before its borrowed plan result
 - Category: tests that pin the bug
-- Where: [sequence fixture](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/sequence_values.rs#L81), [direct result slot lookup](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references.rs#L279)
-- Saw: On macOS arm64 at base `69ec9aa5bd8`, both sequence controls fail preparing the ordinary `make` entry with `returned reference callee has no complete actual source correspondence`. The same refusal remains with the universe-level admission repair.
-- Cost: The fixtures cannot check nested sequence transport or live bounds. Trace the ordinary callee's result slots through Build-time preparation while preserving both the borrowed-transport and invalid-index cases.
-- Reported: 2026-11-14, Codex, while comparing Build-time evaluator tests; widened 2026-11-15 by Claude Code: once `core::access` stopped attaching machines to data, the access-plan control ([access_plan_construction.rs](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/access_plan_construction.rs#L191)) stops at the same refusal entering `construct_restricted_plan`, whose ordinary callee `access::new_plan` returns an `AccessPlan` holding the borrowed `TypeSchema` bytes
+- Where: [access-plan control](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/access_plan_construction.rs#L191), [direct result slot lookup](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references.rs#L279)
+- Saw: After `core::access` stopped attaching machines to data, the control stopped entering `construct_restricted_plan` with `returned reference callee has no complete actual source correspondence`: its ordinary callee `access::new_plan` returns an `AccessPlan` holding the borrowed `TypeSchema` bytes. At `c6a4fd36813` it panics earlier, in symbol resolution, with `arena span_or_empty received an unresolved span`. The make-based sequence controls that shared this refusal now run: a returned sequence its body built carries its own roster.
+- Cost: The control cannot check schema backing or complete zero tails. Repair the stale span, then trace the plan's borrowed result slots to the caller's schema argument.
+- Reported: 2026-11-14, Codex, while comparing Build-time evaluator tests; narrowed 2026-11-15 by Claude Code to the access-plan control after the sequence controls were repaired
 
 ### Provider body admission requires a second satisfaction edge
 - Category: a fact with no owner
