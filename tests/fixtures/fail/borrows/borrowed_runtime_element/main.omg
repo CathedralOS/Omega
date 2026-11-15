@@ -1,0 +1,32 @@
+// A nested machine receives a borrowed record and lends one runtime-selected
+// element of it, beside a shared loan of element 0 of the same array. `at`
+// may select element 0, so the two loans may overlap and are refused.
+data Grid { cells: [u64; 4]; total: u64; at: u64; }
+
+machine copy_total(cell: &mut u64, total: &u64) { cell = total; }
+
+machine main() crashes Trap {
+    let mut grid: Grid = Grid { cells: [0, 0, 0, 0], total: 9, at: 2 };
+    transition {
+        _ -> block guard(&mut grid)
+    }
+
+    machine guard(grid: &mut Grid) {
+        transition grid.at < 4 {
+            true -> block fill(grid)
+            _ -> bad()
+        }
+    }
+
+    machine fill(grid: &mut Grid) {
+        let at: u64 = grid.at;
+        copy_total(&mut grid.cells[at], &grid.cells[0]);
+        transition grid.cells[2] == 9 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    machine good() {}
+    machine bad() { crash Trap; }
+}
