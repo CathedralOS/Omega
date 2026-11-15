@@ -197,8 +197,8 @@ pub mod compute {
     }
     mod constraints {
         use super::{
-            BTreeSet, DistinctUseDefTie, EarlyClobberConstraint, EarlyClobberUse, LiveRangeError,
-            RegisterOperandAccess, VirtualRegisterId, after_point, before_point,
+            DistinctUseDefTie, EarlyClobberConstraint, EarlyClobberUse, LiveRangeError,
+            RegisterOperandAccess, after_point, before_point,
         };
 
         pub(crate) fn derive_early_clobbers(
@@ -251,11 +251,12 @@ pub mod compute {
                         })
                 })
                 .collect::<Vec<_>>();
-            let mut tied_registers = BTreeSet::new();
-            for &(left, right) in &tied_edges {
-                tied_registers.insert(left);
-                tied_registers.insert(right);
-            }
+            let ties = crate::tied_registers::TiedRegisters::new(
+                tied_edges,
+                early_definitions.iter().filter_map(|(_, _, definition)| {
+                    definition.tied_to.map(|_| definition.virtual_register)
+                }),
+            );
             let mut rows = Vec::with_capacity(early_definitions.len());
             for (block, operands, definition) in &early_definitions {
                 let tied_source = match definition.tied_to {
@@ -287,21 +288,13 @@ pub mod compute {
                     operand.operand != definition.operand
                         && tied_source.is_none_or(|source| source.operand != operand.operand)
                 };
-                let tie_component_has_one_early_definition = tied_source.is_none_or(|source| {
-                    let component = tied_component(source.virtual_register, &tied_edges);
-                    tied_edges.contains(&(source.virtual_register, definition.virtual_register))
-                        && component.contains(&definition.virtual_register)
-                        && early_definitions
-                            .iter()
-                            .filter(|(_, _, candidate)| {
-                                candidate.tied_to.is_some()
-                                    && component.contains(&candidate.virtual_register)
-                            })
-                            .count()
-                            == 1
-                });
-                let untied_definition_is_free =
-                    tied_source.is_some() || !tied_registers.contains(&definition.virtual_register);
+                let valid_definition = match tied_source {
+                    Some(source) => ties.is_only_early_definition(
+                        source.virtual_register,
+                        definition.virtual_register,
+                    ),
+                    None => !ties.contains(definition.virtual_register),
+                };
                 if definition.access != RegisterOperandAccess::Def
                     || !multiple_definitions
                         && operands
@@ -329,12 +322,11 @@ pub mod compute {
                                     || prior.operand == operand.operand
                             })
                     })
-                    || !tie_component_has_one_early_definition
-                    || !untied_definition_is_free
+                    || !valid_definition
                     || operands
                         .iter()
                         .filter(|operand| is_unrelated(operand))
-                        .any(|operand| tied_registers.contains(&operand.virtual_register))
+                        .any(|operand| ties.contains(operand.virtual_register))
                 {
                     return Err(LiveRangeError::UnsupportedEarlyClobber {
                         function,
@@ -366,24 +358,6 @@ pub mod compute {
                 });
             }
             Ok(rows)
-        }
-
-        fn tied_component(
-            seed: VirtualRegisterId,
-            edges: &[(VirtualRegisterId, VirtualRegisterId)],
-        ) -> BTreeSet<VirtualRegisterId> {
-            let mut component = BTreeSet::from([seed]);
-            loop {
-                let previous_len = component.len();
-                for (left, right) in edges {
-                    if component.contains(left) || component.contains(right) {
-                        component.extend([*left, *right]);
-                    }
-                }
-                if component.len() == previous_len {
-                    return component;
-                }
-            }
         }
 
         pub(crate) fn derive_tied_pairs(
@@ -454,7 +428,7 @@ pub mod compute {
             use register_model::RegisterClassId;
             use selected_instructions::{
                 BlockLiveness, FunctionLiveness, InstructionLiveness, LivenessPosition,
-                OperandPosition, SelectedBlockId, SelectedInstructionId,
+                OperandPosition, SelectedBlockId, SelectedInstructionId, VirtualRegisterId,
             };
             use semantic_vocabulary::{BlockId, MachineId};
 
@@ -547,6 +521,24 @@ pub mod compute {
                         ))
                         .collect::<Vec<_>>(),
                     [(100, 900, 11), (200, 17, 21)]
+                );
+            }
+            #[test]
+            fn a_tie_in_another_instruction_connects_early_clobbers() {
+                let mut function = function();
+                let bridge = operands(&mut function.operand_positions, 2, 901, 12);
+                let bridge_def = function.operand_positions.get_mut(bridge.handle_at(2));
+                bridge_def.virtual_register = VirtualRegisterId(20);
+                bridge_def.early_clobber = false;
+                function.blocks.push(block(300, 2, 901, bridge));
+
+                assert_eq!(
+                    derive_early_clobbers(3, &function),
+                    Err(LiveRangeError::UnsupportedEarlyClobber {
+                        function: 3,
+                        instruction: 900,
+                        operand: 2,
+                    })
                 );
             }
             #[test]
@@ -1421,11 +1413,13 @@ pub mod compute {
         }
     }
 
+    #[cfg(test)]
     use std::collections::BTreeSet;
     use std::sync::Arc;
 
     use crate::{LiveRangeError, ValidatedLiveness};
     use register_model::{RegisterOperandAccess, RegisterUnitId};
+    use selected_instructions::SelectedBlockId;
     use selected_instructions::{
         ArchitecturalUnitAction, ArchitecturalUnitActionKind, ArchitecturalUnitLiveRange,
         BlockLiveness, BlockPointDomain, DistinctUseDefTie, EarlyClobberConstraint,
@@ -1434,7 +1428,6 @@ pub mod compute {
         VirtualFixedConstraintSite, VirtualInterference, VirtualInterferences, VirtualLiveRange,
         VirtualOccurrence,
     };
-    use selected_instructions::{SelectedBlockId, VirtualRegisterId};
 
     use architectural_units::architectural_units;
     pub(crate) use constraints::{derive_early_clobbers, derive_tied_pairs};
