@@ -187,25 +187,34 @@ fn machine_candidates(
                         "retained reference disposition lost its invocation",
                     )
                 })?;
-                for (input, lifetime) in retained {
-                    let source = call.structural_arguments.get(input).ok_or_else(|| {
-                        Error::local(
-                            machine.id,
-                            Some(operation.id),
-                            "retained reference disposition lost its exact input",
-                        )
-                    })?;
+                for retained in retained {
+                    let input = call
+                        .structural_arguments
+                        .get(retained.position)
+                        .ok_or_else(|| {
+                            Error::local(
+                                machine.id,
+                                Some(operation.id),
+                                "retained reference disposition lost its exact input",
+                            )
+                        })?;
+                    // The retained region, which can be narrower than the input.
+                    let source = StructuralArgument {
+                        place: input.place,
+                        path: retained.path,
+                        access: input.access,
+                    };
                     add_dependencies(
                         module,
                         prepared,
                         flow,
                         birth,
-                        &lifetime,
-                        source,
+                        &retained.lifetime,
+                        &source,
                         &mut dependencies,
                     )
                     .map_err(|detail| Error::local(machine.id, Some(operation.id), detail))?;
-                    lifetimes.push(lifetime);
+                    lifetimes.push(retained.lifetime);
                 }
             }
             for slot in slots {

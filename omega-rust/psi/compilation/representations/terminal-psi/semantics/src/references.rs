@@ -496,15 +496,54 @@ pub(crate) mod reference_completion {
         }
     }
 
+    /// The storage one call input keeps borrowed after the call returns, and
+    /// for how long. `path` is the caller's storage path under the input's
+    /// place: the argument's own path, or the longer exact source a returned
+    /// reference's published origin binds (`grid.cells` for `pick(&mut grid,
+    /// i)` returning `&mut grid.cells[i].x`). The argument's own loan still
+    /// covers its whole place for the call; this narrower region is what
+    /// lifetimes.md, "Returned views", requires to "remain live for the
+    /// result's use".
+    pub struct RetainedCallLoan {
+        pub position: usize,
+        pub path: Vec<StructuralPathSegment>,
+        pub lifetime: crate::descriptor_lifetimes::DescriptorLifetime,
+    }
+
+    /// The exact retained region for a bound source beneath `argument`.
+    /// A loan row captures fields, cases and fixed indices exactly; a
+    /// runtime selector chosen inside the callee, a referent crossing or a
+    /// representation step stops the region at the storage enclosing it.
+    /// Stopping early only widens the retained region, never narrows it.
+    fn retained_call_path(
+        argument: &terminal_psi::StructuralArgument,
+        source: &[StructuralPathSegment],
+    ) -> Vec<StructuralPathSegment> {
+        let exact = source[argument.path.len()..]
+            .iter()
+            .take_while(|segment| {
+                matches!(
+                    segment,
+                    StructuralPathSegment::Field(_)
+                        | StructuralPathSegment::Case(_)
+                        | StructuralPathSegment::FixedIndex(_)
+                )
+            })
+            .count();
+        source[..argument.path.len() + exact].to_vec()
+    }
+
     fn retain_call_lifetime(
-        retained: &mut [Option<crate::descriptor_lifetimes::DescriptorLifetime>],
+        retained: &mut Vec<RetainedCallLoan>,
         position: usize,
+        path: Vec<StructuralPathSegment>,
         lifetime: crate::descriptor_lifetimes::DescriptorLifetime,
-    ) -> Result<(), &'static str> {
-        let previous = retained
-            .get_mut(position)
-            .ok_or("returned borrow dependency has no input position")?;
-        if let Some(previous) = previous {
+    ) {
+        if let Some(previous) = retained
+            .iter_mut()
+            .find(|previous| previous.position == position && previous.path == path)
+        {
+            let previous = &mut previous.lifetime;
             previous.live.extend(lifetime.live);
             for (at, names) in lifetime.demanded {
                 previous.demanded.entry(at).or_default().extend(names);
@@ -516,9 +555,12 @@ pub(crate) mod reference_completion {
                 previous.authorized.entry(at).or_default().extend(names);
             }
         } else {
-            *previous = Some(lifetime);
+            retained.push(RetainedCallLoan {
+                position,
+                path,
+                lifetime,
+            });
         }
-        Ok(())
     }
 
     fn retain_provider_inputs(
@@ -531,14 +573,13 @@ pub(crate) mod reference_completion {
             crate::descriptor_lifetimes::DescriptorPosition,
             crate::descriptor_lifetimes::DescriptorFlowStep,
         >,
-        retained: &mut [Option<crate::descriptor_lifetimes::DescriptorLifetime>],
+        retained: &mut Vec<RetainedCallLoan>,
     ) -> Result<(), &'static str> {
         use crate::descriptor_results::DescriptorStoredOrigin;
         let parameters = module
             .invocation_structural_parameters(call.callee, call.required_contract)
             .ok_or("returned provider view has no retained input contract")?;
-        if parameters.len() != call.structural_arguments.len() || parameters.len() != retained.len()
-        {
+        if parameters.len() != call.structural_arguments.len() {
             return Err("returned provider view differs from its input contract");
         }
         for slot in slots {
@@ -637,16 +678,21 @@ pub(crate) mod reference_completion {
                 }
             }
             for position in inputs {
+                let argument = call
+                    .structural_arguments
+                    .get(position)
+                    .ok_or("returned provider dependency names no actual argument")?;
                 retain_call_lifetime(
                     retained,
                     position,
+                    argument.path.clone(),
                     crate::descriptor_lifetimes::DescriptorLifetime {
                         live: lifetime.live.clone(),
                         demanded: lifetime.demanded.clone(),
                         surviving: lifetime.surviving.clone(),
                         authorized: Default::default(),
                     },
-                )?;
+                );
             }
         }
         Ok(())
@@ -663,10 +709,7 @@ pub(crate) mod reference_completion {
         caller: &terminal_psi::TerminalMachine,
         operation: &terminal_psi::Operation,
         analysis: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
-    ) -> Result<
-        Vec<(usize, crate::descriptor_lifetimes::DescriptorLifetime)>,
-        crate::descriptor_results::DescriptorGraphError,
-    > {
+    ) -> Result<Vec<RetainedCallLoan>, crate::descriptor_results::DescriptorGraphError> {
         let refuse = |detail| {
             crate::descriptor_results::DescriptorGraphError::at_operation(
                 module, caller.id, operation, detail,
@@ -859,8 +902,7 @@ pub(crate) mod reference_completion {
             u32::try_from(ordinal).map_err(|_| refuse("call ordinal overflows"))?,
         );
         let flow = analysis.flow(caller.id)?;
-        let mut retained: Vec<Option<crate::descriptor_lifetimes::DescriptorLifetime>> =
-            (0..parameters.len()).map(|_| None).collect();
+        let mut retained = Vec::new();
         for (mapping_index, binding) in bindings.into_iter().enumerate() {
             let source_positions = if let Some(public) = &public {
                 use terminal_psi::ReferenceResultShape;
@@ -942,7 +984,12 @@ pub(crate) mod reference_completion {
                         "returned reference loan crosses its own call formation",
                     ));
                 }
-                retain_call_lifetime(&mut retained, position, lifetime).map_err(refuse)?;
+                retain_call_lifetime(
+                    &mut retained,
+                    position,
+                    retained_call_path(argument, &source.path),
+                    lifetime,
+                );
             }
         }
         // A view leaf has no published header row: its origins are the
@@ -1013,16 +1060,27 @@ pub(crate) mod reference_completion {
                 if lifetime.live.contains(&at) {
                     return Err(refuse("returned view loan crosses its own call formation"));
                 }
-                retain_call_lifetime(&mut retained, *position, lifetime).map_err(refuse)?;
+                retain_call_lifetime(&mut retained, *position, argument.path.clone(), lifetime);
             }
         }
         retain_provider_inputs(module, result, call, &slots, at, &flow, &mut retained)
             .map_err(refuse)?;
-        Ok(retained
-            .into_iter()
-            .enumerate()
-            .filter_map(|(position, lifetime)| lifetime.map(|lifetime| (position, lifetime)))
-            .collect())
+        if retained
+            .iter()
+            .any(|loan| loan.position >= parameters.len())
+        {
+            return Err(refuse("returned borrow dependency has no input position"));
+        }
+        // Consumers walk the call's arguments in order: each input's own
+        // region first, then its narrower ones in path order.
+        retained.sort_by(|left, right| {
+            (left.position, left.path.len(), &left.path).cmp(&(
+                right.position,
+                right.path.len(),
+                &right.path,
+            ))
+        });
+        Ok(retained)
     }
 
     pub fn cleanup_disposes_reference(
