@@ -87,13 +87,6 @@ framework or a list of unimplemented features.
 - Cost: The final negative never reaches the operation-safety judgment. Determine how an exact checked view can observe the same scalar field through the original owned sequence before restoring the bound oracle.
 - Reported: 2026-11-15, Codex, while validating checked type computations.
 
-### Fixture review stops even when a project has no dangerous service
-- Category: fake gates
-- Where: [fixture discovery call](omega-rust/omega/compilation/compiler/tests/support/fixture_package_inputs.rs#L709), [service discovery](omega-rust/omega/compilation/compiler/tests/support/dangerous_service_acceptance.rs#L47)
-- Saw: After the compound-index call-result source passes preliminary Check, its two-file project with only `ProgramEntry` bindings fails fixture review on Linux x86-64 with “fixture dangerous-service discovery requires lowered-route call custody”. Ordinary Build/Check and native/Psi already accept the same program. The fixture helper unconditionally refuses every caller and its result is required for each package.
-- Cost: Any fixture reaching discovery through that path stalls before its positive test can observe the build result. Serve discovery from the actual reached-call roster, including a proved empty roster, and preserve refusal when that custody is unavailable.
-- Reported: 2026-11-15, Codex, while replaying the compiler's kept compound-index checks.
-
 ### Product declaration requests rescan the source roster
 - Category: re-deriving
 - Where: [Product path and author resolution](omega-rust/psi/compilation/representations/typed-trees/src/product_and_trait_declarations.rs#L1241), [exact source matcher](omega-rust/psi/foundation/symbols/src/table.rs#L2041), [Build declaration formations](omega-rust/psi/compilation/source-compiler/src/source_compilation.rs#L589)
