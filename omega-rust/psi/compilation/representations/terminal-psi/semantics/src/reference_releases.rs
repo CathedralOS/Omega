@@ -113,6 +113,31 @@ fn overlaps(left: &DescriptorLocation, right: &DescriptorLocation) -> bool {
     left.root == right.root && crate::storage::place_paths::may_overlap(&left.path, &right.path)
 }
 
+fn selected_payload(
+    analysis: &mut DescriptorAnalysis<'_>,
+    machine: MachineId,
+    at: DescriptorPosition,
+    descriptor: &DescriptorLocation,
+) -> bool {
+    let mut prefix = DescriptorLocation::whole(descriptor.root);
+    for segment in &descriptor.path {
+        if let crate::descriptor_lifetimes::DescriptorPathSegment::Case(case) = segment
+            && !analysis.case_is_established(
+                machine,
+                at,
+                &crate::descriptor_results::DescriptorCasePredicate {
+                    subject: prefix.clone(),
+                    case: *case,
+                },
+            )
+        {
+            return false;
+        }
+        prefix.path.push(*segment);
+    }
+    true
+}
+
 fn owned_reference(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -789,8 +814,7 @@ fn closure_demand(
                             name.transported(source, destination).is_some()
                         })
             });
-            let reused = resource.access != StructuralAccess::SharedBorrow
-                && !lifetime.live.contains(&at)
+            let reused = !lifetime.live.contains(&at)
                 && !lifetimes.iter().enumerate().any(|(child, life)| {
                     parents[child].contains(&position) && life.live.contains(&at)
                 })
@@ -953,6 +977,10 @@ pub fn plan(module: &TerminalModule, identity: MachineId) -> Result<Vec<Referenc
                     .iter()
                     .filter(|name| {
                         owned_names.contains(*name)
+                            // A sum inventory includes every possible payload.
+                            // Only an established case supplies a descriptor;
+                            // guarded whole-carrier cleanup handles the rest.
+                            && selected_payload(&mut analysis, identity, at, name)
                             && !lifetime
                                 .demanded
                                 .get(&at)

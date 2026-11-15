@@ -1647,6 +1647,11 @@ fn adapt(
                 graph.payload_invalidations.insert(position, payload_writes);
             }
             match operation {
+                O::ReleaseReference { source, path, .. } => {
+                    let source = location(*source, path, None)?;
+                    step.inputs = vec![source.clone()];
+                    step.definitions.push(source);
+                }
                 O::ByteSequenceLength { source, .. } | O::ElementViewLength { source, .. } => {
                     let query = kernel::descriptor_contents_query(
                         types,

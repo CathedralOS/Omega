@@ -83,6 +83,61 @@ fn an_ordinary_owned_partial_move_owes_no_borrowed_storage_repair() {
 }
 
 #[test]
+fn a_local_window_restores_only_the_storage_its_reference_captured() {
+    let program = |restore: &str| {
+        format!(
+            "data Separate {{ lent: Holder; other: Inner; }}\n\
+         machine take(value: Separate, next: Inner) -> Inner {{\n\
+         let mut owner: Separate = value;\n\
+         let local: &mut Holder = &mut owner.lent;\n\
+         let taken: Inner = move local.inner;\n\
+         let detached: Inner = move owner.other;\n\
+         {restore}\n\
+         taken\n}}\n"
+        )
+    };
+    accepted(&program("local.inner = next;"));
+    rejected(&program(""), NOT_RESTORED);
+}
+
+#[test]
+fn a_dead_shared_reference_is_released_before_parent_write_on_a_crashing_path() {
+    let program = |before: &str, after: &str| {
+        format!(
+            "machine observe(value: &u32) {{ }}\n\
+         machine stop(owner: &mut Inner) crashes Trap {{\n\
+         let held: &u32 = &owner.value;\n\
+         {before}\n\
+         owner.value = 7;\n\
+         {after}\n\
+         crash Trap;\n}}\n"
+        )
+    };
+    accepted(&program("observe(held);", ""));
+    rejected(&program("", "observe(held);"), "conflict:");
+}
+
+#[test]
+fn an_unselected_sum_payload_is_never_released_as_a_live_reference() {
+    let program = format!(
+        "{DATA}data Either<'storage> {{\n\
+         case Left(item: &'storage Inner);\n\
+         case Right(item: &'storage Inner);\n\
+         }}\n\
+         machine idle(value: Either, flag: bool) -> bool {{ !flag }}\n"
+    );
+    let outcome = super::entryless::judged(&program, true);
+    let RouteVerdict::Accepted(accepted) = outcome else {
+        panic!("an arbitrary incoming case must keep guarded cleanup: {outcome:?}");
+    };
+    assert!(
+        accepted.elaboration.module.machines[0]
+            .operations()
+            .all(|operation| { !matches!(operation.kind, OperationKind::ReleaseReference { .. }) })
+    );
+}
+
+#[test]
 fn an_owned_field_window_keeps_its_loan_after_the_carrier_moves() {
     let program = |restore: &str| {
         format!(
