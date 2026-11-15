@@ -238,16 +238,13 @@ impl Known {
                                     Some(ValueOrigin::StorageContent { .. })
                                 ))
                         }
-                        // Immutable scalar equalities retain their selected
-                        // meaning whether an operation or a checked arrival
-                        // supplied them. Their proof accompanies transport;
-                        // policy arithmetic stays embedded, not rewritten as
-                        // mathematical arithmetic.
+                        // Exact operation definitions retain their selected
+                        // integer meaning. A compound scalar equality learned
+                        // from an arrival remains a proof premise for bounds.
                         _ => {
-                            matches!(
-                                subject.scalar_type(),
-                                ScalarType::Boolean | ScalarType::Integer(_)
-                            )
+                            subject.scalar_type() == ScalarType::Boolean
+                                || (fact.axiom.is_some()
+                                    && matches!(subject.scalar_type(), ScalarType::Integer(_)))
                         }
                     }
                 }

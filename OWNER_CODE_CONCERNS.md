@@ -80,13 +80,6 @@ framework or a list of features that remain unimplemented.
 - Cost: A program with no authored type expression cannot reach either engine, and its author has no location to identify which admitted declaration triggered the refusal. Trace the request and its owning declaration through package admission before changing the guard or the fixture.
 - Reported: 2026-11-14, Codex, while reproducing the macOS entry adapter proof failure
 
-### The scalar join control loses the bound of its only reachable arithmetic arm
-- Category: knowledge crossing a boundary
-- Where: [Stage 06 scalar join control](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/scalar_joins.rs#L11)
-- Saw: At `7f12cb9f722` the positive control for `contradictory_match_predecessor_join_exit` is rejected with an unproved return subtraction in `pick`: the operands are not provably in the `u64` carrier. The reachable-unsafe-predecessor and overwritten-result controls still reject.
-- Cost: The checker cannot demonstrate that the reachable arm's established bound survives the join. Trace the two arrivals and preserve both negative controls and the original arithmetic in the positive.
-- Reported: 2026-11-14, Codex, while rerunning the Stage 06 refusal controls on macOS arm64
-
 ### Provider-supply controls lose the reasons their runtime module is rejected
 - Category: tests that pin the bug
 - Where: [Stage 06 provider supply harness](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/provider_supplies.rs#L80)
