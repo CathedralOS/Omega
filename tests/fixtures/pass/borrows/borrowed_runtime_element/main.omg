@@ -7,18 +7,18 @@ machine observe(value: &u64) -> u64 { value }
 
 machine main() crashes Trap {
     let mut grid: Grid = Grid { cells: [0, 0, 0, 0], total: 9, at: 2 };
-    transition {
-        _ -> block guard(&mut grid)
+    block fill(&mut grid);
+}
+
+// `fill` only borrows the grid, so each nested machine reaches it through
+// that borrow and writes the caller's storage.
+machine fill(grid: &mut Grid) crashes Trap {
+    transition grid.at < 4 {
+        true -> block write(grid)
+        _ -> bad()
     }
 
-    machine guard(grid: &mut Grid) {
-        transition grid.at < 4 {
-            true -> block fill(grid)
-            _ -> bad()
-        }
-    }
-
-    machine fill(grid: &mut Grid) {
+    machine write(grid: &mut Grid) {
         let view: &u64 = &grid.total;
         grid.cells[grid.at] = 9;
         let seen: u64 = observe(view);
