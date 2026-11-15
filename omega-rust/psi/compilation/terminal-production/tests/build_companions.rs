@@ -8,7 +8,8 @@ use source::DependencyScope;
 use std::sync::Arc;
 use terminal_production::{
     AcceptedTerminalSource, BuildCallSite, ProducedTerminalProgram, TerminalBuildBindingOperation,
-    TerminalBuildRequestOperation, TerminalProductionCustody, UnmeasuredProduction,
+    TerminalBuildQueryOperation, TerminalBuildRequestOperation, TerminalProductionCustody,
+    UnmeasuredProduction,
 };
 
 /// The part of the toolchain Build prelude these programs use, declared the
@@ -18,6 +19,12 @@ use terminal_production::{
 const PRELUDE: &str = r#"
 public data Build {
     marker: u64;
+    product: BuildProduct;
+}
+public data BuildProduct {}
+public data ProductEntryRef [copy] {}
+public boundary trait BuildProductOperations {
+    machine entry(product: &BuildProduct, path: &[u8], slot: &[u8]) -> ProductEntryRef reaches none crashes none;
 }
 public boundary trait BuildBindingOperations {
     machine prepare(builder: &Build) -> u64 reaches none crashes none;
@@ -35,6 +42,13 @@ public boundary trait Probe {
     machine poke(value: u64) reaches none crashes none;
 }
 public const LIMIT: u64 = 4;
+"#;
+
+const BUILD_PRODUCT_MODULE: &str = r#"
+module BuildProduct;
+public machine entry(product: &BuildProduct, path: &[u8], slot: &[u8]) -> ProductEntryRef reaches BuildProductOperations invokes BuildProductOperations {
+    BuildProductOperations::entry(product, path, slot)
+}
 "#;
 
 fn package() -> semantic_vocabulary::PackageKeyIdentity {
@@ -72,12 +86,18 @@ fn typed_with_external_binding(
             Some(package()),
             source::SourceOrigin::Toolchain,
         ),
-        // The prelude's operations live in their own code module, the unit
-        // `source_assembly` admits beside the declarations, so `Build::bind`
-        // names that module rather than the data type.
+        // The prelude's operations belong to code modules that
+        // `source_assembly` admits beside the data and protocols.
         (
             "<build-prelude:Build>",
             "module Build;\n",
+            "package",
+            Some(package()),
+            source::SourceOrigin::Toolchain,
+        ),
+        (
+            "<build-prelude:BuildProduct>",
+            BUILD_PRODUCT_MODULE,
             "package",
             Some(package()),
             source::SourceOrigin::Toolchain,
@@ -123,17 +143,19 @@ fn typed_with_external_binding(
     request.top_level_bindings = vec![symbols::SourceScopedTopLevelBinding::new(
         ids[0], ids[1], "Build",
     )];
-    request
-        .top_level_bindings
-        .push(symbols::SourceScopedTopLevelBinding::module_import(
-            ids[0], ids[2], "Build", 0,
-        ));
+    for (namespace, module) in [("Build", ids[2]), ("BuildProduct", ids[3])] {
+        request
+            .top_level_bindings
+            .push(symbols::SourceScopedTopLevelBinding::module_import(
+                ids[0], module, namespace, 0,
+            ));
+    }
     if external_binding.is_some() {
         for name in ["ForeignBinding", "DllImport"] {
             request
                 .top_level_bindings
                 .push(symbols::SourceScopedTopLevelBinding::new(
-                    ids[0], ids[3], name,
+                    ids[0], ids[4], name,
                 ));
         }
     }
@@ -1017,45 +1039,62 @@ fn a_case_value_pattern_cannot_discard_its_applied_type() {
             "../../../../../source/library/core/external_binding.omg"
         )),
     );
-    let head = typed
+    let (matched_handle, mut matched) = typed
         .expression_table
         .expression_entries()
-        .find_map(|(_, expression)| {
-            let ExpressionNode::Match(matched) = expression else {
-                return None;
-            };
-            let MatchPattern::Value(head) =
-                typed.expression_table.match_arms(matched.arms)[0].pattern
-            else {
-                return None;
-            };
-            Some(head)
+        .find_map(|(handle, expression)| match expression {
+            ExpressionNode::Match(matched) => Some((handle, *matched)),
+            _ => None,
         })
-        .expect("the target conversion has case-value arms");
-    let ExpressionNode::Name(path) = typed.expression_table.expression(head).clone() else {
+        .expect("the target conversion has a match");
+    let mut arms = typed.expression_table.match_arms(matched.arms).to_vec();
+    let MatchPattern::Destructure(pattern) = arms[0].pattern else {
+        panic!("typing represents the target's bare case as a destructuring arm");
+    };
+    let ExpressionNode::Name(path) = typed.expression_table.expression(pattern.head) else {
         panic!("the target conversion names its case")
     };
     let case = path.symbol;
     let owner = typed.symbols.get(case).parent;
     let type_name = typed_trees::name::Identifier::generated(typed.symbols.name(owner).to_owned());
     let case_name = typed_trees::name::Identifier::generated(typed.symbols.name(case).to_owned());
-    let applied = typed
-        .type_reference_table
-        .insert(TypeReferenceNode::Generic {
-            base_symbol: owner,
-            base_name: type_name.clone(),
-            arguments: Default::default(),
-            lifetime_arguments: vec![typed_trees::name::Identifier::generated("foreign")],
-        });
-    *typed.expression_table.expression_mut(head) =
-        ExpressionNode::StructLiteral(typed_trees::expression::TableStructLiteral {
-            application_type: applied,
-            type_name,
+    let plain = typed.type_reference_table.insert(TypeReferenceNode::Named {
+        symbol: owner,
+        name: type_name.clone(),
+    });
+    // Typing emits a destructuring arm here. At the checked frontier, a
+    // value-pattern literal for the same case must preserve any application.
+    let head = typed.expression_table.insert(ExpressionNode::StructLiteral(
+        typed_trees::expression::TableStructLiteral {
+            application_type: plain,
+            type_name: type_name.clone(),
             type_symbol: owner,
             case_name: Some(case_name),
             case_symbol: Some(case),
             fields: Default::default(),
+        },
+    ));
+    arms[0].pattern = MatchPattern::Value(head);
+    matched.arms = typed.expression_table.insert_match_arms(arms);
+    *typed.expression_table.expression_mut(matched_handle) = ExpressionNode::Match(matched);
+    accepted_frontier(
+        typed.clone(),
+        terminal_codec::TerminalPublication::Invocation,
+    )
+    .expect("a case-value pattern with the plain nominal type is admissible");
+
+    let applied = typed
+        .type_reference_table
+        .insert(TypeReferenceNode::Generic {
+            base_symbol: owner,
+            base_name: type_name,
+            arguments: Default::default(),
+            lifetime_arguments: vec![typed_trees::name::Identifier::generated("foreign")],
         });
+    let ExpressionNode::StructLiteral(literal) = typed.expression_table.expression_mut(head) else {
+        unreachable!("the new case-value pattern is a literal")
+    };
+    literal.application_type = applied;
     let refused = accepted_frontier(typed, terminal_codec::TerminalPublication::Invocation)
         .expect_err("a bare case symbol cannot erase an unsupported application");
     assert!(
@@ -1097,28 +1136,13 @@ fn a_provider_selection_keeps_its_exact_generated_protocol_call() {
 
 #[test]
 fn product_queries_keep_their_selected_operation_in_value_positions() {
-    let prelude = format!(
-        "{PRELUDE}\n{}",
-        r#"
-public data BuildProduct [copy] { marker: u64; }
-public boundary trait BuildProductOperations {
-    machine entry(product: &BuildProduct) -> u64 reaches none crashes none;
+    let build = r#"
+machine build(builder: &mut Build, slot: &[u8]) -> ProductEntryRef {
+    let selected: ProductEntryRef = BuildProduct::entry(&builder.product, "first", slot);
+    BuildProduct::entry(&builder.product, "second", slot)
 }
-"#
-    );
-    let accepted = accepted_frontier(
-        typed_with_prelude(
-            r#"
-machine build(builder: &mut Build, product: &BuildProduct) -> u64 {
-    let selected: u64 = BuildProduct::entry(product);
-    BuildProduct::entry(product)
-}
-"#,
-            &prelude,
-        ),
-        terminal_codec::TerminalPublication::Invocation,
-    )
-    .unwrap_or_else(|refused| {
+"#;
+    let accepted = accepted(build).unwrap_or_else(|refused| {
         panic!("Product query values retain the exact protocol operation: {refused:?}")
     });
     let program = accepted
@@ -1127,12 +1151,17 @@ machine build(builder: &mut Build, product: &BuildProduct) -> u64 {
             &mut UnmeasuredProduction,
         )
         .unwrap();
-    assert_eq!(
-        program
-            .build_bindings()
-            .queries_for(program.view())
-            .unwrap()
-            .len(),
-        2
-    );
+    let queries = program
+        .build_bindings()
+        .queries_for(program.view())
+        .unwrap();
+    let [initializer, result] = queries.as_ref() else {
+        panic!("expected a query for both value positions: {queries:?}");
+    };
+    assert_eq!(initializer.action, TerminalBuildQueryOperation::Entry);
+    assert_eq!(result.action, TerminalBuildQueryOperation::Entry);
+    assert_ne!(initializer.site, result.site);
+    assert_eq!(initializer.occurrence.source_id, source::SourceId(0));
+    assert_eq!(result.occurrence.source_id, source::SourceId(0));
+    assert!(initializer.occurrence.span.start < result.occurrence.span.start);
 }
